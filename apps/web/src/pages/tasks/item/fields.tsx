@@ -172,6 +172,7 @@ export function useMilestoneOptions(projectId: string | null, current: string | 
 export function MilestoneBar({ milestone, width = 64 }: { milestone: Milestone; width?: number }) {
   const { total, done, byStatus } = milestone.progress;
   const doing = byStatus.in_progress + byStatus.in_review;
+  // design-lint-ok: a CSS width, not a number shown to anyone
   const share = (n: number) => (total ? `${(n / total) * 100}%` : '0%');
   return (
     <span className="milestone-bar" style={{ width }} aria-hidden>

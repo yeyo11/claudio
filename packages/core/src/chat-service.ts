@@ -439,6 +439,8 @@ export class ChatService {
       ...(runtime?.guards ? { guards: runtime.guards } : {}),
       state,
       control,
+      // Our process, or a terminal's or another program's: the one fact every branch is read against
+      alive: own || foreignProcess,
       execution: live,
       // Only a process of ours streams what it is doing; a chat a terminal holds says nothing
       activity: (own && runtime?.activity) || null,
@@ -537,8 +539,7 @@ export class ChatService {
     const summary = await this.summaryWith(id, facts);
     if (!summary) return null;
     const runtime = this.deps.runtime.get(id);
-    const heldByAnother = facts.cli.get(id)?.live === true && facts.cli.get(id)?.pid !== runtime?.pid;
-    const children = toChildren(await this.branchFacts(id, runtime, runtime?.pid != null || heldByAnother), id);
+    const children = toChildren(await this.branchFacts(id, runtime, summary.alive), id, summary.alive ? undefined : endedAtOf(summary));
     const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
     const task = this.deps.orchestrator.taskContext(id);
     const health = this.deps.health.read(id, {
@@ -1069,6 +1070,15 @@ export class ChatService {
     return (await this.cliSessions()).some((c) => c.sessionId === id && c.live);
   }
 
+  /**
+   * Who holds which session right now, as one string that changes when a terminal's process comes
+   * or goes. Nothing is written to disk when it goes, so whoever follows the feed compares this.
+   */
+  async holdersKey(): Promise<string> {
+    const cli = (await this.cliSessions()).filter((c) => c.live).map((c) => `${c.sessionId}:${c.pid}`);
+    return [...cli, ...recentStreamJsonProcesses().map((p) => String(p.pid))].sort().join(',');
+  }
+
   async subagents(id: string): Promise<ChatSubagentEntry[]> {
     return (await this.entriesOf([id])).subagents;
   }
@@ -1087,9 +1097,10 @@ export class ChatService {
     const per = await Promise.all(
       ids.map(async (id) => {
         const runtime = this.deps.runtime.get(id);
-        const ref = await this.refOf(id, facts);
-        if (!ref) throw new Error('chat not found');
-        const children = toChildren(await this.branchFacts(id, runtime, await this.liveIn(id)), id);
+        const summary = await this.summaryWith(id, facts);
+        if (!summary) throw new Error('chat not found');
+        const ref = refFrom(summary);
+        const children = toChildren(await this.branchFacts(id, runtime, summary.alive), id, summary.alive ? undefined : endedAtOf(summary));
         return { ref, children };
       }),
     );
@@ -1103,11 +1114,6 @@ export class ChatService {
         .sort(byRunning),
       workflows: per.flatMap(({ ref, children }) => children.workflows.map((w) => ({ ...w, chat: ref }))).sort(byRunning),
     };
-  }
-
-  private async refOf(id: string, facts: Facts): Promise<ChatRef | null> {
-    const chat = await this.summaryWith(id, facts);
-    return chat ? { id: chat.id, title: chat.title, firstPrompt: chat.firstPrompt, project: chat.project, cwd: chat.cwd, worktree: chat.worktree } : null;
   }
 
   /**
@@ -1154,12 +1160,36 @@ export class ChatService {
 
   /** A subagent's whole conversation; with `workflowId`, a workflow agent's. */
   async agentTranscript(id: string, agentId: string, opts: { workflowId?: string; after?: number } = {}): Promise<AgentTranscript | null> {
-    return this.deps.sessions.agentTranscript(id, agentId, {
+    const live = await this.liveIn(id);
+    const transcript = await this.deps.sessions.agentTranscript(id, agentId, {
       ...(opts.workflowId !== undefined ? { runId: opts.workflowId } : {}),
       ...(opts.after !== undefined ? { after: opts.after } : {}),
-      live: await this.liveIn(id),
+      live,
     });
+    if (!transcript) return null;
+    // The panel says what the strip says: the status of the same branch, from the same facts
+    const runtime = this.deps.runtime.get(id);
+    const summary = await this.summaryWith(id, await this.facts(false, false));
+    const children = toChildren(await this.branchFacts(id, runtime, live), id, summary && !summary.alive ? endedAtOf(summary) : undefined);
+    const workflow = opts.workflowId !== undefined ? children.workflows.find((w) => w.id === opts.workflowId) : undefined;
+    const branch = workflow ? workflow.agents.find((a) => a.id === agentId) : children.subagents.find((s) => s.id === agentId);
+    if (!branch) return transcript;
+    // A workflow agent has no end of its own; the workflow it belongs to ending is when it did
+    const endedAt = 'endedAt' in branch ? branch.endedAt : (workflow?.endedAt ?? null);
+    return {
+      ...transcript,
+      status: branch.status,
+      endedAt: branch.status === 'running' ? null : (endedAt ?? transcript.endedAt),
+    };
   }
+}
+
+const refFrom = (chat: ChatSummary): ChatRef => ({ id: chat.id, title: chat.title, firstPrompt: chat.firstPrompt, project: chat.project, cwd: chat.cwd, worktree: chat.worktree });
+
+/** When a chat nothing holds stopped: its last execution's end, else its last write, else now. */
+function endedAtOf(chat: ChatSummary): string {
+  const ended = chat.executions.map((e) => e.endedAt).filter((t): t is string => t !== null);
+  return ended.sort().at(-1) ?? chat.updatedAt ?? new Date().toISOString();
 }
 
 function confinementShape(value: unknown): boolean {

@@ -268,7 +268,7 @@ export function ProjectResources({ project }: { project: Project }) {
       <div className="resources-toolbar">
         {sectionControl}
         {!phone && otherMenu}
-        {!phone && <span className="mono small muted grow resources-where">{t('resourcesAi.inProject')}</span>}
+        {!phone && <span className="small muted grow resources-where">{t('resourcesAi.inProject')}</span>}
         {aiActions}
         <div className="resources-toolbar-end">
           {phone && otherMenu}
@@ -288,7 +288,7 @@ export function ProjectResources({ project }: { project: Project }) {
           <section className="card resources-list" aria-label={t('resourcesAi.inProjectTitle')}>
             <div className="resources-list-head">
               <h2>{t('resourcesAi.inProjectTitle')}</h2>
-              <span className="mono small muted">{t('resourcesAi.inProjectCount', { count: kinds.reduce((sum, kind) => sum + count(kind), 0) })}</span>
+              <span className="small muted tnum">{t('resourcesAi.inProjectCount', { count: kinds.reduce((sum, kind) => sum + count(kind), 0) })}</span>
             </div>
             {phone && naming ? master : (
               <InProjectList

@@ -113,7 +113,7 @@ export function CompactForm({
           placeholder={t('context.compactDialog.focusPlaceholder')}
           onChange={(event) => onFocus(event.target.value)}
         />
-        <span className="mono small muted compact-count" aria-live="polite">
+        <span className="small muted tnum compact-count" aria-live="polite">
           {t('context.compactDialog.count', { n: formatNumber(focus.length), max: formatNumber(COMPACT_FOCUS_MAX) })}
         </span>
       </label>

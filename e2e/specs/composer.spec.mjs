@@ -97,8 +97,16 @@ export default async ({ page, api, dirs, check }) => {
     await page.key('ArrowDown');
     check((await page.eval(textOf)) === '', 'ArrowDown walks back to an empty box');
 
-    // The "+" menu lists the live process's servers, the connector by its own name
-    await page.click('main .composer-plus');
+    // The "+" is a menu of three groups; Servers opens the live process's list, the connector by its own name
+    // Opened the way a keyboard does: Radix opens a menu on pointerdown, never on a synthetic click
+    await page.focus('main .composer-plus');
+    await page.press('Enter');
+    await page.waitFor(`return document.querySelectorAll('[role=menu] [role=group]').length >= 2`, { label: 'the menu and its groups' });
+    check(
+      await page.eval(`const b = document.querySelector('main .composer-plus'); return b?.getAttribute('aria-haspopup') === 'menu' && b.getAttribute('aria-label') === 'Add and options'`),
+      'the "+" is named "Add and options" and announces a menu',
+    );
+    await page.eval(`[...document.querySelectorAll('[role=menu] [role=menuitem]')].find((i) => i.innerText.includes('Servers and connectors'))?.click(); return true`);
     await page.waitFor(`return document.querySelectorAll('.composer-server').length === 2`, { label: 'the two servers in the menu' });
     const rows = await page.eval(`return [...document.querySelectorAll('.composer-server')].map((r) => r.innerText.replace(/\\s+/g, ' ').trim().toLowerCase())`);
     check(rows[0]?.startsWith('docs') && rows[0].includes('connected') && rows[0].includes('2 tools'), `the local server, connected with its tools (${rows[0]})`);

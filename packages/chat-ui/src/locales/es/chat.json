@@ -7,7 +7,6 @@
     "notFoundHint": "Puede que se haya eliminado. <anchor>Buscar la conversación en los chats</anchor>",
     "conversation": "Conversación",
     "back": "Volver a los chats",
-    "subagentMessages": "Mensajes de subagentes",
     "interruptHint": "Termina este turno y mantén el chat abierto para tu siguiente mensaje",
     "export": {
       "markdown": "Exportar Markdown",
@@ -72,8 +71,8 @@
   "composer": {
     "message": "Mensaje",
     "firstMessage": "Primer mensaje de la copia",
-    "placeholderFork": "Primer mensaje de la copia… (suelta o pega archivos para adjuntarlos)",
-    "placeholderResume": "Envía un mensaje: el chat se reanudará…",
+    "placeholderFork": "Primer mensaje de la copia…",
+    "placeholderResume": "Mensaje para reanudar…",
     "resume": "Reanudar",
     "resuming": "Reanudando…",
     "fork": "Crear un fork",
@@ -84,8 +83,8 @@
     "pastedFile": "texto-pegado.txt"
   },
   "composerMenu": {
-    "title": "Añadir al mensaje",
-    "open": "Adjuntar archivos, comandos y servidores",
+    "title": "Añadir y opciones",
+    "open": "Añadir y opciones",
     "commands": "Comandos y skills",
     "servers": "Servidores y conectores",
     "serversAtStart": "Los servidores MCP y los conectores se eligen al empezar el chat: elígelos para esta reanudación o este fork.",
@@ -100,7 +99,6 @@
     "serversPersist": "El cambio se aplica al momento y el CLI lo guarda para esta carpeta: los chats nuevos de aquí también lo tendrán.",
     "account": {
       "title": "Cuenta",
-      "inUse": "En uso",
       "disabled": "Desactivada",
       "signInExpired": "Sesión caducada",
       "signedOut": "Sin sesión",
@@ -108,9 +106,20 @@
       "exhaustedUntil": "Agotada hasta las {{time}}",
       "noModel": "No ofrece {{model}}",
       "whenTurnEnds": "Al terminar este turno",
-      "pending": "El chat pasará a esta cuenta cuando termine el turno actual.",
-      "undo": "Deshacer",
-      "used": "{{percent}} % de la ventana usado"
+      "cancel": "Cancelar el cambio",
+      "pendingTo": "Pasará a {{name}} cuando termine este turno",
+      "failed": "No se ha podido cambiar la cuenta",
+      "search": "Buscar cuentas",
+      "none": "Ninguna cuenta coincide."
+    },
+    "back": "Volver al menú",
+    "noCommands": "Este chat aún no ha informado de ningún comando.",
+    "serversOn": "{{on}} de {{total}} activos",
+    "serversAtStartShort": "Se eligen al empezar el chat",
+    "groups": {
+      "add": "Añadir",
+      "account": "Cuenta",
+      "servers": "Servidores"
     }
   },
   "controls": {
@@ -143,8 +152,8 @@
       "none": "ninguna",
       "noServers": "ninguno: el chat arrancó sin ningún servidor MCP",
       "serversDefault": "como los carga el CLI",
-      "strictNote": "Solo se cargan estos servidores: no se recoge nada más del proyecto, del usuario ni de claude.ai.",
-      "frozenNote": "Queda fijado cuando el chat arrancó o se reanudó por última vez. Editar un preset después no lo cambia."
+      "strictNote": "Solo se cargan estos servidores.",
+      "frozenNote": "Fijado al arrancar o al reanudar."
     },
     "defaultPreset": "Predeterminado ({{name}})",
     "noPresetAtAll": "Sin preset: las herramientas del propio CLI",
@@ -215,7 +224,7 @@
     },
     "executions": {
       "title": "Ejecuciones ({{n}})",
-      "empty": "Claudio no ha ejecutado este chat: se escribió en una terminal.",
+      "empty": "Escrito en un terminal: Claudio no lo ha ejecutado.",
       "lasted": "duró {{duration}}",
       "up": "lleva {{duration}} en marcha",
       "turns_one": "{{count}} turno",
@@ -226,7 +235,7 @@
     },
     "branches": {
       "title": "Ramas ({{n}})",
-      "empty": "No se delegó nada: ni subagentes, ni tareas en segundo plano, ni workflows.",
+      "empty": "No se ha delegado nada a subagentes ni tareas.",
       "subagents": "Subagentes",
       "backgroundTasks": "Tareas en segundo plano",
       "workflows": "Workflows",
@@ -247,7 +256,7 @@
       "worktree": "Worktree",
       "forkedFrom": "Fork de",
       "updated": "Actualizado",
-      "environmentEmpty": "Todavía nada ha informado de lo que cargó {{agent}} para este chat.",
+      "environmentEmpty": "{{agent}} aún no ha informado de lo que cargó.",
       "messages": "Mensajes"
     },
     "workItem": {
@@ -320,7 +329,7 @@
     "kind": "Tipo",
     "kindChat": "Chat",
     "kindOrchestration": "Orquestación",
-    "placeholder": "Describe la tarea: un cambio, una revisión, una investigación…",
+    "placeholder": "Describe la tarea…",
     "start": "Empezar",
     "keys": "Ctrl ↵",
     "where": "se ejecuta en {{dir}} · arrastra o pega archivos para adjuntarlos",
@@ -340,10 +349,10 @@
     "open": "Abrir {{what}}",
     "openButton": "Abrir",
     "state": {
-      "running": "trabajando",
-      "completed": "terminado",
-      "failed": "ha fallado",
-      "stopped": "detenido"
+      "running": "Trabajando",
+      "completed": "Terminado",
+      "failed": "Ha fallado",
+      "stopped": "Detenido"
     },
     "nested": "de {{owner}}",
     "workflowFacts": "{{done}}/{{total}} agentes · fase {{n}}",
@@ -589,8 +598,8 @@
     "loadEarlier": "Cargar mensajes anteriores ({{n}} más arriba)"
   },
   "runView": {
-    "placeholderQueued": "Envía un mensaje (queda en cola hasta que acabe el turno actual)…",
-    "placeholderFollowUp": "Envía un mensaje de seguimiento…",
+    "placeholderQueued": "Deja un mensaje en cola…",
+    "placeholderFollowUp": "Escribe un mensaje…",
     "sending": "Enviando…",
     "send": "Enviar",
     "notSent": "Mensaje no enviado",

@@ -38,7 +38,7 @@ function FileRow({ file, href }: { file: MemoryFile; href: string }) {
         <span className="tree-spacer" aria-hidden />
         <FileText {...ICON_SM} className="tree-icon" />
         <span className="tree-name">{file.name}</span>
-        <span className="tree-size mono tnum">{formatBytes(byteSize(file.content))}</span>
+        <span className="tree-size tnum">{formatBytes(byteSize(file.content))}</span>
       </Link>
     </li>
   );
@@ -66,7 +66,7 @@ export function CliMemoryCard({ cli, editorHref }: { cli: CliMemory; editorHref:
             <span className="tree-spacer" aria-hidden />
             <FileText {...ICON_SM} className="tree-icon" />
             <span className="tree-name">CLAUDE.md</span>
-            <span className="tree-size mono tnum">{cli.claudeMd ? formatBytes(cli.claudeMdBytes) : t('memoryTab.cli.none')}</span>
+            <span className="tree-size tnum">{cli.claudeMd ? formatBytes(cli.claudeMdBytes) : t('memoryTab.cli.none')}</span>
           </Link>
         </li>
         <li>
@@ -74,7 +74,7 @@ export function CliMemoryCard({ cli, editorHref }: { cli: CliMemory; editorHref:
             <ChevronRight {...ICON_SM} className="tree-chevron is-open" />
             <Folder {...ICON_SM} className="tree-icon" />
             <span className="tree-name is-dir">memory/</span>
-            <span className="tree-size mono tnum">{t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })}</span>
+            <span className="tree-size tnum">{t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })}</span>
           </div>
           <ul className="tree-group">
             {cli.files.map((file) => (
@@ -106,24 +106,24 @@ export function HandedCard({ projectId, cli }: { projectId: string; cli: CliMemo
         <li>
           <FileText {...ICON} className="tree-icon" />
           <span className="doc-fill">CLAUDE.md</span>
-          <span className="mono small muted tnum">{cli.claudeMd ? formatBytes(cli.claudeMdBytes) : t('memoryTab.cli.none')}</span>
+          <span className="small muted tnum">{cli.claudeMd ? formatBytes(cli.claudeMdBytes) : t('memoryTab.cli.none')}</span>
         </li>
         <li>
           <BookText {...ICON} className="tree-icon" />
           <span className="doc-fill">{t('memoryTab.handed.memory')}</span>
-          <span className="mono small muted tnum">
+          <span className="small muted tnum">
             {t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })} · {formatBytes(cli.filesBytes)}
           </span>
         </li>
         <li>
           <GitCommitVertical {...ICON} className="tree-icon" />
           <span className="doc-fill">{t('memoryTab.handed.journal', { count: handed?.entries ?? 0, n: formatNumber(handed?.entries ?? 0) })}</span>
-          <span className="mono small muted tnum">{formatBytes(handed?.bytes ?? 0)}</span>
+          <span className="small muted tnum">{formatBytes(handed?.bytes ?? 0)}</span>
         </li>
         <li>
           <GraduationCap {...ICON} className="tree-icon" />
           <span className="doc-fill">{t('memoryTab.handed.lessons', { count: handed?.lessons ?? 0, n: formatNumber(handed?.lessons ?? 0) })}</span>
-          <span className="mono small muted tnum">{formatBytes(handed?.lessonBytes ?? 0)}</span>
+          <span className="small muted tnum">{formatBytes(handed?.lessonBytes ?? 0)}</span>
         </li>
       </ul>
       <p className="small muted memory-card-note">{t('memoryTab.handed.note')}</p>
@@ -140,7 +140,7 @@ export function PhoneCli({ cli, editorHref }: { cli: CliMemory; editorHref: (fil
       <p className="small muted memory-phone-intro">{t('memoryTab.cli.intro')}</p>
       <div className="memory-phone-label">
         <span className="section-label doc-fill">{t('memoryTab.cli.claudeMd')}</span>
-        {cli.claudeMd && <span className="mono small muted tnum">{formatBytes(cli.claudeMdBytes)}</span>}
+        {cli.claudeMd && <span className="small muted tnum">{formatBytes(cli.claudeMdBytes)}</span>}
         <Link to={editorHref('CLAUDE.md')} className="btn">
           <Pencil {...ICON_SM} />
           {t('memoryTab.cli.edit')}
@@ -153,7 +153,7 @@ export function PhoneCli({ cli, editorHref }: { cli: CliMemory; editorHref: (fil
       )}
       <div className="memory-phone-label">
         <span className="section-label doc-fill">{t('memoryTab.cli.projectMemory')}</span>
-        <span className="mono small muted tnum">{t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })}</span>
+        <span className="small muted tnum">{t('memoryTab.cli.fileCount', { count: cli.files.length, n: formatNumber(cli.files.length) })}</span>
       </div>
       <ul className="card doc-cells">
         <li>
@@ -171,7 +171,7 @@ export function PhoneCli({ cli, editorHref }: { cli: CliMemory; editorHref: (fil
             <Link to={editorHref(file.name)} className="doc-cell is-nested">
               <FileText {...ICON} className="tree-icon" />
               <span className="doc-cell-name mono">{file.name}</span>
-              <span className="mono small muted tnum">{formatBytes(byteSize(file.content))}</span>
+              <span className="small muted tnum">{formatBytes(byteSize(file.content))}</span>
               <ChevronRight {...ICON_SM} className="doc-row-chevron" />
             </Link>
           </li>

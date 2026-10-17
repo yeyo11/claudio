@@ -157,8 +157,8 @@ export function HostRow({
     <div className="prov-id">
       <span className="prov-name">
         {status.label}
-        <span className="mono t-xs host-noun">
-          {tTasks(words.nounKey)} {words.prefix}12
+        <span className="t-xs host-noun">
+          {tTasks(words.nounKey)} <span className="mono">{words.prefix}12</span>
         </span>
       </span>
       <span className="prov-meta ellipsis" title={meta}>

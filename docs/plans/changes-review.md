@@ -543,7 +543,7 @@ the orchestration's verification.
   phone's inspector sheet. `Transcript` draws the edit chips when `ChatView` passes the chat id and
   its steps; `DetailPanel` passes nothing and draws none.
 - **`steps`.** The lens as `DesktopCambiosPasos` and `MobilePasos` draw it, its rules in
-  `steps-model.ts`, and `?at=` on the chat page, which turns subagent messages off, reads back to
+  `steps-model.ts`, and `?at=` on the chat page reads back to
   the entry's page and marks it in the accent. `ReviewSource` gained `conversation`, the chat whose
   transcript holds the steps.
 - **`remove-editor`.** Decision 1 in full: `GET`/`PUT /settings/editor` answer 404, Settings'

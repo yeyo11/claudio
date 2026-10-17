@@ -29,7 +29,8 @@ What it brings over the textarea:
 - **Composition is never cut by Enter.** While an IME or a dead key composes (`event.isComposing`,
   `view.composing`, or `keyCode` 229), Enter belongs to the composition. The textarea sent half a word.
 - **Which key sends** (`SubmitKey`): on a keyboard Enter sends and Shift+Enter breaks the line; on a
-  touch screen (`pointer: coarse`) and on New chat, Enter breaks the line and Ctrl/⌘+Enter sends.
+  touch screen (`pointer: coarse`) and on both start screens (New chat and the Claudio assistant's
+  entry), Enter breaks the line and Ctrl/⌘+Enter sends.
   Ctrl/⌘+Enter always sends.
 - **Its own undo history** (Ctrl/⌘+Z, Shift+Ctrl/⌘+Z, Ctrl+Y off macOS).
 - **Pasting keeps only the words.** Rich text from a page is reduced to its lines; files pasted are
@@ -42,6 +43,30 @@ What it brings over the textarea:
 The root element is `[role=textbox][aria-multiline=true]` with the box's `aria-label`, an
 `aria-placeholder`, and `data-composer-input`, which the e2e specs select. The slash menu's
 `aria-autocomplete`/`aria-controls`/`aria-activedescendant` are set on it.
+
+## The start box
+
+New chat and the Claudio assistant's entry ([claudio-assistant.md](claudio-assistant.md)) start a chat
+that does not exist yet, and they draw **one** box: `StartComposer` with `layout="start"`
+(`packages/chat-ui/src/composer/Composer.tsx`), which renders through the same `ComposerBox` as a
+chat's own composer. Before this the assistant had the chat's pill and New chat had a form of its own,
+and the two looked like different products.
+
+- **On a keyboard**: a column card with the gradient hairline (it is what the page is about), the
+  editor on top, and a foot inside the card with the attach button (only where `files` is given), the
+  chips, the key hint as `<kbd>` (`Ctrl ↵`) and the text start button. A `note` slot under the card
+  holds New chat's "runs in {dir}" line; errors go there too.
+- **On a phone**: the round pill with the send icon beside the editor, the chips in a line over it,
+  and the page puts the box at the foot, where the chat's own will be.
+- **Where it sits** is the page's: both centre it under the greeting, with what to ask below
+  (the assistant's starters, New chat's examples). Once the conversation starts, the chat's own
+  composer is at the foot as in any chat.
+- **Props**: `files` (attach button, tray, drops and pasted files), `commands`/`skills` (the slash
+  menu, from the environment New chat reads for its directory), `submitKey` (`mod-enter` by default:
+  a first message is long), `initialText`, `startLabel`, `sendLabel {idle, pending, uploading}`,
+  `status`, `error`, `note`, and `editor` so a starter can fill the box. `onStart` gets the trimmed
+  text (empty when only files were attached). A screen's own choices (the assistant's project context,
+  as a `.composer-status-word` chip beside the chips button) go in `status`.
 
 ## What the box keeps
 
@@ -57,26 +82,38 @@ The root element is `[role=textbox][aria-multiline=true]` with the box's `aria-l
 
 ## The "+" menu
 
-`composer/ComposerMenu.tsx` replaces the paperclip. It opens as a popover (a sheet on a phone) with:
+`composer/ComposerMenu.tsx` is a real menu, built with `MoreActions` from `@claudio/ui`: Radix's
+dropdown menu on a desktop, a sheet on a phone. One tab stop, arrow keys move inside it, typing
+jumps to an item, Escape closes it onto the "+". The button is named "Add and options" and
+announces a menu (`aria-haspopup`). Three groups, told apart by space and a heading, not by lines:
 
-- **Attach files.**
-- **Commands and skills** (when the CLI reported any): starts a `/` in the box, which opens the
-  slash menu.
-- **Account** (above the servers, shown with two or more accounts). One row per account: its name,
-  plan, a usage bar of its binding window (neutral, warn from 60 %, bad from 75 % or exhausted) and
-  its state in words, the chat's own marked "In use". A disabled, signed-out or exhausted account,
-  one whose sign-in is unusable (`Account.signInState` `expired` or `incomplete`: "Sign-in expired",
-  status bad), or one that does not offer the chat's model, is shown disabled with the reason and
-  stays focusable. Choosing a row on an idle chat moves it at once; on a working chat the row says "When
-  this turn ends" and an "Undo" button cancels it until then. The list is a `menu` of
-  `menuitemradio` rows (`AccountPicker.tsx`, rules in `lib/account-choice.ts`), 44 px high on a
-  phone. The switch itself is described in [accounts.md](accounts.md) and
-  [plans/chat-account-switch.md](plans/chat-account-switch.md).
-- **Servers and connectors.** For a chat with a live process, its MCP servers as the process
-  reports them now, claude.ai connectors included, each with its status, its tool count and a
-  switch. A connector waiting for its authorisation links to the Connectors page, which says how to
-  give it. For a resume or a fork, a button opens the run options, where the servers are chosen for
-  the execution that starts (`ChatToolsPicker`, unchanged).
+- **Add.** *Attach files*, and *Commands and skills*, which starts a `/` in the box. With no commands
+  reported the item stays focusable and says why.
+- **Account** (with two or more accounts). One item, "Account · alias · 42 %" (tabular), that
+  opens a submenu of radio items: name, plan and use on one line, the chat's own checked. A second
+  line appears only for an account that cannot be chosen, with the reason ("Exhausted until 16:00",
+  "Sign-in expired", "Doesn't offer the model"): it stays focusable and inert. Choosing one on an idle
+  chat moves it at once; on a working chat it waits for the turn to end, the Account item says
+  where the chat is going, and a "Cancel switch" item undoes it. An error is a toast, since the menu
+  has closed. With more than six accounts the item opens a picker instead (a side panel on a
+  desktop, a step of the sheet on a phone): a search field over the same radio list. The accounts'
+  models are read only when the submenu or the picker opens (`useChatAccounts`, `AccountPicker.tsx`;
+  the builders are in `account-menu.tsx`, the states in `lib/account-choice.ts`). The switch is
+  described in [accounts.md](accounts.md) and [plans/chat-account-switch.md](plans/chat-account-switch.md).
+- **Servers.** One item, "Servers and connectors · 3 of 5 on", that opens the list in a panel
+  (`ServersPanel.tsx`): live switches do not belong inside a menu. For a chat with a live process,
+  its MCP servers as the process reports them now, claude.ai connectors included, each with its
+  status, tool count, switch and, for a connector waiting for authorisation, a link to the Connectors
+  page. For a resume or a fork, a button opens the run options, where the servers are chosen for the
+  execution that starts (`ChatToolsPicker`, unchanged). The list is read when the menu opens.
+
+On a phone the sheet keeps the group headings, rows are 44 px, and Account and Servers are a second
+step in the same sheet with a back button: never a sheet inside a sheet. The menu's new pieces
+(`submenu`, radio groups, `meta`, `detail`) are in `Menu` and `MoreActions`
+(`packages/ui/src/components/controls`).
+
+The palette (Ctrl K) has no hook for actions scoped to the open chat, so "Switch the chat's
+account" is not a palette command yet.
 
 ## Switching servers on a live chat
 
@@ -112,11 +149,16 @@ chat; the tool preset still is.
 - `packages/chat-ui/test/composer.test.ts`: text ↔ paragraphs, caret offsets across paragraphs,
   pasted slices, drafts (per chat and kind, blank, expiry) and history steps.
 - `e2e/specs/composer.spec.mjs` (fake CLI): Shift+Enter, the draft after a reload, Enter sends and
-  empties the box, ArrowUp/ArrowDown, the "+" menu's two servers, the connector's link, and the
+  empties the box, ArrowUp/ArrowDown, the "+" menu (its name and `aria-haspopup`), its two servers, the connector's link, and the
   switch reaching the process.
 - `packages/chat-ui/test/account-choice.test.ts`: the order of an account row's states.
-- `e2e/specs/chat-account-switch.spec.mjs` (fake CLI): the Account section, an idle switch, a
-  switch queued while the chat works, and the exhausted account disabled with its reason.
+- `packages/chat-ui/test/account-menu.test.ts`: the account submenu (radio group, reasons, Cancel
+  switch), submenu versus picker, and the picker's filter.
+- `packages/ui/test/menu-entries.test.ts`: radio groups never report a disabled option, and a
+  sheet keeps the group headings.
+- `e2e/specs/chat-account-switch.spec.mjs` (fake CLI): the Account submenu, an idle switch, a
+  switch queued while the chat works (and its Cancel switch item), and the exhausted account
+  disabled with its reason.
 - The fake CLI answers `mcp_status` and `mcp_toggle` ([e2e/fake-cli/README.md](../e2e/fake-cli/README.md)).
 - The e2e driver's `fill` writes into a contenteditable through `execCommand('insertText')`, and
   the specs that read the box (`chat`, `chat-page`, `chats`, `paging`, `slash-menu`,
@@ -132,4 +174,4 @@ chat; the tool preset still is.
 
 ## Related
 
-[[plans/chat-experience.md]] · [[chat-delivery.md]] · [[chat-environment.md]] · [[design-system.md]] · [[plans/sdk-driver-improvements.md]]
+[[plans/chat-experience.md]] · [[claudio-assistant.md]] · [[plans/claudio-assistant-entry.md]] · [[chat-delivery.md]] · [[chat-environment.md]] · [[design-system.md]] · [[plans/sdk-driver-improvements.md]]

@@ -9,6 +9,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { api, keys } from '../api';
 import { effectiveGuards, guardChatPath, overrideOf, skippedRules, SWITCHABLE_RULES, type EffectiveGuards } from '../lib/guards';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /** The global guard settings every override is read against; undefined while they load or when they could not be read. */
 export function useGuardSettings(): GuardSettings | undefined {
@@ -123,8 +124,10 @@ export function GuardChip({ count, chatId }: { count: number | undefined; chatId
   );
   if (!chatId) return <span className="chip guard">{body}</span>;
   return (
-    <Link to={guardChatPath(chatId)} className="chip guard" title={t('guards.chipOpen')}>
-      {body}
-    </Link>
+    <Tooltip content={t('guards.chipOpen')}>
+      <Link to={guardChatPath(chatId)} className="chip guard">
+        {body}
+      </Link>
+    </Tooltip>
   );
 }

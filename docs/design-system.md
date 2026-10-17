@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-17T18:00:00Z
+updated_at: 2026-10-17T08:57:27Z
 tags:
     - design-system
     - web
@@ -132,19 +132,30 @@ icon.
   in a row stands out of line. Set heights with these tokens, never with a padding and a font size.
 - Fonts: `--sans` Geist and `--mono` Geist Mono, from `@fontsource-variable/geist` and
   `@fontsource-variable/geist-mono`. They replace Inter and JetBrains Mono.
-- Type scale:
+- Type: four sizes and two weights, the voice of
+  [plans/claudio-designer.md](plans/claudio-designer.md) (2026-10-17), which replaces the earlier
+  scale (display 34, h1 24, h2 15, body 14, small 13, xs 12, and the 11 px mono uppercase label).
 
-  | Class | Size | Other |
-  |---|---|---|
-  | display | 34 px | weight 600, tracking -0.035em |
-  | h1 | 24 px | weight 600 |
-  | h2 | 15 px | weight 600 |
-  | body | 14 px | |
-  | small | 13 px | |
-  | xs | 12 px | |
-  | label | 11 px | mono, uppercase, +0.08em |
+  | Token | Use | Size / line | Weight |
+  |---|---|---|---|
+  | `--fs-title` / `--lh-title` | screen title, the one big number of a tile | 20 / 28 | `--fw-strong` |
+  | `--fs-section` / `--lh-section` | section title, card title | 15 / 22 | `--fw-strong` |
+  | `--fs-body` / `--lh-body` | labels, values, body text, controls | 14 / 20 | `--fw-regular` |
+  | `--fs-small` / `--lh-small` | consequences, hints, metadata, badges, literals in mono | 13 / 18 | `--fw-regular` |
+  | `--fs-input` | every input, select and textarea on a phone (iOS zooms below 16) | 16 | |
 
-  Numbers use `tabular-nums`.
+  `--fw-regular` is 450 and `--fw-strong` is 600 (Geist is variable); there is no other size and no
+  700. `--tracking-title` (-0.01em) may go on titles; `--tracking-caps` (0.06em) goes with the caps
+  level only. Numbers use `tabular-nums`, and are formatted through `Intl` (see §6).
+- **Mono is for literals the machine reads**: ids, paths and file names, model ids, commands and
+  flags, hashes, branch names, environment variables, code, diffs, logs and keyboard keys. Section
+  labels, badges, status words, counts, times, dates, durations, money, percentages and column heads
+  are sans.
+- **Caps with tracking, one level only**: the sidebar's group headings (`.nav-group-label`,
+  `.live-section-head`) and their phone twin on the More page (`.more-group-head`), in `--fs-small`,
+  `--tracking-caps`, `--fg-3`. A former mono uppercase section label is now sans, `--fs-small`,
+  `--fw-strong`, `--fg-2`, in sentence case.
+- **Weight never changes on hover or selection**; a state is said with fill and colour.
 - Durations: `--dur-fast 120`, `--dur-base 200`, `--dur-slow 360`, `--spin-cycle 800`,
   `--pulse-cycle 1800`, `--energy-cycle 3600`. Easing is `--ease-out` to enter and `--ease-spring`
   to pop in.
@@ -207,7 +218,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kbd` | `.palette-kbd` | keyboard hints |
 | `.field`, `.select` | `.field`, `.select-trigger`, `.search-box`, `.list-toolbar-search` | focus shows the accent border and a 3 px `--accent-soft` ring |
 | `.chip`, `.on` | `.chip`, `.chip-on`, `.filter-chip`, `.chip-toggle` | filters, and the model/permission pickers under the composer |
-| `.badge`, `.b-live`, `.b-ok`, `.b-warn`, `.b-bad`, `.b-idle`, `.b-accent`, `.b-grad` | `.badge`, `.badge-active`, `.badge-ok`, `.badge-warn`, `.badge-bad`, `.badge-idle`, `.badge-info`, `.badge-project` | mono uppercase state labels |
+| `.badge`, `.b-live`, `.b-ok`, `.b-warn`, `.b-bad`, `.b-idle`, `.b-accent`, `.b-grad` | `.badge`, `.badge-active`, `.badge-ok`, `.badge-warn`, `.badge-bad`, `.badge-idle`, `.badge-info`, `.badge-project` | state labels: sans, `--fs-small`, sentence case, a word or icon with the colour |
 | `.dot`, `.dot-ping` | `.dot`, `StatusDot` (components/motion) | the ping is only for live presence |
 | `.count-pill` | `.nav-count`, `.count`, `.tabbar-badge` | nav counters. Live counts in `--live` |
 | `.seg` | the segmented controls and status filters in `components/ui` and `.list-toolbar-chips` | 2–5 mutually exclusive options |
@@ -296,7 +307,7 @@ already belong to the orchestration board.
 | `.switch`, `.switch-lg`, `.checkbox`, `.radio` | `Toggle` in `components/controls` (`.switch`, `.checkbox`) | drawn so prototypes stop mocking native inputs. Checked is `--accent` (it was the rose; a solid violet would read as idle), and what sits on it is `--on-accent` |
 | `.btn[aria-pressed="true"]` | the pressed state of a toggle button | a view filter or "Seleccionar" while selection mode is on: the chosen segment's fill (`--bg-4`), never the accent or the gradient |
 | `.scrim`, `.dialog`, `.dialog-head`, `-body`, `-foot` | `.dialog*` (overlays.css) | New task is a dialog on a desktop and a full screen on a phone |
-| `.form-row`, `.form-hint`, `.field-area` | `.field` and the form rows of the editors | mono section label above the control, hint under it |
+| `.form-row`, `.form-hint`, `.field-area` | `.field` and the form rows of the editors | section label above the control (sans, `--fs-small`, `--fw-strong`, `--fg-2`, sentence case), hint under it |
 | `.module-card` (`.on`), `.module-ico`, `.module-note` | new `.module-card` | one module, its switch, and what switching it off means ("oculto · 14 documentos conservados"). Off hides, never deletes |
 | `.tpl-card` (`.on`), `.tpl-mods`, `.tpl-mod` | new `.template-card` | a radio card. The chosen one takes the accent ring, never the gradient: the wizard's gradient is its primary action |
 | `.steps`, `.step` (`.on`, `.done`) | `Stepper` | a neutral stepper; nothing in a wizard is live or failed |
@@ -411,7 +422,7 @@ slot.
 |---|---|---|
 | `.ai-mark` (`.sm`) | new `AssistantMark` | the assistant's sparkle on a neutral tile. Cyan only inside a live run; never the gradient |
 | `.ai-run` (`.live` + `.energy`, `.done`), `.ai-run-head`, `-title`, `-now` | new `.suggestion-run` | the run's header. Live: the verb with the braille spinner, the elapsed time and "Detener", and it takes the screen's energy border. Done: one still line with what it produced |
-| `.ai-facts` (`.cost`) | new `.suggestion-facts` | model · time · cost · chat link, in mono. The cost is the one fact in `--fg-2`; while running it reads "0,03 US$ hasta ahora" |
+| `.ai-facts` (`.cost`) | new `.suggestion-facts` | model · time · cost · chat link (the model id in mono, the rest sans). The cost is the one fact in `--fg-2`; while running it reads "0,03 US$ hasta ahora" |
 | `.ai-steps`, `.ai-step` (`.now`, `.todo`), `.ai-found` | new `.suggestion-steps` | what the assistant read, one line per source with a count; the one being read has the braille spinner. What it found are neutral `.wi-label` tags |
 | `.sug-wait` | `.wi-col-slot` variant | a section waiting for the reading: dashed and still, with "en espera" in words |
 | `.sug-row` (`.accepted`, `.discarded`), `.sug-main`, `.sug-title`, `.sug-meta`, `.sug-reason`, `.sug-acts`, `.sug-done`, `.sug-like` | new `.suggestion-row` | one proposal and its reason, quoted under it. Accepted says what it became (`creada · PAG-1`, `guardada`); discarded is struck through with "Deshacer". A proposal like an existing item says "Parecida a AGN-45" and starts unselected |
@@ -484,8 +495,8 @@ items; team, flow, memory and documents; assistant, suggestions and resources wi
   `Recursos / <name>`).
   Tasks reads `Tareas` on the board, the list and the milestones (the segmented control says which
   view), and `Tareas / <key>` on a work item.
-- **Titles.** A page title is `.t-h1`, 24 px, on both sizes. A full-screen form on a phone
-  ("Cancelar · Nueva tarea") keeps its 17 px header.
+- **Titles.** A page title is `.t-h1`, `--fs-title`, on both sizes. A full-screen form on a phone
+  ("Cancelar · Nueva tarea") keeps its header at the same `--fs-title`.
 - **No bulk accept.** Suggested work items, team members and resources are accepted one by one
   (decision 36 of the plan): there is no "Aceptar todas". Discarding says "Descartar" in words.
 - **Nothing that carries the meaning is cut**, and nothing sits under the FAB, the selection bar or
@@ -541,7 +552,7 @@ Drawn for the [decision engine](plans/decision-engine.md) (task `p2` of D0) and 
 owner's validation. Nothing here is live, so nothing takes `--live`, a gradient, the energy border
 or motion. The rules are under "Decisions" in [claudio-ds.css](design-system/claudio-ds.css).
 
-- **The mark (`.decided`).** A button whose face (`.decided-face`) is a 20 px mono label:
+- **The mark (`.decided`).** A button whose face (`.decided-face`) is a 20 px label in sans:
   "decidido · 0,93", or "sugerido" when the confidence is `null` (the CLI). It carries no status
   colour, since a decision is not a status: `--fg-2` on a `--line-2` hairline, `--fg` when hovered or
   open. It shows only where a decision changed something a person sees, never in shadow and never
@@ -716,7 +727,7 @@ the "continued in another provider" divider of Claudio are gone
 
 - **The limit block (`.prov-limit`).** Inside Claude Code's card (`.prov-state`), under the reason:
   the label "Límite", a state badge, and the age of the reading with where it came from. Then a row
-  per window (`.lim-row`): the window in mono (`5 h`, `7 d`), a usage `.bar`, the percentage and the
+  per window (`.lim-row`): the window (`5 h`, `7 d`, in sans), a usage `.bar`, the percentage and the
   reset time. Bars follow the usage rule: neutral below 60 %, `warn` from 60 %, `bad` from 75 % or on
   the exhausted window.
   - States, each a word with its colour: **Cerca del límite** (`b-warn`), **Límite alcanzado**
@@ -758,7 +769,7 @@ border of its own, the composer's card is the field. It grows with the text up t
   one row per server (`.composer-server`, at least 44 px): a plug icon for a server and a cloud for a
   connector, the name in 13 px semibold, then a meta line with the status as a `.tag` (`ok` connected,
   `warn` needs-auth, `bad` failed, `muted` pending and disabled; the CLI's own word, untranslated),
-  "conector" for a connector and the tool count in mono. A connector waiting for its authorisation
+  "conector" for a connector and the tool count. A connector waiting for its authorisation
   adds the link "Cómo autorizarlo" in `--accent`. The row ends with a `Switch`. A server switched off
   dims its name and icon to `--text-faint` (`.composer-server.is-off`). One sentence in `.small.muted`
   under the list says the switch also applies to new chats in the folder.
@@ -794,7 +805,7 @@ Three variants and one line of rule; the plan is [plans/context-control.md](plan
 None of them moves, and none is a status.
 
 - **The inspector's context section** keeps its ring and its figures and gains one quiet line under
-  them ("Compactado hace 3 min · 142k → 18k", mono 11, `--text-muted`) and two `.btn.btn-small`:
+  them ("Compactado hace 3 min · 142k → 18k", `--fs-small`, `--text-muted`) and two `.btn.btn-small`:
   **Desglose** and **Compactar ahora**. Compact now is neutral and **never the gradient**: it is a paid
   turn and not what the screen is about. A button that cannot be used keeps `aria-disabled` (so its
   reason, on a `Tooltip` and in `aria-description`, can be read) and dims; while a compaction runs it
@@ -802,7 +813,7 @@ None of them moves, and none is a status.
   `.btn.btn-strong`: the neutral button with a stronger border and weight, never `.btn-primary`.
 - **`.ctx-breakdown`** is the panel's layout: a `Dialog` (720 px) on a desktop, a `Sheet` on a phone,
   one column of sections separated by 18 px.
-  - *Head*: the model in mono, "N de M tokens" in mono and tabular, then the share as a usage bar
+  - *Head*: the model id in mono, "N de M tokens" in sans and tabular, then the share as a usage bar
     (`.meter-track` + `.meter-fill`: neutral below 60 %, warn from 60 %, bad from 75 % or over the
     window, where the bar is full and the words "N tokens por encima" say how far). The fill does not
     animate on a refetch.
@@ -822,12 +833,12 @@ None of them moves, and none is a status.
   so). **The breakdown's bar carries it whenever the CLI reports its auto-compaction point**, so the person
   sees where the CLI will compact even though the bar itself follows the 60 % / 75 % thresholds.
 - **The compact confirmation** (`.compact-form`): a paragraph that says the turn is paid and about how
-  big the context is, **Qué conservar (opcional)** (a native `textarea`, 16 px on touch, a mono counter
+  big the context is, **Qué conservar (opcional)** (a native `textarea`, 16 px on touch, a tabular counter
   "0 / 500", the placeholder an example), **Guardar el resumen como nota de sesión** (a `Switch`,
   on), then **Cancelar** and **Compactar** (`.btn-strong`). A refusal stays in the dialog as an
   `ErrorBox`; success closes it and a toast says "Compactando…".
 - **`.compaction-divider`** is the transcript's line for a compaction: a hairline across the column
-  with its sentence centred in Geist Mono 11, `--text-muted` ("Compactado · a mano · 142k → 18k tokens
+  with its sentence centred in `--fs-small`, `--text-muted` ("Compactado · a mano · 142k → 18k tokens
   · 14:02"; "automático" for the CLI's own; "142k →" alone when the CLI gave no figure after). It is
   `role="separator"` with the whole line as its `aria-label`, takes no status colour and never moves;
   narrow, the sentence wraps to a second line. Under it a `Collapsible` "Ver el resumen con el que
@@ -844,7 +855,7 @@ None of them moves, and none is a status.
 
 The banner (`.lim`) sits above the composer of a chat whose limit was reached. A warn panel: the warn
 icon, the title ("Claude Code ha llegado a su límite de 5 horas"; the window is named in words,
-"semanal" for the weekly one), the reset in mono ("Se restablece a las 14:05 · en 2 h 10 min", or "No
+"semanal" for the weekly one), the reset time in sans ("Se restablece a las 14:05 · en 2 h 10 min", or "No
 se sabe cuándo se restablece · última lectura hace 12 min"), and the one action, **Esperar al
 reinicio**, which holds the chat until the reset (`POST /chats/:id/wait`). While it waits the banner
 says so and offers **Dejar de esperar**, neutral. Nothing moves to another agent. The page's one
@@ -861,7 +872,7 @@ the classes are the last section of `claudio-ds.css`.
 
 - **An opened tool call is a lens, not a JSON dump.** The folded line stays as it is (icon, tool name,
   hint, "ha fallado" when it failed, the outcome rail). Opened, `.call-body` holds one or two zones
-  headed by a mono 11 section label (`.call-label`: "Llamada", "Resultado", or "Cambio" for an edit),
+  headed by a section label in sans (`--fs-small`, `--fw-strong`; `.call-label`: "Llamada", "Resultado", or "Cambio" for an edit),
   and a quiet `.call-raw` ("En bruto") at the end that swaps the lens for the raw input and text. A
   `Bash` shows its command as shell code, its stdout as a terminal block (`.call-term`) and its stderr
   as its own block headed "Errores" (`.call-stderr`); a `Read` shows the file as code from its start
@@ -878,7 +889,7 @@ the classes are the last section of `claudio-ds.css`.
   on a phone), the braille spinner, the count ("2 agentes · 1 tarea en segundo plano") and the newest
   activity in mono with its verb in `--live`. Opened, a list of rows (`.chat-branch-row`, 28 px) with
   the state (spinner, or the word "terminado" / "ha fallado" / "detenido" with its icon and colour),
-  the kind as a mono badge, the description, the subagent's own activity line and its clock; a branch
+  the kind as a badge, the description, the subagent's own activity line and its clock; a branch
   a subagent launched is nested under it (`.is-nested`). The whole row opens the branch's panel. On a
   phone the list is a `Sheet` titled "En marcha" with 48 px rows. Neutral surface (`--bg-2`, a
   hairline), no gradient, no energy: the composer keeps the screen's energy border.
@@ -1107,7 +1118,7 @@ validation before P2 builds it. The orchestration's checks and the fix states ar
   "2 · 1 permitida". A manual job is `b-idle` "manual" (it waits for the person) under Omitidas.
 - **A row** (`.check-row`) has two buttons: the main one opens the log, and `.check-more` ("⋯") opens
   the row's menu. Inside the main button: a mark, the name with its stage (GitLab) or workflow
-  (GitHub) in mono, the status as a word, and the duration in mono with tabular numbers. Status
+  (GitHub) in mono, the status as a word, and the duration in sans with tabular numbers. Status
   colours: ok "superada", bad "fallida", warn "fallo permitido", idle "manual", neutral "en cola" and
   "omitida". Only a running row is live: the ring spinner, `.rail-live` and `b-live` "en marcha".
 - **Menu of a row**: "Repetir esta comprobación" (GitLab manual job: "Ejecutar esta comprobación")
@@ -1230,7 +1241,7 @@ the comparator's own rows: **a thread is a card under its line**, never a new ki
 - **An open thread (`.rt`)** sits under the new-side line it is about, indented to the code. Head:
   the `b-idle` word **sin resolver** (it waits for the person), `path:line` in mono and the comment
   count. Each comment is a 24 px monogram (a hue that is never a status hue; the agent is the
-  `agent-mark`), the author, the time in mono and the body in sans, with `code` as small chips.
+  `agent-mark`), the author, the time and the body in sans, with `code` as small chips.
   Foot: a "Responder…" field and **Resolver** (a phone has two 44 px buttons, **Responder** and
   **Resolver**, and Responder opens the same Sheet as a new note). Replying and resolving act at
   once; they are not part of the draft review.
@@ -1330,7 +1341,7 @@ Drawn for [code hosts](plans/code-hosts.md), phase 2 (task `k-p2` of P0), by `re
 
 - **A check row (`.ochk-row`)** is one button that opens the log, plus a "⋯" menu: state badge with
   its word (`fallido` bad, `fallo permitido` warn, `en curso` live, `superado` ok, `omitido`
-  neutral), the name in mono, the stage in mono and the duration in mono and tabular. Only the
+  neutral), the name in mono, the stage and the duration in sans and tabular. Only the
   running row carries `--live` and the ring spinner. Rows group as Fallan / Fallo permitido / En curso;
   Superados and Omitidos fold. On a phone a row is two lines (name and time, then badge and stage),
   44 px high.
@@ -1381,7 +1392,7 @@ spinner and `.btn-ghost` are the existing ones.
 - **It is the last row of the item's panel** (`.item-pr-wait`), under "Cuando se fusione…", on a
   desktop and on a phone, and appears only while the PR or MR is open. A state badge with its word (or
   the spinner), then one sentence, then **Actualizar** (an icon button of 44 px on a phone).
-- **In words, with numbers in mono and tabular.** `Comprobada hace 40 s · la próxima, en 2 min`; with a
+- **In words, with tabular numbers.** `Comprobada hace 40 s · la próxima, en 2 min`; with a
   healthy webhook `Al instante` (ok) and `Por webhook · último aviso hace 12 s`, and the safety-net read
   as the second line. The text is renewed; nothing counts down with an animation.
 - **`Al instante` needs a healthy webhook** (a delivery or a successful ping in the last 30 min), and is
@@ -1526,7 +1537,7 @@ improvements".
   `.lesson-proposal`, `.lesson-badges`, `.lessons-foot`, `.lessons-mining`, `.lesson-jobs`,
   `.lesson-job`).** The Memory tab's Lessons card (`DesktopMemoria`, `MobileMemoria*`), beside the CLI
   card, and the same rows in Settings → Lessons. A row is the key `L-12` in mono, "Cuando …:" in
-  `--fg-2` then the action, the confidence in mono, and tags that always carry a word: `ok`
+  `--fg-2` then the action, the confidence in tabular sans, and tags that always carry a word: `ok`
   "entregada", `warn` "desvaneciéndose", neutral "fijada". Evidence opens inline as quotes in the
   person's words with the context in mono. Nothing in it is live: no `--live`, no gradient, no spinner;
   a mining job says "en cola", "en curso" or "hecha" in neutral words (`warn` for a daily cap or rate
@@ -1600,7 +1611,7 @@ task list of the launch form, the relaunch panel and the graph editor, one quiet
 stages the graph runs in and names its longest chain; nothing on it is live or coloured.
 
 - **`.graph-shape`** holds it, a `stack-tight`. **`.graph-shape-line`** is a `form-hint` with the
-  count in mono and tabular figures ("4 stages in series"), then ` · ` and **`.graph-shape-chain`**:
+  count in tabular figures ("4 stages in series"), then ` · ` and **`.graph-shape-chain`**:
   the task ids of the longest chain in mono, joined by `→`, as a `role="group"` named "Longest chain
   of dependencies" so a screen reader reads it as one thing. Each id is a **`.graph-shape-id`** that wraps anywhere rather
   than widen the form on a phone.
@@ -1622,8 +1633,8 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
   lit while the screen is open. The palette's "Asistente de Claudio" action is always present and is not drawn. The sparkle is the
   plain nav icon on desktop and the neutral `.ai-mark` tile (28 px inside a `.cell`) on the phone: never the gradient, so the entry
   costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
-- **The entry screen is content, not an `Empty`.** The mark, the greeting (34 px on desktop, 24 on a phone), one line saying
-  what the assistant does and that it asks before writing, the live figures in mono (the counts of what is running in
+- **The entry screen is content, not an `Empty`.** The mark, the greeting (`--fs-title` on both), one line saying
+  what the assistant does and that it asks before writing, the live figures in sans and tabular (the counts of what is running in
   `--live`, today's spend neutral: they are live things, and the line is optional if the build stays small), "Para
   empezar" with the starters, and the composer, which is the chat's own (`StartComposer`, see "The streaming answer, the
   composer's place, and one composer everywhere"): the same card, editor, chips and keys line, without the "+", the stop and
@@ -1650,7 +1661,7 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.as-hello`, `.as-hello-sub`, `.as-figures` (`.live`) | new, on `/assistant` | the greeting block. `.as-hello` makes the `.ai-mark` 40 px; the figures are mono, tabular, and only the live counts are cyan |
+| `.as-hello`, `.as-hello-sub`, `.as-figures` (`.live`) | new, on `/assistant` | the greeting block. `.as-hello` makes the `.ai-mark` 40 px; the figures are sans, tabular, and only the live counts are cyan |
 | `.as-starters`, `.as-starter` (`-body`, `-title`, `-ask`) | new, the entry's suggestion chips | a two-column grid on desktop and one column on a phone; the button fills the composer. A `.badge.b-warn` on the right when it writes |
 | `.as-context` (`.x`) | `.chip` with a clear button | "Con <project> como contexto", first in the composer's `.composer-foot`; × is a 44 px target on a phone |
 | the entry's composer | `StartComposer` of `@claudio/chat-ui` (`.composer`, `.composer-editor`, `.composer-foot`) | the chat's composer, not a box of its own: no "+", stop or permission chip, no energy border; model and effort behind the chips |
@@ -1672,7 +1683,7 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
 - **The head in the app** (`.home-editbar`: eyebrow, title, the sentence, then the three buttons). On All projects
   it takes the hero's place, as drawn: the page's `h1` in `.text-display` with the hero's halo. A project's Home keeps
   the project's own header and tabs above it (they are how the page is reached and the mode belongs to Resumen), so
-  there the same head heads the tab: an `h2` at 24 px. Restablecer is a quiet button with its arrow, disabled while the
+  there the same head heads the tab: an `h2` at `--fs-title`. Restablecer is a quiet button with its arrow, disabled while the
   Home is still the default (there is nothing to reset). On a phone the head is the project's name as eyebrow,
   "Editar inicio" and Listo as a tall button; the assistant row and the tab cells step aside, and the FAB goes.
 - **Each change saves at once.** There is no Save and no Cancel; Listo only leaves the mode. **Restablecer** returns this
@@ -1692,7 +1703,7 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
   the same picker, a dialog (`.dialog`, 640 px) on desktop and a Sheet on a phone. The picker lists only the types that
   fit the scope (a project's Home never offers Proyectos) and are **not on the page yet**: each type appears once, so the
   rest are shown as check chips under "Ya están en tu inicio" on desktop. A row is the type's icon in `.pick-ico`, its name,
-  the `nuevo` badge on Documentos and Flujo, one sentence, the sizes it allows in mono, and **Añadir**. A widget is added
+  the `nuevo` badge on Documentos and Flujo, one sentence, the sizes it allows, and **Añadir**. A widget is added
   at the end of its area, at its default size, and the picker stays open so several can be added; Cancelar closes it.
   On a phone a row is the icon, the name and a 44 px Añadir; the description and sizes stay on desktop.
 - **Phone edit mode** (`MobileInicioEditar`) is a list, not the page: one `.move-row` per widget with **Subir**, **Bajar**
@@ -1701,13 +1712,13 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
   the title says so. Listo sits in the head as a `btn-lg`; **Añadir widget** and **Restablecer** close the list. The tab
   bar stays; the FAB goes.
 - **The Documents widget** (`w_docs`: `.doc-row`) is a card headed with the docs icon, "Documentos", the document count in
-  a `.count-pill` and "Ver todos". Each row is the file name in mono, its folder and its author in mono below
+  a `.count-pill` and "Ver todos". Each row is the file name in mono, its folder and its author in sans below
   ("docs/specs · Arquitecto"), the kind as a plain `.badge` (SPEC, ADR, DOC) and the age; it opens the document. The foot
   line (`.widget-foot`) says how many documents there are and how many are tied to tasks. Sizes M, L and Todo; an empty
   project uses the card's compact empty line, never an illustration (design system §4: a widget beside content).
 - **The Flow widget** (`w_flow`: `.flow-row`) is headed with the flow icon, "Flujo", `.badge.b-ok` "activado" and "Ver el
   flujo"; with the flow off it says "desactivado" in `.badge` and keeps its rows. It lists what the flow is doing, in this
-  order: runs in progress (`.rail-live` and the ring spinner, the key and title, the role and verb in mono, the clock), cards
+  order: runs in progress (`.rail-live` and the ring spinner, the key and title, the role and verb, the clock), cards
   that wait for the person (`.dot-idle`, "Hecho · espera tu aprobación", `.badge.b-idle` "te espera") and cards QA sent back
   (`.dot-warn`, "rebote 1 de 3", `.badge.b-warn` "devuelta"). The foot line gives the concurrency and the queue. Status
   colours keep their meaning and always come with a word.
@@ -1718,7 +1729,7 @@ Drawn for CW-34 (a Home kept per project, with Documents and Flow widgets) by `r
 | Reference class | App class or component | Rule |
 |---|---|---|
 | `.home-grid` (`.w-s`, `.w-m`, `.w-l`, `.w-full`) | the dashboard's 12-column grid | s = 4, m = 6, l = 8 and full = 12 columns, as `SIZE_SPANS`; a phone stacks them |
-| `.widget`, `.widget-body`, `.widget-foot` | `WidgetCard` | the card of every widget: head, rows, an optional foot line in mono |
+| `.widget`, `.widget-body`, `.widget-foot` | `WidgetCard` | the card of every widget: head, rows, an optional foot line (sans; literals in it in mono) |
 | `.widget-edit`, `.widget-editbar` | new, edit mode of `WidgetCard` | the dashed frame and the head that holds the handle, sizes and Quitar |
 | `.widget-edit-note` | new | in edit mode, the line a widget shows when its project has the modules it reads off (Documents, Team, Board) instead of an empty frame |
 | `.widget-handle`, `.widget-sizes`, `.widget-remove` | `IconButton`, `Segmented`, `IconButton` | the sizes use the app's `Segmented`; every control has an `aria-label` that names the widget |
@@ -1788,9 +1799,9 @@ Integrations, so nothing is assistant-only.
   vendor's page. See the decision below.
 - **Device code, starting**: the braille spinner next to "Pidiendo un código a …" and Cancelar. No energy yet.
 - **Device code, waiting** (`waiting-for-person`): the box `.signin-device`, two numbered lines (open the URL, a
-  `.signin-url` link in mono; type the code), the code in `.signin-code` (Geist Mono, 34, tabular) with **Copiar**
+  `.signin-url` link in mono; type the code), the code in `.signin-code` (Geist Mono, `--fs-title`, tabular: it is a literal the person types) with **Copiar**
   (`CopyButton`, 44 px on a phone), and under a hairline the braille spinner, "Esperando a que lo apruebes" and the time
-  left in mono ("caduca en 14:12", from `expiresAt`). The box carries `.energy`: it is the screen's one live surface,
+  left ("caduca en 14:12", from `expiresAt`). The box carries `.energy`: it is the screen's one live surface,
   and nothing else on the screen moves. Cancelar (ghost) under it.
 - **Succeeded**: the panel closes and the row turns `ok` ("Listo"), its reason "Sesión iniciada con un código hace un
   momento". No toast is needed; the row is the answer.
@@ -1875,7 +1886,7 @@ card sits beside other content.
 - "Probar un comando" is a `Select` (Bash, Write, Edit), a mono input at 16 px on a phone and the primary "Probar". Its
   `.guard-result` is an `aria-live="polite"` region: ok `Tag` "Pasa", or warn `Tag` "Se bloquearía" with the rule in mono and
   the reason.
-- `.guard-event` rows (time in mono and tabular, rule, outcome `Tag`, excerpt, link to the chat) wrap on a phone and never
+- `.guard-event` rows (time in tabular sans, rule, outcome `Tag`, excerpt, link to the chat) wrap on a phone and never
   scroll sideways. A block is warn; `missing`, `unarmed` and `error` are bad; `observed` and `allowed-once` are neutral.
 - Nothing moves: a block is not a live state.
 
@@ -1896,26 +1907,26 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   **content** colours: no status, badge, chip or other chrome uses them, and none equals `--ok`, `--warn`,
   `--bad`, `--live` or `--idle`. The app builds xterm's theme from these tokens and re-reads them on a theme
   switch; no hex in any stylesheet or component.
-- **Type.** Geist Mono, 13 px on a desktop and 12 px on a phone, line height 1.2, ligatures off. The view
+- **Type.** Geist Mono (the terminal is code), 13 px on a desktop and 12 px on a phone (the person's own setting, outside the scale), line height 1.2, ligatures off. The view
   waits for the font before it opens xterm, or the cell width is measured on the fallback font.
 - **Status.** Always a word and an icon, in `.term-status` and in the tab: *Conectado* (ok), *Reconectando*
   (warn, no loop), *Terminó (0)* (neutral), *Terminó con 1* (bad), *Cerrado por inactividad* (warn).
 - **Motion.** The cursor is a steady block; it blinks only at motion `full` with the tab visible, and under
   `subtle`, `off`, `prefers-reduced-motion` or a hidden tab it does not.
-- **Tabs.** `.term-tab` (mono, 36 px) on a `.term-tabs` rail; the open one sits on `--bg-2` and joins the frame (the rail's line is an inset shadow, so the strip never overflows or shows a scrollbar; it scrolls along only when tabs overflow).
+- **Tabs.** `.term-tab` (sans, 36 px) on a `.term-tabs` rail; the open one sits on `--bg-2` and joins the frame (the rail's line is an inset shadow, so the strip never overflows or shows a scrollbar; it scrolls along only when tabs overflow).
   A tab shows its close button only when open.
 - **Full screen and window.** Two `icon-btn`s in `.term-head`, before the `⋯`, on a desktop and only for a
   running terminal: `Maximize2` / `Minimize2` (`aria-pressed`) and `ExternalLink`. `.term:fullscreen` drops
   the border and the radius. A terminal open in a window of its own shows `.term.term-detached` in the
-  panel: the `ExternalLink` icon, "En otra ventana" in mono, one line of text and a quiet `.btn-small`
+  panel: the `ExternalLink` icon, "En otra ventana", one line of text and a quiet `.btn-small`
   ("Traer aquí"); its tab says the same in `.term-status.neutral`. The window itself is `.term-window`,
   the frame on `--bg` with 8 px around it and no app shell.
 - **Phone.** A full-screen route, no tab bar: a back button, the terminal's title (mono), the status and a `⋯`
   `Sheet`. The key bar (`.term-keys`, `.term-key`) holds Esc, Tab, ⇧Tab, Ctrl and Alt (sticky: `.on`), the
   arrows, `|` `~` `/` `-` and ^C ^D ^L ^R; every key is ≥ 44 px, the bar scrolls sideways and sits above the
-  keyboard. The terminal's own text stays at 12 px, but its hidden input is 16 px so iOS does not zoom.
+  keyboard. The terminal's own text stays at its own size (outside the scale), but its hidden input is 16 px so iOS does not zoom.
 - **Panel above the status bar.** The terminal lives in the status bar. A **Terminal item** (`.statusbar-btn`: the
-  `SquareTerminal` icon and the number of running shells in mono, tabular) sits beside the usage and the
+  `SquareTerminal` icon and the number of running shells, tabular) sits beside the usage and the
   account; it is a button with an accessible name ("Terminal: 2 en marcha") and `aria-expanded`, in `--fg-3`
   and `--fg` while the panel is open. It never moves or lights up: a shell is not an agent working. Clicking it
   and `Ctrl+\`` toggle `.term-dock.term-bar-panel`, a labelled region docked
@@ -2135,9 +2146,34 @@ the file being edited is its only moving part.
   - Spanish from Spain, with infinitive buttons ("Guardar", "Reanudar").
   - Sentence case everywhere. Never apply `text-transform: capitalize` to sentences: it is why the
     accounts page reads "Se Reinicia En".
-- A chat's title is its first prompt. The id, model and message count are secondary, in mono.
-- Money is `1.145,86 US$` in `es` and `$1,145.86` in `en`, with tabular numbers. Durations read
+- A chat's title is its first prompt. Its id and model id are secondary, in mono; the message count is
+  secondary too, but a count is not a literal, so it is sans.
+- The voice ([plans/claudio-designer.md](plans/claudio-designer.md)):
+  - Mono is for literals the machine reads (ids, paths, model ids, commands, hashes, branch names,
+    environment variables, code, diffs, logs, keyboard keys), and for nothing else: not section
+    labels, badges, status words, counts, times, dates, durations, money, percentages or column heads.
+  - Caps with tracking are one level only: the sidebar group headings and the More page's group heads.
+    Every other section label is sentence case.
+  - Four sizes (`--fs-title`, `--fs-section`, `--fs-body`, `--fs-small`, plus `--fs-input` on phone
+    fields) and two weights (`--fw-regular`, `--fw-strong`). Weight never changes on hover or selection.
+  - Numbers go through `Intl` (`formatPercent`, `formatNumber`, `formatCost` in
+    `packages/ui/src/lib/format.ts`); copy never carries the `%` sign or a currency symbol.
+- Money is `1.145,86 US$` in `es` and `$1,145.86` in `en`, with tabular numbers, in sans. Durations read
   `20:32` or `4 h 49 min`. Relative times are short.
+- Text cut by an ellipsis or a clamp carries its full text (invariant I3). A non-interactive label
+  renders as `FullText` (`packages/ui/src/components/FullText.tsx`, the hook `useFullTextTitle` in
+  `lib/full-text.ts`): it keeps the element and class it is given and sets `title` only while the text
+  is really cut, measured again on resize, on each render and once the fonts are in. A label made of
+  parts (the chat header's subtitle) passes `full`. Inside a link or a button, the label span is the
+  `FullText`, never the control. The phone tab bar's labels are never cut: a tab is at least as wide as
+  its label (`minmax(min-content, 1fr)`), so at 320 px "Orchestrations" takes its width and the short
+  tabs share the rest.
+- A scroller reserves its scrollbar's room (`scrollbar-gutter: stable`, invariant I6): `.main`,
+  `.settings-nav` and `.chat-inspector-body` do. A page that turns `.main`'s scrolling off (the chat,
+  the review, a work item, the terminal) sets it back to `auto`, or `stable` would keep an empty strip.
+- A field drawn inside a bordered wrapper (`.list-toolbar-search`, `.number-input`) shows its focus
+  ring on the wrapper's `:focus-within`, and the field itself has none (invariant I11 counts the ring
+  on the nearest ancestors when focus is what drew it).
 - An empty state offers a next step: templates, examples or a primary action. A large empty block
   never sits above live data.
 - Don't invent data. When the CLI doesn't report something, say so ("sin coste", "sin datos").
@@ -2162,8 +2198,20 @@ the file being edited is its only moving part.
    most one illustration per screen.
 8. A new variant or illustration is added to this document and to `claudio-ds.css` in the same PR.
 9. A diff is drawn with `DiffView` and follows the four rules of §5: nothing links to an editor.
+10. The voice of §6 holds: mono only on literals, caps with tracking only on the sidebar and More
+    group headings, only the four sizes and two weights, no weight change on hover or selection, and
+    numbers formatted through `Intl`. `node scripts/design-lint.mjs` and
+    `apps/web/test/design-voice.test.ts` enforce it; both must pass.
 
 ## Landed
+
+> **Landed** with the `claudio-designer` tooling (2026-10-17), the typographic voice of
+> [plans/claudio-designer.md](plans/claudio-designer.md): four sizes and two weights, mono only for
+> literals, caps with tracking on the sidebar and More group headings alone, no weight change on
+> hover or selection, and numbers through `Intl`. It replaces the type scale and the mono and
+> uppercase section labels written in this document; where an older note below still says "mono
+> uppercase", "11 px" or "34 px" for something that is not a literal, this entry wins.
+> `scripts/design-lint.mjs` and `apps/web/test/design-voice.test.ts` enforce it.
 
 > **Landed** in the `night-shift` orchestration (2026-09-25), in full. The notes below are where the
 > app settled something this document did not say, or said differently. The before/after pairs are
@@ -2225,14 +2273,14 @@ the file being edited is its only moving part.
   `alert-warn` with the server's reason, the command to run or the admin page to open, and "Check
   again", with no illustration.
 - The orchestration page ends with **"Where the time went"** (`.orch-timings`, `.timings` in
-  `claudio-ds.css`), a card with a `Collapsible` whose trigger is the Geist Mono 11 label and at
+  `claudio-ds.css`), a card with a `Collapsible` whose trigger is the `--fs-small` label and at
   least 44 px tall. It is closed while the graph runs and open once it has ended. It is history, not
   a live surface: no gradient, no energy border, no motion. Its phase bar is the one segmented bar,
   `ProgressBar variant="segments"` with `cells`, cut by each phase's share (at least one cell each)
   in two **neutral** tones that alternate from phase to phase (`is-skipped`, and `is-pending`
   restyled to `--text-muted` inside `.orch-timings-bar`, since the bar's empty tone is too faint to
-  read as time spent); the legend's swatches (`.orch-timings-swatch`) are the same cells. Durations are mono tabular
-  figures. Status colours appear only on waits and failed checks, always as a `Tag` with its word:
+  read as time spent); the legend's swatches (`.orch-timings-swatch`) are the same cells. Durations are tabular
+  figures in sans. Status colours appear only on waits and failed checks, always as a `Tag` with its word:
   a slot or a limit wait is warn ("waiting for a slot", "waiting on a limit"), a retry wait is idle,
   and a failed run of a check (`.orch-timings-run.is-failed`) carries a bad "failed". On a phone the
   figures, the critical path links and the checks stack at full width, and the bar keeps it.
@@ -2242,8 +2290,7 @@ the file being edited is its only moving part.
   what the screen is about; the start button is the gradient action only while there is no address.
   The QR code is dark on light in both themes (`--qr-ink`, `--qr-paper`), since not every camera
   reads an inverted one.
-- Badges are mono uppercase through CSS, so specs that read a badge's word match it
-  case-insensitively or read it from the DOM.
+- Badges are sans, sentence case, so specs that read a badge's word match it as written.
 
 **Shell**
 
@@ -2259,7 +2306,7 @@ the file being edited is its only moving part.
   button for the same action takes `.page-action-fab`.
 - The More sheet opens on the account and limits card, then the sections, a **Start** group (Run
   workflow, New orchestration), the API reference and the connection.
-- Each section of the More sheet says its figure (`.more-cell-note`, mono): the projects, the
+- Each section of the More sheet says its figure (`.more-cell-note`, sans, tabular): the projects, the
   accounts, the schedules and today's cost. A problem replaces the count with a badge and its word:
   exhausted accounts in bad ("2 agotadas"), connectors waiting for authorisation in warn ("1
   pendiente"). The figures come from the queries the pages use (`useMoreNotes`), and the lists only
@@ -2283,7 +2330,7 @@ the file being edited is its only moving part.
   `grad-border`), next to a busiest-day tile.
 - **Schedules** offers three templates on its empty state. They open the editor preset through a
   new `?cron=` parameter.
-- **Sign-in**: the field's label is the mono uppercase section label, as on `DesktopAcceso`. The app
+- **Sign-in**: the field's label is the sans section label (`--fs-small`, `--fw-strong`, `--fg-2`), as on `DesktopAcceso`. The app
   asks the guard once (`GET /api/security/auth`) before it draws anything, so a guarded wrapper
   opens on the sign-in screen instead of flashing the shell's skeleton first; past 1.5 s without
   an answer the shell draws anyway.
@@ -2379,7 +2426,7 @@ the file being edited is its only moving part.
 - The transcript's edit chips share the folded step's line, as `DesktopChatCambios` draws them; an
   opened step takes the row and pushes them under it.
 - "See it in the conversation" opens `/chats/:id?at=<entryIndex>`: the chat drops `?at=` from the
-  address, turns subagent messages off (the index counts the main view) and marks the entry for a
+  address and marks the entry for a
   moment in the accent, where a search hit takes the warning colour.
 
 **Fixed after landing** (2026-09-28, `fix/changes-review-polish`)
@@ -2414,7 +2461,7 @@ Where §2 planned an app name and the app settled on another:
 - `.sheet-action-reason`: under a `MoreActions` sheet, a disabled entry's reason written out (a
   finger has no hover to read a title by); `.sheet-action-gap` keeps an unchecked toggle's label in
   line with a checked one's. A download entry stays a real link in the sheet.
-- `.phone-head-sub .badge`: a state under a phone head's title (the orchestration's) is the mono line
+- `.phone-head-sub .badge`: a state under a phone head's title (the orchestration's) is the line
   itself, in its tone and with its icon, not a boxed badge. `.orch-phone-head` names the
   orchestration at 16 px, as MobileOrquestacion does.
 - Time follows decision 10 with the owner's rule for past moments: a relative time everywhere, and
@@ -2559,4 +2606,4 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[desktop.md]] · [[collaborators.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[plans/claudio-designer]] · [[desktop.md]] · [[collaborators.md]]

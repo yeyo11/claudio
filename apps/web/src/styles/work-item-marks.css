@@ -9,9 +9,8 @@
 /* AGN-12: mono, tabular, never wrapped */
 .workitem-key {
   font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -88,9 +87,8 @@
   border-radius: var(--radius-xs);
   background: var(--accent-soft);
   color: var(--accent);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   line-height: 1;
 }
 
@@ -108,14 +106,14 @@
   display: inline-block;
   min-width: 0;
   max-width: 100%;
-  height: 20px;
-  line-height: 20px;
-  padding: 0 7px 0 6px;
+  min-height: 20px;
+  line-height: var(--lh-small);
+  padding: 1px 7px 1px 6px;
   border-radius: var(--radius-xs);
   background: var(--bg-3);
   color: var(--fg-2);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -141,8 +139,7 @@
   padding: 0 5px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--line-2);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
 }

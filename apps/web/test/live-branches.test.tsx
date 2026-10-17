@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { ChatUiProvider, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { BRANCHES_STORAGE_KEY, BranchCard, LiveBranches } from '@claudio/chat-ui/components/LiveBranches';
-import { branchesOfStep, liveBranches } from '@claudio/chat-ui/lib/chat-branches';
+import { branchesOfStep, liveBranches, type BranchChat } from '@claudio/chat-ui/lib/chat-branches';
 import { transcriptRows } from '@claudio/chat-ui/lib/chat-steps';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
@@ -71,6 +71,8 @@ const task = (over: Partial<ChatBackgroundTask> = {}): ChatBackgroundTask => ({
   ...over,
 });
 const children = (over: Partial<ChatChildren> = {}): ChatChildren => ({ subagents: [], backgroundTasks: [], workflows: [], ...over });
+/** The chat these rules read: held by a process, with what it delegated */
+const held = (kids: ChatChildren, alive = true): BranchChat => ({ alive, state: alive ? 'working' : 'idle', children: kids });
 
 /** A `localStorage` holding what the person chose, for as long as `run` takes */
 function withStorage<T>(stored: Record<string, string>, run: () => T): T {
@@ -109,7 +111,7 @@ test('the fold is remembered', () => {
   // A row per branch, named by what it shows; the one the subagent launched nested under it says so off screen
   assert.match(html, /<button type="button" class="chat-branch-row is-running">/);
   assert.match(html, /class="chat-branch-row is-running is-nested">(?:(?!<\/button>).)*<span class="sr-only"> · from Read the stream<\/span><\/button>/);
-  assert.match(html, /<span class="badge chat-branch-kind">bash<\/span> <span class="chat-branch-desc mono">grep -rn parent_tool_use_id<\/span>/);
+  assert.match(html, /<span class="badge chat-branch-kind"><svg[^>]*>.*?<\/svg>bash<\/span> <span class="chat-branch-desc mono">grep -rn parent_tool_use_id<\/span>/);
   assert.match(html, /<span class="chat-branch-act"><span class="verb">reading<\/span> packages\/core\/src\/chats\.ts<\/span>/);
 });
 
@@ -117,21 +119,21 @@ test('a branch that just ended keeps its word for the grace, then the strip goes
   const ended = children({ subagents: [sub({ status: 'failed', endedAt: ago(1000) })] });
   const html = withStorage({ [BRANCHES_STORAGE_KEY]: 'open' }, () => strip(ended));
   assert.match(html, /chat-branch-row is-failed/);
-  assert.match(html, /<span class="word">failed<\/span>/);
-  assert.equal(liveBranches(ended, Date.now() + 5000).length, 0);
+  assert.match(html, /<span class="word">Failed<\/span>/);
+  assert.equal(liveBranches(held(ended), Date.now() + 5000).length, 0);
 });
 
 test('a card under the step: live rail while it runs, never a gradient', () => {
-  const [running] = liveBranches(children({ subagents: [sub({ activity: reading })] }), Date.now());
+  const [running] = liveBranches(held(children({ subagents: [sub({ activity: reading })] })), Date.now());
   const html = render(<BranchCard branch={running!} onOpen={() => {}} />, 'es');
   assert.match(html, /class="chat-launch is-agent live-rail is-running"/);
-  assert.match(html, /chat-launch-status is-running">trabajando</);
+  assert.match(html, /chat-launch-status is-running">Trabajando</);
   assert.match(html, /aria-label="Abrir Read the stream"/);
   assert.doesNotMatch(html, /grad-border/);
-  const [done] = liveBranches(children({ backgroundTasks: [task({ status: 'completed', endedAt: ago(100) })] }), Date.now());
+  const [done] = liveBranches(held(children({ backgroundTasks: [task({ status: 'completed', endedAt: ago(100) })] })), Date.now());
   const record = render(<BranchCard branch={done!} />);
   assert.match(record, /class="chat-launch is-task"/);
-  assert.match(record, /chat-launch-status is-completed">done</);
+  assert.match(record, /chat-launch-status is-completed">Done</);
   assert.match(record, /chat-launch-facts">pnpm test · 1m 10s</);
 });
 
@@ -154,7 +156,7 @@ test("a step's calls lead to the branches they started", () => {
   assert.ok(step && step.kind === 'step');
   const calls = step.parts.flatMap((part) => (part.kind === 'call' ? [part] : []));
   // Two agents asked for the same thing: the one still named by its call is the one it started
-  const found = branchesOfStep(calls, step, children({ subagents: [sub({ id: 'agent-1' }), sub({ id: 'toolu_1' })], backgroundTasks: [task()] }));
+  const found = branchesOfStep(held(children({ subagents: [sub({ id: 'agent-1' }), sub({ id: 'toolu_1' })], backgroundTasks: [task()] })), calls, step);
   assert.deepEqual(found.map((branch) => branch.key), ['agent:toolu_1', 'task:task-1']);
 });
 
@@ -172,28 +174,25 @@ const activityEvent = (over: Partial<SubagentActivityEvent> = {}): SubagentActiv
   ...over,
 });
 
-test('subagent.activity is written into both chat pages and the subagents list, in place', () => {
+test('subagent.activity is written into the chat page and the subagents list, in place', () => {
   const client = new QueryClient();
   const detail = (subs: ChatSubagent[]) => ({ chat: { id: 'chat-1', children: children({ subagents: subs }) }, entries: [], from: 0, total: 0 }) as unknown as ChatDetail;
-  client.setQueryData(keys.chat('chat-1', false), detail([sub(), sub({ id: 'agent-9' })]));
-  client.setQueryData(keys.chat('chat-1', true), detail([sub()]));
+  client.setQueryData(keys.chat('chat-1'), detail([sub(), sub({ id: 'agent-9' })]));
   const listed: ChatSubagentEntry[] = [
     { ...sub(), chat: { id: 'chat-1' } } as ChatSubagentEntry,
     { ...sub({ sessionId: 'chat-2' }), chat: { id: 'chat-2' } } as ChatSubagentEntry,
   ];
   client.setQueryData(keys.subagents, listed);
   patchSubagentActivity(client, activityEvent());
-  for (const sidechains of [false, true]) {
-    assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-1', sidechains))?.chat.children.subagents[0]?.activity, reading);
-  }
-  assert.equal(client.getQueryData<ChatDetail>(keys.chat('chat-1', false))?.chat.children.subagents[1]?.activity, null, 'only the subagent it names');
+  assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-1'))?.chat.children.subagents[0]?.activity, reading);
+  assert.equal(client.getQueryData<ChatDetail>(keys.chat('chat-1'))?.chat.children.subagents[1]?.activity, null, 'only the subagent it names');
   const list = client.getQueryData<ChatSubagentEntry[]>(keys.subagents);
   assert.deepEqual(list?.[0]?.activity, reading);
   assert.equal(list?.[1]?.activity, null, "another chat's subagent with the same id is left alone");
   // Before the CLI names the agent, the call that launched it is its id
-  client.setQueryData(keys.chat('chat-3', false), { ...detail([sub({ id: 'toolu_7', sessionId: 'chat-3' })]), chat: { id: 'chat-3', children: children({ subagents: [sub({ id: 'toolu_7', sessionId: 'chat-3' })] }) } } as unknown as ChatDetail);
+  client.setQueryData(keys.chat('chat-3'), { ...detail([sub({ id: 'toolu_7', sessionId: 'chat-3' })]), chat: { id: 'chat-3', children: children({ subagents: [sub({ id: 'toolu_7', sessionId: 'chat-3' })] }) } } as unknown as ChatDetail);
   patchSubagentActivity(client, activityEvent({ sessionId: 'chat-3', runId: 'chat-3', toolUseId: 'toolu_7', agentId: null }));
-  assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-3', false))?.chat.children.subagents[0]?.activity, reading);
+  assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-3'))?.chat.children.subagents[0]?.activity, reading);
   patchSubagentActivity(client, activityEvent({ sessionId: 'chat-3', runId: 'chat-3', toolUseId: 'toolu_7', agentId: null, activity: null }));
-  assert.equal(client.getQueryData<ChatDetail>(keys.chat('chat-3', false))?.chat.children.subagents[0]?.activity, null);
+  assert.equal(client.getQueryData<ChatDetail>(keys.chat('chat-3'))?.chat.children.subagents[0]?.activity, null);
 });

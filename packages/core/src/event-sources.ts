@@ -30,6 +30,8 @@ export const RUN_UPDATE_COALESCE_MS = 250;
 export const ACTIVITY_THROTTLE_MS = 1000;
 /** File changes under the projects directory are folded the same way, into one `sessions.changed`. */
 export const SESSIONS_COALESCE_MS = 1000;
+/** How often, while anyone follows the feed, who holds the sessions is looked at again. */
+export const HOLDERS_POLL_MS = 4000;
 
 const TERMINAL = new Set(['completed', 'failed', 'stopped']);
 
@@ -631,17 +633,42 @@ export class SessionsWatcher {
   private timer: NodeJS.Timeout | null = null;
   private retry: NodeJS.Timeout | null = null;
   private wanted = false;
+  private holdersTimer: NodeJS.Timeout | null = null;
+  private holders: string | null = null;
 
+  /**
+   * `holders` says who holds which session; it is compared on a timer, because a terminal session
+   * whose process exits writes nothing under the projects directory, and a screen would go on
+   * showing its work as running.
+   */
   constructor(
     private readonly dir: string,
     private readonly bus: EventBus,
     private readonly windowMs = SESSIONS_COALESCE_MS,
+    private readonly holdersOf?: () => Promise<string>,
+    private readonly holdersEveryMs = HOLDERS_POLL_MS,
   ) {
     bus.onDemand = (wanted) => (wanted ? this.start() : this.stop());
   }
 
+  private watchHolders(): void {
+    if (!this.holdersOf || this.holdersTimer) return;
+    const holdersOf = this.holdersOf;
+    this.holdersTimer = setInterval(() => {
+      holdersOf()
+        .then((now) => {
+          const before = this.holders;
+          this.holders = now;
+          if (this.wanted && before !== null && before !== now) this.touched(null);
+        })
+        .catch(() => undefined);
+    }, this.holdersEveryMs);
+    this.holdersTimer.unref();
+  }
+
   private start(): void {
     this.wanted = true;
+    this.watchHolders();
     if (this.watcher) return;
     try {
       this.watcher = watch(this.dir, { recursive: true, persistent: false }, (_kind, file) => this.touched(file));
@@ -682,6 +709,9 @@ export class SessionsWatcher {
     this.watcher = null;
     for (const t of [this.timer, this.retry]) if (t) clearTimeout(t);
     this.timer = this.retry = null;
+    if (this.holdersTimer) clearInterval(this.holdersTimer);
+    this.holdersTimer = null;
+    this.holders = null;
   }
 
   close(): void {

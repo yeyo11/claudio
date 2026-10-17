@@ -66,6 +66,7 @@ export const yOf = (frame: Frame, pct: number): number => {
   return frame.top + (1 - clamped / 100) * (frame.height - frame.top - frame.bottom);
 };
 
+// design-lint-ok: SVG path coordinates, never shown as a number
 const fixed = (n: number) => Number(n.toFixed(1));
 
 /** The path of a series, lifted between two readings further apart than `GAP_MS`. */

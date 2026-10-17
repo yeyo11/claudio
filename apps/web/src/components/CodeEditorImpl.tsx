@@ -33,7 +33,8 @@ function languageExtension(language: EditorLanguage): Extension[] {
 // punctuation and comments faint, headings in weight rather than colour, and the rest from `--sx-*`.
 const syntax = HighlightStyle.define([
   { tag: [tags.propertyName, tags.attributeName, tags.definition(tags.propertyName)], color: 'var(--fg-2)' },
-  { tag: tags.heading, color: 'var(--fg)', fontWeight: '600' },
+  // design-lint-ok: CodeMirror takes its styles as objects, not classes; the values are the type tokens
+  { tag: tags.heading, color: 'var(--fg)', fontWeight: 'var(--fw-strong)' },
   { tag: [tags.punctuation, tags.separator, tags.bracket, tags.processingInstruction, tags.meta, tags.contentSeparator], color: 'var(--fg-3)' },
   { tag: [tags.comment, tags.quote], color: 'var(--sx-com)' },
   { tag: [tags.keyword, tags.bool, tags.null, tags.atom, tags.modifier, tags.operatorKeyword], color: 'var(--sx-kw)' },
@@ -42,7 +43,8 @@ const syntax = HighlightStyle.define([
   { tag: [tags.typeName, tags.className, tags.namespace], color: 'var(--sx-type)' },
   { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: 'var(--sx-fn)' },
   { tag: [tags.link, tags.url], color: 'var(--fg-2)', textDecoration: 'underline' },
-  { tag: tags.strong, fontWeight: '600' },
+  // design-lint-ok: CodeMirror takes its styles as objects, not classes; the values are the type tokens
+  { tag: tags.strong, fontWeight: 'var(--fw-strong)' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
   { tag: tags.monospace, color: 'var(--fg-2)' },
@@ -50,8 +52,10 @@ const syntax = HighlightStyle.define([
 ]);
 
 const chrome = EditorView.theme({
-  '&': { backgroundColor: 'transparent', color: 'var(--text)', fontSize: '12.5px' },
+  // design-lint-ok: CodeMirror takes its styles as objects, not classes; the values are the type tokens
+  '&': { backgroundColor: 'transparent', color: 'var(--text)', fontSize: 'var(--fs-small)' },
   '&.cm-focused': { outline: 'none' },
+  // design-lint-ok: CodeMirror takes its styles as objects, not classes; the values are the type tokens
   '.cm-scroller': { fontFamily: 'var(--mono)', lineHeight: '1.6', fontVariantLigatures: 'none' },
   '.cm-content': { caretColor: 'var(--accent)', padding: '10px 0' },
   '.cm-gutters': { backgroundColor: 'transparent', color: 'var(--text-faint, var(--text-muted))', border: 'none' },

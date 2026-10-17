@@ -211,6 +211,8 @@ export interface BranchTracker {
   task(change: string, raw: Record<string, unknown>): void;
   /** The process is gone: whatever still runs is over */
   endAll(at: string): void;
+  /** A turn ended: an agent the turn waited on and never heard back from is over; the ones sent to the background go on */
+  endForeground(at: string): void;
 }
 
 /** What a session's first event says about it. */

@@ -1,10 +1,11 @@
 import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
-import { Fragment, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { ArrowRight, ArrowUp, GitFork, Play, Square } from 'lucide-react';
+import { Fragment, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AttachmentTray, useAttachments, type AttachmentsState } from '../components/Attachments';
+import { AttachButton, AttachmentTray, useAttachments, type AttachmentsState } from '../components/Attachments';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { SlashMenu, useSlashMenu, type SlashMenuState } from '../components/SlashMenu';
@@ -15,7 +16,7 @@ import { modeLabel } from '../lib/wire-words';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ComposerMenu } from './ComposerMenu';
 import { draftKey, readDraft, writeDraft } from './drafts';
-import { RichEditor, type RichEditorHandle, type RichEditorProps } from './editor/RichEditor';
+import { RichEditor, type RichEditorHandle, type RichEditorProps, type SubmitKey } from './editor/RichEditor';
 import { historyStep, type HistoryIndex } from './history';
 import { OptionsPanel } from './OptionsPanel';
 
@@ -138,7 +139,7 @@ export function StatusChips({ label, words, accent, icon }: { label: string; wor
             {i > 0 && ' '}
             <span className={`composer-status-word ${i === accent ? 'is-accent' : ''}`.trim()}>
               {i === 0 && icon}
-              <span className="composer-status-text">{word}</span>
+              <FullText className="composer-status-text">{word}</FullText>
             </span>
           </Fragment>
         ))}
@@ -412,72 +413,119 @@ export function Composer({
   );
 }
 
-/** A box with no chat behind it has no commands to offer yet */
+/** A box with no chat behind it has no commands to offer unless the screen read them from an environment */
 const NO_COMMANDS: readonly string[] = [];
 
 /**
- * The chat's composer on a screen that starts a chat and has none yet: the Claudio assistant's entry.
- * The same box, keys and line of chips as a chat's; what needs a chat to exist is left out: the "+"
- * (files, commands, servers, the account), the queue and the stop. `status` is the line of chips for
- * what the screen lets the person choose for the start, and `onStart` gets the trimmed first message.
+ * The composer on a screen that starts a chat and has none yet: New chat and the Claudio assistant's
+ * entry. What needs a chat to exist is left out: the "+" menu (commands, servers, the account), the
+ * queue and the stop. `status` is the line of chips for what the screen lets the person choose for
+ * the start, and `onStart` gets the trimmed first message (empty when only files were attached, and
+ * `files` was given).
+ *
+ * `layout="start"` is the box the start screens share, so the two cannot drift apart: a column card
+ * with the gradient hairline (it is what the page is about), the chips, the key hint and the start
+ * button inside its foot; on a phone the round send button beside the editor, with the chips over
+ * it. The default layout is the chat's own box.
  */
 export function StartComposer({
   editor: handed,
+  layout = 'chat',
   label,
   placeholder,
   sendLabel,
+  startLabel,
   pending,
   onStart,
   status,
   error,
+  note,
+  files,
+  commands = NO_COMMANDS,
+  skills,
+  submitKey = 'mod-enter',
+  initialText = '',
   autoFocus = false,
 }: {
   /** The box, for a screen that fills it (a starter); the composer keeps its own when left out */
   editor?: RefObject<RichEditorHandle | null>;
+  layout?: ComposerLayout;
   label: string;
   placeholder: string;
-  sendLabel: { idle: string; pending: string };
+  /** The button's name and tooltip; `uploading` is shown while a file is still going up */
+  sendLabel: { idle: string; pending: string; uploading?: string };
+  /** The word on the start button of the `start` layout on a keyboard; the idle name when left out */
+  startLabel?: string;
   /** The start is on its way: the button waits and says so */
   pending: boolean;
   onStart: (message: string) => void;
   status?: ReactNode;
   error?: ReactNode;
+  /** A line under the card (`start` layout on a keyboard): where it runs, how to attach */
+  note?: ReactNode;
+  /** Given, the box takes files: the attach button, the tray, drops and pasted files */
+  files?: AttachmentsState;
+  /** The slash menu's commands and skills, from the environment the chat will start in */
+  commands?: readonly string[];
+  skills?: readonly string[];
+  /** One rule for both start screens: a first message is long, so Enter breaks the line */
+  submitKey?: SubmitKey;
+  initialText?: string;
   autoFocus?: boolean;
 }) {
   const own = useRef<RichEditorHandle>(null);
   const editor = handed ?? own;
-  const [text, setText] = useState('');
-  const [caret, setCaret] = useState(0);
-  // The chat's keys: Enter sends, and on a touch keyboard Enter breaks the line and the button sends
-  const touch = useMediaQuery('(pointer: coarse)');
-  const slash = useSlashMenu({ text, caret, commands: NO_COMMANDS, target: editor });
+  const [text, setText] = useState(initialText);
+  const [caret, setCaret] = useState(initialText.length);
+  const slash = useSlashMenu({ text, caret, commands, ...(skills ? { skills } : {}), target: editor });
+  const hasFiles = (files?.ids.length ?? 0) > 0;
+  const uploading = files?.uploading ?? false;
+  const ready = Boolean(text.trim()) || hasFiles;
   const send = () => {
     const message = (editor.current?.getText() ?? text).trim();
-    if (message && !pending) onStart(message);
+    if ((message || hasFiles) && !uploading && !pending) onStart(message);
   };
-  const name = pending ? sendLabel.pending : sendLabel.idle;
+  const name = pending ? sendLabel.pending : uploading && sendLabel.uploading ? sendLabel.uploading : sendLabel.idle;
   return (
     <ComposerBox
       editor={editor}
+      layout={layout}
+      {...(files ? { files } : {})}
       slash={slash}
       formClass=""
       formLabel={label}
       onSubmit={send}
-      editorProps={{ placeholder, ariaLabel: label, submitKey: touch ? 'mod-enter' : 'enter', autoFocus, onChange: setText, onCaret: setCaret, onKeyDown: slash.onKeyDown }}
-      send={{ name, icon: <ArrowUp {...ICON_SM} />, disabled: !text.trim() || pending }}
+      editorProps={{
+        initialText,
+        placeholder,
+        ariaLabel: label,
+        submitKey,
+        autoFocus,
+        onChange: setText,
+        onCaret: setCaret,
+        onKeyDown: slash.onKeyDown,
+      }}
+      send={{ name, icon: <ArrowUp {...ICON_SM} />, disabled: !ready || uploading || pending, ...(startLabel ? { word: startLabel } : {}) }}
       status={status}
       error={error}
+      note={note}
+      busy={pending}
     />
   );
 }
 
+/** The box a chat has (`chat`: a card with the "+", the chips under it) or the one a start screen has */
+export type ComposerLayout = 'chat' | 'start';
+
 /**
- * What every composer draws, whatever it sends to: the card with the "+" where there is one, the
- * editor, the stop and send buttons, and the line of chips and keys under it. A chat's `Composer`
- * and a `StartComposer` are this one box, so the two cannot drift apart.
+ * What every composer draws, whatever it sends to. A chat's `Composer` and a `StartComposer` are this
+ * one box, so the two cannot drift apart. The `chat` layout is the card with the "+" where there is
+ * one, the editor, the stop and send buttons, and the line of chips and keys under it. The `start`
+ * layout is New chat's: see `StartComposer`.
  */
 function ComposerBox({
   editor,
+  layout = 'chat',
   files,
   slash,
   formClass,
@@ -489,8 +537,11 @@ function ComposerBox({
   send,
   status,
   error,
+  note,
+  busy = false,
 }: {
   editor: RefObject<RichEditorHandle | null>;
+  layout?: ComposerLayout;
   /** Left out where nothing can be attached: no tray, no drop zone, no pasted files */
   files?: AttachmentsState;
   slash: SlashMenuState;
@@ -501,42 +552,94 @@ function ComposerBox({
   editorProps: Omit<RichEditorProps, 'ariaProps' | 'onSubmit' | 'onPasteFiles'>;
   stop?: ReactNode;
   /** Null where the box has no send button: a phone's, whose one round button stops the turn */
-  send: { name: string; icon: ReactNode; disabled: boolean } | null;
+  send: { name: string; icon: ReactNode; disabled: boolean; word?: string } | null;
   status?: ReactNode;
   error?: ReactNode;
+  note?: ReactNode;
+  /** A send is on its way: nothing more is attached meanwhile */
+  busy?: boolean;
 }) {
   const { t } = useTranslation('chat');
+  const narrow = useMediaQuery(NARROW);
+  const start = layout === 'start';
+  const roomy = start && !narrow;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    onSubmit();
+  };
+  const sendButton = send && (
+    <Tooltip content={send.name}>
+      {roomy ? (
+        <button type="submit" className="btn btn-primary new-start" aria-label={send.name} disabled={send.disabled}>
+          {send.word ?? send.name}
+          <ArrowRight {...ICON_SM} />
+        </button>
+      ) : (
+        <button type="submit" className="composer-send" aria-label={send.name} disabled={send.disabled}>
+          {send.icon}
+        </button>
+      )}
+    </Tooltip>
+  );
+  const hint = start && editorProps.submitKey === 'mod-enter' ? (
+    <KeysHint>
+      {t('newChat.keys')
+        .split(' ')
+        .map((key) => (
+          <kbd key={key}>{key}</kbd>
+        ))}
+    </KeysHint>
+  ) : (
+    <KeysHint>{t('composer.keys')}</KeysHint>
+  );
+  const attach = files && <AttachButton state={files} compact disabled={busy} />;
+  const editorNode = <RichEditor ref={editor} {...editorProps} ariaProps={slash.ariaProps} onSubmit={onSubmit} {...(files ? { onPasteFiles: files.add } : {})} />;
   return (
-    <div className="composer-wrap">
+    <div className={start ? `new-composer-wrap ${narrow ? 'composer-wrap' : ''}`.trim() : 'composer-wrap'}>
+      {start && narrow && error}
+      {start && narrow && status && <div className="composer-foot">{status}</div>}
       <div {...files?.dropProps}>
         {files && <AttachmentTray state={files} />}
         <SlashMenu state={slash}>
-          <form
-            className={`composer ${formClass}`.trim()}
-            aria-label={formLabel}
-            onSubmit={(e) => {
-              e.preventDefault();
-              onSubmit();
-            }}
-          >
-            {menu}
-            <RichEditor ref={editor} {...editorProps} ariaProps={slash.ariaProps} onSubmit={onSubmit} {...(files ? { onPasteFiles: files.add } : {})} />
-            {stop}
-            {send && (
-              <Tooltip content={send.name}>
-                <button type="submit" className="composer-send" aria-label={send.name} disabled={send.disabled}>
-                  {send.icon}
-                </button>
-              </Tooltip>
-            )}
-          </form>
+          {start ? (
+            <form className={`composer grad-border ${roomy ? 'new-composer' : ''} ${formClass}`.replace(/\s+/g, ' ').trim()} aria-label={formLabel} onSubmit={submit}>
+              {!roomy && attach}
+              {editorNode}
+              {roomy ? (
+                <div className="new-composer-foot">
+                  {attach}
+                  {status}
+                  {hint}
+                  {sendButton}
+                </div>
+              ) : (
+                sendButton
+              )}
+            </form>
+          ) : (
+            <form className={`composer ${formClass}`.trim()} aria-label={formLabel} onSubmit={submit}>
+              {menu}
+              {editorNode}
+              {stop}
+              {sendButton}
+            </form>
+          )}
         </SlashMenu>
       </div>
-      <div className="composer-foot">
-        {status}
-        <KeysHint>{t('composer.keys')}</KeysHint>
-      </div>
-      {error}
+      {start ? (
+        <>
+          {!narrow && error}
+          {!narrow && note}
+        </>
+      ) : (
+        <>
+          <div className="composer-foot">
+            {status}
+            {hint}
+          </div>
+          {error}
+        </>
+      )}
     </div>
   );
 }

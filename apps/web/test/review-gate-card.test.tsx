@@ -278,7 +278,7 @@ test('a finding is drawn as text, never as markup, with severity, dimension, pat
   assert.doesNotMatch(html, /<img src=x/);
   assert.doesNotMatch(html, /<script>/);
   assert.match(html, /rt-sev bad/);
-  assert.match(text(html), /high/);
+  assert.match(text(html), /High/);
   assert.match(text(html), /security correctness/);
   assert.match(text(html), /src\/a\.ts:10/);
   assert.match(text(html), /confirmed/);

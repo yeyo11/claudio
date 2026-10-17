@@ -115,10 +115,10 @@ test("the phone header gives back the stack's gap, as Night Shift starts the bod
   assert.match(rule, /margin: calc\(2px - var\(--main-pad-top, 16px\)\) -8px -10px/);
 });
 
-test("the board's phone flow row is set at the reference's 13 px, so its figures fit on a 390 px phone", () => {
+test("the board's phone flow row is set at the small size (13 px), so its figures fit on a 390 px phone", () => {
   const css = readFileSync(new URL('../src/styles/board.css', import.meta.url), 'utf8');
   const rule = /\.board-flow-row \{[^}]*\}/.exec(css)?.[0] ?? '';
-  assert.match(rule, /font-size: 13px/);
+  assert.match(rule, /font-size: var\(--fs-small\)/);
   assert.match(rule, /padding: 0 12px/);
 });
 

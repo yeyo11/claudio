@@ -3,7 +3,7 @@ import { Check, ChevronDown } from 'lucide-react';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../icons';
-import { LAYER_ATTR } from './layer';
+import { LAYER_ATTR, layerCollisionPadding } from './layer';
 
 export interface ComboboxOption {
   value: string;
@@ -111,7 +111,7 @@ export function Combobox({
           className="menu combobox-menu"
           align="start"
           sideOffset={6}
-          collisionPadding={8}
+          collisionPadding={layerCollisionPadding()}
           onOpenAutoFocus={(e) => e.preventDefault()}
           // Clicks on the input itself are not "outside"
           onInteractOutside={(e) => e.target === inputRef.current && e.preventDefault()}

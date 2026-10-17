@@ -2,7 +2,7 @@ import type { CheckAnnotation, Check, ChangeRequestChecks, Orchestration, Orches
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, ExternalLink, GitBranch, Play, RotateCw, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../api';
 import { MoreActions, Sheet, type MenuEntry } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
@@ -31,7 +31,7 @@ function StateBadge({ check }: { check: Check }) {
   );
 }
 
-/** The mono clock of a row; a running one counts, and only it subscribes to the tick. */
+/** The clock of a row; a running one counts, and only it subscribes to the tick. */
 function Clock({ check }: { check: Check }) {
   useClockTick(check.state === 'running' ? 1000 : 60_000);
   const ms = checkDurationMs(check, Date.now());
@@ -230,7 +230,7 @@ export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; 
           <p className="small muted">{t('checks.push.body')}</p>
           <div className="ochk-fix-facts">
             <span>
-              <GitBranch {...ICON_SM} /> {t('checks.push.facts', { branch: pr.branch })}
+              <GitBranch {...ICON_SM} /> <Trans t={t} i18nKey="checks.push.facts" values={{ branch: pr.branch }} components={{ mono: <span className="mono" /> }} />
             </span>
           </div>
           <div className="ochk-line ochk-fix-foot">
@@ -244,7 +244,7 @@ export function OrchestrationChecks({ orch, pr, words }: { orch: Orchestration; 
 
       <div className="ochk-line ochk-head">
         <h3 className="ochk-h grow">{t('checks.title')}</h3>
-        {summary.length > 0 && <span className="mono small muted ochk-summary">{summary.join(' · ')}</span>}
+        {summary.length > 0 && <span className="tnum small muted ochk-summary">{summary.join(' · ')}</span>}
       </div>
 
       {(actions.rerunFailed || actions.cancel || actions.fix) && (

@@ -277,12 +277,12 @@ function useStart({
           </span>
         ) : data ? (
           <>
-            <span className="mono evals-estimate-line">
+            <span className="evals-estimate-line tnum">
               {t('start.estimate.line', { count: data.samples, cost: formatCost(data.ceilingUsd) })}
               {data.typicalUsd !== null && ` · ${t('start.estimate.typical', { cost: formatCost(data.typicalUsd) })}`}
             </span>
             {data.perLevel && Object.keys(data.perLevel).length > 1 && (
-              <ul className="evals-estimate-levels mono" aria-label={t('start.estimate.perLevel')}>
+              <ul className="evals-estimate-levels tnum" aria-label={t('start.estimate.perLevel')}>
                 {PRESSURE_LIST.flatMap((level) => {
                   const line = data.perLevel?.[level];
                   return line ? [<li key={level}>{t('start.estimate.level', { level: t(`pressure.${level}`), count: line.samples, cost: formatCost(line.ceilingUsd) })}</li>] : [];
@@ -307,7 +307,7 @@ function useStart({
             <strong id="evals-consent-title">{t('start.consent.title')}</strong>
             <p className="field-hint">{t('start.consent.body')}</p>
             <span className="field-label">{t('start.consent.prompts', { count: data.prompts.length })}</span>
-            <ul className="evals-consent-list mono">
+            <ul className="evals-consent-list">
               {data.prompts.map((prompt, i) => (
                 <li key={i}>{prompt}</li>
               ))}

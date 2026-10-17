@@ -83,7 +83,7 @@ export function WebhooksSection({ projects }: { projects: Project[] }) {
     <Card
       className="prov-card wh-card"
       title={<span>{t('title')}</span>}
-      actions={<span className="mono prov-summary">{t('summary', { count: entries.length, active: withHook })}</span>}
+      actions={<span className="prov-summary tnum">{t('summary', { count: entries.length, active: withHook })}</span>}
     >
       {bar}
       {entries.length === 0 ? <p className="wh-none">{t('none')}</p> : <div role="list" aria-label={t('aria')}>{rows}</div>}
@@ -144,7 +144,7 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
   const fact = (name: string, value: string, key: string) => (
     <div key={key}>
       <dt>{name}</dt>
-      <dd>{value}</dd>
+      <dd className={key === 'url' ? 'mono' : undefined}>{value}</dd>
     </div>
   );
   const facts: React.ReactNode[] = [];
@@ -186,8 +186,8 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
     <div className="prov-id">
       <span className="prov-name">
         {project.name}
-        <span className="mono t-xs host-noun">
-          {tTasks(words.nounKey)} {words.prefix}12
+        <span className="t-xs host-noun">
+          {tTasks(words.nounKey)} <span className="mono">{words.prefix}12</span>
         </span>
       </span>
       <span className="prov-meta ellipsis" title={repo}>
@@ -199,7 +199,7 @@ function WebhookRow({ project, overview, variant }: { project: Project; overview
     <div className="prov-state">
       <Tag tone={tone}>{tag}</Tag>
       <p className="prov-reason">{text()}</p>
-      <dl className="wh-facts mono">{facts}</dl>
+      <dl className="wh-facts tnum">{facts}</dl>
     </div>
   );
   const buttons = actions.map((action) => {

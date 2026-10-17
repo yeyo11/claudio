@@ -8,7 +8,7 @@ import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Card, CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
-import { formatDate, timeAgo } from '@claudio/ui/lib/format';
+import { formatDate, formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import {
   DOCKER_REPLACE_COMMAND,
   DOCKER_RUN_COMMAND,
@@ -265,7 +265,7 @@ function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: C
       {state.status === 'downloading' && (
         <div className="stack">
           <p className="small" role="status">
-            {t('updates.downloading', { version: state.version, percent: state.percent })}
+            {t('updates.downloading', { version: state.version, percent: formatPercent(state.percent) })}
           </p>
           <span
             className="progress"

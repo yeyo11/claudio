@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { AgentScope } from '@claudio/chat-ui/lib/agent';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import { branchLive, chatBusy, effectiveBranch } from '@claudio/chat-ui/lib/liveness';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@claudio/chat-ui/lib/chats';
 import { keys } from '../api';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
@@ -59,16 +60,23 @@ function Facts({ children }: { children: ReactNode }) {
 
 // ---------- background task ----------
 
-function useTask(chatId: string, taskId: string): { task: ChatBackgroundTask | undefined; loading: boolean } {
+/**
+ * A task as the chat it belongs to lets it be read: running only while a process holds that chat.
+ * A chat not read yet is assumed held, which is what the task's own record says.
+ */
+function useTask(chatId: string, taskId: string): { task: ChatBackgroundTask | undefined; running: boolean; loading: boolean } {
   const tasks = useChatTasks(chatId);
-  return { task: tasks.data?.find((t) => t.id === taskId), loading: tasks.isLoading };
+  const { chat } = useChatTranscript(chatId);
+  const found = tasks.data?.find((t) => t.id === taskId);
+  const task = found && chat ? effectiveBranch(chat, found) : found;
+  const running = task ? (chat ? branchLive(chat, task) : task.status === 'running') : false;
+  return { task, running, loading: tasks.isLoading };
 }
 
 function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
   const { t } = useTranslation('components');
   const { open } = useDetailPanel();
-  const { task, loading } = useTask(chatId, taskId);
-  const running = task?.status === 'running';
+  const { task, running, loading } = useTask(chatId, taskId);
   const output = useTaskOutput(chatId, taskId, running);
   useTick(running);
   const follow = useFollow<HTMLDivElement>(output.data?.text, true);
@@ -153,10 +161,8 @@ type AgentTarget = Extract<DetailRef, { kind: 'subagent' | 'workflow-agent' }>;
 function useSubagentActivity(chatId: string, agentId: string, startedAt: string | null): ChatActivity {
   const client = useQueryClient();
   const find = useCallback((): ChatActivity | null => {
-    for (const sidechains of [false, true]) {
-      const found = client.getQueryData<ChatDetail>(keys.chat(chatId, sidechains))?.chat.children.subagents.find((sub) => sub.id === agentId);
-      if (found) return found.activity ?? null;
-    }
+    const held = client.getQueryData<ChatDetail>(keys.chat(chatId))?.chat.children.subagents.find((sub) => sub.id === agentId);
+    if (held) return held.activity ?? null;
     for (const [, list] of client.getQueriesData<ChatSubagentEntry[]>({ queryKey: keys.subagents })) {
       const found = Array.isArray(list) ? list.find((sub) => sub.sessionId === chatId && sub.id === agentId) : undefined;
       if (found) return found.activity ?? null;
@@ -182,8 +188,11 @@ const agentRef = (target: AgentTarget): AgentRef =>
 function AgentBody({ target }: { target: AgentTarget }) {
   const { t } = useTranslation('components');
   const { open } = useDetailPanel();
-  const { data, error, isLoading } = useAgentDetail(agentRef(target), false);
-  const running = data?.status === 'running';
+  const { chat } = useChatTranscript(target.chatId);
+  // A chat not read yet is assumed held; once it is read, nothing runs in one nothing holds
+  const alive = chat?.alive ?? true;
+  const { data, error, isLoading } = useAgentDetail(agentRef(target), false, alive);
+  const running = alive && data?.status === 'running';
   useTick(running);
   const follow = useFollow<HTMLDivElement>(data?.total, running);
   const [showAll, setShowAll] = useState(false);
@@ -200,7 +209,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
       <Facts>
         <dt>{t('detail.status')}</dt>
         <dd>
-          <BranchStatus status={data.status} />
+          <BranchStatus status={alive || data.status !== 'running' ? data.status : 'stopped'} />
           {running && target.kind === 'subagent' && (
             <>
               {' '}
@@ -331,8 +340,8 @@ function AgentBody({ target }: { target: AgentTarget }) {
  */
 function ChatBody({ chatId }: { chatId: string }) {
   const { t } = useTranslation('components');
-  const { query, chat } = useChatTranscript(chatId, false);
-  const working = chat?.state === 'working';
+  const { query, chat } = useChatTranscript(chatId);
+  const working = chat ? chatBusy(chat) : false;
   const follow = useFollow<HTMLDivElement>(query.data?.total, working);
   const held = query.data?.entries;
   const entries = useMemo(() => (held ? held.slice(-RENDERED_ENTRIES) : []), [held]);
@@ -365,7 +374,7 @@ function ChatBody({ chatId }: { chatId: string }) {
         {chat.cost.usd !== null && chat.cost.usd > 0 && (
           <>
             <dt>{t('detail.cost')}</dt>
-            <dd className="mono">{formatCost(chat.cost.usd)}</dd>
+            <dd className="tnum">{formatCost(chat.cost.usd)}</dd>
           </>
         )}
         <dt>{t('detail.chat')}</dt>
@@ -403,7 +412,7 @@ function ChatBody({ chatId }: { chatId: string }) {
 
 function ChatTitle({ chatId }: { chatId: string }) {
   const { t } = useTranslation('components');
-  const { chat } = useChatTranscript(chatId, false);
+  const { chat } = useChatTranscript(chatId);
   return <span className="ellipsis">{(chat && displayTitle(chat)) || t('detail.chat')}</span>;
 }
 

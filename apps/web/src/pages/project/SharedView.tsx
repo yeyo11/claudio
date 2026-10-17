@@ -1,4 +1,5 @@
 import { displayTitle, WORK_ITEM_STATUSES, type CollaboratorsKind, type JournalEntry, type JournalEntryKind, type SharedArtifact, type Project, type SharedChat, type SharedProject, type SharedSubagent, type SharedTranscriptPage, type SyncState, type TranscriptEntry, type WorkItemDetail } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookText, Bot, BotOff, Check, Download, FileText, GitCommitVertical, ListTodo, MessagesSquare, NotebookText, Package, Paperclip, SquareKanban, StickyNote, Workflow, type LucideIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -259,7 +260,7 @@ function SharedChatRow({ chat }: { chat: SharedChat }) {
         <span className="crow-mark">{chat.live ? <Spinner className="crow-spinner" /> : <span className="dot crow-dot-rest" aria-hidden />}</span>
         <span className="crow-main">
           <span className="crow-title-row">
-            <span className="crow-title-text">{title}</span>
+            <FullText className="crow-title-text">{title}</FullText>
           </span>
           <span className="crow-sub">
             {chat.live && chat.activity ? (
@@ -535,7 +536,7 @@ function SharedBoardView({ source }: { source: SharedRef }) {
           <section key={status} className="workitem-col" aria-label={label} data-status={status}>
             <div className="workitem-col-head">
               <WorkItemStatusIcon status={status} decorative />
-              <span className="workitem-col-name">{label}</span>
+              <FullText className="workitem-col-name">{label}</FullText>
               <span className="workitem-col-count">
                 <b>{formatNumber(column.length)}</b>
               </span>
@@ -696,7 +697,7 @@ function ArtifactDetail({ source, artifact }: { source: SharedRef; artifact: Sha
   if (artifact.kind === 'plan') {
     return (
       <>
-        <p className="small muted mono">{t('shared.artifacts.tasks', { count: artifact.taskCount, n: formatNumber(artifact.taskCount) })}</p>
+        <p className="small muted tnum">{t('shared.artifacts.tasks', { count: artifact.taskCount, n: formatNumber(artifact.taskCount) })}</p>
         {artifact.objective ? <DocumentView content={artifact.objective} /> : <p className="small muted">{t('shared.artifacts.noObjective')}</p>}
       </>
     );
@@ -723,7 +724,7 @@ function ArtifactDetail({ source, artifact }: { source: SharedRef; artifact: Sha
         <dt>{t('shared.artifacts.type')}</dt>
         <dd className="mono">{artifact.mediaType}</dd>
         <dt>{t('shared.artifacts.size')}</dt>
-        <dd className="mono tnum">{formatBytes(artifact.sizeBytes)}</dd>
+        <dd className="tnum">{formatBytes(artifact.sizeBytes)}</dd>
         <dt>{t('shared.artifacts.chat')}</dt>
         <dd className="mono">{artifact.chatId.slice(0, 8)}</dd>
       </dl>

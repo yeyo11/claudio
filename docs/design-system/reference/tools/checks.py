@@ -212,7 +212,7 @@ def unavailable(host):
 
 def log_head(host, ck):
   detail = f'trabajo {ck["id"]} · {ck["stage"]}' + (f' · {ck["dur"]}' if ck['dur'] else '')
-  return (f'<div class="check-log-head">{mark(ck["st"])}<b style="font-weight: 500">{ck["name"]}</b>{badge(ck["st"])}'
+  return (f'<div class="check-log-head">{mark(ck["st"])}<b style="font-weight: var(--fw-regular)">{ck["name"]}</b>{badge(ck["st"])}'
           f'<span class="mono t-xs fg-3">{detail}</span><span class="grow"></span>{host_link(host)}'
           f'<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar el registro">{ico("x")}</button></div>')
 
@@ -312,7 +312,7 @@ def mr_panel(host, mobile=False):
   name, noun, num, _ = HOST[host]
   size = 'btn btn-lg' if mobile else 'btn btn-sm'
   return f'''<section class="callout" aria-label="{"Merge request" if host == "gitlab" else "Pull request"}" style="align-items: flex-start; flex-wrap: wrap">{ico('branch', 'ico fg-3', 'flex-shrink: 0; margin-top: 2px')}
-<div class="col grow" style="gap: 6px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><b style="color: var(--fg); font-weight: 500">La {noun} {num} espera que la fusiones en {name}</b>{ci_badge('failing')}</span>
+<div class="col grow" style="gap: 6px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><b style="color: var(--fg); font-weight: var(--fw-regular)">La {noun} {num} espera que la fusiones en {name}</b>{ci_badge('failing')}</span>
 <span>Cuando se fusione, la tarea pasará sola a Hecho.</span></div>
 {"" if mobile else f'<a href="#" class="{size}" target="_blank" rel="noreferrer">{ext_ico()}Abrir {noun} {num} en {name}</a>'}</section>'''
 
@@ -353,7 +353,7 @@ def log_sheet(host, ck, gone=False):
   return f'''{scrim()}
 <div class="sheet" role="dialog" aria-label="Registro de {ck["name"]}" style="z-index: 11; padding: 10px 0 28px; display: flex; flex-direction: column; gap: 10px; max-height: 80%; overflow: hidden">
 <div class="grab" style="margin-bottom: 0"></div>
-<div class="row" style="gap: 10px; padding: 0 4px 0 16px">{mark(ck["st"])}<span class="col grow" style="gap: 2px; min-width: 0"><b style="font-weight: 500; font-size: 15px">{ck["name"]}</b><span class="mono t-xs fg-3">trabajo {ck["id"]} · {ck["stage"]} · {ck["dur"]}</span></span>{badge(ck["st"])}<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar el registro">{ico("x", "ico ico-lg")}</button></div>
+<div class="row" style="gap: 10px; padding: 0 4px 0 16px">{mark(ck["st"])}<span class="col grow" style="gap: 2px; min-width: 0"><b style="font-weight: var(--fw-regular); font-size: var(--fs-section)">{ck["name"]}</b><span class="mono t-xs fg-3">trabajo {ck["id"]} · {ck["stage"]} · {ck["dur"]}</span></span>{badge(ck["st"])}<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar el registro">{ico("x", "ico ico-lg")}</button></div>
 <div class="col" style="gap: 10px; min-height: 0; overflow: hidden">{body}</div>
 <div style="padding: 0 16px">{host_link(host, True)}</div>
 </div>'''
@@ -364,11 +364,11 @@ def menu_sheet(host, ck):
   for icon, label, dis, why in menu_items(host, ck):
     rows += f'<button type="button" class="menu-item" role="menuitem"{" disabled" if dis else ""} style="height: auto; padding: 0 12px">{ico(icon, "ico")}{label}</button>'
     if why:
-      rows += f'<span class="menu-why" style="padding: 0 12px 8px 38px; font-size: 13px; color: var(--fg-3)">{why}</span>'
+      rows += f'<span class="menu-why" style="padding: 0 12px 8px 38px; font-size: var(--fs-small); color: var(--fg-3)">{why}</span>'
   return f'''{scrim()}
 <div class="sheet" role="dialog" aria-label="Acciones de {ck["name"]}" style="z-index: 11; padding-bottom: 28px; display: flex; flex-direction: column; gap: 6px">
 <div class="grab"></div>
-<div class="col" style="gap: 2px; padding: 0 4px 6px"><b style="font-weight: 500; font-size: 15px">{ck["name"]}</b><span class="mono t-xs fg-3">{ck["stage"]} · {STATE[ck["st"]][0]}</span></div>
+<div class="col" style="gap: 2px; padding: 0 4px 6px"><b style="font-weight: var(--fw-regular); font-size: var(--fs-section)">{ck["name"]}</b><span class="mono t-xs fg-3">{ck["stage"]} · {STATE[ck["st"]][0]}</span></div>
 <div class="col" style="gap: 2px">{rows}</div>
 <button type="button" class="btn btn-lg" style="justify-content: center; margin-top: 6px">Cancelar</button>
 </div>'''
@@ -514,7 +514,7 @@ def list_body(open_='test:unit', mobile=False):
 def ochk_log_panel(mobile=False):
   c = FAILING[0]
   link = f'<a href="#" class="btn btn-sm" target="_blank" rel="noreferrer" aria-label="Abrir test:unit en GitLab">{ext_ico()}Abrir en GitLab</a>'
-  head = '' if mobile else (f'<div class="ochk-log-head"><span class="mono" style="font-size: 13px; font-weight: 500">{c[0]}</span>{state_badge("failed")}'
+  head = '' if mobile else (f'<div class="ochk-log-head"><span class="mono" style="font-size: var(--fs-small); font-weight: var(--fw-regular)">{c[0]}</span>{state_badge("failed")}'
                             f'<span class="mono t-xs fg-3">{c[3]} · job {c[4]}</span><span class="grow"></span>{link}</div>')
   why = ('<div class="ochk-why"><span class="t-label">Por qué falló</span>'
          '<dl><dt>failure_reason</dt><dd>script_failure</dd><dt>exit code</dt><dd>1</dd></dl>'
@@ -563,7 +563,7 @@ def fix_card(mobile=False):
 
 
 def mr_card_head():
-  return '<div class="row" style="gap: 10px"><h2 class="t-h2 grow">Su merge request</h2><span class="mono t-xs fg-2">6/6 ramas de tarea fusionadas</span></div>'
+  return '<div class="row" style="gap: 10px"><h2 class="t-h2 grow">Su merge request</h2><span class="t-num t-xs fg-2">6/6 ramas de tarea fusionadas</span></div>'
 
 
 def desktop_main(variant):
@@ -590,13 +590,13 @@ def desktop_main(variant):
 
 
 def checks_desktop(name, variant):
-  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: 500">spanish-copy</span>'
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: var(--fw-regular)">spanish-copy</span>'
   write(name, desktop('Orquestación con checks', 'orch', crumb, desktop_main(variant)))
 
 
 def m_head():
   return (f'<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px"><a href="MobileOrquestaciones.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
-          f'<span class="col grow" style="gap: 2px"><span style="font-weight: 600; font-size: 16px">spanish-copy</span><span class="row t-xs mono c-ok" style="gap: 6px">{ico("check", "ico ico-sm")}completada</span></span>'
+          f'<span class="col grow" style="gap: 2px"><span style="font-weight: var(--fw-strong); font-size: var(--fs-input)">spanish-copy</span><span class="row t-xs mono c-ok" style="gap: 6px">{ico("check", "ico ico-sm")}completada</span></span>'
           f'<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico("more", "ico ico-lg", "stroke-width: 3")}</button></header>')
 
 
@@ -605,7 +605,7 @@ def ochk_log_sheet():
   return f'''{scrim()}
 <div class="sheet" role="dialog" aria-label="Log de test:unit" style="z-index: 11; padding-bottom: 20px; display: flex; flex-direction: column; gap: 10px; max-height: 86%">
 <div class="grab" style="margin-bottom: 0"></div>
-<div class="row" style="gap: 8px"><span class="mono grow" style="font-size: 15px; font-weight: 500">{c[0]}</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar">{ico("x", "ico ico-lg")}</button></div>
+<div class="row" style="gap: 8px"><span class="mono grow" style="font-size: var(--fs-section); font-weight: var(--fw-regular)">{c[0]}</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar">{ico("x", "ico ico-lg")}</button></div>
 <div class="row" style="gap: 8px; flex-wrap: wrap">{state_badge("failed")}<span class="mono t-xs fg-3">{c[3]} · job {c[4]}</span></div>
 <div style="overflow: hidden; display: flex; flex-direction: column; min-height: 0">{ochk_log_panel(True)}</div>
 <a href="#" class="btn btn-lg" style="justify-content: center" target="_blank" rel="noreferrer">{ext_ico("ico ico-lg")}Abrir en GitLab</a>
@@ -682,7 +682,7 @@ def fix_strip(state, origin='person', n=1, of=2):
             f'<span class="detail" style="padding-left: 0">{REF} sigue con la CI fallida de <span class="mono">{FIX_HEAD}</span> · intento {n} de {of}</span>'
             f'<button type="button" class="btn btn-sm">{ico("move", "ico ico-sm")}Subir el arreglo</button></div>')
   return (f'<div class="wi-strip warn" role="status">{ico("warn", "ico", "color: var(--warn)")}'
-          f'<span class="verb"><b style="color: var(--warn); font-weight: 600">Sin intentos</b> · la CI sigue fallida tras {of} arreglos</span>'
+          f'<span class="verb"><b style="color: var(--warn); font-weight: var(--fw-strong)">Sin intentos</b> · la CI sigue fallida tras {of} arreglos</span>'
           f'<span class="detail">{REF} · límite de {of} por commit · <span class="mono">{FIX_HEAD}</span></span></div>')
 
 
@@ -705,7 +705,7 @@ BOARD_STATES = [
 def board_row(state, origin, code, column, note):
   strip = fix_strip(state, origin, n=2 if state == 'spent' else 1)
   who = 'DEV' if state == 'fixing' else 'QA' if state == 'verify' else None
-  head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: 500">{code}</span>'
+  head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: var(--fw-regular)">{code}</span>'
           f'<span class="row t-xs fg-2" style="gap: 6px">{sico("in_progress" if column == "En curso" else "in_review")}{column}</span>'
           f'<span class="t-xs fg-3" style="line-height: 1.45">{note}</span></div>')
   return (f'<div style="display: grid; grid-template-columns: 240px 340px 390px; gap: 48px; align-items: start; padding: 18px 0; border-top: 1px solid var(--line)">'
@@ -728,7 +728,7 @@ def check_rows(results=False, skipped=True):
   for name, dur, (cause, fixed, sentence) in FIX_FAILING:
     why = ''
     if results:
-      word = '<span class="c-ok" style="font-weight: 500">Arreglado</span>' if fixed else '<span style="font-weight: 500; color: var(--fg)">Sin cambios</span>'
+      word = '<span class="c-ok" style="font-weight: var(--fw-regular)">Arreglado</span>' if fixed else '<span style="font-weight: var(--fw-regular); color: var(--fg)">Sin cambios</span>'
       why = f'<span class="verdict">{word} · {sentence}</span>'
     out.append(f'<li class="fix-check"><span class="name">{name}</span><span class="badge b-bad">{ico("x", "ico ico-sm")}fallido</span><span class="dur">{dur}</span>{why}</li>')
   if skipped:
@@ -742,15 +742,15 @@ def fix_panel(state, origin, mobile=False):
   chat = f'<a href="DesktopChatTarea.html" class="{size}">{ico("chats", "ico ico-sm")}Ver el chat'
   if state == 'fixing':
     sub = (f'Lo has pedido tú. Si QA da por bueno el arreglo, se sube solo. Mover la tarjeta mientras tanto retira ese permiso.' if origin == 'person'
-           else 'Lo ha decidido <span class="mono">checks.fix</span> con confianza <span class="mono">0,91</span>. Cuando QA lo dé por bueno, te esperará para subirlo.')
+           else 'Lo ha decidido <span class="mono">checks.fix</span> con confianza <span class="t-num">0,91</span>. Cuando QA lo dé por bueno, te esperará para subirlo.')
     return (f'<section class="fix-panel live rail-live" aria-label="Arreglo de los checks"><div class="fix-head">'
-            f'<div class="col grow" style="gap: 4px"><span class="fix-title"><span class="spin-braille" aria-hidden="true"></span>El desarrollador arregla los checks<time class="mono t-xs fg-3" style="font-weight: 400">1:48</time></span><span class="fix-sub">{sub}</span></div>'
+            f'<div class="col grow" style="gap: 4px"><span class="fix-title"><span class="spin-braille" aria-hidden="true"></span>El desarrollador arregla los checks<time class="t-num t-xs fg-3" style="font-weight: var(--fw-regular)">1:48</time></span><span class="fix-sub">{sub}</span></div>'
             f'{attempts(1, 2)}</div>{check_rows()}<div class="fix-foot">{chat} del desarrollador</a></div></section>')
   if state == 'verify':
     sub = ('Tu clic quedó recordado: si QA da el arreglo por bueno, se sube solo. Mover la tarjeta mientras tanto retira ese permiso.' if origin == 'person'
            else 'Lo empezó <span class="mono">checks.fix</span>: aunque QA lo apruebe, no se sube hasta que lo hagas tú.')
     return (f'<section class="fix-panel live rail-live" aria-label="Arreglo de los checks"><div class="fix-head">'
-            f'<div class="col grow" style="gap: 4px"><span class="fix-title"><span class="spin-braille" aria-hidden="true"></span>QA verifica el arreglo<time class="mono t-xs fg-3" style="font-weight: 400">0:52</time></span><span class="fix-sub">{sub}</span></div>'
+            f'<div class="col grow" style="gap: 4px"><span class="fix-title"><span class="spin-braille" aria-hidden="true"></span>QA verifica el arreglo<time class="t-num t-xs fg-3" style="font-weight: var(--fw-regular)">0:52</time></span><span class="fix-sub">{sub}</span></div>'
             f'{attempts(1, 2)}</div>{check_rows(results=True, skipped=False)}<div class="fix-foot">{chat} de QA</a></div></section>')
   primary = 'btn btn-lg btn-primary' if mobile else 'btn btn-sm btn-primary'
   wide = ' style="flex: 1 1 100%; justify-content: center"' if mobile else ''
@@ -760,7 +760,7 @@ def fix_panel(state, origin, mobile=False):
           f'{attempts(1, 2)}</div>{check_rows(results=True, skipped=False)}'
           f'<div class="fix-foot"><button type="button" class="{primary}"{wide}>{ico("move", "ico ico-sm")}Subir el arreglo</button>'
           f'<a href="DesktopCambios.html" class="{size}">{ico("git", "ico ico-sm")}Ver el diff</a>'
-          f'<span class="grow"></span><span class="mono t-xs fg-3" style="font-variant-numeric: tabular-nums">+18 −6 · 2 archivos</span></div></section>')
+          f'<span class="grow"></span><span class="t-num t-xs fg-3" style="font-variant-numeric: tabular-nums">+18 −6 · 2 archivos</span></div></section>')
 
 
 def item_status(state):
@@ -778,12 +778,12 @@ def item_excerpt(state, origin, mobile=False):
     head = (f'<div class="row" style="gap: 6px; flex-wrap: wrap"><a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver al tablero" style="margin-left: -10px">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
             f'{tico("story", True)}<span class="wi-key boxed">AGN-26</span></div>'
             f'<div class="row" style="gap: 6px; flex-wrap: wrap">{item_status(state)}</div>'
-            f'<h1 class="t-h2" style="font-size: 17px; line-height: 1.35">Plantillas de proyecto</h1>')
+            f'<h1 class="t-h2" style="font-size: var(--fs-title); line-height: 1.35">Plantillas de proyecto</h1>')
     return (f'<div class="col" style="gap: 12px">{head}<span class="t-label" style="padding: 0 2px">Su merge request</span>{mr}{fix_panel(state, origin, True)}</div>')
   head = (f'<div class="row" style="gap: 10px; flex-wrap: wrap"><a href="DesktopTablero.html" class="btn btn-icon btn-sm" aria-label="Volver al tablero">{ico("left")}</a>'
           f'{tico("story", True)}<span class="wi-key boxed">AGN-26</span>{item_status(state)}<span class="grow"></span>'
           f'<a href="DesktopChatTarea.html" class="btn btn-sm">{ico("chats", "ico ico-sm")}Ver el chat</a></div>')
-  return (f'<div class="card col" style="padding: 18px; gap: 14px">{head}<h1 class="t-h1" style="font-size: 22px">Plantillas de proyecto</h1>'
+  return (f'<div class="card col" style="padding: 18px; gap: 14px">{head}<h1 class="t-h1" style="font-size: var(--fs-title)">Plantillas de proyecto</h1>'
           f'<div class="row" style="gap: 10px"><h2 class="t-h2 grow">Su merge request</h2></div>{mr}{fix_panel(state, origin)}</div>')
 
 
@@ -797,7 +797,7 @@ ITEM_STATES = [
 def item_section():
   rows = ''
   for state, origin, code, note in ITEM_STATES:
-    head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: 500">{code}</span>'
+    head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: var(--fw-regular)">{code}</span>'
             f'<span class="row t-xs fg-2" style="gap: 6px">{ORIGIN[origin]}</span><span class="t-xs fg-3" style="line-height: 1.45">{note}</span></div>')
     rows += (f'<div style="display: grid; grid-template-columns: 220px minmax(0, 1fr) 390px; gap: 40px; align-items: start; padding: 18px 0; border-top: 1px solid var(--line)">'
              f'{head}{item_excerpt(state, origin)}{pframe(item_excerpt(state, origin, True))}</div>')
@@ -810,7 +810,7 @@ def dialog_notes(variant, mobile=False):
           f'<span>Como lo pides tú, el arreglo se sube solo cuando QA lo dé por bueno. Mover la tarjeta antes retira ese permiso.</span></div>')
   if variant == 'beyond':
     note += (f'<div class="callout callout-warn" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
-             f'<span><b style="color: var(--fg); font-weight: 500">Los 2 intentos de este commit ya están hechos.</b> El límite solo frena a las decisiones: tú puedes intentarlo otra vez, y este sería el tercero.</span></div>')
+             f'<span><b style="color: var(--fg); font-weight: var(--fw-regular)">Los 2 intentos de este commit ya están hechos.</b> El límite solo frena a las decisiones: tú puedes intentarlo otra vez, y este sería el tercero.</span></div>')
   return note
 
 
@@ -820,7 +820,7 @@ def dialog_facts(variant):
   word = '2 intentos disponibles' if left == 2 else 'Sin intentos de decisión'
   cell = lambda k, v: f'<div class="col" style="gap: 4px; min-width: 0"><span class="t-label">{k}</span>{v}</div>'
   return ('<div class="row" style="gap: 12px 28px; flex-wrap: wrap; align-items: flex-start">'
-          + cell('Lo arregla', '<span class="mono t-sm">Desarrollador · sonnet</span>')
+          + cell('Lo arregla', '<span class="t-num t-sm">Desarrollador · <span class="mono">sonnet</span></span>')
           + cell('Worktree', '<span class="mono t-sm">task/agn-26</span>')
           + cell('Intentos con este commit', f'<span class="row" style="gap: 10px">{attempts(used, 2, True)}<span class="t-xs fg-2">{word}</span></span>')
           + '</div>')
@@ -861,7 +861,7 @@ def dialog_section():
   for variant, title, note in [
       ('first', 'Primer intento', 'Qué checks recibe el desarrollador, qué se queda fuera y cuántos intentos quedan. Un clic en «Arreglar» es la aprobación de subirlo tras QA.'),
       ('beyond', 'Intentos de decisión agotados', 'El límite del proyecto (2 por commit) frena a checks.fix, no a la persona: se dice, y el intento cuenta.')]:
-    rows += (f'<div class="col" style="gap: 12px"><div class="col" style="gap: 4px"><span class="t-sm" style="font-weight: 600">{title}</span><span class="t-xs fg-3" style="line-height: 1.45; max-width: 760px">{note}</span></div>'
+    rows += (f'<div class="col" style="gap: 12px"><div class="col" style="gap: 4px"><span class="t-sm" style="font-weight: var(--fw-strong)">{title}</span><span class="t-xs fg-3" style="line-height: 1.45; max-width: 760px">{note}</span></div>'
              f'<div style="display: grid; grid-template-columns: 640px 390px; gap: 48px; align-items: start">{fix_dialog(variant)}{fix_sheet(variant)}</div></div>')
   return f'<section class="col" style="gap: 28px"><span class="t-label">El diálogo de arreglar, y su Sheet en el móvil</span>{rows}</section>'
 
@@ -904,7 +904,7 @@ def limits_notes():
           f'Pregunta si los cambios de la rama han causado los fallos, de un modo que el desarrollador pueda arreglar: <span class="mono">branch-fixable</span>, <span class="mono">not-branch</span> o <span class="mono">needs-person</span>. '
           f'Solo la primera, por encima del umbral, empieza un arreglo.</span></div>'
           f'<div class="dp-note" style="align-items: flex-start">{ico("lock", "ico ico-sm", "flex-shrink: 0; margin-top: 2px")}<span>'
-          f'Además, quedan intentos con el commit (<span class="mono">2</span>; se cambian en <a href="DesktopProyectoAjustes.html" class="pr-remedy">Ajustes del proyecto</a>), el flujo tiene hueco y no se ha gastado su límite de coste. '
+          f'Además, quedan intentos con el commit (<span class="t-num">2</span>; se cambian en <a href="DesktopProyectoAjustes.html" class="pr-remedy">Ajustes del proyecto</a>), el flujo tiene hueco y no se ha gastado su límite de coste. '
           f'Lo que arregla espera «Subir el arreglo»: nunca se sube solo.</span></div>')
 
 
@@ -918,7 +918,7 @@ def with_notes(r):
 
 def point_mcell(mode):
   badge = {'off': '<span class="fg-3">Apagado</span>', 'shadow': '<span class="badge">Sombra</span>', 'active': '<span class="badge b-accent">Activo</span>'}[mode]
-  return (f'<a href="#" class="cell stacked" style="min-height: 64px"><span class="row" style="gap: 10px"><span class="grow" style="font-weight: 500; font-size: 14px; line-height: 1.35">{CHECKS_FIX[1]}</span>{ico("right", "ico fg-3")}</span>'
+  return (f'<a href="#" class="cell stacked" style="min-height: 64px"><span class="row" style="gap: 10px"><span class="grow" style="font-weight: var(--fw-regular); font-size: var(--fs-body); line-height: 1.35">{CHECKS_FIX[1]}</span>{ico("right", "ico fg-3")}</span>'
           f'<span class="row t-xs" style="gap: 10px"><span class="mono fg-3 ellipsis grow">checks.fix</span><span class="fg-2">Actúa</span>{badge}</span></a>')
 
 
@@ -929,10 +929,10 @@ def point_sheet_checks(mode='active'):
     sheet = f'''{dec.scrim()}
 <div class="sheet" role="dialog" aria-label="{CHECKS_FIX[1]}" style="z-index: 11; padding-bottom: 28px; display: flex; flex-direction: column; gap: 14px; max-height: 96%; overflow: hidden">
 <div class="grab" style="margin-bottom: 0"></div>
-<div class="col" style="gap: 2px"><h2 class="t-h2">{CHECKS_FIX[1]}</h2><span class="mono t-xs fg-3">checks.fix · por proyecto · Actúa</span></div>
+<div class="col" style="gap: 2px"><h2 class="t-h2">{CHECKS_FIX[1]}</h2><span class="t-num t-xs fg-3"><span class="mono">checks.fix</span> · por proyecto · Actúa</span></div>
 <div class="col" style="gap: 8px"><span class="t-label">Modo</span>{dec.seg("Modo de checks.fix", dec.MODES, m, phone=True)}</div>
 <div class="col" style="gap: 2px"><span class="row"><span class="t-label grow">Umbral</span><span class="mono t-sm">{dec.num(thr)}</span></span>{dec.slider(thr, label="Umbral de checks.fix")}<span class="form-hint">Actúa solo si la confianza lo supera; si no, no empieza nada.</span></div>
-<div class="callout" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}<span>Solo arregla si quedan intentos con el commit (<span class="mono">2</span>), el flujo tiene hueco y no se ha gastado su límite de coste. Lo que arregla espera «Subir el arreglo».</span></div>
+<div class="callout" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}<span>Solo arregla si quedan intentos con el commit (<span class="t-num">2</span>), el flujo tiene hueco y no se ha gastado su límite de coste. Lo que arregla espera «Subir el arreglo».</span></div>
 <div class="row" style="gap: 10px"><span class="t-label grow">Consentimiento</span>{dec.consent_cell(consent, m)}</div>
 <div class="col" style="gap: 8px"><span class="t-label">Últimos 7 días</span>{metrics}</div>
 <div class="row" style="gap: 8px"><a href="MobileProyectoAjustes.html" class="btn btn-lg grow" style="justify-content: center">Intentos por commit</a><button type="button" class="btn btn-lg grow">Ver en el historial</button></div>
@@ -946,15 +946,15 @@ def decision_section():
   for mode in ('off', 'shadow', 'active'):
     with with_point(mode):
       row = dec.point_row(CHECKS_FIX, False)
-    rows += (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">{caps[mode]}</span>'
-             f'<div class="card" style="overflow: hidden"><div class="dp-group"><div class="dp-group-head"><span class="t-label grow">{GROUP_NAME}</span><span class="mono t-xs fg-3">1</span></div>{row}</div></div></div>')
+    rows += (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">{caps[mode]}</span>'
+             f'<div class="card" style="overflow: hidden"><div class="dp-group"><div class="dp-group-head"><span class="t-label grow">{GROUP_NAME}</span><span class="t-num t-xs fg-3">1</span></div>{row}</div></div></div>')
     cells += point_mcell(mode)
   phone = pframe(f'<div class="col" style="gap: 6px"><span class="t-label" style="padding: 0 4px">{GROUP_NAME}</span><div class="card" style="overflow: hidden">{cells}</div></div>')
   intro = ('<p class="t-sm fg-2" style="margin: 0; max-width: 820px; line-height: 1.5">Un punto más en la pestaña Decisiones de Ajustes, en un grupo propio entre Revisión y Avisos: 23 puntos en 10 grupos. '
            'Es un punto que actúa, por proyecto y apagado de entrada. Con el CLI como proveedor no hay confianza calibrada, así que «Activo» sigue pidiendo Jev, como en los demás puntos que actúan.</p>')
   return (f'<section class="col" style="gap: 14px"><span class="t-label">checks.fix en Ajustes → Decisiones</span>{intro}'
           f'<div style="display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 40px; align-items: start"><div class="col" style="gap: 22px">{rows}</div>'
-          f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">Móvil: la lista, y la hoja de un punto</span>{phone}'
+          f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">Móvil: la lista, y la hoja de un punto</span>{phone}'
           f'{pframe(point_sheet_checks_behind(), pad="0", height=900)}</div></div></section>')
 
 

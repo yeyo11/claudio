@@ -10,12 +10,13 @@ import { formatNumber } from '@claudio/ui/lib/format';
 import { homeHeadline } from './model';
 import { NEW_ORCHESTRATION_PATH, useHomePulse, type HomePulse } from './pulse';
 
-/** "Friday · 25 Sep": the day the page is about, in the mono label voice. */
+/** "Friday · 25 Sep": the day the page is about, as a section label. */
 function dayLabel(date: Date): string {
   const locale = intlLocale();
   const weekday = new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(date);
   const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date).replace(/\.$/, '');
-  return `${weekday} · ${day}`;
+  // A label is sentence case, and Spanish writes its weekdays in lower case ("viernes")
+  return `${weekday.charAt(0).toLocaleUpperCase(locale)}${weekday.slice(1)} · ${day}`;
 }
 
 /** One sentence under the headline: who is at work where, and whether anything waits. */

@@ -1,6 +1,6 @@
 import type { ChatHealth, ConnectorAction, ConnectorLimit, HealthSignal, Localized, LocalizedParams } from '@claudio/shared';
 import i18n from '../i18n';
-import { formatNumber } from '@claudio/ui/lib/format';
+import { formatNumber, formatPercent } from '@claudio/ui/lib/format';
 
 /*
  * Sentences the server writes come with a stable code and the figures they were built from. The
@@ -33,6 +33,8 @@ export function shownParams(params: LocalizedParams = {}): Record<string, string
     else if (key.endsWith('Seconds')) out[key] = duration(value);
     else if (key.endsWith('Usd')) out[key] = usd(value);
     else if (key === 'count') out[key] = value;
+    // Points of a share: the sign and its spacing are the language's, so the copy never carries "%"
+    else if (key === 'percent') out[key] = formatPercent(value);
     else out[key] = formatNumber(value);
   }
   return out;

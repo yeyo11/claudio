@@ -1,11 +1,11 @@
 import type { Chat, ChatContextUsage, CompactRefusal, ContextBreakdown, ContextCategory, ContextDetail, LiveMcpServer } from '@claudio/shared';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Minimize2 } from 'lucide-react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mcpKey } from '@claudio/chat-ui/composer/ComposerMenu';
 import { useAgentName } from '@claudio/chat-ui/lib/agent';
-import { formatTokens } from '@claudio/chat-ui/lib/chat-model';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { Switch } from '@claudio/ui/components/controls/Toggle';
@@ -16,7 +16,7 @@ import { usageTone } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatNumber } from '@claudio/ui/lib/format';
+import { formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { api, keys } from '../../api';
 import { CompactDialog } from './CompactDialog';
@@ -147,16 +147,14 @@ export function ContextPanel({ chat, onClose, onCompact }: { chat: Chat; onClose
       usage={usage.data}
       loading={usage.isPending}
       error={usage.error}
-      detail={detail}
       servers={live ? servers.data?.servers : undefined}
       switching={toggle.isPending}
       switchError={toggle.error}
       onToggle={(name, enabled) => toggle.mutate({ name, enabled })}
-      onExact={() => setDetail('full')}
       onRetry={() => void usage.refetch()}
     />
   );
-  const foot = <PanelFoot chat={chat} onCompact={onCompact} />;
+  const foot = <PanelFoot chat={chat} usage={usage.data} onExact={() => setDetail('full')} onCompact={onCompact} />;
   if (narrow) {
     return (
       <Sheet open onOpenChange={(open) => !open && onClose()} title={t('context.panel.title')} footer={foot} className="ctx-sheet">
@@ -165,15 +163,28 @@ export function ContextPanel({ chat, onClose, onCompact }: { chat: Chat; onClose
     );
   }
   return (
-    <Dialog title={t('context.panel.title')} onClose={onClose} width={720} footer={foot}>
+    <Dialog title={t('context.panel.title')} onClose={onClose} width={560} footer={foot}>
       {body}
     </Dialog>
   );
 }
 
-function PanelFoot({ chat, onCompact }: { chat: Chat; onCompact: () => void }) {
+/** How the count was made, with the way to make it exact on the left; the paid action, Compact now, on the right. */
+export function PanelFoot({ chat, usage, onExact, onCompact }: { chat: Chat; usage: ChatContextUsage | undefined; onExact(): void; onCompact(): void }) {
+  const { t } = useTranslation('chats');
+  const working = chatBusy(chat);
+  const counted = usage?.breakdown ? (usage.detail === 'full' ? 'exact' : 'estimated') : null;
   return (
     <div className="ctx-foot">
+      <div className="ctx-count">
+        {counted && <span className="ctx-note">{t(`context.panel.${counted}`)}</span>}
+        {counted === 'estimated' && (
+          <button type="button" className="btn btn-small ctx-action" aria-disabled={working ? 'true' : undefined} aria-description={working ? t('context.panel.exactBusy') : undefined} onClick={() => !working && onExact()}>
+            {t('context.actions.exact')}
+          </button>
+        )}
+        {counted === 'estimated' && working && <span className="ctx-note">{t('context.panel.exactBusy')}</span>}
+      </div>
       <CompactButton chat={chat} className="btn btn-strong" onClick={onCompact} />
     </div>
   );
@@ -186,14 +197,11 @@ export interface ContextPanelBodyProps {
   usage: ChatContextUsage | undefined;
   loading: boolean;
   error: unknown;
-  /** The detail asked for; what the CLI answered is `usage.detail` */
-  detail: ContextDetail;
   /** The live process's MCP servers, for the switches; undefined while there is no process or it has not answered */
   servers: LiveMcpServer[] | undefined;
   switching: boolean;
   switchError?: unknown;
   onToggle(name: string, enabled: boolean): void;
-  onExact(): void;
   onRetry(): void;
 }
 
@@ -203,7 +211,7 @@ export function ContextPanelBody(props: ContextPanelBodyProps) {
   const { chat, usage, loading, error } = props;
   if (!chat.context && !usage?.breakdown) {
     // Nothing has answered yet: the panel is not offered, and a link to it says so
-    return <p className="small muted">{t('context.panel.neverAnswered')}</p>;
+    return <p className="ctx-note">{t('context.panel.neverAnswered')}</p>;
   }
   if (loading && !usage) return <Skeleton rows={6} height={12} />;
   if (error && !usage) {
@@ -225,7 +233,7 @@ export function ContextPanelBody(props: ContextPanelBodyProps) {
       {breakdown ? <Head breakdown={breakdown} agent={agent} /> : <SnapshotHead usage={usage} />}
       {!breakdown && usage.unreported && (
         <div className="stack-tight">
-          <p className="small muted">{t(`context.panel.unreported.${usage.unreported}`, { agent })}</p>
+          <p className="ctx-note">{t(`context.panel.unreported.${usage.unreported}`, { agent })}</p>
           {/* An agent that cannot report will not on a second try; a slow one may */}
           {usage.unreported === 'timeout' && (
             <div>
@@ -236,7 +244,7 @@ export function ContextPanelBody(props: ContextPanelBodyProps) {
           )}
         </div>
       )}
-      {breakdown && <BreakdownBody {...props} usage={usage} breakdown={breakdown} />}
+      {breakdown && <BreakdownBody {...props} breakdown={breakdown} />}
     </div>
   );
 }
@@ -244,12 +252,12 @@ export function ContextPanelBody(props: ContextPanelBodyProps) {
 /** The bar and the words around it. Nothing here moves: a figure that changes on a refetch does not animate. */
 function Meter({ used, window, mark, label }: { used: number; window: number | null; mark: number | null; label: string }) {
   const { t } = useTranslation('chats');
-  if (window === null) return <p className="small muted">{t('context.panel.unknownWindow')}</p>;
+  if (window === null) return <p className="ctx-note">{t('context.panel.unknownWindow')}</p>;
   const share = used / window;
   const percent = Math.min(100, Math.round(share * 100));
   const tone = usageTone(Math.round(share * 100));
   return (
-    <div className="ctx-bar">
+    <div className="ctx-meter">
       <div className="meter-track" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${formatNumber(used)} / ${formatNumber(window)}`}>
         <span className={tone === 'neutral' ? 'meter-fill' : `meter-fill is-${tone}`} style={{ width: `${percent}%` }} />
       </div>
@@ -258,15 +266,27 @@ function Meter({ used, window, mark, label }: { used: number; window: number | n
   );
 }
 
+/** The one figure that matters: the share of the window, or the count itself when the window is not known. */
+function Figure({ used, window }: { used: number; window: number | null }) {
+  const { t } = useTranslation('chats');
+  if (window === null) return <span className="ctx-figure">{t('context.panel.tokensOnly', { used: formatNumber(used) })}</span>;
+  return (
+    <>
+      <span className="ctx-figure">{formatPercent(Math.round((used / window) * 100))}</span>
+      <span className="ctx-of">{t('context.panel.tokensOf', { used: formatNumber(used), window: formatNumber(window) })}</span>
+    </>
+  );
+}
+
 function SnapshotHead({ usage }: { usage: ChatContextUsage }) {
   const { t } = useTranslation('chats');
   const { snapshot } = usage;
-  if (!snapshot) return <p className="small muted">{t('context.panel.neverAnswered')}</p>;
+  if (!snapshot) return <p className="ctx-note">{t('context.panel.neverAnswered')}</p>;
   return (
     <div className="ctx-head">
-      <p className="small">
-        <span className="mono ctx-figure">{snapshot.window === null ? t('context.panel.tokensOnly', { used: formatNumber(snapshot.used) }) : t('context.panel.tokensOf', { used: formatNumber(snapshot.used), window: formatNumber(snapshot.window) })}</span>
-      </p>
+      <div className="ctx-head-line">
+        <Figure used={snapshot.used} window={snapshot.window} />
+      </div>
       <Meter used={snapshot.compactedSince?.postTokens ?? snapshot.used} window={snapshot.window} mark={null} label={t('badges.context.inUse', { ns: 'chat' })} />
     </div>
   );
@@ -280,20 +300,16 @@ function Head({ breakdown, agent }: { breakdown: ContextBreakdown; agent: string
   return (
     <div className="ctx-head">
       <div className="ctx-head-line">
-        <span className="mono small">{breakdown.model}</span>
-        <span className="mono small ctx-figure">
-          {window === null
-            ? t('context.panel.tokensOnly', { used: formatNumber(breakdown.totalTokens) })
-            : t('context.panel.tokensOf', { used: formatNumber(breakdown.totalTokens), window: formatNumber(window) })}
-        </span>
+        <Figure used={breakdown.totalTokens} window={window} />
+        <span className="ctx-model mono">{breakdown.model}</span>
       </div>
       {/* Over the window the bar is full and bad, and the words say by how much */}
       <Meter used={breakdown.overBy !== null && window !== null ? window : breakdown.totalTokens} window={window} mark={mark} label={t('badges.context.inUse', { ns: 'chat' })} />
-      {breakdown.overBy !== null && <p className="small ctx-over">{t('context.panel.over', { n: formatNumber(breakdown.overBy) })}</p>}
-      <p className="small muted">
+      {breakdown.overBy !== null && <p className="ctx-note ctx-over">{t('context.panel.over', { n: formatNumber(breakdown.overBy) })}</p>}
+      <p className="ctx-note">
         {autoCompact.enabled
           ? mark !== null
-            ? t('context.panel.autoAt', { agent, percent: Math.round(mark * 100) })
+            ? t('context.panel.autoAt', { agent, percent: formatPercent(Math.round(mark * 100)) })
             : t('context.panel.autoOn', { agent })
           : t('context.panel.autoOff')}
       </p>
@@ -301,24 +317,12 @@ function Head({ breakdown, agent }: { breakdown: ContextBreakdown; agent: string
   );
 }
 
-function BreakdownBody({ chat, usage, breakdown, servers, switching, switchError, onToggle, onExact }: ContextPanelBodyProps & { usage: ChatContextUsage; breakdown: ContextBreakdown }) {
-  const { t } = useTranslation('chats');
-  const working = chat.state === 'working';
-  const exact = usage.detail === 'full';
+function BreakdownBody({ breakdown, servers, switching, switchError, onToggle }: ContextPanelBodyProps & { breakdown: ContextBreakdown }) {
   return (
     <>
       <Categories breakdown={breakdown} />
       <McpSection breakdown={breakdown} servers={servers} switching={switching} switchError={switchError} onToggle={onToggle} />
       <Facts breakdown={breakdown} />
-      <div className="ctx-count">
-        <span className="small muted">{exact ? t('context.panel.exact') : t('context.panel.estimated')}</span>
-        {!exact && (
-          <button type="button" className="btn btn-small ctx-action" aria-disabled={working ? 'true' : undefined} aria-description={working ? t('context.panel.exactBusy') : undefined} onClick={() => !working && onExact()}>
-            {t('context.actions.exact')}
-          </button>
-        )}
-        {working && !exact && <span className="small muted">{t('context.panel.exactBusy')}</span>}
-      </div>
     </>
   );
 }
@@ -329,48 +333,56 @@ function CategoryName({ category }: { category: ContextCategory }) {
   return category.key ? <>{t(`context.category.${category.key}`)}</> : <span className="mono">{category.name}</span>;
 }
 
+/** One line of the panel's grid: a name, a count of tokens and what the third column says. */
+function Row({ name, tokens, share, tone, className }: { name: ReactNode; tokens: ReactNode; share: ReactNode; tone?: 'spare' | 'sub'; className?: string }) {
+  return (
+    <li className={['ctx-row', tone && `is-${tone}`, className].filter(Boolean).join(' ')}>
+      <span className="ctx-name">{name}</span>
+      <span className="ctx-num">{tokens}</span>
+      <span className="ctx-share">{share}</span>
+    </li>
+  );
+}
+
+const MESSAGE_PARTS = ['toolCalls', 'toolResults', 'attachments', 'assistant', 'user', 'other'] as const;
+
 function Categories({ breakdown }: { breakdown: ContextBreakdown }) {
   const { t } = useTranslation('chats');
   const window = windowOf(breakdown);
   const { used, spare, deferred } = categoryGroups(breakdown.categories);
-  const row = (category: ContextCategory, muted: boolean) => (
-    <tr key={`${category.kind}-${category.name}`} className={muted ? 'is-muted' : undefined}>
-      <th scope="row">
-        <CategoryName category={category} />
-      </th>
-      <td className="mono num">{formatNumber(category.tokens)}</td>
-      <td className="mono num">{(category.kind === 'deferred' ? null : shareText(category.tokens, window, t('context.panel.lessThanOne'))) ?? '—'}</td>
-    </tr>
+  const { messages } = breakdown;
+  const less = t('context.panel.lessThanOne', { percent: formatPercent(1) });
+  const row = (category: ContextCategory, tone?: 'spare') => (
+    <Row
+      key={`${category.kind}-${category.name}`}
+      name={<CategoryName category={category} />}
+      tokens={formatNumber(category.tokens)}
+      share={(category.kind === 'deferred' ? null : shareText(category.tokens, window, less)) ?? '—'}
+      tone={tone}
+    />
   );
+  // The parts of the messages sit under the row that holds them, in the same columns
+  const parts = messages
+    ? MESSAGE_PARTS.filter((part) => messages[part] > 0).map((part) => (
+        <Row key={`part-${part}`} tone="sub" name={t(`context.panel.messages.${part}`)} tokens={formatNumber(messages[part])} share={shareText(messages[part], window, less) ?? '—'} />
+      ))
+    : [];
+  const owner = used.findIndex((c) => c.key === 'messages');
   return (
     <section className="ctx-section" aria-label={t('context.panel.categories')}>
       <h3 className="dialog-section">{t('context.panel.categories')}</h3>
-      <table className="ctx-table">
-        <caption className="sr-only">{t('context.panel.categoriesCaption')}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t('context.panel.colName')}</th>
-            <th scope="col" className="num">
-              {t('context.panel.colTokens')}
-            </th>
-            <th scope="col" className="num">
-              {t('context.panel.colShare')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {used.map((c) => row(c, false))}
-          {spare.map((c) => row(c, true))}
-        </tbody>
-      </table>
+      <ul className="ctx-grid list-plain" aria-label={t('context.panel.categoriesCaption')}>
+        {used.flatMap((c, i) => (i === owner ? [row(c), ...parts] : [row(c)]))}
+        {owner < 0 && parts}
+        {spare.map((c) => row(c, 'spare'))}
+      </ul>
       {deferred.length > 0 && (
         <div className="ctx-deferred">
           <h4 className="ctx-subhead">{t('context.panel.outside')}</h4>
-          <p className="small muted">{t('context.panel.outsideHint')}</p>
-          <table className="ctx-table">
-            <caption className="sr-only">{t('context.panel.outside')}</caption>
-            <tbody>{deferred.map((c) => row(c, true))}</tbody>
-          </table>
+          <p className="ctx-note">{t('context.panel.outsideHint')}</p>
+          <ul className="ctx-grid list-plain" aria-label={t('context.panel.outside')}>
+            {deferred.map((c) => row(c, 'spare'))}
+          </ul>
         </div>
       )}
     </section>
@@ -385,17 +397,20 @@ function ServerRow({ server, live, switching, onToggle }: { server: ContextBreak
     <li className="ctx-server">
       <div className="ctx-server-body">
         <span className="ctx-server-name ellipsis">{name}</span>
-        <span className="mono small muted">{t('context.panel.mcpTools', { loaded: server.loadedTools, total: server.tools, tokens: formatNumber(server.tokens) })}</span>
+        <span className="ctx-note">{t('context.panel.mcpTools', { loaded: server.loadedTools, total: server.tools })}</span>
       </div>
-      {live && (
-        <Switch
-          checked={on}
-          onChange={(enabled) => onToggle(live.name, enabled)}
-          disabled={switching}
-          aria-label={t(on ? 'composerMenu.turnOff' : 'composerMenu.turnOn', { ns: 'chat', name })}
-          className="composer-server-switch"
-        />
-      )}
+      <span className="ctx-num">{formatNumber(server.tokens)}</span>
+      <span className="ctx-server-switch">
+        {live && (
+          <Switch
+            checked={on}
+            onChange={(enabled) => onToggle(live.name, enabled)}
+            disabled={switching}
+            aria-label={t(on ? 'composerMenu.turnOff' : 'composerMenu.turnOn', { ns: 'chat', name })}
+            className="composer-server-switch"
+          />
+        )}
+      </span>
     </li>
   );
 }
@@ -414,22 +429,22 @@ function McpSection({ breakdown, servers, switching, switchError, onToggle }: { 
         <ul className="ctx-warnings list-plain">
           {mcp.warnings.map((warning) => (
             <li key={warning}>
-              <Tag tone="warn">{warning === 'many-tools' ? t('context.panel.warn.many-tools', { count: mcp.loadedTools }) : t('context.panel.warn.large-share', { percent: Math.round(mcp.share * 100) })}</Tag>
+              <Tag tone="warn">{warning === 'many-tools' ? t('context.panel.warn.many-tools', { count: mcp.loadedTools }) : t('context.panel.warn.large-share', { percent: formatPercent(Math.round(mcp.share * 100)) })}</Tag>
             </li>
           ))}
         </ul>
       )}
       {rows.length === 0 ? (
-        <p className="small muted">{t('context.panel.mcpNone')}</p>
+        <p className="ctx-note">{t('context.panel.mcpNone')}</p>
       ) : (
         <>
           <ul className="ctx-servers list-plain">{shown}</ul>
           {rest.length > 0 && (
-            <Collapsible className="fold" title={<span className="small">{t('context.panel.mcpMore', { count: rest.length })}</span>}>
+            <Collapsible className="fold" title={<span className="ctx-note">{t('context.panel.mcpMore', { count: rest.length })}</span>}>
               <ul className="ctx-servers list-plain">{rest}</ul>
             </Collapsible>
           )}
-          {servers && <p className="small muted">{t('composerMenu.serversPersist', { ns: 'chat' })}</p>}
+          {servers && <p className="ctx-note">{t('composerMenu.serversPersist', { ns: 'chat' })}</p>}
         </>
       )}
       <ErrorBox error={switchError} />
@@ -439,66 +454,38 @@ function McpSection({ breakdown, servers, switching, switchError, onToggle }: { 
 
 function Facts({ breakdown }: { breakdown: ContextBreakdown }) {
   const { t } = useTranslation('chats');
-  const { memoryFiles, agents, skills, slashCommands, messages } = breakdown;
-  const counted = (c: { total: number; included: number; tokens: number }) => t('context.panel.counted', { included: c.included, total: c.total, tokens: formatNumber(c.tokens) });
+  const { memoryFiles, agents, skills, slashCommands } = breakdown;
+  const ofTotal = (c: { total: number; included: number }) => t('context.panel.ofTotal', { included: formatNumber(c.included), total: formatNumber(c.total) });
   return (
     <>
       {memoryFiles.length > 0 && (
         <section className="ctx-section" aria-label={t('context.panel.memory')}>
           <h3 className="dialog-section">{t('context.panel.memory')}</h3>
-          <ul className="ctx-files list-plain">
+          <ul className="ctx-grid list-plain">
             {memoryFiles.map((file) => (
-              <li key={file.path} className="ctx-file">
-                <span className="mono small ctx-file-path" title={file.path}>
+              <li key={file.path} className="ctx-row is-file">
+                <span className="ctx-name ctx-file-path mono" title={file.path}>
                   {middleCut(file.path)}
                 </span>
-                <span className="mono small muted num">{formatNumber(file.tokens)}</span>
-                <CopyButton text={file.path} label={t('context.panel.copyPath', { path: file.path })} />
+                <span className="ctx-num">{formatNumber(file.tokens)}</span>
+                <span className="ctx-share">
+                  <CopyButton text={file.path} label={t('context.panel.copyPath', { path: file.path })} />
+                </span>
               </li>
             ))}
           </ul>
         </section>
       )}
-      {(agents.length > 0 || skills || slashCommands || messages) && (
+      {(agents.length > 0 || skills || slashCommands) && (
         <section className="ctx-section" aria-label={t('context.panel.other')}>
           <h3 className="dialog-section">{t('context.panel.other')}</h3>
-          <dl className="kv ctx-kv">
-            {agents.length > 0 && (
-              <>
-                <dt>{t('context.panel.agents')}</dt>
-                <dd className="mono">{t('context.panel.agentsValue', { count: agents.length, tokens: formatNumber(agents.reduce((n, a) => n + a.tokens, 0)) })}</dd>
-              </>
-            )}
-            {skills && (
-              <>
-                <dt>{t('context.panel.skills')}</dt>
-                <dd className="mono">{counted(skills)}</dd>
-              </>
-            )}
-            {slashCommands && (
-              <>
-                <dt>{t('context.panel.commands')}</dt>
-                <dd className="mono">{counted(slashCommands)}</dd>
-              </>
-            )}
-            {messages &&
-              (['toolCalls', 'toolResults', 'attachments', 'assistant', 'user', 'other'] as const).map((part) =>
-                messages[part] > 0 ? (
-                  <MessagePart key={part} label={t(`context.panel.messages.${part}`)} tokens={messages[part]} />
-                ) : null,
-              )}
-          </dl>
+          <ul className="ctx-grid list-plain">
+            {agents.length > 0 && <Row className="is-counts" name={t('context.panel.agents')} tokens={formatNumber(agents.reduce((n, a) => n + a.tokens, 0))} share={t('context.panel.agentsCount', { count: agents.length })} />}
+            {skills && <Row className="is-counts" name={t('context.panel.skills')} tokens={formatNumber(skills.tokens)} share={ofTotal(skills)} />}
+            {slashCommands && <Row className="is-counts" name={t('context.panel.commands')} tokens={formatNumber(slashCommands.tokens)} share={ofTotal(slashCommands)} />}
+          </ul>
         </section>
       )}
-    </>
-  );
-}
-
-function MessagePart({ label, tokens }: { label: string; tokens: number }) {
-  return (
-    <>
-      <dt>{label}</dt>
-      <dd className="mono">{formatTokens(tokens)}</dd>
     </>
   );
 }

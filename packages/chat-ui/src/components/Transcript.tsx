@@ -116,7 +116,7 @@ function RowTime({ at }: { at: string | null }) {
 const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, account: ArrowRightLeft, guard: ShieldAlert };
 
 /**
- * Something the system said, not the person: a strip in the machine's own voice — mono, in the
+ * Something the system said, not the person: a quiet strip — small and faint, in the
  * accent colour, with its payload behind a fold — so a reader never mistakes it for a message.
  */
 function NoticeRow({ notice }: { notice: Notice }) {
@@ -320,7 +320,7 @@ export interface SubagentLink {
 }
 
 /**
- * One tool call as one row: its name and what it was pointed at in mono, a rail coloured by how it
+ * One tool call as one row: its name, what it was pointed at in mono, a rail coloured by how it
  * came back, and the input and result behind the fold. `settled` is a call that will not come back
  * any more as far as this page knows (the turn is over), so it is not shown as running.
  */
@@ -510,6 +510,8 @@ const StepView = memo(function StepView({
 /** What a chat delegated, and where to see each branch whole. */
 export interface BranchLinks {
   children: ChatChildren;
+  /** Whether a process still holds the chat; absent reads as held, which is what a page that has not been told assumes */
+  alive?: boolean;
   open: (branch: Branch) => void;
 }
 
@@ -650,20 +652,21 @@ export function Transcript({
   // array it had, so an activity line that moved in one card does not draw every step again
   const held = useRef(new Map<string, Branch[]>());
   const children = branches?.children;
+  const alive = branches?.alive ?? true;
   const cards = useMemo(() => {
     const byRow = new Map<string, Branch[]>();
     if (!children || children.subagents.length + children.backgroundTasks.length + children.workflows.length === 0) return byRow;
     for (const row of own) {
       if (row.kind !== 'step' || row.isSidechain) continue;
       const calls = row.parts.flatMap((part) => (part.kind === 'call' ? [part] : []));
-      const found = branchesOfStep(calls, row, children);
+      const found = branchesOfStep({ alive, state: alive ? 'working' : 'idle', children }, calls, row);
       if (found.length === 0) continue;
       const before = held.current.get(row.key);
       byRow.set(row.key, before && sameBranches(before, found) ? before : found);
     }
     held.current = byRow;
     return byRow;
-  }, [own, children]);
+  }, [own, children, alive]);
   return (
     <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>

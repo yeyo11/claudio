@@ -134,7 +134,21 @@ searches are documents nobody wrote.
   Rows, not blobs — two processes share one data dir.
 - **UI work follows the Night Shift design system** in [docs/design-system.md](docs/design-system.md):
   open the screen's reference in `docs/design-system/reference/` first, and go through its checklist
-  before you finish.
+  before you finish. The `claudio-ui` skill in `.claude/skills/` carries the design judgement on
+  top of it (a manifesto whose rules each forbid something, the anti-patterns found in this app, the
+  invariants, a review rubric), and `/ui-audit`, `/ui-explore` and `/ui-review` launch its agents
+  ([plans/claudio-designer.md](docs/plans/claudio-designer.md)).
+- **The voice of the UI:** four sizes (`--fs-title` 20, `--fs-section` 15, `--fs-body` 14,
+  `--fs-small` 13) and two weights (`--fw-regular` 450, `--fw-strong` 600) from `tokens.css`; mono
+  only for literals the machine reads (ids, paths, model ids, commands, hashes, code); uppercase only
+  on the sidebar's group headings; no weight change on hover or selection; every percentage, amount
+  and count through `packages/ui/src/lib/format.ts`, with no `%` in the copy. `scripts/design-lint.mjs`
+  holds these rules: a hook runs it on every file Claude edits, and `apps/web/test/design-voice.test.ts`
+  runs it over the tree. A line that breaks one on purpose says why with `design-lint-ok: <reason>`.
+- **A UI change is reviewed before it is done.** Claude Code's Stop hook asks for `/ui-review <route>`
+  once when a session edited UI files and no review ran; `node scripts/ui-check.mjs --route <route>`
+  takes the screenshots and runs the invariants against `pnpm dev`, and `pnpm e2e:remote ui-invariants` runs
+  them on GitHub over the main screens with long content.
 - **UI controls come from `packages/ui/src/components/controls`** (Select, Combobox, Checkbox,
   Switch, Slider, NumberInput, Tooltip, Collapsible, Menu, Sheet), not from native `<select>`, `<datalist>`,
   checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones

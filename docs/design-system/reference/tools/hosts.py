@@ -162,10 +162,10 @@ def settings_nav():
   for g, items in SETTINGS_NAV:
     if g == 'Claudio':
       items = ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Proveedores', 'Integraciones', 'Decisiones']
-    links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Integraciones" else ""}" style="height: 30px; font-size: 13px">{i}</a>' for i in items)
+    links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Integraciones" else ""}" style="height: 30px; font-size: var(--fs-small)">{i}</a>' for i in items)
     out.append(f'<div class="col" style="gap: 1px"><span class="t-label" style="padding: 0 10px 4px">{g}</span>{links}</div>')
   return ('<nav aria-label="Secciones de ajustes" class="col" style="width: 236px; flex-shrink: 0; padding: 26px 12px 20px 24px; gap: 16px; overflow: hidden; border-right: 1px solid var(--line)">'
-          '<h1 class="t-h1" style="padding-left: 10px; font-size: 20px">Ajustes</h1>' + ''.join(out) + '</nav>')
+          '<h1 class="t-h1" style="padding-left: 10px; font-size: var(--fs-title)">Ajustes</h1>' + ''.join(out) + '</nav>')
 
 
 INTRO = ('Claudio abre y sigue las PR de GitHub (<span class="mono">#12</span>) y las MR de GitLab (<span class="mono">!12</span>) con los programas '
@@ -181,7 +181,7 @@ def summary(machine):
 # ---------------------------------------------------------------- p1 · Settings → Integrations, desktop
 def head(checked='Comprobado hace 2 min', intro=True):
   text = f'<p class="fg-2 t-sm" style="margin: 0; max-width: 640px; line-height: 1.5">{INTRO}</p>' if intro else ''
-  return (f'<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: 20px">Integraciones</h2>'
+  return (f'<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: var(--fs-title)">Integraciones</h2>'
           f'{text}</div>'
           f'<span class="mono t-xs fg-3" style="white-space: nowrap; padding-bottom: 6px">{checked}</span>'
           f'<button type="button" class="btn">{ico("retry", "ico")}Volver a comprobar</button></div>')
@@ -210,7 +210,7 @@ def scenario_label(text):
 def desktop_page(name, title, body):
   main = f'<main class="col grow" style="padding: 26px 32px; gap: 18px; min-width: 0">{body}</main>'
   inner = f'<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0; overflow: hidden">{settings_nav()}{main}</div>'
-  write(name, desktop(title, 'settings', '<span style="font-weight: 500">Ajustes</span>', inner, project='Todos los proyectos', agents=3, running=3))
+  write(name, desktop(title, 'settings', '<span style="font-weight: var(--fw-regular)">Ajustes</span>', inner, project='Todos los proyectos', agents=3, running=3))
 
 
 def desktop_integrations():
@@ -256,11 +256,11 @@ def pcell(h, first=False):
     right = badge('checking') if first else '<span class="skeleton" style="width: 84px; height: 20px" aria-hidden="true"></span>'
     sub = '<span class="skeleton" style="width: 110px; height: 10px; margin-top: 4px" aria-hidden="true"></span>'
     reason = f'<p class="prov-reason">{h["reason"]}</p>' if first and h['reason'] else ''
-    hd = f'<div class="prov-cell-head">{mono_ico(h["id"])}<div class="grow"><span style="font-weight: 500">{label}</span>{sub}</div>{right}</div>'
+    hd = f'<div class="prov-cell-head">{mono_ico(h["id"])}<div class="grow"><span style="font-weight: var(--fw-regular)">{label}</span>{sub}</div>{right}</div>'
     return f'<div class="prov-cell" data-host="{h["id"]}">{hd}{reason}</div>'
   acts = ''.join(actions(h))
   acts_html = f'<div class="row" style="gap: 8px; flex-wrap: wrap">{acts}</div>' if acts else ''
-  hd = (f'<div class="prov-cell-head">{mono_ico(h["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: 500">{label}</span>'
+  hd = (f'<div class="prov-cell-head">{mono_ico(h["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: var(--fw-regular)">{label}</span>'
         f'<span class="mono t-xs fg-3">{pr}</span></span><span class="prov-meta">{m}</span></div>{badge(h["state"])}</div>')
   return f'<div class="prov-cell" data-host="{h["id"]}">{hd}<p class="prov-reason">{h["reason"]}</p>{known(h)}{acts_html}</div>'
 
@@ -270,7 +270,7 @@ def mintro():
 
 
 def mrecheck():
-  return f'<div class="row" style="gap: 10px"><button type="button" class="btn grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button><span class="mono t-xs fg-3" style="white-space: nowrap">hace 2 min</span></div>'
+  return f'<div class="row" style="gap: 10px"><button type="button" class="btn grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button><span class="t-num t-xs fg-3" style="white-space: nowrap">hace 2 min</span></div>'
 
 
 def mother_host():
@@ -297,9 +297,9 @@ def binary_sheet(h):
 <div class="sheet" role="dialog" aria-label="{label}" style="z-index: 11; padding-bottom: 28px; display: flex; flex-direction: column; gap: 12px; max-height: 92%">
 <div class="grab" style="margin-bottom: 0"></div>
 <div class="prov-cell-head">{mono_ico(h["id"])}<div class="grow"><h2 class="t-h2">{label}</h2><span class="prov-meta">{cli} {h["version"]} · {h["path"]}</span></div>{badge(h["state"])}</div>
-<p class="prov-reason" style="font-size: 14px">{h["reason"]}</p>
+<p class="prov-reason" style="font-size: var(--fs-body)">{h["reason"]}</p>
 <div class="col" style="gap: 8px"><span class="t-label">Binario de {cli}</span>
-<label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/glab/bin/glab" aria-label="Ruta del binario de {cli}" style="font-size: 16px"></label>
+<label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/glab/bin/glab" aria-label="Ruta del binario de {cli}" style="font-size: var(--fs-input)"></label>
 <span class="form-hint">Claudio lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span></div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary">Comprobar y guardar</button>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">Usar el del PATH</button><button type="button" class="btn btn-lg btn-ghost">Cancelar</button></div></div>
@@ -340,10 +340,10 @@ def p2_cell(variant, title, note, phone):
             f'<section class="card" style="padding: 14px" aria-label="Alojamiento del código">{host_line(variant, stacked=True)}</section>'
             f'<span class="form-hint" style="padding: 0 4px">Detectado del remoto origin; no se elige. {host_hint(v)}</span></div></div>')
     return body
-  return (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">{title}</span>'
+  return (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">{title}</span>'
           f'<span class="t-xs fg-3" style="line-height: 1.45; min-height: 32px">{note}</span>'
           f'<section class="card col" style="padding: 18px; gap: 14px"><div class="row"><h2 class="t-h2 grow">Alojamiento del código</h2>'
-          f'<span class="mono t-xs fg-3">detectado del remoto origin</span></div>{host_line(variant)}<span class="form-hint">{host_hint(v)}</span></section></div>')
+          f'<span class="t-num t-xs fg-3">detectado del remoto <span class="mono">origin</span></span></div>{host_line(variant)}<span class="form-hint">{host_hint(v)}</span></section></div>')
 
 
 def p2_section():
@@ -416,7 +416,7 @@ def item_note(r):
 def reason_row(r):
   code, when, host, *_ = r
   noun = 'MR' if host == 'gitlab' else 'PR' if host == 'github' else 'PR ni MR'
-  head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: 500">{code}</span>'
+  head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: var(--fw-regular)">{code}</span>'
           f'<span class="t-xs fg-3" style="line-height: 1.45">{when}</span>'
           f'<span class="row t-xs fg-2" style="gap: 6px">{"GitLab" if host == "gitlab" else "GitHub" if host == "github" else "sin host"}<span class="fg-3">·</span>{noun}</span></div>')
   board = card('AGN-29', strip=board_note(r))
@@ -425,7 +425,7 @@ def reason_row(r):
 
 
 def ready_row():
-  head = ('<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: 500">ready</span>'
+  head = ('<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: var(--fw-regular)">ready</span>'
           '<span class="t-xs fg-3" style="line-height: 1.45">Con la CLI lista, la aprobación abre la solicitud.</span>'
           '<span class="row t-xs fg-2" style="gap: 6px">GitLab<span class="fg-3">·</span>MR</span></div>')
   board = card('AGN-29', strip=approve_strip('QA la dio por buena', 'Aprobar y abrir MR'))
@@ -464,15 +464,15 @@ ORCH_STEPS = ['Etapa 1', 'Etapa 2', 'Etapa 3', 'Integración', 'Verificación', 
 
 def orch_steps(last):
   """The seven steps of a finished run; the last, the merge request, is idle while it waits."""
-  done = ''.join(f'<li class="col" style="gap: 8px"><div class="bar ok"><i style="width: 100%"></i></div><span class="row t-sm" style="gap: 6px; font-weight: 500">{ico("check", "ico ico-sm", "color: var(--ok)")}{s}</span><span class="mono t-xs fg-3">hecha</span></li>' for s in ORCH_STEPS)
+  done = ''.join(f'<li class="col" style="gap: 8px"><div class="bar ok"><i style="width: 100%"></i></div><span class="row t-sm" style="gap: 6px; font-weight: var(--fw-regular)">{ico("check", "ico ico-sm", "color: var(--ok)")}{s}</span><span class="t-num t-xs fg-3">hecha</span></li>' for s in ORCH_STEPS)
   word = {'todo': ('pendiente', 'fg-3', 'fg-2'), 'wait': ('esperando fusión', 'fg-2', 'fg-2')}[last]
   tail = f'<li class="col" style="gap: 8px"><div class="bar"><i style="width: 0"></i></div><span class="t-sm {word[2]}">Merge request</span><span class="mono t-xs {word[1]}">{word[0]}</span></li>'
   return f'<ol aria-label="Pasos" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px">{done}{tail}</ol>'
 
 
 def orch_integration(opened):
-  branch = f'<span class="row" style="gap: 8px">{ico("branch", "ico fg-3")}<span class="mono t-sm">orch/spanish-copy</span><span class="mono t-xs fg-3">desde main</span></span>'
-  merged = '<span class="mono t-xs fg-2">6/6 ramas de tarea fusionadas</span>'
+  branch = f'<span class="row" style="gap: 8px">{ico("branch", "ico fg-3")}<span class="mono t-sm">orch/spanish-copy</span><span class="t-num t-xs fg-3">desde <span class="mono">main</span></span></span>'
+  merged = '<span class="t-num t-xs fg-2">6/6 ramas de tarea fusionadas</span>'
   if opened:
     mr = (f'<a href="#" class="pr-row" target="_blank" rel="noreferrer" aria-label="Abrir MR !14 en GitLab" style="min-height: 44px"><span class="pr-num">MR !14</span>'
           f'<span class="pr-branch">orch/spanish-copy → main</span><span class="badge b-idle">esperando fusión</span>{ci_badge("passing")}{ext_ico()}</a>')
@@ -513,7 +513,7 @@ def orch_dialog():
 <div class="dialog-head"><h2 id="push-title" class="t-h2 grow">¿Subir <span class="mono">orch/spanish-copy</span>?</h2><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
 <div class="dialog-body">
 <p class="t-sm fg-2" style="margin: 0; line-height: 1.55">La rama se sube a origin y se abre una merge request para ella con glab.</p>
-<div class="callout" style="align-items: flex-start">{ico('git', 'ico fg-3', 'flex-shrink: 0; margin-top: 1px')}<span class="col" style="gap: 4px"><span class="mono" style="color: var(--fg)">orch/spanish-copy → main</span><span class="mono t-xs fg-3">git.inmoseo.net · pagos/api · glab 1.120.0 · yeyo</span></span></div>
+<div class="callout" style="align-items: flex-start">{ico('git', 'ico fg-3', 'flex-shrink: 0; margin-top: 1px')}<span class="col" style="gap: 4px"><span class="mono" style="color: var(--fg)">orch/spanish-copy → main</span><span class="t-num t-xs fg-3"><span class="mono">git.inmoseo.net</span> · <span class="mono">pagos/api</span> · <span class="mono">glab 1.120.0</span> · yeyo</span></span></div>
 </div>
 <div class="dialog-foot"><span class="grow"></span><button type="button" class="btn btn-ghost">Cancelar</button><button type="button" class="btn btn-primary">Subir y abrir la MR</button></div>
 </div>
@@ -521,25 +521,25 @@ def orch_dialog():
 
 
 def orch_mr_desktop(name, opened, dialog=False):
-  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: 500">spanish-copy</span>'
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: var(--fw-regular)">spanish-copy</span>'
   write(name, desktop('Orquestación con MR', 'orch', crumb, orch_main(opened), overlay=orch_dialog() if dialog else ''))
 
 
 def orch_mr_mobile(name, opened, dialog=False):
   head = (f'<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px"><a href="MobileOrquestaciones.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
-          f'<span class="col grow" style="gap: 2px"><span style="font-weight: 600; font-size: 16px">spanish-copy</span><span class="row t-xs mono c-ok" style="gap: 6px">{ico("check", "ico ico-sm")}completada</span></span>'
+          f'<span class="col grow" style="gap: 2px"><span style="font-weight: var(--fw-strong); font-size: var(--fs-input)">spanish-copy</span><span class="row t-xs mono c-ok" style="gap: 6px">{ico("check", "ico ico-sm")}completada</span></span>'
           f'<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico("more", "ico ico-lg", "stroke-width: 3")}</button></header>')
   chips = ''.join(f'<span class="badge b-ok" style="height: 28px; flex-shrink: 0">✓ {s.lower()}</span>' for s in ['etapas', 'integración', 'verificación']) \
     + ('<span class="badge b-idle" style="height: 28px; flex-shrink: 0">MR !14</span>' if opened else '<span class="badge" style="height: 28px; flex-shrink: 0">merge request</span>')
   if opened:
-    card_ = (f'<section class="card col" style="padding: 14px; gap: 12px"><span class="row" style="gap: 8px"><span class="t-label grow">Su merge request</span><span class="mono t-xs fg-3">6/6 ramas fusionadas</span></span>'
+    card_ = (f'<section class="card col" style="padding: 14px; gap: 12px"><span class="row" style="gap: 8px"><span class="t-label grow">Su merge request</span><span class="t-num t-xs fg-3">6/6 ramas fusionadas</span></span>'
              f'<a href="#" class="pr-row" target="_blank" rel="noreferrer" aria-label="Abrir MR !14 en GitLab"><span class="pr-num">MR !14</span><span class="pr-branch">orch/spanish-copy → main</span>'
              f'<span class="badge b-idle">esperando fusión</span>{ci_badge("passing")}</a>'
              f'<span class="t-xs fg-3" style="line-height: 1.45">Claudio sigue la MR en git.inmoseo.net. Cuando se fusione, te lo dirá aquí y quitará los worktrees.</span></section>')
     foot = f'<div class="m-foot"><a href="#" class="btn btn-lg grow" style="justify-content: center" target="_blank" rel="noreferrer">{ext_ico("ico ico-lg")}Abrir MR !14 en GitLab</a></div>'
   else:
-    card_ = (f'<section class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="t-label grow">Integración</span><span class="mono t-xs fg-3">6/6 ramas fusionadas</span></span>'
-             f'<span class="row" style="gap: 8px">{ico("branch", "ico fg-3")}<span class="mono t-sm">orch/spanish-copy</span><span class="mono t-xs fg-3">desde main</span></span>'
+    card_ = (f'<section class="card col" style="padding: 14px; gap: 10px"><span class="row" style="gap: 8px"><span class="t-label grow">Integración</span><span class="t-num t-xs fg-3">6/6 ramas fusionadas</span></span>'
+             f'<span class="row" style="gap: 8px">{ico("branch", "ico fg-3")}<span class="mono t-sm">orch/spanish-copy</span><span class="t-num t-xs fg-3">desde <span class="mono">main</span></span></span>'
              f'<span class="t-xs fg-3" style="line-height: 1.45">Sube la rama a origin y abre una merge request hacia main en git.inmoseo.net con glab.</span></section>')
     foot = f'<div class="m-foot"><button type="button" class="btn btn-lg btn-primary grow" style="justify-content: center">{ico("branch", "ico ico-lg")}Abrir merge request</button></div>'
   sheet_ = ''
@@ -549,7 +549,7 @@ def orch_mr_mobile(name, opened, dialog=False):
 <div class="grab" style="margin-bottom: 0"></div>
 <div class="col" style="gap: 2px"><h2 class="t-h2">¿Subir <span class="mono">orch/spanish-copy</span>?</h2></div>
 <p class="t-sm fg-2" style="margin: 0; line-height: 1.5">La rama se sube a origin y se abre una merge request para ella con glab.</p>
-<div class="callout" style="align-items: flex-start">{ico('git', 'ico fg-3', 'flex-shrink: 0; margin-top: 1px')}<span class="col" style="gap: 4px; min-width: 0"><span class="mono" style="color: var(--fg)">orch/spanish-copy → main</span><span class="mono t-xs fg-3" style="overflow-wrap: anywhere">git.inmoseo.net · pagos/api · glab 1.120.0 · yeyo</span></span></div>
+<div class="callout" style="align-items: flex-start">{ico('git', 'ico fg-3', 'flex-shrink: 0; margin-top: 1px')}<span class="col" style="gap: 4px; min-width: 0"><span class="mono" style="color: var(--fg)">orch/spanish-copy → main</span><span class="t-num t-xs fg-3" style="overflow-wrap: anywhere"><span class="mono">git.inmoseo.net</span> · <span class="mono">pagos/api</span> · <span class="mono">glab 1.120.0</span> · yeyo</span></span></div>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg">Cancelar</button><button type="button" class="btn btn-lg btn-primary grow" style="justify-content: center">Subir y abrir la MR</button></div>
 </div>'''
   inner = (f'{head}\n<div class="m-body" style="gap: 14px"><p class="t-sm fg-2" style="margin: 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">Rewrite the Spanish UI copy so it reads as written in Spanish from Spain: a revised glossary, then every es locale file.</p>'

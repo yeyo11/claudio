@@ -27,7 +27,7 @@ export function PartOf({ link }: { link: ChatOrchestration }) {
         <Link to={`/orchestration/${link.id}`} className="chat-part-of-name">
           {link.name}
         </Link>
-        {where && <span className="chat-part-of-where mono"> · {where}</span>}
+        {where && <span className="chat-part-of-where"> · {where}</span>}
       </span>
       {orch && orch.tasks.length > 0 && (
         <ProgressBar variant="segments" counts={orchestrationProgress(orch.tasks)} unit={t('orchestration:board.tasksUnit')} className="chat-part-of-progress" />

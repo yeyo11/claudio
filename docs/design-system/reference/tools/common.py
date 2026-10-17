@@ -154,11 +154,11 @@ def page(title, body, mobile=False, css=''):
 LIVE_DEFAULT = '''<div class="col" style="gap: 4px">
 <div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">2</span></div>
 <a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">Trabaja en AGN-28: tablero con columnas fijas</span></span>
-<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="mono fg-3">4:12</span></span>
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">Trabaja en AGN-28: tablero con columnas fijas</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="t-num fg-3">4:12</span></span>
 </a>
 <a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">ecosystem-foundation</span><span class="mono t-xs fg-3">2/9</span></span>
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: var(--fw-regular)">ecosystem-foundation</span><span class="t-num t-xs fg-3">2/9</span></span>
 <span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
 </a>
 </div>'''
@@ -176,7 +176,7 @@ def sidebar(active, live=None, project='claude-wrapper', assistant=False):
   return f'''<div class="side">
 <nav class="app" data-theme="dark" aria-label="Principal" style="width: 256px; height: 1024px; background: var(--bg-1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 18px">
 <div class="row" style="padding: 0 4px; height: 32px; gap: 10px">
-<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span></a>
+<a href="Main.html" class="row" style="gap: 10px; flex: 1 1 auto">{BRAND}<span style="font-weight: var(--fw-strong); font-size: var(--fs-section); letter-spacing: -0.02em">Claudio</span></a>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Plegar barra lateral">{ico('sidebar')}</button>
 </div>
 <button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)">{ico('search')}<span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
@@ -210,7 +210,7 @@ def topbar(crumb, project='claude-wrapper', agents=2):
 {crumb}
 </nav>
 <div class="grow"></div>
-<a href="DesktopOrquestaciones.html" class="chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-family: var(--mono); font-size: 11.5px"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>{agents} agentes trabajando</a>
+<a href="DesktopOrquestaciones.html" class="t-num chip" style="gap: 8px; border-color: transparent; background: var(--live-soft); color: var(--live); font-size: var(--fs-small)"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>{agents} agentes trabajando</a>
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Notificaciones" style="position: relative">{ico('bell')}<span class="dot" style="position: absolute; top: 8px; right: 9px; width: 6px; height: 6px; background: var(--accent)"></span></button>
 <div class="row" style="gap: 0">
 <a href="DesktopNuevoChat.html" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)">{ico('plus')}Nuevo chat</a>
@@ -238,7 +238,7 @@ def pcrumb(project, *parts):
   links = {'claude-wrapper': 'DesktopProyecto.html'}
   bits = ['<a href="DesktopProyectos.html" class="fg-2">Proyectos</a>', f'<a href="{links.get(project, "#")}" class="fg-2">{project}</a>']
   for i, (name, href) in enumerate(parts):
-    bits.append(f'<span style="font-weight: 500">{name}</span>' if i == len(parts) - 1 else f'<a href="{href}" class="fg-2">{name}</a>')
+    bits.append(f'<span style="font-weight: var(--fw-regular)">{name}</span>' if i == len(parts) - 1 else f'<a href="{href}" class="fg-2">{name}</a>')
   return '<span class="fg-3">/</span>'.join(bits)
 
 
@@ -274,8 +274,9 @@ def mobile(title, inner, cls='', style=''):
 
 
 def write(name, html):
+  import voice  # the mono rule of the voice: literals only (voice.py says why it runs here)
   with open(os.path.join(OUT, name), 'w') as f:
-    f.write(html)
+    f.write(voice.apply(html))
   print('wrote', name)
 
 

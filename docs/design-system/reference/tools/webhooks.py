@@ -132,7 +132,7 @@ def cell(r):
   noun, num = HOST[p['host']][5], HOST[p['host']][6]
   acts = ''.join(hact(k, True) for k in r['acts'])
   acts_html = f'<div class="col" style="gap: 8px">{acts}</div>' if acts else ''
-  hd = (f'<div class="prov-cell-head">{mono_ico(p["host"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: 500">{p["name"]}</span>'
+  hd = (f'<div class="prov-cell-head">{mono_ico(p["host"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: var(--fw-regular)">{p["name"]}</span>'
         f'<span class="mono t-xs fg-3">{noun} {num}</span></span><span class="prov-meta">{p["repo"]}</span></div>{hbadge(r["state"])}</div>')
   return f'<div class="prov-cell" data-project="{p["name"]}">{hd}<p class="prov-reason">{r["reason"]}</p>{facts(r)}{acts_html}</div>'
 
@@ -144,7 +144,7 @@ def origin(url, big=False):
             f'<span class="url grow">{url}</span><span class="badge b-ok"><span class="dot dot-ok" style="width: 6px; height: 6px"></span>Abierta</span></div>')
   link = f'<a href="#" class="btn{" btn-lg" if big else ""}" style="white-space: nowrap">Abrir Acceso remoto{ico("ext", "ico ico-sm")}</a>'
   return (f'<div class="hook-origin none" role="group" aria-label="Dirección pública">{ico("warn", "ico", "color: var(--warn)")}'
-          f'<span class="grow" style="flex-basis: 260px"><b style="font-weight: 500; color: var(--fg)">Claudio no tiene una dirección pública.</b> '
+          f'<span class="grow" style="flex-basis: 260px"><b style="font-weight: var(--fw-regular); color: var(--fg)">Claudio no tiene una dirección pública.</b> '
           f'Los hosts no pueden llegar hasta aquí: abre el túnel en Ajustes → Acceso remoto, o configura una dirección pública.</span>{link}</div>')
 
 
@@ -193,7 +193,7 @@ def no_permission():
   """What `hook-no-permission` says: GitHub answered 404 to the registration, which is how it refuses a token
   without admin rights on the repository. The dialog stays open so the person can retry after fixing it."""
   return (f'<div class="callout callout-warn" role="alert" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
-          f'<span><b style="color: var(--fg); font-weight: 500">GitHub no ha dejado registrar el webhook.</b> '
+          f'<span><b style="color: var(--fg); font-weight: var(--fw-regular)">GitHub no ha dejado registrar el webhook.</b> '
           f'La sesión de gh no tiene permiso de administración sobre este repositorio. Pide ese permiso al propietario y vuelve a intentarlo.</span></div>')
 
 
@@ -219,7 +219,7 @@ def remove_sheet(project='cw'):
 <div class="sheet" role="alertdialog" aria-label="Quitar el webhook" style="z-index: 11; padding-bottom: 24px; display: flex; flex-direction: column; gap: 12px">
 <div class="grab" style="margin-bottom: 0"></div>
 <div class="row" style="gap: 10px">{mono_ico(p["host"])}<div class="col grow" style="gap: 2px"><h2 class="t-h2">Quitar el webhook de {p["name"]}</h2><span class="mono t-xs fg-3">{p["repo"]} · gh 2.92.0</span></div></div>
-<p class="t-sm fg-2" style="margin: 0; line-height: 1.5; font-size: 14px">{confirm_text(p)}</p>
+<p class="t-sm fg-2" style="margin: 0; line-height: 1.5; font-size: var(--fs-body)">{confirm_text(p)}</p>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-danger" style="justify-content: center">Quitar webhook</button>
 <button type="button" class="btn btn-lg btn-ghost" style="justify-content: center">Cancelar</button></div>
 </div>'''
@@ -254,7 +254,7 @@ def register_sheet(project='gdm', error=False):
 <div class="row" style="gap: 10px">{mono_ico(p["host"])}<div class="col grow" style="gap: 2px"><h2 class="t-h2">Registrar un webhook en {p["name"]}</h2><span class="mono t-xs fg-3" style="overflow-wrap: anywhere">{p["repo"]} · gh 2.92.0</span></div></div>
 {err}
 <div class="col" style="gap: 8px"><span class="t-label">Dirección</span>
-<div class="row" style="gap: 4px; align-items: center; padding: 4px 4px 4px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg-1)" role="group" aria-label="Dirección del webhook"><span class="mono grow" style="font-size: 14px; line-height: 1.45; overflow-wrap: anywhere">{url}</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Copiar la dirección">{ico("copy", "ico")}</button></div>
+<div class="row" style="gap: 4px; align-items: center; padding: 4px 4px 4px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg-1)" role="group" aria-label="Dirección del webhook"><span class="mono grow" style="font-size: var(--fs-body); line-height: 1.45; overflow-wrap: anywhere">{url}</span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Copiar la dirección">{ico("copy", "ico")}</button></div>
 <span class="form-hint">La dirección pública de Claudio ahora mismo. {BODY_HINT}</span></div>
 <div class="col" style="gap: 8px"><span class="t-label">Eventos</span>{events_short()}</div>
 <span class="t-xs fg-3" style="line-height: 1.45">{SECRET} {BEFORE}</span>
@@ -268,14 +268,14 @@ MAIN_ROWS = [ROWS['active'], ROWS['off'], ROWS['unavailable']]
 
 
 def head():
-  return '<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: 20px">Integraciones</h2></div></div>'
+  return '<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: var(--fs-title)">Integraciones</h2></div></div>'
 
 
 def desktop_webhooks(name, title, rows, url=ORIGIN, overlay='', grad=True, extra=''):
   body = head() + intro() + webhooks_card(rows, url, grad=grad) + extra
   main = f'<main class="col grow" style="padding: 26px 32px; gap: 18px; min-width: 0">{body}</main>'
   inner = f'<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0; overflow: hidden">{settings_nav()}{main}</div>'
-  write(name, desktop(title, 'settings', '<span style="font-weight: 500">Ajustes</span>', inner, overlay=overlay, project='Todos los proyectos', agents=3, running=3))
+  write(name, desktop(title, 'settings', '<span style="font-weight: var(--fw-regular)">Ajustes</span>', inner, overlay=overlay, project='Todos los proyectos', agents=3, running=3))
 
 
 def desktop_all():
@@ -294,7 +294,7 @@ def desktop_all():
                   for i, (t, r) in enumerate(scenes))
   main = f'<main class="col grow" style="padding: 26px 32px; gap: 14px; min-width: 0">{head()}{cards}</main>'
   inner = f'<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0; overflow: hidden">{settings_nav()}{main}</div>'
-  write('DesktopIntegracionesWebhooksEstados.html', desktop('Ajustes, webhooks con otros estados', 'settings', '<span style="font-weight: 500">Ajustes</span>', inner,
+  write('DesktopIntegracionesWebhooksEstados.html', desktop('Ajustes, webhooks con otros estados', 'settings', '<span style="font-weight: var(--fw-regular)">Ajustes</span>', inner,
                                                            project='Todos los proyectos', agents=3, running=3))
   desktop_webhooks('DesktopIntegracionesWebhooksSinDireccion.html', 'Ajustes, webhooks sin dirección pública',
                    [ROWS['closed'], ROWS['off-closed'], ROWS['unavailable']], url=None)

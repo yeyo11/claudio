@@ -350,7 +350,7 @@ test('the history lists runs newest first with word, cases, cost and a way to co
 test('the stylesheet keeps the phone targets and uses only tokens', () => {
   const css = readFileSync(new URL('../src/styles/evals.css', import.meta.url), 'utf8');
   assert.match(css, /\.evals-start-sheet input/);
-  assert.match(css, /font-size: 16px/);
+  assert.match(css, /font-size: var\(--fs-input\)/);
   assert.match(css, /\.evals-start-sheet \.btn/);
   assert.match(css, /min-height: var\(--touch\)/);
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgba?\(|\d+ms\b/, 'no hex, rgb or millisecond value');

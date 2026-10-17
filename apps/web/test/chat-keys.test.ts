@@ -9,9 +9,8 @@ import { chatKeys } from '@claudio/chat-ui/lib/context';
 test('the chat keys keep their shape', () => {
   assert.deepEqual(keys.chats, ['chats']);
   assert.deepEqual(keys.chatScope('c1'), ['chat', 'c1']);
-  assert.deepEqual(keys.chat('c1', true), ['chat', 'c1', true]);
-  assert.deepEqual(keys.chat('c1', false), ['chat', 'c1', false]);
-  assert.deepEqual(keys.chatEarlier('c1', true), ['chat', 'c1', true, 'earlier']);
+  assert.deepEqual(keys.chat('c1'), ['chat', 'c1', 'transcript']);
+  assert.deepEqual(keys.chatEarlier('c1'), ['chat', 'c1', 'transcript', 'earlier']);
   assert.deepEqual(keys.chatPermissions('c1'), ['chat', 'c1', 'permissions']);
   assert.deepEqual(keys.chatTasks('c1'), ['tasks', 'chat', 'c1']);
   assert.deepEqual(keys.agentDetail, ['agent-detail']);
@@ -22,8 +21,8 @@ test('the chat keys keep their shape', () => {
 
 test('the prefixes the event feed invalidates still cover the keys under them', () => {
   const startsWith = (key: readonly unknown[], prefix: readonly unknown[]): boolean => prefix.every((part, i) => key[i] === part);
-  assert.ok(startsWith(keys.chat('c1', true), keys.chatScope('c1')));
-  assert.ok(startsWith(keys.chatEarlier('c1', false), keys.chatScope('c1')));
+  assert.ok(startsWith(keys.chat('c1'), keys.chatScope('c1')));
+  assert.ok(startsWith(keys.chatEarlier('c1'), keys.chatScope('c1')));
   assert.ok(startsWith(keys.chatPermissions('c1'), keys.chatScope('c1')));
   assert.ok(startsWith(keys.agent('c1', 'w1', 'a1'), keys.agentDetail));
   assert.ok(startsWith(keys.output('c1', 't1'), keys.taskOutput));

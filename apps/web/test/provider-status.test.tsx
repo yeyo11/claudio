@@ -72,7 +72,7 @@ const bar = (statuses: ProviderStatus[] | undefined, lang: 'en' | 'es' = 'en') =
 
 test('the status bar shows a dot and a word per provider that is there', () => {
   const html = bar([status('claude-code'), status('other-agent', { state: 'signed-out', reason: 'missing-credentials', version: '0.0.353' })]);
-  assert.match(html, /Claude Code 2\.1\.282/);
+  assert.match(html, /Claude Code <span class="mono">2\.1\.282<\/span>/);
   assert.match(html, /Other Agent · signed out/);
   assert.match(html, /tone-ok/);
   assert.match(html, /tone-warn/);

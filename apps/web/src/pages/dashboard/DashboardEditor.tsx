@@ -299,7 +299,7 @@ function AddWidgetPicker({ layout, scope, project, phone, onAdd, onClose }: { la
   // The Sheet closes with its own ✕ and a swipe; the dialog says why the list is short and leaves with Cancelar
   const footer = (
     <>
-      <span className="mono small muted pick-once">{t('edit.once')}</span>
+      <span className="small muted pick-once">{t('edit.once')}</span>
       <button type="button" className="btn btn-quiet" onClick={onClose}>
         {t('edit.cancel')}
       </button>

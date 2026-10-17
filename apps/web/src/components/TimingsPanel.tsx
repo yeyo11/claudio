@@ -2,7 +2,7 @@ import type { Orchestration, OrchestrationPhaseName, OrchestrationTimings, TaskW
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOrchestrationTimings } from '../api';
-import { formatDuration } from '@claudio/ui/lib/format';
+import { formatDuration, formatNumber } from '@claudio/ui/lib/format';
 import { phaseCells, phaseTone, timingsPhaseKey, WAIT_TONE } from '../lib/orchestration-timings';
 import { Collapsible } from '@claudio/ui/components/controls';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
@@ -14,9 +14,9 @@ import { Tag } from '@claudio/ui/components/ui';
  */
 const LINK_WAIT_MIN_MS = 60_000;
 
-/** A duration in mono, tabular figures, as every number of the panel is. */
+/** A duration in tabular figures, as every number of the panel is. */
 function Duration({ ms }: { ms: number }) {
-  return <span className="mono tnum">{formatDuration(ms)}</span>;
+  return <span className="tnum">{formatDuration(ms)}</span>;
 }
 
 /** A wait, in its status colour and always with its word. */
@@ -24,7 +24,7 @@ function WaitTag({ wait }: { wait: Pick<TaskWait, 'kind' | 'durationMs'> }) {
   const { t } = useTranslation('orchestrationV2');
   return (
     <Tag tone={WAIT_TONE[wait.kind]}>
-      {t(`timings.wait.${wait.kind}`)} · <span className="mono tnum">{formatDuration(wait.durationMs)}</span>
+      {t(`timings.wait.${wait.kind}`)} · <span className="tnum">{formatDuration(wait.durationMs)}</span>
     </Tag>
   );
 }
@@ -61,7 +61,7 @@ export function TimingsBody({ timings, running }: { timings: OrchestrationTiming
         {timings.parallelism !== null && (
           <div>
             <dt className="section-label">{t('timings.parallelism')}</dt>
-            <dd className="mono tnum">{timings.parallelism.toFixed(1)}</dd>
+            <dd className="tnum">{formatNumber(timings.parallelism, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</dd>
           </div>
         )}
       </dl>
@@ -90,8 +90,8 @@ export function TimingsBody({ timings, running }: { timings: OrchestrationTiming
             {timings.criticalPath.links.map((link) => (
               <li key={link.taskId} className="orch-timings-link">
                 <span className="orch-timings-link-name">{link.taskName}</span>
-                <span className="small muted mono tnum">{t('timings.work', { duration: formatDuration(link.workMs) })}</span>
-                {link.waitBeforeMs >= LINK_WAIT_MIN_MS && <span className="small muted mono tnum">{t('timings.waitBefore', { duration: formatDuration(link.waitBeforeMs) })}</span>}
+                <span className="small muted tnum">{t('timings.work', { duration: formatDuration(link.workMs) })}</span>
+                {link.waitBeforeMs >= LINK_WAIT_MIN_MS && <span className="small muted tnum">{t('timings.waitBefore', { duration: formatDuration(link.waitBeforeMs) })}</span>}
                 {link.waits.filter((wait) => wait.durationMs >= LINK_WAIT_MIN_MS).map((wait) => (
                   <WaitTag key={`${wait.kind}-${wait.startedAt}`} wait={wait} />
                 ))}
@@ -117,7 +117,7 @@ export function TimingsBody({ timings, running }: { timings: OrchestrationTiming
       {v && (
         <div className="orch-timings-checks">
           <h3 className="section-label">{t('timings.checks')}</h3>
-          <p className="small muted mono tnum">
+          <p className="small muted tnum">
             {t('timings.checksTotal', { duration: formatDuration(v.checksMs) })}
             {v.fixes.length > 0 && ` · ${t('timings.fixer', { duration: formatDuration(v.fixerMs), count: v.fixes.length })}`}
           </p>
@@ -129,7 +129,7 @@ export function TimingsBody({ timings, running }: { timings: OrchestrationTiming
                   <span className="orch-timings-runs">
                     {command.runs.map((run) => (
                       <span key={`${run.pass}-${run.startedAt}`} className={`orch-timings-run${run.status === 'failed' ? ' is-failed' : ''}`}>
-                        <span className="mono tnum">{t('timings.pass', { n: run.pass })}</span>
+                        <span className="tnum">{t('timings.pass', { n: run.pass })}</span>
                         <Duration ms={run.durationMs} />
                         {run.status === 'failed' && <Tag tone="bad">{t('timings.failed')}</Tag>}
                       </span>

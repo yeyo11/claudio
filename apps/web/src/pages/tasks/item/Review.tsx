@@ -2,7 +2,7 @@ import type { ApprovalState, ChangeRequestReviewers, ReviewDraft, ReviewEvent, W
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, ExternalLink, Info, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ApiRequestError, api, keys } from '../../../api';
 import { Sheet } from '@claudio/ui/components/controls';
@@ -564,7 +564,11 @@ export function Review({ pr, itemId, changesPath, lead }: { pr: WorkItemPullRequ
               <span className="rv-k rv-label">{t('row.approval')}</span>
               <span className="rv-v">
                 <span className="badge badge-ok">{t('approve.mine')}</span>
-                {mine.headSha && <span className="rv-count">{t('approve.commit', { sha: shortSha(mine.headSha) })}</span>}
+                {mine.headSha && (
+                  <span className="rv-count">
+                    <Trans t={t} i18nKey="approve.commit" values={{ sha: shortSha(mine.headSha) }} components={{ mono: <span className="mono" /> }} />
+                  </span>
+                )}
               </span>
               <span className="rv-side">
                 {mine.canRevoke && (

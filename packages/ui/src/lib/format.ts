@@ -189,3 +189,11 @@ export function errorMessage(error: unknown): string {
   }
   return String(error);
 }
+
+/**
+ * A percentage in the active language, from percentage points: 27 → "27%" in English, "27 %" in
+ * Spanish. Copy never carries the sign itself (docs/plans/claudio-designer.md §1.5): it receives this.
+ */
+export function formatPercent(points: number, digits = 0): string {
+  return cached(`percent:${digits}`, (l) => new Intl.NumberFormat(l, { style: 'percent', maximumFractionDigits: digits })).format(points / 100);
+}

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { intlLocale } from '../../i18n/language';
 import { addMonths, clampDay, firstDayOfWeek, monthGrid, moveFocus, outOfRange, parseDay, sameDay, toDay } from '../../lib/calendar';
 import { ICON_SM } from '../icons';
-import { LAYER_ATTR } from './layer';
+import { LAYER_ATTR, layerCollisionPadding } from './layer';
 
 /**
  * A day, typed as `YYYY-MM-DD` or picked from a calendar of Claudio's own (a native date input
@@ -78,7 +78,7 @@ export function DatePicker({
           aria-label={ariaLabel}
           align="start"
           sideOffset={6}
-          collisionPadding={8}
+          collisionPadding={layerCollisionPadding()}
           // The calendar puts focus on its own day once it has rendered
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
@@ -130,7 +130,9 @@ function Calendar({
     grid.current?.querySelector<HTMLButtonElement>(`button[data-day="${toDay(focused)}"]`)?.focus();
   }, [focused, focusGrid]);
 
-  const monthTitle = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(focused);
+  // "septiembre de 2026" is a sentence: only its first letter goes up, and in the text, not by CSS
+  const monthName = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(focused);
+  const monthTitle = monthName.charAt(0).toLocaleUpperCase(locale) + monthName.slice(1);
   const dayName = new Intl.DateTimeFormat(locale, { dateStyle: 'full' });
   const weeks = monthGrid(focused, firstDay);
   const weekdays = (weeks[0] ?? []).map((day) => ({

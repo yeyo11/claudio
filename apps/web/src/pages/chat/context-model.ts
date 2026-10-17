@@ -1,4 +1,5 @@
 import type { Chat, ChatSessionNote, CompactRefusal, ContextBreakdown, ContextCategory } from '@claudio/shared';
+import { formatPercent } from '@claudio/ui/lib/format';
 
 /** More servers than this and the rest fold away: a chat can carry fifty of them (E29) */
 export const MCP_SERVERS_SHOWN = 12;
@@ -42,12 +43,12 @@ export function categoryGroups(categories: ContextCategory[]): CategoryGroups {
   };
 }
 
-/** A share as the panel writes it: whole percent, and "<1 %" for what is there but small. `null` when the window is unknown. */
+/** A share as the panel writes it: whole percent, and "<1%" for what is there but small. `null` when the window is unknown. */
 export function shareText(tokens: number, window: number | null, lessThanOne: string): string | null {
   if (window === null || window <= 0) return null;
   const share = tokens / window;
   if (tokens > 0 && share < 0.01) return lessThanOne;
-  return `${Math.round(share * 100)} %`;
+  return formatPercent(Math.round(share * 100));
 }
 
 /** The window the share is measured against, or null when the CLI gave none. */

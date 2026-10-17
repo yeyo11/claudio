@@ -8,6 +8,7 @@ import { PhoneHeader } from '../../../components/shell/PhoneHeader';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Segmented, usePageTitle } from '@claudio/ui/components/ui';
 import { MILESTONES_PATH, TASKS_PATH, VIEW_PARAM } from '../../../lib/work-items';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 export type TasksViewName = 'board' | 'list' | 'milestones';
 
@@ -63,9 +64,11 @@ export function SuggestButton({ onClick, icon = false }: { onClick: () => void; 
   const { t } = useTranslation('tasks');
   if (icon)
     return (
-      <button type="button" className="icon-btn workitem-suggest-icon" aria-label={t('suggest.button')} title={t('suggest.button')} onClick={onClick}>
-        <Sparkle {...ICON_SM} />
-      </button>
+      <Tooltip content={t('suggest.button')}>
+        <button type="button" className="icon-btn workitem-suggest-icon" aria-label={t('suggest.button')} onClick={onClick}>
+          <Sparkle {...ICON_SM} />
+        </button>
+      </Tooltip>
     );
   return (
     <button type="button" className="btn workitem-suggest" onClick={onClick}>

@@ -169,7 +169,7 @@ def states_section():
 def phone_section():
   frames = [('GitHub · al instante', 'github', 'webhook'), ('GitHub · sin respuesta', 'github', 'failing'),
             ('GitLab · lectura normal', 'gitlab', 'poll'), ('GitLab · en pausa', 'gitlab', 'paused')]
-  out = ''.join(f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">{la}</span>{phone_frame(panel(h, s, True))}</div>'
+  out = ''.join(f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">{la}</span>{phone_frame(panel(h, s, True))}</div>'
                 for la, h, s in frames)
   return (f'<section class="col" style="gap: 12px"><span class="t-label">En el móvil · el botón mide 44 px y el texto envuelve</span>'
           f'<div style="display: grid; grid-template-columns: repeat(3, 390px); gap: 24px; align-items: start">{out}</div></section>')
@@ -177,7 +177,7 @@ def phone_section():
 
 def gitlab_section():
   return (f'<section class="callout" style="align-items: flex-start; max-width: 1100px">{ico("info", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}'
-          '<span class="col" style="gap: 4px"><b style="color: var(--fg); font-weight: 500">GitLab: aún sin webhook</b>'
+          '<span class="col" style="gap: 4px"><b style="color: var(--fg); font-weight: var(--fw-regular)">GitLab: aún sin webhook</b>'
           '<span>Claudio ya sabe recibir un webhook de GitLab, pero todavía no lo registra, lo prueba ni lo quita: eso falta por probarlo con glab. '
           'Hasta entonces una MR muestra solo la lectura periódica, y Integraciones dice «aún no disponible» en vez de ofrecer una acción que no existe.</span></span></section>')
 

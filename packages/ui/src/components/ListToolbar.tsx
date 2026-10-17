@@ -3,7 +3,7 @@ import { ListFilter, Search, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NARROW, useMediaQuery } from '../lib/media';
-import { LAYER_ATTR } from './controls/layer';
+import { LAYER_ATTR, layerCollisionPadding } from './controls/layer';
 import { Select } from './controls/Select';
 import { Sheet } from './controls/Sheet';
 import { ICON_SM } from './icons';
@@ -168,7 +168,7 @@ export function ListToolbar<T extends string>({
             <RadixPopover.Root open={open} onOpenChange={setOpen}>
               <RadixPopover.Trigger asChild>{filterButton()}</RadixPopover.Trigger>
               <RadixPopover.Portal>
-                <RadixPopover.Content className="popover list-toolbar-popover" align="start" sideOffset={6} collisionPadding={8} {...LAYER_ATTR}>
+                <RadixPopover.Content className="popover list-toolbar-popover" align="start" sideOffset={6} collisionPadding={layerCollisionPadding()} {...LAYER_ATTR}>
                   {filters.children}
                 </RadixPopover.Content>
               </RadixPopover.Portal>

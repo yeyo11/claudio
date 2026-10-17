@@ -1,7 +1,7 @@
 /*
  * The Claudio assistant (pages/claudio-assistant): the references `DesktopAsistenteClaudio` and
  * `MobileAsistenteClaudio`. The composer and the transcript are the chat's own; this lays out the
- * greeting, the starters and the context chip.
+ * greeting, the starters and the context chip. The box under the greeting is New chat's start box.
  */
 
 .as-entry .run-scroll {
@@ -38,15 +38,15 @@
 
 .as-hello-title {
   margin: 0;
-  font-size: 34px;
+  font-size: var(--fs-title);
   line-height: 1.15;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .as-hello-sub {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-section);
   line-height: 1.5;
   color: var(--fg-2);
 }
@@ -57,8 +57,7 @@
   align-items: center;
   gap: 6px 14px;
   margin: 0;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
@@ -114,17 +113,18 @@
 }
 
 .as-starter-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
 }
 
 .as-starter-ask {
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
 }
 
-/* The context, first in the chat composer's line of chips (`.composer-foot`) */
+/* The context, first in the start box's line of chips: a `.composer-status-word` of its own, beside
+   the button that opens the model and the effort */
 .as-context {
   min-width: 0;
   gap: 4px;
@@ -156,7 +156,7 @@
   align-items: flex-start;
   gap: 12px;
   color: var(--fg-2);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   margin-bottom: 16px;
 }
@@ -173,11 +173,11 @@
   }
 
   .as-hello-title {
-    font-size: 24px;
+    font-size: var(--fs-title);
   }
 
   .as-hello-sub {
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .as-starters {
@@ -188,10 +188,7 @@
     min-height: var(--touch);
   }
 
-  .as-context {
-    flex: 1 1 auto;
-  }
-
+  /* The × is a 44 px target on touch, drawn over the chip's height */
   .as-context .x {
     width: var(--touch);
     height: var(--touch);

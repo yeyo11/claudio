@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ChangesSummary } from '../src/components/observe/Changes';
 import i18n from '../src/i18n';
 import { editChips, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../src/lib/changes-summary';
@@ -117,14 +118,21 @@ test('review links', () => {
   assert.equal(reviewLink('/chats/c1/changes', { file: 'src/a b.ts' }), '/chats/c1/changes?file=src%2Fa+b.ts');
 });
 
-const render = (node: React.ReactNode) => renderToStaticMarkup(<MemoryRouter>{node}</MemoryRouter>);
+// The app mounts one TooltipProvider at its root; a file row's full path is a tooltip
+const render = (node: React.ReactNode) =>
+  renderToStaticMarkup(
+    <MemoryRouter>
+      <TooltipProvider>{node}</TooltipProvider>
+    </MemoryRouter>,
+  );
 
 test('the summary draws the totals, the files, the latest step and the way into the review', () => {
   // No live activity here: the braille spinner reads the motion store, which has no server snapshot
   const steps = [step(1, 'packages/core/src/changes.ts'), step(2, 'apps/web/src/components/observe/Changes.tsx', { intent: 'Now I drop the editor links.' })];
   const html = render(<ChangesSummary summary={SUMMARY} steps={steps} base="/chats/c1/changes" />);
   assert.match(html, /^<section class="obs-changes">/);
-  assert.match(html, /claudio\/b67aa3 · 3 commits · 3 files/);
+  // The branch is the line's one literal, in mono; the counts beside it are words
+  assert.match(html, /<span class="mono">claudio\/b67aa3<\/span> · 3 commits · 3 files/);
   assert.match(html, /class="changes-print"/);
   assert.equal((html.match(/class="obs-file"/g) ?? []).length, 3);
   assert.match(html, /<span class="obs-file-name mono">changes.ts<\/span>/, 'a row names the file, the path is its title');

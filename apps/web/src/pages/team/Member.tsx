@@ -186,10 +186,15 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
   );
   const actions = (
     <>
-      <button type="button" className="btn" disabled={!fileChanged || frontmatter !== null} onClick={evaluate} title={fileChanged ? undefined : t('evals:member.needsChange')}>
-        <FlaskConical {...ICON_SM} />
-        {hasEvals ? t('evals:member.evaluate') : t('evals:member.new')}
-      </button>
+      {/* A disabled button gets no pointer events, so the tooltip that says why sits on a wrapper */}
+      <Tooltip content={fileChanged ? undefined : t('evals:member.needsChange')}>
+        <span className="member-eval-wrap">
+          <button type="button" className="btn" disabled={!fileChanged || frontmatter !== null} onClick={evaluate}>
+            <FlaskConical {...ICON_SM} />
+            {hasEvals ? t('evals:member.evaluate') : t('evals:member.new')}
+          </button>
+        </span>
+      </Tooltip>
       <button type="button" className="btn" disabled={!dirty || save.isPending} onClick={() => setDraft({})}>
         <Undo2 {...ICON_SM} />
         {t('config:shared.discard')}
@@ -235,7 +240,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
     ) : (
       <div className="member-editor">
         <div className="member-editor-bar">
-          <span className="ellipsis">{member.file.path}</span>
+          <span className="ellipsis mono">{member.file.path}</span>
           <span className="grow" />
           <span>{t('member.markdown')}</span>
         </div>
@@ -356,7 +361,7 @@ export function MemberPage({ project, member, backHref }: { project: Project; me
             <span className="member-run-text">
               <span>{mine.length > 0 ? t('member.proposalsWaiting', { count: mine.length }) : t('member.noProposals')}</span>
               {mine[0]?.item && (
-                <span className="member-run-state mono">
+                <span className="member-run-state tnum">
                   {t('member.proposalFrom', { key: mine[0].item.key })} · {timeAgo(mine[0].createdAt)}
                 </span>
               )}

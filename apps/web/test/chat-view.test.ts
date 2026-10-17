@@ -168,7 +168,7 @@ test('a checklist reads as steps and as counts for its progress blocks', () => {
 test("a chat's own page gets the activity the feed carries, so its ticker never lags the list", () => {
   const client = new QueryClient();
   const detail = { chat: { id: 'chat-1', activity: null }, entries: [], from: 0, total: 0 } as unknown as ChatDetail;
-  client.setQueryData(keys.chat('chat-1', false), detail);
+  client.setQueryData(keys.chat('chat-1'), detail);
   const activity = { kind: 'tool' as const, tool: 'Bash', target: 'npm test', since: '2026-09-21T10:00:00.000Z' };
   patchActivity(client, {
     id: 1,
@@ -183,8 +183,7 @@ test("a chat's own page gets the activity the feed carries, so its ticker never 
     taskId: null,
     activity,
   });
-  assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-1', false))?.chat.activity, activity);
-  assert.equal(client.getQueryData(keys.chat('chat-1', true)), undefined, 'a page nobody opened is not invented');
+  assert.deepEqual(client.getQueryData<ChatDetail>(keys.chat('chat-1'))?.chat.activity, activity);
 });
 
 test('rows built again from the same entries are the objects handed in before', () => {

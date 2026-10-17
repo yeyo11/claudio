@@ -3,8 +3,9 @@
 // empty Team screen asks it for a proposal, whose run is live while it reads and still once it ends,
 // each proposal accepted, discarded or restored on its own. Runs against the fake CLI, whose scripts
 // file answers each run as the CLI's `--json-schema` would. First, the Claudio assistant's entry, whose
-// box is a chat's composer less what the assistant cannot use and draws as one, and which opens the assistant's
-// chat, whose composer, while the assistant works, has the "+", the stop and the energy border.
+// box is New chat's (`StartComposer` layout="start") centred under the greeting less what the assistant
+// cannot use, and which opens the assistant's chat, whose composer, while the assistant works, has the
+// "+", the stop and the energy border.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -52,22 +53,6 @@ async function until(probe, label, timeout = 30_000) {
 /** Lets a theme's colour transitions end, so what is read and shot is the theme and not the way to it */
 const settle = () => new Promise((r) => setTimeout(r, 600));
 
-/**
- * How the composer on screen is drawn, less what a working box adds (its energy border): the card,
- * the editor's type, the send button and the line under it. The entry's and a chat's must match.
- */
-const look = `
-  const css = (selector, ...props) => { const el = document.querySelector(selector); const s = el ? getComputedStyle(el) : null; return Object.fromEntries(props.map((p) => [selector.split(' ').pop() + '.' + p, s ? s.getPropertyValue(p) : 'missing'])); };
-  return {
-    ...css('main .composer-wrap', 'max-width', 'padding-left', 'padding-right'),
-    ...css('main form.composer', 'background-color', 'border-radius', 'padding-top', 'padding-left', 'gap', 'display'),
-    ...css('main form.composer > .composer-editor', 'font-family', 'font-size', 'line-height', 'color', 'min-height', 'max-height'),
-    ...css('main .composer-send', 'width', 'height', 'border-radius', 'background-image'),
-    ...css('main .composer-foot', 'font-family', 'font-size', 'gap', 'color'),
-    ...css('main .composer-status', 'font-family', 'font-size'),
-    ...css('main .composer-keys', 'font-family', 'font-size', 'color'),
-  };`;
-
 const onAssistant = `return /^\\/projects\\/[^/]+\\/assistant$/.test(location.pathname)`;
 const rows = (status) => `return document.querySelectorAll('.suggestion-row[data-proposal]${status ? `[data-status=${status}]` : ''}').length`;
 
@@ -86,38 +71,40 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     );
     await page.viewport(1440, 1024);
 
-    // ---- the Claudio assistant's entry: its box is a chat's composer (R16 c) ----
+    // ---- the Claudio assistant's entry: its box is New chat's, centred under the greeting ----
     await page.goto('/assistant', 1200);
-    await page.waitFor(`return !!document.querySelector('.as-entry .composer [data-composer-input]')`, { label: "the assistant's composer" });
-    // The chat's editor mounts ProseMirror on its own host: `.composer-editor` is the editable itself
+    await page.waitFor(`return !!document.querySelector('.as-entry .new-composer [data-composer-input]')`, { label: "the assistant's composer" });
+    // The editor mounts ProseMirror on its own host: `.composer-editor` is the editable itself
     const box = await page.eval(
-      `const w = document.querySelector('.as-entry .composer-wrap');` +
-        `return { forms: document.querySelectorAll('main form.composer').length, editor: !!w?.querySelector('form.composer > .composer-editor[data-composer-input][contenteditable=true]'), textarea: !!document.querySelector('main textarea'),` +
-        ` plus: !!w?.querySelector('.composer-plus'), stop: !!w?.querySelector('.composer-stop'), status: !!w?.querySelector('.composer-foot .composer-status'), keys: !!w?.querySelector('.composer-foot .composer-keys'),` +
-        ` accent: !!w?.querySelector('.composer-status-word.is-accent'), energy: document.querySelectorAll('.live-energy').length, send: w?.querySelector('.composer-send')?.disabled }`,
+      `const w = document.querySelector('.as-entry .new-composer-wrap');` +
+        `const f = w?.querySelector('form.composer.new-composer.grad-border');` +
+        `const top = (el) => el?.getBoundingClientRect().top ?? -1;` +
+        `return { forms: document.querySelectorAll('main form.composer').length, editor: !!f?.querySelector(':scope > .composer-editor[data-composer-input][contenteditable=true]'), textarea: !!document.querySelector('main textarea'),` +
+        ` plus: !!w?.querySelector('.composer-plus'), attach: !!w?.querySelector('.composer-attach'), stop: !!w?.querySelector('.composer-stop'), status: !!f?.querySelector('.new-composer-foot .composer-status'), keys: !!f?.querySelector('.new-composer-foot .composer-keys kbd'),` +
+        ` start: !!f?.querySelector('.new-composer-foot .new-start'), accent: !!w?.querySelector('.composer-status-word.is-accent'), energy: document.querySelectorAll('.live-energy').length, send: f?.querySelector('.new-start')?.disabled,` +
+        ` order: top(document.querySelector('.as-hello')) < top(f) && top(f) < top(document.querySelector('.as-starters-section')) }`,
     );
-    check(box.forms === 1 && box.editor && !box.textarea, `one composer, the chat's editor and no textarea of its own (${JSON.stringify(box)})`);
-    check(box.status && box.keys, `the chat's line of chips and keys under it (${JSON.stringify(box)})`);
-    check(!box.plus && !box.stop && !box.accent, `no "+", no stop and no permission chip: the assistant cannot use them (${JSON.stringify(box)})`);
-    check(box.energy === 0 && box.send === true, `nothing runs yet, and Send waits for words (${JSON.stringify(box)})`);
-    const entryLook = await page.eval(look);
+    check(box.forms === 1 && box.editor && !box.textarea, `one composer, New chat's card with the chat's editor and no textarea of its own (${JSON.stringify(box)})`);
+    check(box.status && box.keys && box.start, `the chips, the key hint and the start button in the card's foot (${JSON.stringify(box)})`);
+    check(box.order, `the box sits under the greeting and over the starters (${JSON.stringify(box)})`);
+    check(!box.plus && !box.attach && !box.stop && !box.accent, `no "+", no files, no stop and no permission chip: the assistant cannot use them (${JSON.stringify(box)})`);
+    check(box.energy === 0 && box.send === true, `nothing runs yet, and Start waits for words (${JSON.stringify(box)})`);
     await page.shot('assistant-entry-dark');
     await page.eval(`document.documentElement.setAttribute('data-theme', 'light'); return true`);
     await settle();
-    const entryLookLight = await page.eval(look);
     await page.shot('assistant-entry-light');
     await page.eval(`document.documentElement.setAttribute('data-theme', 'dark'); return true`);
     // A starter fills the box and never sends
     await page.click('.as-starter', 'How much have I spent today?', 400);
     check((await page.eval(`return document.querySelector('.as-entry [data-composer-input]').textContent`)).includes('How much have I spent today?'), 'a starter fills the box');
-    check(await page.eval(`return location.pathname === '/assistant' && document.querySelector('.as-entry .composer-send').disabled === false`), 'and waits to be sent');
+    check(await page.eval(`return location.pathname === '/assistant' && document.querySelector('.as-entry .new-start').disabled === false`), 'and waits to be sent');
     // The chips open the model and the effort, as a chat's open its run options
     await page.click('.as-entry .composer-status', undefined, 400);
     check(await page.eval(`return !!document.querySelector('.composer-options .model-pick') && !!document.querySelector('.composer-options .effort-pick')`), 'the chips open the model and the effort');
     await page.key('Escape');
-    // Enter sends, as in a chat, and the chat that opens has the same composer
+    // Ctrl+Enter starts, as on New chat, and the chat that opens has a chat's composer at its foot
     await page.eval(`document.querySelector('.as-entry [data-composer-input]').focus(); return true`);
-    await page.press('Enter');
+    await page.press('Enter', 2);
     await page.waitFor(`return /^\\/chats\\/[^/]+$/.test(location.pathname)`, { label: "the assistant's chat opens", timeout: 30_000 });
     made.push({ chat: decodeURIComponent(await page.eval(`return location.pathname.split('/')[2]`)) });
     await page.waitFor(`return !!document.querySelector('main .composer-wrap form.composer > .composer-editor[data-composer-input]')`, { label: "the chat's composer" });
@@ -132,18 +119,11 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     );
     check(working.plus && working.stop, `the working assistant's chat has the "+" and the stop (${JSON.stringify(working)})`);
     check(working.energy === 1 && working.onBox, `one energy border, on the working composer (${JSON.stringify(working)})`);
-    // The entry's box is drawn as a chat's, in both themes
-    const chatLook = await page.eval(look);
     await page.shot('assistant-chat-working-dark');
     await page.eval(`document.documentElement.setAttribute('data-theme', 'light'); return true`);
     await settle();
-    const chatLookLight = await page.eval(look);
     await page.shot('assistant-chat-working-light');
     await page.eval(`document.documentElement.setAttribute('data-theme', 'dark'); return true`);
-    for (const [theme, entry, chat] of [['dark', entryLook, chatLook], ['light', entryLookLight, chatLookLight]]) {
-      const differ = Object.keys(entry).filter((k) => entry[k] !== chat[k]);
-      check(differ.length === 0, `${theme}: the entry's composer looks like a chat's (${differ.map((k) => `${k}: ${entry[k]} vs ${chat[k]}`).join('; ')})`);
-    }
 
     // ---- the wizard hands a new, empty project to the assistant ----
     await page.goto('/projects/new', 1200);

@@ -138,10 +138,19 @@ test('a run moving without a status change reads only its transcript, never a li
   const keysOf = targetsFor(updated()).map(([key]) => JSON.stringify(key));
   assert.ok(!keysOf.includes(JSON.stringify(keys.chats)), 'no list');
   assert.ok(!keysOf.includes(JSON.stringify(keys.chatScope('chat-1'))), 'not everything under the chat');
-  assert.ok(keysOf.includes(JSON.stringify(keys.chat('chat-1', false))));
+  assert.ok(keysOf.includes(JSON.stringify(keys.chat('chat-1'))));
   // A status change is rare, and moves counts everywhere
   const changed = targetsFor(updated({ previousStatus: 'idle' })).map(([key]) => JSON.stringify(key));
   assert.ok(changed.includes(JSON.stringify(keys.chats)));
+  // Whether the chat holds its branches moved with it, so their lists and panels are read again
+  for (const key of [keys.tasks, keys.subagents, keys.workflows, keys.agentDetail]) assert.ok(changed.includes(JSON.stringify(key)), `${JSON.stringify(key)} is read again`);
+});
+
+test('an ended run reads its chat now and once more after the process let go', () => {
+  const ended = { ...updated(), type: 'run.ended', status: 'completed', error: null } as unknown as Parameters<typeof targetsFor>[0];
+  const reads = targetsFor(ended).filter(([key]) => JSON.stringify(key) === JSON.stringify(['chat', 'chat-1']));
+  assert.equal(reads.length, 2);
+  assert.ok(reads[0] && reads[1] && reads[0][1] < reads[1][1], 'the second read is the later one');
 });
 
 test('the state a run gives its chat is the one the server lists it with', () => {

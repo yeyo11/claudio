@@ -204,7 +204,7 @@
       "title": "Fix ready to push",
       "waiting": "waits for you",
       "body": "Claudio fixed what it could and committed it on the integration branch. It pushes nothing until you press “Push the fix”.",
-      "facts": "on {{branch}}",
+      "facts": "on <mono>{{branch}}</mono>",
       "head": "{{noun}} {{ref}} stays on commit {{sha}} until you push it.",
       "button": "Push the fix",
       "pushing": "Pushing…",
@@ -384,10 +384,10 @@
       "failed": "Could not accept the review"
     },
     "severity": {
-      "critical": "critical",
-      "high": "high",
-      "medium": "medium",
-      "low": "low"
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
     },
     "verdict": {
       "not-asked": "not verified",

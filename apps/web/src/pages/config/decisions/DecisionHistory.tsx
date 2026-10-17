@@ -202,7 +202,7 @@ function HistoryRow({ row, project, open, onToggle, onChanged }: { row: Decision
   return (
     <>
       <div role="row" className={`dp-hist-row ${open ? 'open' : ''}`} data-decision={row.id}>
-        <span role="cell" className="mono dp-when" title={formatDateTime(row.at)}>
+        <span role="cell" className="dp-when tnum" title={formatDateTime(row.at)}>
           {timeAgo(row.at)}
         </span>
         <span role="cell" className="dp-cell dp-cell-point">
@@ -223,7 +223,7 @@ function HistoryRow({ row, project, open, onToggle, onChanged }: { row: Decision
             <span className="ellipsis">{first ? typeof first.value === 'boolean' ? t(first.value ? 'history.yes' : 'history.no') : first.value : '—'}</span>
           )}
         </span>
-        <span role="cell" className="mono dp-conf">
+        <span role="cell" className="dp-conf tnum">
           {confidence(row.confidence)}
         </span>
         <span role="cell" className="dp-result">
@@ -287,7 +287,7 @@ function AnswerPanel({ id, row, lines, outcome, onChanged }: { id: string; row: 
         <span className="dp-fact">
           <span>{t('history.facts.provider')}</span>
           <span>
-            {row.provider} · {row.model}
+            {row.provider} · <span className="mono">{row.model}</span>
           </span>
         </span>
         <span className="dp-fact">

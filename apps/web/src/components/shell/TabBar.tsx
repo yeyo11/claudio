@@ -35,7 +35,7 @@ function Badge({ count }: { count: NavItem['count'] }) {
   );
 }
 
-/** A section's figure: a count or a cost in mono, a problem as a badge with its word and icon */
+/** A section's figure: a count or a cost, small and tabular, a problem as a badge with its word and icon */
 function CellNote({ note }: { note: MoreNote | undefined }) {
   const { t } = useTranslation('shell');
   if (!note) return null;

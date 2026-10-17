@@ -10,7 +10,7 @@ import { SpendLineView } from '../components/SpendLine';
 import { DatePicker } from '@claudio/ui/components/controls';
 import { Card, Empty, ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
-import { formatCost, formatNumber } from '@claudio/ui/lib/format';
+import { formatAmountShort, formatCost, formatNumber } from '@claudio/ui/lib/format';
 import { intlLocale } from '@claudio/ui/i18n/language';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useOwnPhoneHeader } from '../components/shell/PhoneHeader';
@@ -387,7 +387,8 @@ function OverTime({
       onActive={onActive}
       tip={tip}
       integer={metric !== 'cost'}
-      formatAxis={(value) => (metric === 'cost' ? formatCost(value) : formatNumber(value, { notation: 'compact' }))}
+      // The title says it is a cost in dollars, so the axis keeps to the short figure: "3 mil", not "3000,00 US$"
+      formatAxis={(value) => (metric === 'cost' ? formatAmountShort(value) : formatNumber(value, { notation: 'compact' }))}
     />
   );
 }

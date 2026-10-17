@@ -72,7 +72,7 @@ test('a mergeable request offers the methods, the branch box and Merge as the on
   assert.match(html, /Delete .*orch\/spanish-copy.* on GitLab when merged/);
   assert.match(html, /<button[^>]*class="btn btn-primary"[^>]*>.*Merge MR !14/);
   assert.equal(html.split('btn-primary').length - 1, 1);
-  assert.match(html, /Merges commit a81d3f00/);
+  assert.match(html, /Merges commit <span class="mono">a81d3f00<\/span>/);
   assert.match(html, /aria-label="Commit subject"/);
 });
 

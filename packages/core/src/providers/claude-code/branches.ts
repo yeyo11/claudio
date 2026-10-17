@@ -20,12 +20,19 @@ export class ClaudeBranches implements BranchTracker {
     trackTask(this, change, raw);
   }
 
+  endForeground(at: string): void {
+    for (const sub of this.subagents.values()) {
+      if (sub.status === 'running' && !sub.background) Object.assign(sub, { status: 'stopped', endedAt: at });
+    }
+  }
+
   endAll(at: string): void {
     for (const task of this.tasks.values()) {
       if (task.status === 'running') Object.assign(task, { status: 'stopped', endedAt: at });
     }
     for (const sub of this.subagents.values()) {
-      if (sub.status === 'running') Object.assign(sub, { status: 'failed', endedAt: at });
+      // 'stopped', as the screens call an agent its process took down with it: nothing here failed
+      if (sub.status === 'running') Object.assign(sub, { status: 'stopped', endedAt: at });
     }
     for (const workflow of this.workflows.values()) {
       if (workflow.status === 'running') Object.assign(workflow, { status: 'stopped', endedAt: at });

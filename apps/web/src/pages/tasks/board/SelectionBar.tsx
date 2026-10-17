@@ -63,7 +63,7 @@ export function PhoneSelectionFoot({ projectId, selected }: { projectId: string 
     <div className="selection-foot" role="toolbar" aria-label={t('select.bar')}>
       <span className="selection-foot-figures" role="status">
         <b>{t('select.tasks', { count: selected.length })}</b>
-        <span className="mono">{t('select.nodes', { count: selected.length })}</span>
+        <span className="tnum">{t('select.nodes', { count: selected.length })}</span>
       </span>
       <button type="button" className="btn btn-primary" disabled={selected.length === 0 || orchestrate.isPending} onClick={() => orchestrate.mutate()}>
         <Workflow {...ICON_SM} />

@@ -129,15 +129,15 @@
 }
 
 .msg-role {
-  font-weight: 650;
-  font-size: 13px;
+  font-weight: var(--fw-strong);
+  font-size: var(--fs-small);
 }
 
 /* The time of a row shows when the reader points at it or moves into it, not on every row at once */
 .msg-time {
   margin-left: auto;
   color: var(--text-faint);
-  font: 11px var(--mono);
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   opacity: 0;
   transition: opacity var(--dur-fast);
@@ -190,7 +190,7 @@
 
 .msg-model {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--text-faint);
 }
 
@@ -234,8 +234,8 @@
 .md h4,
 .md h5,
 .md h6 {
-  font-weight: 650;
-  letter-spacing: -0.012em;
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   line-height: 1.35;
 }
 
@@ -246,41 +246,41 @@
 }
 
 .md h1 {
-  font-size: 19px;
+  font-size: var(--fs-title);
 }
 
 .md h2 {
-  font-size: 16.5px;
+  font-size: var(--fs-section);
 }
 
 .md h3 {
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .md h4,
 .md h5,
 .md h6 {
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 /* Headings in an answer are styled blocks, not part of the page's outline */
 .md .md-h {
-  font-weight: 650;
-  letter-spacing: -0.012em;
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   line-height: 1.35;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .md .md-h1 {
-  font-size: 19px;
+  font-size: var(--fs-title);
 }
 
 .md .md-h2 {
-  font-size: 16.5px;
+  font-size: var(--fs-section);
 }
 
 .md .md-h3 {
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .md > .md-h1:not(:first-child),
@@ -362,7 +362,7 @@
 }
 
 .md strong {
-  font-weight: 650;
+  font-weight: var(--fw-strong);
 }
 
 .md del {
@@ -379,7 +379,7 @@
 .md-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
 }
 
@@ -399,7 +399,7 @@
 
 .md-table th {
   background: var(--bg-sunken);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   white-space: nowrap;
 }
 
@@ -475,7 +475,7 @@
   border-radius: var(--radius-xs);
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  font: 11px var(--mono);
+  font: var(--fs-small) var(--mono);
   color: var(--text-faint);
 }
 
@@ -485,7 +485,7 @@
   background: var(--bg-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font: 12.5px/1.6 var(--mono);
+  font: var(--fs-small)/1.6 var(--mono);
   font-variant-ligatures: none;
   overflow: auto;
   max-height: 420px;
@@ -512,7 +512,7 @@
   padding: 0;
   border: 0;
   background: none;
-  font-size: 11.5px;
+  font-size: var(--fs-small);
 }
 
 .code-block.has-header .code-block-bar .icon-btn {
@@ -561,7 +561,7 @@
 
 .fold > .collapsible-trigger {
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 .fold-thinking {
@@ -585,7 +585,7 @@
 
 .fold-body {
   padding: 2px 4px 4px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .fold-icon {
@@ -594,9 +594,8 @@
 }
 
 .tool-name {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text);
   flex: none;
 }
@@ -611,7 +610,7 @@
 
 .tool-hint {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -624,13 +623,13 @@
   gap: 0;
 }
 
-/* The step as one mono line: check, count and time, the tools as badges, the chevron last */
+/* The step as one small line: check, count and time, the tools as mono badges, the chevron last */
 .fold.tool-step > .collapsible-trigger {
   width: auto;
   max-width: 100%;
   gap: 8px;
   padding: 2px 0;
-  font: 12px var(--mono);
+  font-size: var(--fs-small);
   color: var(--text-faint);
 }
 
@@ -665,6 +664,8 @@
 
 .step-tool {
   flex: none;
+  /* literal: the tools' own names */
+  font-family: var(--mono);
 }
 
 .step-icon {
@@ -690,7 +691,7 @@
   margin: 2px 0 2px 10px;
 }
 
-/* ---- one tool call: name and target in mono, a rail coloured by how it came back ---- */
+/* ---- one tool call: its name, the target in mono, a rail coloured by how it came back ---- */
 .call-row {
   position: relative;
   display: flex;
@@ -731,7 +732,7 @@
 .fold-call > .collapsible-trigger {
   padding: 3px 6px;
   border-radius: var(--radius-xs);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .fold-call > .collapsible-trigger:hover {
@@ -751,7 +752,7 @@
 .call-outcome {
   flex: none;
   color: var(--bad);
-  font: 11.5px var(--mono);
+  font-size: var(--fs-small);
 }
 
 .icon-btn.call-open {
@@ -768,7 +769,7 @@
 /* Whose share a teammate-read call read: kept whole when the hint before it is cut */
 .teammate-read {
   flex: none;
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   color: var(--text-muted);
 }
@@ -790,12 +791,9 @@
 }
 
 .call-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .call-meta {
@@ -804,7 +802,8 @@
   align-items: center;
   gap: 6px 12px;
   min-width: 0;
-  font: 12px var(--mono);
+  /* literal: a pattern, a path, a URL, a flag */
+  font: var(--fs-small) var(--mono);
   color: var(--text-faint);
   overflow-wrap: anywhere;
 }
@@ -817,7 +816,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-sunken);
-  font: 12px/1.6 var(--mono);
+  font: var(--fs-small)/1.6 var(--mono);
   color: var(--text-muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -854,7 +853,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--mono);
   color: var(--text-muted);
 }
 
@@ -869,12 +868,12 @@
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 4px 14px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .call-field-key {
   padding-top: 3px;
-  font: 11px var(--mono);
+  font: var(--fs-small) var(--mono);
   color: var(--text-faint);
 }
 
@@ -889,7 +888,7 @@
   padding: 0 0 0 14px;
   list-style: none;
   border-left: 1px solid var(--border);
-  font: 12px/1.7 var(--mono);
+  font: var(--fs-small)/1.7 var(--mono);
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
@@ -926,7 +925,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .call-checklist li {
@@ -947,7 +946,7 @@
 
 .call-checklist .word {
   flex: none;
-  font: 11px var(--mono);
+  font-size: var(--fs-small);
   color: var(--text-faint);
 }
 
@@ -955,7 +954,8 @@
 .btn.call-raw {
   height: 26px;
   padding: 0 8px;
-  font: 11.5px var(--mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .btn.call-more {
@@ -998,7 +998,7 @@
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg-sunken);
-  font-size: 13px;
+  font-size: var(--fs-small);
   max-height: 180px;
   overflow: hidden;
   display: flex;
@@ -1011,8 +1011,8 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: transparent;
   background: linear-gradient(90deg, var(--text-faint) 30%, var(--text) 50%, var(--text-faint) 70%);
   background-size: 220% 100%;
@@ -1031,7 +1031,7 @@
   flex-wrap: wrap;
   gap: 8px;
   padding: 0 0 0 38px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -1121,7 +1121,7 @@
   padding: 3px 0;
   border-top: 1px solid var(--border);
   color: var(--text-faint);
-  font: 11.5px var(--mono);
+  font-size: var(--fs-small);
 }
 
 .notice-icon {
@@ -1133,8 +1133,7 @@
 .notice-label {
   flex: none;
   color: var(--text-muted);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: var(--fw-strong);
 }
 
 .notice-status {
@@ -1171,6 +1170,8 @@
 
 .notice-rule {
   flex: none;
+  /* literal: the guard rule's id */
+  font-family: var(--mono);
   color: var(--text-muted);
 }
 
@@ -1197,7 +1198,7 @@
   flex-wrap: wrap;
   gap: 2px 8px;
   padding: 3px 0;
-  font: 11.5px var(--mono);
+  font-size: var(--fs-small);
   color: var(--text-faint);
 }
 
@@ -1209,7 +1210,7 @@
 .notice-body {
   padding: 2px 0 8px 22px;
   color: var(--text-faint);
-  font: 11px/1.6 var(--mono);
+  font: var(--fs-small)/1.6 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1233,9 +1234,8 @@
   gap: 12px;
   min-width: 0;
   color: var(--text-muted);
-  font: 11px var(--mono);
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
 }
 
 .compaction-divider::before,
@@ -1264,7 +1264,7 @@
 .fold.compaction-fold > .collapsible-trigger {
   justify-content: center;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .compaction-summary {
@@ -1339,7 +1339,8 @@
   border-radius: var(--radius);
   background: var(--accent-soft);
   color: var(--accent);
-  font: 600 11px var(--mono);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .chat-launch-what {
@@ -1351,8 +1352,8 @@
 }
 
 .chat-launch-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
 }
 
 .chat-launch-state {
@@ -1360,7 +1361,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .chat-launch-state > .spinner-glyph {
@@ -1391,7 +1392,7 @@
 .chat-launch-facts {
   overflow: hidden;
   color: var(--text-faint);
-  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1449,8 +1450,8 @@
 
 .msg-menu-hint {
   color: var(--text-faint);
-  font-size: 11.5px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 /* A finger has no hover: the ⋯ is always there, quiet, at the end of the message */

@@ -1,30 +1,27 @@
-import type { Chat, LiveMcpServer } from '@claudio/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Cloud, Paperclip, Plug, Plus, Slash, SlidersHorizontal } from 'lucide-react';
+import type { Chat } from '@claudio/shared';
+import { Paperclip, Plug, Plus, Slash } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { Switch } from '@claudio/ui/components/controls/Toggle';
-import { ICON_SM } from '@claudio/ui/components/icons';
-import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
+import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import type { AttachmentsState } from '../components/Attachments';
-import { useAgentName } from '../lib/agent';
-import { chatKeys, useChatUi } from '../lib/context';
-import { AccountPicker } from './AccountPicker';
-import { OptionsPanel } from './OptionsPanel';
+import { accountItem, useLooseT } from './account-menu';
+import { AccountPicker, useChatAccounts } from './AccountPicker';
+import { mcpKey, serversOn, ServersPanel, useLiveServers } from './ServersPanel';
 
-/** What each status reads as, in the design system's status colours. */
-const TONE: Record<LiveMcpServer['status'], string> = { connected: 'ok', 'needs-auth': 'warn', failed: 'bad', pending: 'muted', disabled: 'muted', unknown: 'muted' };
+export { mcpKey };
 
-/** How often the list is read again while a server is still connecting. */
-const PENDING_POLL_MS = 2000;
-
-export const mcpKey = (chatId: string) => [...chatKeys.chatScope(chatId), 'mcp'] as const;
+/** Which panel the menu opened beside itself on a desktop; a phone shows them as steps of its sheet. */
+type Panel = 'servers' | 'accounts';
 
 /**
- * The "+" of the box: everything that goes into a message besides its words. Files to attach, the
- * commands and skills the CLI reported, and the MCP servers and the account's connectors the chat runs
- * with: switched on and off in the live process, or chosen for the next one.
+ * The "+" of the box: everything that goes into a message besides its words, as a real menu in
+ * three groups. Add (files to attach, the commands and skills the CLI reported), Account (the chat's
+ * own, and the choice of another one) and Servers (the MCP servers and the account's connectors the
+ * chat runs with, switched on and off in the live process or chosen for the next one). The
+ * account's choices are a submenu, or a picker beyond a handful; the servers are a panel, because
+ * live switches do not belong inside a menu.
  */
 export function ComposerMenu({
   chat,
@@ -47,56 +44,88 @@ export function ComposerMenu({
   onChooseTools: () => void;
 }) {
   const { t } = useTranslation('chat');
-  const agent = useAgentName();
-  const [open, setOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const close = (then: () => void) => {
-    setOpen(false);
-    then();
-  };
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const accounts = useChatAccounts(chat, accountsOpen || panel === 'accounts');
+  const servers = useLiveServers(chat.id, live && (menuOpen || panel === 'servers'));
+  const count = serversOn(servers.data?.servers);
+
+  // The menu closes itself on a choice; the panel opens after it has handed the focus back
+  const openPanel = (next: Panel) => setTimeout(() => setPanel(next), 0);
+  const tr = useLooseT();
+
+  const account = accountItem({
+    rows: accounts.rows,
+    model: chat.model,
+    pending: accounts.pending,
+    t: tr,
+    onChoose: (id) => accounts.choose(id),
+    onCancel: () => {
+      const current = accounts.rows.find((row) => row.state === 'current');
+      if (current) accounts.choose(current.account.id);
+    },
+    onOpenChange: setAccountsOpen,
+    onPicker: () => openPanel('accounts'),
+    picker: ({ close }) => <AccountPicker chat={chat} state={accounts} onDone={close} />,
+  });
+
+  const entries: MenuEntry[] = [
+    {
+      id: 'add',
+      label: t('composerMenu.groups.add'),
+      items: [
+        { id: 'attach', icon: Paperclip, label: t('attachments.attachFiles'), onSelect: () => input.current?.click() },
+        { id: 'commands', icon: Slash, label: t('composerMenu.commands'), text: t('composerMenu.commands'), disabled: !hasCommands, disabledReason: t('composerMenu.noCommands'), onSelect: onCommands },
+      ],
+    },
+    ...(account ? [{ id: 'account', label: t('composerMenu.groups.account'), items: [account] }] : []),
+    {
+      id: 'servers',
+      label: t('composerMenu.groups.servers'),
+      items: [
+        {
+          id: 'servers',
+          icon: Plug,
+          text: t('composerMenu.servers'),
+          label: count ? `${t('composerMenu.servers')} · ${t('composerMenu.serversOn', { on: count.on, total: count.total })}` : t('composerMenu.servers'),
+          meta: live ? undefined : t('composerMenu.serversAtStartShort'),
+          onSelect: () => openPanel('servers'),
+          detail: ({ close }) => <ServersPanel chat={chat} live={live} onChooseTools={onChooseTools} onDone={close} />,
+        },
+      ],
+    },
+  ];
+
   return (
     <>
-      <OptionsPanel
+      <MoreActions
+        entries={entries}
+        label={t('composerMenu.open')}
         title={t('composerMenu.title')}
-        open={open}
-        onOpenChange={setOpen}
-        trigger={
-          <button type="button" className="icon-btn composer-plus" aria-label={t('composerMenu.open')} aria-expanded={open} disabled={disabled} onClick={() => setOpen(true)}>
-            <Plus {...ICON_SM} />
-          </button>
-        }
+        backLabel={t('composerMenu.back')}
+        icon={Plus}
+        className="composer-plus"
+        side="top"
+        align="start"
+        disabled={disabled}
+        onOpenChange={(open) => {
+          setMenuOpen(open);
+          if (open) accounts.refresh();
+        }}
+      />
+      <Sheet
+        open={panel !== null}
+        onOpenChange={(open) => {
+          if (!open) setPanel(null);
+        }}
+        title={panel === 'accounts' ? t('composerMenu.account.title') : t('composerMenu.servers')}
+        side="auto"
       >
-        <div className="composer-menu">
-          <div className="composer-menu-actions">
-            <button type="button" className="composer-menu-item" onClick={() => close(() => input.current?.click())} title={t('attachments.attachHint', { agent })}>
-              <Paperclip {...ICON_SM} aria-hidden />
-              <span>{t('attachments.attachFiles')}</span>
-            </button>
-            {hasCommands && (
-              <button type="button" className="composer-menu-item" onClick={() => close(onCommands)}>
-                <Slash {...ICON_SM} aria-hidden />
-                <span>{t('composerMenu.commands')}</span>
-              </button>
-            )}
-          </div>
-          <AccountPicker chat={chat} />
-          <section className="composer-menu-section" aria-labelledby={`servers-${chat.id}`}>
-            <h3 id={`servers-${chat.id}`} className="section-label">
-              {t('composerMenu.servers')}
-            </h3>
-            {live ? (
-              <LiveServers chatId={chat.id} />
-            ) : (
-              <div className="composer-menu-note">
-                <p className="small muted">{t('composerMenu.serversAtStart')}</p>
-                <button type="button" className="btn btn-small" onClick={() => close(onChooseTools)}>
-                  <SlidersHorizontal {...ICON_SM} aria-hidden /> {t('composerMenu.chooseServers')}
-                </button>
-              </div>
-            )}
-          </section>
-        </div>
-      </OptionsPanel>
+        {panel === 'servers' && <ServersPanel chat={chat} live={live} onChooseTools={onChooseTools} onDone={() => setPanel(null)} />}
+        {panel === 'accounts' && <AccountPicker chat={chat} state={accounts} onDone={() => setPanel(null)} />}
+      </Sheet>
       <input
         ref={input}
         type="file"
@@ -109,70 +138,6 @@ export function ComposerMenu({
           e.target.value = '';
         }}
       />
-    </>
-  );
-}
-
-/** The servers of the live process, each with a switch. */
-function LiveServers({ chatId }: { chatId: string }) {
-  const { t } = useTranslation('chat');
-  const { client, paths } = useChatUi();
-  const queryClient = useQueryClient();
-  const key = mcpKey(chatId);
-  const servers = useQuery({
-    queryKey: key,
-    queryFn: () => client.chatMcp(chatId),
-    // Opening the menu is asking what the servers are now
-    staleTime: 0,
-    refetchInterval: (q) => (q.state.data?.servers.some((s) => s.status === 'pending') ? PENDING_POLL_MS : false),
-  });
-  const toggle = useMutation({
-    mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) => client.toggleChatMcp(chatId, name, enabled),
-    onSuccess: (data) => queryClient.setQueryData(key, data),
-  });
-
-  if (servers.isLoading) return <Skeleton rows={2} height={5} />;
-  if (servers.error) return <ErrorBox error={servers.error} />;
-  const list = servers.data?.servers ?? [];
-  if (list.length === 0) return <p className="small muted">{t('composerMenu.noServers')}</p>;
-  return (
-    <>
-      <ul className="composer-servers">
-        {list.map((server) => {
-          const connector = server.kind === 'connector';
-          const { label } = server;
-          const on = server.status !== 'disabled';
-          const Icon = connector ? Cloud : Plug;
-          return (
-            <li key={server.name} className={`composer-server ${on ? '' : 'is-off'}`.trimEnd()}>
-              <Icon {...ICON_SM} className="composer-server-icon" aria-hidden />
-              <div className="composer-server-body">
-                <span className="composer-server-name ellipsis">{label}</span>
-                <span className="composer-server-meta small">
-                  <Tag tone={TONE[server.status]}>{server.status}</Tag>
-                  {connector && <span className="muted">{t('composerMenu.connector')}</span>}
-                  {server.tools.length > 0 && <span className="muted mono">{t('composerMenu.tools', { count: server.tools.length })}</span>}
-                  {server.status === 'needs-auth' && (
-                    <Link to={paths.connectors} className="composer-server-link">
-                      {t('composerMenu.authorise')}
-                    </Link>
-                  )}
-                </span>
-                {server.error && <span className="small composer-server-error">{server.error}</span>}
-              </div>
-              <Switch
-                checked={on}
-                onChange={(enabled) => toggle.mutate({ name: server.name, enabled })}
-                disabled={toggle.isPending}
-                aria-label={t(on ? 'composerMenu.turnOff' : 'composerMenu.turnOn', { name: label })}
-                className="composer-server-switch"
-              />
-            </li>
-          );
-        })}
-      </ul>
-      <ErrorBox error={toggle.error} />
-      <p className="small muted composer-menu-foot">{t('composerMenu.serversPersist')}</p>
     </>
   );
 }

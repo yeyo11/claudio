@@ -85,7 +85,7 @@ export function WorkItemPartOf({ link, chatId }: { link: ChatItemLink; chatId: s
           <WorkItemStatusIcon status={item.status} decorative />
           {t(`tasks:${columnMeta(item.status).label}`)}
         </span>
-        {criteria.total > 0 && <span className="chat-part-of-where mono chat-part-of-criteria">{t('view.workItem.criteria', criteria)}</span>}
+        {criteria.total > 0 && <span className="chat-part-of-where tnum chat-part-of-criteria">{t('view.workItem.criteria', criteria)}</span>}
       </div>
       {flow && <FailedFlowRunNote item={item} run={flow.failed} chatId={chatId} />}
     </>
@@ -122,7 +122,7 @@ export function WorkItemCard({ link }: { link: ChatItemLink }) {
             <span className="muted">{t('side.workItem.none')}</span>
           ) : (
             <>
-              <span className="mono">
+              <span className="tnum">
                 {criteria.done}/{criteria.total}
               </span>
               <ProgressBar size="sm" decorative counts={{ done: criteria.done, pending: criteria.total - criteria.done }} className="insp-item-bar" />

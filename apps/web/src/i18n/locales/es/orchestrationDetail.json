@@ -72,7 +72,7 @@
     "subjectPlaceholder": "Asunto, o el del host",
     "body": "Cuerpo del commit",
     "bodyPlaceholder": "Cuerpo, opcional",
-    "guard": "Se fusiona el commit {{head}}, el que ves aquí. Si la rama cambia antes, no se fusiona nada.",
+    "guard": "Se fusiona el commit <mono>{{head}}</mono>, el que ves aquí. Si la rama cambia antes, no se fusiona nada.",
     "action": "Fusionar {{label}}",
     "merging": "Fusionando…",
     "merged": "{{noun}} fusionada"

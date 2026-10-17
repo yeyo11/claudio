@@ -6,6 +6,7 @@ import i18n from 'i18next';
 import { useChatUi } from '../lib/context';
 import { useAgentName } from '../lib/agent';
 import { errorMessage, formatBytes } from '@claudio/ui/lib/format';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { isViewable, MediaViewer, type MediaItem } from './MediaViewer';
 
@@ -56,15 +57,19 @@ function FileChip({ name, mediaType, sizeBytes, href, onOpen, children }: { name
   // A file the page can show opens over it; anything else is still the browser's to open
   if (onOpen) {
     return (
-      <button type="button" className="attachment-chip" title={name} onClick={onOpen}>
-        {body}
-      </button>
+      <Tooltip content={name}>
+        <button type="button" className="attachment-chip" onClick={onOpen}>
+          {body}
+        </button>
+      </Tooltip>
     );
   }
   return href ? (
-    <a className="attachment-chip" href={href} target="_blank" rel="noreferrer" title={name}>
-      {body}
-    </a>
+    <Tooltip content={name}>
+      <a className="attachment-chip" href={href} target="_blank" rel="noreferrer">
+        {body}
+      </a>
+    </Tooltip>
   ) : (
     <span className="attachment-chip" title={name}>
       {body}
@@ -92,9 +97,11 @@ export function AttachedFiles({ files }: { files: AttachedFile[] }) {
     <div className="attachments">
       {files.map((f, i) =>
         f.uploadId && isViewableImage(f.mediaType) ? (
-          <button key={i} type="button" className="attachment-thumb" title={f.name} onClick={() => setOpen(at(f))}>
-            <img src={contentUrl(f.uploadId)} alt={f.name} loading="lazy" />
-          </button>
+          <Tooltip key={i} content={f.name}>
+            <button type="button" className="attachment-thumb" onClick={() => setOpen(at(f))}>
+              <img src={contentUrl(f.uploadId)} alt={f.name} loading="lazy" />
+            </button>
+          </Tooltip>
         ) : (
           <FileChip
             key={i}
@@ -236,17 +243,18 @@ export function AttachButton({ state, disabled, compact }: { state: AttachmentsS
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button
-        type="button"
-        className={compact ? 'icon-btn composer-attach' : 'btn btn-small'}
-        onClick={() => input.current?.click()}
-        disabled={disabled}
-        aria-label={t('attachments.attachFiles')}
-        title={t('attachments.attachHint', { agent })}
-      >
-        <Paperclip {...ICON_SM} />
-        {!compact && ` ${t('attachments.attach')}`}
-      </button>
+      <Tooltip content={t('attachments.attachHint', { agent })}>
+        <button
+          type="button"
+          className={compact ? 'icon-btn composer-attach' : 'btn btn-small'}
+          onClick={() => input.current?.click()}
+          disabled={disabled}
+          aria-label={t('attachments.attachFiles')}
+        >
+          <Paperclip {...ICON_SM} />
+          {!compact && ` ${t('attachments.attach')}`}
+        </button>
+      </Tooltip>
       <input
         ref={input}
         type="file"

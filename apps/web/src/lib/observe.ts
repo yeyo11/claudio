@@ -33,39 +33,13 @@ export function describeCall(name: string, input: unknown): string {
   return detail ? clip(detail) : name;
 }
 
-export interface Activity {
-  /** A tool call whose result has not come back: what the agent is waiting on right now */
-  running: { id: string; name: string; summary: string; at: string | null } | null;
-  /** The newest entry's time: the last thing the agent did, whatever it was */
-  lastEventAt: string | null;
-}
-
 /**
- * What the newest part of a transcript says the agent is doing. A call with no result yet is the
- * command it is running; the time of the last entry is how long it has been quiet. Subagent
- * messages are ignored: they are a branch of the chat, and their tool calls would be the wrong
- * answer to "what is this chat running".
+ * When the main agent last did anything, whatever it was: how long it has been quiet. A subagent's
+ * messages are ignored; they are a branch of the chat. What the agent is running now is
+ * `openCallInTurn` (chat-ui), which looks only at the latest turn.
  */
-export function currentActivity(entries: TranscriptEntry[]): Activity {
-  const main = entries.filter((e) => !e.isSidechain);
-  const answered = new Set<string>();
-  for (const entry of main) {
-    for (const block of entry.blocks) if (block.type === 'tool_result') answered.add(block.toolUseId);
-  }
-  let running: Activity['running'] = null;
-  for (let i = main.length - 1; i >= 0 && !running; i--) {
-    const entry = main[i];
-    if (!entry) continue;
-    for (let j = entry.blocks.length - 1; j >= 0; j--) {
-      const block = entry.blocks[j];
-      if (block?.type === 'tool_use' && !answered.has(block.id)) {
-        running = { id: block.id, name: block.name, summary: describeCall(block.name, block.input), at: entry.timestamp };
-        break;
-      }
-    }
-  }
-  const lastEventAt = [...main].reverse().find((e) => e.timestamp)?.timestamp ?? null;
-  return { running, lastEventAt };
+export function lastEventAt(entries: readonly TranscriptEntry[]): string | null {
+  return [...entries].reverse().find((e) => !e.isSidechain && e.timestamp)?.timestamp ?? null;
 }
 
 // ---------- health ----------

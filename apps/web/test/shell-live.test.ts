@@ -12,6 +12,7 @@ const chat = (id: string, state: LiveChatInput['state'], updatedAt: string, extr
   title: `chat ${id}`,
   firstPrompt: null,
   state,
+  alive: true,
   updatedAt,
   project: null,
   ...extra,
@@ -23,6 +24,15 @@ const orchestration = (id: string, status: LiveOrchestrationInput['status'], cre
   status,
   createdAt,
   tasks: statuses.map((s) => ({ status: s })),
+});
+
+test('a chat nothing holds is not listed as working, whatever its state still says', () => {
+  const summary = liveSummary({
+    chats: [chat('a', 'working', '2026-09-21T10:00:00Z', { alive: false }), chat('b', 'working', '2026-09-21T10:00:00Z'), chat('c', 'waiting', '2026-09-21T09:00:00Z', { alive: false })],
+    orchestrations: [],
+  });
+  assert.deepEqual(summary.items.map((item) => item.id), ['c', 'b']);
+  assert.equal(summary.working, 1);
 });
 
 test('chats waiting for a person come before working ones, newest first within each', () => {

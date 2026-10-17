@@ -66,7 +66,7 @@ def method_seg(on, mobile, allowed=('squash', 'merge', 'rebase')):
 def fields(host, mobile):
   """The squash commit: subject and body, prefilled the way the host would."""
   big = ' field-lg' if mobile else ''
-  fs = ' style="font-size: 16px"' if mobile else ''
+  fs = ' style="font-size: var(--fs-input)"' if mobile else ''
   area = ' style="min-height: 96px"' if mobile else ''
   return (f'<label class="col" style="gap: 6px"><span class="t-label">Asunto</span><span class="field field-mono{big}">'
           f'<input value="{SUBJECT[host]}" aria-label="Asunto del commit"{fs}></span></label>'
@@ -212,7 +212,7 @@ def block_moved(host='github', mobile=False):
   rows += row('Ahora', f'<span class="mono t-xs fg-2">{NEW_HEAD}</span><span class="t-xs fg-3">1 commit nuevo de @marta.ruiz</span>',
               btn('Ver los cambios', mobile, 'btn btn-ghost'))
   callout = (f'<div class="rv-row"><span class="callout callout-warn" role="note" style="align-items: flex-start; grid-column: 1 / -1">'
-             f'{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}<span><b style="color: var(--fg); font-weight: 500">La rama cambió mientras mirabas, y no se fusionó nada.</b> '
+             f'{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}<span><b style="color: var(--fg); font-weight: var(--fw-regular)">La rama cambió mientras mirabas, y no se fusionó nada.</b> '
              f'Lee los cambios nuevos y vuelve a fusionar: Claudio nunca fusiona un commit que no hayas visto.</span></span></div>')
   acts = btn('Fusionar', mobile, extra=' disabled') + btn('Volver a leer', mobile, 'btn btn-primary', 'retry')
   return wrap(host, BADGE['moved'], callout + rows, foot('', acts, mobile), mobile)
@@ -228,8 +228,8 @@ def block_merging(host='github', mobile=False):
 
 def block_merged(host='github', mobile=False):
   name, noun, num, _ = MR_HOST[host]
-  rows = row('Fusionada', f'<span class="mono t-xs fg-2">@yeyo · hace un momento · squash</span>', '')
-  rows += row('Commit', f'<span class="mono t-xs fg-2">e41b7d2 en main</span>')
+  rows = row('Fusionada', f'<span class="t-num t-xs fg-2"><span class="mono">@yeyo</span> · hace un momento · squash</span>', '')
+  rows += row('Commit', f'<span class="t-num t-xs fg-2"><span class="mono">e41b7d2</span> en <span class="mono">main</span></span>')
   rows += row('Rama', '<span class="t-xs fg-2">Borrada en GitHub; la local se queda</span>')
   return wrap(host, BADGE['merged'], rows, foot('La tarea pasó a Hecho.', btn('Ver la tarea', mobile, 'btn btn-ghost'), mobile), mobile)
 
@@ -464,7 +464,7 @@ GRID = 'display: grid; grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr
 def table_row(i, row, merge_primary=False):
   code, tone, word, gh, gl = row
   head = (f'<div class="col" style="gap: 6px; padding-top: 4px"><span class="mono t-xs fg-3">{i}</span>'
-          f'<span class="mono t-sm" style="font-weight: 500; overflow-wrap: anywhere">{code}</span></div>')
+          f'<span class="mono t-sm" style="font-weight: var(--fw-regular); overflow-wrap: anywhere">{code}</span></div>')
   return (f'<div style="{GRID}; padding: 14px 0; border-top: 1px solid var(--line)">{head}'
           f'{host_cell("github", tone, word, code, gh, merge_primary)}{host_cell("gitlab", tone, word, code, gl, merge_primary)}</div>')
 
@@ -487,37 +487,37 @@ def merge_btn(disabled, mobile=False, label='Fusionar'):
 
 
 def case(title, text, inner):
-  return (f'<div class="col" style="gap: 10px"><span class="t-sm" style="font-weight: 600">{title}</span>'
+  return (f'<div class="col" style="gap: 10px"><span class="t-sm" style="font-weight: var(--fw-strong)">{title}</span>'
           f'<span class="t-xs fg-3" style="line-height: 1.5; min-height: 54px">{text}</span>{inner}</div>')
 
 
 def correction_section():
   unchecked = (f'<div class="card col" style="padding: 14px; gap: 10px"><div class="row" style="gap: 10px"><span class="t-label grow">Fusionar</span>'
-               f'<span class="mono t-xs fg-3">MR !12</span></div>'
+               f'<span class="t-num t-xs fg-3">MR <span class="mono">!12</span></span></div>'
                f'<div class="callout" style="align-items: flex-start">{ico("info", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}'
                f'<span class="col" style="gap: 4px; min-width: 0"><span>GitLab aún no ha comprobado la fusión: lo hará al fusionar.</span>'
                f'<span class="mb-detail">detailed_merge_status: unchecked · has_conflicts: false</span></span></div>'
                f'<div class="row" style="gap: 8px">{merge_btn(False)}</div></div>')
   checking = (f'<div class="card col" style="padding: 14px; gap: 10px"><div class="row" style="gap: 10px"><span class="t-label grow">Fusionar</span>'
-              f'<span class="mono t-xs fg-3">MR !12</span></div>'
+              f'<span class="t-num t-xs fg-3">MR <span class="mono">!12</span></span></div>'
               + note('live', 'calculando', 'computing', 'GitLab aún está calculando si se puede fusionar.', 'mergeabilityChecks: CHECKING', [('Actualizar', 'btn')])
               + f'<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
   failed = (f'<div class="card col" style="padding: 14px; gap: 10px"><div class="row" style="gap: 10px"><span class="t-label grow">Fusionar</span>'
-            f'<span class="mono t-xs fg-3">MR !12</span></div>'
+            f'<span class="t-num t-xs fg-3">MR <span class="mono">!12</span></span></div>'
             + note('bad', 'en conflicto', 'conflicts', f'{HEAD} tiene conflictos con {BASE}.', 'detailed_merge_status: unchecked · mergeabilityChecks: CONFLICT FAILED', [(f'Actualizar desde {BASE}', 'btn')])
             + f'<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
   nopipe = note('warn', 'sin pipeline', 'checks-missing', 'Este proyecto exige que pase un pipeline y el último commit no tiene ninguno.',
                 'only_allow_merge_if_pipeline_succeeds · detailed_merge_status: ci_must_pass · head_pipeline: null', [('Abrir en GitLab', 'ext')])
   nopipe = (f'<div class="card col" style="padding: 14px; gap: 10px"><div class="row" style="gap: 10px"><span class="t-label grow">Fusionar</span>'
-            f'<span class="mono t-xs fg-3">MR !12</span></div>{nopipe}<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
+            f'<span class="t-num t-xs fg-3">MR <span class="mono">!12</span></span></div>{nopipe}<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
   moved = note('warn', 'rama movida', 'head-moved', 'Han llegado commits nuevos a la rama desde que mirabas. Revísalos y fusiona.',
                'viste a1b2c3d · ahora e4f5a6b', [('Actualizar', 'btn')])
   moved = (f'<div class="card col" style="padding: 14px; gap: 10px"><div class="row" style="gap: 10px"><span class="t-label grow">Fusionar</span>'
-           f'<span class="mono t-xs fg-3">PR #12</span></div>{moved}<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
+           f'<span class="t-num t-xs fg-3">PR <span class="mono">#12</span></span></div>{moved}<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
   ff = note('warn', 'desactualizada', 'behind', f'{BASE} exige que {HEAD} esté al día.',
             'merge_method: ff · detailed_merge_status: need_rebase · también lo dice un conflicto', [('Rebasar en GitLab', 'btn')])
   ff = (f'<div class="card col" style="padding: 14px; gap: 10px"><div class="row" style="gap: 10px"><span class="t-label grow">Fusionar</span>'
-        f'<span class="mono t-xs fg-3">MR !12</span></div>{ff}'
+        f'<span class="t-num t-xs fg-3">MR <span class="mono">!12</span></span></div>{ff}'
         f'<span class="t-xs fg-3" style="line-height: 1.45">Solo con el worktree limpio; después se trae el resultado y no queda nada por subir.</span>'
         f'<div class="row" style="gap: 8px">{merge_btn(True)}</div></div>')
   cols = lambda *cs: f'<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start">{"".join(cs)}</div>'
@@ -560,9 +560,9 @@ def phone_frame(inner):
 
 
 def block_section():
-  desktop_ = (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">Escritorio: el primero, y los demás debajo</span>'
+  desktop_ = (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">Escritorio: el primero, y los demás debajo</span>'
               f'{block_card("github")}</div>')
-  phone = (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">Móvil: la misma tarjeta, con botones de 44 px</span>{phone_frame(block_card("gitlab", True))}</div>')
+  phone = (f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">Móvil: la misma tarjeta, con botones de 44 px</span>{phone_frame(block_card("gitlab", True))}</div>')
   return (f'<section class="col" style="gap: 14px"><span class="t-label">El bloque de fusión con un bloqueo</span>'
           f'<p class="t-sm fg-2" style="margin: 0; max-width: 900px; line-height: 1.5">Fusionar se desactiva y dice por qué, en vez de desaparecer. Muestra el primer bloqueo con su remedio; '
           f'los demás, una línea cada uno con su código. Ningún remedio es el degradado, que queda para Fusionar cuando nada bloquea.</p>'
@@ -641,11 +641,11 @@ def guard():
 
 
 def omrg_desktop():
-  summary = '<span class="mono t-xs fg-2" style="font-variant-numeric: tabular-nums">CI superada · sin conflictos con main · sin revisiones pendientes</span>'
+  summary = '<span class="t-num t-xs fg-2" style="font-variant-numeric: tabular-nums">CI superada · sin conflictos con <span class="mono">main</span> · sin revisiones pendientes</span>'
   after = ('<span class="t-xs fg-3 grow" style="line-height: 1.45">Al fusionar, Claudio marca la orquestación como fusionada y quita los 7 worktrees. '
            'La rama local se queda.</span>')
   return (f'<section class="card card-pad col" style="gap: 14px"><div class="row" style="gap: 10px"><h2 class="t-h2 grow">Su merge request</h2>'
-          f'<span class="mono t-xs fg-2">6/6 ramas de tarea fusionadas</span></div>{mr_row("passing", "lista para fusionar")}'
+          f'<span class="t-num t-xs fg-2">6/6 ramas de tarea fusionadas</span></div>{mr_row("passing", "lista para fusionar")}'
           '<hr style="border: 0; border-top: 1px solid var(--line); margin: 0; width: 100%">'
           f'<div class="row" style="gap: 10px; flex-wrap: wrap"><h2 class="t-h2 grow">Fusionar</h2>{summary}</div>'
           f'<div class="omrg-opts"><div class="col" style="gap: 10px"><span class="t-label">Método</span>{omrg_method_seg()}'
@@ -661,7 +661,7 @@ def omrg_page_desktop():
 {orch_steps('wait')}
 {omrg_desktop()}
 </main>'''
-  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: 500">spanish-copy</span>'
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: var(--fw-regular)">spanish-copy</span>'
   write('DesktopOrquestacionFusion.html', desktop('Orquestación, fusionar', 'orch', crumb, main))
 
 
@@ -671,7 +671,7 @@ def omrg_page_mobile():
   mr = (f'<a href="#" class="pr-row" target="_blank" rel="noreferrer" aria-label="Abrir MR !14 en GitLab"><span class="pr-num">MR !14</span><span class="pr-branch">{BRANCH} → main</span>'
         f'<span class="badge b-idle">lista para fusionar</span>{ci_badge("passing")}</a>')
   body = (f'<section class="card col" style="padding: 14px; gap: 12px">{mr}'
-          '<span class="mono t-xs fg-2" style="line-height: 1.5">CI superada · sin conflictos con main · sin revisiones pendientes</span>'
+          '<span class="t-num t-xs fg-2" style="line-height: 1.5">CI superada · sin conflictos con <span class="mono">main</span> · sin revisiones pendientes</span>'
           f'<span class="t-label">Método</span>{omrg_method_seg()}'
           f'{branch_box()}{commit_fields(True)}{guard()}'
           '<span class="t-xs fg-3" style="line-height: 1.45">Al fusionar, Claudio marca la orquestación como fusionada y quita los 7 worktrees. La rama local se queda.</span></section>')
@@ -702,7 +702,7 @@ def board_fusion_desktop():
 {toolbar()}
 <div class="wi-board">{cols}</div>
 </main>'''
-  write('DesktopTableroFusion.html', desktop('Tablero · fusión automática', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+  write('DesktopTableroFusion.html', desktop('Tablero · fusión automática', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main))
 
 
 def board_fusion_mobile():

@@ -7,6 +7,7 @@
 import type { ChatState, OrchestrationStatus, OrchestrationTaskStatus, ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { phoneHeaderOf } from '../components/shell/phone-header';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import type { TickerActivity } from '@claudio/ui/lib/live';
 import type { ProgressCounts } from '@claudio/ui/lib/progress';
 
@@ -16,6 +17,8 @@ export interface LiveChatInput {
   title: string;
   firstPrompt: string | null;
   state: ChatState;
+  /** Whether a process holds the chat: a chat nothing holds is not working, whatever its state still says */
+  alive: boolean;
   updatedAt: string | null;
   project: { name: string } | null;
   activity?: unknown;
@@ -106,7 +109,8 @@ export function liveSummary({
 }): LiveSummary {
   const byId = new Map<string, LiveChatInput>();
   for (const chat of chats) {
-    if (chat.state === 'idle') continue;
+    // Waiting is a person's turn; working is only so while something holds the chat
+    if (chat.state === 'idle' || (chat.state === 'working' && !chatBusy(chat))) continue;
     const seen = byId.get(chat.id);
     if (!seen || time(chat.updatedAt) >= time(seen.updatedAt)) byId.set(chat.id, chat);
   }

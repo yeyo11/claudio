@@ -97,7 +97,9 @@ export interface NotificationText {
 const limitWaitingBodyEnglish = (resetsAt: string | null): string =>
   resetsAt ? `It goes on when the limit resets, at ${resetsAt.slice(0, 16).replace('T', ' ')} UTC.` : 'It goes on when the limit resets; no reset time is known.';
 
-const spendWarnTitleEnglish = (): string => "Today's spend is at 75 % of the cap";
+// The threshold through Intl, as the web formats every percentage: English writes 75%, no space
+const WARN_SHARE = new Intl.NumberFormat('en', { style: 'percent' }).format(0.75);
+const spendWarnTitleEnglish = (): string => `Today's spend is at ${WARN_SHARE} of the cap`;
 const spendExhaustedTitleEnglish = (): string => 'Daily spend cap reached: automatic work waits until 00:00';
 const spendBodyEnglish = (spentUsd: number, capUsd: number): string => `$${spentUsd.toFixed(2)} of $${capUsd.toFixed(2)}, as the CLI reported it.`;
 

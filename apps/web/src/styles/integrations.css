@@ -2,7 +2,7 @@
    cells, binary panel and sheet are the providers' (.prov-*). */
 .host-intro {
   margin: 0 4px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
 }
@@ -31,12 +31,12 @@
   column-gap: 10px;
   row-gap: 2px;
   min-height: 24px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .host-name {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg);
 }
 
@@ -60,7 +60,7 @@
 .host-missing {
   flex-wrap: wrap;
   gap: 4px 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -109,7 +109,7 @@
   gap: 10px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .wh-bar {
@@ -117,7 +117,7 @@
 }
 
 .wh-url {
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg);
   min-width: 0;
 }
@@ -143,13 +143,13 @@
 
 .wh-notice strong {
   color: var(--fg);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .wh-none {
   margin: 0;
   padding: 18px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -158,7 +158,7 @@
   flex-direction: column;
   gap: 2px;
   margin: 4px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -169,7 +169,7 @@
 }
 
 .wh-facts dt {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   flex: none;
 }
 
@@ -205,13 +205,13 @@
 .wh-dlg-sub {
   display: block;
   margin-top: 2px;
-  font-size: 12px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   color: var(--fg-3);
 }
 
 .wh-dlg-session {
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -233,7 +233,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .wh-events li {
@@ -255,7 +255,7 @@
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
 }

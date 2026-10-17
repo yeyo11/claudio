@@ -20,6 +20,7 @@ import { RunTag } from './List';
 import { PRESSURE_LIST, runWord } from './model';
 import { cellState, proposedTextOf, runLive, showsMetrics, stashSave, runMatrix, runProgress, runResumable, runStage, resumeCeiling, unrunSamples, type CellState, type MatrixRow } from './run-model';
 import { SampleSheet } from './Sample';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 const CELL_ICON: Record<CellState, LucideIcon | null> = { passed: CircleCheck, failed: CircleX, running: null, queued: Hourglass, notScored: MinusCircle };
 const CELL_TONE: Record<CellState, string> = { passed: 'ok', failed: 'bad', running: 'live', queued: 'muted', notScored: 'muted' };
@@ -47,13 +48,15 @@ function Attempt({ sample, onOpen }: { sample: EvalSample; onOpen: (id: string) 
   const state = cellState(sample);
   const Icon = CELL_ICON[state];
   return (
-    <button type="button" className={`evals-attempt tone-${CELL_TONE[state]}`} onClick={() => onOpen(sample.id)} title={t(`cell.${state}`)}>
-      {Icon ? <Icon size={14} strokeWidth={2} aria-hidden /> : <Spinner variant="ring" />}
-      <span className="sr-only">{t('matrix.attempt', { attempt: sample.attempt, state: t(`cell.${state}`) })}</span>
-      <span className="evals-attempt-n mono" aria-hidden>
-        {sample.attempt}
-      </span>
-    </button>
+    <Tooltip content={t(`cell.${state}`)}>
+      <button type="button" className={`evals-attempt tone-${CELL_TONE[state]}`} onClick={() => onOpen(sample.id)}>
+        {Icon ? <Icon size={14} strokeWidth={2} aria-hidden /> : <Spinner variant="ring" />}
+        <span className="sr-only">{t('matrix.attempt', { attempt: sample.attempt, state: t(`cell.${state}`) })}</span>
+        <span className="evals-attempt-n tnum" aria-hidden>
+          {sample.attempt}
+        </span>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -313,14 +316,14 @@ export function RunView({ projectId, runId, onBack }: { projectId: string; runId
       <section className={`card evals-run-card${stage === 'running' ? ' live-energy' : ''}`} aria-label={t('run.summary')}>
         <div className="evals-run-head">
           <RunTag word={data.state === 'queued' ? 'queued' : runWord(data)} />
-          <span className="mono evals-num">{t('run.cost', { spent: formatCost(data.costUsd), ceiling: formatCost(data.maxCostUsd) })}</span>
-          <span className="mono evals-num">{data.variants.map((v) => t(`variant.${v}`)).join(' · ')}</span>
+          <span className="evals-num">{t('run.cost', { spent: formatCost(data.costUsd), ceiling: formatCost(data.maxCostUsd) })}</span>
+          <span className="evals-num">{data.variants.map((v) => t(`variant.${v}`)).join(' · ')}</span>
         </div>
         <ProgressBar variant="segments" counts={counts} unit={t('run.samples')} />
         <p className="sr-only" aria-live="polite">
           {announced}
         </p>
-        <ul className="evals-counts mono">
+        <ul className="evals-counts tnum">
           <li>{t('run.counts.done', { count: counts.done })}</li>
           <li>{t('run.counts.failed', { count: counts.failed })}</li>
           {counts.running > 0 && <li>{t('run.counts.running', { count: counts.running })}</li>}

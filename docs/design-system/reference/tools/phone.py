@@ -27,14 +27,14 @@ def wizard_origin():
   inner = f'''{mwizard_head(1)}
 <div class="m-body stack" style="gap: 14px; padding-top: 10px">
 <h2 class="t-h2">Origen</h2>
-<div class="form-row"><span class="t-label">Nombre</span><label class="field field-lg"><input value="pagos-api" aria-label="Nombre" style="font-size: 16px"></label></div>
+<div class="form-row"><span class="t-label">Nombre</span><label class="field field-lg"><input value="pagos-api" aria-label="Nombre" style="font-size: var(--fs-input)"></label></div>
 <div class="form-row"><span class="t-label">Directorio</span>
 <div class="seg" role="radiogroup" aria-label="Origen del directorio" style="display: flex"><button type="button" role="radio" aria-checked="true" class="on" style="flex: 1 1 0; justify-content: center">{ico('folder', 'ico ico-sm')}Local</button><button type="button" role="radio" aria-checked="false" style="flex: 1 1 0; justify-content: center">{ico('git', 'ico ico-sm')}URL de git</button></div>
-<label class="field field-lg mono">{ico('folder', 'ico ico-lg')}<input value="~/Proyectos/pagos-api" aria-label="Directorio" style="font-size: 16px"></label>
+<label class="field field-lg mono">{ico('folder', 'ico ico-lg')}<input value="~/Proyectos/pagos-api" aria-label="Directorio" style="font-size: var(--fs-input)"></label>
 <button type="button" class="btn btn-lg">{ico('folder', 'ico')}Elegir un directorio</button>
 </div>
-<div class="callout" style="padding: 12px">{ico('chats', 'ico fg-3')}<span>El directorio ya tiene <span class="mono">23</span> chats de Claude Code: quedan agrupados en el proyecto.</span></div>
-<div class="form-row"><span class="t-label">Prefijo de clave</span><label class="field field-lg mono"><input value="PAG" aria-label="Prefijo de clave" style="font-size: 16px"></label>
+<div class="callout" style="padding: 12px">{ico('chats', 'ico fg-3')}<span>El directorio ya tiene <span class="t-num">23</span> chats de Claude Code: quedan agrupados en el proyecto.</span></div>
+<div class="form-row"><span class="t-label">Prefijo de clave</span><label class="field field-lg mono"><input value="PAG" aria-label="Prefijo de clave" style="font-size: var(--fs-input)"></label>
 <span class="form-hint">Sale del nombre. Las tareas se llamarán <span class="mono fg-2">PAG-1</span>, <span class="mono fg-2">PAG-2</span>… y el número nunca se repite.</span></div>
 </div>
 <div class="m-foot"><a href="MobileProyectos.html" class="btn btn-lg" style="flex: 0 0 auto">Cancelar</a><a href="MobileNuevoProyecto.html" class="btn btn-primary btn-lg">Siguiente</a></div>'''
@@ -48,18 +48,18 @@ def wizard_summary():
   team = ''.join(f'<span class="row t-sm" style="gap: 8px">{role(ab, n, "sm")}{n}<span class="model-tag{" opus" if m == "opus" else ""}">{m}</span></span>' for ab, n, m in TEMPLATE_TEAM)
 
   def prow(k, v, top=False):
-    return f'<div class="prop-row" style="font-size: 14px; min-height: 44px{"; align-items: flex-start; padding: 10px 0" if top else ""}"><span class="k">{k}</span><span class="v{" col" if top else ""}"{" style=\"align-items: flex-start; gap: 6px\"" if top else ""}>{v}</span></div>'
+    return f'<div class="prop-row" style="font-size: var(--fs-body); min-height: 44px{"; align-items: flex-start; padding: 10px 0" if top else ""}"><span class="k">{k}</span><span class="v{" col" if top else ""}"{" style=\"align-items: flex-start; gap: 6px\"" if top else ""}>{v}</span></div>'
   inner = f'''{mwizard_head(4)}
 <div class="m-body stack" style="gap: 12px; padding-top: 10px">
 <h2 class="t-h2">Resumen</h2>
 <div class="card col" style="padding: 14px 16px 6px; gap: 10px">
-<div class="row" style="gap: 12px"><span class="proj monogram" style="--hue: 150; width: 40px; height: 40px; border-radius: var(--r-lg); font-size: 13px">PA</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 600; font-size: 15px">pagos-api</span><span class="mono t-xs fg-3">~/Proyectos/pagos-api</span></span><a href="MobileNuevoProyectoOrigen.html" class="btn btn-ghost btn-lg" style="padding: 0 10px">Cambiar</a></div>
+<div class="row" style="gap: 12px"><span class="proj monogram" style="--hue: 150; width: 40px; height: 40px; border-radius: var(--r-lg); font-size: var(--fs-small)">PA</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-strong); font-size: var(--fs-section)">pagos-api</span><span class="mono t-xs fg-3">~/Proyectos/pagos-api</span></span><a href="MobileNuevoProyectoOrigen.html" class="btn btn-ghost btn-lg" style="padding: 0 10px">Cambiar</a></div>
 <div class="col">
 {prow('Plantilla', pro[2])}
 {prow('Claves', '<span class="wi-key boxed">PAG-1</span>')}
 {prow('Módulos', mods, True)}
 {prow('Tipos', tico('epic') + tico('story') + tico('task') + tico('bug') + '<span class="t-xs fg-3">los cuatro</span>')}
-{prow('Límites', '<span class="mono t-xs fg-2">en curso 3 · en revisión 3</span>')}
+{prow('Límites', '<span class="t-num t-xs fg-2">en curso 3 · en revisión 3</span>')}
 {prow('Equipo', team, True)}
 </div>
 </div>
@@ -81,20 +81,20 @@ def selection():
       d, n = w['child']
       return f'''<div class="wi-mrow" aria-disabled="true">
 <span class="row" style="gap: 8px">{tico(w['t'])}<span class="wi-key">{k}</span><span class="grow"></span><span class="t-xs fg-2">las épicas no se orquestan</span></span>
-<span class="fg-2" style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
+<span class="fg-2" style="font-weight: var(--fw-regular); font-size: var(--fs-section); line-height: 1.35">{w['title']}</span>
 </div>'''
     on = k in chosen
     meta = []
     if w.get('epic'): meta.append(epic(w['epic']))
     if w.get('blocked'): meta.append(f'<span class="row mono t-xs fg-2" style="gap: 4px">{ico("block", "ico", "width: 12px; height: 12px")}bloqueada por {w["blocked"]}</span>')
-    state = f'<span class="row t-xs c-accent" style="gap: 5px; font-weight: 600">{ico("check", "ico ico-sm")}Elegida</span>' if on else '<span class="t-xs fg-3">Tocar para elegir</span>'
+    state = f'<span class="row t-xs c-accent" style="gap: 5px; font-weight: var(--fw-strong)">{ico("check", "ico ico-sm")}Elegida</span>' if on else '<span class="t-xs fg-3">Tocar para elegir</span>'
     return f'''<button type="button" class="wi-mrow{" sel" if on else ""}" aria-pressed="{"true" if on else "false"}">
 <span class="row" style="gap: 8px">{tico(w['t'])}<span class="wi-key">{k}</span>{prio(w['p'])}<span class="grow"></span>{state}</span>
-<span style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
+<span style="font-weight: var(--fw-regular); font-size: var(--fs-section); line-height: 1.35">{w['title']}</span>
 {f'<span class="row" style="gap: 5px; flex-wrap: wrap">{"".join(meta)}</span>' if meta else ''}
 </button>'''
   rows = ''.join(srow(k) for k in by_col('todo'))
-  inner = f'''<header class="m-head" style="padding-left: 4px"><a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Salir de la selección">{ico('x', 'ico ico-lg')}</a><span class="col grow" style="gap: 1px"><h1 class="t-h1">2 elegidas</h1><span class="mono t-xs fg-3">claude-wrapper · para orquestar</span></span></header>
+  inner = f'''<header class="m-head" style="padding-left: 4px"><a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Salir de la selección">{ico('x', 'ico ico-lg')}</a><span class="col grow" style="gap: 1px"><h1 class="t-h1">2 elegidas</h1><span class="t-num t-xs fg-3">claude-wrapper · para orquestar</span></span></header>
 <div class="m-body stack" style="gap: 12px">
 {jump('todo')}
 <section class="col" style="gap: 8px" aria-label="Por hacer">
@@ -103,7 +103,7 @@ def selection():
 </section>
 <div class="callout" style="padding: 12px">{ico('orch', 'ico fg-3')}<span>Cada tarea elegida será un nodo de la orquestación. <span class="mono">AGN-33</span> está bloqueada por <span class="mono">AGN-36</span>, así que su nodo esperará al de <span class="mono">AGN-36</span>.</span></div>
 </div>
-<div class="m-foot" style="align-items: center"><span class="col" style="flex: 0 0 auto; gap: 1px; padding: 0 4px"><span class="t-sm" style="font-weight: 600">2 tareas</span><span class="mono t-xs fg-3">2 nodos</span></span><a href="MobileOrquestacion.html" class="btn btn-primary btn-lg">{ico('orch', 'ico ico-lg')}Orquestar</a></div>'''
+<div class="m-foot" style="align-items: center"><span class="col" style="flex: 0 0 auto; gap: 1px; padding: 0 4px"><span class="t-sm" style="font-weight: var(--fw-strong)">2 tareas</span><span class="t-num t-xs fg-3">2 nodos</span></span><a href="MobileOrquestacion.html" class="btn btn-primary btn-lg">{ico('orch', 'ico ico-lg')}Orquestar</a></div>'''
   write('MobileTableroSeleccion.html', mobile('Tablero, selección', inner))
 
 
@@ -143,7 +143,7 @@ def task_activity():
 {mtask_top('activity')}
 <div class="activity">{activity().replace(' <a href="DesktopChatFlujo.html" class="c-accent">Ver el chat</a></span>', '</span><a href="MobileChatFlujo.html" class="btn btn-ghost" style="align-self: flex-start; margin: -6px -12px -10px; color: var(--accent)">Ver el chat</a>')}</div>
 </div>
-<div class="m-foot" style="align-items: center"><label class="field field-lg grow">{ico('comment', 'ico ico-lg')}<input placeholder="Escribir un comentario" aria-label="Comentario" style="font-size: 16px"></label><button type="button" class="btn btn-lg btn-icon" aria-label="Enviar el comentario" style="flex: 0 0 auto">{ico('send', 'ico ico-lg')}</button></div>'''
+<div class="m-foot" style="align-items: center"><label class="field field-lg grow">{ico('comment', 'ico ico-lg')}<input placeholder="Escribir un comentario" aria-label="Comentario" style="font-size: var(--fs-input)"></label><button type="button" class="btn btn-lg btn-icon" aria-label="Enviar el comentario" style="flex: 0 0 auto">{ico('send', 'ico ico-lg')}</button></div>'''
   write('MobileTareaActividad.html', mobile('Tarea, actividad', inner))
 
 
@@ -152,12 +152,12 @@ def task_changes():
   rows = ''
   for p, a, d, bar in FILES:
     cells = ''.join(f'<i class="{"add" if c == "a" else "del"}"></i>' for c in bar) + '<i></i>' * (5 - len(bar))
-    rows += f'<a href="#" class="cell stacked"><span class="mono" style="font-size: 13px; overflow-wrap: anywhere">{p}</span><span class="row mono t-xs fg-3" style="gap: 10px"><span>+{a} −{d}</span><span class="diffstat" aria-hidden="true">{cells}</span></span></a>'
+    rows += f'<a href="#" class="cell stacked"><span class="mono" style="font-size: var(--fs-small); overflow-wrap: anywhere">{p}</span><span class="row mono t-xs fg-3" style="gap: 10px"><span>+{a} −{d}</span><span class="diffstat" aria-hidden="true">{cells}</span></span></a>'
   inner = f'''{mtask_head()}
 <div class="m-body stack" style="gap: 14px">
 {mtask_top('changes')}
 <div class="card" style="overflow: hidden">
-<div class="row" style="gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line)">{ico('branch', 'ico fg-3')}<span class="mono t-sm">task/agn-26</span><span class="mono t-xs fg-3 grow">desde main</span><span class="mono t-xs fg-2">+214 −37</span></div>
+<div class="row" style="gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line)">{ico('branch', 'ico fg-3')}<span class="mono t-sm">task/agn-26</span><span class="t-num t-xs fg-3 grow">desde <span class="mono">main</span></span><span class="t-num t-xs fg-2">+214 −37</span></div>
 {rows}
 </div>
 <p class="t-xs fg-3" style="margin: 0; padding: 0 4px; line-height: 1.5">Lo que cambió en el worktree de la tarea, <span class="mono">.claude/worktrees/task-agn-26</span>. Nada se fusiona ni abre una pull request solo.</p>
@@ -185,11 +185,11 @@ def all_projects():
     lead = '<span class="spin-ring" style="width: 14px; height: 14px" role="img" aria-label="Trabajando"></span>' if live else tico(w['t'])
     livel = ''
     if live == 'chat':
-      livel = '<span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 grow">pnpm test</span><span class="mono fg-3">4:12</span></span>'
+      livel = '<span class="row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">Ejecutando</span><span class="mono fg-3 grow">pnpm test</span><span class="t-num fg-3">4:12</span></span>'
     return f'''<a href="MobileTarea.html" class="wi-mrow{" rail-live" if live else ""}">
 <span class="row" style="gap: 8px">{lead}<span class="wi-key">{k}</span><span class="grow"></span>{prio(w['p'])}{av() if w.get('who') else ''}</span>
-<span style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
-<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: {hue}; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: 11px">{mono[0]}</span>{name}</span>
+<span style="font-weight: var(--fw-regular); font-size: var(--fs-section); line-height: 1.35">{w['title']}</span>
+<span class="row t-xs fg-2" style="gap: 6px"><span class="proj monogram" style="--hue: {hue}; width: 18px; height: 18px; border-radius: var(--r-xs); font-size: var(--fs-small)">{mono[0]}</span>{name}</span>
 {livel}
 </a>'''
 
@@ -201,7 +201,7 @@ def all_projects():
   # Por hacer: claude-wrapper's four and claudio-site's one; the counts are over every project shown
   todo = [('GDM-7', OTHER['GDM-7'])] + [(k, W[k]) for k in by_col('todo')]
   prog = [('GDM-9', OTHER['GDM-9']), ('AGN-28', W['AGN-28'])]
-  chip = f'<button type="button" class="chip project-selector" style="font-size: 14px">Todos los proyectos{ico("down", "ico ico-sm")}</button>'
+  chip = f'<button type="button" class="chip project-selector" style="font-size: var(--fs-body)">Todos los proyectos{ico("down", "ico ico-sm")}</button>'
   inner = f'''{mhead('Tareas', None, 'MobileMas.html', chip + '<span style="width: 8px"></span>')}
 <div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
 {mview_seg('board')}
@@ -216,7 +216,7 @@ def all_projects():
 
 # ---------- The assistant: Team and Resources proposals ----------
 def done_run():
-  return f'<section class="ai-run done" aria-label="Sugerencia completada" style="flex-direction: column; align-items: stretch; gap: 6px"><span class="row t-sm" style="gap: 10px">{mark(True)}<span><b style="font-weight: 600">14 propuestas</b> <span class="fg-2">de 61 archivos y 23 chats</span></span></span>{facts(f("Sonnet 5"), f("1 min 12 s"), f("0,08 US$", "cost"), f("chat 4e1f09"))}</section>'
+  return f'<section class="ai-run done" aria-label="Sugerencia completada" style="flex-direction: column; align-items: stretch; gap: 6px"><span class="row t-sm" style="gap: 10px">{mark(True)}<span><b style="font-weight: var(--fw-strong)">14 propuestas</b> <span class="fg-2">de 61 archivos y 23 chats</span></span></span>{facts(f("Sonnet 5"), f("1 min 12 s"), f("0,08 US$", "cost"), f("chat 4e1f09"))}</section>'
 
 
 def more_btn():
@@ -258,7 +258,7 @@ def assistant_resources():
       acts = f'<div class="sug-acts"><button type="button" class="btn btn-ghost btn-lg" aria-label="Descartar {x["name"]}">{ico("x", "ico ico-sm")}Descartar</button><a href="MobileRecursoPropuesta.html" class="btn btn-lg">{ico("edit", "ico ico-sm")}Revisar</a></div>'
     reason = f'<p class="sug-reason">{x["why"]}</p>' if x.get('why') else ''
     cards += f'''<div class="sug-card">
-<span class="row" style="gap: 10px; align-items: flex-start">{kind_ico(x['k'])}<span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 8px"><span class="mono" style="font-weight: 600; font-size: 15px">{x['name']}</span><span class="badge">{word}</span></span><span class="t-sm fg-2" style="line-height: 1.45">{x['desc']}</span>{'' if x['st'] == 'accepted' else f'<span class="mono t-xs fg-3">proyecto · {where}</span>'}</span></span>
+<span class="row" style="gap: 10px; align-items: flex-start">{kind_ico(x['k'])}<span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 8px"><span class="mono" style="font-weight: var(--fw-strong); font-size: var(--fs-section)">{x['name']}</span><span class="badge">{word}</span></span><span class="t-sm fg-2" style="line-height: 1.45">{x['desc']}</span>{'' if x['st'] == 'accepted' else f'<span class="mono t-xs fg-3">proyecto · {where}</span>'}</span></span>
 {reason}{acts}
 </div>'''
   inner = f'''{mhead_proj('Asistente de proyecto', 'MobileNuevoProyecto.html', more_btn())}
@@ -278,16 +278,16 @@ def assistant_empty():
   # on its own, and the first tasks wait for a sentence about what the project will be.
   rows = ''
   for ab, n, m in TEMPLATE_TEAM:
-    rows += f'<div class="cell" style="min-height: 60px; padding-right: 8px">{role(ab, n)}<span class="col grow" style="gap: 3px; min-width: 0"><span style="font-weight: 500">{n}</span><span class="model-tag{" opus" if m == "opus" else ""}" style="align-self: flex-start">{m}</span></span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Descartar {n}">{ico("x", "ico")}</button><button type="button" class="btn btn-lg" aria-label="Aceptar {n}">{ico("check", "ico ico-sm")}Aceptar</button></div>'
+    rows += f'<div class="cell" style="min-height: 60px; padding-right: 8px">{role(ab, n)}<span class="col grow" style="gap: 3px; min-width: 0"><span style="font-weight: var(--fw-regular)">{n}</span><span class="model-tag{" opus" if m == "opus" else ""}" style="align-self: flex-start">{m}</span></span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Descartar {n}">{ico("x", "ico")}</button><button type="button" class="btn btn-lg" aria-label="Aceptar {n}">{ico("check", "ico ico-sm")}Aceptar</button></div>'
   inner = f'''{mhead('Asistente de proyecto', 'notas · NOT', 'MobileNuevoProyecto.html')}
 <div class="m-body stack" style="gap: 14px">
-<div class="callout" style="padding: 12px; align-items: flex-start">{mark(True)}<span class="col" style="gap: 4px"><span style="color: var(--fg); font-weight: 600">No hay nada que leer</span><span><span class="mono">~/Proyectos/notas</span> está vacío: sin archivos, sin chats y sin historial de git. No se ha lanzado ningún chat, así que no hay coste.</span></span></div>
-<div class="row" style="padding: 0 4px"><span class="t-label grow">Equipo de la plantilla</span><span class="mono t-xs fg-3">Software profesional</span></div>
+<div class="callout" style="padding: 12px; align-items: flex-start">{mark(True)}<span class="col" style="gap: 4px"><span style="color: var(--fg); font-weight: var(--fw-strong)">No hay nada que leer</span><span><span class="mono">~/Proyectos/notas</span> está vacío: sin archivos, sin chats y sin historial de git. No se ha lanzado ningún chat, así que no hay coste.</span></span></div>
+<div class="row" style="padding: 0 4px"><span class="t-label grow">Equipo de la plantilla</span><span class="t-num t-xs fg-3">Software profesional</span></div>
 <div class="card" style="overflow: hidden">{rows}</div>
 <div class="row" style="padding: 0 4px"><span class="t-label grow">Primeras tareas</span></div>
 <div class="card col" style="padding: 14px; gap: 10px">
 <span class="t-sm fg-2" style="line-height: 1.5">Cuéntame qué vas a construir y te propongo las primeras tareas. También puedes crearlas tú.</span>
-<label class="field field-area"><textarea rows="2" aria-label="Qué vas a construir" placeholder="Una app de notas con etiquetas y búsqueda…" style="font-size: 16px"></textarea></label>
+<label class="field field-area"><textarea rows="2" aria-label="Qué vas a construir" placeholder="Una app de notas con etiquetas y búsqueda…" style="font-size: var(--fs-input)"></textarea></label>
 <button type="button" class="btn btn-primary btn-lg">{ico('sparkle', 'ico')}Proponer tareas</button>
 </div>
 </div>
@@ -304,11 +304,11 @@ def suggest_running():
   steps = steps_html(items).replace('<span class="ellipsis">', '<span>')
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 8px; gap: 4px; min-height: 60px">
 <a href="MobileTablero.html" class="btn btn-ghost btn-lg" style="padding: 0 10px">Cancelar</a>
-<span class="grow" style="text-align: center; font-weight: 600; font-size: 17px">Sugerir tareas</span>
+<span class="grow" style="text-align: center; font-weight: var(--fw-strong); font-size: var(--fs-title)">Sugerir tareas</span>
 <span style="width: 86px"></span>
 </header>
 <div class="m-body stack" style="gap: 12px">
-<label class="field field-lg">{ico('search', 'ico ico-lg')}<input value="lo que falta para v0.20" aria-label="Qué buscar (opcional)" style="font-size: 16px"></label>
+<label class="field field-lg">{ico('search', 'ico ico-lg')}<input value="lo que falta para v0.20" aria-label="Qué buscar (opcional)" style="font-size: var(--fs-input)"></label>
 <section class="ai-run live energy" aria-label="Sugerencia en curso" style="padding: 14px">
 <div class="ai-run-head">{mark()}<div class="col grow" style="gap: 3px; min-width: 0"><h2 class="ai-run-title">Leyendo el proyecto</h2>{live_verb('Leyendo', 'git log -20', '0:22')}</div></div>
 {facts(f('Sonnet 5'), f('0,02 US$ hasta ahora', 'cost'), f('chat 7c2e1a'))}

@@ -25,15 +25,15 @@ def tcol(s, cards, who_head, extra=''):
 TEAM_LIVE = '''<div class="col" style="gap: 4px">
 <div class="row" style="padding: 0 10px 4px"><span class="t-label grow">En directo</span><span class="count-pill live">3</span></div>
 <a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">Desarrollador implementa AGN-28: tablero con columnas fijas</span></span>
-<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="mono fg-3">4:12</span></span>
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">Desarrollador implementa AGN-28: tablero con columnas fijas</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Ejecutando</span><span class="mono fg-3 ellipsis grow">pnpm test</span><span class="t-num fg-3">4:12</span></span>
 </a>
 <a href="DesktopChat.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">QA verifica AGN-29: historial automático</span></span>
-<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Leyendo</span><span class="mono fg-3 ellipsis grow">work-items.test.ts</span><span class="mono fg-3">1:05</span></span>
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">QA verifica AGN-29: historial automático</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Leyendo</span><span class="mono fg-3 ellipsis grow">work-items.test.ts</span><span class="t-num fg-3">1:05</span></span>
 </a>
 <a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 6px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: 500">ecosystem-foundation</span><span class="mono t-xs fg-3">2/9</span></span>
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis grow" style="font-weight: var(--fw-regular)">ecosystem-foundation</span><span class="t-num t-xs fg-3">2/9</span></span>
 <span class="segbar" style="height: 4px; margin-left: 15px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
 </a>
 </div>'''
@@ -66,7 +66,7 @@ def team_board_desktop():
 {board_toolbar()}
 <div class="wi-board">{board}</div>
 </main>'''
-  write('DesktopTableroEquipo.html', desktop('Tablero con equipo', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, live=TEAM_LIVE, agents=3, running=3))
+  write('DesktopTableroEquipo.html', desktop('Tablero con equipo', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main, live=TEAM_LIVE, agents=3, running=3))
 
 
 # ---------------------------------------------------------------- Tasks with All projects selected
@@ -132,7 +132,7 @@ def _all_projects_desktop():
 <div class="row t-xs fg-3" style="gap: 6px; margin-top: -4px">{ico('info', 'ico ico-sm')}<span>Cada tarjeta dice su proyecto. Sin límites por columna: cada proyecto pone los suyos, y se ven al elegirlo. pagos-api aún no tiene tareas.</span></div>
 <div class="wi-board">{cols}</div>
 </main>'''
-  write('DesktopTareasTodos.html', desktop('Tareas de todos los proyectos', 'tasks', '<span style="font-weight: 500">Tareas</span>', main, project='Todos los proyectos'))
+  write('DesktopTareasTodos.html', desktop('Tareas de todos los proyectos', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main, project='Todos los proyectos'))
 
 
 # ---------------------------------------------------------------- Suggest tasks while it runs
@@ -146,11 +146,11 @@ SUGG_READ = [
 
 SUGG_LIVE = TEAM_LIVE.replace('<span class="count-pill live">3</span>', '<span class="count-pill live">3</span>', 1).replace(
   '''<a href="DesktopChat.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">QA verifica AGN-29: historial automático</span></span>
-<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Leyendo</span><span class="mono fg-3 ellipsis grow">work-items.test.ts</span><span class="mono fg-3">1:05</span></span>''',
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">QA verifica AGN-29: historial automático</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Leyendo</span><span class="mono fg-3 ellipsis grow">work-items.test.ts</span><span class="t-num fg-3">1:05</span></span>''',
   '''<a href="DesktopSugerirTareasEnCurso.html" class="list-row rail-live" style="padding: 8px 10px 8px 14px; flex-direction: column; align-items: stretch; gap: 3px">
-<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: 500">Sugerir tareas en claude-wrapper</span></span>
-<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Leyendo</span><span class="mono fg-3 ellipsis grow">git log</span><span class="mono fg-3">0:22</span></span>''')
+<span class="row" style="gap: 7px"><span class="spin-braille"></span><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">Sugerir tareas en claude-wrapper</span></span>
+<span class="row t-xs" style="gap: 6px; padding-left: 15px"><span class="c-live">Leyendo</span><span class="mono fg-3 ellipsis grow">git log</span><span class="t-num fg-3">0:22</span></span>''')
 
 
 def suggest_running_desktop():
@@ -163,13 +163,13 @@ def suggest_running_desktop():
 <div class="wi-board">{cols}</div>
 </main>'''
   run = f'''<section class="ai-run live energy" aria-label="Sugerencia en curso" style="background: var(--bg-1); box-shadow: none">
-<div class="ai-run-head">{mark()}<div class="col grow" style="gap: 3px; min-width: 0"><h3 class="ai-run-title">Leyendo el proyecto</h3>{live_verb('Leyendo', 'git log -20')}</div><span class="mono t-sm fg-2 t-num">0:22</span></div>
+<div class="ai-run-head">{mark()}<div class="col grow" style="gap: 3px; min-width: 0"><h3 class="ai-run-title">Leyendo el proyecto</h3>{live_verb('Leyendo', 'git log -20')}</div><span class="t-sm fg-2 t-num">0:22</span></div>
 {facts(f('Sonnet 5'), f('0,02 US$ hasta ahora', 'cost'), chat_link('7c2e1a'), f('--json-schema'))}
 {steps_html(SUGG_READ)}
 </section>'''
   dialog = f'''<div class="scrim">
 <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="st-title" style="width: 780px; max-height: calc(100% - 48px)">
-<div class="dialog-head">{mark(True)}<h2 id="st-title" class="t-h2 grow">Sugerir tareas</h2><span class="mono t-xs fg-3">claude-wrapper · se crean en Backlog</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
+<div class="dialog-head">{mark(True)}<h2 id="st-title" class="t-h2 grow">Sugerir tareas</h2><span class="t-num t-xs fg-3">claude-wrapper · se crean en Backlog</span><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Cerrar">{ico('x')}</button></div>
 <div class="dialog-body" style="gap: 14px">
 <div class="row" style="gap: 8px"><label class="field grow">{ico('search')}<input value="lo que falta para cerrar v0.20" aria-label="Qué buscar (opcional)" disabled></label></div>
 {run}
@@ -179,7 +179,7 @@ def suggest_running_desktop():
 <div class="dialog-foot"><span class="t-sm fg-2" style="white-space: nowrap">Aún no hay propuestas</span><span class="grow"></span><button type="button" class="btn">{ico('x', 'ico ico-sm')}Detener</button><button type="button" class="btn btn-primary" disabled>{ico('plus')}Crear las seleccionadas</button></div>
 </div>
 </div>'''
-  write('DesktopSugerirTareasEnCurso.html', desktop('Sugerir tareas, en curso', 'tasks', '<span style="font-weight: 500">Tareas</span>', main,
+  write('DesktopSugerirTareasEnCurso.html', desktop('Sugerir tareas, en curso', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main,
         overlay=f'<div style="position: absolute; inset: 0; z-index: 30">{dialog}</div>', live=SUGG_LIVE, agents=3, running=3))
 
 
@@ -188,13 +188,13 @@ def assistant_empty_desktop():
   team = [dict(x, st='pending') for x in TEAM if not x.get('extra')]
   head = f'''<div class="page-head" style="align-items: center">
 <div class="row" style="gap: 14px"><a href="DesktopNuevoProyecto.html" class="btn btn-icon" aria-label="Volver">{ico('left')}</a>
-<span class="proj monogram" style="--hue: 100; width: 40px; height: 40px; border-radius: var(--r-lg); font-size: 13px">NO</span>
+<span class="proj monogram" style="--hue: 100; width: 40px; height: 40px; border-radius: var(--r-lg); font-size: var(--fs-small)">NO</span>
 <div class="col" style="gap: 4px"><h1 class="t-h1">Asistente de proyecto</h1><p class="fg-2 t-sm" style="margin: 0">notas · un directorio vacío. Nada se escribe hasta que lo aceptes.</p></div></div>
 <div class="row" style="gap: 8px"><a href="#" class="btn">{ico('right')}Ir al proyecto</a></div>
 </div>'''
-  nothing = f'''<section class="ai-run done" aria-label="Nada que leer">{mark(True)}<span class="t-sm"><b style="font-weight: 600">Nada que leer</b> <span class="fg-2">en <span class="mono">~/Proyectos/notas</span>: ni archivos, ni chats, ni historial de git. No se ha lanzado ningún chat.</span></span><span class="grow"></span>{facts(f('sin coste', 'cost'))}</section>'''
+  nothing = f'''<section class="ai-run done" aria-label="Nada que leer">{mark(True)}<span class="t-sm"><b style="font-weight: var(--fw-strong)">Nada que leer</b> <span class="fg-2">en <span class="mono">~/Proyectos/notas</span>: ni archivos, ni chats, ni historial de git. No se ha lanzado ningún chat.</span></span><span class="grow"></span>{facts(f('sin coste', 'cost'))}</section>'''
   tasks = f'''<section class="card grad-border" aria-label="Primeras tareas">
-<div class="card-head">{ico('tasks', 'ico fg-3')}<h2 class="t-h2" style="white-space: nowrap">Primeras tareas</h2><span class="mono t-xs fg-3 grow">a Backlog</span></div>
+<div class="card-head">{ico('tasks', 'ico fg-3')}<h2 class="t-h2" style="white-space: nowrap">Primeras tareas</h2><span class="t-num t-xs fg-3 grow">a Backlog</span></div>
 <div class="col" style="padding: 16px 18px 18px; gap: 12px">
 <p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Sin código que leer, el asistente necesita saber qué vas a construir. Cuéntalo en una frase y te propone las primeras tareas, cada una con su porqué.</p>
 <label class="field field-area"><textarea rows="3" aria-label="Qué vas a construir" placeholder="Qué vas a construir…">Una app de notas en Markdown que se sincroniza con una carpeta de Git, con búsqueda y etiquetas.</textarea></label>
@@ -202,12 +202,12 @@ def assistant_empty_desktop():
 </div>
 </section>'''
   team_card = f'''<section class="card" aria-label="Equipo">
-<div class="card-head">{ico('team', 'ico fg-3')}<h2 class="t-h2">Equipo</h2><span class="mono t-xs fg-3 grow">0 de 4 aceptados</span><span class="t-xs fg-3">el de Software profesional</span></div>
+<div class="card-head">{ico('team', 'ico fg-3')}<h2 class="t-h2">Equipo</h2><span class="t-num t-xs fg-3 grow">0 de 4 aceptados</span><span class="t-xs fg-3">el de Software profesional</span></div>
 <div class="callout" style="margin: 12px 14px 4px">{ico('info', 'ico fg-3')}<span>Con nada que leer, te ofrece el equipo de la plantilla. Acepta cada rol por separado.</span></div>
 {''.join(team_row(x) for x in team)}
 </section>'''
   res = f'''<section class="card" aria-label="Recursos">
-<div class="card-head">{ico('resources', 'ico fg-3')}<h2 class="t-h2 grow">Recursos</h2><span class="mono t-xs fg-3">sin propuestas</span></div>
+<div class="card-head">{ico('resources', 'ico fg-3')}<h2 class="t-h2 grow">Recursos</h2><span class="t-num t-xs fg-3">sin propuestas</span></div>
 <div class="sug-wait">{ico('wait')}Cuando haya código, pídelos desde la pestaña Recursos con «Sugerir»</div>
 </section>'''
   main = f'''<main class="page" style="gap: 16px">

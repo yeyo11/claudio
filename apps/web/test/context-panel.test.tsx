@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { setLanguage } from '../src/i18n';
-import { CompactButton, ContextPanelBody, type ContextPanelBodyProps } from '../src/pages/chat/ContextPanel';
+import { CompactButton, ContextPanelBody, PanelFoot, type ContextPanelBodyProps } from '../src/pages/chat/ContextPanel';
 import { categoryGroups, compactState, maskSecrets, middleCut, shareText } from '../src/pages/chat/context-model';
 
 // The panel and the Compact now button, state by state (docs/plans/context-control.md, "States").
@@ -83,11 +83,9 @@ const body = (over: Partial<ContextPanelBodyProps> = {}, lang: 'en' | 'es' = 'en
       usage={usage()}
       loading={false}
       error={null}
-      detail="summary"
       servers={undefined}
       switching={false}
       onToggle={() => undefined}
-      onExact={() => undefined}
       onRetry={() => undefined}
       {...over}
     />,
@@ -100,33 +98,45 @@ const live = (name: string, status: LiveMcpServer['status'] = 'connected'): Live
 test('loading: skeleton rows, nothing invented', () => {
   const html = body({ usage: undefined, loading: true });
   assert.match(html, /aria-busy="true"/);
-  assert.doesNotMatch(html, /ctx-table/);
+  assert.doesNotMatch(html, /ctx-grid/);
 });
 
 test('a chat that never answered: no panel content, the words for it', () => {
   const html = body({ chat: chatWith({ context: null }), usage: usage({ snapshot: null, breakdown: null, unreported: 'no-process', live: false }) });
   assert.match(html, /No context yet/);
-  assert.doesNotMatch(html, /ctx-table/);
+  assert.doesNotMatch(html, /ctx-grid/);
 });
 
-test('idle with a live process: categories as a captioned table, shares, the exact count on offer', () => {
+test('idle with a live process: categories in one labelled grid, the share as the figure, the model id', () => {
   const html = body();
-  assert.match(html, /<caption class="sr-only">What fills the context window, by category<\/caption>/);
+  assert.match(html, /<ul class="ctx-grid list-plain" aria-label="What fills the context window, by category">/);
+  assert.match(html, /<span class="ctx-figure">71%<\/span><span class="ctx-of">142,000 of 200,000 tokens<\/span>/);
   assert.match(html, /System prompt/);
   assert.match(html, /142,000 of 200,000 tokens/);
   assert.match(html, /claude-sonnet-5-5/);
   // 120,000 / 200,000
-  assert.match(html, /60 %/);
+  assert.match(html, /<span class="ctx-share">60%<\/span>/);
+});
+
+test('the foot says how the count was made and offers the exact one, beside Compact now', () => {
+  const foot = (over: Partial<ChatContextUsage> = {}, chat: Chat = chatWith()) => render(<PanelFoot chat={chat} usage={usage(over)} onExact={() => undefined} onCompact={() => undefined} />);
+  const html = foot();
   assert.match(html, /Counted by estimate/);
   assert.match(html, /Count exactly/);
   assert.doesNotMatch(html, /aria-description="The exact count/);
+  assert.ok(html.indexOf('Count exactly') < html.indexOf('Compact now'));
+  const working = foot({}, chatWith({ state: 'working', alive: true }));
+  assert.match(working, /aria-disabled="true"[^>]*aria-description="The exact count waits until the chat is idle\."/);
+  const exact = foot({ detail: 'full' });
+  assert.match(exact, /Counted exactly/);
+  assert.doesNotMatch(exact, /Count exactly/);
 });
 
 test('a category Claudio has no key for is shown as the CLI wrote it, in mono; free space is last and muted', () => {
   const html = body();
   assert.match(html, /<span class="mono">Brand new category<\/span>/);
   assert.ok(html.indexOf('Free space') > html.indexOf('Brand new category'));
-  assert.match(html, /<tr class="is-muted"><th scope="row">Free space/);
+  assert.match(html, /<li class="ctx-row is-spare"><span class="ctx-name">Free space/);
 });
 
 test('deferred rows sit in their own group, outside every share', () => {
@@ -135,7 +145,7 @@ test('deferred rows sit in their own group, outside every share', () => {
   assert.ok(at > 0);
   assert.match(html.slice(at), /MCP tools \(deferred\)/);
   // the deferred row carries no share
-  assert.match(html.slice(at), /<td class="mono num">—<\/td>/);
+  assert.match(html.slice(at), /<span class="ctx-share">—<\/span>/);
   const groups = categoryGroups(breakdown().categories);
   assert.deepEqual(groups.deferred.map((c) => c.name), ['MCP tools (deferred)']);
   assert.equal(groups.used.length, 3);
@@ -146,7 +156,7 @@ test('MCP warnings are a tag with the triangle and the words', () => {
   assert.match(html, /badge-warn/);
   assert.match(html, /<svg[^>]*aria-hidden/);
   assert.match(html, /Many MCP tools \(93\)/);
-  assert.match(html, /MCP takes 27 % of the context/);
+  assert.match(html, /MCP takes 27% of the context/);
   assert.doesNotMatch(body({ usage: usage({ breakdown: breakdown({ mcp: { ...breakdown().mcp, warnings: [] } }) }) }), /Many MCP tools/);
 });
 
@@ -178,23 +188,15 @@ test('memory paths are cut in the middle, whole in the title and in the copy lab
   assert.ok(middleCut(path).length <= 52);
 });
 
-test('working: the breakdown stays, the exact count is disabled with its reason', () => {
-  const html = body({ chat: chatWith({ state: 'working' }) });
-  assert.match(html, /aria-disabled="true"[^>]*aria-description="The exact count waits until the chat is idle\."/);
-  assert.match(html, /System prompt/);
-});
-
-test('an exact count says so and offers no second one', () => {
-  const html = body({ usage: usage({ detail: 'full' }) });
-  assert.match(html, /Counted exactly/);
-  assert.doesNotMatch(html, /Count exactly/);
+test('working: the breakdown stays', () => {
+  assert.match(body({ chat: chatWith({ state: 'working' }) }), /System prompt/);
 });
 
 test('no process: the snapshot and the sentence that says where the breakdown comes from', () => {
   const html = body({ usage: usage({ live: false, unreported: 'no-process', breakdown: null }) });
   assert.match(html, /142,000 of 200,000 tokens/);
   assert.match(html, /comes from the agent while the conversation is open/);
-  assert.doesNotMatch(html, /ctx-table|Retry/);
+  assert.doesNotMatch(html, /ctx-grid|Retry/);
 });
 
 test('unsupported and refused: the snapshot and one sentence, no retry; a timeout may retry', () => {
@@ -218,7 +220,8 @@ test('an HTTP error is an alert, with a retry', () => {
 test('auto-compaction is a tick on the bar and the same fact in words; off says so', () => {
   const html = body();
   assert.match(html, /class="bar-mark" aria-hidden="true" style="left:92%"/);
-  assert.match(html, /compacts by itself at 92 %/);
+  assert.match(html, /compacts by itself at 92%/);
+  assert.match(html, /class="ctx-meter"/);
   const off = body({ usage: usage({ breakdown: breakdown({ autoCompact: { enabled: false, thresholdTokens: null } }) }) });
   assert.doesNotMatch(off, /bar-mark/);
   assert.match(off, /Automatic compaction is off/);
@@ -245,7 +248,7 @@ test('an unknown window: tokens only, no bar, no share', () => {
   assert.doesNotMatch(html, /bar-mark/);
 });
 
-test('a 1M window: grouped figures in the language, "<1 %" for what is small', () => {
+test('a 1M window: grouped figures in the language, "<1%" for what is small', () => {
   const big = usage({
     breakdown: breakdown({
       totalTokens: 967_248,
@@ -254,18 +257,20 @@ test('a 1M window: grouped figures in the language, "<1 %" for what is small', (
     }),
   });
   assert.match(body({ usage: big }), /967,248 of 1,000,000 tokens/);
-  assert.match(body({ usage: big }), /<td class="mono num">&lt;1 %<\/td>/);
+  assert.match(body({ usage: big }), /<span class="ctx-share">&lt;1%<\/span>/);
   assert.match(body({ usage: big }, 'es'), /967\.248 de 1\.000\.000 tokens/);
-  assert.equal(shareText(0, 1000, '<1 %'), '0 %');
-  assert.equal(shareText(5, null, '<1 %'), null);
+  // The last body was Spanish: the share follows the active language, 0 % there
+  assert.match(shareText(0, 1000, '<1%') ?? '', /^0\s%$/);
+  assert.equal(shareText(5, null, '<1%'), null);
 });
 
 test('Spanish: translated names, the CLI threshold sentence, the unreported sentence', () => {
   const html = body({}, 'es');
   assert.match(html, /Mensajes/);
-  assert.match(html, /compacta solo al 92 %/);
-  assert.match(html, /Contado con estimación/);
-  assert.match(html, /Contar con exactitud/);
+  assert.match(html, /compacta solo al 92\s%/);
+  const foot = render(<PanelFoot chat={chatWith()} usage={usage()} onExact={() => undefined} onCompact={() => undefined} />, 'es');
+  assert.match(foot, /Contado con estimación/);
+  assert.match(foot, /Contar con exactitud/);
   assert.match(body({ usage: usage({ live: false, unreported: 'no-process', breakdown: null }) }, 'es'), /El desglose lo da el agente mientras la conversación está abierta/);
 });
 
@@ -312,4 +317,18 @@ test('the journal prefill masks what looks like a secret', () => {
   const masked = maskSecrets('use sk-abcdefghijklmnopqrstuvwx and API_KEY=hunter2hunter2 with Bearer abcdefghijklmnop1234');
   assert.doesNotMatch(masked, /sk-abc|hunter2|abcdefghijklmnop1234/);
   assert.match(masked, /\[redacted\]/);
+});
+
+test('the message parts sit under Messages in the same columns, and the counts keep one formatter', () => {
+  const html = body();
+  const at = html.indexOf('Messages');
+  assert.ok(at > 0 && html.indexOf('Tool calls') > at && html.indexOf('Tool calls') < html.indexOf('Brand new category'));
+  assert.match(html, /<li class="ctx-row is-sub"><span class="ctx-name">Tool results<\/span><span class="ctx-num">50,000<\/span>/);
+  assert.match(html, /<span class="ctx-name">Skills<\/span><span class="ctx-num">1,200<\/span><span class="ctx-share">8 of 10<\/span>/);
+  assert.doesNotMatch(html, /50k|ctx-kv/);
+});
+
+test('an MCP server row: the name, the tools it loads, its tokens in the number column', () => {
+  const html = body();
+  assert.match(html, /<span class="ctx-note">60 of 60 tools<\/span>[\s\S]*?<span class="ctx-num">21,000<\/span>/);
 });

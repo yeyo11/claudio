@@ -30,7 +30,7 @@ def zone(label, inner):
 
 def code(lines, start=1, lang=''):
   rows = ''.join(f'<span class="ln">{start + i}</span><span class="tx">{l}</span>' for i, l in enumerate(lines))
-  return f'<div class="code-ed" style="font-size: 12px; line-height: 1.6">{rows}</div>'
+  return f'<div class="code-ed" style="font-size: var(--fs-small); line-height: 1.6">{rows}</div>'
 
 
 RAW = f'<button type="button" class="btn btn-ghost btn-sm call-raw">En bruto</button>'
@@ -76,7 +76,7 @@ CARD_TASK = launch('task', 'Ejecutar la suite', 'running', 'pnpm test · 1:10')
 
 
 def transcript_running(mobile=False):
-  fs = 'font-size: 15px; line-height: 1.6' if mobile else 'font-size: 14px; line-height: 1.65'
+  fs = 'font-size: var(--fs-section); line-height: 1.6' if mobile else 'font-size: var(--fs-body); line-height: 1.65'
   bubble = f'<div style="align-self: flex-end; max-width: 82%; background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 11px 15px">{ASK}</div>'
   step1 = step_line(3, '52 s', ['kb_search_documents', 'Agent', 'Bash'])
   p1 = '<p style="margin: 0">El plan de chat-experience ya explica cómo se agrupan las llamadas en pasos. Lanzo dos agentes en paralelo y la suite en segundo plano mientras leo el inspector.</p>'
@@ -86,7 +86,7 @@ def transcript_running(mobile=False):
     call('Agent', 'Revisar el inspector del chat', outcome='running'),
     call('Bash', 'Ejecutar la suite', outcome='ok'),
   ])
-  working = '<div class="row t-sm" style="gap: 8px; white-space: nowrap; min-width: 0"><span class="spin-braille"></span><span class="shimmer" style="font-weight: 500; flex: none">Claude Code está delegando</span><span class="mono t-xs fg-3 ellipsis">Revisar el inspector del chat · 0:31</span></div>'
+  working = '<div class="row t-sm" style="gap: 8px; white-space: nowrap; min-width: 0"><span class="spin-braille"></span><span class="shimmer" style="font-weight: var(--fw-regular); flex: none">Claude Code está delegando</span><span class="t-num t-xs fg-3 ellipsis">Revisar el inspector del chat · 0:31</span></div>'
   if mobile:
     return f'''<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 16px 0; gap: 14px; {fs}">
 {step1}
@@ -112,16 +112,16 @@ def composer(mobile=False, energy=True):
   if mobile:
     return f'''<div class="col" style="flex-shrink: 0; padding: 10px 16px 24px; gap: 10px">
 <div class="row" style="gap: 6px"><button type="button" class="chip">Opus 5.5</button><button type="button" class="chip">Sin permisos</button><button type="button" class="chip">MCP</button></div>
-<div class="card{' energy' if energy else ''}" style="border-radius: var(--r-xl); padding: 8px 8px 8px 6px; display: flex; align-items: center; gap: 6px"><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Añadir al mensaje">{ico('plus', 'ico ico-lg')}</button><span class="grow fg-3" style="font-size: 16px">Envía un mensaje</span><button type="button" class="btn btn-danger btn-icon btn-lg" aria-label="Interrumpir" style="border-radius: var(--r-full)"><svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor" aria-hidden="true"><path d="M6 6h12v12H6z"></path></svg></button></div>
+<div class="card{' energy' if energy else ''}" style="border-radius: var(--r-xl); padding: 8px 8px 8px 6px; display: flex; align-items: center; gap: 6px"><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Añadir al mensaje">{ico('plus', 'ico ico-lg')}</button><span class="grow fg-3" style="font-size: var(--fs-input)">Envía un mensaje</span><button type="button" class="btn btn-danger btn-icon btn-lg" aria-label="Interrumpir" style="border-radius: var(--r-full)"><svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor" aria-hidden="true"><path d="M6 6h12v12H6z"></path></svg></button></div>
 </div>'''
   return f'''<div class="col" style="width: 100%; max-width: 780px; gap: 8px">
 <div class="card{' energy' if energy else ''}" style="border-radius: var(--r-xl); padding: 10px; display: flex; align-items: flex-end; gap: 8px">
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Añadir al mensaje">{ico('plus')}</button>
-<label class="grow" style="display: flex; min-height: 36px; align-items: center"><textarea rows="1" placeholder="Envía un mensaje de seguimiento…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 14px; padding: 0"></textarea></label>
+<label class="grow" style="display: flex; min-height: 36px; align-items: center"><textarea rows="1" placeholder="Envía un mensaje de seguimiento…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--fs-body); padding: 0"></textarea></label>
 {'<button type="button" class="btn btn-danger btn-sm" style="height: 36px"><svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor" aria-hidden="true"><path d="M6 6h12v12H6z"></path></svg>Detener</button>' if energy else ''}
 <button type="button" class="btn btn-primary btn-icon" aria-label="Enviar">{ico('send', 'ico', 'stroke-width: 2.2')}</button>
 </div>
-<div class="row" style="gap: 6px"><button type="button" class="chip">Opus 5.5</button><button type="button" class="chip">Sin pedir permisos</button><button type="button" class="chip">Sin preset</button><button type="button" class="chip">MCP de la CLI</button><span class="grow"></span><span class="t-xs fg-3 mono">↵ enviar · ⇧↵ salto</span></div>
+<div class="row" style="gap: 6px"><button type="button" class="chip">Opus 5.5</button><button type="button" class="chip">Sin pedir permisos</button><button type="button" class="chip">Sin preset</button><button type="button" class="chip">MCP de la CLI</button><span class="grow"></span><span class="t-num t-xs fg-3"><span class="mono">↵</span> enviar · <span class="mono">⇧↵</span> salto</span></div>
 </div>'''
 
 
@@ -130,7 +130,7 @@ def aside(running=True):
   return f'''<aside aria-label="Detalles del chat" class="col" style="width: 344px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--bg-1); gap: 0">
 <div class="tabs" role="tablist" style="padding: 8px 16px 0; height: 56px; align-items: flex-end"><button type="button" role="tab" aria-selected="true" class="tab on">Resumen</button><button type="button" role="tab" aria-selected="false" class="tab">Actividad</button><button type="button" role="tab" aria-selected="false" class="tab">Cambios</button><button type="button" role="tab" aria-selected="false" class="tab">Entorno</button></div>
 <div class="col" style="padding: 18px; gap: 22px">
-<section class="row" style="gap: 14px"><span class="ring" style="--p: 14; --c: var(--fg-2); width: 60px; height: 60px; font-size: 12px">14%</span><span class="col" style="gap: 3px"><span class="t-label">Contexto</span><span class="t-sm">144.826 de 1 M tokens</span></span></section>
+<section class="row" style="gap: 14px"><span class="ring" style="--p: 14; --c: var(--fg-2); width: 60px; height: 60px; font-size: var(--fs-small)">14%</span><span class="col" style="gap: 3px"><span class="t-label">Contexto</span><span class="t-sm">144.826 de 1 M tokens</span></span></section>
 <section class="col" style="gap: 0">
 <span class="t-label" style="padding-bottom: 8px">Chat</span>
 <div class="prop-row"><span class="k" style="width: 90px">Estado</span><span class="v">{state}</span></div>
@@ -147,7 +147,7 @@ def head(title, running=True):
   pill = '<span class="badge b-live"><span class="spin-braille" style="width: auto"></span>trabajando · 1:12</span>' if running else '<span class="badge">inactivo · interactivo</span>'
   return f'''<div class="row" style="height: 56px; padding: 0 20px 0 12px; border-bottom: 1px solid var(--line); gap: 10px; flex-shrink: 0">
 <a href="DesktopChats.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver a chats">{ico('left')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis" style="font-weight: 600">{title}</span><span class="mono t-xs fg-3">claudio · 42281d · opus-5.5</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis" style="font-weight: var(--fw-strong)">{title}</span><span class="t-num t-xs fg-3">claudio · <span class="mono">42281d</span> · <span class="mono">opus-5.5</span></span></span>
 {pill}
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Buscar en el chat">{ico('search')}</button>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Más acciones">{ico('more', 'ico', 'stroke-width: 3')}</button>
@@ -166,13 +166,13 @@ def running_desktop():
 </div>
 {aside()}
 </div>'''
-  write('DesktopChatEnMarcha.html', desktop('Chat con subagentes en marcha', 'chats', '<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">42281d</span>', main, agents=3, running=3))
+  write('DesktopChatEnMarcha.html', desktop('Chat con subagentes en marcha', 'chats', '<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: var(--fw-regular)">42281d</span>', main, agents=3, running=3))
 
 
 def mobile_head():
   return f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px">
 <a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 2px; min-width: 0"><span class="ellipsis" style="font-weight: 600; font-size: 16px; line-height: 1.3">Investiga cómo se pintan las llamadas</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">trabajando · 1:12</span></span></span>
+<span class="col grow" style="gap: 2px; min-width: 0"><span class="ellipsis" style="font-weight: var(--fw-strong); font-size: var(--fs-input); line-height: 1.3">Investiga cómo se pintan las llamadas</span><span class="t-num row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">trabajando · 1:12</span></span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Detalles">{ico('info', 'ico ico-lg')}</button>
 </header>'''
 
@@ -186,7 +186,7 @@ def running_mobile():
   sheet = f'''<div style="position: absolute; inset: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 60%, transparent)"></div>
 <div class="sheet" role="dialog" aria-label="En marcha" style="z-index: 11; padding-bottom: 34px">
 <div class="grab"></div>
-<div class="row" style="margin: 0 4px 10px"><span style="font-weight: 600; font-size: 16px" class="grow">En marcha</span><span class="mono t-xs fg-3">2 agentes · 1 tarea</span></div>
+<div class="row" style="margin: 0 4px 10px"><span style="font-weight: var(--fw-strong); font-size: var(--fs-input)" class="grow">En marcha</span><span class="t-num t-xs fg-3">2 agentes · 1 tarea</span></div>
 <div class="col" style="gap: 2px">{''.join(ROWS)}</div>
 <button type="button" class="btn btn-ghost btn-lg" style="height: 52px; margin-top: 8px">Ocultar</button>
 </div>'''
@@ -224,7 +224,7 @@ def diff_block():
     fg = 'var(--fg-3)' if kind == 'ctx' else 'var(--fg)'
     sign = {'ctx': ' ', 'del': '−', 'add': '+'}[kind]
     rows += f'<div style="display: grid; grid-template-columns: 3px 40px 40px 16px minmax(0, 1fr); align-items: stretch; height: 20px; background: {bg}"><i style="background: {rail}"></i><span style="color: {rail if kind != "ctx" else "var(--fg-3)"}; text-align: right; padding-right: 8px">{a}</span><span style="color: {rail if kind != "ctx" else "var(--fg-3)"}; text-align: right; padding-right: 8px">{b}</span><span style="color: {fg}">{sign}</span><span style="color: {fg}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{t}</span></div>'
-  return f'<div class="call-diff" style="font-family: var(--mono); font-size: 12px; line-height: 20px; padding: 4px 0">{rows}</div>'
+  return f'<div class="call-diff" style="font-family: var(--mono); font-size: var(--fs-small); line-height: 20px; padding: 4px 0">{rows}</div>'
 
 
 EDIT_BODY = zone('Cambio', diff_block() + '<div class="call-meta"><span>packages/shared/src/normalize.ts</span><span class="c-ok">+2</span><span class="c-bad">−1</span></div>') + RAW
@@ -235,7 +235,7 @@ GREP_BODY = (zone('Llamada', '<div class="call-meta"><span>parent_tool_use_id</s
 AGENT_BODY = (zone('Llamada', '<div class="row" style="gap: 6px"><span class="badge">Explore</span><span class="badge">opus</span><span class="badge">en segundo plano</span></div><div class="row t-xs fg-3" style="gap: 6px; font-family: var(--mono)">' + ico('right', 'ico ico-sm') + '<span>Instrucciones</span></div>')
   + zone('Resultado', '<span class="t-sm fg-2">Lanzado en segundo plano</span>' + launch('agent', 'Investigar el stream del CLI', 'completed', 'Explore · 2 min 4 s')) + RAW)
 
-MCP_BODY = (zone('Llamada', '<div class="call-fields"><span class="call-field-key">query</span><span class="call-field">how tool calls are rendered in the chat transcript</span><span class="call-field-key">limit</span><span class="call-field mono">8</span></div>')
+MCP_BODY = (zone('Llamada', '<div class="call-fields"><span class="call-field-key">query</span><span class="call-field">how tool calls are rendered in the chat transcript</span><span class="call-field-key">limit</span><span class="t-num call-field">8</span></div>')
   + zone('Resultado', '<ul class="call-tree"><li><span class="k">count</span> <span class="v n">8</span></li><li><span class="k">results</span> <span class="fg-3">[8]</span><ul class="call-tree"><li><span class="k">file_path</span> <span class="v">plans/ui-redesign.md</span></li><li><span class="k">score</span> <span class="v n">0.0164</span></li><li><span class="k">chunk_content</span> <span class="v">"The transcript shows the author only when it changes, groups consecutive tool calls into a step…"</span></li></ul></li></ul>') + RAW)
 
 
@@ -255,7 +255,7 @@ def calls_open(mobile=False, second=False):
 
 
 def calls_desktop(second=False):
-  transcript = f'''<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: 14px; line-height: 1.65">
+  transcript = f'''<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: var(--fs-body); line-height: 1.65">
 <div style="align-self: flex-end; max-width: 82%; background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 11px 15px">Añade el detalle estructurado al resultado de cada herramienta.</div>
 <div class="col" style="gap: 8px">{step_line(6, '2 min 3 s', ['Bash', 'Read', 'Edit', 'Grep', 'Agent', 'kb_search_documents'], open_=True)}<div class="col" style="gap: 2px">{calls_open(second=second)}</div></div>
 </div>'''
@@ -269,16 +269,16 @@ def calls_desktop(second=False):
 </div>
 {aside(running=False)}
 </div>'''
-  write('DesktopChatLlamadasMas.html' if second else 'DesktopChatLlamadas.html', desktop('Las llamadas, abiertas', 'chats', '<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">42281d</span>', main, agents=2, running=2))
+  write('DesktopChatLlamadasMas.html' if second else 'DesktopChatLlamadas.html', desktop('Las llamadas, abiertas', 'chats', '<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: var(--fw-regular)">42281d</span>', main, agents=2, running=2))
 
 
 def calls_mobile(second=False):
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px">
 <a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 2px; min-width: 0"><span class="ellipsis" style="font-weight: 600; font-size: 16px; line-height: 1.3">Añade el detalle estructurado</span><span class="row t-xs mono fg-3" style="gap: 6px">inactivo · interactivo</span></span>
+<span class="col grow" style="gap: 2px; min-width: 0"><span class="ellipsis" style="font-weight: var(--fw-strong); font-size: var(--fs-input); line-height: 1.3">Añade el detalle estructurado</span><span class="t-num row t-xs fg-3" style="gap: 6px">inactivo · interactivo</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Detalles">{ico('info', 'ico ico-lg')}</button>
 </header>
-<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 12px 0; gap: 12px; font-size: 15px; line-height: 1.6">
+<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 16px 12px 0; gap: 12px; font-size: var(--fs-section); line-height: 1.6">
 {step_line(6, '2 min 3 s', ['Bash', 'Edit', 'kb_search…'], open_=True)}
 <div class="col" style="gap: 2px">{calls_open(True, second)}</div>
 </div>

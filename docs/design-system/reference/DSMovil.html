@@ -7,25 +7,25 @@
 <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start">
 
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Cabecera</h2><span class="mono t-xs fg-3">.m-head · volver + título + acción</span>
-<div class="row" style="gap: 2px; background: var(--bg-1); border-radius: 12px; padding: 6px 4px"><span class="btn btn-ghost btn-icon btn-lg"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg></span><span class="col grow" style="gap: 1px"><span style="font-weight: 600">spanish-copy</span><span class="row t-xs mono" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">en curso</span></span></span><span class="btn btn-ghost btn-icon btn-lg"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></span></div>
+<h2 class="t-h2">Cabecera</h2><span class="t-num t-xs fg-3"><span class="mono">.m-head</span> · volver + título + acción</span>
+<div class="row" style="gap: 2px; background: var(--bg-1); border-radius: 12px; padding: 6px 4px"><span class="btn btn-ghost btn-icon btn-lg"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg></span><span class="col grow" style="gap: 1px"><span style="font-weight: var(--fw-strong)">spanish-copy</span><span class="t-num row t-xs" style="gap: 6px"><span class="spin-braille"></span><span class="c-live">en curso</span></span></span><span class="btn btn-ghost btn-icon btn-lg"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 3"><path d="M5 12h.01M12 12h.01M19 12h.01"></path></svg></span></div>
 <span class="t-xs fg-2">El subtítulo lleva el estado vivo; nunca más de 2 acciones a la derecha.</span>
 </section>
 
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Celdas</h2><span class="mono t-xs fg-3">.cell en .card · min 52 px</span>
-<div class="card" style="overflow: hidden; background: var(--bg-1)"><div class="cell"><span class="spin-ring"></span><span class="col grow" style="gap: 1px"><span class="t-sm" style="font-weight: 500">Chats and home</span><span class="mono t-xs c-live">Run web unit tests</span></span></div><div class="cell"><span class="dot dot-idle"></span><span class="grow t-sm">Cual es el estado…</span><svg class="ico fg-3" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></div></div>
+<h2 class="t-h2">Celdas</h2><span class="t-num t-xs fg-3"><span class="mono">.cell</span> en <span class="mono">.card</span> · min 52 px</span>
+<div class="card" style="overflow: hidden; background: var(--bg-1)"><div class="cell"><span class="spin-ring"></span><span class="col grow" style="gap: 1px"><span class="t-sm" style="font-weight: var(--fw-regular)">Chats and home</span><span class="t-num t-xs c-live">Run web unit tests</span></span></div><div class="cell"><span class="dot dot-idle"></span><span class="grow t-sm">Cual es el estado…</span><svg class="ico fg-3" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></svg></div></div>
 <span class="t-xs fg-2">Sin casillas visibles: selección múltiple con pulsación larga.</span>
 </section>
 
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Filtros</h2><span class="mono t-xs fg-3">.chip en fila con scroll horizontal</span>
+<h2 class="t-h2">Filtros</h2><span class="t-num t-xs fg-3"><span class="mono">.chip</span> en fila con scroll horizontal</span>
 <div class="row" style="gap: 6px; overflow: hidden"><span class="chip on" style="height: 32px">Todos <span class="n">197</span></span><span class="chip" style="height: 32px"><span class="dot dot-live" style="width: 6px; height: 6px"></span>Trabajando</span><span class="chip" style="height: 32px">Esperan</span></div>
-<label class="field field-lg"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input type="search" placeholder="Busca en tus chats" aria-label="Ejemplo" style="font-size: 16px"></label>
+<label class="field field-lg"><svg class="ico" viewBox="0 0 24 24"><path d="M17.5 11a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0zM20 20l-4.2-4.2"></path></svg><input type="search" placeholder="Busca en tus chats" aria-label="Ejemplo" style="font-size: var(--fs-input)"></label>
 </section>
 
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Acción principal</h2><span class="mono t-xs fg-3">.fab · solo el icono, degradado + sombra cálida; se aparta al bajar y donde un estado vacío ya ofrece su acción</span>
+<h2 class="t-h2">Acción principal</h2><span class="t-num t-xs fg-3"><span class="mono">.fab</span> · solo el icono, degradado + sombra cálida; se aparta al bajar y donde un estado vacío ya ofrece su acción</span>
 <div style="position: relative; height: 110px; background: var(--bg-1); border-radius: 12px"><a href="#" class="fab" aria-label="Nuevo chat" style="position: absolute; bottom: 16px; right: 16px; padding: 0; width: 56px"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 5v14M5 12h14"></path></svg></a></div>
 <span class="t-xs fg-2">Con texto en Inicio; solo icono en listas. 100 px sobre la barra de pestañas.</span>
 </section>
@@ -33,7 +33,7 @@
 
 <div style="display: grid; grid-template-columns: 420px 420px minmax(0, 1fr); gap: 20px; align-items: start">
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Barra de pestañas</h2><span class="mono t-xs fg-3">.tabbar · 4 destinos · cristal + blur</span>
+<h2 class="t-h2">Barra de pestañas</h2><span class="t-num t-xs fg-3"><span class="mono">.tabbar</span> · 4 destinos · cristal + blur</span>
 <div style="border-radius: 12px; overflow: hidden; width: 390px">
 
 <nav class="app tabbar" data-theme="dark" aria-label="Principal" style="width: 390px">
@@ -51,12 +51,12 @@
 <span class="t-xs fg-2">Inicio, Chats, Orquestaciones (con contador vivo) y Más. El resto vive en Más.</span>
 </section>
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Compositor móvil</h2><span class="mono t-xs fg-3">píldora 24 px · .energy cuando trabaja</span>
-<div class="card energy row" style="border-radius: 24px; padding: 4px; gap: 4px; background: var(--bg-2)"><span class="btn btn-ghost btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><span class="grow fg-3" style="font-size: 16px">Envía un mensaje</span><span class="btn btn-danger btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg></span></div>
-<div class="card grad-border row" style="border-radius: 24px; padding: 4px; gap: 4px"><span class="btn btn-ghost btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><span class="grow fg-3" style="font-size: 16px">¿Qué debería hacer Claude?</span><span class="btn btn-primary btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></span></div>
+<h2 class="t-h2">Compositor móvil</h2><span class="t-num t-xs fg-3">píldora 24 px · <span class="mono">.energy</span> cuando trabaja</span>
+<div class="card energy row" style="border-radius: 24px; padding: 4px; gap: 4px; background: var(--bg-2)"><span class="btn btn-ghost btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><span class="grow fg-3" style="font-size: var(--fs-input)">Envía un mensaje</span><span class="btn btn-danger btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor"><path d="M6 6h12v12H6z"></path></svg></span></div>
+<div class="card grad-border row" style="border-radius: 24px; padding: 4px; gap: 4px"><span class="btn btn-ghost btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><span class="grow fg-3" style="font-size: var(--fs-input)">¿Qué debería hacer Claude?</span><span class="btn btn-primary btn-icon" style="width: 40px; height: 40px; border-radius: 50%"><svg class="ico ico-lg" viewBox="0 0 24 24" style="stroke-width: 2.2"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></span></div>
 </section>
 <section class="card card-pad col" style="gap: 14px">
-<h2 class="t-h2">Hoja inferior</h2><span class="mono t-xs fg-3">.sheet · .grab</span>
+<h2 class="t-h2">Hoja inferior</h2><span class="t-num t-xs fg-3"><span class="mono">.sheet</span> · <span class="mono">.grab</span></span>
 <div style="position: relative; height: 230px; background: var(--bg); border-radius: 12px; overflow: hidden"><div class="sheet" style="position: absolute"><div class="grab"></div><div class="col" style="gap: 2px"><button type="button" class="menu-item" style="height: 46px">Renombrar</button><button type="button" class="menu-item" style="height: 46px">Quitar de Claudio</button><button type="button" class="menu-item danger" style="height: 46px">Purgar estado de Claude Code</button></div></div></div>
 <span class="t-xs fg-2">Los menús de «⋯» en móvil se abren como hoja, nunca como menú flotante.</span>
 </section>

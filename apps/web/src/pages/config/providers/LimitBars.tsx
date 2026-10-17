@@ -2,7 +2,7 @@ import type { ProviderStatus } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
-import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
+import { formatDateTime, formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import { useLimitWindowName } from '../../../lib/limit-words';
 import { limitRows } from '../../../lib/limit-rows';
 
@@ -38,10 +38,10 @@ export function LimitBars({ status }: { status: ProviderStatus }) {
             return (
               <div className="lim-row" key={row.name}>
                 <span className="win">{name(row.name)}</span>
-                <div className="meter-track meter-thin" role="img" aria-label={t('limit.used', { window: name(row.name), percent: row.percent })}>
+                <div className="meter-track meter-thin" role="img" aria-label={t('limit.used', { window: name(row.name), percent: formatPercent(row.percent) })}>
                   <span className={`meter-fill ${tone === 'neutral' ? '' : `is-${tone}`}`.trim()} style={{ width: `${row.percent}%` }} />
                 </div>
-                <span className="pct">{row.percent} %</span>
+                <span className="pct">{formatPercent(row.percent)}</span>
                 <span className="reset">{row.resetsAt ? t('limit.resets', { when: formatDateTime(row.resetsAt) }) : t('limit.resetUnknown')}</span>
               </div>
             );

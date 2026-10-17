@@ -2,9 +2,6 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat } from '@claudio/shared';
-import { Composer } from '@claudio/chat-ui/composer/Composer';
-import { ChatUiProvider, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React, { type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -54,46 +51,31 @@ for (const language of ['en', 'es'] as const) {
       assert.ok(words.includes(i18n.t(`assistant:claudio.starter.${key}.title`)), key);
       assert.ok(words.includes(i18n.t(`assistant:claudio.starter.${key}.ask`)), key);
     }
-    // A starter only fills the composer: the one send button is disabled until there is text
-    assert.match(html, /<button type="submit" class="composer-send"[^>]*disabled/);
+    // A starter only fills the composer: the one start button is disabled until there is text
+    assert.match(html, /<button type="submit" class="btn btn-primary new-start"[^>]*disabled/);
     assert.doesNotMatch(html, /as-context/, 'with no project in scope there is no context chip');
-    // Never the gradient on the mark, never an Empty illustration
-    assert.doesNotMatch(html, /grad-border|illustration/);
+    // Never an Empty illustration: the gradient hairline is the box's, what the page is about
+    assert.doesNotMatch(html, /illustration/);
   });
 
-  test(`the entry's box is a chat's composer, without what the assistant cannot use (${language})`, async () => {
+  test(`the entry's box is New chat's, centred under the greeting, without what the assistant cannot use (${language})`, async () => {
     await i18n.changeLanguage(language);
     const html = wrap(<ClaudioAssistant />);
-    // The chat's card, editor, line of chips and keys, in the chat's order
-    const order = ['class="composer-wrap"', '<form class="composer"', 'class="composer-editor"', 'class="composer-send"', 'class="composer-foot"', 'class="composer-status"', 'class="composer-keys"'];
+    // New chat's card: the editor, then a foot with the chips, the key hint and the start button
+    const order = ['class="as-hello"', 'class="new-composer-wrap"', '<form class="composer grad-border new-composer"', 'class="composer-editor"', 'class="new-composer-foot"', 'class="composer-status"', 'class="composer-keys"', 'new-start', 'class="as-starters-section"'];
     const at = order.map((mark) => html.indexOf(mark));
-    assert.ok(at.every((i) => i >= 0), `every part of the chat's composer is drawn (${order.filter((_, i) => at[i]! < 0).join(', ')})`);
-    assert.deepEqual([...at].sort((a, b) => a - b), at, 'in the order a chat draws them');
-    assert.equal((html.match(/class="composer-wrap"/g) ?? []).length, 1, 'one composer');
-    assert.ok(text(html).includes(i18n.t('chat:composer.keys')), "the chat's keys hint");
+    assert.ok(at.every((i) => i >= 0), `every part of the start box is drawn (${order.filter((_, i) => at[i]! < 0).join(', ')})`);
+    assert.deepEqual([...at].sort((a, b) => a - b), at, 'greeting, then the box, then the starters');
+    assert.equal((html.match(/class="new-composer-wrap"/g) ?? []).length, 1, 'one composer');
+    // The shared rule: Enter breaks the line, Ctrl/⌘+Enter starts
+    assert.match(html, /<kbd>Ctrl<\/kbd>/);
     // The model and the effort are the chips; no permission mode is offered, so none is in the accent
     assert.match(html, /class="composer-status-text">sonnet</);
     assert.doesNotMatch(html, /composer-status-word is-accent/);
-    // Hidden: the "+" (files, commands, servers, account), the stop, and the energy of a working chat
-    assert.doesNotMatch(html, /composer-plus|composer-stop|live-energy|is-working/);
+    // Hidden: files, the "+" (commands, servers, account), the stop, and the energy of a working chat
+    assert.doesNotMatch(html, /composer-attach|composer-plus|composer-stop|live-energy|is-working/);
     // The duplicate is gone: no textarea of its own, no foot of its own
     assert.doesNotMatch(html, /<textarea|as-composer/);
-  });
-
-  test(`the entry's box draws what a chat's composer draws, less the "+" (${language})`, async () => {
-    await i18n.changeLanguage(language);
-    const idle = { id: 'c1', title: 'A chat', provider: 'claude-code', model: 'sonnet', cwd: '/work', state: 'idle', execution: null, executions: [], updatedAt: '2026-10-17T10:00:00Z' } as unknown as Chat;
-    const config = { client: {}, agentNameFor: () => 'Claude', fallbackInterval: false, paths: { chat: (id: string) => `/chats/${id}`, chatChangeStep: () => '' }, slots: {} } as unknown as ChatUiConfig;
-    const chat = wrap(
-      <ChatUiProvider value={config}>
-        <Composer chat={idle} kind="send" onSent={() => {}} />
-      </ChatUiProvider>,
-    );
-    const entry = wrap(<ClaudioAssistant />);
-    // Every composer class, once, in the order it first appears
-    const parts = (html: string) => [...new Set([...html.matchAll(/class="([^"]*)"/g)].flatMap((m) => (m[1] ?? '').split(/\s+/)).filter((c) => c.startsWith('composer')))];
-    assert.ok(parts(chat).includes('composer-plus'), "a chat's box has its +");
-    assert.deepEqual(parts(entry), parts(chat).filter((c) => c !== 'composer-plus'));
   });
 
   test(`the greeting is the first message of an assistant's chat (${language})`, async () => {

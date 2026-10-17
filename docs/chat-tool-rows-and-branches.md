@@ -121,6 +121,31 @@ Details that are not obvious from the table:
 - On the web, `patchSubagentActivity` (`apps/web/src/lib/events.ts`) writes the activity into both
   chat-detail caches and the subagents lists, matching by call id or agent id, and refetches nothing.
 
+## Whether it is still going on
+
+One fact decides it: `Chat.alive`, true while a process holds the chat (an execution of Claudio's, or
+a terminal's or another program's), computed in `chat-service.ts` from the same sources the branch
+reader uses. A branch is running only in a chat that is alive.
+
+- **Core settles what nothing holds.** `toChildren(facts, id, settleAt)` (`chat-branches.ts`) turns every
+  `running` child of a chat that is not alive into `stopped` with an `endedAt` (the last execution's
+  end, else the session's last write). A workflow's agent that never reported is clamped to its
+  workflow's status. Every producer goes through it: the chat, the lists, and the subagent panel
+  (`agentTranscript` takes its status from the same branch facts, so the panel and the strip agree).
+- **The disk fold** counts a foreground `Agent` call's own result (`toolUseResult.status` is
+  `completed`) as the agent's stop; a background launch (`async_launched`) is ended by its
+  notification. A task stopped because its session ended gets the session's last write as `endedAt`,
+  so clocks stop.
+- **The stream** closes a foreground agent at the end of a turn (`endForeground`), as `trace()` closes
+  open calls; a process that ends marks what it took down `stopped`, the word screens use.
+- **A workflow** is running only with a matching active run on the stream (`mergeLiveWorkflows`).
+- **A terminal session that lets go** writes no file, so `SessionsWatcher` also compares who holds
+  which session every few seconds while someone follows the feed, and emits `sessions.changed`.
+- **The client** asks `packages/chat-ui/src/lib/liveness.ts`: `chatAlive`, `branchLive`,
+  `effectiveBranch` (a running branch of a chat nothing holds reads stopped), `workflowAgentLive`,
+  `chatBusy` (for lists and the shell) and `openCallInTurn` (the call in flight, looking only after
+  the last message a person sent). The strip, the cards and the polling intervals read through it.
+
 ## Copy
 
 Strings are under `transcript.call.*` (the lenses) and `branches.*` (the strip and cards) in

@@ -13,13 +13,13 @@
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 16px;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  line-height: var(--lh-small);
   text-align: center;
   box-shadow: 0 0 0 2px var(--bg);
   pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
 /* A question is waiting: the badge changes colour, so it reads apart from news */
 .bell-urgent {
@@ -32,7 +32,7 @@
 }
 
 .notif-panel {
-  width: min(420px, calc(100vw - 16px));
+  width: min(420px, calc(100vw - var(--ov-left) - var(--ov-right)));
   max-height: min(600px, var(--radix-popover-content-available-height, 600px));
   padding: 0;
   gap: 0;
@@ -121,10 +121,10 @@
 }
 .is-unread .notif-title {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 .notif-body {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   overflow-wrap: anywhere;
   display: -webkit-box;
@@ -133,8 +133,7 @@
   overflow: hidden;
 }
 .notif-meta {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }
@@ -187,12 +186,9 @@
 }
 .notif-prefs-group {
   margin-top: 4px;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 /* Toasts: the warning tone, and the action a toast can carry */

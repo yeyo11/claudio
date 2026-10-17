@@ -103,7 +103,7 @@ export function RunWaitWords({ wait }: { wait: Pick<LimitWait, 'provider' | 'res
       {' · '}
       {wait.resetsAt ? (
         <>
-          {t('limitWait.resumesAt')} <span className="mono">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Date.parse(wait.resetsAt) / 1000)})
+          {t('limitWait.resumesAt')} <span className="tnum">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Date.parse(wait.resetsAt) / 1000)})
         </>
       ) : (
         t('limitWait.unknown')

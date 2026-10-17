@@ -94,7 +94,7 @@
       "probe": "without running anything",
       "failure": "when a turn hit it"
     },
-    "used": "{{window}}: {{percent}} % used",
+    "used": "{{window}}: {{percent}} used",
     "resets": "resets {{when}}",
     "resetUnknown": "reset not known",
     "unknown": "The last reading is out of date, so the limit is not known until a new one arrives.",

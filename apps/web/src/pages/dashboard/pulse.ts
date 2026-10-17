@@ -1,4 +1,5 @@
 import type { Project } from '@claudio/shared';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { useChats, useOrchestrations, useOverview, useUsage } from '../../api';
 import { inProject } from '../../lib/project-scope';
 import { limitSummary, type LimitSummary } from './model';
@@ -21,7 +22,7 @@ export interface HomePulse {
   loading: boolean;
   /** The API did not answer: nothing here can be said about the live state */
   unreachable: boolean;
-  /** Agents at work: working chats plus the running tasks of running orchestrations */
+  /** Agents at work: working chats, the running tasks of running orchestrations and what live chats delegated */
   agents: number;
   chatsWorking: number;
   orchestrationsRunning: number;
@@ -50,13 +51,15 @@ export function useHomePulse(project: Project | null): HomePulse {
   const scoped = (orchestrations.data ?? []).filter((o) => !project || inProject(project, o.cwd));
   const running = scoped.filter((o) => o.status === 'running');
   const runningTasks = running.reduce((n, o) => n + o.tasks.filter((task) => task.status === 'running').length, 0);
-  const chatsWorking = working.data?.length ?? 0;
+  const chatsWorking = (working.data ?? []).filter((chat) => chatBusy(chat)).length;
+  // What live chats delegated: the overview counts only branches a held chat has, and counts every project, so a scope leaves them out
+  const delegated = project ? 0 : (overview.data?.counts.subagents ?? 0) + (overview.data?.counts.workflows ?? 0);
   const row = project ? usage.data?.projects.find((p) => p.project?.id === project.id) : usage.data?.total;
 
   return {
     loading: overview.isLoading || orchestrations.isLoading || working.isLoading || waiting.isLoading,
     unreachable: overview.isError && !overview.data,
-    agents: chatsWorking + runningTasks,
+    agents: chatsWorking + runningTasks + delegated,
     chatsWorking,
     orchestrationsRunning: running.length,
     waiting: (waiting.data?.length ?? 0) + scoped.filter((o) => o.status === 'waiting').length,

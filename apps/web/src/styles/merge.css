@@ -28,10 +28,10 @@
 }
 
 .mg-sub {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 
 .mg-fields {
@@ -49,7 +49,7 @@
 }
 
 .mg-hint {
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-3);
 }
@@ -58,7 +58,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg);
   cursor: pointer;
@@ -79,7 +79,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg);
 }
@@ -96,7 +96,7 @@
 
 .mg-mono {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
   overflow-wrap: anywhere;
 }
@@ -114,7 +114,7 @@
 .mg-note {
   flex: 1 1 220px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-3);
 }
@@ -189,13 +189,13 @@
 
 .mb-code {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   overflow-wrap: anywhere;
 }
 
 .mb-text {
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg);
 }
@@ -203,7 +203,7 @@
 /* The host's own words: untrusted, drawn as text in mono */
 .mb-detail {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-3);
   overflow-wrap: anywhere;
@@ -231,7 +231,7 @@
   flex-wrap: wrap;
   gap: 8px;
   min-height: 32px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
   border-top: 1px solid var(--line);
 }
@@ -256,12 +256,12 @@
   .mg-check {
     min-height: var(--touch);
     align-items: center;
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .mg input,
   .mg textarea {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .mg input {

@@ -21,7 +21,7 @@
 }
 
 .prov-row .monogram {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .prov-row.open {
@@ -50,17 +50,18 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .prov-account {
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
 .prov-meta {
+  /* literal: a version, a binary path or a config home */
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -74,7 +75,7 @@
 
 .prov-reason {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
 }
@@ -83,7 +84,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -149,7 +150,7 @@
 }
 
 .prov-cell .prov-reason {
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .prov-cell .prov-actions {
@@ -174,13 +175,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
 /* The step stands in for the whole app: it scrolls on its own and keeps the halo the sign-in has */
 .prov-first-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 32px 24px 40px;
   background: var(--glow-top) no-repeat, var(--bg);
 }
@@ -193,9 +194,9 @@
 }
 
 .prov-first-name {
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.02em;
+  font-weight: var(--fw-strong);
+  font-size: var(--fs-section);
+  letter-spacing: var(--tracking-title);
 }
 
 .prov-first-intro {
@@ -229,7 +230,7 @@
   }
 
   .prov-first-intro h1 {
-    font-size: 24px;
+    font-size: var(--fs-title);
     line-height: 1.2;
   }
 
@@ -269,7 +270,7 @@
 }
 
 .prov-checked {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -287,7 +288,7 @@
 }
 
 .prov-summary {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -343,7 +344,7 @@
 }
 
 .prov-sheet input {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .prov-sheet-body {
@@ -390,8 +391,7 @@
 }
 
 .prov-limit-head .asof {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -403,11 +403,10 @@
 
 .lim-row {
   display: grid;
-  grid-template-columns: 26px 150px 40px minmax(0, 1fr);
+  grid-template-columns: 26px 150px 48px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
   font-variant-numeric: tabular-nums;
 }
@@ -426,7 +425,7 @@
 
 .prov-limit-note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
 }
@@ -444,11 +443,11 @@
   .lim-row .reset {
     grid-column: 2 / 4;
     white-space: normal;
-    font-size: 12px;
+    font-size: var(--fs-small);
   }
 
   .prov-limit-note {
-    font-size: 13.5px;
+    font-size: var(--fs-small);
   }
 
   .prov-sheet .btn,

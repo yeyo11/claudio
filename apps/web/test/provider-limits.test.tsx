@@ -100,8 +100,8 @@ test('Settings → Providers shows Claude Code with its limit, each window with 
   assert.match(words, /Claude Code/);
   assert.match(words, /ada@example\.com/);
   assert.match(words, /Limit .*Near its limit/);
-  assert.match(words, /72 %/);
-  assert.match(html, /aria-label="5 h: 72 % used"/);
+  assert.match(words, /72\s?%/);
+  assert.match(html, /aria-label="5 h: 72\s?% used"/);
   // Nothing about moving work to another agent
   assert.doesNotMatch(words, /counterpart|handoff|Model mapping|claude-swap/i);
 });

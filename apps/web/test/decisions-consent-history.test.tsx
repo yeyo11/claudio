@@ -133,8 +133,8 @@ test('a yes/no answer gets its two bars from the one probability', () => {
 test('the metrics show the CLI has no confidence and give the agreement its n', () => {
   const cli = renderToStaticMarkup(<PointMetrics stats={stats({ meanConfidence: null })} />);
   assert.match(cli, /Confidence<\/span><span>—<\/span>/);
-  assert.match(cli, /63 %/);
-  assert.match(cli, /88 %/);
+  assert.match(cli, /63\s?%/);
+  assert.match(cli, /88\s?%/);
   assert.match(cli, /n 24/);
   assert.match(cli, /Runs saved/);
 });

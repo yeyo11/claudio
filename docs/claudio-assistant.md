@@ -34,17 +34,20 @@ which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call
   the first row of the Más sheet; the tab bar keeps its four tabs.
 - **Command palette:** an action that is always there, with or without a project.
 - **Entry screen:** the greeting, optional live figures (chats running, orchestrations, today's
-  spend), four read-only starter chips and a composer. The composer is a chat's own: `StartComposer`
-  of `@claudio/chat-ui`, the same card, editor, send button, line of chips and keys hint, without the
-  "+", the stop button, the queue and the permission chip, which the confined assistant cannot use
-  (R16, [requests.md](requests.md)). Once the chat starts, `/chats/:id` draws the chat's own
-  `Composer`: the "+", the stop while the assistant works and the screen's one energy border on the
-  working box. `assistant.spec.mjs` checks both, and that the entry's box is drawn as a chat's (card,
-  editor type, send button and the line under it) in both themes. A starter only fills the composer. The project in scope shows as
-  "Con <project> como contexto", first in the line of chips, and an × clears it. Model and effort show
-  as chips that open the chat's options popover (a sheet on a phone): the model defaults to `sonnet`,
+  spend), then the box, then four read-only starter chips. The box is New chat's own: `StartComposer`
+  of `@claudio/chat-ui` with `layout="start"` (2026-10-17, at the owner's request that both start
+  screens use the same input), centred under the greeting on a desktop and at the foot on a phone, as
+  on New chat. It is New chat's card with its gradient hairline, the chips and the `Ctrl ↵` hint
+  inside it, and the "Start" button, without attachments, slash commands, the "+", the queue and the
+  permission chip, which the confined assistant cannot use (R16, [requests.md](requests.md)). Once
+  the chat starts, `/chats/:id` draws the chat's own `Composer`: the "+", the stop while the assistant
+  works and the screen's one energy border on the working box. `assistant.spec.mjs` checks both. A
+  starter only fills the box. The project in scope shows as "Con <project> como contexto", a status
+  chip first in the line of chips, and an × (44 px on touch) clears it. Model and effort show as
+  chips that open the chat's options popover (a sheet on a phone): the model defaults to `sonnet`,
   and the effort to the level recommended for an assistant (`medium` on Opus 5.5 and Sonnet 5.5, see
-  [effort.md](effort.md)). The send button is the screen's one gradient; there is no illustration.
+  [effort.md](effort.md)). The box's hairline is the screen's gradient surface; there is no
+  illustration.
 - **Starting:** `POST /assistant/chats` with `{ prompt, projectId?, model?, effort? }` and nothing else a chat
   could choose. The language comes from `Accept-Language`. The web then opens `/chats/:id`.
 - **Greeting:** drawn by `ChatView` from i18n (`AssistantGreeting`) for every chat that carries the

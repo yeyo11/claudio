@@ -69,7 +69,7 @@ export function RunLinkRow({
         )}
         <span className="work-link-state">
           <RunStatusBadge run={run} />
-          {cost !== undefined && <span className="mono small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
+          {cost !== undefined && <span className="small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
         </span>
         {reason && <span className="work-link-why">{reason}</span>}
         {/* Under the reason, as every failed run is told (design-system.md, "Copy"): the reason is

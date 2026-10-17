@@ -211,10 +211,12 @@ test('upcoming schedules: enabled, due again, soonest first, filtered and capped
 
 test('live by project: working and waiting per project, a chat counted once, loose chats left out', () => {
   const live = liveByProject([
-    { id: '1', state: 'working', project: { id: 'p', name: 'p' } },
-    { id: '2', state: 'waiting', project: { id: 'p', name: 'p' } },
-    { id: '1', state: 'working', project: { id: 'p', name: 'p' } },
-    { id: '3', state: 'working', project: null },
+    { id: '1', state: 'working', alive: true, project: { id: 'p', name: 'p' } },
+    { id: '2', state: 'waiting', alive: true, project: { id: 'p', name: 'p' } },
+    { id: '1', state: 'working', alive: true, project: { id: 'p', name: 'p' } },
+    { id: '3', state: 'working', alive: true, project: null },
+    // A record nothing holds does not make its project look busy
+    { id: '4', state: 'working', alive: false, project: { id: 'p', name: 'p' } },
   ]);
   assert.deepEqual([...live.entries()], [['p', { working: 1, waiting: 1 }]]);
 });

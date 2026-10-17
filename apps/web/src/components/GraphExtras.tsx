@@ -230,7 +230,7 @@ export function GraphShape({ tasks }: { tasks: ReadonlyArray<Pick<OrchestrationT
   return (
     <div className="graph-shape stack-tight" data-testid="graph-shape">
       <p className="form-hint graph-shape-line">
-        <span className="mono">{t('orchestration.shape', { count: shape.stages })}</span>
+        <span className="tnum">{t('orchestration.shape', { count: shape.stages })}</span>
         {shape.stages > 1 && (
           <>
             <span aria-hidden> · </span>

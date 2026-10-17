@@ -55,9 +55,8 @@
   background: var(--bg-3);
   box-shadow: inset 0 0 0 1px var(--line-2);
   color: var(--fg-2);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .collab-card-actions,
@@ -92,7 +91,7 @@
 .collab-you-who .collab-avatar {
   width: 40px;
   height: 40px;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .collab-you-names,
@@ -113,7 +112,7 @@
 }
 
 .collab-connection {
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .collab-you-form {
@@ -153,8 +152,8 @@
 .collab-count {
   flex: none;
   color: var(--fg-3);
-  font-size: 12px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
 }
 
@@ -274,8 +273,8 @@
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .collab-install {
@@ -365,7 +364,7 @@
 
 .collab-invite-area {
   width: 100%;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   overflow-wrap: anywhere;
   resize: vertical;
@@ -408,7 +407,7 @@
 
   /* A phone zooms into any field under 16 px */
   .collab-invite-area {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .collab-share-actions {
@@ -420,6 +419,5 @@
 
 /* The chat header's "Reads teammates' shares", in the guard tag's mono */
 .teammate-reads-tag {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-small);
 }

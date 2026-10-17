@@ -1,6 +1,6 @@
 /* Status and feedback: badges, dots, alerts, empty states, skeletons, facts. */
 /*
- * A badge is a state label: mono, uppercase, on a soft fill of its tone. `--tone` and `--tone-soft`
+ * A badge is a state label: a word in sentence case, sans, on a soft fill of its tone. `--tone` and `--tone-soft`
  * are all a variant sets, so a new one is two lines. The word is always there: the colour only
  * repeats it.
  */
@@ -15,13 +15,10 @@
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--tone-soft);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  line-height: 1.7;
-  text-transform: uppercase;
+  line-height: var(--lh-small);
   white-space: nowrap;
   color: var(--tone);
   /* A badge is a word or two; should one ever be longer than its column it ends in an ellipsis
@@ -86,12 +83,10 @@ a.badge:hover {
   --tone-soft: var(--live-soft);
 }
 
-/* A project is a name, not a state: it keeps its own case */
+/* A project is a name, not a state */
 .badge-project {
   --tone: var(--accent);
   --tone-soft: var(--accent-soft);
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 /* The gradient badge: only for what is in use (the active account) */
@@ -317,9 +312,8 @@ a.badge:hover {
 }
 
 .ring-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
@@ -365,15 +359,15 @@ a.badge:hover {
 
 .state-empty strong {
   color: var(--fg);
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: var(--fw-strong);
+  font-size: var(--fs-body);
   line-height: 1.3;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-title);
 }
 
 .state-empty .muted {
   max-width: 46ch;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.55;
   color: var(--fg-2);
 }
@@ -393,12 +387,12 @@ a.badge:hover {
 }
 
 .state-illustrated strong {
-  font-size: 17px;
+  font-size: var(--fs-title);
 }
 
 .state-illustrated .muted {
   max-width: 420px;
-  font-size: 13.5px;
+  font-size: var(--fs-small);
 }
 
 /* The shared gap already spaces the actions from the text */
@@ -413,7 +407,7 @@ a.badge:hover {
   border-radius: var(--radius-lg);
   background: var(--bg-sunken);
   padding: 12px 14px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
   animation: fade-rise var(--dur-base) var(--ease-out);
 }
@@ -481,7 +475,7 @@ a.badge:hover {
 
 .kv dt {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .kv dd {
@@ -528,9 +522,10 @@ a.badge:hover {
 }
 
 .gauge-value {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
+  font-variant-numeric: tabular-nums;
 }
 
 .gauge-text {
@@ -540,7 +535,7 @@ a.badge:hover {
 
 /* Sentence case, as the copy is written: capitalising read "Se Reinicia En" */
 .gauge-name {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .meter-track {

@@ -78,7 +78,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(firstTree.every(alive), 'a hint leaves the command running');
 
     // Cancel: after a confirmation, the command's whole tree goes and the worker carries on
-    await page.click(`${HEALTH} button`, 'Cancel the command');
+    await page.click(`${HEALTH} button`, 'Cancel command');
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the cancel confirmation' });
     await page.eval(`[...document.querySelector('[role=dialog]').querySelectorAll('button')].find((b) => b.textContent.includes('Cancel the command')).click(); return true;`);
     await until(() => firstTree.every((pid) => !alive(pid)), 'every process of the cancelled command is gone');
@@ -93,7 +93,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // Interrupt: the turn ends, its command with it, and the process stays for the next message
     const secondTree = tree(second.commandPid);
     check(secondTree.every(alive), 'the second command is running');
-    await page.click(`${HEALTH} button`, 'Interrupt');
+    // Interrupt belongs to the section, so it sits in the Health header and not in a signal
+    await page.click('.chat-inspector .insp-head button', 'Interrupt');
     await until(() => logOf(fake.log).some((e) => e.event === 'control' && e.subtype === 'interrupt'), 'the interrupt reached the CLI as a control request');
     await until(() => secondTree.every((pid) => !alive(pid)), 'the interrupted command is gone');
     const idle = await until(async () => {

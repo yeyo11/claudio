@@ -13,6 +13,7 @@ import {
   type EvalSample,
   type EvalVariant,
 } from '@claudio/shared';
+import { formatPercent } from '@claudio/ui/lib/format';
 
 /** The pure parts of the start dialog, the run view, the sample and the history. */
 
@@ -359,8 +360,8 @@ export function passHatK(n: number, c: number, k: number): number {
   return all;
 }
 
-/** A rate as a percentage, rounded: "62 %". */
-export const percent = (rate: number): string => `${Math.round(rate * 100)} %`;
+/** A rate (0–1) as a rounded percentage in the active language: "62%" in English, "62 %" in Spanish. */
+export const percent = (rate: number): string => formatPercent(Math.round(rate * 100));
 
 /**
  * The cells of a run read as metrics: a case, a variant and a pressure level, over the newest try

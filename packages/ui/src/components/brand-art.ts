@@ -1,3 +1,4 @@
+// design-lint-ok-file: the brands' official logo colours, generated from their SVG files
 // Generated from the brands' own SVG files (see docs/design-system.md, "Brand marks"); do not edit by hand.
 // Simple Icons (CC0) for GitHub, GitLab and Claude; JetBrains' brand resources for YouTrack. A brand's mark is its trademark, used here to name the program.
 

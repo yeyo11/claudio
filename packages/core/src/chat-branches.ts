@@ -70,13 +70,21 @@ export function toChatSubagent(sub: LiveSubagent, tasks: ChatBackgroundTask[], s
   };
 }
 
-const agentStatus = (state: string): ChatWorkflowAgent['status'] => (state === 'done' ? 'completed' : state === 'error' ? 'failed' : 'running');
+/**
+ * An agent that has not reported done or failed is running only while its workflow is: once the
+ * workflow has ended, whatever it was left doing ended with it, and takes the workflow's outcome.
+ */
+function agentStatus(state: string, workflow: ChatBranchStatus): ChatWorkflowAgent['status'] {
+  if (state === 'done') return 'completed';
+  if (state === 'error') return 'failed';
+  return workflow;
+}
 
-function toWorkflowAgent(agent: WorkflowAgentState): ChatWorkflowAgent {
+function toWorkflowAgent(agent: WorkflowAgentState, workflow: ChatBranchStatus): ChatWorkflowAgent {
   return {
     index: agent.index,
     label: agent.label,
-    status: agentStatus(agent.state),
+    status: agentStatus(agent.state, workflow),
     id: agent.agentId,
     phase: agent.phaseTitle,
     model: agent.model,
@@ -98,7 +106,7 @@ export function toChatWorkflow(workflow: WorkflowRun): ChatWorkflow {
     startedAt: workflow.startedAt,
     endedAt: workflow.endedAt,
     phases: workflow.phases,
-    agents: workflow.agents.map(toWorkflowAgent),
+    agents: workflow.agents.map((a) => toWorkflowAgent(a, workflow.status)),
     ...(workflow.result !== undefined ? { result: workflow.result } : {}),
     summary: workflow.summary,
     totalTokens: workflow.totalTokens,
@@ -114,10 +122,44 @@ export interface BranchFacts {
 }
 
 /**
- * A chat's branches. A command a subagent launched belongs to that subagent and is listed under
- * it; the chat's own are the ones nobody else launched. Running work comes first.
+ * Ends what a chat that nothing holds any more still reports as running: its process took the
+ * work down with it, whatever the file or the stream last said. `endedAt` is when that was, the
+ * last execution's end or the session's last write, so a clock stops there instead of counting on.
  */
-export function toChildren({ subagents, tasks, workflows }: BranchFacts, sessionId: string): ChatChildren {
+export function settleChildren(children: ChatChildren, endedAt: string): ChatChildren {
+  const task = (t: ChatBackgroundTask): ChatBackgroundTask => (t.status === 'running' ? { ...t, status: 'stopped', endedAt: t.endedAt ?? endedAt } : t);
+  return {
+    subagents: children.subagents.map((s) => ({
+      ...s,
+      ...(s.status === 'running' ? { status: 'stopped' as const, endedAt: s.endedAt ?? endedAt } : {}),
+      // An ended agent is doing nothing, whatever its last call left open
+      activity: null,
+      tasks: s.tasks.map(task),
+    })),
+    backgroundTasks: children.backgroundTasks.map(task),
+    workflows: children.workflows.map((w) => {
+      const status = w.status === 'running' ? 'stopped' : w.status;
+      return {
+        ...w,
+        status,
+        endedAt: w.status === 'running' ? (w.endedAt ?? endedAt) : w.endedAt,
+        agents: w.agents.map((a) => (a.status === 'running' ? { ...a, status } : a)),
+      };
+    }),
+  };
+}
+
+/**
+ * A chat's branches. A command a subagent launched belongs to that subagent and is listed under
+ * it; the chat's own are the ones nobody else launched. Running work comes first. With `settleAt`
+ * the chat is not alive, and nothing in it is reported as running.
+ */
+export function toChildren({ subagents, tasks, workflows }: BranchFacts, sessionId: string, settleAt?: string): ChatChildren {
+  const children = group({ subagents, tasks, workflows }, sessionId);
+  return settleAt === undefined ? children : settleChildren(children, settleAt);
+}
+
+function group({ subagents, tasks, workflows }: BranchFacts, sessionId: string): ChatChildren {
   const mapped = tasks.map(toChatTask);
   const owners = new Set(subagents.map(subagentId));
   const running = (a: { status: string; startedAt: string }, b: { status: string; startedAt: string }) =>

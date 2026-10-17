@@ -97,7 +97,7 @@ def sel(label, options, value, disabled=False, big=False):
   """A select of components/controls: the field's own look, a chevron, never the browser's. On a phone it is
   a 44 px control at 16 px, as the decision settings draw theirs."""
   opts = ''.join(f'<option{" selected" if o == value else ""}>{o}</option>' for o in options)
-  size = ' style="width: 100%; font-size: 16px; height: 44px"' if big else ''
+  size = ' style="width: 100%; font-size: var(--fs-input); height: 44px"' if big else ''
   dis = ' disabled' if disabled else ''
   return f'<span class="trk-sel"><select class="select" aria-label="{label}"{dis}{size}>{opts}</select>{ico("down", "ico ico-sm")}</span>'
 
@@ -114,7 +114,7 @@ def mapping(sc, big=False):
     rows = [('in_progress', 'En curso', ['Sin cambios'], 'Sin cambios', True, f'{label} solo tiene abierta y cerrada.'),
             ('in_review', 'En revisión', ['Sin cambios'], 'Sin cambios', True, f'{label} solo tiene abierta y cerrada.'),
             ('done', 'Hecha', [close, 'Sin cambios'], close, False, '')]
-    foot = (f'Al fusionarse la {s["noun"]} la incidencia se cierra sola con <span class="mono fg-2">Closes #12</span> en su descripción. '
+    foot = (f'Al fusionarse la {s["noun"]} la incidencia se cierra sola con <span class="t-num fg-2">Closes <span class="mono">#12</span></span> en su descripción. '
             f'Si no pudo, porque la rama de destino no es la principal, Claudio la cierra después y comprueba que ha quedado cerrada.')
   else:
     rows = [('in_progress', 'En curso', ['Sin cambios'], 'Sin cambios', True, 'Disponible cuando Claudio pruebe youtrack-app.'),
@@ -150,7 +150,7 @@ def fields(sc, big=False):
     q_hint = 'La búsqueda de GitHub tal cual, la que escribirías en su pestaña de incidencias. Al importar sale ya escrita.'
     disabled, q_ph = '', 'is:open label:bug'
   size = ' field-lg' if big else ''
-  fs = ' style="font-size: 16px"' if big else ''
+  fs = ' style="font-size: var(--fs-input)"' if big else ''
   return (f'<div class="form-row"><span class="t-label">{scope_label}</span><label class="field field-mono mono{size}"><input value="{s["scope"]}" aria-label="{scope_label}"{fs}></label>'
           f'<span class="form-hint">{scope_hint}</span></div>'
           f'<div class="form-row"><span class="t-label">Consulta</span><label class="field field-mono mono{size}"><input value="{s["query"]}" placeholder="{q_ph}" aria-label="Consulta"{disabled}{fs}></label>'
@@ -173,7 +173,7 @@ def saved_note(sc):
 # ---------------------------------------------------------------- t-p2: the project's tracker
 def tracker_card(sc, big=False):
   s = SCENES[sc]
-  head = ('<div class="row"><h2 class="t-h2 grow" id="sec-tracker">Incidencias</h2><span class="mono t-xs fg-3">opcional</span></div>'
+  head = ('<div class="row"><h2 class="t-h2 grow" id="sec-tracker">Incidencias</h2><span class="t-num t-xs fg-3">opcional</span></div>'
           '<span class="t-sm fg-2" style="margin-top: -8px; line-height: 1.5">Enlaza las tareas del proyecto con las incidencias de un tracker: se importan, y la '
           f'{s["noun"]} las cita y las cierra.</span>')
   body = ''
@@ -209,10 +209,10 @@ def s_host(sc):
 def tracker_mobile(name, sc, title, sheet='', height=1000):
   s = SCENES[sc]
   cur = next((t for t in TRK_P2 if t == s['saved']), None)
-  chosen = (f'{trk_mono(cur)}<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 500">{TRK_P2[cur][0]}</span>'
+  chosen = (f'{trk_mono(cur)}<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-regular)">{TRK_P2[cur][0]}</span>'
             f'<span class="mono t-xs fg-3">{TRK_P2[cur][3]}</span></span>{trk_badge(next(st for t, st, _ in s["opts"] if t == cur))}'
             if cur else
-            f'<span class="proj" style="background: var(--bg-3); color: var(--fg-2)" aria-hidden="true">{ico("block")}</span><span class="grow" style="font-weight: 500">Ninguno</span>')
+            f'<span class="proj" style="background: var(--bg-3); color: var(--fg-2)" aria-hidden="true">{ico("block")}</span><span class="grow" style="font-weight: var(--fw-regular)">Ninguno</span>')
   tracker_cell = (f'<div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">Tracker</span>'
                   f'<section class="card" style="overflow: hidden"><a href="MobileProyectoTrackerElegir.html" class="cell" style="min-height: 64px">{chosen}{ico("right", "ico fg-3")}</a></section>'
                   f'<span class="form-hint" style="padding: 0 4px">Solo se pueden elegir los que están listos.</span></div>')
@@ -268,9 +268,9 @@ def states_mobile(name, title, scs, height=844):
   for sc, t, note in [x for x in STATES if x[0] in scs]:
     s = SCENES[sc]
     cur = s['saved']
-    chosen = (f'{trk_mono(cur)}<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: 500">{TRK_P2[cur][0]}</span>'
+    chosen = (f'{trk_mono(cur)}<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-regular)">{TRK_P2[cur][0]}</span>'
               f'<span class="mono t-xs fg-3">{TRK_P2[cur][3]}</span></span>{trk_badge(next(st for tt, st, _ in s["opts"] if tt == cur))}' if cur else
-              f'<span class="proj" style="background: var(--bg-3); color: var(--fg-2)" aria-hidden="true">{ico("block")}</span><span class="grow" style="font-weight: 500">Ninguno</span>')
+              f'<span class="proj" style="background: var(--bg-3); color: var(--fg-2)" aria-hidden="true">{ico("block")}</span><span class="grow" style="font-weight: var(--fw-regular)">Ninguno</span>')
     note_html = saved_note(sc).replace('btn btn-sm', 'btn btn-lg" style="justify-content: center') if cur else ''
     groups += (f'<div class="col" style="gap: 8px"><span class="t-label" style="padding: 0 4px">{t}</span>'
                f'<section class="card" style="overflow: hidden" aria-label="{t}"><a href="MobileProyectoTrackerElegir.html" class="cell" style="min-height: 64px">{chosen}{ico("right", "ico fg-3")}</a></section>'
@@ -327,7 +327,7 @@ HOSTS = [
 ]
 
 NOT_BUILT = {
-  'youtrack': ('YouTrack todavía no está disponible: Claudio aún no ha visto cómo responde <span class="mono">youtrack-app</span> '
+  'youtrack': ('YouTrack todavía no está disponible: Claudio aún no ha visto cómo responde <span class="t-num">youtrack-app</span> '
                'y no construye nada sobre algo que no ha visto.'),
 }
 
@@ -339,7 +339,7 @@ MAIN = [
        reason='Lee y escribe incidencias con glab, con la sesión que ya tiene. Sirve en los proyectos cuyo código está en GitLab.',
        short='Usa glab y su sesión, en proyectos con el código en GitLab.'),
   dict(id='youtrack', state='not-recorded', version='', path='', reason=NOT_BUILT['youtrack'],
-       short='Claudio aún no ha visto cómo responde <span class="mono">youtrack-app</span>, y no construye nada sobre eso.'),
+       short='Claudio aún no ha visto cómo responde <span class="t-num">youtrack-app</span>, y no construye nada sobre eso.'),
 ]
 
 # Scenarios for the states the first machine lacks. A tracker's readiness is its host's (it reuses the CLI),
@@ -407,7 +407,7 @@ def detail(t):
   """The registry's reason code, in mono, for the two trackers that are in it with no adapter."""
   if t['state'] != 'not-recorded':
     return ''
-  return '<span class="mono t-xs fg-3">unknown · not-recorded</span>'
+  return '<span class="t-num t-xs fg-3"><span class="mono">unknown</span> · <span class="mono">not-recorded</span></span>'
 
 
 def identity(t):
@@ -495,11 +495,11 @@ def pcell(t, first=False):
     right = badge('checking') if first else '<span class="skeleton" style="width: 84px; height: 20px" aria-hidden="true"></span>'
     sub = '<span class="skeleton" style="width: 110px; height: 10px; margin-top: 4px" aria-hidden="true"></span>'
     reason = f'<p class="prov-reason">{t["reason"]}</p>' if first and t['reason'] else ''
-    hd = f'<div class="prov-cell-head">{mono_ico(t["id"])}<div class="grow"><span style="font-weight: 500">{label}</span>{sub}</div>{right}</div>'
+    hd = f'<div class="prov-cell-head">{mono_ico(t["id"])}<div class="grow"><span style="font-weight: var(--fw-regular)">{label}</span>{sub}</div>{right}</div>'
     return f'<div class="prov-cell" data-tracker="{t["id"]}">{hd}{reason}</div>'
   acts = ''.join(actions(t))
   acts_html = f'<div class="row" style="gap: 8px; flex-wrap: wrap">{acts}</div>' if acts else ''
-  hd = (f'<div class="prov-cell-head">{mono_ico(t["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: 500">{label}</span>'
+  hd = (f'<div class="prov-cell-head">{mono_ico(t["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: var(--fw-regular)">{label}</span>'
         f'<span class="mono t-xs fg-3">{key}</span></span><span class="prov-meta">{m}</span></div>{tbadge(t)}</div>')
   return f'<div class="prov-cell" data-tracker="{t["id"]}">{hd}<p class="prov-reason">{t.get("short", t["reason"])}</p>{acts_html}</div>'
 
@@ -525,9 +525,9 @@ def binary_sheet(t):
 <div class="sheet" role="dialog" aria-label="{label}" style="z-index: 11; padding-bottom: 28px; display: flex; flex-direction: column; gap: 12px; max-height: 92%">
 <div class="grab" style="margin-bottom: 0"></div>
 <div class="prov-cell-head">{mono_ico(t["id"])}<div class="grow"><h2 class="t-h2">{label}</h2><span class="prov-meta">{cli} {t["version"]} · {t["path"]}</span></div>{tbadge(t)}</div>
-<p class="prov-reason" style="font-size: 14px">{t["reason"]}</p>
+<p class="prov-reason" style="font-size: var(--fs-body)">{t["reason"]}</p>
 <div class="col" style="gap: 8px"><span class="t-label">Binario de {cli} para {label}</span>
-<label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" placeholder="El mismo que usa {host}" aria-label="Ruta del binario de {cli} para {label}" style="font-size: 16px"></label>
+<label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" placeholder="El mismo que usa {host}" aria-label="Ruta del binario de {cli} para {label}" style="font-size: var(--fs-input)"></label>
 <span class="form-hint">Vacío, {label} usa el mismo programa que {host}. Si eliges otro, Claudio lee su versión antes de guardarlo y comprueba que no es anterior a la <span class="mono">{minimum}</span>.</span></div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary">Comprobar y guardar</button>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">Usar el del host</button><button type="button" class="btn btn-lg btn-ghost">Cancelar</button></div></div>

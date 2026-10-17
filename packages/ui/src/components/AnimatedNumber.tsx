@@ -1,5 +1,6 @@
 import { animate } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { formatNumber } from '../lib/format';
 import { useMotionLevel } from '../lib/motion';
 
 /**
@@ -9,7 +10,7 @@ import { useMotionLevel } from '../lib/motion';
  */
 export function AnimatedNumber({
   value,
-  format = (n) => String(Math.round(n)),
+  format = (n) => formatNumber(Math.round(n)),
   duration = 0.6,
   className = '',
 }: {

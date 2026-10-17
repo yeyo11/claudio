@@ -60,14 +60,78 @@
     "cancelTitle": "¿Cancelar este comando?",
     "cancelBody": "Solo se detienen los procesos de este comando. El turno sigue: el worker recibe un resultado fallido del comando y decide qué hacer después.",
     "cancelled": "Comando cancelado",
-    "hint": "Enviar una pista",
+    "hint": "Enviar pista",
     "hintLabel": "Pista para el worker",
-    "hintExplained": "Está escrita para esta señal; edítala antes de enviarla. Se añade a lo que el worker está haciendo ahora, y el worker sigue.",
+    "hintExplained": "Escrita para esta señal; edítala antes de enviarla.",
     "hintSent": "Pista enviada",
     "sendHint": "Enviar la pista",
     "sending": "Enviando…",
     "interrupt": "Interrumpir",
-    "interruptHint": "Interrumpe el turno en curso. El chat sigue abierto y espera lo que envíes a continuación."
+    "interruptHint": "Interrumpe el turno en curso. El chat sigue abierto y espera lo que envíes a continuación.",
+    "signal": {
+      "hung-command": "Comando colgado",
+      "repeat-stall": "Se vuelve a colgar",
+      "loop": "En bucle",
+      "weakened-test": "Prueba debilitada",
+      "no-progress": "Sin avances",
+      "silence": "En silencio",
+      "budget": "Cerca del límite",
+      "guard-blocked": "Bloqueado por la guarda",
+      "guard-missing": "La guarda no responde",
+      "last-execution": "Falló la última ejecución",
+      "context": "Contexto casi lleno",
+      "waiting": "Esperando a una persona",
+      "branches": "Ramas fallidas"
+    },
+    "figure": {
+      "minutes": "{{n}} min",
+      "times": "×{{n}}",
+      "count": "{{n}}"
+    },
+    "short": {
+      "hungCommand": {
+        "usual": "Suele tardar unos {{usualSeconds}}",
+        "fixed": "Debería acabar en menos de {{limitMinutes}} min"
+      },
+      "silence": "No hay ningún comando en marcha",
+      "lastExecution": {
+        "interrupted": "Se perdió su proceso",
+        "failed": "No se informó de ningún error",
+        "failedWithError": "{{error}}"
+      },
+      "waiting": "Un permiso, una pregunta o un plan",
+      "context": "Se compacta solo cuando se llena",
+      "branches": "Mira Ramas, en Entorno",
+      "repeatStall": "Cada ejecución, más de {{limitSeconds}}",
+      "loop": {
+        "command": "El mismo resultado cada vez",
+        "call": "{{tool}} con el mismo resultado",
+        "error": "{{error}}",
+        "semantic": "Parece el mismo intento otra vez"
+      },
+      "weakenedTest": {
+        "judged": "Puede que compruebe menos que antes",
+        "assertionsRemoved_one": "{{count}} aserción quitada",
+        "assertionsRemoved_other": "{{count}} aserciones quitadas",
+        "skipped": "Se omite una prueba",
+        "tautology": "Una aserción que no puede fallar",
+        "weakMatchers": "Comprobaciones que pasan con casi todo"
+      },
+      "noProgress": "Sin commits ni archivos cambiados",
+      "budget": {
+        "timeNear": "de {{limitMinutes}} min usados",
+        "timePast": "Pasó su límite de {{limitMinutes}} min",
+        "cost": "de {{limitUsd}} gastados"
+      },
+      "guardBlocked": "Última regla: {{rule}}",
+      "guardMissing": "Nada dice qué ejecuta"
+    },
+    "cancelCommand": "Cancelar comando",
+    "details": "Detalles",
+    "detailsReason": "Qué ha pasado",
+    "detailsLiteral": "Completo",
+    "copyLiteral": "Copiar",
+    "since": "Desde {{when}}"
   },
   "activity": {
     "title": "Qué hace ahora",

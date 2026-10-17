@@ -232,9 +232,9 @@ test('the proposed text handed to a member page is kept in session storage', () 
 
 test('the metrics show n and an interval beside every rate, never a bare percentage', () => {
   const html = page(() => {}, <MetricsTable run={run()} pressure="neutral" />);
-  assert.match(text(html), /4\/5 · 80 %/);
-  assert.match(text(html), /95 % interval 38 %–96 %/);
-  assert.match(text(html), /pass@3 100 % · pass\^3 40 %/);
+  assert.match(text(html), /4\/5 · 80%/);
+  assert.match(text(html), /95% interval 38%–96%/);
+  assert.match(text(html), /pass@3 100% · pass\^3 40%/);
   assert.match(text(html), /Must hold/);
 });
 
@@ -275,7 +275,7 @@ test('every verdict of the gate is a word and an icon, and says that nothing is 
     () => {},
     <GateCard gate={GATE({ verdict: 'regressed', regressed: [{ caseId: 'tests', pressure: 'competing', from: 0.8, to: 0.4 }] })} busy={false} onRejudge={noop} onAcceptJudge={noop} />,
   );
-  assert.match(text(regressed), /tests · Competing: pass\^k 80 % → 40 %/);
+  assert.match(text(regressed), /tests · Competing: pass\^k 80% → 40%/);
   assert.match(text(regressed), /Nothing is applied/);
 });
 
@@ -339,8 +339,8 @@ test('the trend draws a line, an interval band and a table view; one point is no
   const html = page(() => {}, <PassTrend points={points} />);
   assert.match(html, /evals-trend-line/);
   assert.match(html, /evals-trend-band/);
-  assert.match(html, /<title>[^<]*3\/4 cases, 75 % \(95 % interval/);
-  assert.match(html, /role="img"[^>]*aria-label="Pass rate over 2 runs, the latest 75 %"/);
+  assert.match(html, /<title>[^<]*3\/4 cases, 75% \(95% interval/);
+  assert.match(html, /role="img"[^>]*aria-label="Pass rate over 2 runs, the latest 75%"/);
   assert.match(text(page(() => {}, <PassTrend points={points.slice(0, 1)} />)), /Two scored runs are needed/);
 });
 

@@ -1,5 +1,5 @@
 import type { ChatChildren } from '@claudio/shared';
-import { Bot, Check, ChevronRight, CircleAlert, CircleStop, Terminal } from 'lucide-react';
+import { Bot, Check, ChevronRight, CircleAlert, CircleStop, Terminal, Workflow } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
@@ -13,7 +13,7 @@ import { activityTarget, activityVerb, formatElapsed } from '@claudio/ui/lib/liv
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useClockTick, useMotionLevel } from '@claudio/ui/lib/motion';
 import type { ProgressStatus } from '@claudio/ui/lib/progress';
-import { branchCounts, branchElapsed, liveBranches, newestBranch, nextExpiry, type Branch, type BranchCounts } from '../lib/chat-branches';
+import { branchCounts, branchElapsed, liveBranches, newestBranch, nextExpiry, type Branch, type BranchChat, type BranchCounts } from '../lib/chat-branches';
 
 /** Where the strip's fold is remembered: `'open' | 'closed'`, closed when nothing is stored. */
 export const BRANCHES_STORAGE_KEY = 'claudio-chat-branches';
@@ -101,7 +101,11 @@ function BranchRow({ branch }: { branch: Branch }) {
   return (
     <>
       <BranchState branch={branch} word={t(`branches.state.${branch.status}`)} />{' '}
-      <span className="badge chat-branch-kind">{branch.label}</span>{' '}
+      {/* The shape tells an agent from a shell command at a glance; the word stays the name */}
+      <span className="badge chat-branch-kind">
+        <KindIcon kind={branch.kind} />
+        {branch.label}
+      </span>{' '}
       <span className={`chat-branch-desc ${branch.mono ? 'mono' : ''}`.trimEnd()}>{branch.description}</span>{' '}
       <span className="chat-branch-act">
         {line && <span className="verb">{line.verb}</span>}
@@ -113,6 +117,12 @@ function BranchRow({ branch }: { branch: Branch }) {
       </span>
     </>
   );
+}
+
+function KindIcon({ kind }: { kind: Branch['kind'] }) {
+  if (kind === 'agent') return <Bot {...ICON_SM} aria-hidden />;
+  if (kind === 'task') return <Terminal {...ICON_SM} aria-hidden />;
+  return <Workflow {...ICON_SM} aria-hidden />;
 }
 
 function WorkflowFacts({ branch }: { branch: Branch }) {
@@ -176,9 +186,11 @@ function useThrottled(value: string): string {
  * the newest activity), and the person's fold is remembered; the list opens under it, or as a sheet
  * on a phone. With nothing to show it is not on the page at all.
  */
-export const LiveBranches = memo(function LiveBranches({ branches: children, onOpen }: { branches: ChatChildren; onOpen: (branch: Branch) => void }) {
+export const LiveBranches = memo(function LiveBranches({ branches: children, alive = true, onOpen }: { branches: ChatChildren; alive?: boolean; onOpen: (branch: Branch) => void }) {
   const [now, setNow] = useState(() => Date.now());
-  const branches = useMemo(() => liveBranches(children, Date.now()), [children, now]);
+  // What the chat's rules read of it: whether anything holds it, and what it delegated
+  const chat = useMemo<BranchChat>(() => ({ alive, state: alive ? 'working' : 'idle', children }), [alive, children]);
+  const branches = useMemo(() => liveBranches(chat, Date.now()), [chat, now]);
   // A branch that ended leaves after its grace: the page looks again when the first one is due
   const expiry = nextExpiry(branches, Date.now());
   useEffect(() => {
@@ -187,17 +199,17 @@ export const LiveBranches = memo(function LiveBranches({ branches: children, onO
     return () => clearTimeout(timer);
   }, [expiry]);
   if (branches.length === 0) return null;
-  return <Strip branches={branches} onOpen={onOpen} />;
+  return <Strip chat={chat} branches={branches} onOpen={onOpen} />;
 });
 
-function Strip({ branches, onOpen }: { branches: Branch[]; onOpen: (branch: Branch) => void }) {
+function Strip({ chat, branches, onOpen }: { chat: BranchChat; branches: Branch[]; onOpen: (branch: Branch) => void }) {
   const { t } = useTranslation('chat');
   const phone = useMediaQuery(NARROW);
   const [open, setOpen] = useState(readFold);
   const [sheet, setSheet] = useState(false);
-  const counts = branchCounts(branches);
+  const counts = branchCounts(chat, branches);
   const count = useCountLine(counts);
-  const newest = newestBranch(branches);
+  const newest = newestBranch(chat, branches);
   const verbOf = useVerb();
   const line = newest?.kind === 'agent' && newest.activity ? verbOf(newest) : null;
   const running = branches.some((branch) => branch.status === 'running');
@@ -280,7 +292,7 @@ function Strip({ branches, onOpen }: { branches: Branch[]; onOpen: (branch: Bran
 
 // ---------- the card under a step ----------
 
-const SEGMENT: Record<'running' | 'completed' | 'failed', ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed' };
+const SEGMENT: Record<Branch['segments'][number], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed', stopped: 'skipped' };
 
 /**
  * A branch a step started, as the card the conversation keeps where the delegation happened: what

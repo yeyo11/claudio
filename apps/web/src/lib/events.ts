@@ -78,6 +78,9 @@ const OVERVIEW = 800;
 // one read a second at most is plenty for rows whose live numbers are patched in between
 const LISTS = 1000;
 const CHATS = 2500;
+// A turn that ended is read once now and once more after the process let go: whether a chat is still
+// held (`alive`), and so whether its branches still run, is settled a moment after the turn
+const SETTLED = 2000;
 
 /** Every event name the server sends; typed as a record so a new event type cannot be forgotten. */
 const EVENT_TYPES: Record<ClaudioEventType, true> = {
@@ -188,8 +191,7 @@ const chatOf = (event: { runId: string; sessionId: string | null }): Target[] =>
 // The transcript pages of a chat, not everything under its key: permissions, the checklist and the
 // changes have events or intervals of their own, and a turn moving is no news to them
 const transcriptOf = (id: string): Target[] => [
-  [keys.chat(id, false), NOW],
-  [keys.chat(id, true), NOW],
+  [keys.chat(id), NOW],
   [['chat', id, 'tail'], NOW],
 ];
 
@@ -269,10 +271,14 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       // `patchRun` writes into the rows: the lists are read again only when that moved the state
       return event.previousStatus === null
         ? (hasLiveStream(event.runId) ? [] : transcriptOf(event.runId))
-        : [[keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW], ...liveCards(false)];
+        : [
+            [keys.chats, LISTS], [keys.chatScope(event.runId), NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['environments'], NOW],
+            // A run that starts or stops changes whether the chat holds its branches
+            ...activity(NOW), ...liveCards(false),
+          ];
     case 'run.ended':
       return [
-        [keys.chats, LISTS], [['chat', event.runId], NOW], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW],
+        [keys.chats, LISTS], [['chat', event.runId], NOW], [['chat', event.runId], SETTLED], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW],
         [['environments'], NOW], ...activity(OVERVIEW), ...liveCards(true),
       ];
     case 'run.removed':
@@ -500,9 +506,7 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
     chats?.some((chat) => chat.id === chatId) ? chats.map(patchChat) : chats,
   );
   // The chat's own page: its ticker falls back to this line between the blocks its stream shows
-  for (const sidechains of [false, true]) {
-    client.setQueryData<ChatDetail>(keys.chat(chatId, sidechains), (detail) => (detail ? { ...detail, chat: { ...detail.chat, activity } } : detail));
-  }
+  client.setQueryData<ChatDetail>(keys.chat(chatId), (detail) => (detail ? { ...detail, chat: { ...detail.chat, activity } } : detail));
   client.setQueriesData<Overview>({ queryKey: keys.overview }, (overview) =>
     overview?.recentChats.some((chat) => chat.id === chatId) ? { ...overview, recentChats: overview.recentChats.map(patchChat) } : overview,
   );
@@ -531,8 +535,8 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
 }
 
 /**
- * Writes what a subagent is doing into the caches that list it, in place: the chat's detail (with
- * and without its sidechains) and the subagents lists. A subagent is named by the agent id once the
+ * Writes what a subagent is doing into the caches that list it, in place: the chat's detail and the
+ * subagents lists. A subagent is named by the agent id once the
  * CLI gave one and by the call that launched it until then, so either matches.
  */
 export function patchSubagentActivity(client: QueryClient, event: SubagentActivityEvent): void {
@@ -541,12 +545,10 @@ export function patchSubagentActivity(client: QueryClient, event: SubagentActivi
   const { activity } = event;
   const named = (sub: ChatSubagent) => sub.id === event.toolUseId || (event.agentId !== null && sub.id === event.agentId);
   const patch = <S extends ChatSubagent>(subs: S[]): S[] => (subs.some(named) ? subs.map((sub) => (named(sub) ? { ...sub, activity } : sub)) : subs);
-  for (const sidechains of [false, true]) {
-    client.setQueryData<ChatDetail>(keys.chat(chatId, sidechains), (detail) => {
-      if (!detail || !detail.chat.children.subagents.some(named)) return detail;
-      return { ...detail, chat: { ...detail.chat, children: { ...detail.chat.children, subagents: patch(detail.chat.children.subagents) } } };
-    });
-  }
+  client.setQueryData<ChatDetail>(keys.chat(chatId), (detail) => {
+    if (!detail || !detail.chat.children.subagents.some(named)) return detail;
+    return { ...detail, chat: { ...detail.chat, children: { ...detail.chat.children, subagents: patch(detail.chat.children.subagents) } } };
+  });
   // Every list under the prefix holds entries of every chat: only this chat's are touched
   client.setQueriesData<ChatSubagentEntry[]>({ queryKey: keys.subagents }, (list) => {
     if (!Array.isArray(list) || !list.some((sub) => sub.sessionId === chatId && named(sub))) return list;

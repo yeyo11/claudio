@@ -96,12 +96,12 @@
 .il .stop-in { stop-color: var(--mask-ink); }
 .il .stop-out { stop-color: var(--mask-ink); stop-opacity: 0; }
 
-/* Text */
-.il .txt { font-family: var(--mono); font-size: 9px; fill: var(--fg-2); }
-.il .txt-tone { font-family: var(--mono); font-size: 9px; fill: var(--il-tone); }
-.il .txt-big { font-family: var(--mono); font-size: 13px; font-weight: 600; fill: var(--fg-3); }
-.il .glyph { font-family: var(--mono); font-size: 17px; font-weight: 600; fill: var(--il-grad); }
-.il .glyph-white { font-family: var(--mono); font-size: 15px; font-weight: 600; fill: var(--accent-text); }
+/* Text: the scene's own code and glyphs, in the SVG's user units so they scale with the art */
+.il .txt { font-family: var(--mono); font-size: 9px; fill: var(--fg-2); } /* design-lint-ok: SVG user units, scaled with the drawing; not screen type */
+.il .txt-tone { font-family: var(--mono); font-size: 9px; fill: var(--il-tone); } /* design-lint-ok: SVG user units, scaled with the drawing; not screen type */
+.il .txt-big { font-family: var(--mono); font-size: 13px; font-weight: var(--fw-strong); fill: var(--fg-3); } /* design-lint-ok: SVG user units, scaled with the drawing; not screen type */
+.il .glyph { font-family: var(--mono); font-size: 17px; font-weight: var(--fw-strong); fill: var(--il-grad); } /* design-lint-ok: SVG user units, scaled with the drawing; not screen type */
+.il .glyph-white { font-family: var(--mono); font-size: 15px; font-weight: var(--fw-strong); fill: var(--accent-text); } /* design-lint-ok: SVG user units, scaled with the drawing; not screen type */
 
 /* Motion: slow loops, only on what is "alive" in the scene */
 .il .a-float { animation: il-float var(--il-float-cycle) ease-in-out infinite; }

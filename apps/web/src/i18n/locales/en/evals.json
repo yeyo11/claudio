@@ -514,15 +514,15 @@
   },
   "metrics": {
     "title": "Metrics",
-    "note": "Rates are shown with the number of attempts and a 95 % interval: with few attempts the interval is wide.",
+    "note": "Rates are shown with the number of attempts and a 95% interval: with few attempts the interval is wide.",
     "caption": "Pass rate per case and variant at the {{pressure}} level",
     "empty": "No attempt was scored at this level.",
     "notScored": "Not scored",
     "unjudged_one": "{{count}} unjudged",
     "unjudged_other": "{{count}} unjudged",
     "rate": "{{c}}/{{n}} · {{rate}}",
-    "interval": "95 % interval {{range}}",
-    "barLabel": "{{rate}}, 95 % interval {{range}}",
+    "interval": "{{confidence}} interval {{range}}",
+    "barLabel": "{{rate}}, {{confidence}} interval {{range}}",
     "passAt": "pass@{{k}} {{value}}",
     "passHat": "pass^{{k}} {{value}}",
     "dropTitle": "Pressure",
@@ -572,9 +572,9 @@
     "table": "Table",
     "few": "Two scored runs are needed to draw a trend.",
     "aria": "Pass rate over {{count}} runs, the latest {{rate}}",
-    "point": "{{when}}: {{passed}}/{{of}} cases, {{rate}} (95 % interval {{range}})",
+    "point": "{{when}}: {{passed}}/{{of}} cases, {{rate}} ({{confidence}} interval {{range}})",
     "when": "Run",
     "cases": "Cases",
-    "rate": "Pass rate (95 % interval)"
+    "rate": "Pass rate (95% interval)"
   }
 }

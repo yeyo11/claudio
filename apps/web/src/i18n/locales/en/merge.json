@@ -1,6 +1,6 @@
 {
   "title": "Merge",
-  "sub": "{{ref}} · {{head}} → {{base}} · {{sha}}",
+  "sub": "{{ref}} · <mono>{{head}}</mono> → <mono>{{base}}</mono> · <mono>{{sha}}</mono>",
   "loading": "Reading what blocks the merge…",
   "failed": "Claudio could not read the merge state from {{host}}.",
   "retry": "Try again",
@@ -69,7 +69,7 @@
   },
   "pipeline": {
     "waiting": "Waiting for the pipeline",
-    "waitingDetail": "commit {{sha}} · {{host}} has not attached it yet · checked every 10 s"
+    "waitingDetail": "commit <mono>{{sha}}</mono> · {{host}} has not attached it yet · checked every 10 s"
   },
   "headMoved": {
     "title": "The branch changed while you were looking, and nothing was merged.",

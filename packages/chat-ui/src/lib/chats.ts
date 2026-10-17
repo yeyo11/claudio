@@ -7,6 +7,7 @@ import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages'
 import { accountSwitchText, switchedAccount } from './chat-notice';
 import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
+import { chatAlive } from './liveness';
 
 // ---------- reads ----------
 
@@ -153,20 +154,20 @@ const TAIL_READ = 50;
  * A chat and its transcript, newest page first, reading backwards on demand. The chat comes with
  * the page, so the header and the conversation are never out of step.
  */
-export function useChatTranscript(id: string, sidechains: boolean) {
+export function useChatTranscript(id: string) {
   const client = useQueryClient();
   const { client: server, fallbackInterval: fallback } = useChatUi();
   const query = useQuery({
-    queryKey: keys.chat(id, sidechains),
+    queryKey: keys.chat(id),
     // Once a page is held, only its end is read again and spliced on: every event that says the
     // chat moved asks for this, and reading the newest page each time would re-send all of it
     queryFn: async (): Promise<ChatDetail> => {
-      const key = keys.chat(id, sidechains);
-      if (!client.getQueryData<ChatDetail>(key)) return server.chat(id, sidechains);
+      const key = keys.chat(id);
+      if (!client.getQueryData<ChatDetail>(key)) return server.chat(id);
       const since = streamMark();
-      const fresh = await server.chat(id, sidechains, { limit: TAIL_READ });
+      const fresh = await server.chat(id, { limit: TAIL_READ });
       const held = client.getQueryData<ChatDetail>(key);
-      return (held && spliceTail(held, fresh, since)) ?? server.chat(id, sidechains);
+      return (held && spliceTail(held, fresh, since)) ?? server.chat(id);
     },
     // Only a chat something is working on changes by itself; the events say when, and this covers the
     // feed being down. Its health is a fact of the clock (a command running too long sends no event),
@@ -174,17 +175,18 @@ export function useChatTranscript(id: string, sidechains: boolean) {
     refetchInterval: (q) => {
       const chat = q.state.data?.chat;
       if (!chat) return false;
-      if (chat.execution) return fallback || HEALTH_REFRESH_MS;
-      return chat.state !== 'idle' ? fallback : false;
+      // Nothing holds it: nothing changes by itself, whatever a record still says about its branches
+      if (!chatAlive(chat)) return false;
+      return chat.execution ? fallback || HEALTH_REFRESH_MS : fallback;
     },
   });
   const fetchBefore = useCallback(
-    (before: number, limit?: number) => server.chat(id, sidechains, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
-    [id, sidechains],
+    (before: number, limit?: number) => server.chat(id, { before, limit }).then((d) => ({ items: d.entries, from: d.from, total: d.total })),
+    [id],
   );
   const page = query.data ? { items: query.data.entries, from: query.data.from, total: query.data.total } : undefined;
   const chat: Chat | undefined = query.data?.chat;
-  const slot = useMemo(() => keys.chatEarlier(id, sidechains), [id, sidechains]);
+  const slot = useMemo(() => keys.chatEarlier(id), [id]);
   return { query, chat, ...usePages(page, fetchBefore, slot) };
 }
 
@@ -242,7 +244,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
     store.clearPartial();
     store.setConnected(false);
     if (!enabled) return;
-    const transcripts = [keys.chat(id, false), keys.chat(id, true)];
+    const transcript = keys.chat(id);
     let source: EventSource | null = null;
     let frame = 0;
     let next: StreamingPartial | null | undefined;
@@ -276,7 +278,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       clearTimeout(confirm);
       confirm = undefined;
       confirmBy = 0;
-      for (const queryKey of transcripts) void client.invalidateQueries({ queryKey, exact: true });
+      void client.invalidateQueries({ queryKey: transcript, exact: true });
     };
     const scheduleConfirm = () => {
       const now = Date.now();
@@ -284,17 +286,15 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       clearTimeout(confirm);
       confirm = setTimeout(confirmNow, Math.max(0, Math.min(CONFIRM_AFTER_MS, confirmBy - now)));
     };
-    /** Puts a stored message on the pages held; says whether one of them now shows it. */
+    /** Puts a stored message on the page held; says whether it now shows it. */
     const show = (entry: TranscriptEntry): 'appended' | 'present' | 'skipped' => {
       let outcome: 'appended' | 'present' | 'skipped' = 'skipped';
-      for (const queryKey of transcripts) {
-        client.setQueryData<ChatDetail>(queryKey, (page) => {
-          if (!page) return page;
-          const result = appendStreamed(page, entry);
-          if (result.outcome === 'appended' || outcome === 'skipped') outcome = result.outcome;
-          return result.page;
-        });
-      }
+      client.setQueryData<ChatDetail>(transcript, (page) => {
+        if (!page) return page;
+        const result = appendStreamed(page, entry);
+        outcome = result.outcome;
+        return result.page;
+      });
       return outcome;
     };
 
@@ -379,7 +379,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
 
     const connect = () => {
       retry = undefined;
-      const es = new EventSource(server.streamUrl(id, streamSince(lastSeq, client.getQueryData<ChatDetail>(keys.chat(id, false)))));
+      const es = new EventSource(server.streamUrl(id, streamSince(lastSeq, client.getQueryData<ChatDetail>(keys.chat(id)))));
       source = es;
       es.onopen = () => {
         attempts = 0;
@@ -493,11 +493,11 @@ export interface AgentRef {
  * One agent's detail and transcript. Every fetch asks only for the entries after the ones already
  * cached and appends them, so following a long transcript costs its growth, not its size.
  */
-export function useAgentDetail(ref: AgentRef, running: boolean) {
+export function useAgentDetail(ref: AgentRef, running: boolean, alive = true) {
   const client = useQueryClient();
   const { client: server, fallbackInterval: fallback } = useChatUi();
   const key = keys.agent(ref.chatId, ref.workflowId ?? '', ref.agentId);
-  return useQuery({
+  const query = useQuery({
     queryKey: key,
     queryFn: async (): Promise<AgentTranscript> => {
       const before = client.getQueryData<AgentTranscript>(key);
@@ -510,8 +510,16 @@ export function useAgentDetail(ref: AgentRef, running: boolean) {
     },
     // Entries are appended by identity, so comparing thousands of them deeply on each poll is waste
     structuralSharing: false,
-    refetchInterval: (query) => ((query.state.data ? query.state.data.status === 'running' : running) ? RUNNING_POLL_MS : fallback),
+    // A chat nothing holds any more has no agent working in it, whatever the last read said
+    refetchInterval: (q) => (!alive ? false : (q.state.data ? q.state.data.status === 'running' : running) ? RUNNING_POLL_MS : fallback),
   });
+  // The read that closes the panel: the server answers `stopped` for an agent of a chat that is gone
+  const settled = !alive && query.data?.status === 'running';
+  const { refetch } = query;
+  useEffect(() => {
+    if (settled) void refetch();
+  }, [settled, refetch]);
+  return query;
 }
 
 /** A background task's output as followed so far. */

@@ -229,7 +229,7 @@ export function CreateWithAI({
         <span className="suggest-dialog-title">
           <AssistantMark small />
           <span className="grow">{t('resourcesAi.createAi')}</span>
-          <span className="mono small muted">{project.name}</span>
+          <span className="small muted">{project.name}</span>
         </span>
       }
       footer={
@@ -277,7 +277,7 @@ export function LiveWriting({ run, scope, phone }: { run: AssistantRunDetail; sc
           <ActivityTicker activity={activity} showElapsed={false} />
         )}
         <span className="grow" />
-        <span className="mono small muted tabular">{elapsed}</span>
+        <span className="small muted tnum">{elapsed}</span>
       </div>
       <RunFacts run={run} />
       {draft ? (

@@ -37,29 +37,29 @@ def widget(size, name, body, edit=False, sizes=('s', 'm', 'l'), icon=None, aside
 # ---- the widgets' content ----
 def w_kpis(edit):
   tiles = f'''<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px 18px">
-<div class="col" style="gap: 4px"><span class="row t-sm fg-2" style="gap: 8px"><span class="spin-braille"></span>Agentes en marcha</span><span class="t-num" style="font-size: 28px; font-weight: 600">3</span></div>
-<div class="col" style="gap: 4px"><span class="row t-sm fg-2" style="gap: 8px"><span class="dot dot-ok"></span>Esperan tu respuesta</span><span class="t-num" style="font-size: 28px; font-weight: 600">0</span></div>
-<div class="col" style="gap: 4px"><span class="t-sm fg-2">Gasto de hoy</span><span class="t-num" style="font-size: 28px; font-weight: 600">3,41 US$</span></div>
+<div class="col" style="gap: 4px"><span class="row t-sm fg-2" style="gap: 8px"><span class="spin-braille"></span>Agentes en marcha</span><span class="t-num" style="font-size: var(--fs-title); font-weight: var(--fw-strong)">3</span></div>
+<div class="col" style="gap: 4px"><span class="row t-sm fg-2" style="gap: 8px"><span class="dot dot-ok"></span>Esperan tu respuesta</span><span class="t-num" style="font-size: var(--fs-title); font-weight: var(--fw-strong)">0</span></div>
+<div class="col" style="gap: 4px"><span class="t-sm fg-2">Gasto de hoy</span><span class="t-num" style="font-size: var(--fs-title); font-weight: var(--fw-strong)">3,41 US$</span></div>
 </div>'''
   return widget('l', 'Cifras', tiles, edit, ('l',))
 
 
 def w_limits(edit):
-  body = '''<div class="row" style="padding: 14px 18px; gap: 14px"><span class="ring" style="--p: 45; width: 52px; height: 52px; font-size: 12px">45%</span><span class="col" style="gap: 3px"><span class="t-sm fg-2">Límite de 5 h</span><span class="t-xs fg-3 mono">vuelve en 4 h 49 min</span><span class="t-xs fg-3 mono">semanal 5%</span></span></div>'''
+  body = '''<div class="row" style="padding: 14px 18px; gap: 14px"><span class="ring" style="--p: 45; width: 52px; height: 52px; font-size: var(--fs-small)">45%</span><span class="col" style="gap: 3px"><span class="t-sm fg-2">Límite de 5 h</span><span class="t-num t-xs fg-3">vuelve en 4 h 49 min</span><span class="t-num t-xs fg-3">semanal 5%</span></span></div>'''
   return widget('s', 'Límites', body, edit, ('s',))
 
 
 def w_now(edit, size='l'):
   rows = '''<div class="widget-body">
-<a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 9px 12px 9px 16px; gap: 10px"><span class="spin-ring"></span><span class="col grow" style="gap: 1px; min-width: 0"><span class="t-sm ellipsis" style="font-weight: 500">Desarrollador implementa AGN-28: tablero con columnas fijas</span><span class="t-xs fg-3 mono">Ejecutando · pnpm test</span></span><span class="mono t-xs fg-3">4:12</span></a>
-<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 9px 12px 9px 16px; gap: 10px"><span class="spin-ring"></span><span class="col grow" style="gap: 6px; min-width: 0"><span class="t-sm ellipsis" style="font-weight: 500">ecosystem-foundation</span><span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i></span></span><span class="mono t-xs fg-3">2/9</span></a>
+<a href="DesktopChatTarea.html" class="list-row rail-live" style="padding: 9px 12px 9px 16px; gap: 10px"><span class="spin-ring"></span><span class="col grow" style="gap: 1px; min-width: 0"><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">Desarrollador implementa AGN-28: tablero con columnas fijas</span><span class="t-num t-xs fg-3">Ejecutando · <span class="mono">pnpm test</span></span></span><span class="t-num t-xs fg-3">4:12</span></a>
+<a href="DesktopOrquestacion.html" class="list-row rail-live" style="padding: 9px 12px 9px 16px; gap: 10px"><span class="spin-ring"></span><span class="col grow" style="gap: 6px; min-width: 0"><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">ecosystem-foundation</span><span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i></span></span><span class="t-num t-xs fg-3">2/9</span></a>
 </div>'''
   aside = '' if edit else '<span class="badge b-live"><span class="dot dot-live dot-ping" style="width: 6px; height: 6px"></span>en vivo</span>'
   return widget(size, 'En marcha', rows, edit, ('l', 'full'), aside=aside, link=('Ver todo', 'DesktopOrquestaciones.html'), cls='' if edit else 'energy')
 
 
 def w_memory(edit):
-  body = f'''<div class="widget-body" style="padding: 12px 18px 14px; gap: 8px"><span class="t-sm fg-2">El CLAUDE.md del proyecto</span><span class="row t-xs fg-3 mono" style="gap: 8px">{ico("memory", "ico ico-sm")}3 archivos de memoria</span><span class="t-xs fg-3 mono">editado ayer</span></div>'''
+  body = f'''<div class="widget-body" style="padding: 12px 18px 14px; gap: 8px"><span class="t-sm fg-2">El CLAUDE.md del proyecto</span><span class="row t-xs fg-3 mono" style="gap: 8px">{ico("memory", "ico ico-sm")}3 archivos de memoria</span><span class="t-num t-xs fg-3">editado ayer</span></div>'''
   return widget('s', 'Memoria', body, edit, ('s', 'm', 'l'), icon='memory', link=('Abrir', 'DesktopMemoria.html'))
 
 
@@ -78,10 +78,10 @@ def w_docs(edit, size='m'):
 
 
 def w_flow(edit, size='m'):
-  rows = '''<a href="DesktopFlujo.html" class="flow-row rail-live" style="padding-left: 14px"><span class="spin-ring"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: 500">AGN-28 · Tablero con columnas fijas</span><span class="t-xs fg-3 mono">Desarrollador · Ejecutando</span></span><span class="mono t-xs fg-3">4:12</span></a>
-<a href="DesktopFlujo.html" class="flow-row rail-live" style="padding-left: 14px"><span class="spin-ring"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: 500">AGN-29 · Historial automático</span><span class="t-xs fg-3 mono">QA · Leyendo</span></span><span class="mono t-xs fg-3">1:05</span></a>
-<a href="DesktopFlujo.html" class="flow-row"><span class="dot dot-idle"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: 500">AGN-31 · Enlaces entre tareas</span><span class="t-xs fg-3 mono">Hecho · espera tu aprobación</span></span><span class="badge b-idle">te espera</span></a>
-<a href="DesktopFlujo.html" class="flow-row"><span class="dot dot-warn"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: 500">AGN-27 · Notificaciones de la PWA</span><span class="t-xs fg-3 mono">QA la devolvió · rebote 1 de 3</span></span><span class="badge b-warn">devuelta</span></a>'''
+  rows = '''<a href="DesktopFlujo.html" class="flow-row rail-live" style="padding-left: 14px"><span class="spin-ring"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">AGN-28 · Tablero con columnas fijas</span><span class="t-num t-xs fg-3">Desarrollador · Ejecutando</span></span><span class="t-num t-xs fg-3">4:12</span></a>
+<a href="DesktopFlujo.html" class="flow-row rail-live" style="padding-left: 14px"><span class="spin-ring"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">AGN-29 · Historial automático</span><span class="t-num t-xs fg-3">QA · Leyendo</span></span><span class="t-num t-xs fg-3">1:05</span></a>
+<a href="DesktopFlujo.html" class="flow-row"><span class="dot dot-idle"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">AGN-31 · Enlaces entre tareas</span><span class="t-num t-xs fg-3">Hecho · espera tu aprobación</span></span><span class="badge b-idle">te espera</span></a>
+<a href="DesktopFlujo.html" class="flow-row"><span class="dot dot-warn"></span><span class="flow-what"><span class="t-sm ellipsis" style="font-weight: var(--fw-regular)">AGN-27 · Notificaciones de la PWA</span><span class="t-num t-xs fg-3">QA la devolvió · rebote 1 de 3</span></span><span class="badge b-warn">devuelta</span></a>'''
   body = f'<div class="widget-body">{rows}</div><div class="widget-foot"><span>2 ejecuciones a la vez</span><span class="grow"></span><span>0 en cola</span></div>'
   aside = '' if edit else '<span class="badge b-ok">activado</span>'
   return widget(size, 'Flujo', body, edit, ('m', 'l', 'full'), icon='flow', aside=aside, link=('Ver el flujo', 'DesktopFlujo.html'))
@@ -89,15 +89,15 @@ def w_flow(edit, size='m'):
 
 def w_pickup(edit, size='m'):
   body = '''<div class="widget-body">
-<a href="DesktopChat.html" class="list-row" style="padding: 9px 12px; gap: 10px"><span class="dot dot-idle"></span><span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis t-sm" style="font-weight: 500">Cuál es el estado actual del proyecto</span><span class="mono t-xs fg-3">6% · 0,86 US$</span></span><span class="t-xs fg-3">4 h</span></a>
-<a href="DesktopChat.html" class="list-row" style="padding: 9px 12px; gap: 10px"><span class="dot dot-bad"></span><span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis t-sm" style="font-weight: 500">Investiga las notificaciones de la PWA</span><span class="mono t-xs fg-3">11% · 3,65 US$</span></span><span class="badge b-bad">interrumpido</span></a></div>'''
+<a href="DesktopChat.html" class="list-row" style="padding: 9px 12px; gap: 10px"><span class="dot dot-idle"></span><span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis t-sm" style="font-weight: var(--fw-regular)">Cuál es el estado actual del proyecto</span><span class="t-num t-xs fg-3">6% · 0,86 US$</span></span><span class="t-xs fg-3">4 h</span></a>
+<a href="DesktopChat.html" class="list-row" style="padding: 9px 12px; gap: 10px"><span class="dot dot-bad"></span><span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis t-sm" style="font-weight: var(--fw-regular)">Investiga las notificaciones de la PWA</span><span class="t-num t-xs fg-3">11% · 3,65 US$</span></span><span class="badge b-bad">interrumpido</span></a></div>'''
   return widget(size, 'Retomar', body, edit, ('m', 'l', 'full'), link=('Ver chats', 'DesktopChats.html'))
 
 
 def w_today(edit, size='m'):
   body = '''<div class="widget-body" style="padding: 10px 18px 14px; gap: 8px">
-<div class="row t-sm" style="gap: 8px"><span class="dot" style="background: var(--accent)"></span><span class="grow">Opus 5.5</span><span class="mono t-xs">76,8 k</span></div>
-<div class="row t-sm" style="gap: 8px"><span class="dot" style="background: var(--idle)"></span><span class="grow">Sonnet 5</span><span class="mono t-xs">5,2 k</span></div></div>'''
+<div class="row t-sm" style="gap: 8px"><span class="dot" style="background: var(--accent)"></span><span class="grow">Opus 5.5</span><span class="t-num t-xs">76,8 k</span></div>
+<div class="row t-sm" style="gap: 8px"><span class="dot" style="background: var(--idle)"></span><span class="grow">Sonnet 5</span><span class="t-num t-xs">5,2 k</span></div></div>'''
   return widget(size, 'Uso de hoy', body, edit, ('m', 'l'), link=('Detalle', 'DesktopUso.html'))
 
 
@@ -124,7 +124,7 @@ def pagehead_edit():
 
 
 def crumb():
-  return '<span style="font-weight: 500">Inicio</span>'
+  return '<span style="font-weight: var(--fw-regular)">Inicio</span>'
 
 
 def desktop_edit(picker=False):
@@ -170,7 +170,7 @@ def picker_dialog():
 {picker_rows()}
 <div class="col" style="gap: 8px"><span class="t-label">Ya están en tu inicio</span>{have_chips()}</div>
 </div>
-<div class="dialog-foot"><span class="grow t-xs fg-3 mono">Cada widget aparece una vez</span><button type="button" class="btn btn-ghost">Cancelar</button></div>
+<div class="dialog-foot"><span class="t-num grow t-xs fg-3">Cada widget aparece una vez</span><button type="button" class="btn btn-ghost">Cancelar</button></div>
 </div></div>'''
 
 
@@ -193,7 +193,7 @@ def mobile_edit():
   for i, (name, icon) in enumerate(MOVE):
     up = ' disabled' if i == 0 else ''
     dn = ' disabled' if i == len(MOVE) - 1 else ''
-    rows += (f'<div class="move-row"><span class="pick-ico">{ico(icon)}</span><span class="grow ellipsis" style="font-weight: 600; font-size: 15px">{name}</span>'
+    rows += (f'<div class="move-row"><span class="pick-ico">{ico(icon)}</span><span class="grow ellipsis" style="font-weight: var(--fw-strong); font-size: var(--fs-section)">{name}</span>'
              f'<button type="button" class="btn btn-ghost btn-icon" aria-label="Subir {name}"{up}>{ico("up", "ico ico-lg")}</button>'
              f'<button type="button" class="btn btn-ghost btn-icon" aria-label="Bajar {name}"{dn}>{ico("down", "ico ico-lg")}</button>'
              f'<button type="button" class="btn btn-ghost btn-icon widget-remove" aria-label="Quitar {name}">{ico("x", "ico ico-lg")}</button></div>')

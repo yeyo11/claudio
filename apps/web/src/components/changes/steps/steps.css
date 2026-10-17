@@ -16,7 +16,7 @@
 .changes-review .edit-steps-note {
   margin: 0;
   padding: 8px 10px 10px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-3);
 }
@@ -138,7 +138,7 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .edit-step-risk {
@@ -151,9 +151,8 @@
 
 .changes-review .edit-step-time {
   flex: none;
-  min-width: 34px;
-  font-family: var(--mono);
-  font-size: 12px;
+  min-width: 5ch;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--fg-3);
 }
@@ -169,7 +168,7 @@
   min-width: 0;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -182,7 +181,7 @@
 .changes-review .edit-step-intent {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
   -webkit-line-clamp: 2;
@@ -216,8 +215,7 @@
 
 .changes-review .edit-step-when {
   flex: none;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--fg-3);
   white-space: nowrap;
@@ -256,8 +254,8 @@
   align-items: flex-start;
   gap: 12px;
   margin: 0;
-  font-size: 16px;
-  font-weight: 400;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-regular);
   line-height: 1.55;
   color: var(--fg);
 }
@@ -274,7 +272,7 @@
   border-radius: var(--radius-xs);
   background: var(--bg-2);
   font-family: var(--mono);
-  font-size: 0.9em;
+  font-size: inherit;
 }
 
 .changes-review .edit-step-silent {
@@ -286,7 +284,7 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-left: 30px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -313,12 +311,11 @@
   padding: 0 14px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-1);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
 .changes-review .edit-step-lines {
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -341,7 +338,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .edit-step-cards {
@@ -372,11 +369,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .edit-step-card-n {
-  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--fg-3);
 }
@@ -395,7 +391,7 @@
 .changes-review .edit-step-card-intent {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -454,7 +450,7 @@
   align-items: center;
   flex: none;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -472,14 +468,14 @@
 
 .changes-review .edit-steps-phone-title {
   margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .changes-review .edit-steps-phone .changes-live {
   padding-right: 4px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .edit-scrub.edit-scrub-phone {
@@ -507,7 +503,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .edit-steps-phone-meta .badge {
@@ -517,7 +513,7 @@
 
 .changes-review .edit-steps-phone .edit-step-where {
   flex: none;
-  font-size: 14px;
+  font-size: var(--fs-body);
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -529,12 +525,12 @@
 
 .changes-review .edit-steps-phone .edit-step-heading {
   gap: 10px;
-  font-size: 15.5px;
+  font-size: var(--fs-section);
 }
 
 .changes-review .edit-steps-phone .edit-step-source {
   margin-left: 26px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .edit-steps-phone .edit-step-source a {
@@ -557,7 +553,7 @@
   justify-content: center;
   min-height: 48px;
   border-radius: var(--radius-lg);
-  font-size: 16px;
+  font-size: var(--fs-section);
 }
 
 .changes-review .edit-steps-phone-bar .edit-step-move.is-prev {
@@ -565,7 +561,7 @@
   background: var(--bg-elev);
 }
 
-/* Step by step says what the list is in a sentence where Result lists the branch in mono */
+/* Step by step says what the list is in a sentence; Result names the branch, in mono, among sans counts */
 .changes-review .changes-meta.is-sentence {
   font-family: var(--sans);
 }

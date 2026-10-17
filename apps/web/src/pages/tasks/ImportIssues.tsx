@@ -15,6 +15,7 @@ import { timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { WorkItemKey } from '../../components/work-item-icons';
 import { importKeys, isSelectable, isTrackerBuilt, issueRef, toggleAll, toggleKey, trackerWords, TRIAGE_TONE } from '../../lib/trackers';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 const BADGE = { size: 11, strokeWidth: 2, 'aria-hidden': true } as const;
 
@@ -43,9 +44,11 @@ export function ImportIssuesButton({ leads, icon = false, onClick }: { leads: bo
   const { t } = useTranslation('issues');
   if (icon)
     return (
-      <button type="button" className="icon-btn workitem-import-icon" aria-label={t('import.button')} title={t('import.button')} onClick={onClick}>
-        <Download {...ICON_SM} />
-      </button>
+      <Tooltip content={t('import.button')}>
+        <button type="button" className="icon-btn workitem-import-icon" aria-label={t('import.button')} onClick={onClick}>
+          <Download {...ICON_SM} />
+        </button>
+      </Tooltip>
     );
   return (
     <button type="button" className={`btn ${leads ? 'btn-primary' : ''} workitem-import`.replace(/\s+/g, ' ').trim()} onClick={onClick}>
@@ -204,7 +207,7 @@ export function useImportForm(project: Project, tracker: ProjectTrackerSettings,
         <label className="field field-mono grow">
           <Search {...ICON_SM} />
           {tracker.scope && <span className="mono small muted iss-scope">{tracker.scope}</span>}
-          <input className="mono" value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={t('import.search', { tracker: words.label })} />
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={t('import.search', { tracker: words.label })} />
         </label>
         <button type="submit" className="btn">
           {t('import.run')}
@@ -309,7 +312,7 @@ export function ImportIssues({ project, tracker, onClose }: { project: Project; 
           <ProgramMark id={tracker.id} label={words.label} size={24} project />
           <span className="iss-dialog-title">
             {title}
-            <span className="mono small muted">{sub}</span>
+            <span className="small muted">{sub}</span>
           </span>
         </span>
       }

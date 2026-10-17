@@ -157,7 +157,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
         <button type="button" className="settings-cell project-limits-cell" onClick={() => setOpen(true)}>
           <span className="settings-cell-name project-limits-text">
             <span>{t('decisions.title')}</span>
-            <span className="mono small muted">{differing ? t('decisions.summaryDiffering', { count: differing, n: formatNumber(differing) }) : t('decisions.summaryInherited')}</span>
+            <span className="small muted tnum">{differing ? t('decisions.summaryDiffering', { count: differing, n: formatNumber(differing) }) : t('decisions.summaryInherited')}</span>
           </span>
           <ChevronRight {...ICON_SM} className="settings-cell-chevron" />
         </button>

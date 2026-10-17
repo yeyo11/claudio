@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { FullText } from '@claudio/ui/components/FullText';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
@@ -53,7 +54,7 @@ function Dismiss({ dismiss }: { dismiss: PhoneHeaderDismiss }) {
 
 /**
  * A phone screen's own header, as Night Shift draws every detail screen (`.m-head`): the way back,
- * the title with a mono line under it, the screen's own buttons, and "⋯" opening a sheet of big
+ * the title with a small line under it, the screen's own buttons, and "⋯" opening a sheet of big
  * buttons through `MoreActions`. A modal flow has `dismiss` in place of the arrow. Drawn where
  * `useOwnPhoneHeader()` is true: the shell has hidden the top bar there.
  */
@@ -72,7 +73,7 @@ export function PhoneHeader({
   className = '',
 }: {
   title: ReactNode;
-  /** One mono line under the title: a path, the project and its key, "paso 2 de 4" */
+  /** One small line under the title: a path, the project and its key, "paso 2 de 4" */
   subtitle?: ReactNode;
   /** Before the title: a project's monogram, an item's key */
   lead?: ReactNode;
@@ -96,7 +97,7 @@ export function PhoneHeader({
       {lead && <span className="phone-head-lead">{lead}</span>}
       <div className="phone-head-text">
         <h1 className="ellipsis">{title}</h1>
-        {subtitle && <span className="phone-head-sub ellipsis">{subtitle}</span>}
+        {subtitle && <FullText className="phone-head-sub ellipsis">{subtitle}</FullText>}
       </div>
       {actions && <div className="phone-head-actions">{actions}</div>}
       {more && more.length > 0 && (

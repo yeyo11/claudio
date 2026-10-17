@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ChatBackgroundTask, ChatChildren, ChatSubagent, ChatWorkflow } from '@claudio/shared';
-import { BRANCH_GRACE_MS, branchCounts, branchesOfStep, liveBranches, newestBranch, nextExpiry, type BranchCall } from '../src/lib/chat-branches';
+import {
+  BRANCH_GRACE_MS,
+  branchCounts as countsOf,
+  branchesOfStep as stepBranches,
+  liveBranches as strip,
+  newestBranch as newestOf,
+  nextExpiry,
+  type Branch,
+  type BranchCall,
+  type BranchChat,
+} from '../src/lib/chat-branches';
 
 // The rules of what is running at a glance (plans/tool-rows-and-live-branches.md §3.3)
 
@@ -56,6 +66,13 @@ const workflow = (over: Partial<ChatWorkflow> = {}): ChatWorkflow => ({
 });
 
 const children = (over: Partial<ChatChildren> = {}): ChatChildren => ({ subagents: [], backgroundTasks: [], workflows: [], ...over });
+
+// A chat something holds, unless a test says it is gone
+const chatOf = (c: ChatChildren, alive = true): BranchChat => ({ alive, state: alive ? 'working' : 'idle', updatedAt: ago(20_000), children: c });
+const liveBranches = (c: ChatChildren, now: number, alive = true) => strip(chatOf(c, alive), now);
+const branchCounts = (rows: Branch[]) => countsOf({ alive: true, state: 'working' }, rows);
+const newestBranch = (rows: Branch[]) => newestOf({ alive: true, state: 'working' }, rows);
+const branchesOfStep = (calls: BranchCall[], span: { startedAt: string | null; endedAt: string | null }, c: ChatChildren, alive = true) => stepBranches(chatOf(c, alive), calls, span);
 
 test('nothing running and nothing just ended: no rows', () => {
   assert.deepEqual(liveBranches(children(), NOW), []);
@@ -160,4 +177,32 @@ test('a workflow belongs to the step it started during', () => {
   assert.deepEqual(found.map((b) => b.key), ['workflow:wf-1']);
   assert.deepEqual(found[0]?.progress, { done: 1, total: 2, phase: 2 });
   assert.deepEqual(found[0]?.segments, ['completed', 'running']);
+});
+
+test('in a chat nothing holds, what said running is stopped, ended when the chat last wrote', () => {
+  const left = children({ subagents: [sub({ activity: { kind: 'tool', tool: 'Grep', since: ago(1000) } })], backgroundTasks: [task()] });
+  // The chat wrote last 20 s ago: past the grace, nothing of it is left on the strip
+  assert.deepEqual(liveBranches(left, NOW, false), []);
+  const recent = strip({ ...chatOf(left, false), updatedAt: ago(1000) }, NOW);
+  assert.deepEqual(
+    recent.map((r) => [r.kind, r.status, r.endedAt, r.activity]),
+    [
+      ['task', 'stopped', ago(1000), null],
+      ['agent', 'stopped', ago(1000), null],
+    ],
+  );
+});
+
+test('a workflow agent still running in a workflow that ended is shown as its workflow ended', () => {
+  const stopped = children({ workflows: [workflow({ status: 'stopped', endedAt: ago(1000) })] });
+  const [row] = liveBranches(stopped, NOW);
+  assert.deepEqual(row?.segments, ['completed', 'stopped']);
+  assert.equal(branchCounts(liveBranches(stopped, NOW)).workflows, 0);
+});
+
+test('a chat nothing holds counts nothing as running and has no newest branch', () => {
+  const rows = liveBranches(children({ backgroundTasks: [task({ status: 'stopped', endedAt: ago(1000) })] }), NOW);
+  const gone = { alive: false, state: 'idle' } as const;
+  assert.deepEqual(countsOf(gone, [{ ...rows[0]!, status: 'running', endedAt: null }]), { agents: 0, tasks: 0, workflows: 0 });
+  assert.equal(newestOf(gone, [{ ...rows[0]!, status: 'running', endedAt: null }]), null);
 });

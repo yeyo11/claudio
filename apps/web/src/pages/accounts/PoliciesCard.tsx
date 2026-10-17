@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Check, Pencil, Plus, Route, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatPercent } from '@claudio/ui/lib/format';
 import { api, keys, useProjects } from '../../api';
 import { accountName } from '../../lib/accounts';
 import { Checkbox, Slider, Tooltip } from '@claudio/ui/components/controls';
@@ -125,7 +126,7 @@ function PolicyForm({
         </span>
       </div>
 
-      <Field label={t('policies.thresholdValue', { pct: draft.threshold })} hint={t('policies.thresholdHint')}>
+      <Field label={t('policies.thresholdValue', { percent: formatPercent(draft.threshold) })} hint={t('policies.thresholdHint')}>
         <Slider aria-label={t('policies.threshold')} min={50} max={99} value={draft.threshold} onChange={(threshold) => onChange({ ...draft, threshold })} />
       </Field>
 
@@ -235,7 +236,7 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
               <div className="list-row-main">
                 <div className="strong break">{governed(policy)}</div>
                 <div className="muted small">
-                  {policy.threshold !== undefined ? t('policies.rotateAt', { pct: policy.threshold }) : t('policies.globalThreshold')} ·{' '}
+                  {policy.threshold !== undefined ? t('policies.rotateAt', { percent: formatPercent(policy.threshold) }) : t('policies.globalThreshold')} ·{' '}
                   {policy.order?.length ? t('policies.inOrder', { accounts: policy.order.map((id) => nameOf(accounts, id)).join(' → ') }) : t('policies.anyAccount')}
                 </div>
               </div>

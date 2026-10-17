@@ -5,7 +5,7 @@
   align-items: center;
   gap: 4px 14px;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 .list {
@@ -106,11 +106,9 @@ a.list-row:hover {
   top: 0;
   z-index: 1;
   text-align: left;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
   padding: 8px 12px;
   background: var(--bg-elev);
   border-bottom: 1px solid var(--border);
@@ -181,8 +179,8 @@ a.list-row:hover {
 .chip-toggle {
   background: none;
   font-family: var(--sans);
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   padding: 3px 11px;
 }
 
@@ -279,7 +277,7 @@ a.list-row:hover {
 
 .today-table th[scope='row'] {
   text-align: left;
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .today-limits {
@@ -327,7 +325,7 @@ a.list-row:hover {
 
 /*
  * The row every list page shares: a rail on the left that says the row's state from across the
- * page, a title line, one line of data in mono, and the row's actions on the right. No box around
+ * page, a title line, one line of data, and the row's actions on the right. No box around
  * it: rows are separated by a 1px line.
  */
 .lrows {
@@ -406,8 +404,8 @@ a.list-row:hover {
   gap: 4px 8px;
   min-width: 0;
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
   overflow-wrap: anywhere;
 }
 
@@ -418,13 +416,13 @@ a.list-row:hover {
   gap: 2px 14px;
   min-width: 0;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 .lrow-sub .mono,
 .lrow-sub code {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -456,7 +454,7 @@ a.list-row:hover {
  * The chat list (design system: DesktopChats and MobileChats). On a wide list it is a table: the
  * state, the chat, its project, origin, context, cost and last activity, each in its column. On a
  * narrow one — a phone, or a window squeezed by the sidebar — the same row is a card of two lines:
- * the title on up to two lines and one mono line of meta. A container query picks the layout, so
+ * the title on up to two lines and one small line of meta. A container query picks the layout, so
  * it follows the list's own width rather than the window's.
  */
 .chats-page {
@@ -466,9 +464,8 @@ a.list-row:hover {
 .chats-title-count {
   display: none;
   margin-left: 8px;
-  font-family: var(--mono);
-  font-size: 14px;
-  font-weight: 400;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
@@ -516,12 +513,9 @@ a.list-row:hover {
   padding: 10px var(--crow-pad-x);
   border-bottom: 1px solid var(--border);
   background: var(--bg-1);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .crow-cols .is-end {
@@ -542,12 +536,9 @@ a.list-row:hover {
   margin: 0;
   padding: 12px var(--crow-pad-x) 4px;
   background: var(--bg-elev);
-  color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .crow-group-count {
@@ -668,7 +659,7 @@ a.list-row:hover {
   align-self: center;
   width: 18px;
   height: 18px;
-  font-size: 10px;
+  font-size: var(--fs-small);
 }
 
 /* The agent's badge between the id and the model in the chat's header */
@@ -677,13 +668,20 @@ a.list-row:hover {
   margin-inline: 8px;
   vertical-align: middle;
 }
+/* On the narrowest phones the badge would run past the screen: the line is cut there anyway, and
+   its full text (agent included) is the line's title */
+@media (max-width: 359px) {
+  .chat-sub-agent {
+    display: none;
+  }
+}
 
 .crow-title-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .crow-sub {
@@ -691,7 +689,7 @@ a.list-row:hover {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -704,8 +702,7 @@ a.list-row:hover {
   gap: 8px;
   min-width: 0;
   overflow: hidden;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }
@@ -742,12 +739,12 @@ a.list-row:hover {
 }
 
 .crow-ticker .ticker-line {
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .crow-ticker .ticker-verb {
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .crow-ticker .ticker-target {
@@ -756,6 +753,9 @@ a.list-row:hover {
 
 .crow-id {
   flex: none;
+  /* literal: the chat's short id, read back to the CLI */
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums slashed-zero;
 }
 
 .crow-tag {
@@ -812,7 +812,7 @@ a.list-row:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -834,8 +834,7 @@ a.list-row:hover {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   white-space: nowrap;
@@ -863,20 +862,19 @@ a.list-row:hover {
 
 .crow-cost {
   text-align: right;
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .crow-no-cost {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-faint);
 }
 
 .crow-time {
   text-align: right;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
   white-space: nowrap;
@@ -897,7 +895,6 @@ a.list-row:hover {
   margin: 0;
   padding: 10px var(--crow-pad-x);
   border-top: 1px solid var(--border);
-  font-family: var(--mono);
 }
 
 /* A narrow list: the columns fold into the card's meta line */
@@ -924,8 +921,8 @@ a.list-row:hover {
     line-clamp: 2;
     white-space: normal;
     overflow-wrap: anywhere;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--fs-section);
+    font-weight: var(--fw-strong);
     line-height: 1.35;
   }
   .crow-main {
@@ -1031,7 +1028,7 @@ a.list-row:hover {
   border-radius: var(--radius-xs);
   background: var(--bg-2);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text-faint);
 }
 
@@ -1062,8 +1059,9 @@ a.list-row:hover {
   min-height: 44px;
 }
 
+/* 16 px: on a phone anything smaller makes iOS zoom into the field on focus (I10) */
 .list-toolbar.is-narrow .list-toolbar-search input {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 /* On a phone the filter button is an icon: the search takes the rest of the row */
@@ -1097,7 +1095,7 @@ a.list-row:hover {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-pill);
   background: var(--bg-elev);
-  font-size: 13.5px;
+  font-size: var(--fs-small);
 }
 
 .list-toolbar-strip .segment:last-child {
@@ -1112,7 +1110,7 @@ a.list-row:hover {
   border-color: var(--text);
   background: var(--text);
   color: var(--bg);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .list-toolbar-strip .segment-on .segment-count {
@@ -1140,11 +1138,9 @@ a.list-row:hover {
 .facet-legend {
   margin-bottom: 4px;
   padding: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  color: var(--fg-2);
+  font-weight: var(--fw-strong);
 }
 
 .facet .check {
@@ -1164,8 +1160,7 @@ a.list-row:hover {
 .facet-count {
   margin-left: auto;
   padding-left: 12px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }
@@ -1194,7 +1189,7 @@ a.list-row:hover {
   align-items: center;
   gap: 8px;
   margin-right: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 

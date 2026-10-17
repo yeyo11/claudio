@@ -23,9 +23,9 @@ import { STARTERS } from './model';
 const DEFAULT_MODEL = 'sonnet';
 
 /**
- * `/assistant`: the greeting, what the assistant can do as suggestions, and the box to ask in.
- * The box is a chat's composer (`StartComposer`), without what the assistant cannot use: no files,
- * commands, servers, account or permission mode, since the core starts it confined. The project in
+ * `/assistant`: the greeting, the box to ask in, and what the assistant can do as suggestions. The
+ * box is New chat's (`StartComposer` with `layout="start"`), centred under the greeting, without what
+ * the assistant cannot use: no files, commands, servers, account or permission mode, since the core starts it confined. The project in
  * scope is context and not a requirement: the chip clears it before the first prompt. Starting
  * creates the chat in the core and opens it, where the chat's own composer takes over.
  */
@@ -46,6 +46,34 @@ export function ClaudioAssistant() {
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
   });
 
+  const composer = (
+    <StartComposer
+      editor={box}
+      layout="start"
+      autoFocus={!narrow}
+      label={t('claudio.message')}
+      placeholder={t('claudio.placeholder')}
+      sendLabel={{ idle: t('claudio.send'), pending: t('claudio.starting') }}
+      pending={start.isPending}
+      onStart={(prompt) => start.mutate(prompt)}
+      error={<ErrorBox error={start.error} title={t('claudio.startError')} />}
+      status={
+        <>
+          {context && (
+            <span className="composer-status-word as-context">
+              <FolderGit2 {...ICON_SM} aria-hidden />
+              <span className="ellipsis">{t('claudio.context', { name: context.name })}</span>
+              <button type="button" className="x" aria-label={t('claudio.clearContext')} onClick={() => setDropped(true)}>
+                <X {...ICON_SM} aria-hidden />
+              </button>
+            </span>
+          )}
+          <StartOptions model={model} onModel={setModel} effort={effort} onEffort={setEffort} />
+        </>
+      }
+    />
+  );
+
   return (
     <div className="run-layout as-entry">
       <section className="run-main" aria-label={t('claudio.title')}>
@@ -54,6 +82,8 @@ export function ClaudioAssistant() {
           <div className="run-scroll as-scroll glow-top" data-scroll-root>
             <div className="as-body">
               <Hello />
+              {/* New chat's order: the greeting, the box, then what to ask; on a phone the box sits at the foot */}
+              {!narrow && composer}
               <section className="as-starters-section" aria-labelledby="as-starters-label">
                 <h2 id="as-starters-label" className="section-label">
                   {t('claudio.starters')}
@@ -81,30 +111,7 @@ export function ClaudioAssistant() {
             </div>
           </div>
         </div>
-        <StartComposer
-          editor={box}
-          autoFocus={!narrow}
-          label={t('claudio.message')}
-          placeholder={narrow ? t('claudio.placeholderShort') : t('claudio.placeholder')}
-          sendLabel={{ idle: t('claudio.send'), pending: t('claudio.starting') }}
-          pending={start.isPending}
-          onStart={(prompt) => start.mutate(prompt)}
-          error={<ErrorBox error={start.error} title={t('claudio.startError')} />}
-          status={
-            <>
-              {context && (
-                <span className="chip as-context">
-                  <FolderGit2 {...ICON_SM} aria-hidden />
-                  <span className="ellipsis">{t('claudio.context', { name: context.name })}</span>
-                  <button type="button" className="x" aria-label={t('claudio.clearContext')} onClick={() => setDropped(true)}>
-                    <X {...ICON_SM} aria-hidden />
-                  </button>
-                </span>
-              )}
-              <StartOptions model={model} onModel={setModel} effort={effort} onEffort={setEffort} />
-            </>
-          }
-        />
+        {narrow && composer}
       </section>
     </div>
   );

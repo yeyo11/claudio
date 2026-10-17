@@ -35,7 +35,7 @@ export default async ({ page, api, check }) => {
     await page.waitFor(`return !!document.querySelector('.statusbar .spend')`, { label: 'the cap in the status bar', timeout: 30_000 });
     check((await api.get('/settings/app')).body.dailySpendCapUsd === 20, 'the cap was saved');
     const bar = await statusBar();
-    check(/daily cap/i.test(bar ?? '') && /0 %/.test(bar ?? ''), `the status bar says the cap and its share in words (${bar})`);
+    check(/daily cap/i.test(bar ?? '') && /0\s?%/.test(bar ?? ''), `the status bar says the cap and its share in words (${bar})`);
 
     // Both themes: the item is there, readable and not painted with a status colour below 60 %
     for (const theme of ['dark', 'light']) {

@@ -225,7 +225,7 @@ test('once its record is written, a streamed workflow is the record', async () =
   }
 });
 
-test('a workflow without a record that the stream does not report is running only if it began with this process', async () => {
+test('a workflow without a record that the stream does not report is not running, whenever it began', async () => {
   const { transcript, dir } = sessionOnDisk();
   rmSync(join(dir, 'workflows', 'wf_5c79d6c0-b39.json'));
   const onDisk = await readSessionWorkflows(transcript, 'session-1', false);
@@ -233,10 +233,10 @@ test('a workflow without a record that the stream does not report is running onl
   const [earlier] = mergeLiveWorkflows([], onDisk, new Date(Date.now() + 60_000).toISOString());
   assert.equal(earlier?.status, 'stopped');
   assert.ok(earlier?.endedAt);
-  // Begun since: its first event is still on the way
+  // Begun since: only a matching run on the stream says it goes on, and none does
   const [since] = mergeLiveWorkflows([], onDisk, new Date(0).toISOString());
-  assert.equal(since?.status, 'running');
-  assert.equal(since?.endedAt, null);
+  assert.equal(since?.status, 'stopped');
+  assert.ok(since?.endedAt);
 });
 
 test('saved workflows come from the project and the user, the project winning a clash', async () => {

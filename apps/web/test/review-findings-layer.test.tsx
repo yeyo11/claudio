@@ -102,7 +102,7 @@ test('a finding card reuses the thread card, with severity as a word, no reply f
   const html = renderToStaticMarkup(<FindingCard finding={finding({ title: '<img src=x onerror=alert(1)>' })} />);
   assert.match(html, /class="rt finding open"/);
   assert.match(html, /rt-sev bad/);
-  assert.match(text(html), /high correctness a\.ts:2 .*confirmed/);
+  assert.match(text(html), /High correctness a\.ts:2 .*confirmed/);
   assert.match(text(html), /What fails It throws on a truncated file/);
   assert.match(html, /<pre class="rt-evidence">return JSON\.parse\(raw\)<\/pre>/);
   assert.match(text(html), /Suggestion return parse\(raw\)/);

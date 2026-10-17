@@ -1,4 +1,5 @@
 import type { Chat } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, GraduationCap, Hand, Info, Minimize2, Search, Square, Trash2, WifiOff } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
@@ -17,6 +18,7 @@ import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { api, useLessonSettings } from '../../api';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { formatCost } from '@claudio/ui/lib/format';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { chatPill, checklistCounts, RECONNECTING_AFTER_MS } from '@claudio/chat-ui/lib/chat-live';
 import { ProviderBadge } from '@claudio/chat-ui/components/ChatBadges';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
@@ -73,7 +75,7 @@ export function StatePill({ chat, connected }: { chat: Chat; connected: boolean 
 /** "▰▰▱▱▱ 3/7": how far the chat is through the checklist it wrote itself; the item it is on, on hover. */
 function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void }) {
   const { t } = useTranslation(['chat', 'observe']);
-  const live = chat.state === 'working';
+  const live = chatBusy(chat);
   // The same query the inspector's checklist reads, so both show the same list
   const { data } = useQuery({ queryKey: ['chat', chat.id, 'checklist'], queryFn: () => api.chatChecklist(chat.id), refetchInterval: live ? 10_000 : false });
   if (!data || data.items.length === 0) return null;
@@ -107,8 +109,6 @@ function headingFacts(chat: Chat): { where: string; model: string | null | undef
 export interface HeaderActions {
   /** Only what opens and closes the search: the rest of it changes as it is typed into */
   find: Pick<TranscriptFind, 'open' | 'show' | 'close'>;
-  sidechains: boolean;
-  setSidechains: (on: boolean) => void;
   forking: boolean;
   setForking: (on: boolean) => void;
   stop: { run: () => void; pending: boolean };
@@ -141,7 +141,8 @@ export const ChatHeader = memo(function ChatHeader({
   const { control } = chat;
   const { agentNameFor } = useChatUi();
   const facts = headingFacts(chat);
-  const working = chat.state === 'working';
+  const working = chatBusy(chat);
+  // Stop and delete act on the process Claudio itself runs, not on one a terminal holds
   const live = Boolean(chat.execution);
   const held = control.mode === 'readOnly';
   const { find, inspector } = actions;
@@ -214,7 +215,6 @@ export const ChatHeader = memo(function ChatHeader({
           onSelect: controls.openCompact,
         },
         ...(chat.project && lessonSettings?.manualMining ? [{ id: 'lessons', label: t('chats:lessons.mine'), icon: GraduationCap, onSelect: () => void mineLessons() }] : []),
-        { id: 'sidechains', label: t('view.subagentMessages'), checked: actions.sidechains, onSelect: () => actions.setSidechains(!actions.sidechains) },
         {
           id: 'copy-id',
           label: t('view.copyId'),
@@ -245,15 +245,15 @@ export const ChatHeader = memo(function ChatHeader({
         </Link>
       </Tooltip>
       <div className="chat-heading">
-        <h1 className="chat-title ellipsis">{displayTitle(chat)}</h1>
+        <FullText as="h1" className="chat-title ellipsis">{displayTitle(chat)}</FullText>
         {/* Where it runs, which chat it is and on what, in the mono of ids: the title is the prompt */}
-        <span className="chat-sub ellipsis">
+        <FullText className="chat-sub ellipsis" full={[facts.where, agentNameFor(chat), facts.model].filter(Boolean).join(' · ')}>
           {facts.where}
           <span className="chat-sub-agent">
             <ProviderBadge provider={chat.provider} label={agentNameFor(chat)} />
           </span>
           {facts.model}
-        </span>
+        </FullText>
       </div>
       {limitPhase === 'none' ? <StatePill chat={chat} connected={connected} /> : <LimitBadge phase={limitPhase} resetsAt={limitResetsAt} />}
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}

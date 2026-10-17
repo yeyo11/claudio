@@ -60,9 +60,9 @@ def run_row(r, mobile=False):
   item_tag, item_href = ('span', '') if mobile or gone else ('a', f' href="{pre}Tarea.html"')
   item_title = r.get('title') or W[r['key']]['title']
   title = (f'<span class="run-title"><span class="who">{name}</span><span class="stage">· {STAGE[r["stage"]][0]}</span>{outcome(r)}</span>'
-           f'<{item_tag}{item_href} class="row" style="gap: 8px; align-items: baseline; min-width: 0"><span class="wi-key">{r["key"]}</span><span class="t-sm{"" if mobile else " ellipsis"}{" fg-3" if gone else ""}" style="font-weight: 500">{item_title}</span></{item_tag}>')
+           f'<{item_tag}{item_href} class="row" style="gap: 8px; align-items: baseline; min-width: 0"><span class="wi-key">{r["key"]}</span><span class="t-sm{"" if mobile else " ellipsis"}{" fg-3" if gone else ""}" style="font-weight: var(--fw-regular)">{item_title}</span></{item_tag}>')
   if running:
-    line = f'<span class="run-now"><span class="spin-braille" aria-hidden="true"></span><span class="c-live" style="font-weight: 500">{STAGE[r["stage"]][1]}</span><span class="mono">{r["now"]}</span></span>'
+    line = f'<span class="run-now"><span class="spin-braille" aria-hidden="true"></span><span class="c-live" style="font-weight: var(--fw-regular)">{STAGE[r["stage"]][1]}</span><span class="mono">{r["now"]}</span></span>'
   else:
     line = f'<span class="t-sm fg-2" style="line-height: 1.45">{r["note"]}</span>' if r.get('note') else ''
   why = ''
@@ -103,7 +103,7 @@ def runs_list(mobile=False, days=None, only=None):
     rows = [r for r in RUNS if r['day'] == d and (only is None or r.get('outcome') == only)]
     if not rows:
       continue
-    extra = '<span class="mono t-xs fg-3">2 en marcha · 2 en cola</span>' if d == 'now' else f'<span class="mono t-xs fg-3">{len(rows)}</span>'
+    extra = '<span class="t-num t-xs fg-3">2 en marcha · 2 en cola</span>' if d == 'now' else f'<span class="mono t-xs fg-3">{len(rows)}</span>'
     out += f'<div class="run-day"><span class="t-label grow">{word}</span>{extra}</div>' + ''.join(run_row(r, mobile) for r in rows)
   return out
 
@@ -111,7 +111,7 @@ def runs_list(mobile=False, days=None, only=None):
 def team_seg(on, mobile=False):
   pre = 'Mobile' if mobile else 'Desktop'
   items = [('members', f'{pre}Equipo.html', 'Miembros' + ('' if mobile else ' <span class="count">5</span>')), ('flow', f'{pre}Flujo.html', 'Flujo'), ('activity', f'{pre}EquipoActividad.html', 'Actividad')]
-  st = ' style="flex: 1 1 0; justify-content: center; height: 36px; font-size: 14px"' if mobile else ''
+  st = ' style="flex: 1 1 0; justify-content: center; height: 36px; font-size: var(--fs-body)"' if mobile else ''
   out = ''.join(f'<a href="{h}" role="tab" aria-selected="{"true" if k == on else "false"}" class="{"on" if k == on else ""}"{st}>{n}</a>' for k, h, n in items)
   return f'<div class="seg" role="tablist" aria-label="Equipo"{" style=\"display: flex\"" if mobile else ""}>{out}</div>'
 
@@ -144,7 +144,7 @@ def team_activity_desktop():
 <span class="t-label" style="margin-right: 4px">Miembro</span><button type="button" class="chip on" aria-pressed="true">Todos</button>{member_chip('PO', 3)}{member_chip('DEV', 3)}{member_chip('QA', 3)}
 </div>'''
   aside = f'''<div class="col" style="gap: 12px">
-<section class="card card-pad col" style="gap: 6px"><div class="row" style="padding-bottom: 6px"><span class="t-h2 grow">Por miembro</span><span class="mono t-xs fg-3">hoy</span></div>{per_member()}
+<section class="card card-pad col" style="gap: 6px"><div class="row" style="padding-bottom: 6px"><span class="t-h2 grow">Por miembro</span><span class="t-num t-xs fg-3">hoy</span></div>{per_member()}
 <span class="form-hint" style="padding-top: 6px">El Arquitecto y el Redactor técnico no responden de ninguna columna: el flujo no los ejecuta; se les consulta desde un chat.</span></section>
 <section class="card card-pad col" style="gap: 0"><div class="row" style="padding-bottom: 8px"><span class="t-h2 grow">Límites del flujo</span><a href="DesktopFlujo.html" class="t-sm c-accent">Editar</a></div>
 <div class="prop-row" style="border-top: 0"><span class="k" style="width: 120px">A la vez</span><span class="v"><span class="t-num">2</span><span class="t-xs fg-3">las dos en uso · 2 en cola</span></span></div>
@@ -161,7 +161,7 @@ def team_activity_desktop():
 <section class="card" style="overflow: hidden" aria-label="Ejecuciones">
 <div class="row" style="padding: 12px 16px; border-bottom: 1px solid var(--line)">{SUM}</div>
 {runs_list(days=('now', 'today', 'yesterday'))}
-<div class="list-more" style="border-top: 1px solid var(--line)"><button type="button" class="btn btn-sm">Mostrar 50 más{ico('down', 'ico ico-sm')}</button><span class="mono t-xs">quedan 112</span></div>
+<div class="list-more" style="border-top: 1px solid var(--line)"><button type="button" class="btn btn-sm">Mostrar 50 más{ico('down', 'ico ico-sm')}</button><span class="t-num t-xs">quedan 112</span></div>
 </section>
 </div>
 {aside}
@@ -173,7 +173,7 @@ def team_activity_desktop():
 def team_activity_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
 <a href="MobileProyecto.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0"><h1 class="t-h1">Equipo</h1><span class="mono t-xs fg-3">claude-wrapper · 5 miembros</span></span>
+<span class="col grow" style="gap: 1px; min-width: 0"><h1 class="t-h1">Equipo</h1><span class="t-num t-xs fg-3">claude-wrapper · 5 miembros</span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Filtrar por miembro">{ico('filter', 'ico ico-lg')}</button>
 </header>
 <div class="m-body stack" style="gap: 12px">
@@ -205,13 +205,13 @@ def restart_line(n, short=False):
   return f'<div class="row t-xs mono fg-3" style="gap: 8px; justify-content: center; white-space: nowrap"><span style="flex: 1 1 0; height: 1px; background: var(--line)"></span>{ico("retry", "ico ico-sm")}{txt}<span style="flex: 1 1 0; height: 1px; background: var(--line)"></span></div>'
 
 
-FLOW_PROMPT = '''<span class="row t-xs" style="gap: 6px; color: var(--fg-3); font-family: var(--mono)">FLUJO_ICO flujo automático · En revisión → QA</span><span><b>Verifica AGN-26 · Plantillas de proyecto</b><br>Comprueba cada criterio de aceptación contra el worktree <span class="mono">task/agn-26</span> y da tu veredicto por criterio.</span>'''
+FLOW_PROMPT = '''<span class="t-num row t-xs" style="gap: 6px; color: var(--fg-3)">FLUJO_ICO flujo automático · En revisión → QA</span><span><b>Verifica AGN-26 · Plantillas de proyecto</b><br>Comprueba cada criterio de aceptación contra el worktree <span class="mono">task/agn-26</span> y da tu veredicto por criterio.</span>'''
 
 
 def flow_part_of(mobile=False):
   if mobile:
-    return f'''<a href="MobileTarea.html" class="part-of" style="margin: 0 16px">{role('QA', 'xs')}<span class="col grow" style="gap: 2px; min-width: 0"><span class="row t-xs" style="gap: 6px"><span>Verificación de</span><span class="wi-key">AGN-26</span><span class="grow"></span><span class="row" style="gap: 5px">{sico('in_review')}En revisión</span></span><span style="font-size: 14px; font-weight: 600; color: var(--fg)">Plantillas de proyecto</span></span></a>'''
-  return f'''<div class="part-of" style="white-space: nowrap">{role('QA', 'xs')}<span>Verificación de</span><span class="wi-key boxed">AGN-26</span><a href="DesktopTarea.html" class="ellipsis">Plantillas de proyecto</a><span class="grow"></span><span class="row t-xs" style="gap: 6px">{sico('in_review')}En revisión</span><span class="mono t-xs fg-3">criterios 5/5</span></div>'''
+    return f'''<a href="MobileTarea.html" class="part-of" style="margin: 0 16px">{role('QA', 'xs')}<span class="col grow" style="gap: 2px; min-width: 0"><span class="row t-xs" style="gap: 6px"><span>Verificación de</span><span class="wi-key">AGN-26</span><span class="grow"></span><span class="row" style="gap: 5px">{sico('in_review')}En revisión</span></span><span style="font-size: var(--fs-body); font-weight: var(--fw-strong); color: var(--fg)">Plantillas de proyecto</span></span></a>'''
+  return f'''<div class="part-of" style="white-space: nowrap">{role('QA', 'xs')}<span>Verificación de</span><span class="wi-key boxed">AGN-26</span><a href="DesktopTarea.html" class="ellipsis">Plantillas de proyecto</a><span class="grow"></span><span class="row t-xs" style="gap: 6px">{sico('in_review')}En revisión</span><span class="t-num t-xs fg-3">criterios 5/5</span></div>'''
 
 
 def flow_chat_desktop():
@@ -220,15 +220,15 @@ def flow_chat_desktop():
 <div class="col grow" style="gap: 0; min-width: 0">
 <div class="row" style="height: 56px; padding: 0 20px 0 12px; border-bottom: 1px solid var(--line); gap: 10px; flex-shrink: 0">
 <a href="DesktopEquipoActividad.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver">{ico('left')}</a>
-<span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis" style="font-weight: 600">QA verifica AGN-26: plantillas de proyecto</span><span class="mono t-xs fg-3">claude-wrapper · 91ab22 · sonnet · Sonnet 5</span></span>
-<span class="badge b-bad">{ico('x', 'ico ico-sm')}fallida</span><span class="mono t-xs fg-3">2 min 30 s</span>
+<span class="col grow" style="gap: 1px; min-width: 0"><span class="ellipsis" style="font-weight: var(--fw-strong)">QA verifica AGN-26: plantillas de proyecto</span><span class="t-num t-xs fg-3">claude-wrapper · <span class="mono">91ab22</span> · <span class="mono">sonnet</span> · Sonnet 5</span></span>
+<span class="badge b-bad">{ico('x', 'ico ico-sm')}fallida</span><span class="t-num t-xs fg-3">2 min 30 s</span>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Buscar en el chat">{ico('search')}</button>
 <button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Más acciones">{ico('more', 'ico', 'stroke-width: 3')}</button>
 </div>
 <div style="padding: 12px 32px 0; display: flex; justify-content: center; flex-shrink: 0"><div class="col" style="width: 100%; max-width: 740px; gap: 10px">{flow_part_of()}{FAIL_BANNER}</div></div>
 <div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 20px 32px 0">
-<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: 14px; line-height: 1.65">
-<div class="col" style="align-self: flex-end; max-width: 82%; gap: 4px; background: var(--bg-2); border: 1px dashed var(--line-3); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 11px 15px; font-size: 14px">{prompt}</div>
+<div class="col" style="width: 100%; max-width: 740px; gap: 16px; font-size: var(--fs-body); line-height: 1.65">
+<div class="col" style="align-self: flex-end; max-width: 82%; gap: 4px; background: var(--bg-2); border: 1px dashed var(--line-3); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 11px 15px; font-size: var(--fs-body)">{prompt}</div>
 <div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3)">{ico('check', 'ico ico-sm c-ok', 'stroke-width: 2.4')}<span>4 herramientas · 1 min 5 s</span><span class="badge">Read ×3</span><span class="badge">Grep</span>{ico('down', 'ico ico-sm')}</div>
 <p style="margin: 0">Criterios 1 a 3 cumplidos: las cinco plantillas están en <code>project-templates.ts</code>, la ruta las lista en el orden del asistente y crear un proyecto preselecciona sus módulos. Sigo con el 4.</p>
 {restart_line(1)}
@@ -237,17 +237,17 @@ def flow_chat_desktop():
 {restart_line(2)}
 <p style="margin: 0">Retomo otra vez en el criterio 4.</p>
 {restart_line(3)}
-<div class="row t-sm" style="gap: 8px; color: var(--fg-2)">{ico('x', 'ico ico-sm c-bad')}<span><b class="c-bad" style="font-weight: 600">Falló</b> · se cortó por tercera vez antes de dar su veredicto</span></div>
+<div class="row t-sm" style="gap: 8px; color: var(--fg-2)">{ico('x', 'ico ico-sm c-bad')}<span><b class="c-bad" style="font-weight: var(--fw-strong)">Falló</b> · se cortó por tercera vez antes de dar su veredicto</span></div>
 </div>
 </div>
 <div style="display: flex; justify-content: center; padding: 12px 32px 18px; flex-shrink: 0">
 <div class="col" style="width: 100%; max-width: 780px; gap: 8px">
 <div class="card" style="border-radius: var(--r-xl); padding: 10px; display: flex; align-items: flex-end; gap: 8px">
 <button type="button" class="btn btn-ghost btn-icon" aria-label="Adjuntar">{ico('clip')}</button>
-<label class="grow" style="display: flex; min-height: 36px; align-items: center"><textarea rows="1" placeholder="Escribe para seguir tú: el flujo te cede este chat" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: 14px; padding: 0"></textarea></label>
+<label class="grow" style="display: flex; min-height: 36px; align-items: center"><textarea rows="1" placeholder="Escribe para seguir tú: el flujo te cede este chat" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--fs-body); padding: 0"></textarea></label>
 <button type="button" class="btn btn-primary btn-icon" aria-label="Enviar">{ico('send', 'ico', 'stroke-width: 2.2')}</button>
 </div>
-<div class="row" style="gap: 6px"><button type="button" class="chip">Sonnet 5</button><button type="button" class="chip">Acepta ediciones</button><button type="button" class="chip">{ico('branch', 'ico ico-sm')}task/agn-26</button><span class="grow"></span><span class="t-xs fg-3 mono">↵ enviar · ⇧↵ salto</span></div>
+<div class="row" style="gap: 6px"><button type="button" class="chip">Sonnet 5</button><button type="button" class="chip">Acepta ediciones</button><button type="button" class="chip">{ico('branch', 'ico ico-sm')}task/agn-26</button><span class="grow"></span><span class="t-num t-xs fg-3"><span class="mono">↵</span> enviar · <span class="mono">⇧↵</span> salto</span></div>
 </div>
 </div>
 </div>
@@ -268,36 +268,36 @@ def flow_chat_desktop():
 <div class="row" style="padding-bottom: 8px"><span class="t-label grow">Tarea</span><a href="DesktopTarea.html" class="t-xs c-accent">Abrir</a></div>
 <div class="prop-row"><span class="k" style="width: 104px">Clave</span><span class="v"><span class="wi-key boxed">AGN-26</span></span></div>
 <div class="prop-row"><span class="k" style="width: 104px">Estado</span><span class="v">{sico('in_review')}En revisión</span></div>
-<div class="prop-row"><span class="k" style="width: 104px">Criterios</span><span class="v"><span class="mono t-xs">5/5</span><span class="wi-crit full"><span class="bar"><i style="width: 100%"></i></span></span></span></div>
+<div class="prop-row"><span class="k" style="width: 104px">Criterios</span><span class="v"><span class="t-num t-xs">5/5</span><span class="wi-crit full"><span class="bar"><i style="width: 100%"></i></span></span></span></div>
 <div class="prop-row"><span class="k" style="width: 104px">Ahora</span><span class="v"><span class="badge b-idle">te espera</span><span class="t-xs fg-2">para pasar a Hecho</span></span></div>
 </section>
 </div>
 </aside>
 </div>'''
-  write('DesktopChatFlujo.html', desktop('Chat de una ejecución fallida', 'chats', '<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: 500">91ab22</span>', main, live=TEAM_LIVE, agents=3, running=3))
+  write('DesktopChatFlujo.html', desktop('Chat de una ejecución fallida', 'chats', '<a href="DesktopChats.html" class="fg-2">Chats</a><span class="fg-3">/</span><span class="mono" style="font-weight: var(--fw-regular)">91ab22</span>', main, live=TEAM_LIVE, agents=3, running=3))
 
 
 def flow_chat_mobile():
   inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px">
 <a href="MobileEquipoActividad.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
-<span class="col grow" style="gap: 3px; min-width: 0"><span style="font-weight: 600; font-size: 16px; line-height: 1.3">QA verifica AGN-26: plantillas de proyecto</span><span class="row" style="gap: 6px"><span class="badge b-bad">{ico('x', 'ico ico-sm')}fallida</span><span class="mono t-xs fg-3">2 min 30 s · sonnet</span></span></span>
+<span class="col grow" style="gap: 3px; min-width: 0"><span style="font-weight: var(--fw-strong); font-size: var(--fs-input); line-height: 1.3">QA verifica AGN-26: plantillas de proyecto</span><span class="row" style="gap: 6px"><span class="badge b-bad">{ico('x', 'ico ico-sm')}fallida</span><span class="t-num t-xs fg-3">2 min 30 s · <span class="mono">sonnet</span></span></span></span>
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico('more', 'ico ico-lg', 'stroke-width: 3')}</button>
 </header>
 {flow_part_of(True)}
-<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 16px 0; gap: 14px; font-size: 15px; line-height: 1.6">
+<div class="col" style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 12px 16px 0; gap: 14px; font-size: var(--fs-section); line-height: 1.6">
 <div class="run-fail" role="status">{ico('x')}<div class="col" style="gap: 4px; min-width: 0"><span><b>Esta verificación falló y no movió la tarea.</b> Claudio se reinició tres veces mientras QA verificaba; a la tercera ya no pudo seguir.</span><span class="mono t-xs fg-3">cut off by a restart (restarts: 2 of 2)</span>
 <span class="row t-sm" style="gap: 6px; margin-top: 2px">{ico('check', 'ico ico-sm c-ok')}<span>Reintentada hoy: <b class="c-ok">pasó</b> hace 12 min.</span></span>
 <div class="acts" style="flex-direction: column"><a href="MobileChat.html" class="btn btn-lg" style="width: 100%">Abrir el chat 7c2e01</a></div></div></div>
-<div class="col" style="align-self: flex-end; max-width: 88%; gap: 4px; background: var(--bg-2); border: 1px dashed var(--line-3); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 10px 14px; font-size: 14px; line-height: 1.5"><span class="row t-xs" style="gap: 6px; color: var(--fg-3); font-family: var(--mono)">{ico('flow', 'ico ico-sm')}flujo automático · En revisión → QA</span><span><b>Verifica AGN-26</b>: cada criterio contra <span class="mono">task/agn-26</span>.</span></div>
+<div class="col" style="align-self: flex-end; max-width: 88%; gap: 4px; background: var(--bg-2); border: 1px dashed var(--line-3); border-radius: var(--r-xl) var(--r-xl) var(--r-xs) var(--r-xl); padding: 10px 14px; font-size: var(--fs-body); line-height: 1.5"><span class="row t-xs" style="gap: 6px; color: var(--fg-3); font-family: var(--mono)">{ico('flow', 'ico ico-sm')}flujo automático · En revisión → QA</span><span><b>Verifica AGN-26</b>: cada criterio contra <span class="mono">task/agn-26</span>.</span></div>
 <div class="row t-xs" style="gap: 8px; font-family: var(--mono); color: var(--fg-3)">{ico('check', 'ico ico-sm c-ok', 'stroke-width: 2.4')}<span>4 herramientas · 1 min 5 s</span></div>
 <p style="margin: 0">Criterios 1 a 3 cumplidos. Sigo con el 4.</p>
 {restart_line(1, True)}
 <p style="margin: 0" class="fg-2">Retomo en el criterio 4: lo compruebo con el test de plantillas.</p>
 {restart_line(2, True)}
 {restart_line(3, True)}
-<div class="row t-sm" style="gap: 8px; color: var(--fg-2)">{ico('x', 'ico ico-sm c-bad')}<span><b class="c-bad" style="font-weight: 600">Falló</b> · se cortó por tercera vez</span></div>
+<div class="row t-sm" style="gap: 8px; color: var(--fg-2)">{ico('x', 'ico ico-sm c-bad')}<span><b class="c-bad" style="font-weight: var(--fw-strong)">Falló</b> · se cortó por tercera vez</span></div>
 </div>
-<div class="m-foot" style="align-items: center"><label class="field field-lg grow"><input type="text" placeholder="Escribe para seguir tú" aria-label="Mensaje" style="font-size: 16px"></label><button type="button" class="btn btn-primary btn-icon btn-lg" aria-label="Enviar" style="flex: 0 0 auto">{ico('send', 'ico ico-lg', 'stroke-width: 2.2')}</button></div>'''
+<div class="m-foot" style="align-items: center"><label class="field field-lg grow"><input type="text" placeholder="Escribe para seguir tú" aria-label="Mensaje" style="font-size: var(--fs-input)"></label><button type="button" class="btn btn-primary btn-icon btn-lg" aria-label="Enviar" style="flex: 0 0 auto">{ico('send', 'ico ico-lg', 'stroke-width: 2.2')}</button></div>'''
   write('MobileChatFlujo.html', mobile('Chat de una ejecución fallida', inner))
 
 
@@ -321,7 +321,7 @@ def team_board_mobile():
 <div class="m-body stack" style="gap: 12px; margin-bottom: 76px">
 {mview_seg('board').replace('MobileTablero.html', 'MobileTableroEquipo.html')}
 {mtoolbar()}
-<a href="MobileFlujo.html" class="row" style="gap: 8px; min-height: 44px; padding: 0 12px; border-radius: var(--r); background: var(--bg-2); border: 1px solid var(--line); font-size: 13px">{ico('flow', 'ico fg-3')}<span class="grow">Flujo automático <span class="fg-3">·</span> <span class="fg-2">2 a la vez, 2 en cola</span></span><span class="badge">activado</span></a>
+<a href="MobileFlujo.html" class="row" style="gap: 8px; min-height: 44px; padding: 0 12px; border-radius: var(--r); background: var(--bg-2); border: 1px solid var(--line); font-size: var(--fs-small)">{ico('flow', 'ico fg-3')}<span class="grow">Flujo automático <span class="fg-3">·</span> <span class="fg-2">2 a la vez, 2 en cola</span></span><span class="badge">activado</span></a>
 {jump('in_progress')}
 {msection('in_progress', by_col('in_progress'), rows_html=rows_ip, head_right=role('DEV'))}
 {msection('in_review', by_col('in_review'), rows_html=rows_ir, head_right=role('QA'))}
@@ -342,7 +342,7 @@ def ds_board():
     return f'<div class="card col" style="padding: 18px; gap: 8px"><span class="mono t-xs fg-3">{n}</span><h2 class="t-h2">{title}</h2><p class="t-sm fg-2" style="margin: 0; line-height: 1.5">{text}</p></div>'
 
   def cell(title, note, body):
-    return f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: 600">{title}</span><span class="t-xs fg-3" style="line-height: 1.45; min-height: 32px">{note}</span>{body}</div>'
+    return f'<div class="col" style="gap: 8px"><span class="t-sm" style="font-weight: var(--fw-strong)">{title}</span><span class="t-xs fg-3" style="line-height: 1.45; min-height: 32px">{note}</span>{body}</div>'
 
   anat = card('AGN-35', who='DEV', strip=quote_strip('QA', 'La clave cambia al renombrar; el criterio 2 pide que no.'), lead_facts=[bounce(1)], comments=1)
   rows = [('1', 'Qué es', 'Tipo, clave y prioridad. La prioridad es una marca neutra; solo Urgente lleva color.'),
@@ -350,7 +350,7 @@ def ds_board():
           ('3', 'Dónde va', 'La épica, sin caja, y las etiquetas con #. En Todos los proyectos, el proyecto delante.'),
           ('4', 'Hechos', 'Rebotes, criterios, bloqueos y comentarios, y al final quién la lleva, salvo que la franja ya lo diga.'),
           ('5', 'La franja', 'Qué pasa ahora, empezando por quién. Una sola por tarjeta, y ninguna si no pasa nada.')]
-  legend = ''.join(f'<div class="row" style="gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line)"><span class="count-pill" style="margin-top: 1px">{n}</span><span class="col" style="gap: 2px"><span class="t-sm" style="font-weight: 600">{t}</span><span class="t-sm fg-2" style="line-height: 1.45">{d}</span></span></div>' for n, t, d in rows)
+  legend = ''.join(f'<div class="row" style="gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line)"><span class="count-pill" style="margin-top: 1px">{n}</span><span class="col" style="gap: 2px"><span class="t-sm" style="font-weight: var(--fw-strong)">{t}</span><span class="t-sm fg-2" style="line-height: 1.45">{d}</span></span></div>' for n, t, d in rows)
   strips = [
     ('Un rol trabaja', 'El squircle del rol y el verbo de su etapa: Refinando, Implementando o Verificando.', card('AGN-28', who='DEV', strip=live_strip('DEV', 'Implementando', '4:12', 'pnpm test'))),
     ('Tu chat trabaja', 'Tu monograma redondo y lo que hace el chat que abrió «Trabajar en ella».', card('AGN-28')),

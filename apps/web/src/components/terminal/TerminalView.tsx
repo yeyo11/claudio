@@ -39,6 +39,7 @@ interface Props {
   terminal: Terminal;
   /** A phone: the DOM renderer and a smaller cell font */
   compact: boolean;
+  // design-lint-ok: the cell size is the person's own terminal setting, outside the type scale
   fontSize: number;
   /** Whether the cursor may blink: motion at full, and the tab in view */
   blink: boolean;
@@ -150,7 +151,9 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       const root = getComputedStyle(document.documentElement);
       const term = new Xterm({
         allowProposedApi: true,
+        // design-lint-ok: xterm draws on a canvas and needs the mono stack as a string; cells are code
         fontFamily: root.getPropertyValue('--mono').trim() || 'monospace',
+        // design-lint-ok: the cell size is the person's own terminal setting, outside the type scale
         fontSize: cell,
         lineHeight: 1.2,
         scrollback: 5000,
@@ -384,6 +387,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
   useEffect(() => {
     const term = xterm.current;
     if (!term) return;
+    // design-lint-ok: the cell size is the person's own terminal setting, outside the type scale
     term.options.fontSize = props.fontSize;
     refit.current();
   }, [props.fontSize]);

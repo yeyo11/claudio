@@ -80,7 +80,7 @@ export default async ({ page, api, check }) => {
     await page.key('Enter');
     await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the chat menu' });
     const menu = await page.text('[role=menu]');
-    for (const item of ['Export Markdown', 'Export JSON', 'Fork', 'Subagent messages', 'Copy chat id', 'Delete']) check(menu.includes(item), `the menu offers ${item}`);
+    for (const item of ['Export Markdown', 'Export JSON', 'Fork', 'Copy chat id', 'Delete']) check(menu.includes(item), `the menu offers ${item}`);
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('[role=menu]')`, { label: 'the menu closes' });
 

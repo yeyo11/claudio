@@ -20,10 +20,12 @@ export function PassTrend({ points }: { points: TrendPoint[] }) {
   if (points.length < 2) return <p className="field-hint">{t('trend.few')}</p>;
   const x = (i: number) => PAD.left + (i / (points.length - 1)) * (W - PAD.left - PAD.right);
   const y = (rate: number) => PAD.top + (1 - rate) * (H - PAD.top - PAD.bottom);
+  // design-lint-ok: SVG geometry
   const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)} ${y(p.rate).toFixed(1)}`).join(' ');
+  // design-lint-ok: SVG geometry
   const band = [...points.map((p, i) => `${x(i).toFixed(1)},${y(p.interval.high).toFixed(1)}`), ...[...points].reverse().map((p, i) => `${x(points.length - 1 - i).toFixed(1)},${y(p.interval.low).toFixed(1)}`)].join(' ');
   const last = points[points.length - 1] as TrendPoint;
-  const detail = (p: TrendPoint) => t('trend.point', { when: formatDateTime(p.at), passed: p.passed, of: p.of, rate: percent(p.rate), range: `${percent(p.interval.low)}–${percent(p.interval.high)}` });
+  const detail = (p: TrendPoint) => t('trend.point', { when: formatDateTime(p.at), passed: p.passed, of: p.of, rate: percent(p.rate), range: `${percent(p.interval.low)}–${percent(p.interval.high)}`, confidence: percent(0.95) });
   return (
     <figure className="evals-trend">
       <figcaption className="evals-trend-head">
@@ -76,11 +78,11 @@ export function PassTrend({ points }: { points: TrendPoint[] }) {
             <tbody>
               {[...points].reverse().map((p) => (
                 <tr key={p.runId}>
-                  <th scope="row" className="mono">
+                  <th scope="row" className="tnum">
                     {formatDateTime(p.at)}
                   </th>
-                  <td className="mono evals-num">{`${p.passed}/${p.of}`}</td>
-                  <td className="mono evals-num">{`${percent(p.rate)} (${percent(p.interval.low)}–${percent(p.interval.high)})`}</td>
+                  <td className="evals-num">{`${p.passed}/${p.of}`}</td>
+                  <td className="evals-num">{`${percent(p.rate)} (${percent(p.interval.low)}–${percent(p.interval.high)})`}</td>
                 </tr>
               ))}
             </tbody>

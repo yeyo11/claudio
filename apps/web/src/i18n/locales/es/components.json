@@ -304,7 +304,7 @@
     "conflictResolving_other": "{{count}} archivos en {{branch}}.",
     "fromSubagent": "Lo ha iniciado un subagente.",
     "supervisorProposed": "{{name}}: el supervisor propone una pista",
-    "spendWarnTitle": "Gasto de hoy al 75 % del tope",
+    "spendWarnTitle": "Gasto de hoy al {{percent}} del tope",
     "spendExhaustedTitle": "Tope de gasto diario alcanzado: el trabajo automático espera hasta las 00:00",
     "spendBody": "{{spent}} de {{cap}}, según el CLI.",
     "joinRequest": "{{name}} pide unirse a {{group}}",
@@ -379,7 +379,14 @@
       "sonnet-medium": "Sonnet 5.5 rinde bien en medium en tareas bien especificadas y en el chat; en low puede saltarse la verificación.",
       "sonnet-high": "Sonnet 5.5 rinde mejor en high al planificar y al arreglar lo que falló, donde el trabajo es difícil o largo."
     },
-    "unavailableModel": "Este modelo no admite niveles de effort."
+    "unavailableModel": "Este modelo no admite niveles de effort.",
+    "levels": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto",
+      "xhigh": "Muy alto",
+      "max": "Máximo"
+    }
   },
   "spendCap": {
     "title": "Has alcanzado el tope de gasto diario",

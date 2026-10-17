@@ -50,7 +50,7 @@ function LimitFields({ limits, onChange }: { limits: Limits; onChange: (limits: 
             </span>
             {/* A plain field, as the reference draws it: empty is "no limit", and five steppers side by side would not fit */}
             <input
-              className="mono"
+              className="tnum"
               inputMode="numeric"
               value={limits[status] ?? ''}
               placeholder="–"
@@ -380,7 +380,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
             <button type="button" className="settings-cell project-limits-cell" onClick={() => setLimitsOpen(true)}>
               <span className="settings-cell-name project-limits-text">
                 <span>{t('general.boardLimits')}</span>
-                <span className="mono small muted">{limitsLine}</span>
+                <span className="small muted tnum">{limitsLine}</span>
               </span>
               <ChevronRight {...ICON_SM} className="settings-cell-chevron" />
             </button>
@@ -434,7 +434,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
           <section className="card project-general-card" aria-labelledby="project-host-title">
             <div className="project-modules-head">
               <h2 id="project-host-title">{t('host.title')}</h2>
-              <span className="mono small muted">{t('host.detected')}</span>
+              <span className="small muted">{t('host.detected')}</span>
             </div>
             <ProjectHostLine project={project} stacked={false} />
             <span className="field-hint">
@@ -463,7 +463,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
         <section className="card project-general-card project-modules">
           <div className="project-modules-head">
             <h2>{t('general.modules')}</h2>
-            <span className="mono small muted">{t('general.modulesOn', { n: formatNumber(onCount), total: formatNumber(PROJECT_MODULES.length) })}</span>
+            <span className="small muted tnum">{t('general.modulesOn', { n: formatNumber(onCount), total: formatNumber(PROJECT_MODULES.length) })}</span>
           </div>
           {moduleCards}
           {offNote}

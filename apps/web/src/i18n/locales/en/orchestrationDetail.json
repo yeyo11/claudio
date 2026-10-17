@@ -72,7 +72,7 @@
     "subjectPlaceholder": "Subject, or the host’s own",
     "body": "Commit body",
     "bodyPlaceholder": "Body, optional",
-    "guard": "Merges commit {{head}}, the one shown here. If the branch changes first, nothing is merged.",
+    "guard": "Merges commit <mono>{{head}}</mono>, the one shown here. If the branch changes first, nothing is merged.",
     "action": "Merge {{label}}",
     "merging": "Merging…",
     "merged": "{{noun}} merged"

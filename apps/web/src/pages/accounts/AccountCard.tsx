@@ -5,7 +5,7 @@ import { MoreActions, type MenuItem } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
-import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
+import { formatDateTime, formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import { accountExhausted, accountName, canSignInAgain, isDefaultAccount, signInProblem, timeToReset, usagePct, windowRows, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */
@@ -34,7 +34,7 @@ function WindowMeter({ row }: { row: WindowRow }) {
         {reset && <span className="account-meter-reset">{reset}</span>}
         {row.resetsAt && <span className="sr-only">({formatDateTime(row.resetsAt)})</span>}
         <span className="account-meter-pct">
-          {row.pct}%<span className="sr-only"> {t('card.used')}</span>
+          {formatPercent(row.pct)}<span className="sr-only"> {t('card.used')}</span>
         </span>
       </div>
       <div className="meter-track" aria-hidden>
@@ -100,13 +100,13 @@ export function AccountCard({
           </span>
           <span className="account-sub">
             {sub && <span className="account-org">{sub}</span>}
-            <span className="mono">{t(`kind.${account.kind}`)}</span>
+            <span>{t(`kind.${account.kind}`)}</span>
           </span>
         </span>
         {pct !== null && (
           <span className="account-figure">
             <span className={`account-figure-value ${exhausted ? 'text-bad' : current ? 'grad-text' : ''}`.trim()}>
-              {100 - pct}%<span className="sr-only"> {t('card.free')}</span>
+              {formatPercent(100 - pct)}<span className="sr-only"> {t('card.free')}</span>
             </span>
             <span className="section-label" aria-hidden={!backIn}>
               {backIn ?? t('card.free')}
@@ -129,7 +129,7 @@ export function AccountCard({
         )}
         {account.limits && (
           // The cache can be days old and a stream reading is as old as the run that sent it: say how old
-          <p className="muted small mono" title={formatDateTime(account.limits.observedAt)}>
+          <p className="muted small tnum" title={formatDateTime(account.limits.observedAt)}>
             {t(`card.source.${account.limits.source}`, { ago: timeAgo(account.limits.observedAt) })}
           </p>
         )}

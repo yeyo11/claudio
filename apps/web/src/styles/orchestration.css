@@ -40,7 +40,7 @@
 .board-task-name {
   margin: 0;
   font-size: inherit;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   overflow-wrap: anywhere;
 }
 
@@ -68,11 +68,9 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 /* Connector between stages, drawn in the gap left of each column */
@@ -233,11 +231,9 @@
 
 .wf-phase-title {
   margin-bottom: 4px;
-  color: var(--text-muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .wf-agents {
@@ -255,18 +251,18 @@
   gap: 2px 8px;
   align-items: baseline;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .wf-agent-label {
-  font-weight: 550;
+  font-weight: var(--fw-strong);
 }
 
 .wf-agent-preview {
   flex: 1 1 100%;
   padding-left: 16px;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
 
@@ -318,7 +314,7 @@
   padding: 10px 12px;
   overflow: auto;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   white-space: pre-wrap;
   background: var(--surface-2, var(--bg));
@@ -343,6 +339,8 @@
 
 .board-col-title {
   flex: 1 1 auto;
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .board-col-progress {
@@ -428,12 +426,20 @@
 }
 
 .orch-card-link {
+  display: flex;
+  align-items: center;
   min-width: 0;
-  overflow: hidden;
+  /* A target of 24 px (44 with a finger) whose line keeps its height: the margins give it back */
+  min-height: 24px;
+  margin-block: calc((var(--lh-section) - 24px) / 2);
   color: var(--text);
-  font-size: 15px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: var(--fs-section);
+}
+@media (pointer: coarse) {
+  .orch-card-link {
+    min-height: var(--touch);
+    margin-block: calc((var(--lh-section) - var(--touch)) / 2);
+  }
 }
 
 .orch-card-link:hover {
@@ -495,9 +501,8 @@
   border-radius: var(--radius-sm);
   background: var(--bg-hover);
   color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .orch-initials.is-accent {
@@ -536,7 +541,7 @@
 .orch-card-meta {
   overflow: hidden;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -545,7 +550,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -581,7 +586,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 14px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .orch-card-facts {
@@ -611,7 +616,7 @@
 .orch-card-cost {
   margin-left: auto;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -663,9 +668,9 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -711,14 +716,6 @@
   white-space: pre-wrap;
 }
 
-.orch-objective-text.is-clamped {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  overflow: hidden;
-}
-
 .orch-settings {
   display: flex;
   flex-wrap: wrap;
@@ -753,9 +750,9 @@
 }
 
 .orch-kpi-value {
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
   /* A figure stays on one line: the cost's currency does not drop under its number */
@@ -763,21 +760,21 @@
 }
 
 .orch-kpi-value.orch-clock {
-  font-size: 24px;
+  font-size: var(--fs-title);
   letter-spacing: 0;
 }
 
 .orch-kpi-of {
   color: var(--text-faint);
-  font-size: 18px;
+  font-size: var(--fs-title);
 }
 
 .orch-kpi-unit {
   display: block;
   margin-top: 4px;
   color: var(--text-faint);
-  font-size: 11px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   letter-spacing: 0;
 }
 
@@ -802,7 +799,7 @@
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .stepper.is-pipeline .step-bar {
@@ -850,12 +847,12 @@
   align-items: center;
   gap: 6px;
   color: var(--text);
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .stepper.is-pipeline .step.is-pending .step-label {
   color: var(--text-muted);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
 }
 
 .stepper.is-pipeline .step.is-done .step-label > svg {
@@ -873,14 +870,12 @@
 .stepper.is-pipeline .step.is-current .step-label,
 .stepper.is-pipeline .step.is-current .step-meta {
   color: var(--live);
-  font-weight: 600;
 }
 
 .stepper.is-pipeline .step-meta {
   color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   font-variant-numeric: tabular-nums;
 }
 
@@ -922,10 +917,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg-elev);
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    font-size: var(--fs-small);
     white-space: nowrap;
   }
   .stepper.is-pipeline .step-bar {
@@ -979,9 +971,9 @@
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 /* The selected step's panel, opened in place under its step on the timeline form */
@@ -1053,8 +1045,8 @@
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
   overflow-wrap: anywhere;
 }
 
@@ -1066,7 +1058,7 @@
 
 .task-row-facts {
   flex: none;
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1090,8 +1082,8 @@
 
 .task-row.is-summary .task-row-name {
   overflow: hidden;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1112,8 +1104,7 @@
   max-width: 100%;
   overflow: hidden;
   color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1186,15 +1177,11 @@
   border-radius: var(--radius);
   background: var(--bg);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .task-box > svg {
   flex: none;
-}
-
-.task-box.is-live {
-  font-family: var(--mono);
 }
 
 .task-box.is-ok,
@@ -1259,7 +1246,7 @@
   gap: 4px 8px;
   min-width: 0;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .task-id {
@@ -1338,7 +1325,7 @@
   }
   .orch-title {
     max-width: 100%;
-    font-size: 20px;
+    font-size: var(--fs-title);
   }
   .orch-kpis {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1351,7 +1338,7 @@
   }
   .orch-kpi-value,
   .orch-kpi-value.orch-clock {
-    font-size: 22px;
+    font-size: var(--fs-title);
   }
 
   .orch-brief .orch-settings,
@@ -1424,7 +1411,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .task-editor-item-title {
@@ -1468,7 +1455,7 @@
   align-items: center;
   gap: 5px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 /* An orchestration's change request: its checks, each log's tail, and the fix that waits for a person */
@@ -1498,8 +1485,8 @@
 
 .ochk-h {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .ochk-summary {
@@ -1568,7 +1555,7 @@
   border: 0;
   background: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
 }
@@ -1583,23 +1570,21 @@
   min-width: 0;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ochk-stage {
   color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 
 .ochk-dur {
   flex: 0 0 48px;
   color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -1610,7 +1595,7 @@
   min-height: 32px;
   padding: 0 10px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .ochk-fold .ochk-open {
@@ -1637,8 +1622,8 @@
 }
 
 .ochk-log-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 .ochk-why {
@@ -1648,7 +1633,7 @@
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .ochk-why dl {
@@ -1667,14 +1652,13 @@
 .ochk-note dt {
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .ochk-note dd {
   margin: 0;
   color: var(--text);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
 
@@ -1684,7 +1668,7 @@
   padding: 10px 0 12px;
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.65;
 }
 
@@ -1706,8 +1690,7 @@
   margin: 0;
   padding: 8px 14px 10px;
   color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .ochk-fix {
@@ -1728,8 +1711,8 @@
   flex-wrap: wrap;
   gap: 6px 14px;
   color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
 }
 
 .ochk-fix-foot {
@@ -1757,7 +1740,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 3px 8px;
     min-height: var(--touch);
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .ochk-name {
@@ -1783,7 +1766,7 @@
   }
 
   .ochk-tail {
-    font-size: 12px;
+    font-size: var(--fs-small);
   }
 }
 
@@ -1835,7 +1818,7 @@
   align-items: center;
   gap: 10px;
   min-height: 36px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg);
   cursor: pointer;
 }
@@ -1873,7 +1856,7 @@
   }
 
   .omrg-guard {
-    font-size: 13px;
+    font-size: var(--fs-small);
     flex: 0 0 auto;
   }
 }
@@ -1887,7 +1870,7 @@
   background: var(--warn-soft);
   color: var(--fg-2);
   padding: 9px 10px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.45;
 }
 
@@ -1899,7 +1882,7 @@
 
 .wait-line b {
   color: var(--fg);
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .wait-line .mono {
@@ -1922,8 +1905,8 @@
 /* An orchestration's own phone head names it at the size of a chat's (MobileOrquestacion), smaller
    than the other screens' titles: the name is an id someone typed, often long */
 .orch-phone-head h1 {
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  letter-spacing: var(--tracking-title);
 }
 
 /* The longest chain of a graph being written: a quiet hint under the task list, never a block. */
@@ -1976,7 +1959,7 @@
 
 .orch-timings-figures dd {
   margin: 4px 0 0;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .orch-timings-bar {
@@ -2002,7 +1985,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 /* Two neutral tones, alternating by phase. The bar's own empty tone is too faint to read as time
@@ -2025,11 +2008,11 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .orch-timings-link-name {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .orch-timings-tags,
@@ -2047,7 +2030,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .orch-timings-run.is-failed {
@@ -2115,42 +2098,43 @@
 }
 
 /* The review gate on the verification card (docs/plans/review-gate.md). The energy border turns only while reviewers run. */
-.rg { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--radius-lg); background: var(--bg-1); font-size: 13px; color: var(--fg-2); }
+.rg { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--radius-lg); background: var(--bg-1); font-size: var(--fs-small); color: var(--fg-2); }
 .rg.live-energy { border-color: transparent; }
 .rg-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: 44px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
 .rg-head .grow { flex: 1 1 auto; }
-.rg-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--fg); }
-.rg-head .facts { font-family: var(--mono); font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
-.rg-verb { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fg); }
+.rg-head h3 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-strong); color: var(--fg); }
+.rg-head .facts { font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-verb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-small); font-weight: var(--fw-regular); color: var(--fg); }
 .rg-reason { display: flex; align-items: flex-start; gap: 10px; margin: 12px 14px 0; padding: 10px 12px; border-radius: var(--radius); background: var(--bg-2); line-height: 1.5; }
 .rg-reason.warn { background: var(--warn-soft); }
 .rg-reason.bad { background: var(--bad-soft); }
 .rg-reason q { color: var(--fg); quotes: '“' '”'; }
 .rg-reason .ico { flex-shrink: 0; margin-top: 2px; }
 .rg-segs { padding: 12px 14px 0; display: flex; flex-direction: column; gap: 6px; }
-.rg-segs .mono { font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-segs .tnum { font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .rg-runs { display: flex; flex-direction: column; margin-top: 12px; border-top: 1px solid var(--line); }
 .rg-run { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto 56px 28px; align-items: center; gap: 4px 12px; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); color: var(--fg); }
 .rg-run.live-rail { padding-left: 18px; }
 .rg-run > :first-child { display: grid; place-items: center; }
 .rg-run.live-rail::before { top: 8px; bottom: 8px; }
 .rg-run .meta { display: contents; }
-.rg-run .dim { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-weight: 500; }
-.rg-run .dim .mono, .rg-run .model, .rg-run .cost { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; font-weight: 400; }
-.rg-run .state { font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); }
+.rg-run .dim { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-weight: var(--fw-regular); }
+.rg-run .dim .tnum, .rg-run .model, .rg-run .cost { font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; font-weight: var(--fw-regular); }
+.rg-run .model { font-family: var(--mono); }
+.rg-run .state { font-size: var(--fs-small); color: var(--fg-2); }
 .rg-run .state.ok { color: var(--ok); } .rg-run .state.bad { color: var(--bad); } .rg-run .state.warn { color: var(--warn); } .rg-run .state.live { color: var(--live); }
 .rg-run .cost { text-align: right; }
 .rg-group { display: flex; flex-direction: column; }
-.rg-group-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--line); background: var(--bg-1); color: var(--fg-2); font-size: 12px; text-align: left; width: 100%; cursor: pointer; }
-.rg-group-head .n { font-family: var(--mono); font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.rg-group-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--line); background: var(--bg-1); color: var(--fg-2); font-size: var(--fs-small); text-align: left; width: 100%; cursor: pointer; }
+.rg-group-head .n { font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .rg-group-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .rg .rt { margin: 0; }
-.rg-skipped { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 6px 0; font-size: 12.5px; }
-.rg-skipped .mono { font-family: var(--mono); font-size: 12px; color: var(--fg); overflow-wrap: anywhere; }
+.rg-skipped { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 6px 0; font-size: var(--fs-small); }
+.rg-skipped .mono { font-family: var(--mono); font-size: var(--fs-small); color: var(--fg); overflow-wrap: anywhere; }
 .rg-skipped .why { color: var(--fg-3); }
 .rg-quiet { display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: var(--fg-2); }
 .rg-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
-.rg-foot .hint { flex: 1 1 200px; min-width: 0; font-size: 12px; color: var(--fg-3); line-height: 1.45; }
+.rg-foot .hint { flex: 1 1 200px; min-width: 0; font-size: var(--fs-small); color: var(--fg-3); line-height: 1.45; }
 
 @media (max-width: 900px) {
   .rg-head { padding: 10px 14px; }
@@ -2165,7 +2149,7 @@
 .rg-actions-note {
   flex: 1 1 200px;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   line-height: 1.45;
 }
@@ -2177,5 +2161,5 @@
 }
 
 .rg-accept textarea {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }

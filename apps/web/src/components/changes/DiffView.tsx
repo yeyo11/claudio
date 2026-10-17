@@ -67,7 +67,7 @@ export interface DiffViewProps {
   onToggleBlock?: (block: number) => void;
   /** "Show" on a gap; without it the gaps say their size and offer nothing */
   onOpenGap?: (gap: Gap) => void;
-  /** Wrap long lines at 19 px rows instead of scrolling sideways (a phone) */
+  /** Wrap long lines at 18 px rows (--lh-small) instead of scrolling sideways (a phone) */
   wrap?: boolean;
   /** The block `j`/`k` are on: it is scrolled into view when it changes */
   currentBlock?: number | null;
@@ -265,7 +265,7 @@ function VirtualRows({
 function rowHeight(row: DiffRow | SplitRow | undefined, wrap: boolean): number {
   if (row?.type === 'gap') return 38;
   if (row?.type === 'seam') return 12;
-  return wrap ? 19 : 20;
+  return wrap ? 18 : 20;
 }
 
 // ---------------------------------------------------------------------------------------------

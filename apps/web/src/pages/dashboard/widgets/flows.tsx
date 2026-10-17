@@ -25,7 +25,7 @@ const FLOW_PATH = `/${teamSearch(new URLSearchParams(), { section: 'flow' })}`;
 
 function RunClock({ since }: { since: string }) {
   useClockTick(1000);
-  return <span className="mono small muted">{formatElapsed(elapsedSince(since))}</span>;
+  return <span className="small muted tnum">{formatElapsed(elapsedSince(since))}</span>;
 }
 
 function RunLine({ run, row }: { run: FlowRun; row: 'running' | 'queued' | 'ended' }) {
@@ -40,7 +40,7 @@ function RunLine({ run, row }: { run: FlowRun; row: 'running' | 'queued' | 'ende
       {live ? <Spinner variant="ring" /> : <StatusDot tone={row === 'queued' ? 'muted' : returned ? 'warn' : 'bad'} />}
       <span className="flow-what">
         <span className="small ellipsis flow-title">{run.item ? `${run.item.key} · ${run.item.title}` : t('home:widgets.flows.gone')}</span>
-        <span className="small muted mono ellipsis">{what}</span>
+        <span className="small muted ellipsis">{what}</span>
       </span>
       {live && run.startedAt ? (
         <RunClock since={run.startedAt} />
@@ -61,7 +61,7 @@ function Line({ row }: { row: FlowRow }) {
       <StatusDot tone="idle" />
       <span className="flow-what">
         <span className="small ellipsis flow-title">{t('home:widgets.flows.waitingIn', { count, n: formatNumber(count), column: t(`tasks:${columnMeta(column).label}`) })}</span>
-        <span className="small muted mono ellipsis">{roleName(role)}</span>
+        <span className="small muted ellipsis">{roleName(role)}</span>
       </span>
       <span className="badge badge-idle">{t('home:widgets.flows.waitsForYou')}</span>
     </Link>

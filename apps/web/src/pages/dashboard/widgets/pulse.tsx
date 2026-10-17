@@ -6,7 +6,7 @@ import { accountName, usagePct } from '../../../lib/accounts';
 import { ProgressRing, usageTone } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Skeleton } from '@claudio/ui/components/ui';
-import { formatAmountShort, formatCost, formatNumber, timeUntil } from '@claudio/ui/lib/format';
+import { formatAmountShort, formatCost, formatNumber, formatPercent, timeUntil } from '@claudio/ui/lib/format';
 import { useHomePulse } from '../pulse';
 import type { WidgetProps } from '../registry';
 
@@ -25,7 +25,7 @@ function Kpi({
   /** What sits before the label: a spinner when it is live, a dot otherwise */
   mark?: ReactNode;
   label: string;
-  /** On a phone, a mono label in place of the long one */
+  /** On a phone, a short label in place of the long one */
   tag?: string;
   value: ReactNode;
   /** On a phone, where the tile is a third of the screen, a shorter form of the figure */
@@ -52,7 +52,7 @@ function Kpi({
           </>
         )}
       </span>
-      <span className="kpi-sub mono">{sub}</span>
+      <span className="kpi-sub tnum">{sub}</span>
       <span className="kpi-short">{short}</span>
     </div>
   );
@@ -145,7 +145,7 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
         <>
           {five ? (
             <ProgressRing value={five.pct / 100} size={56} stroke={5} tone={tone === 'neutral' ? 'accent' : tone}>
-              <span className="gauge-value">{five.pct}%</span>
+              <span className="gauge-value">{formatPercent(five.pct)}</span>
             </ProgressRing>
           ) : null}
           <span className="limits-text">
@@ -159,15 +159,15 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
             </h2>
             {five ? (
               <>
-                {five.resetsAt !== null && <span className="kpi-sub mono">{t('kpis.resets', { when: timeUntil(five.resetsAt / 1000) })}</span>}
-                {limits.weekly && <span className="kpi-sub mono">{t('kpis.weekly', { pct: limits.weekly.pct })}</span>}
+                {five.resetsAt !== null && <span className="kpi-sub tnum">{t('kpis.resets', { when: timeUntil(five.resetsAt / 1000) })}</span>}
+                {limits.weekly && <span className="kpi-sub tnum">{t('kpis.weekly', { percent: formatPercent(limits.weekly.pct) })}</span>}
                 {others.length > 0 && (
-                  <span className="kpi-sub mono ellipsis">
-                    {others.map((o) => `${o.name} ${o.exhausted ? t('kpis.accountExhausted') : o.pct === null ? '–' : `${o.pct}%`}`).join(' · ')}
+                  <span className="kpi-sub tnum ellipsis">
+                    {others.map((o) => `${o.name} ${o.exhausted ? t('kpis.accountExhausted') : o.pct === null ? '–' : formatPercent(o.pct)}`).join(' · ')}
                   </span>
                 )}
-                <span className="limits-phone mono">
-                  {[t('kpis.fiveHourShort', { pct: five.pct }), limits.weekly ? t('kpis.weeklyShort', { pct: limits.weekly.pct }) : null].filter(Boolean).join(' · ')}
+                <span className="limits-phone tnum">
+                  {[t('kpis.fiveHourShort', { percent: formatPercent(five.pct) }), limits.weekly ? t('kpis.weeklyShort', { percent: formatPercent(limits.weekly.pct) }) : null].filter(Boolean).join(' · ')}
                 </span>
               </>
             ) : (

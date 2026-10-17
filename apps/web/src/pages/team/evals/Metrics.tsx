@@ -30,12 +30,12 @@ export function MetricCell({ cell }: { cell: EvalCellMetrics | undefined }) {
   const range = `${percent(cell.interval.low)}–${percent(cell.interval.high)}`;
   return (
     <span className="evals-metric">
-      <span className="mono evals-num evals-metric-main">
+      <span className="evals-num evals-metric-main">
         {t('metrics.rate', { c: cell.c, n: cell.n, rate: percent(rate) })}
-        <span className="evals-metric-interval">{t('metrics.interval', { range })}</span>
+        <span className="evals-metric-interval">{t('metrics.interval', { confidence: percent(0.95), range })}</span>
       </span>
-      <RateBar rate={rate} interval={cell.interval} label={t('metrics.barLabel', { rate: percent(rate), range })} />
-      <span className="mono evals-num evals-metric-k">
+      <RateBar rate={rate} interval={cell.interval} label={t('metrics.barLabel', { rate: percent(rate), confidence: percent(0.95), range })} />
+      <span className="evals-num evals-metric-k">
         {cell.passAtK !== null && t('metrics.passAt', { k: cell.k, value: percent(cell.passAtK) })}
         {cell.passHatK !== null && ` · ${t('metrics.passHat', { k: cell.k, value: percent(cell.passHatK) })}`}
         {cell.unjudged > 0 && ` · ${t('metrics.unjudged', { count: cell.unjudged })}`}
@@ -105,8 +105,8 @@ function PressureDrops({ run, cells }: { run: EvalRun; cells: EvalCellMetrics[] 
       <p className="field-hint">{t('metrics.dropNote')}</p>
       <ul className="evals-drop-list">
         {lines.map((line) => (
-          <li key={line.id} className="mono evals-num">
-            <span>{line.caseId}</span>
+          <li key={line.id} className="evals-num">
+            <span className="mono">{line.caseId}</span>
             <span className="evals-drop-variant">{t(`variant.${line.variant}`)}</span>
             <span className={line.drop > 0 ? 'tone-warn' : 'tone-muted'}>{t('metrics.drop', { points: Math.round(line.drop * 100) })}</span>
           </li>

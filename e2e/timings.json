@@ -79,6 +79,7 @@
   "terminal.spec.mjs": 32.6,
   "tool-presets.spec.mjs": 12.4,
   "trackers.spec.mjs": 30.0,
+  "ui-invariants.spec.mjs": 30.0,
   "updates-desktop.spec.mjs": 8.5,
   "updates.spec.mjs": 3.2,
   "usage.spec.mjs": 13.5,

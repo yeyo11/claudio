@@ -23,7 +23,7 @@
 .assistant-head .monogram {
   flex: none;
   border-radius: var(--radius-lg);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .assistant-back {
@@ -40,7 +40,7 @@
 }
 
 .assistant-subtitle {
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   max-width: 720px;
 }
@@ -95,9 +95,9 @@
 
 .assistant-card-head h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   white-space: nowrap;
 }
 
@@ -124,7 +124,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
 }
@@ -159,7 +159,7 @@
 }
 
 .assistant-done-text b {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .assistant-ended > svg {
@@ -247,7 +247,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 15px;
+  font-size: var(--fs-section);
   line-height: 1.5;
 }
 
@@ -288,7 +288,7 @@
   min-height: 52px;
   padding: 0 16px;
   border-bottom: 1px solid var(--line);
-  font-size: 15px;
+  font-size: var(--fs-section);
   color: var(--fg-2);
 }
 
@@ -353,7 +353,7 @@
 }
 
 .assistant-page.is-phone .assistant-describe-input {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .assistant-page.is-phone .assistant-describe-foot > .btn {
@@ -381,7 +381,7 @@
 
 .wizard-propose .switch {
   flex: none;
-  margin-top: 2px;
+  margin-top: calc(2px - var(--switch-hit-y));
 }
 
 .wizard-propose-text {
@@ -393,8 +393,8 @@
 }
 
 .wizard-propose-title {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 .wizard-phone .wizard-propose {
@@ -403,9 +403,9 @@
 }
 
 .wizard-phone .wizard-propose-title {
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .wizard-phone .wizard-propose-text .small {
-  font-size: 14px;
+  font-size: var(--fs-body);
 }

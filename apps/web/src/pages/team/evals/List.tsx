@@ -67,10 +67,10 @@ function EvalRow({
             {def ? (
               <>
                 <span className="mono evals-target">{`${def.target.scope === 'user' ? '~/' : ''}${def.target.kind}: ${def.target.name}`}</span>
-                <span className="mono">{t('list.cases', { count: def.cases.length })}</span>
+                <span className="tnum">{t('list.cases', { count: def.cases.length })}</span>
               </>
             ) : (
-              <span className="mono">{t('list.problems', { count: item.problems.length })}</span>
+              <span className="tnum">{t('list.problems', { count: item.problems.length })}</span>
             )}
           </span>
         </span>
@@ -78,9 +78,9 @@ function EvalRow({
           {run ? (
             <>
               <RunTag word={runWord(run)} />
-              {scored && <span className="mono evals-num">{t('list.scored', { passed: scored.passed, of: scored.of })}</span>}
-              <span className="mono evals-num evals-when">{timeAgo(run.endedAt ?? run.startedAt ?? run.createdAt)}</span>
-              <span className="mono evals-num">{formatCost(run.costUsd)}</span>
+              {scored && <span className="evals-num">{t('list.scored', { passed: scored.passed, of: scored.of })}</span>}
+              <span className="evals-num evals-when">{timeAgo(run.endedAt ?? run.startedAt ?? run.createdAt)}</span>
+              <span className="evals-num">{formatCost(run.costUsd)}</span>
             </>
           ) : (
             !invalid && <span className="evals-never">{t('list.never')}</span>

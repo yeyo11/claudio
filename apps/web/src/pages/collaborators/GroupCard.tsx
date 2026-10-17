@@ -35,7 +35,7 @@ export function GroupCard({ group, busy, actions }: { group: Group; busy: boolea
       title={
         <span className="collab-group-title">
           <span className="ellipsis">{group.name}</span>
-          <span className="collab-count mono">{t('groups.members', { count: group.members.length })}</span>
+          <span className="collab-count tnum">{t('groups.members', { count: group.members.length })}</span>
         </span>
       }
       actions={

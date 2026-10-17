@@ -11,6 +11,7 @@ import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
 import { useChatPermissions } from '../lib/chats';
 import { PROMPT_PARAM } from '../lib/permission-param';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { RichText } from './Transcript';
 import { RiskLine, useToolRisk } from './RiskTag';
@@ -96,7 +97,6 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
             type="button"
             className="btn btn-small"
             disabled={answer.isPending}
-            title={suggestions.map(describeSuggestion).join('; ')}
             onClick={() => answer.mutate({ behavior: 'allow', updatedPermissions: suggestions })}
           >
             <CheckCheck {...ICON_SM} /> {t('permissions.allowAnd', { what: suggestions.map(describeSuggestion).join('; ') })}
@@ -351,15 +351,16 @@ function PlanPrompt({ request }: { request: PermissionRequest }) {
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
           <Check {...ICON_SM} /> {t('permissions.approve')}
         </button>
-        <button
-          type="button"
-          className="btn btn-small"
-          disabled={answer.isPending}
-          title={t('permissions.approveAcceptEditsHint')}
-          onClick={() => answer.mutate({ behavior: 'allow', updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }] })}
-        >
-          <CheckCheck {...ICON_SM} /> {t('permissions.approveAcceptEdits')}
-        </button>
+        <Tooltip content={t('permissions.approveAcceptEditsHint')}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={answer.isPending}
+            onClick={() => answer.mutate({ behavior: 'allow', updatedPermissions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }] })}
+          >
+            <CheckCheck {...ICON_SM} /> {t('permissions.approveAcceptEdits')}
+          </button>
+        </Tooltip>
         <button
           type="button"
           className="btn btn-danger btn-small"

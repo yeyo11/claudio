@@ -135,7 +135,7 @@ export function BulkConsentBody({
                     </span>
                     <span className="dp-bulk-meta">
                       <span className="badge">{t(`points.modes.${item.mode}`)}</span>
-                      <span className="mono">{data ? formatBytes(data.bytes) : '…'}</span>
+                      <span className="tnum">{data ? formatBytes(data.bytes) : '…'}</span>
                     </span>
                   </span>
                 }

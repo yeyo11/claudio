@@ -62,17 +62,17 @@
 }
 
 .guard-rule-name {
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text);
 }
 
 .guard-rule-desc {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
 .guard-rule-id {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -88,9 +88,7 @@
 /* The locked row says "Always on" in words: it has no Switch to say it */
 .guard-always {
   flex: none;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -98,8 +96,7 @@
 .guard-tag {
   cursor: pointer;
   font: inherit;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-small);
 }
 
 .guard-tag:hover {

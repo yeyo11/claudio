@@ -730,7 +730,7 @@ export class Core {
     this.runtime.accounts = this.accounts;
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
     this.watchAccounts();
-    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
+    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {
@@ -785,7 +785,7 @@ export class Core {
       this.events.emit({ type: 'spend.changed', title: 'Daily spend changed', spend: this.spend.state() });
     });
     this.spend.onAlert((level, spend) => {
-      this.events.emit({ type: 'spend.alert', title: level === 'exhausted' ? 'Daily spend cap reached' : 'Daily spend at 75 % of the cap', level, spend });
+      this.events.emit({ type: 'spend.alert', title: level === 'exhausted' ? 'Daily spend cap reached' : `Daily spend at ${new Intl.NumberFormat('en', { style: 'percent' }).format(0.75)} of the cap`, level, spend });
     });
     this.appSettings.onSpendCapChange = () => this.spend.capChanged();
     this.runtime.on('spend-recorded', () => this.spend.recorded());
@@ -1044,7 +1044,7 @@ export class Core {
           internal: chat.origin === 'internal',
           confined: false,
           assistant: !!chat.claudioAssistant,
-          live: chat.execution !== null && chat.state !== 'idle',
+          live: chat.alive && chat.state !== 'idle',
           driven: chat.origin === 'orchestration' || this.flow.ownsChat(chat.id),
         };
       },

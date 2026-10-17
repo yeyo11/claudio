@@ -77,6 +77,8 @@ const RUNNING_BRANCHES = `(() => {
     if (!children) return res;
     children.subagents = children.subagents.map((sub) => ({ ...running(sub), activity: null, tasks: (sub.tasks ?? []).map(running) }));
     children.backgroundTasks = children.backgroundTasks.map(running);
+    // Running branches are live only on a chat something still holds (packages/chat-ui/src/lib/liveness.ts)
+    body.chat.alive = true;
     return new Response(JSON.stringify(body), { status: res.status, statusText: res.statusText, headers: res.headers });
   };
 })();`;

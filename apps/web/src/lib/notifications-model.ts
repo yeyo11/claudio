@@ -18,7 +18,7 @@ import i18n from '../i18n';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { serverText } from './server-strings';
 import { resetWhen } from './reset-when';
-import { formatCost } from '@claudio/ui/lib/format';
+import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 
 /*
  * The browser's own bookkeeping around notifications: the stored list, what is a repeat of what,
@@ -75,7 +75,7 @@ const text: NotificationText = {
   rateLimited: (name) => i18n.t('components:notificationText.rateLimited', { name }),
   rateLimitedBody: () => i18n.t('components:notificationText.rateLimitedBody'),
   limitWaitingBody: (resetsAt) => (resetsAt ? i18n.t('components:notificationText.limitWaitingBody.at', { when: resetWhen(resetsAt) }) : i18n.t('components:notificationText.limitWaitingBody.unknown')),
-  spendWarnTitle: () => i18n.t('components:notificationText.spendWarnTitle'),
+  spendWarnTitle: () => i18n.t('components:notificationText.spendWarnTitle', { percent: formatPercent(75) }),
   spendExhaustedTitle: () => i18n.t('components:notificationText.spendExhaustedTitle'),
   spendBody: (spentUsd, capUsd) => i18n.t('components:notificationText.spendBody', { spent: formatCost(spentUsd), cap: formatCost(capUsd) }),
   orchestrationFinished: (name) => i18n.t('components:notificationText.orchestrationFinished', { name }),

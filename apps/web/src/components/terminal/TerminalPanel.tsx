@@ -193,6 +193,7 @@ export function TerminalPanel({
           ref={view}
           terminal={terminal}
           compact={compact}
+          /* design-lint-ok: the cell size is the person's own terminal setting, outside the type scale */
           fontSize={font.size}
           blink={blink}
           screenReader={screenReader}

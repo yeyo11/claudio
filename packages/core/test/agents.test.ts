@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -311,4 +311,49 @@ test('a task from a run stream carries the run session, so its output can be rea
   } finally {
     core.shutdown();
   }
+});
+
+/** A session whose one subagent ran in the foreground: only its own call's result says it is over. */
+function installForegroundSession(projectsDir: string, sessionId: string, result: Record<string, unknown> | null): void {
+  installSession(projectsDir, sessionId);
+  const file = join(projectsDir, PROJECT, `${sessionId}.jsonl`);
+  const lines = readFileSync(file, 'utf8').split('\n').filter((l) => !l.includes('task-notification'));
+  // The launch result of a background agent carries no status; a foreground one's carries `completed`
+  lines[2] = line({ type: 'user', uuid: 'm3', timestamp: '2026-01-01T10:00:20.000Z', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_explore01', content: 'found it' }] }, ...(result ? { toolUseResult: result } : {}) });
+  writeFileSync(file, lines.join('\n'));
+}
+
+test('a foreground subagent is over when its own call answers, with no notification', async () => {
+  const config = tempConfig();
+  installForegroundSession(config.projectsDir, 'sess-fg', { status: 'completed', agentId: AGENT, content: [{ type: 'text', text: 'found it' }] });
+  const store = new SessionStore(config);
+  const old = new Date('2026-01-01T10:00:20.000Z');
+  utimesSync(join(config.projectsDir, PROJECT, 'sess-fg', 'subagents', `agent-${AGENT}.jsonl`), old, old);
+
+  const [sub] = await store.subagents('sess-fg', true);
+  assert.equal(sub?.status, 'completed');
+  assert.equal(sub?.endedAt, '2026-01-01T10:00:20.000Z');
+});
+
+test('a background subagent is not over because its launch answered', async () => {
+  const config = tempConfig();
+  installForegroundSession(config.projectsDir, 'sess-bg', { status: 'async_launched', isAsync: true, agentId: AGENT });
+  const store = new SessionStore(config);
+  const old = new Date('2026-01-01T10:00:20.000Z');
+  utimesSync(join(config.projectsDir, PROJECT, 'sess-bg', 'subagents', `agent-${AGENT}.jsonl`), old, old);
+
+  assert.equal((await store.subagents('sess-bg', true))[0]?.status, 'running');
+});
+
+test('a task taken down with its session ends when the session last wrote, so a clock stops there', async () => {
+  const config = tempConfig();
+  installSession(config.projectsDir, 'sess-agents');
+  const store = new SessionStore(config);
+  const written = new Date('2026-01-01T10:05:00.000Z');
+  utimesSync(join(config.projectsDir, PROJECT, 'sess-agents.jsonl'), written, written);
+
+  const [ended] = await store.backgroundTasks('sess-agents', false);
+  assert.equal(ended?.status, 'stopped');
+  assert.equal(ended?.endedAt, '2026-01-01T10:05:00.000Z');
+  assert.equal((await store.backgroundTasks('sess-agents', true))[0]?.endedAt, null);
 });

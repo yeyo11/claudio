@@ -95,7 +95,7 @@ function IssueRow({ item, issue }: { item: Pick<WorkItemDetail, 'id'>; issue: Is
         {failed ? t('panel.failedBecause', { tracker: words.label }) : issue.syncState === 'synced' && issue.syncedAt ? t('panel.synced', { when: timeAgo(issue.syncedAt) }) : t('panel.none')}
       </p>
       {failed && issue.syncReason && (
-        <p className="mono small muted iss-reason">{t('panel.reason', { code: issue.syncReason, when: timeAgo(issue.syncedAt) })}</p>
+        <p className="small muted iss-reason">{t('panel.reason', { code: issue.syncReason, when: timeAgo(issue.syncedAt) })}</p>
       )}
       {canSyncAgain(issue) && (
         <div className="addr-acts">

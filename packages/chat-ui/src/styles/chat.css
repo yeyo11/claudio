@@ -9,6 +9,8 @@
 .main:has(> .page > .run-layout) {
   padding: 0 20px;
   overflow: hidden;
+  /* The page does not scroll here, and a stable gutter would still keep an empty strip */
+  scrollbar-gutter: auto;
 }
 
 .page:has(> .run-layout) {
@@ -69,16 +71,17 @@
 .chat-title {
   min-width: 0;
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 /* project · id · model, in the mono of ids */
 .chat-sub {
   min-width: 0;
   color: var(--text-faint);
-  font: 11.5px/1.4 var(--mono);
+  /* literal: the project's path and the model id */
+  font: var(--fs-small)/1.4 var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -111,9 +114,8 @@
   border: 1px solid transparent;
   border-radius: var(--radius-xs);
   background: var(--bg-3);
-  font: 500 10.5px/1.6 var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--fs-small);
+  line-height: 1.6;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -146,7 +148,7 @@
   border-radius: var(--radius-sm);
   background: none;
   color: var(--text-muted);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -171,7 +173,7 @@
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--bad-soft) 55%, transparent);
   box-shadow: inset 3px 0 0 var(--bad);
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
 }
@@ -191,11 +193,11 @@
 
 .chat-run-failed-text b {
   color: var(--fg);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .chat-run-failed-why {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   overflow-wrap: anywhere;
 }
@@ -208,7 +210,7 @@
 }
 
 .chat-run-failed-next b {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .chat-run-failed-ok {
@@ -246,7 +248,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elev);
-  font-size: 13px;
+  font-size: var(--fs-small);
   transition: background var(--dur-fast);
 }
 
@@ -296,12 +298,12 @@
 
 .chat-part-of-name {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .chat-part-of-where {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -333,7 +335,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .chat-part-of-criteria {
@@ -394,13 +396,13 @@
   .chat-part-of-item .chat-part-of-lead {
     grid-column: 2;
     grid-row: 1;
-    font-size: 12px;
+    font-size: var(--fs-small);
   }
 
   .chat-part-of-item .chat-part-of-name {
     grid-column: 2 / span 2;
     grid-row: 2;
-    font-size: 14px;
+    font-size: var(--fs-body);
     white-space: normal;
   }
 
@@ -496,7 +498,7 @@
 .chat-now .ticker-line {
   align-items: center;
   gap: 8px;
-  font: 500 13px var(--sans);
+  font: var(--fw-regular) var(--fs-small) var(--sans);
 }
 
 .chat-now .ticker-spinner {
@@ -514,11 +516,17 @@
 
 .chat-now :is(.ticker-target, .ticker-elapsed) {
   color: var(--text-faint);
-  font: 12px var(--mono);
+  font-size: var(--fs-small);
+}
+
+.chat-now .ticker-target {
+  /* literal: the path or command the step is on */
+  font-family: var(--mono);
 }
 
 .chat-now .ticker-elapsed {
   margin-left: 0;
+  font-variant-numeric: tabular-nums;
   padding-left: 0;
 }
 
@@ -558,8 +566,8 @@
   box-shadow: var(--shadow-md);
   color: var(--text);
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   cursor: pointer;
 }
 
@@ -637,7 +645,7 @@
   overflow-y: auto;
   padding: 8px 0;
   outline: none;
-  font-size: 14.5px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   /* What ProseMirror needs to keep the text as typed: spaces, line ends and long words */
   white-space: pre-wrap;
@@ -651,12 +659,23 @@
   margin: 0;
 }
 
-/* The placeholder sits on the empty first line, out of the text and out of the caret's way */
+/* The placeholder sits on the empty first line, out of the text and out of the caret's way. One line
+   and an ellipsis, whatever the width: it inherited the editor's break-spaces and overflow-wrap, and
+   on a phone it broke mid-word and spilled out of the box */
+.composer-input p.is-empty:first-child {
+  position: relative;
+}
+
 .composer-input p.is-empty:first-child::before {
   content: attr(data-placeholder);
-  float: left;
-  height: 0;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  overflow: hidden;
   color: var(--text-faint);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
   pointer-events: none;
 }
 
@@ -672,50 +691,6 @@
   height: 36px;
 }
 
-.composer-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: min(360px, 86vw);
-  max-width: 420px;
-}
-
-.composer-menu-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.composer-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: var(--radius);
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.composer-menu-item:hover,
-.composer-menu-item:focus-visible {
-  background: var(--bg-hover);
-}
-
-.composer-menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
 .composer-menu-note {
   display: flex;
   flex-direction: column;
@@ -728,22 +703,56 @@
   margin: 0;
 }
 
-.composer-accounts {
+.account-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
+.account-picker-search:focus-within {
+  border-color: var(--accent);
+}
+
+.account-picker-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  /* 16 px keeps a phone from zooming the page when the field takes focus */
+  font-size: var(--fs-input);
+  outline: none;
+}
+
+.account-picker-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  max-height: min(50dvh, 360px);
+  overflow-y: auto;
 }
 
-.composer-account-btn {
+.account-picker-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   width: 100%;
   min-height: 44px;
-  padding: 6px 4px;
+  padding: 6px 10px;
   border: 0;
   border-radius: var(--radius);
   background: none;
@@ -753,69 +762,52 @@
   cursor: pointer;
 }
 
-.composer-account-btn:hover,
-.composer-account-btn:focus-visible {
+.account-picker-row:hover,
+.account-picker-row:focus-visible {
   background: var(--bg-hover);
 }
 
-.composer-account.is-off .composer-account-btn {
+.account-picker-row[aria-disabled='true'] {
+  color: var(--fg-2);
   cursor: default;
 }
 
-.composer-account.is-off .composer-account-name,
-.composer-account.is-off .composer-account-plan {
-  color: var(--text-faint);
-}
-
-.composer-account-mark {
-  display: inline-grid;
+.account-picker-check {
   flex: none;
-  place-items: center;
-  width: 14px;
-  height: 20px;
-  color: var(--text-muted);
+  margin-left: auto;
+  color: var(--accent);
 }
 
-.composer-account-body {
+/* Name, plan and use on one line: the name gives way first, the plan and the number never wrap */
+.account-picker-line {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
 }
 
-.composer-account-head,
-.composer-account-usage {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.composer-account-name {
+.account-picker-name {
   min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
 }
 
-.composer-account-plan {
+.account-picker-plan,
+.account-picker-pct {
   flex: none;
+  color: var(--fg-3);
+  font-size: var(--fs-small);
 }
 
-.composer-account-usage .meter-track {
-  flex: 1;
-}
-
-.composer-account-pending {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.composer-account-pending p {
-  flex: 1;
+.account-picker-why {
   margin: 0;
+  padding: 0 10px 6px;
+  color: var(--fg-3);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.account-picker-cancel {
+  align-self: flex-start;
+  gap: 8px;
 }
 
 .composer-servers {
@@ -856,8 +848,8 @@
 }
 
 .composer-server-name {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .composer-server-meta {
@@ -962,7 +954,7 @@
   border-radius: var(--radius-pill);
   background: var(--bg-elev);
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   transition: border-color var(--dur-fast), color var(--dur-fast);
 }
@@ -1002,7 +994,7 @@
   gap: 4px;
   margin-left: auto;
   color: var(--text-faint);
-  font: 11.5px var(--mono);
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 
@@ -1016,7 +1008,7 @@
   border-radius: var(--radius-xs);
   background: var(--bg-sunken);
   color: var(--text-muted);
-  font: 10.5px var(--mono);
+  font: var(--fs-small) var(--mono);
 }
 
 .popover.composer-options {
@@ -1130,7 +1122,7 @@
 .insp-top .tab {
   flex: none;
   padding: 0 0 12px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .insp-collapse {
@@ -1143,6 +1135,8 @@
   gap: 12px;
   min-height: 0;
   overflow-y: auto;
+  /* Opening a section makes the panel scroll; its rows keep their width when it does */
+  scrollbar-gutter: stable;
   padding: 0 2px 16px 0;
 }
 
@@ -1181,10 +1175,9 @@
 
 .insp-head h2 {
   margin: 0;
-  color: var(--text-faint);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 /* Context: the ring on the left, its label and its tokens beside it */
@@ -1214,7 +1207,7 @@
 }
 
 .insp-context-ring .ring-label {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .insp-context-body > .small {
@@ -1225,9 +1218,9 @@
 
 /* The cost is the inspector's headline figure */
 .insp-cost {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1236,7 +1229,7 @@
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .insp-facts > dt,
@@ -1260,7 +1253,7 @@
 }
 
 .insp-facts > dd.mono {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .insp-facts > dd.insp-id {
@@ -1349,7 +1342,7 @@
 
   .insp-top .tab {
     padding-inline: 3px;
-    font-size: 12.5px;
+    font-size: var(--fs-small);
   }
 
   /* The state stays; who holds the chat is in the pill's hint and in the inspector */
@@ -1394,7 +1387,7 @@
 
   /* 16px, or iOS zooms the page in the moment the box takes focus (styles/primitives.css) */
   .composer-input {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .composer .composer-plus {
@@ -1427,7 +1420,7 @@
   .composer-input {
     min-height: 40px;
     padding: 9px 0;
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .composer > .composer-attach,
@@ -1460,6 +1453,27 @@
   }
 }
 
+/* On touch the round buttons and the options row are 44 px targets (I9), wherever the composer is */
+@media (pointer: coarse) {
+  .composer > .composer-attach,
+  .new-composer-foot > .composer-attach,
+  .composer .composer-plus,
+  .composer-send {
+    width: var(--touch);
+    min-width: var(--touch);
+    height: var(--touch);
+    min-height: var(--touch);
+  }
+
+  /* Wider than 44 where it shows its word: only the floor */
+  .composer .composer-stop,
+  .composer-status {
+    min-width: var(--touch);
+    height: auto;
+    min-height: var(--touch);
+  }
+}
+
 /* ---- New chat: a hero, the box it is about, and a few things to ask ---- */
 .new-chat-scroll {
   align-items: center;
@@ -1483,7 +1497,7 @@
 .new-hero-lead {
   margin: 0;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .new-kind {
@@ -1517,7 +1531,7 @@
 .new-composer .composer-input {
   min-height: 112px;
   padding: 18px 20px 8px;
-  font-size: 16px;
+  font-size: var(--fs-input);
   line-height: 1.55;
 }
 
@@ -1542,7 +1556,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-faint);
-  font: 11.5px var(--mono);
+  font-size: var(--fs-small);
   text-align: center;
 }
 
@@ -1578,7 +1592,7 @@
   background: var(--bg-elev);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   text-align: left;
   cursor: pointer;
@@ -1664,12 +1678,7 @@
   gap: 12px;
   min-height: 56px;
   padding: 12px 14px;
-  font-size: 14px;
-}
-
-.new-composer-wrap > .composer-status,
-.new-chat.is-narrow .composer-wrap > .composer-status {
-  align-self: flex-start;
+  font-size: var(--fs-body);
 }
 
 /* Tool calls a run is holding until someone decides. */
@@ -1724,7 +1733,7 @@
   padding: 8px 10px;
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   background: var(--bg-sunken);
   border-radius: var(--radius-sm);
 }
@@ -1752,7 +1761,7 @@
   height: 17px;
   border-radius: 50%;
   background: var(--bg-sunken);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1766,7 +1775,7 @@
 
 .question-text {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .question-options {
@@ -1870,7 +1879,7 @@
   border-radius: var(--radius);
   background: var(--bg-sunken);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   text-decoration: none;
 }
 
@@ -2056,7 +2065,7 @@ a.attachment-chip:hover {
   gap: 8px;
   min-width: 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .chat-queued-item > .chat-queued-text {
@@ -2116,7 +2125,7 @@ a.attachment-chip:hover {
 
 .insp-context-note {
   grid-column: 1 / -1;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .insp-context-actions {
@@ -2136,21 +2145,45 @@ a.attachment-chip:hover {
 /* Compact now is a paid turn, not what the screen is about: strong, never the gradient */
 .btn-strong {
   border-color: var(--text-muted);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
+/* The foot: how the count was made on the left, the paid action on the right */
 .ctx-foot {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   width: 100%;
 }
 
+.ctx-count {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+/* The body reads at full contrast; the dialog's muted default would flatten every level of it */
 .ctx-breakdown {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
   min-width: 0;
+  color: var(--fg);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  container-type: inline-size;
+}
+
+.ctx-note {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
 .ctx-head {
@@ -2162,39 +2195,58 @@ a.attachment-chip:hover {
 .ctx-head-line {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
-.ctx-figure,
-.ctx-table .num,
-.ctx-file .num {
+/* The one figure that matters */
+.ctx-figure {
+  color: var(--fg);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  line-height: var(--lh-title);
   font-variant-numeric: tabular-nums;
+}
+
+.ctx-of {
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* literal: the model id the CLI reports */
+.ctx-model {
+  margin-left: auto;
+  color: var(--fg-3);
+  font-size: var(--fs-small);
 }
 
 .ctx-over {
   color: var(--bad);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
-/* A usage bar with the CLI's auto-compaction point drawn on it as a tick */
-.ctx-bar {
+/* A usage bar with the CLI's auto-compaction point drawn on it as a tick. Its own class: the chat list's meter is also .ctx-bar */
+.ctx-meter {
   position: relative;
+  width: 100%;
 }
 
-.ctx-bar .meter-fill {
+.ctx-meter .meter-track {
+  height: 8px;
+}
+
+.ctx-meter .meter-fill {
   transition: none;
 }
 
-.bar-mark {
+.ctx-meter .bar-mark {
   position: absolute;
   top: -3px;
   bottom: -3px;
   width: 2px;
   margin-left: -1px;
   border-radius: var(--radius-xs);
-  background: var(--text);
+  background: var(--fg);
 }
 
 .ctx-section {
@@ -2204,42 +2256,82 @@ a.attachment-chip:hover {
   min-width: 0;
 }
 
+.ctx-section > .dialog-section {
+  margin: 0;
+}
+
+.ctx-deferred {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
 .ctx-subhead {
   margin: 0;
-  color: var(--text-muted);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
-.ctx-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+/* One grid for every quantity: name, tokens, share. Fixed number columns so sections line up. */
+.ctx-grid,
+.ctx-servers {
+  display: flex;
+  flex-direction: column;
 }
 
-.ctx-table th,
-.ctx-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-weight: 400;
+.ctx-row,
+.ctx-server {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9ch 9ch;
+  align-items: center;
+  column-gap: 16px;
+  min-height: 32px;
 }
 
-.ctx-table thead th {
-  color: var(--text-muted);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.ctx-name {
+  min-width: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
 }
 
-.ctx-table .num {
+.ctx-num,
+.ctx-share {
   text-align: right;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.ctx-table .is-muted {
-  color: var(--text-muted);
+.ctx-num {
+  color: var(--fg);
+}
+
+.ctx-share {
+  color: var(--fg-2);
+}
+
+.ctx-row.is-spare .ctx-name,
+.ctx-row.is-spare .ctx-num {
+  color: var(--fg-2);
+}
+
+.ctx-row.is-sub {
+  min-height: 28px;
+}
+
+.ctx-row.is-sub .ctx-name {
+  padding-left: 16px;
+}
+
+.ctx-row.is-sub .ctx-name,
+.ctx-row.is-sub .ctx-num {
+  color: var(--fg-2);
+}
+
+/* literal: a path */
+.ctx-file-path {
+  font-size: var(--fs-small);
 }
 
 .ctx-warnings {
@@ -2248,51 +2340,36 @@ a.attachment-chip:hover {
   gap: 8px;
 }
 
-.ctx-servers {
-  display: flex;
-  flex-direction: column;
-}
-
 .ctx-server {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   min-height: 44px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
 }
 
 .ctx-server-body {
   display: flex;
-  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
 .ctx-server-name {
-  font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--fw-regular);
 }
 
-.ctx-file {
+.ctx-server-switch {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
+  justify-content: flex-end;
 }
 
-.ctx-file-path {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+/* On a narrow panel the share goes: the token count is the figure that stays */
+@container (max-width: 360px) {
+  .ctx-row:not(.is-file, .is-counts) {
+    grid-template-columns: minmax(0, 1fr) 9ch;
+  }
 
-.ctx-count {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  .ctx-row:not(.is-file, .is-counts) .ctx-share {
+    display: none;
+  }
 }
 
 .compact-form {
@@ -2353,7 +2430,7 @@ a.attachment-chip:hover {
 
   .compact-focus,
   .journal-text {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .insp-context-actions .btn {
@@ -2371,7 +2448,7 @@ a.attachment-chip:hover {
 
   .ctx-sheet textarea,
   .ctx-sheet input {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 }
 
@@ -2387,10 +2464,12 @@ a.attachment-chip:hover {
   align-self: center;
   width: 100%;
   max-width: 780px;
-  margin-top: 8px;
-  border-top: 1px solid var(--line);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  /* A bar of its own above the composer, not a tab glued to it: the composer is a card rounded on
+     every side, so a half-rounded strip 4 px over it read as cramped and cut off */
+  margin: 8px 0 4px;
+  border-radius: var(--radius-lg);
   background: var(--bg-2);
+  overflow: hidden;
 }
 
 .chat-branches-bar {
@@ -2398,13 +2477,14 @@ a.attachment-chip:hover {
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 32px;
-  padding: 0 12px;
+  height: 36px;
+  /* The composer's own inset, so the strip's words start where the message does */
+  padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-lg);
   background: none;
   color: var(--fg);
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
 }
@@ -2432,13 +2512,17 @@ a.attachment-chip:hover {
   transform: rotate(-90deg);
 }
 
+.chat-branches-bar[data-state='open'] {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
 .chat-branches-bar[data-state='open'] .collapsible-chevron {
   transform: rotate(90deg);
 }
 
 .chat-branches-count {
   flex: none;
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .chat-branches-now {
@@ -2446,8 +2530,7 @@ a.attachment-chip:hover {
   min-width: 0;
   overflow: hidden;
   color: var(--fg-3);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2481,7 +2564,7 @@ a.attachment-chip:hover {
   border-radius: var(--radius-xs);
   background: none;
   color: var(--fg);
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
 }
@@ -2511,8 +2594,7 @@ a.attachment-chip:hover {
 
 .chat-branch-row .word {
   flex: none;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .chat-branch-row.is-completed .word,
@@ -2531,8 +2613,17 @@ a.attachment-chip:hover {
 }
 
 .chat-branch-kind {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  gap: 5px;
+  /* literal: the agent's type, bash, workflow, as the CLI names them */
   font-family: var(--mono);
+}
+
+.chat-branch-kind svg {
+  flex: none;
+  color: var(--fg-2);
 }
 
 .chat-branch-desc {
@@ -2544,7 +2635,7 @@ a.attachment-chip:hover {
 }
 
 .chat-branch-desc.mono {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .chat-branch-act {
@@ -2552,8 +2643,7 @@ a.attachment-chip:hover {
   min-width: 0;
   overflow: hidden;
   color: var(--fg-3);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2562,8 +2652,7 @@ a.attachment-chip:hover {
   flex: none;
   margin-left: auto;
   color: var(--fg-3);
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2617,18 +2706,17 @@ a.attachment-chip:hover {
 }
 
 .chat-launch-name {
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .chat-launch-status {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .chat-launch-facts {
   min-width: 0;
   color: var(--fg-3);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 

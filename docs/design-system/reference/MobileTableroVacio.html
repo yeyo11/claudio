@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>Claudio · Tablero vacío (móvil)</title><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="../claudio-ds.css"><style>body{margin:0;background:var(--bg)}</style><script>function t(){var m=location.hash==="#light"?"light":"dark";document.querySelectorAll("[data-theme]").forEach(function(e){e.setAttribute("data-theme",m)})}addEventListener("hashchange",t);addEventListener("DOMContentLoaded",t);</script></head><body data-theme="dark">
 <div class="app m-screen " data-theme="dark">
-<header class="m-head" style="padding-left: 4px"><a href="MobileMas.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a><span class="col grow" style="gap: 1px"><h1 class="t-h1">Tareas</h1></span><button type="button" class="chip project-selector" style="font-size: 14px">pagos-api<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><span style="width: 8px"></span></header>
+<header class="m-head" style="padding-left: 4px"><a href="MobileMas.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true" style="stroke-width: 2"><path d="m15 6-6 6 6 6"></path></svg></a><span class="col grow" style="gap: 1px"><h1 class="t-h1">Tareas</h1></span><button type="button" class="chip project-selector" style="font-size: var(--fs-body)">pagos-api<svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><span style="width: 8px"></span></header>
 <div class="m-body stack" style="gap: 12px">
 <div class="seg" role="tablist" aria-label="Vista" style="display: flex"><a href="MobileTablero.html" role="tab" aria-selected="true" class="on" style="flex: 1 1 0; justify-content: center">Tablero</a><a href="MobileTareasLista.html" role="tab" aria-selected="false" class="" style="flex: 1 1 0; justify-content: center">Lista</a><a href="MobileHitos.html" role="tab" aria-selected="false" class="" style="flex: 1 1 0; justify-content: center">Hitos</a></div>
 <section class="empty-state" style="flex: 1 1 auto; justify-content: center; padding: 16px 8px 40px; gap: 14px">
@@ -23,7 +23,7 @@
 <rect x="192" y="39" width="12" height="4" rx="2" class="s3"></rect><path d="M211 41 l1.6 1.6 l3 -3.2" class="ln-ok"></path>
 <rect x="191" y="50" width="26" height="17" rx="4" class="ln-soft dash-lg"></rect>
 <g class="a-float"><g transform="rotate(-6 76 80)"><rect x="46" y="64" width="60" height="32" rx="7" class="cg"></rect><text x="54" y="78" class="txt">PAG-1</text><rect x="54" y="84" width="34" height="4" rx="2" class="s3"></rect></g></g></svg></div>
-<h2 class="t-h1" style="font-size: 24px">Aún no hay tareas</h2>
+<h2 class="t-h1" style="font-size: var(--fs-title)">Aún no hay tareas</h2>
 <p>El tablero de pagos-api está vacío. Crea la primera tarea aquí, o desde un mensaje de cualquier chat.</p>
 <a href="MobileNuevaTarea.html" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 4px"><svg class="ico ico-lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Crear la primera tarea</a>
 </section>

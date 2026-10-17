@@ -2,7 +2,7 @@ import type { MergeBlocker, MergeBlockerAction, MergeMethod, MergeState, WorkIte
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ban, Check, CircleAlert, Clock, ExternalLink, GitMerge, Pencil } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError, api, keys, useMergeState, type ChangeRequestFixResult } from '../../../api';
 import { Checkbox } from '@claudio/ui/components/controls';
@@ -236,7 +236,9 @@ export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPull
     <div className="mg-head">
       <span className="mg-title">
         <h2 className="t-h2">{t('title')}</h2>
-        <span className="mg-sub">{t('sub', { ref: `${words.noun} ${ref}`.trim(), head: pr.branch, base: pr.base, sha })}</span>
+        <span className="mg-sub">
+          <Trans t={t} i18nKey="sub" values={{ ref: `${words.noun} ${ref}`.trim(), head: pr.branch, base: pr.base, sha }} components={{ mono: <span className="mono" /> }} />
+        </span>
       </span>
       <span className="grow" />
       {badge}
@@ -322,7 +324,7 @@ export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPull
           <span className="rv-k rv-label">{t('row.autoMerge')}</span>
           <span className="rv-v">
             <span className="badge badge-idle">{t('autoMerge.on')}</span>
-            <span className="mg-mono">{who}</span>
+            <span>{who}</span>
           </span>
           <span className="rv-side">
             <button type="button" className="btn btn-small" disabled={busy} onClick={() => disarm.mutate()}>
@@ -364,7 +366,9 @@ export function Merge({ pr, itemId, itemKey, lead: leading }: { pr: WorkItemPull
               <Spinner />
               <span className="mg-live-text">
                 <span>{t('pipeline.waiting')}</span>
-                <span className="mg-sub">{t('pipeline.waitingDetail', { sha, host })}</span>
+                <span className="mg-sub">
+                  <Trans t={t} i18nKey="pipeline.waitingDetail" values={{ sha, host }} components={{ mono: <span className="mono" /> }} />
+                </span>
               </span>
             </span>
           </span>

@@ -250,7 +250,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
         <span className="suggest-dialog-title">
           <AssistantMark small />
           <span className="grow">{t('suggest.title')}</span>
-          <span className="mono small muted">{t('suggest.where', { project: project.name })}</span>
+          <span className="small muted">{t('suggest.where', { project: project.name })}</span>
         </span>
       }
       footer={

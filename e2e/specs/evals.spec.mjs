@@ -126,7 +126,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     writeFileSync(hold, '');
     await page.waitFor(`return !document.querySelector('.evals-run-card.live-energy') && !!document.querySelector('.evals-matrix')`, { label: 'the run to end', timeout: 120_000 });
     check(await page.eval(`return !!document.querySelector('.evals-attempt')`), 'every attempt is a cell of the matrix');
-    const tones = await page.eval(`return [...document.querySelectorAll('.evals-attempt')].map((a) => a.className + ' ' + (a.title || ''))`);
+    const tones = await page.eval(`return [...document.querySelectorAll('.evals-attempt')].map((a) => a.className + ' ' + a.textContent.trim())`);
     check(tones.some((t) => /Passed/.test(t)), `a case passed (${tones.join(' | ')})`);
     check(tones.some((t) => /Failed/.test(t)), 'a case failed');
     check(!(await page.eval(`return !!document.querySelector('.evals-run .live-energy, .evals-run .ring-spinner')`)), 'an ended run does not move');
