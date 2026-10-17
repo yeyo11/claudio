@@ -830,6 +830,7 @@ export class Core {
     this.orchestrator.limitHeld = (chatId) => this.rotation.holds(chatId);
     this.orchestrator.waitOf = (chatId) => this.openWait(chatId);
     this.orchestrator.releaseWait = (chatId) => this.cancelWait(chatId);
+    this.orchestrator.workflowLimit = (chatId, refusal) => this.runtime.limitReached(chatId, refusal);
     this.events.observe((event) => this.decisionResolvers.observe(event));
     this.decisionResolvers.start();
     this.orchestrator.decisions = this.decisions;
@@ -1433,6 +1434,7 @@ export class Core {
       projectOf: (dir) => this.projectOf(resolve(dir)).project?.id ?? null,
       emit: (event) => this.events.emit(event),
       work: (chatId) => this.workOf(chatId),
+      replay: (chatId, account) => this.orchestrator.replayWorkflow(chatId, account),
       ended: (move, end, reason) => {
         if (move.subjectKind === 'flow_run') this.flow.waitEnded(move, end, reason);
         else if (move.subjectKind === 'task') this.orchestrator.waitEnded(move, end, reason);

@@ -72,3 +72,25 @@ export async function readJournalTasks(transcript: string, runId: string, from =
 export function journalError(task: JournalTask): string {
   return task.end?.text ?? 'the agent failed without a message';
 }
+
+/** What a failed agent was refused for, when the API refused it at a usage limit or a sign-in. */
+export interface JournalRefusal {
+  /** When the limit resets, if the refusal said */
+  resetsAt: string | null;
+  rateLimitType: string | null;
+  /** A 401: the account's sign-in, not its limit */
+  auth: boolean;
+}
+
+/**
+ * Whether a failed agent was refused by the API at a limit (429) or a sign-in (401): the account's
+ * state, which another account or the reset mends, not the task's failure. Read from the CLI's
+ * structured fields only, never from what the message says.
+ */
+export function journalRefusal(task: JournalTask): JournalRefusal | null {
+  const end = task.end;
+  if (task.state !== 'failed' || !end) return null;
+  if (end.apiErrorStatus === 401) return { resetsAt: null, rateLimitType: null, auth: true };
+  if (end.apiErrorStatus !== 429 && !end.rateLimit) return null;
+  return { resetsAt: end.rateLimit?.resetsAt ?? null, rateLimitType: end.rateLimit?.rateLimitType ?? null, auth: false };
+}
