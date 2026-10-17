@@ -196,3 +196,27 @@ test('stopping a graph held at a limit ends its wait', async () => {
     r.close();
   }
 });
+
+test('a workflow held for a reset goes on from its cache on the first account a new reading gives room (R10)', async () => {
+  const r = await rig({ accounts: 1, resetsInS: 3600, always: true });
+  try {
+    const started = r.graph();
+    const held = await until(r.core, started.id, (o) => r.core.rotation.waitOf(leadOf(o)) !== null, 'the wait');
+    const lead = leadOf(held);
+    const [wait] = r.core.db.providerMoves({ chatId: lead });
+    assert.ok(wait?.resetsAt && Date.parse(wait.resetsAt) > Date.now() + 30 * 60_000, 'every account is out for about an hour');
+
+    // The other account restarts its window early, and a reading says so: the run goes on there now
+    delete process.env.FAKE_WORKFLOW_LIMIT;
+    const account = r.accounts[0] as string;
+    const at = Date.now();
+    await r.core.runtime.noteAccountReading(account, { source: 'cache', status: null, windows: { five_hour: { utilization: 0, resetsAt: Math.floor(at / 1000) + 5 * 3600 } }, at });
+    const done = await until(r.core, started.id, (o) => o.status !== 'running', 'the graph to finish');
+    assert.equal(done.status, 'completed', JSON.stringify(done.tasks.map((t) => [t.id, t.status, t.error])));
+    assert.equal(r.core.db.providerMove(wait?.id as string)?.state, 'resumed');
+    assert.equal(r.core.runtime.accountOf(lead), account, 'on the account that had room');
+    assert.match(prompts(r.core, lead).at(-1) ?? '', /resumeFromRunId "wf_fake-001"/, 'resumed from the run, not launched again');
+  } finally {
+    r.close();
+  }
+});

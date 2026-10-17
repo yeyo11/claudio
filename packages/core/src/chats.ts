@@ -1446,6 +1446,32 @@ export class ChatManager extends EventEmitter {
     return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn: [...failedOn] });
   }
 
+  /**
+   * What `choose` makes of the accounts for a chat that waits at its limit. As `chooseNext`, except
+   * that an account the turn died on is a candidate again once a reading taken after `since` (epoch
+   * ms, when the wait began) says it is not out: a failure says the account was out then, and a
+   * newer reading knows better (R10: the CLI's own login restarted its window early while twelve
+   * tasks waited for another account's reset). With `since` null every failure is passed over, which
+   * is a person asking to run now: only the readings decide. Null for a chat that runs on none.
+   */
+  roomFor(id: string, since: number | null): Choice | null {
+    const chat = this.chats.get(id);
+    const store = this.accounts;
+    if (!chat || !store || !chat.account) return null;
+    const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
+    const newer = (account: string): boolean => {
+      let limit;
+      try {
+        limit = store.get(account).limits;
+      } catch {
+        return false;
+      }
+      return !!limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > (since ?? 0);
+    };
+    const failedOn = since === null ? [] : [...new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)])].filter((a) => !newer(a));
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn });
+  }
+
   /** Reads the model lists the account choice needs and does not have yet (no turn, no tokens). */
   async warmModels(): Promise<void> {
     await this.accounts?.warmModels();
