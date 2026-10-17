@@ -804,6 +804,11 @@ button.master-item-on:hover {
   scroll-margin-top: 16px;
 }
 
+/* A section's own lines (its consequence, a summary) take the section's gap, not a paragraph's margin */
+.settings-section > p {
+  margin: 0;
+}
+
 .settings-head-title:focus {
   outline: none;
 }

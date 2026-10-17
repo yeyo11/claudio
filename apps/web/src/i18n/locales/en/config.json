@@ -399,8 +399,9 @@
     "projectPlaceholder": "# Project instructions\n\nConventions, commands and context Claude should know in this project.",
     "userPlaceholder": "# Instructions applied to every session of this account",
     "projectTitle": "Project instructions",
-    "userTitle": "User instructions (CLAUDE.md)",
-    "file": "Instructions file"
+    "file": "Instructions file",
+    "row": "What Claude reads at the start of every session",
+    "notWritten": "not written yet"
   },
   "settings": {
     "variants": {
@@ -1012,7 +1013,9 @@
     "actions": "Actions",
     "editNamed": "Edit {{name}}",
     "editInUserNamed": "Edit in user scope: {{name}}",
-    "removeNamed": "Remove {{name}}"
+    "removeNamed": "Remove {{name}}",
+    "row": "Add, edit and check servers",
+    "listAria": "MCP servers of this account"
   },
   "toolPresets": {
     "intro": "Named sets of allowed and blocked tools. Pick one when you start or resume a chat; a chat keeps the set it was given even if you edit the preset later.",
@@ -1052,7 +1055,10 @@
     "restoreTitle": "Restore the shipped presets?",
     "restoreBody": "Read-only, No network and Everything go back to how they ship, and any you removed come back. Your own presets and the default stay as they are.",
     "restored": "Shipped presets restored",
-    "restoreFailed": "Could not restore the shipped presets"
+    "restoreFailed": "Could not restore the shipped presets",
+    "row": "The tools a chat may use, picked when it starts",
+    "shippedCount_one": "{{count}} shipped",
+    "shippedCount_other": "{{count}} shipped"
   },
   "resources": {
     "kinds": {
@@ -1071,7 +1077,8 @@
         "createFirst": "Create the first agent",
         "content": "agent content",
         "create": "Create agent",
-        "deleteTitle": "Delete agent “{{name}}”?"
+        "deleteTitle": "Delete agent “{{name}}”?",
+        "row": "Subagents Claude can hand work to"
       },
       "skills": {
         "hint": "Packaged instructions Claude loads on demand. Each skill is a directory with a SKILL.md; extra files live in the Files tab.",
@@ -1088,7 +1095,8 @@
         "createFirst": "Create the first skill",
         "content": "skill content",
         "create": "Create skill",
-        "deleteTitle": "Delete skill “{{name}}”?"
+        "deleteTitle": "Delete skill “{{name}}”?",
+        "row": "Instructions Claude loads when a task needs them"
       },
       "commands": {
         "hint": "Custom slash commands: the file name is the command name. $ARGUMENTS is replaced with what the user types.",
@@ -1105,7 +1113,8 @@
         "createFirst": "Create the first command",
         "content": "command content",
         "create": "Create command",
-        "deleteTitle": "Delete command “{{name}}”?"
+        "deleteTitle": "Delete command “{{name}}”?",
+        "row": "Your own slash commands"
       },
       "output-styles": {
         "hint": "Alternative system-prompt styles, selectable with the outputStyle setting.",
@@ -1122,7 +1131,8 @@
         "createFirst": "Create the first output style",
         "content": "output style content",
         "create": "Create output style",
-        "deleteTitle": "Delete output style “{{name}}”?"
+        "deleteTitle": "Delete output style “{{name}}”?",
+        "row": "Other ways for Claude to write its answers"
       },
       "rules": {
         "hint": "Modular instructions loaded next to CLAUDE.md. Optional `paths:` frontmatter limits a rule to matching files.",
@@ -1139,7 +1149,8 @@
         "createFirst": "Create the first rule",
         "content": "rule content",
         "create": "Create rule",
-        "deleteTitle": "Delete rule “{{name}}”?"
+        "deleteTitle": "Delete rule “{{name}}”?",
+        "row": "Instructions loaded next to CLAUDE.md, by path"
       },
       "workflows": {
         "hint": "Saved scripts the Workflow tool runs by name. The name in `meta` is the one Claude uses; run one from New chat.",
@@ -1156,7 +1167,8 @@
         "createFirst": "Create the first workflow",
         "content": "workflow content",
         "create": "Create workflow",
-        "deleteTitle": "Delete workflow “{{name}}”?"
+        "deleteTitle": "Delete workflow “{{name}}”?",
+        "row": "Scripts the Workflow tool runs by name"
       }
     },
     "exists": "Already exists",
@@ -1325,7 +1337,10 @@
     "updateNamed": "Update {{name}}",
     "cliOutput": "CLI output",
     "uninstallNamed": "Uninstall {{name}}",
-    "removeNamed": "Remove marketplace {{name}}"
+    "removeNamed": "Remove marketplace {{name}}",
+    "row": "Bundles of skills, agents, commands and hooks",
+    "fromMarketplaces_one": "from {{count}} marketplace",
+    "fromMarketplaces_other": "from {{count}} marketplaces"
   },
   "orchestration": {
     "errors": {
@@ -1746,7 +1761,6 @@
     "globalHint": "Lessons you promoted from a project. They are handed in every project that allows them.",
     "emptyTitle": "No global lessons",
     "emptyBody": "Make a lesson global from its menu in a project’s Memory tab.",
-    "settingsTitle": "Mining and delivery",
     "model": "Miner model",
     "modelHint": "The one-shot chat that writes lesson candidates.",
     "effort": "Miner effort",
@@ -1772,6 +1786,7 @@
     "problem": {
       "range": "A value is out of range.",
       "order": "Lessons must be retired below the confidence they are handed from."
-    }
+    },
+    "globalRow": "Lessons every project that allows them gets"
   }
 }

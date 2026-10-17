@@ -1,108 +1,91 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import { api, keys, type Scope } from '../../../api';
-import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
-import { timeAgo } from '@claudio/ui/lib/format';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { InstructionsTab } from '../InstructionsTab';
-import { LessonsTab } from '../LessonsTab';
+import { GlobalLessons, LessonSettingsRows, useGlobalLessons } from '../LessonsTab';
+import { MemoryOverview, useMemoryProjects } from '../MemoryOverview';
 import { ResourcesTab } from '../ResourcesTab';
-import { detailLabel, sectionLabel, settingsHref, type DetailOf, type SectionOf } from '../settingsGroups';
+import { detailLabel, sectionLabel, settingsHref } from '../settingsGroups';
+import { ResourceRow } from './ResourceRow';
 import { SettingsDetailRow, SettingsSection, type GroupScreenProps } from './Section';
 
 const USER_SCOPE: Scope = {};
 
-/** Claude's memory is kept per project, so the user scope only gets the way to each project's. */
-function MemoryOverview() {
-  const { t } = useTranslation(['home', 'config', 'chat']);
-  const { data, error, isLoading } = useQuery({ queryKey: keys.memoryProjects, queryFn: api.memoryProjects, refetchInterval: 15_000 });
-  const projects = data ?? [];
-
+/** The account's CLAUDE.md: its file name, and whether it has been written yet. */
+function InstructionsRow() {
+  const { t } = useTranslation(['config']);
+  const { data } = useQuery({ queryKey: keys.instructions(USER_SCOPE, 'shared'), queryFn: () => api.getInstructions(USER_SCOPE, 'shared') });
   return (
-    <Card title={t('settings.memory.title')}>
-      <p className="small muted">{t('settings.memory.intro')}</p>
-      <ErrorBox error={error} />
-      {isLoading ? (
-        <Skeleton rows={4} />
-      ) : projects.length === 0 ? (
-        <Empty
-          title={t('settings.memory.none')}
-          action={
-            <Link to="/projects" className="btn btn-primary">
-              {t('settings.memory.goToProjects')}
-            </Link>
-          }
-        >
-          {t('settings.memory.noneHint')}
-        </Empty>
-      ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">{t('chat:shared.project')}</th>
-                <th scope="col">{t('config:config.tabs.files')}</th>
-                <th scope="col">{t('settings.memory.lastUpdate')}</th>
-                <th scope="col">
-                  <span className="sr-only">{t('settings.memory.actions')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((project) => (
-                <tr key={project.projectId}>
-                  <td>
-                    <div className="strong">{project.projectName}</div>
-                    <div className="small muted mono break">{project.projectPath}</div>
-                  </td>
-                  <td>
-                    <span className={`count ${project.fileCount > 0 ? 'count-on' : ''}`}>{project.fileCount}</span>
-                  </td>
-                  <td className="small muted">{project.lastUpdated ? timeAgo(project.lastUpdated) : '—'}</td>
-                  <td>
-                    <div className="row-actions">
-                      <Link
-                        className="btn btn-small"
-                        to={`/?project=${encodeURIComponent(project.projectId)}&tab=memory`}
-                        aria-label={t('settings.memory.openNamed', { name: project.projectName })}
-                      >
-                        {t('settings.memory.open')}
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
+    <SettingsDetailRow
+      to={settingsHref('instructions', { detail: 'claude-md' })}
+      label={t('instructions.row')}
+      note={
+        <>
+          <span className="mono">CLAUDE.md</span>
+          {data && !data.exists && ` · ${t('instructions.notWritten')}`}
+        </>
+      }
+      setting="instructions.claude-md"
+    />
   );
 }
 
-// Each section of the group is, for now, one row opening the tab it was
-const SECTIONS: ReadonlyArray<{ section: SectionOf<'instructions'>; detail: DetailOf<'instructions'>; setting: string }> = [
-  { section: 'instructions', detail: 'claude-md', setting: 'instructions.claude-md' },
-  { section: 'memory', detail: 'memory', setting: 'memory.projects' },
-  { section: 'lessons', detail: 'lessons', setting: 'lessons.global' },
-  { section: 'rules', detail: 'rules', setting: 'rules.list' },
-  { section: 'output-styles', detail: 'output-styles', setting: 'output-styles.list' },
-];
+/** Memory is a line: how many projects keep one, opening the table of them. */
+function MemoryRow() {
+  const { t } = useTranslation(['config']);
+  const { data } = useMemoryProjects();
+  const keeping = (data ?? []).filter((project) => project.fileCount > 0).length;
+  return (
+    <SettingsDetailRow
+      to={settingsHref('instructions', { detail: 'memory' })}
+      label={!data ? t(detailLabel('memory')) : keeping === 0 ? t('settings.memory.none') : t('settings.memory.line', { count: keeping })}
+      setting="memory.projects"
+    />
+  );
+}
 
-/** Settings → Instructions & memory (§6.4). A placeholder over today's tabs, until w3 builds the screen. */
+function GlobalLessonsRow() {
+  const { t } = useTranslation(['config']);
+  const { data, lessons } = useGlobalLessons();
+  return (
+    <SettingsDetailRow
+      to={settingsHref('instructions', { detail: 'lessons' })}
+      label={t('lessons.globalRow')}
+      note={data ? formatNumber(lessons.filter((lesson) => lesson.status === 'active').length) : undefined}
+      setting="lessons.global"
+    />
+  );
+}
+
+/**
+ * Settings → Instructions & memory (docs/plans/settings-ia.md §6.4): what Claude reads before it
+ * starts. Each editor and list is a detail; only the lessons' own settings are rows on the screen.
+ */
 export function Instructions({ detail }: GroupScreenProps<'instructions'>) {
   const { t } = useTranslation(['config']);
   if (detail === 'claude-md') return <InstructionsTab scope={USER_SCOPE} scopeKey="user" />;
   if (detail === 'memory') return <MemoryOverview />;
-  if (detail === 'lessons') return <LessonsTab />;
+  if (detail === 'lessons') return <GlobalLessons />;
   if (detail) return <ResourcesTab scope={USER_SCOPE} kind={detail} />;
   return (
     <div className="settings-group">
-      {SECTIONS.map(({ section, detail: to, setting }) => (
-        <SettingsSection key={section} id={section} title={t(sectionLabel(section))}>
-          <SettingsDetailRow to={settingsHref('instructions', { detail: to })} label={t(detailLabel(to))} setting={setting} />
-        </SettingsSection>
-      ))}
+      <SettingsSection id="instructions" title={t(sectionLabel('instructions'))}>
+        <InstructionsRow />
+      </SettingsSection>
+      <SettingsSection id="memory" title={t(sectionLabel('memory'))}>
+        <MemoryRow />
+      </SettingsSection>
+      <SettingsSection id="lessons" title={t(sectionLabel('lessons'))}>
+        <GlobalLessonsRow />
+        <LessonSettingsRows />
+      </SettingsSection>
+      <SettingsSection id="rules" title={t(sectionLabel('rules'))}>
+        <ResourceRow kind="rules" />
+      </SettingsSection>
+      <SettingsSection id="output-styles" title={t(sectionLabel('output-styles'))}>
+        <ResourceRow kind="output-styles" />
+      </SettingsSection>
     </div>
   );
 }

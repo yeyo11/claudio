@@ -165,8 +165,8 @@ export function ToolPresetsTab() {
   }
 
   return (
+    // The detail's title names the screen: the card's head keeps only its actions
     <Card
-      title={t('config.tabs.tools')}
       actions={
         <>
           <button

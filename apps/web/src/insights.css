@@ -257,19 +257,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The list beside what is out of reach: two columns on a desktop, one stack on a phone */
-.connectors-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 16px;
-  align-items: start;
-}
-.connectors-main,
-.connectors-side {
+.connectors {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+.connectors > p {
+  margin: 0;
 }
 
 .connectors-lead {
@@ -396,44 +392,14 @@
   gap: 12px;
 }
 
-.connectors-callout {
-  color: var(--fg-2);
-}
-.connectors-callout .alert-icon {
-  color: var(--fg-3);
-}
-
-.connectors-side-title {
-  margin: 0;
-  font-size: var(--fs-section);
-  font-weight: var(--fw-strong);
-}
-.connectors-side > p {
-  margin: 0;
+/* What the CLI does not list and what is out of reach, as one quiet line under the cards */
+.connectors-footnote {
+  font-size: var(--fs-small);
   line-height: 1.5;
-}
-.connectors-limits {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.connectors-limit {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 18px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  background: var(--bg-1);
+  color: var(--fg-2);
 }
 
 @media (max-width: 900px) {
-  .connectors-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .connector-row {
     padding: 14px;
     gap: 12px;
@@ -458,19 +424,6 @@
   .connector-body,
   .connector-waiting {
     margin-left: 0;
-  }
-  .connectors-refresh {
-    width: 44px;
-    height: 44px;
-    color: var(--fg-2);
-  }
-  /* What the CLI does not list and what is out of reach, as one quiet line under the cards */
-  .connectors-footnote {
-    margin: 0;
-    padding: 0 4px;
-    font-size: var(--fs-small);
-    line-height: 1.5;
-    color: var(--fg-2);
   }
 }
 

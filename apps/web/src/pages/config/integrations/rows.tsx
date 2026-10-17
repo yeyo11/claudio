@@ -124,6 +124,7 @@ export function HostRow({
   open,
   checking,
   panel,
+  setting,
   onRetry,
   onChooseBinary,
   onSignIn,
@@ -134,6 +135,8 @@ export function HostRow({
   open: boolean;
   checking: boolean;
   panel: React.ReactNode;
+  /** The settings search entry the row answers (`data-setting`) */
+  setting?: string | undefined;
   onRetry: () => void;
   /** Without it, "Choose binary" is not offered (the setup assistant) */
   onChooseBinary?: () => void;
@@ -272,7 +275,7 @@ export function HostRow({
 
   if (variant === 'cell') {
     return (
-      <div className="prov-cell" data-host={status.id} data-state={shown}>
+      <div className="prov-cell" data-host={status.id} data-state={shown} {...(setting ? { 'data-setting': setting } : {})}>
         <div className="prov-cell-head">
           <ProgramMark id={status.id} label={status.label} />
           {identity}
@@ -284,7 +287,7 @@ export function HostRow({
   }
   return (
     <>
-      <div className={`prov-row compact${open ? ' open' : ''}`} data-host={status.id} data-state={shown}>
+      <div className={`prov-row compact${open ? ' open' : ''}`} data-host={status.id} data-state={shown} {...(setting ? { 'data-setting': setting } : {})}>
         <ProgramMark id={status.id} label={status.label} />
         {identity}
         {state}
@@ -477,6 +480,7 @@ export function TrackerRow({
   accessOpen,
   checking,
   panel,
+  setting,
   onRetry,
   onChooseBinary,
   onConnect,
@@ -489,6 +493,8 @@ export function TrackerRow({
   accessOpen: boolean;
   checking: boolean;
   panel: React.ReactNode;
+  /** The settings search entry the row answers (`data-setting`) */
+  setting?: string | undefined;
   onRetry: () => void;
   /** Without it, "Choose binary" is not offered (the setup assistant) */
   onChooseBinary?: () => void;
@@ -583,7 +589,7 @@ export function TrackerRow({
 
   if (variant === 'cell') {
     return (
-      <div className="prov-cell" data-tracker={status.id} data-state={shown}>
+      <div className="prov-cell" data-tracker={status.id} data-state={shown} {...(setting ? { 'data-setting': setting } : {})}>
         <div className="prov-cell-head">
           <ProgramMark id={status.id} label={words.label} />
           {identity}
@@ -595,7 +601,7 @@ export function TrackerRow({
   }
   return (
     <>
-      <div className={`prov-row compact${open ? ' open' : ''}`} data-tracker={status.id} data-state={shown}>
+      <div className={`prov-row compact${open ? ' open' : ''}`} data-tracker={status.id} data-state={shown} {...(setting ? { 'data-setting': setting } : {})}>
         <ProgramMark id={status.id} label={words.label} />
         {identity}
         {state}

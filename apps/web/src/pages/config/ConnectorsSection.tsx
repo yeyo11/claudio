@@ -1,22 +1,21 @@
 import type { Connector, ConnectorAction, ConnectorKind, ConnectorsOverview } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { CalendarDays, ExternalLink, FileText, Info, KeyRound, Mail, Plug, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
+import { useContext, useEffect, useState } from 'react';
+import { CalendarDays, ExternalLink, FileText, KeyRound, Mail, Plug, RefreshCw, Sparkles, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { api, keys, useConnectors } from '../api';
+import { api, keys, useConnectors } from '../../api';
 import { Tooltip } from '@claudio/ui/components/controls';
-import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { StatusDot } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Skeleton, StatusBadge, Tag } from '@claudio/ui/components/ui';
-import { PageHeader } from '../components/PageHeader';
 import { formatDateTime } from '@claudio/ui/lib/format';
 import { intlLocale } from '@claudio/ui/i18n/language';
-import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { connectorActionLabel, connectorLimitName, localized } from '../lib/server-strings';
-import { useProjectScope } from '../lib/project-scope';
-import '../insights.css';
+import { connectorActionLabel, connectorLimitName, localized } from '../../lib/server-strings';
+import { useProjectScope } from '../../lib/project-scope';
+import { SectionLevel } from './groups/Section';
+import '../../insights.css';
 
 // The person finishes the sign-in in their browser: ask the CLI again every few seconds, for two minutes
 const AUTH_POLL_MS = 4_000;
@@ -83,6 +82,7 @@ function ConnectorCard({
   authUrl,
   authBusy,
   onAuthorise,
+  setting,
 }: {
   connector: Connector;
   guide: ConnectorsOverview['authorisation'];
@@ -93,9 +93,12 @@ function ConnectorCard({
   authUrl: string | null;
   authBusy: boolean;
   onAuthorise: (connector: Connector) => void;
+  /** The search entry the steps answer, on the first card that shows them */
+  setting?: string | undefined;
 }) {
   const { t } = useTranslation('connectors');
   const Icon = KIND_ICON[connector.kind];
+  const Name = useContext(SectionLevel) === 2 ? 'h3' : 'h4';
   const actions = connector.actions ?? [];
   const tone = connector.status === 'connected' ? 'is-ok' : connector.status === 'needs-auth' ? 'is-warn' : 'is-muted';
   return (
@@ -105,7 +108,7 @@ function ConnectorCard({
           <Icon size={18} strokeWidth={1.75} />
         </span>
         <div className="connector-main">
-          <h2 className="connector-name break">{connector.name}</h2>
+          <Name className="connector-name break">{connector.name}</Name>
           <ConnectorStatus status={connector.status} />
           {connector.toolCount !== undefined && <span className="small muted tnum connector-tools">{t('toolCount', { count: connector.toolCount })}</span>}
           {connector.detail && connector.status !== 'connected' && <span className="mono small muted break">{t('cliSays', { detail: connector.detail })}</span>}
@@ -147,7 +150,7 @@ function ConnectorCard({
         </p>
       )}
       {connector.status === 'needs-auth' && (
-        <div className="connector-body">
+        <div className="connector-body" {...(setting ? { 'data-setting': setting } : {})}>
           <AuthorisationSteps guide={guide} />
         </div>
       )}
@@ -156,12 +159,16 @@ function ConnectorCard({
   );
 }
 
-export function Connectors() {
+/**
+ * Settings → Connections → Connectors (docs/plans/settings-ia.md §6.3): the claude.ai connectors the
+ * CLI lists, each with its state, its sign-in and its prepared prompts. It was a page of its own; the
+ * page's header is the section's heading now, and what is out of reach is one line under the list.
+ */
+export function ConnectorsSection() {
   const { t } = useTranslation(['connectors', 'common']);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { project } = useProjectScope();
-  const narrow = useMediaQuery(NARROW);
   // The CLI connects to every server to answer, which takes seconds: the server caches it for a
   // minute, and the button asks again on purpose
   const { data, error, isLoading, isFetching } = useConnectors();
@@ -224,124 +231,80 @@ export function Connectors() {
   // The steps are said once: inside a card that needs them, or on their own when no card shows them
   const stepsInCard = needsAuth.length > 0;
 
-  const checked = data ? t('subtitle', { when: formatDateTime(data.checkedAt) }) : t('subtitleLoading');
+  const checked = data ? t('checked', { when: formatDateTime(data.checkedAt) }) : t('subtitleLoading');
   const notListed = data && data.notListed.length > 0 ? `${t('notListed', { kinds: data.notListed.map((kind) => t(`kinds.${kind}`)).join(', ') })}${stepsInCard ? ` ${t('notListedSame')}` : ''}` : null;
+  const firstNeedsAuth = needsAuth[0]?.id ?? null;
+  const GuideTitle = useContext(SectionLevel) === 2 ? 'h3' : 'h4';
 
   return (
     <div className="connectors">
-      {/* A phone keeps the header to its title, when the list was read and an icon to read it again (MobileConectores) */}
-      <PageHeader
-        title={t('title')}
-        subtitle={narrow ? <span className="small tnum connectors-checked">{checked}</span> : t('intro')}
-        phone={{
-          subtitle: checked,
-          actions: (
-            <button type="button" className="icon-btn connectors-refresh" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching} aria-label={refresh.isPending ? t('refreshing') : t('refresh')}>
-              <RefreshCw {...ICON} />
-            </button>
-          ),
-        }}
-        actions={
-          <>
-            {!narrow && <span className="small muted tnum connectors-checked">{checked}</span>}
-            <button
-              type="button"
-              className={narrow ? 'icon-btn connectors-refresh' : 'btn'}
-              onClick={() => refresh.mutate()}
-              disabled={refresh.isPending || isFetching}
-              aria-label={narrow ? (refresh.isPending ? t('refreshing') : t('refresh')) : undefined}
-            >
-              <RefreshCw {...ICON_SM} />
-              {!narrow && ` ${refresh.isPending ? t('refreshing') : t('refresh')}`}
-            </button>
-          </>
-        }
-      />
+      <p className="small muted">{t('line')}</p>
+      <div className="prov-toolbar">
+        <button type="button" className="btn btn-small" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching}>
+          <RefreshCw {...ICON_SM} aria-hidden /> {refresh.isPending ? t('refreshing') : t('refresh')}
+        </button>
+        <span className="prov-checked tnum connectors-checked">{checked}</span>
+      </div>
       <ErrorBox error={error ?? refresh.error ?? ask.error ?? authorise.error} />
 
       {isLoading ? (
         <Skeleton rows={4} height={20} />
       ) : data ? (
-        <div className="connectors-layout">
-          <div className="connectors-main">
-            {data.error && (
-              <div className="alert alert-warn" role="alert">
-                <div className="alert-body">
-                  <div className="strong">{t('cliFailed')}</div>
-                  <div className="small break">{data.error}</div>
-                </div>
+        <>
+          {data.error && (
+            <div className="alert alert-warn" role="alert">
+              <div className="alert-body">
+                <div className="strong">{t('cliFailed')}</div>
+                <div className="small break">{data.error}</div>
               </div>
-            )}
-            {allBlocked && !data.error && (
-              <div className="card connectors-lead">
-                <Empty illustration="connector" tone="warn" size="sm" title={t('blocked.title', { count: connectors.length, name: connectors[0]?.name ?? '' })}>
-                  {t('blocked.body')}
-                </Empty>
-              </div>
-            )}
-            {timedOut && (
-              <div className="alert alert-warn" role="status">
-                <div className="alert-body small">{t('authorise.timedOut', { connector: timedOut })}</div>
-              </div>
-            )}
-            {connectors.length === 0 && !data.error ? (
-              <div className="card connectors-lead">
-                <Empty illustration="connector" size="sm" title={t('none')}>
-                  {t('noneHint')}
-                </Empty>
-              </div>
-            ) : (
-              connectors.length > 0 && (
-                <ul className="lrows connectors-list">
-                  {connectors.map((connector) => (
-                    <ConnectorCard key={connector.id} connector={connector} guide={data.authorisation} pending={pending}
-                      onAsk={(c, action) => ask.mutate({ connector: c, action })}
-                      waiting={watching?.id === connector.id}
-                      authUrl={watching?.id === connector.id ? watching.authUrl : null}
-                      authBusy={authorise.isPending && authorise.variables?.id === connector.id}
-                      onAuthorise={(c) => authorise.mutate(c)}
-                    />
-                  ))}
-                </ul>
-              )
-            )}
-            {!stepsInCard && !data.error && (connectors.length === 0 || data.notListed.length > 0) && (
-              <section className="card connector-guide">
-                <h2 className="connector-name">{t('authorise.title')}</h2>
-                <AuthorisationSteps guide={data.authorisation} />
-              </section>
-            )}
-            {notListed && !data.error && !narrow && (
-              <div className="alert connectors-callout" role="note">
-                <Info size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
-                <div className="alert-body">{notListed}</div>
-              </div>
-            )}
-          </div>
-
-          {narrow ? (
-            // A phone says what is missing and what is out of reach in one footnote under the list
-            <p className="connectors-footnote" role="note">
-              {notListed && !data.error && `${notListed} `}
-              {t('unavailable.short', { items: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(data.unavailable.map((item) => connectorLimitName(item))) })}
-            </p>
+            </div>
+          )}
+          {allBlocked && !data.error && (
+            <div className="card connectors-lead">
+              <Empty icon={KeyRound} title={t('blocked.title', { count: connectors.length, name: connectors[0]?.name ?? '' })}>
+                {t('blocked.body')}
+              </Empty>
+            </div>
+          )}
+          {timedOut && (
+            <div className="alert alert-warn" role="status">
+              <div className="alert-body small">{t('authorise.timedOut', { connector: timedOut })}</div>
+            </div>
+          )}
+          {connectors.length === 0 && !data.error ? (
+            <div className="card connectors-lead">
+              <Empty icon={Plug} title={t('none')}>
+                {t('noneHint')}
+              </Empty>
+            </div>
           ) : (
-            <aside className="connectors-side" aria-labelledby="connectors-unavailable">
-              <h2 id="connectors-unavailable" className="connectors-side-title">
-                {t('unavailable.title')}
-              </h2>
-              <p className="small muted">{t('unavailable.intro')}</p>
-              <ul className="connectors-limits">
-                {data.unavailable.map((item) => (
-                  <li key={item.id} className="connectors-limit">
-                    <span className="strong">{connectorLimitName(item)}</span>
-                    <span className="muted small">{localized(item.reason)}</span>
-                  </li>
+            connectors.length > 0 && (
+              <ul className="lrows connectors-list">
+                {connectors.map((connector) => (
+                  <ConnectorCard key={connector.id} connector={connector} guide={data.authorisation} pending={pending}
+                    onAsk={(c, action) => ask.mutate({ connector: c, action })}
+                    waiting={watching?.id === connector.id}
+                    authUrl={watching?.id === connector.id ? watching.authUrl : null}
+                    authBusy={authorise.isPending && authorise.variables?.id === connector.id}
+                    onAuthorise={(c) => authorise.mutate(c)}
+                    setting={connector.id === firstNeedsAuth ? 'connectors.authorise' : undefined}
+                  />
                 ))}
               </ul>
-            </aside>
+            )
           )}
-        </div>
+          {!stepsInCard && !data.error && (connectors.length === 0 || data.notListed.length > 0) && (
+            <section className="card connector-guide" data-setting="connectors.authorise">
+              <GuideTitle className="connector-name">{t('authorise.title')}</GuideTitle>
+              <AuthorisationSteps guide={data.authorisation} />
+            </section>
+          )}
+          {/* What the CLI does not list and what is out of reach, as one quiet line under the cards */}
+          <p className="connectors-footnote" role="note">
+            {notListed && !data.error && `${notListed} `}
+            {t('unavailable.short', { items: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(data.unavailable.map((item) => connectorLimitName(item))) })}
+          </p>
+        </>
       ) : null}
     </div>
   );

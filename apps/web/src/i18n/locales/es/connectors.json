@@ -1,9 +1,8 @@
 {
   "nav": "Conectores",
-  "title": "Conectores",
-  "subtitle": "consultado {{when}}",
+  "checked": "Consultado {{when}}",
   "subtitleLoading": "Preguntando al CLI…",
-  "intro": "Los conectores de claude.ai de la cuenta con sesión iniciada, tal como los lista Claude Code. Claudio puede iniciar el acceso de un conector a través del CLI, y la persona lo termina en su navegador.",
+  "line": "Tus conectores de claude.ai, tal como los lista Claude Code.",
   "refresh": "Preguntar al CLI otra vez",
   "refreshing": "Preguntando…",
   "cliFailed": "El CLI no ha podido listar sus conectores",
@@ -46,8 +45,6 @@
     "timedOut": "{{connector}} sigue sin conectarse pasados dos minutos. Autorízalo de nuevo o vuelve a preguntar al CLI cuando hayas iniciado sesión."
   },
   "unavailable": {
-    "title": "Fuera de alcance",
-    "intro": "Claudio habla con Claude Code solo a través de su CLI, así que todo aquello para lo que el CLI no tiene comando queda fuera de alcance:",
     "short": "{{items}} quedan fuera del alcance de Claudio."
   }
 }

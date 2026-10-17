@@ -81,7 +81,8 @@ export function InstructionsTab({ scope, scopeKey }: { scope: Scope; scopeKey: s
 
   return (
     <Card
-      title={scope.projectId ? t('instructions.projectTitle') : t('instructions.userTitle')}
+      // In Settings the detail's title names the file already
+      title={scope.projectId ? t('instructions.projectTitle') : undefined}
       actions={
         scope.projectId && (
           <Segmented
