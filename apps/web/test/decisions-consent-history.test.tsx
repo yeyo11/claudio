@@ -3,12 +3,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { DecisionPointStats, DecisionRecord } from '@claudio/shared';
-import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
-import { answerLines, approxTokens, consentProviders, needsConsent, outcomeOf, percent } from '../src/pages/config/decisions/model';
-import { PointMetrics } from '../src/pages/config/decisions/PointMetrics';
+import { answerLines, approxTokens, consentProviders, evidenceOf, needsConsent, outcomeOf, percent } from '../src/pages/config/decisions/model';
 
-// Settings → Decisions (D3 u2): when a point asks for consent, what its week shows and how a
+// Settings → Decisions (D3 u2): when a point asks for consent, what its evidence says and how a
 // History row reads.
 
 const stats = (over: Partial<DecisionPointStats> = {}): DecisionPointStats => ({
@@ -130,23 +128,9 @@ test('a yes/no answer gets its two bars from the one probability', () => {
   assert.deepEqual(line?.bars.map((bar) => [bar.id, bar.probability]), [['yes', 0.75], ['no', 0.25]]);
 });
 
-test('the metrics show the CLI has no confidence and give the agreement its n', () => {
-  const cli = renderToStaticMarkup(<PointMetrics stats={stats({ meanConfidence: null })} />);
-  assert.match(cli, /Confidence<\/span><span>—<\/span>/);
-  assert.match(cli, /63\s?%/);
-  assert.match(cli, /88\s?%/);
-  assert.match(cli, /n 24/);
-  assert.match(cli, /Runs saved/);
-});
-
-test('a point with no week yet shows dashes, not made-up zeros for the ratios', () => {
-  const empty = renderToStaticMarkup(<PointMetrics stats={undefined} />);
-  assert.match(empty, /Acted<\/span><span>—<\/span>/);
-  assert.match(empty, /Agreement<\/span><span>—<\/span>/);
-  assert.doesNotMatch(empty, /n 0/);
-});
-
-test('the way into the History only shows when there is somewhere to go', () => {
-  assert.doesNotMatch(renderToStaticMarkup(<PointMetrics stats={stats()} />), /See in History/);
-  assert.match(renderToStaticMarkup(<PointMetrics stats={stats()} onHistory={() => undefined} />), /See in History/);
+test("a point's evidence counts its decisions, how often it agreed and where it did not", () => {
+  assert.deepEqual(evidenceOf(stats()), { count: 41, agreement: 88, disagreements: 3 });
+  // Nothing compared yet: no agreement to show, not a made-up 0 %
+  assert.deepEqual(evidenceOf(stats({ resolved: 0, agreed: 0 })), { count: 41, agreement: null, disagreements: 0 });
+  assert.deepEqual(evidenceOf(undefined), { count: 0, agreement: null, disagreements: 0 });
 });
