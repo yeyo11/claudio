@@ -18,7 +18,7 @@ import { EntryView, Transcript } from '@claudio/chat-ui/components/Transcript';
 import { formatClock } from '@claudio/ui/lib/format';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
-import i18n from '../src/i18n';
+import i18n, { setLanguage } from '../src/i18n';
 
 // A compaction is the system's line, never a person's message: the divider says it in one sentence
 // and the summary Claude continued from sits in its fold (docs/plans/context-control.md, "The divider").
@@ -36,7 +36,7 @@ const recorded = readFileSync(join(fixtures, 'recordings/claude/compacted.jsonl'
 const config = { agentNameFor: () => 'Claude', paths: { chat: (id: string) => `/chats/${id}`, chatChangeStep: () => '/', connectors: '/connectors' } } as unknown as ChatUiConfig;
 
 function render(node: ReactNode, lang: 'en' | 'es' = 'en'): string {
-  void i18n.changeLanguage(lang);
+  setLanguage(lang);
   return renderToStaticMarkup(
     <MemoryRouter>
       <ChatUiProvider value={config}>
@@ -71,14 +71,19 @@ const summary = (uuid = 's1'): TranscriptEntry => ({
   compaction: { part: 'summary', trigger: null, preTokens: null, postTokens: null, durationMs: null },
 });
 
-test('the label says how it compacted, from what to what, and when', async () => {
+test('the label says how it compacted, from what to what, and when, its figures in the language', async () => {
+  // setLanguage, not i18n alone: the figures follow the language Intl formats with
+  setLanguage('en');
   await i18n.changeLanguage('en');
   assert.equal(compactionLabel(boundary(), t), `Compacted · by hand · 142k → 18.0k tokens · ${formatClock(AT)}`);
   assert.match(compactionLabel(boundary({ trigger: 'auto' }), t), /^Compacted · automatic · /);
   // The CLI gave no figure after: the label says only where it came from
   assert.match(compactionLabel(boundary({ postTokens: null }), t), /142k → tokens/);
+  setLanguage('es');
   await i18n.changeLanguage('es');
   assert.match(compactionLabel(boundary({ trigger: 'auto' }), t), /^Compactado · automático · /);
+  assert.match(compactionLabel(boundary(), t), /142k → 18,0k tokens/);
+  setLanguage('en');
   await i18n.changeLanguage('en');
 });
 

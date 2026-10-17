@@ -80,7 +80,8 @@ export function LiveOptions({ chat }: { chat: Chat }) {
         <dt>{t('tools.preset')}</dt>
         <dd>{tools?.preset ? <Tag tone="info">{tools.preset.name}</Tag> : <span className="muted">{t('tools.card.noPreset')}</span>}</dd>
         <dt>{t('tools.servers')}</dt>
-        <dd className="mono">{tools?.mcp ? (tools.mcp.servers.length > 0 ? tools.mcp.servers.join(', ') : t('tools.card.noServers')) : t('tools.card.serversDefault')}</dd>
+        {/* The servers' names are ids and keep their mono; the words for none or the default do not */}
+        <dd className={tools?.mcp && tools.mcp.servers.length > 0 ? 'mono' : undefined}>{tools?.mcp ? (tools.mcp.servers.length > 0 ? tools.mcp.servers.join(', ') : t('tools.card.noServers')) : t('tools.card.serversDefault')}</dd>
       </dl>
       <p className="small muted">{t('status.liveHint')}</p>
     </div>

@@ -1,6 +1,6 @@
 import { CONTEXT_FULL, CONTEXT_WARN, isModelName, type ChatOrchestration, type ChatOrigin, type ChatState, type ChatSummary, type Execution, type OrchestrationChatRole } from '@claudio/shared';
 import i18n from 'i18next';
-import { formatCost } from '@claudio/ui/lib/format';
+import { formatCost, formatNumber, formatPercent as formatPoints } from '@claudio/ui/lib/format';
 
 /** The share of the window in use, or null when there is nothing honest to divide by. */
 export function contextShare(chat: Pick<ChatSummary, 'context'>): number | null {
@@ -16,14 +16,21 @@ export function contextLevel(share: number): ContextLevel {
   return share >= CONTEXT_FULL ? 'full' : share >= CONTEXT_WARN ? 'warn' : 'ok';
 }
 
+/**
+ * Tokens, abbreviated: 950, 12.4k, 328k, 1.3M. The figure goes through Intl (12,4k in Spanish); the
+ * suffix stays the k and M people read in every token counter, which Intl's compact notation would
+ * turn into "12,4 mil" and the tests pin.
+ */
 export function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`;
-  return String(n);
+  const short = (value: number, digits: number) => formatNumber(value, { maximumFractionDigits: digits, minimumFractionDigits: digits, useGrouping: false });
+  if (n >= 1_000_000) return `${short(n / 1_000_000, n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1000) return `${short(n / 1000, n >= 100_000 ? 0 : 1)}k`;
+  return formatNumber(n);
 }
 
+/** A share of the window (0–1), as the active language writes a percentage: 27% or 27 %. */
 export function formatPercent(share: number): string {
-  return `${Math.round(share * 100)}%`;
+  return formatPoints(Math.round(share * 100));
 }
 
 /** Dollars, or the words for a cost nobody reported: it is never estimated, so it is never zero either. */

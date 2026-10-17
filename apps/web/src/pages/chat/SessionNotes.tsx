@@ -71,7 +71,7 @@ function NoteItem({ note, hasProject, onDelete, onJournal }: { note: ChatSession
   const failed = note.state === 'failed';
   const title = (
     <span className="note-title">
-      <span className="note-meta mono small muted">
+      <span className="note-meta small muted tnum">
         {formatDateTime(note.createdAt)} · {t(`context.notes.source.${note.source}`)}
       </span>
       {pending ? (
@@ -211,7 +211,7 @@ export function JournalForm({ text, onText, error, disabled = false }: { text: s
       <label className="field">
         <span className="field-label">{t('context.notes.journal.label')}</span>
         <textarea className="journal-text" rows={12} value={text} disabled={disabled} onChange={(event) => onText(event.target.value)} aria-invalid={over || undefined} />
-        <span className={`mono small ${over ? 'text-bad' : 'muted'}`} aria-live="polite">
+        <span className={`small tnum ${over ? 'text-bad' : 'muted'}`} aria-live="polite">
           {t('context.notes.journal.counter', { n: formatNumber(text.length), max: formatNumber(JOURNAL_ENTRY_MAX) })}
           {over && ` · ${t('context.notes.journal.over')}`}
         </span>

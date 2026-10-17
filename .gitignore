@@ -10,5 +10,9 @@ e2e-shots
 # Created by `claude --worktree`; the shareable parts of .claude/ stay tracked
 .claude/worktrees/
 .claude/settings.local.json
+# The designer hooks' per-session state and ui-check's screenshots (docs/plans/claudio-designer.md)
+.claude/.designer-state/
+.ui-captures/
+.claude/skills/claudio-ui/references/components.md
 .pando
 __pycache__/

@@ -16,6 +16,7 @@ import { InstructionsDiffDialog } from './InstructionsDiff';
 import { useDirty } from '../../../lib/dirty';
 import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { taskPath } from '../../../lib/work-items';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 
 const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
@@ -270,9 +271,11 @@ function ProposalRow({ proposal, phone }: { proposal: MemoryProposal; phone: boo
       {proposal.item && (
         <>
           <span>{t('memoryTab.proposals.from')}</span>
-          <Link to={taskPath(proposal.item.key)} className="workitem-key workitem-key-link" title={proposal.item.title}>
-            {proposal.item.key}
-          </Link>
+          <Tooltip content={proposal.item.title}>
+            <Link to={taskPath(proposal.item.key)} className="workitem-key workitem-key-link">
+              {proposal.item.key}
+            </Link>
+          </Tooltip>
         </>
       )}
       <span>

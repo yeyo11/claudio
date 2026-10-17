@@ -161,7 +161,7 @@ def override_card(open_groups=('flow', 'orch')):
   return f'''<section class="card col" style="gap: 0" aria-labelledby="decisions-h">
 <div class="col" style="padding: 18px; gap: 14px"><div class="col" style="gap: 4px"><h2 class="t-h2" id="decisions-h">Decisiones</h2><span class="t-sm fg-2">Qué decide Claudio por ti en este proyecto. Cada punto hereda el ajuste global hasta que lo cambias aquí; el consentimiento sigue siendo global.</span></div>
 <div class="decision-provider"><span class="t-label" style="color: var(--fg-2)">Proveedor</span>{prov_seg}<span class="t-xs fg-3">Jev está disponible: hay una clave global guardada.</span></div>
-<div class="callout">{ico('info', 'ico fg-3')}<span style="line-height: 1.5"><b style="color: var(--fg); font-weight: 500">Sombra</b> decide en silencio y compara con lo que pasó: no cambia nada. <b style="color: var(--fg); font-weight: 500">Activo</b> cambia lo que ves, y lo marca con «decidido».</span></div></div>
+<div class="callout">{ico('info', 'ico fg-3')}<span style="line-height: 1.5"><b style="color: var(--fg); font-weight: var(--fw-regular)">Sombra</b> decide en silencio y compara con lo que pasó: no cambia nada. <b style="color: var(--fg); font-weight: var(--fw-regular)">Activo</b> cambia lo que ves, y lo marca con «decidido».</span></div></div>
 {head}{groups}
 </section>'''
 
@@ -184,9 +184,9 @@ def mpoint_card(p, cli=False):
     thr_html = f'<div class="row" style="gap: 10px"><span class="t-xs fg-3" style="width: 52px">Umbral</span><div class="grow">{threshold(thr, inherited or disabled, "Umbral de " + name)}</div></div>'
   why = f'<span class="decision-why">{ico("lock", "ico")}Con el CLI este punto solo sugiere: «Activo» pide Jev.</span>' if disabled else ''
   reset = '' if inherited else f'<span class="row t-xs fg-3 mono" style="gap: 8px">global: {MODES[gmode].lower()}<button type="button" class="btn btn-ghost" style="margin-left: auto">Usar la global</button></span>'
-  tag = '<span class="mono t-xs fg-3">Heredado</span>' if inherited else ''
+  tag = '<span class="t-num t-xs fg-3">Heredado</span>' if inherited else ''
   return (f'<div class="decision-card" role="group" aria-label="{name}">'
-          f'<div class="decision-card-top"><span class="decision-point"><span class="name" style="font-size: 14px">{name}</span><span class="id">{pid} · {KIND[kind].lower()}</span></span>{tag}</div>'
+          f'<div class="decision-card-top"><span class="decision-point"><span class="name" style="font-size: var(--fs-body)">{name}</span><span class="id">{pid} · {KIND[kind].lower()}</span></span>{tag}</div>'
           f'{seg(mode, inherited, "Modo de " + name, disabled)}{thr_html}{why}{reset}</div>')
 
 
@@ -199,6 +199,6 @@ def usage_line():
   """One line on Usage, over the page's window, read from GET /decisions/stats. The page hides it
   when no decision was recorded in that window. "Jev 0,38 US$" is what the provider charged."""
   return (f'<div class="usage-decisions" role="note">{ico("flow", "ico ico-sm")}<span class="lead">Decisiones</span><span class="sep">·</span>'
-          '<span>Jev <span class="mono t-num">0,38 US$</span></span><span class="sep">·</span>'
-          '<span><span class="mono t-num">37</span> ejecuciones de Claude ahorradas</span>'
+          '<span>Jev <span class="t-num">0,38 US$</span></span><span class="sep">·</span>'
+          '<span><span class="t-num">37</span> ejecuciones de Claude ahorradas</span>'
           '<a href="DesktopAjustes.html">Ver el historial</a></div>')

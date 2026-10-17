@@ -70,13 +70,13 @@ export function MediaViewer({ items, index, onIndex, onClose }: { items: MediaIt
         </span>
         {item.sizeBytes ? <span className="viewer-size">{formatBytes(item.sizeBytes)}</span> : null}
         {many && <span className="viewer-count">{t('viewer.count', { n: index + 1, total: items.length })}</span>}
-        <a className="icon-btn" href={item.url} download={item.name} aria-label={t('viewer.download')} title={t('viewer.download')}>
+        <a className="icon-btn" href={item.url} download={item.name} aria-label={t('viewer.download')}>
           <Download {...ICON_SM} />
         </a>
-        <a className="icon-btn" href={item.url} target="_blank" rel="noreferrer" aria-label={t('viewer.openTab')} title={t('viewer.openTab')}>
+        <a className="icon-btn" href={item.url} target="_blank" rel="noreferrer" aria-label={t('viewer.openTab')}>
           <ExternalLink {...ICON_SM} />
         </a>
-        <button type="button" className="icon-btn" onClick={onClose} aria-label={t('viewer.close')} title={t('viewer.close')}>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label={t('viewer.close')}>
           <X {...ICON} />
         </button>
       </div>

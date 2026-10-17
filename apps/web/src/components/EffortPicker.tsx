@@ -10,6 +10,11 @@ import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 /** Why the picker cannot be used: the provider has no effort, or the engine takes the orchestration's alone. */
 export type EffortUnavailable = 'provider' | 'workflow';
 
+/** A level as a person reads it ("Low", "Bajo"); one this app does not know stays as the CLI wrote it. */
+export function effortLabel(t: TFunction<'components'>, level: string): string {
+  return (EFFORT_LEVELS as readonly string[]).includes(level) ? t(`effort.levels.${level as Effort}`) : level;
+}
+
 /**
  * What the picker says for an unset effort, and in its tooltip: the level recommended for the model
  * and the use (with why), or the one a resume starts with, or that the CLI decides.
@@ -21,7 +26,7 @@ export function effortWords(
   { inherited, unavailable, set }: { inherited?: string | null; unavailable?: EffortUnavailable; set: boolean },
 ): { unset: string; tip: string } {
   const recommendation = effortRecommendation(model, use);
-  const unset = inherited ? t('effort.asBefore', { level: inherited }) : recommendation ? t('effort.recommended', { level: recommendation.effort }) : t('effort.cliDefault');
+  const unset = inherited ? t('effort.asBefore', { level: effortLabel(t, inherited) }) : recommendation ? t('effort.recommended', { level: effortLabel(t, recommendation.effort) }) : t('effort.cliDefault');
   if (unavailable) return { unset, tip: t(unavailable === 'provider' ? 'effort.unavailableProvider' : 'effort.unavailableWorkflow') };
   return { unset, tip: !set && recommendation && !inherited ? t(`effort.reason.${recommendation.reason}`) : '' };
 }
@@ -68,7 +73,7 @@ export function EffortPicker({
       value: level,
       label: (
         <span className="effort-level">
-          {level}
+          {effortLabel(t, level)}
           {COSTLY_EFFORTS.includes(level) && <span className="effort-costly">{t('effort.costly')}</span>}
         </span>
       ),
@@ -99,8 +104,11 @@ export function EffortTag({ effort, recommended = false }: { effort: string | nu
   const { t } = useTranslation('components');
   if (!effort) return null;
   return (
-    <span className="model-tag effort-tag" title={recommended ? t('effort.recommendedTitle') : t('effort.used')}>
-      {effort}
-    </span>
+    <Tooltip content={recommended ? t('effort.recommendedTitle') : t('effort.used')}>
+      <span className="model-tag effort-tag">
+        <span className="sr-only">{`${recommended ? t('effort.recommendedTitle') : t('effort.used')}: `}</span>
+        {effortLabel(t, effort)}
+      </span>
+    </Tooltip>
   );
 }

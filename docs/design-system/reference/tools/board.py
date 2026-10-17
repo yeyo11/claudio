@@ -64,7 +64,7 @@ def board_decided_desktop():
 <div class="wi-board">{cols}</div>
 {pop}
 </main>'''
-  write('DesktopTableroDecidido.html', desktop('Tablero · decidido', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+  write('DesktopTableroDecidido.html', desktop('Tablero · decidido', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main))
 
 
 def board_desktop():
@@ -75,14 +75,14 @@ def board_desktop():
 {toolbar()}
 <div class="wi-board">{cols}</div>
 <div class="select-bar" role="toolbar" aria-label="Selección">
-<span style="font-weight: 600"><span class="t-num">2</span> seleccionadas</span>
+<span style="font-weight: var(--fw-strong)"><span class="t-num">2</span> seleccionadas</span>
 <span class="row t-xs fg-3 mono" style="gap: 6px">{ico('block', 'ico ico-sm')}AGN-36 bloquea AGN-33: irá antes en el grafo</span>
 <span style="width: 1px; height: 22px; background: var(--line-2)"></span>
 <button type="button" class="btn btn-ghost btn-sm">Cancelar</button>
 <a href="DesktopOrquestacion.html" class="btn btn-primary btn-sm">{ico('orch', 'ico ico-sm')}Orquestar</a>
 </div>
 </main>'''
-  write('DesktopTablero.html', desktop('Tablero', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+  write('DesktopTablero.html', desktop('Tablero', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main))
 
 
 def mhead(title, sub=None, back=None, right=''):
@@ -121,11 +121,11 @@ def mrow(k, show_status=False, strip=None, who=None, lead=(), crit=None, mark=''
   if assignee and not facts and ctx:
     ctx.append(f'<span class="grow"></span>{assignee}')
     assignee = ''
-  ctx_html = f'<span class="wi-card-ctx" style="font-size: 13px">{"".join(ctx)}</span>' if ctx else ''
-  foot = f'<span class="wi-card-foot" style="font-size: 12px">{"".join(facts)}{assignee}</span>' if (facts or assignee) else ''
+  ctx_html = f'<span class="wi-card-ctx" style="font-size: var(--fs-small)">{"".join(ctx)}</span>' if ctx else ''
+  foot = f'<span class="wi-card-foot" style="font-size: var(--fs-small)">{"".join(facts)}{assignee}</span>' if (facts or assignee) else ''
   return f'''<a href="MobileTarea.html" class="{cls}">
 <span class="row" style="gap: 8px">{st}{tico(w['t'])}<span class="wi-key">{k}</span><span class="grow"></span>{mark}{prio(w['p'])}</span>
-<span style="font-weight: 500; font-size: 15px; line-height: 1.35">{w['title']}</span>
+<span style="font-weight: var(--fw-regular); font-size: var(--fs-section); line-height: 1.35">{w['title']}</span>
 {ctx_html}{foot}{strip}
 </a>'''
 
@@ -136,7 +136,7 @@ def msection(s, keys, first=False, rows_html=None, head_right='', marks=None):
   over = lim is not None and n > lim
   cnt = f'<span class="wi-col-count"><b>{n}</b>/{lim}</span>' if lim else f'<span class="wi-col-count"><b>{n}</b></span>'
   # Over the limit: the count in the warn colour and the words, as the desktop column says it
-  warn = f'<span class="row t-xs c-warn" style="gap: 5px; font-weight: 500">{ico("warn", "ico", "width: 12px; height: 12px")}Sobre el límite: {n} de {lim}</span>' if over else ''
+  warn = f'<span class="row t-xs c-warn" style="gap: 5px; font-weight: var(--fw-regular)">{ico("warn", "ico", "width: 12px; height: 12px")}Sobre el límite: {n} de {lim}</span>' if over else ''
   rows = rows_html if rows_html is not None else ''.join(mrow(k, mark=(marks or {}).get(k, '')) for k in keys)
   return f'''<section class="col" style="gap: 8px" aria-label="{COL_WORD[s]}">
 <div class="row" style="gap: 8px; padding: 0 2px; flex-wrap: wrap">{sico(s)}<span class="t-label" style="color: var(--fg-2)">{COL_WORD[s]}</span><span class="{'c-warn ' if over else ''}wi-col-count">{cnt}</span><span class="grow"></span>{head_right}{warn}</div>
@@ -160,13 +160,13 @@ def jump(on='in_progress'):
 def mtoolbar(filters_n=0):
   badge = f'<span class="count-pill" style="position: absolute; top: -4px; right: -4px; background: var(--fg); color: var(--bg)">{filters_n}</span>' if filters_n else ''
   return f'''<div class="row" style="gap: 8px">
-<label class="field field-lg grow">{ico('search', 'ico ico-lg')}<input type="search" placeholder="Buscar tareas" aria-label="Buscar tareas" style="font-size: 16px"></label>
+<label class="field field-lg grow">{ico('search', 'ico ico-lg')}<input type="search" placeholder="Buscar tareas" aria-label="Buscar tareas" style="font-size: var(--fs-input)"></label>
 <a href="MobileTableroFiltros.html" class="btn btn-lg btn-icon" aria-label="Filtros" style="position: relative">{ico('filter', 'ico ico-lg')}{badge}</a>
 </div>'''
 
 
 def mproject_chip():
-  return f'<button type="button" class="chip project-selector" style="font-size: 14px">claude-wrapper{ico("down", "ico ico-sm")}</button>'
+  return f'<button type="button" class="chip project-selector" style="font-size: var(--fs-body)">claude-wrapper{ico("down", "ico ico-sm")}</button>'
 
 
 def mview_seg(on):
@@ -219,7 +219,7 @@ def board_mr_desktop():
 {toolbar()}
 <div class="wi-board">{cols}</div>
 </main>'''
-  write('DesktopTableroMR.html', desktop('Tablero · merge requests', 'tasks', '<span style="font-weight: 500">Tareas</span>', main))
+  write('DesktopTableroMR.html', desktop('Tablero · merge requests', 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main))
 
 
 if __name__ == '__main__':

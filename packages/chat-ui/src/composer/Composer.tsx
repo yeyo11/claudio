@@ -1,4 +1,5 @@
 import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUp, GitFork, Play, Square } from 'lucide-react';
 import { Fragment, Suspense, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
@@ -138,7 +139,7 @@ export function StatusChips({ label, words, accent, icon }: { label: string; wor
             {i > 0 && ' '}
             <span className={`composer-status-word ${i === accent ? 'is-accent' : ''}`.trim()}>
               {i === 0 && icon}
-              <span className="composer-status-text">{word}</span>
+              <FullText className="composer-status-text">{word}</FullText>
             </span>
           </Fragment>
         ))}

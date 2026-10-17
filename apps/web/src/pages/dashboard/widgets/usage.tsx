@@ -48,9 +48,9 @@ export function TodayWidget({ project, title, id }: WidgetProps) {
               {models.map((m) => (
                 <tr key={m.model ?? 'unknown'}>
                   <th scope="row" className="ellipsis">{m.model ?? t('activity.unknownModel')}</th>
-                  <td className="num mono" title={formatNumber(m.input)}>{compact(m.input)}</td>
-                  <td className="num mono" title={formatNumber(m.output)}>{compact(m.output)}</td>
-                  <td className="num mono" title={formatNumber(m.cacheRead + m.cacheCreation)}>{compact(m.cacheRead + m.cacheCreation)}</td>
+                  <td className="num tnum" title={formatNumber(m.input)}>{compact(m.input)}</td>
+                  <td className="num tnum" title={formatNumber(m.output)}>{compact(m.output)}</td>
+                  <td className="num tnum" title={formatNumber(m.cacheRead + m.cacheCreation)}>{compact(m.cacheRead + m.cacheCreation)}</td>
                 </tr>
               ))}
             </tbody>

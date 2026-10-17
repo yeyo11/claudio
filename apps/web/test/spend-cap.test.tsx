@@ -18,6 +18,7 @@ import { en, es } from '../src/i18n/resources';
 import { targetsFor } from '../src/lib/events';
 import { acknowledgeSpend, setSpendCapAsk, spendAcknowledged, spendResetTime, spendScope, spendView, waitingForSpend } from '../src/lib/spend-cap';
 import { changedSettings, SpendCard, SpendFields, validCap } from '../src/pages/config/AppSettingsCards';
+import { formatPercent } from '@claudio/ui/lib/format';
 
 // The daily spend cap's web (docs/plans/agent-run-improvements.md, idea 13): the status bar item
 // and its words, the settings card in each state, and the question a refused request asks before it
@@ -89,18 +90,18 @@ test('the status bar draws nothing with no cap, and nothing when the reading is 
 test('the status bar item is neutral below 60 %, warn from 60 %, bad from 75 %, each with its words', () => {
   const neutral = wrap(<SpendItem />, state(8));
   assert.match(neutral, /class="statusbar-item spend"/);
-  assert.match(text(neutral), /daily cap 40 %/);
+  assert.ok(text(neutral).includes(`daily cap ${formatPercent(40)}`));
   assert.doesNotMatch(neutral, /statusbar-warn|statusbar-bad|is-warn|is-bad/);
 
   const warn = wrap(<SpendItem />, state(12));
   assert.match(warn, /statusbar-item spend statusbar-warn/);
   assert.match(warn, /meter-fill is-warn/);
-  assert.match(text(warn), /daily cap 60 % near the cap/);
+  assert.ok(text(warn).includes(`daily cap ${formatPercent(60)} near the cap`));
 
   const bad = wrap(<SpendItem />, state(16));
   assert.match(bad, /statusbar-item spend statusbar-bad/);
   assert.match(bad, /meter-fill is-bad/);
-  assert.match(text(bad), /daily cap 80 %/);
+  assert.ok(text(bad).includes(`daily cap ${formatPercent(80)}`));
   assert.doesNotMatch(text(bad), /near the cap/);
 });
 
@@ -120,7 +121,7 @@ test('the status bar says it in Spanish too', async () => {
 test('the Usage line shows the cap with the same bar and words, and what was spent past it', () => {
   const html = text(renderToStaticMarkup(<MemoryRouter><SpendLineView state={state(21, { unreported: 2 })} /></MemoryRouter>));
   assert.match(html, /Daily cap · \$21\.00 of \$20\.00/);
-  assert.match(html, /105 %/);
+  assert.ok(html.includes(formatPercent(105)));
   assert.match(html, /cap reached · back at 00:00/);
   assert.match(html, /\$1\.00 over the cap, from work that was already running/);
   assert.match(html, /2 results without a cost/);

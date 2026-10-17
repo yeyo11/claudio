@@ -22,7 +22,7 @@ const PAGE = 30;
 
 type Say = (key: string, values?: Record<string, string>) => string;
 
-/** Who wrote an entry and who approved it, in one mono line: "Product Owner · from AGN-12 · approved by you". */
+/** Who wrote an entry and who approved it, in one small line: "Product Owner · from AGN-12 · approved by you". */
 function useCause() {
   const { t } = useTranslation('home');
   const roleName = useRoleName();
@@ -151,7 +151,7 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
                   </span>
                   {entry.item && <span className="workitem-key">{entry.item.key}</span>}
                   <span className="doc-fill" />
-                  <time className="mono small muted tnum" dateTime={entry.createdAt} title={formatDateTime(entry.createdAt)}>
+                  <time className="small muted tnum" dateTime={entry.createdAt} title={formatDateTime(entry.createdAt)}>
                     {hourMinute(entry.createdAt, i18n.language)}
                   </time>
                 </div>
@@ -214,7 +214,7 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
       <div className="card-head">
         <h2 id="memory-journal-title">{t('memoryTab.journal.title')}</h2>
         <span className="doc-fill" />
-        <span className="mono small muted">{t('memoryTab.journal.summary', { count: total, n: formatNumber(total) })}</span>
+        <span className="small muted tnum">{t('memoryTab.journal.summary', { count: total, n: formatNumber(total) })}</span>
       </div>
       {body}
     </section>

@@ -42,7 +42,7 @@ export function GateCard({
       <p className="evals-note">{t(`gate.explain.${gate.verdict}`)}</p>
 
       {gate.regressed.length > 0 && (
-        <ul className="evals-gate-list mono" aria-label={t('gate.regressedList')}>
+        <ul className="evals-gate-list tnum" aria-label={t('gate.regressedList')}>
           {gate.regressed.map((r) => (
             <li key={`${r.caseId}:${r.pressure}`} className="tone-bad">
               {t('gate.regressedLine', { case: r.caseId, pressure: t(`pressure.${r.pressure}`), from: percent(r.from), to: percent(r.to) })}
@@ -56,7 +56,7 @@ export function GateCard({
           {gate.incomplete.map((i, n) => (
             <li key={n} className="tone-warn">
               <span className="mono">{i.caseId ?? '—'}</span>
-              {i.pressure && <span className="mono"> · {t(`pressure.${i.pressure}`)}</span>} — {t(`gate.reason.${i.reason}`, { min: 3 })}
+              {i.pressure && <span> · {t(`pressure.${i.pressure}`)}</span>} — {t(`gate.reason.${i.reason}`, { min: 3 })}
             </li>
           ))}
         </ul>
@@ -71,7 +71,7 @@ export function GateCard({
             <ul className="evals-gate-list">
               {gate.unreliableJudges.map((j) => (
                 <li key={`${j.caseId}:${j.idx}`}>
-                  <span className="mono">{t('gate.unreliable.which', { case: j.caseId, n: j.idx + 1 })}</span>{' '}
+                  <span className="tnum">{t('gate.unreliable.which', { case: j.caseId, n: j.idx + 1 })}</span>{' '}
                   <button type="button" className="btn btn-small" disabled={busy} onClick={() => onAcceptJudge(j.caseId, j.idx)}>
                     {t('gate.unreliable.accept')}
                   </button>
@@ -83,12 +83,12 @@ export function GateCard({
       )}
 
       {current !== null && proposed !== null && (
-        <dl className="evals-gate-means mono evals-num">
+        <dl className="evals-gate-means evals-num">
           <div>
             <dt>{t('variant.current')}</dt>
             <dd>
               {percent(current)}
-              {interval && <span className="evals-metric-interval">{t('metrics.interval', { range: `${percent(interval.low)}–${percent(interval.high)}` })}</span>}
+              {interval && <span className="evals-metric-interval">{t('metrics.interval', { confidence: percent(0.95), range: `${percent(interval.low)}–${percent(interval.high)}` })}</span>}
             </dd>
           </div>
           <div>

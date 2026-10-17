@@ -86,7 +86,7 @@
 
 .addr-path {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg);
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
@@ -97,7 +97,7 @@
   margin: 0;
   padding-left: 10px;
   box-shadow: inset 2px 0 0 var(--line-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
   display: -webkit-box;
@@ -108,7 +108,7 @@
 }
 
 .addr-by {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-3);
 }
@@ -118,8 +118,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
 }
@@ -149,7 +148,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 12px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -179,7 +178,7 @@
   }
 
   .addr-quote {
-    font-size: 14px;
+    font-size: var(--fs-body);
     -webkit-line-clamp: 3;
   }
 

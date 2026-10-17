@@ -29,13 +29,13 @@
 }
 
 .evals-num {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .evals-never {
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -59,8 +59,8 @@
 
 .evals-editor-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -75,17 +75,14 @@
 .evals-cases-head h3,
 .evals-invalid h3 {
   margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-note {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -107,7 +104,7 @@
 }
 
 .evals-pin-line {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
@@ -116,7 +113,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--warn);
 }
 
@@ -129,7 +126,7 @@
 .evals-problems {
   margin: 8px 0 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -148,7 +145,7 @@
 }
 
 .evals-shas {
-  font-size: 12px;
+  font-size: var(--fs-small);
   margin: 6px 0;
 }
 
@@ -176,7 +173,7 @@
 
 .evals-case-gist {
   color: var(--text-muted);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -184,7 +181,7 @@
 }
 
 .evals-case-count {
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -197,12 +194,9 @@
 
 .evals-expect-heading {
   margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-expects {
@@ -259,8 +253,8 @@
 }
 
 .evals-call-label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text-muted);
 }
 
@@ -299,7 +293,7 @@
 /* A phone: fields at 16 px (no zoom on focus) and targets of at least 44 px */
 .team-page.is-phone .evals-editor input,
 .team-page.is-phone .evals-editor textarea {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .team-page.is-phone .evals-editor .btn,
@@ -402,7 +396,7 @@
 }
 
 .evals-estimate-line {
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -410,7 +404,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -427,7 +421,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--warn);
 }
 
@@ -439,7 +433,7 @@
 .evals-consent-list {
   margin: 4px 0 10px;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -473,7 +467,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -485,7 +479,7 @@
 .evals-matrix {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .evals-matrix th,
@@ -497,19 +491,16 @@
 }
 
 .evals-matrix thead th {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-matrix tbody th {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .evals-cell {
@@ -542,7 +533,7 @@
 }
 
 .evals-attempt-n {
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -550,7 +541,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   color: var(--dot, var(--text-muted));
 }
 
@@ -562,7 +553,7 @@
 
 .evals-matrix-card h4 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .evals-matrix-card dl {
@@ -581,7 +572,7 @@
 }
 
 .evals-matrix-line dt {
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -632,12 +623,9 @@
 
 .evals-sample-section h3 {
   margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-running-line {
@@ -655,7 +643,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .evals-call-row {
@@ -712,7 +700,7 @@
   align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .evals-check > svg {
@@ -722,7 +710,7 @@
 }
 
 .evals-check-word {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   color: var(--dot, var(--text-muted));
 }
 
@@ -738,13 +726,13 @@
   padding: 8px 10px;
   border-radius: var(--radius-xs);
   background: var(--bg-sunken);
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .evals-final-text {
-  font-size: 14px;
+  font-size: var(--fs-body);
   overflow-wrap: anywhere;
 }
 
@@ -755,7 +743,7 @@
   margin: 0;
   padding-top: 12px;
   border-top: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -818,7 +806,7 @@
 
 .evals-metric-interval,
 .evals-metric-k {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -826,12 +814,9 @@
 .evals-drops h4,
 .evals-trend-head h4 {
   margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-drop-list {
@@ -841,7 +826,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 .evals-drop-list li {
@@ -863,7 +848,7 @@
 }
 
 .evals-check-judge q {
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--text);
 }
 
@@ -871,7 +856,7 @@
   list-style: none;
   margin: 6px 0 0;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -892,23 +877,20 @@
 
 .evals-gate-head h3 {
   margin: 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-gate-verdict {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .evals-gate-list {
   margin: 0;
   padding-left: 18px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -918,12 +900,12 @@
   gap: 24px;
   flex-wrap: wrap;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .evals-gate-means dt {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .evals-gate-means dd {
@@ -968,15 +950,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .evals-draft-prompts dt {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
 }
 
 .evals-draft-prompts dd {
@@ -987,7 +967,7 @@
 .evals-draft-expects {
   margin: 0;
   padding-left: 18px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
 
@@ -1025,8 +1005,8 @@
 .evals-trend-axis,
 .evals-trend-value {
   fill: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
 }
 
 .evals-trend-value {
@@ -1058,7 +1038,7 @@
 /* A phone: the dialog is a sheet whose fields are 16 px and whose targets are 44 px */
 .evals-start-sheet input,
 .evals-start-sheet textarea {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .evals-start-sheet .btn,

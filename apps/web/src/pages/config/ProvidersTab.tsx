@@ -102,7 +102,7 @@ export function ProvidersTab() {
         {checking ? <Spinner /> : <RefreshCw {...ICON_SM} />}
         {t('refresh')}
       </button>
-      <span className="prov-checked mono">{checkedAt ? t('checkedAgo', { time: timeAgo(checkedAt) }) : t('notChecked')}</span>
+      <span className="prov-checked tnum">{checkedAt ? t('checkedAgo', { time: timeAgo(checkedAt) }) : t('notChecked')}</span>
     </div>
   );
   const editor = (sheet: boolean) => (

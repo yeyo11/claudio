@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatDateTime } from '@claudio/ui/lib/format';
+import { formatDateTime, formatPercent } from '@claudio/ui/lib/format';
 import { useWidth } from '../../lib/use-width';
 import '../../usage-history.css';
 import { pathOf, summarise, xOf, yOf, type AccountSeries, type Frame } from '../../lib/usage-history';
@@ -42,7 +42,7 @@ export function UsageChart({
   const frame: Frame = { from, to, width, height: HEIGHT, ...FRAME_PAD };
   const summary = summarise(series);
   const description = summary
-    .map((s) => t('history.describeSeries', { account: labelOf(s.account), latest: Math.round(s.latest), peak: Math.round(s.peak) }))
+    .map((s) => t('history.describeSeries', { account: labelOf(s.account), latest: formatPercent(s.latest), peak: formatPercent(s.peak) }))
     .join(' ');
 
   return (
@@ -54,7 +54,7 @@ export function UsageChart({
           <g key={pct} aria-hidden>
             <line className="usage-chart-grid" x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, pct)} y2={yOf(frame, pct)} />
             <text className="usage-chart-axis" x={FRAME_PAD.left - 6} y={yOf(frame, pct) + 4} textAnchor="end">
-              {pct}%
+              {formatPercent(pct)}
             </text>
           </g>
         ))}
@@ -63,7 +63,7 @@ export function UsageChart({
             <line className="usage-chart-threshold" x1={FRAME_PAD.left} x2={width - FRAME_PAD.right} y1={yOf(frame, threshold)} y2={yOf(frame, threshold)} strokeDasharray="1 4" />
             {/* Inside the plot, above the line: the right margin is too narrow for the words */}
             <text className="usage-chart-axis" x={width - FRAME_PAD.right} y={yOf(frame, threshold) - 4} textAnchor="end">
-              {t('history.threshold', { pct: threshold })}
+              {t('history.threshold', { percent: formatPercent(threshold) })}
             </text>
           </g>
         )}

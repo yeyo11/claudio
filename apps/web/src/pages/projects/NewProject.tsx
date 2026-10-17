@@ -118,7 +118,7 @@ export function NewProject() {
           </Link>
           <div className="wizard-phone-title">
             <h1>{t('work:projects.newProject')}</h1>
-            <span className="mono small muted ellipsis">
+            <span className="small muted ellipsis tnum">
               {t('wizard.stepOf', { n: at + 1, total: STEPS.length })}
               {wizard.name ? ` · ${wizard.name}` : ''}
             </span>
@@ -128,7 +128,7 @@ export function NewProject() {
           {STEPS.map((id, i) => (
             <li key={id} className={`wizard-step ${i === at ? 'is-on' : i < at ? 'is-done' : ''}`} aria-current={i === at ? 'step' : undefined}>
               <span className="wizard-step-name">
-                {i < at ? <Check {...ICON_SM} /> : <span className="mono">{i + 1}</span>}
+                {i < at ? <Check {...ICON_SM} /> : <span className="tnum">{i + 1}</span>}
                 {t(`wizard.steps.${id}`)}
               </span>
             </li>

@@ -204,7 +204,7 @@
       "title": "Arreglo listo para subir",
       "waiting": "te espera",
       "body": "Claudio ha arreglado lo que ha podido y lo ha confirmado en la rama de integración. No sube nada hasta que pulses «Subir el arreglo».",
-      "facts": "en {{branch}}",
+      "facts": "en <mono>{{branch}}</mono>",
       "head": "La {{noun}} {{ref}} sigue en el commit {{sha}} hasta que lo subas.",
       "button": "Subir el arreglo",
       "pushing": "Subiendo…",
@@ -384,10 +384,10 @@
       "failed": "No se ha podido aceptar la revisión"
     },
     "severity": {
-      "critical": "crítica",
-      "high": "alta",
-      "medium": "media",
-      "low": "baja"
+      "critical": "Crítica",
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
     },
     "verdict": {
       "not-asked": "sin verificar",

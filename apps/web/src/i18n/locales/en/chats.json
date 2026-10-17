@@ -237,7 +237,7 @@
       "tokensOnly": "{{used}} tokens",
       "unknownWindow": "The window is not known, so there is no share to draw.",
       "over": "{{n}} tokens over the window",
-      "autoAt": "{{agent}} compacts by itself at {{percent}} %",
+      "autoAt": "{{agent}} compacts by itself at {{percent}}",
       "autoOn": "{{agent}} compacts by itself when the window fills",
       "autoOff": "Automatic compaction is off",
       "unreported": {
@@ -251,7 +251,7 @@
       "colName": "Category",
       "colTokens": "Tokens",
       "colShare": "Share",
-      "lessThanOne": "<1 %",
+      "lessThanOne": "<{{percent}}",
       "outside": "Outside the window",
       "outsideHint": "Not counted: these schemas are loaded only when they are needed.",
       "mcp": "MCP servers",
@@ -261,7 +261,7 @@
       "mcpMore_other": "{{count}} more servers",
       "warn": {
         "many-tools": "Many MCP tools ({{count}})",
-        "large-share": "MCP takes {{percent}} % of the context"
+        "large-share": "MCP takes {{percent}} of the context"
       },
       "memory": "Memory files",
       "copyPath": "Copy {{path}}",

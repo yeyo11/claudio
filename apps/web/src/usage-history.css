@@ -17,8 +17,7 @@
 
 .usage-chart-axis {
   fill: var(--fg-3);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -64,9 +63,8 @@
 
 .usage-series-label {
   fill: var(--series);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .usage-legend {

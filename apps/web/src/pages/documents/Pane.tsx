@@ -73,7 +73,7 @@ export function DocumentOrigin({ tie, phone = false }: { tie: DocumentTie; phone
         {tie.item.key}
       </Link>
       <span className="doc-fill" />
-      <span className="mono small muted">
+      <span className="small muted tnum">
         {tie.chatId ? (
           <>
             <Link to={`/chats/${tie.chatId}`} className="doc-origin-chat">

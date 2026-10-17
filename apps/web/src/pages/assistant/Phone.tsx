@@ -97,7 +97,7 @@ function PhoneRunning({ project, run }: { project: Project; run: AssistantRunDet
             <li key={section} className="assistant-waiting-row">
               <Icon {...ICON} className="muted" />
               <span className="grow">{t(`section.${section}`)}</span>
-              <span className="mono small muted assistant-waiting-state">
+              <span className="small muted assistant-waiting-state">
                 <Clock {...ICON_SM} />
                 {t('waiting')}
               </span>
@@ -165,7 +165,7 @@ function PhoneEmpty({ project, run, tasksRun, following, actions }: { project: P
         <>
           <div className="assistant-label-row">
             <span className="section-label">{t('empty.templateTeam')}</span>
-            {run.template && <span className="mono small muted">{t(`projects:templates.${run.template}.name`)}</span>}
+            {run.template && <span className="small muted">{t(`projects:templates.${run.template}.name`)}</span>}
           </div>
           <ul className="card assistant-rows">
             {members.map((p) => (

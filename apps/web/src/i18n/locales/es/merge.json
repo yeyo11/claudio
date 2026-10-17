@@ -1,6 +1,6 @@
 {
   "title": "Fusión",
-  "sub": "{{ref}} · {{head}} → {{base}} · {{sha}}",
+  "sub": "{{ref}} · <mono>{{head}}</mono> → <mono>{{base}}</mono> · <mono>{{sha}}</mono>",
   "loading": "Leyendo qué impide la fusión…",
   "failed": "Claudio no ha podido leer el estado de la fusión en {{host}}.",
   "retry": "Reintentar",
@@ -69,7 +69,7 @@
   },
   "pipeline": {
     "waiting": "Esperando a la pipeline",
-    "waitingDetail": "commit {{sha}} · {{host}} aún no la ha asociado · se comprueba cada 10 s"
+    "waitingDetail": "commit <mono>{{sha}}</mono> · {{host}} aún no la ha asociado · se comprueba cada 10 s"
   },
   "headMoved": {
     "title": "La rama cambió mientras mirabas, y no se fusionó nada.",

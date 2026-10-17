@@ -8,7 +8,7 @@
     "workItem": "Volver a {{key}}"
   },
   "meta": {
-    "from": "desde {{base}}",
+    "from": "desde <ref>{{base}}</ref>",
     "detached": "HEAD separado",
     "commits_one": "{{count}} commit",
     "commits_other": "{{count}} commits",

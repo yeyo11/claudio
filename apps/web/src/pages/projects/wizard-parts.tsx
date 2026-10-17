@@ -184,7 +184,7 @@ export function Summary({ draft, wizard, onChange }: { draft: Draft; wizard: Wiz
               </span>
             </SummaryRow>
             <SummaryRow label={t('wizard.summaryLimits')}>
-              <span className="mono small">
+              <span className="small tnum">
                 {limits.length
                   ? limits.map(({ status, limit }) => `${t(`tasks:${columnMeta(status).label}`).toLocaleLowerCase()} ${formatNumber(limit)}`).join(' · ')
                   : t('wizard.noLimits')}

@@ -4,7 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { useProviderReason } from '../ProviderRow';
-import { timeAgo } from '@claudio/ui/lib/format';
+import { formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import { limitReading, type LimitReading } from '../../lib/shell-live';
 import { useLimitWindowName } from '../../lib/limit-words';
 import { resetWhen } from '../../lib/reset-when';
@@ -40,7 +40,9 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
   const ok = status.state === 'ready';
   const word = t(stateLabelKey(status.state)).toLowerCase();
   const limitWord = reading ? (reading.state === 'exhausted' ? ts('statusbar.limit.exhausted') : ts('statusbar.limit.near')) : '';
-  const text = hot ? `${status.label} · ${limitWord}` : ok ? [status.label, status.version].filter(Boolean).join(' ') : `${status.label} · ${word}`;
+  const text = hot ? `${status.label} · ${limitWord}` : ok ? status.label : `${status.label} · ${word}`;
+  // The version is a literal the CLI prints, so it alone keeps the mono voice in the strip
+  const version = !hot && ok && status.version ? status.version : null;
   const barTone = reading?.percent == null ? 'neutral' : usageTone(reading.percent, reading.state === 'exhausted');
   const showBar = reading !== null && reading.percent !== null && reading.state !== 'exhausted';
   const where = [status.version ? t('statusbar.version', { version: status.version }) : null, status.binaryPath ?? status.configHome]
@@ -51,11 +53,11 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
     <span className="statusbar-tip">
       <span>{`${status.label} · ${hot ? limitWord : word}`}</span>
       {where && <span className="mono">{where}</span>}
-      {!ok && !limitOnly && <span className="mono">{reason}</span>}
+      {!ok && !limitOnly && <span>{reason}</span>}
       {reading && (
-        <span className="mono">
+        <span>
           {[
-            reading.percent !== null ? ts('statusbar.limit.tipWindow', { window: windowName, percent: reading.percent }) : windowName,
+            reading.percent !== null ? ts('statusbar.limit.tipWindow', { window: windowName, percent: formatPercent(reading.percent) }) : windowName,
             reading.resetsAt ? ts('statusbar.limit.tipReset', { when: resetWhen(reading.resetsAt) }) : null,
             limit ? ts('statusbar.limit.tipAge', { age: timeAgo(limit.observedAt) }) : null,
           ]
@@ -63,8 +65,8 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
             .join(' · ')}
         </span>
       )}
-      {!reading && limit?.state === 'unknown' && <span className="mono">{ts('statusbar.limit.unknown')}</span>}
-      {!limit && !status.capabilities.includes('rateLimitWindows') && status.state === 'ready' && <span className="mono">{ts('statusbar.limit.none', { provider: status.label })}</span>}
+      {!reading && limit?.state === 'unknown' && <span>{ts('statusbar.limit.unknown')}</span>}
+      {!limit && !status.capabilities.includes('rateLimitWindows') && status.state === 'ready' && <span>{ts('statusbar.limit.none', { provider: status.label })}</span>}
     </span>
   );
   return (
@@ -76,13 +78,21 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
         {/* Named by what it shows (provider, state, percent, when it resumes), so a voice user can
             say the words they see; the spaces keep the flex items' words apart in that name */}
         <StatusDot tone={tone} />
-        <span className="ellipsis">{text}</span>
+        <span className="ellipsis">
+          {text}
+          {version && (
+            <>
+              {' '}
+              <span className="mono">{version}</span>
+            </>
+          )}
+        </span>
         {showBar && reading.percent !== null && (
           <>
             <span className="meter-track meter-thin statusbar-meter" aria-hidden>
               <span className={`meter-fill ${barTone === 'neutral' ? '' : `is-${barTone}`}`.trim()} style={{ width: `${reading.percent}%` }} />
             </span>{' '}
-            <span>{reading.percent} %</span>
+            <span>{formatPercent(reading.percent)}</span>
           </>
         )}
         {reading?.state === 'exhausted' && reading.resetsAt && <> <span className="statusbar-age">{ts('statusbar.limit.resumes', { when: resetWhen(reading.resetsAt) })}</span></>}

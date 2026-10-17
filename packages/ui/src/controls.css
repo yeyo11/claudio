@@ -17,7 +17,7 @@
   background: var(--bg-2);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   cursor: pointer;
   transition: border-color var(--dur-fast), box-shadow var(--dur-base);
@@ -67,7 +67,7 @@
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--fs-section);
   text-align: left;
   cursor: pointer;
 }
@@ -180,7 +180,7 @@
   padding: 6px 10px;
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-small);
   cursor: pointer;
   outline: none;
   user-select: none;
@@ -192,7 +192,6 @@
 .menu-item[data-state='checked'],
 .menu-item[aria-selected='true'] {
   color: var(--accent);
-  font-weight: 550;
 }
 .menu-item[data-disabled] {
   opacity: 0.45;
@@ -209,8 +208,8 @@
   white-space: nowrap;
 }
 .menu-item-hint {
-  font-size: 11.5px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,36 +276,56 @@
   }
 }
 
+/* The track is a 34 × 20 drawing; the button around it is the hit box (24 tall with a mouse, 44 × 44
+   on touch, WCAG 2.5.8 and I9). Negative margins give the extra back, so rows keep their layout */
 .switch {
+  --switch-hit-x: 0px;
+  --switch-hit-y: 2px;
   flex: none;
   position: relative;
-  width: 34px;
-  height: 20px;
+  width: calc(34px + 2 * var(--switch-hit-x));
+  height: calc(20px + 2 * var(--switch-hit-y));
+  margin: calc(-1 * var(--switch-hit-y)) calc(-1 * var(--switch-hit-x));
   padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  cursor: pointer;
+}
+@media (pointer: coarse) {
+  .switch {
+    --switch-hit-x: 5px;
+    --switch-hit-y: 12px;
+  }
+}
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: var(--switch-hit-y) var(--switch-hit-x);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-pill);
   background: var(--bg-4);
-  cursor: pointer;
   transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base);
 }
-.switch[data-state='checked'],
-.switch.switch-on {
+.switch[data-state='checked']::before,
+.switch.switch-on::before {
   background: var(--accent);
   border-color: var(--accent);
 }
 .switch-thumb {
+  position: relative;
   display: block;
   width: 14px;
   height: 14px;
   border-radius: var(--radius-pill);
   background: var(--text-muted);
   box-shadow: var(--shadow-sm);
-  transform: translateX(2px);
+  transform: translateX(calc(var(--switch-hit-x) + 3px));
   transition: transform var(--dur-base) var(--ease-out), background var(--dur-base);
 }
 .switch[data-state='checked'] .switch-thumb {
   background: var(--on-accent);
-  transform: translateX(16px);
+  transform: translateX(calc(var(--switch-hit-x) + 17px));
 }
 
 /* ---------- Slider ---------- */
@@ -424,6 +443,13 @@
 .number-input-compact .number-step {
   width: 24px;
 }
+/* A finger needs the full 44 × 44 for − and +, the field gives way (I9) */
+@media (pointer: coarse) {
+  .number-step,
+  .number-input-compact .number-step {
+    width: var(--touch);
+  }
+}
 
 /* ---------- Tooltip ---------- */
 
@@ -439,8 +465,8 @@
   border-radius: var(--radius);
   background: var(--text);
   color: var(--bg);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   line-height: 1.4;
   box-shadow: var(--shadow-pop);
   transform-origin: var(--radix-tooltip-content-transform-origin);
@@ -552,12 +578,8 @@
   margin-bottom: 6px;
 }
 .date-picker-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-/* "septiembre de 2026" is a sentence: only its first letter goes up */
-.date-picker-title::first-letter {
-  text-transform: uppercase;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 .date-picker-grid {
   border-collapse: collapse;
@@ -566,11 +588,9 @@
   width: 34px;
   padding: 4px 0;
   color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   text-align: center;
-  text-transform: uppercase;
 }
 .date-picker-grid td {
   padding: 1px;
@@ -585,7 +605,7 @@
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background var(--dur-fast);
@@ -610,7 +630,6 @@
 .date-picker-day.is-selected {
   background: var(--accent);
   color: var(--bg);
-  font-weight: 650;
 }
 .date-picker-day[aria-disabled] {
   opacity: 0.4;
@@ -637,12 +656,9 @@
 .menu-group-label {
   display: block;
   padding: 8px 10px 4px;
-  color: var(--text-faint);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 .menu-item-icon {
   flex: none;
@@ -657,7 +673,7 @@
   padding-left: 12px;
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 /* The commands a message box offers after `/`: names in mono, as commands are everywhere else.
    Anchored to the whole box, it would otherwise take the box's width for a list of short words */
@@ -666,7 +682,7 @@
 }
 .slash-menu-name {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 @media (pointer: coarse) {
   .slash-menu .menu-item {
@@ -683,7 +699,7 @@
   color: var(--text-faint);
 }
 .menu-item-why {
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--text-faint);
   white-space: normal;
 }
@@ -781,13 +797,13 @@ body:has(> .sheet-scrim) > #root {
 }
 .sheet-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 .sheet-description {
   margin: 2px 0 0;
   color: var(--text-muted);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 .sheet-body {
   flex: 1;
@@ -823,7 +839,7 @@ body:has(> .sheet-scrim) > #root {
 .sheet-action-reason {
   margin: 0;
   color: var(--fg-3);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 @keyframes sheet-up {
   from {
@@ -878,4 +894,16 @@ body:has(> .sheet-scrim) > #root {
 
 .combobox-toggle[aria-expanded='true'] svg {
   transform: rotate(180deg);
+}
+
+@media (pointer: coarse) {
+  .combobox > input {
+    padding-right: calc(var(--touch) + 2px);
+  }
+  .combobox-toggle {
+    top: 0;
+    bottom: 0;
+    width: var(--touch);
+    min-height: var(--touch);
+  }
 }

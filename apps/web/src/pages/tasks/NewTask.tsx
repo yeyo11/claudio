@@ -246,7 +246,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
           {draft.relations.length > 0 && <div className="workitem-card relations">{relationRows}</div>}
           <div className="workitem-section-head">
             <span className="section-label grow">{t('criteria.title')}</span>
-            <span className="mono small muted">{cleanCriteria(draft.criteria).length}</span>
+            <span className="small muted tnum">{cleanCriteria(draft.criteria).length}</span>
           </div>
           <div className="newtask-cells">
             {draft.criteria.map((_, index) => (
@@ -274,7 +274,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
       title={
         <span className="newtask-dialog-title">
           <span>{t('newTask.title')}</span>
-          {heading && <span className="mono small muted newtask-where">{heading}</span>}
+          {heading && <span className="small muted newtask-where">{heading}</span>}
         </span>
       }
       onClose={onClose}
@@ -303,7 +303,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
         <div className="form-row">
           <span className="newtask-row-head">
             <span className="section-label grow">{t('fields.description')}</span>
-            <span className="mono small muted newtask-md">
+            <span className="small muted newtask-md">
               <FileText size={12} strokeWidth={1.75} aria-hidden />
               {t('description.markdown')}
             </span>
@@ -341,7 +341,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
         <div className="form-row">
           <span className="newtask-row-head">
             <span className="section-label grow">{t('newTask.relations')}</span>
-            <span className="mono small muted">{draft.relations.length}</span>
+            <span className="small muted tnum">{draft.relations.length}</span>
           </span>
           {draft.relations.length > 0 && <div className="workitem-card relations">{relationRows}</div>}
           <button type="button" className="btn btn-small workitem-add newtask-add-inline" onClick={() => setRelating(true)} disabled={!project}>
@@ -352,7 +352,7 @@ export function NewTask({ projectId, status = 'backlog', onClose, onCreated }: N
         <div className="form-row">
           <span className="newtask-row-head">
             <span className="section-label grow">{t('criteria.title')}</span>
-            <span className="mono small muted">{cleanCriteria(draft.criteria).length}</span>
+            <span className="small muted tnum">{cleanCriteria(draft.criteria).length}</span>
           </span>
           {draft.criteria.map((_, index) => (
             <div key={index} className="newtask-criterion-row">

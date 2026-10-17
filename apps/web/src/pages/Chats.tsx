@@ -9,6 +9,7 @@ import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
 import { ContextBar } from '@claudio/chat-ui/components/ChatBadges';
 import { ProviderMark } from '@claudio/ui/components/ProviderMark';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useProviderLabel } from '../lib/provider-status';
 import { Checkbox, hasOpenLayer } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
@@ -229,7 +230,7 @@ const ChatRow = memo(function ChatRow({
         <span className="crow-main">
           <span className="crow-title-row">
             <ProviderMark provider={chat.provider} label={agent} />
-            <span className="crow-title-text">{displayTitle(chat)}</span>
+            <FullText className="crow-title-text">{displayTitle(chat)}</FullText>
           </span>
           <span className="crow-sub">
             <StateWord chat={chat} />
@@ -241,20 +242,20 @@ const ChatRow = memo(function ChatRow({
                 return (
                   <span key={tag} className={`crow-tag is-${tag}`}>
                     <Icon size={11} strokeWidth={2} aria-hidden />
-                    {tag === 'worktree' ? (chat.worktree?.branch ?? chat.worktree?.name ?? t('list.worktree')) : tag === 'fork' ? t('list.fork') : t(`list.tag.${tag}`)}
+                    {tag === 'worktree' ? (chat.worktree?.branch ?? chat.worktree?.name ? <span className="mono">{chat.worktree?.branch ?? chat.worktree?.name}</span> : t('list.worktree')) : tag === 'fork' ? t('list.fork') : t(`list.tag.${tag}`)}
                   </span>
                 );
               })}
               <span className="crow-extra">
-                {chat.model && <span>{chat.model}</span>}
-                {chat.worktree?.branch && !tags.includes('worktree') && <span>{chat.worktree.branch}</span>}
+                {chat.model && <span className="mono">{chat.model}</span>}
+                {chat.worktree?.branch && !tags.includes('worktree') && <span className="mono">{chat.worktree.branch}</span>}
                 <span>{t('list.messages', { n: formatNumber(chat.messageCount) })}</span>
               </span>
             </span>
             {/* The card's line, where there are no columns: where it runs, the context and the cost */}
             <span className="crow-sub-narrow">
               {chat.origin !== 'claudio' && <span className="badge crow-origin-badge">{ORIGIN_LABEL[chat.origin]}</span>}
-              <span className="crow-meta-place">{place}</span>
+              <FullText className="crow-meta-place">{place}</FullText>
               {share !== null && (
                 <span className={`crow-meta-context is-${contextTone}`}>
                   {formatPercent(share)}

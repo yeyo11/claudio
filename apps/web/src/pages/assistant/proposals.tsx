@@ -13,6 +13,7 @@ import { WorkItemKey } from '../../components/work-item-icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ModelTag, RoleAvatar, useRoleName } from '../team/RoleAvatar';
 import { resourceReviewHref, rulePaths } from './model';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /** Accept, discard and restore, each on its own (decision 36); the run is read again once it answers. */
 export function useDecide(runId: string) {
@@ -45,7 +46,7 @@ export function SectionHead({ section, tally, note }: { section: keyof typeof SE
     <div className="card-head assistant-card-head">
       <Icon {...ICON} className="muted" />
       <h2>{t(`section.${section}`)}</h2>
-      <span className="mono small muted grow">{tally}</span>
+      <span className="small muted grow tnum">{tally}</span>
       {note && <span className="small muted">{note}</span>}
     </div>
   );
@@ -100,9 +101,11 @@ export function WorkItemProposalRow({ proposal, decide, phone }: { proposal: Ass
       {proposal.created ? (
         <>
           {t('tasks.created')} ·{' '}
-          <Link to={`/tasks/${encodeURIComponent(proposal.created.key)}`} title={proposal.created.title}>
-            <WorkItemKey value={proposal.created.key} boxed />
-          </Link>
+          <Tooltip content={proposal.created.title}>
+            <Link to={`/tasks/${encodeURIComponent(proposal.created.key)}`}>
+              <WorkItemKey value={proposal.created.key} boxed />
+            </Link>
+          </Tooltip>
         </>
       ) : (
         t('tasks.gone')

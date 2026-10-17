@@ -43,7 +43,7 @@ export function DraftedCase({
           ) : null,
         )}
       </dl>
-      <ul className="evals-draft-expects mono">
+      <ul className="evals-draft-expects">
         {c.expect.map((e, i) => (
           <li key={i}>
             <span className="evals-draft-kind">{t(`expect.kind.${e.kind}`)}</span> {expectGist(e)}

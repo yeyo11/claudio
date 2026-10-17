@@ -1,4 +1,5 @@
 import type { Chat, Execution, HealthLevel } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -52,7 +53,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
           <ContextGauge chat={chat} />
           {context ? (
             <div className="small">
-              <AnimatedNumber className="mono" value={context.used} format={formatNumber} />{' '}
+              <AnimatedNumber className="tnum" value={context.used} format={formatNumber} />{' '}
               {context.window !== null
                 ? t('side.usage.tokensOfWindow', { window: formatNumber(context.window) })
                 : t('side.usage.tokensWindowUnknown')}
@@ -62,7 +63,7 @@ export function UsageCard({ chat }: { chat: Chat }) {
           )}
           {/* A line the compaction leaves: when, and from what to what */}
           {compacted && (
-            <div className="small muted insp-context-note mono">
+            <div className="small muted insp-context-note tnum">
               {compacted.postTokens !== null
                 ? t('chats:context.lastCompacted', { when: timeAgo(compacted.at), pre: formatTokens(compacted.preTokens), post: formatTokens(compacted.postTokens) })
                 : t('chats:context.lastCompactedNoPost', { when: timeAgo(compacted.at), pre: formatTokens(compacted.preTokens) })}
@@ -353,7 +354,7 @@ function LimitRow({ chat }: { chat: Chat }) {
       <dt>{t('limit.row.title')}</dt>
       <dd>
         <Tag tone="warn">{waiting ? t('limit.row.waiting') : t('limit.row.reached')}</Tag> {windowOf(state.status?.limit?.window)}
-        <div className="mono small muted">{at === null ? t('limit.row.resetUnknown') : t(waiting ? 'limit.row.resumes' : 'limit.row.until', { at: formatHour(at) })}</div>
+        <div className="small muted tnum">{at === null ? t('limit.row.resetUnknown') : t(waiting ? 'limit.row.resumes' : 'limit.row.until', { at: formatHour(at) })}</div>
       </dd>
     </>
   );
@@ -397,13 +398,13 @@ export function FactsCard({ chat }: { chat: Chat }) {
         )}
         <dt>{t('chat:runView.session')}</dt>
         <dd className="mono insp-id">
-          <span className="ellipsis">{chat.id}</span> <CopyButton text={chat.id} label={t('view.copyId')} />
+          <FullText className="ellipsis">{chat.id}</FullText> <CopyButton text={chat.id} label={t('view.copyId')} />
         </dd>
         {chat.providerSessionId && chat.providerSessionId !== chat.id && (
           <>
             <dt>{t('chats:provider.nativeSession', { agent })}</dt>
             <dd className="mono insp-id">
-              <span className="ellipsis">{chat.providerSessionId}</span> <CopyButton text={chat.providerSessionId} label={t('chats:provider.copyNativeSession')} />
+              <FullText className="ellipsis">{chat.providerSessionId}</FullText> <CopyButton text={chat.providerSessionId} label={t('chats:provider.copyNativeSession')} />
             </dd>
           </>
         )}

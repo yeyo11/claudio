@@ -23,9 +23,9 @@
 
 .card-head h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .card-foot {
@@ -88,8 +88,8 @@
   background: var(--bg-hover);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
@@ -121,7 +121,7 @@
   border-color: transparent;
   background: var(--grad);
   color: var(--accent-text);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   box-shadow: var(--shadow-primary);
 }
 
@@ -157,7 +157,7 @@
 .btn-small {
   min-height: var(--control-h-sm);
   padding: 2px 10px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   border-radius: var(--radius-sm);
   gap: 6px;
 }
@@ -278,7 +278,7 @@ textarea:focus {
   input,
   textarea,
   select {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 }
 
@@ -288,7 +288,7 @@ input.is-invalid {
 
 .editor {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   tab-size: 2;
 }
 
@@ -361,13 +361,13 @@ input.is-invalid {
 }
 
 .field-label {
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text);
 }
 
 .field-hint {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -418,8 +418,8 @@ input.is-invalid {
   border: 0;
   color: var(--text-muted);
   font: inherit;
-  font-size: 13px;
-  font-weight: 450;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   padding: 10px 0 11px;
   cursor: pointer;
   white-space: nowrap;
@@ -432,7 +432,6 @@ input.is-invalid {
 
 .tab-on {
   color: var(--text);
-  font-weight: 500;
 }
 
 .tab-indicator {
@@ -486,14 +485,22 @@ input.is-invalid {
   background: none;
   color: var(--text-muted);
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 450;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   /* The group's padding and border make up the rest, so the group is as tall as a control */
   min-height: calc(var(--control-h) - 8px);
   padding: 4px 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: color var(--dur-fast);
+}
+
+/* On touch a segment is a 44 × 44 target by itself (I9); the group grows around it */
+@media (pointer: coarse) {
+  .segment {
+    min-width: var(--touch);
+    min-height: var(--touch);
+  }
 }
 
 /* Nothing to choose between yet: the group stays in place, dimmed like a disabled control */
@@ -517,7 +524,6 @@ input.is-invalid {
 
 .segment-on {
   color: var(--text);
-  font-weight: 500;
 }
 
 .segment-thumb {
@@ -536,8 +542,9 @@ input.is-invalid {
 /* A switch that is not Radix's (the plugin list's): the same look as controls.css's .switch */
 .switch-knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  /* Inside the track, which sits inset in the switch's hit box */
+  top: calc(var(--switch-hit-y, 0px) + 3px);
+  left: calc(var(--switch-hit-x, 0px) + 3px);
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -568,7 +575,7 @@ input.is-invalid {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-pill);
   background: var(--bg-elev);
-  font: 12.5px var(--sans);
+  font: var(--fw-regular) var(--fs-small) var(--sans);
   cursor: pointer;
   color: var(--text-muted);
   white-space: nowrap;
@@ -583,9 +590,18 @@ input.is-invalid {
   border-color: var(--line-3);
 }
 
+/* A chip that does something is a 44 px target on touch (I9); a chip that only shows stays small */
+@media (pointer: coarse) {
+  a.chip,
+  button.chip {
+    min-height: var(--touch);
+    padding-inline: 14px;
+  }
+}
+
 .chip.mono {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .chip-on,
@@ -593,7 +609,6 @@ input.is-invalid {
   background: var(--text);
   border-color: var(--text);
   color: var(--bg);
-  font-weight: 600;
 }
 
 .chip-static {
@@ -601,7 +616,7 @@ input.is-invalid {
   color: var(--text);
   max-width: 100%;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   background: var(--bg-hover);
   border-color: var(--border);
 }
@@ -634,8 +649,8 @@ input.is-invalid {
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--highlight);
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -645,15 +660,16 @@ input.is-invalid {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  line-height: 1;
   border-radius: var(--radius-pill);
   background: var(--bg-4);
   color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 .count-on {
@@ -690,10 +706,9 @@ input.is-invalid {
   background: var(--monogram-fill);
   box-shadow: var(--monogram-shadow);
   color: var(--monogram-ink);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  /* design-lint-ok: a mark, aria-hidden: two letters at the small size, shrunk only in a tile too small to hold them */
+  font-size: min(var(--fs-small), calc(var(--monogram-size, 36px) * 0.5));
+  font-weight: var(--fw-strong);
 }
 
 /* Claudio's own mark (BrandMark in components/icons.tsx): no tile, so it reads on any surface */
@@ -736,9 +751,8 @@ input.is-invalid {
   border-radius: var(--radius-sm);
   background: var(--hue-fill);
   color: var(--hue-ink);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   line-height: 1;
 }
 
@@ -779,7 +793,7 @@ input.is-invalid {
   flex: none;
   width: 1ch;
   font-family: var(--mono);
-  font-size: 0.95em;
+  font-size: inherit;
   line-height: 1;
   color: var(--live);
 }
@@ -936,9 +950,9 @@ input.is-invalid {
 .progress-blocks {
   display: inline-flex;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -993,7 +1007,7 @@ input.is-invalid {
   background: none;
   color: var(--text-muted);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: default;
 }
@@ -1062,12 +1076,11 @@ button.step:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 550;
+  font-weight: var(--fw-strong);
 }
 
 .step-meta {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
   overflow: hidden;
@@ -1077,7 +1090,7 @@ button.step:hover {
 
 .stepper.is-compact .step {
   padding: 5px 7px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 /* Too narrow for a row of steps: the same steps become a timeline, one under the other. */
@@ -1118,8 +1131,7 @@ button.step:hover {
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1143,6 +1155,8 @@ button.step:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-small);
 }
 
 .ticker-elapsed {
@@ -1231,7 +1245,18 @@ button.step:hover {
   box-shadow: none;
   color: var(--text);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--fs-small);
+}
+
+/* On touch the field itself is the 44 px target (I9), drawn over the label's border so the label
+   stays 44, and at 16 px so iOS does not zoom into it (I10) */
+@media (pointer: coarse) {
+  .list-toolbar-search input {
+    align-self: stretch;
+    min-height: var(--touch);
+    margin-block: -1px;
+    font-size: var(--fs-input);
+  }
 }
 
 .list-toolbar-search input:focus {
@@ -1247,14 +1272,14 @@ button.step:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  line-height: 1;
   border-radius: var(--radius-pill);
   background: var(--accent-soft);
   color: var(--accent);
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1293,8 +1318,7 @@ button.step:hover {
   border-radius: var(--radius-xs);
   background: var(--bg-hover);
   color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   cursor: pointer;
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
@@ -1306,8 +1330,7 @@ button.step:hover {
 
 .segment-count {
   margin-left: 5px;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
 }

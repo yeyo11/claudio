@@ -62,8 +62,8 @@ function ComparePanel({ ids, onClose }: { ids: [string, string]; onClose: () => 
                     <th scope="row" className="mono">
                       {row.caseId}
                     </th>
-                    <td className="mono evals-num">{row.a ? `${row.a.passed}/${row.a.scored}` : '—'}</td>
-                    <td className="mono evals-num">{row.b ? `${row.b.passed}/${row.b.scored}` : '—'}</td>
+                    <td className="evals-num">{row.a ? `${row.a.passed}/${row.a.scored}` : '—'}</td>
+                    <td className="evals-num">{row.b ? `${row.b.passed}/${row.b.scored}` : '—'}</td>
                     <td>{row.verdict ? <span className={`evals-verdict tone-${row.verdict === 'regressed' ? 'bad' : row.verdict === 'improved' ? 'ok' : 'idle'}`}>{t(`verdict.${row.verdict}`)}</span> : '—'}</td>
                   </tr>
                 ))}
@@ -98,13 +98,13 @@ function RunRow({ run, picking, picked, disabled, onPick, onOpen }: { run: EvalR
         <span className="list-row-main">
           <span className="list-row-title">
             <RunTag word={run.state === 'queued' ? 'queued' : runWord(run)} />
-            <span className="mono evals-num">{timeAgo(run.createdAt)}</span>
+            <span className="evals-num">{timeAgo(run.createdAt)}</span>
           </span>
-          <span className="meta mono">{run.variants.map((v) => t(`variant.${v}`)).join(' · ')}</span>
+          <span className="meta">{run.variants.map((v) => t(`variant.${v}`)).join(' · ')}</span>
         </span>
         <span className="evals-row-run">
-          {scored && <span className="mono evals-num">{t('list.scored', { passed: scored.passed, of: scored.of })}</span>}
-          <span className="mono evals-num">{formatCost(run.costUsd)}</span>
+          {scored && <span className="evals-num">{t('list.scored', { passed: scored.passed, of: scored.of })}</span>}
+          <span className="evals-num">{formatCost(run.costUsd)}</span>
         </span>
       </button>
     </li>

@@ -52,6 +52,7 @@ import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
 import { statusText } from '@claudio/ui/components/ui';
+import { formatNumber } from '@claudio/ui/lib/format';
 import '../palette.css';
 import { createPaletteReporter, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
 
@@ -408,7 +409,7 @@ export function CommandPalette() {
                           {command.hint && <span className="palette-option-hint">{command.hint}</span>}
                         </span>
                         {command.id === proposedId && intent.data?.confidence != null && (
-                          <span className="decided-face palette-decided">{t('decisions:mark.decided', { confidence: intent.data.confidence.toFixed(2) })}</span>
+                          <span className="decided-face palette-decided">{t('decisions:mark.decided', { confidence: formatNumber(intent.data.confidence, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })}</span>
                         )}
                         {!grouped && <span className="palette-option-group">{t(`palette.groups.${command.group}`)}</span>}
                         {selected && <CornerDownLeft className="palette-option-enter" size={14} strokeWidth={1.75} aria-hidden />}

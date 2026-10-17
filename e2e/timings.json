@@ -56,6 +56,7 @@
   "team-review.spec.mjs": 12.0,
   "team.spec.mjs": 30.0,
   "tool-presets.spec.mjs": 12.2,
+  "ui-invariants.spec.mjs": 30.0,
   "updates-desktop.spec.mjs": 8.2,
   "updates.spec.mjs": 3.1,
   "usage.spec.mjs": 13.5,

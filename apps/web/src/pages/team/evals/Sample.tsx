@@ -44,6 +44,9 @@ function CallList({ calls, focus }: { calls: EvalCall[]; focus: number | null })
   );
 }
 
+// The facts the machine reads (a model id, a CLI version, a commit) stay in mono; amounts and counts are sans
+const LITERAL_FACTS: ReadonlySet<string> = new Set(['account', 'model', 'cli', 'pin']);
+
 function Footer({ sample }: { sample: EvalSampleDetail }) {
   const { t } = useTranslation('evals');
   const facts: ['cost' | 'duration' | 'turns' | 'account' | 'model' | 'cli' | 'pin', string | null][] = [
@@ -56,13 +59,13 @@ function Footer({ sample }: { sample: EvalSampleDetail }) {
     ['pin', shortSha(sample.pin)],
   ];
   return (
-    <dl className="evals-sample-facts mono">
+    <dl className="evals-sample-facts tnum">
       {facts
         .filter((fact): fact is [(typeof facts)[number][0], string] => fact[1] !== null)
         .map(([key, value]) => (
           <div key={key}>
             <dt>{t(`sample.fact.${key}`)}</dt>
-            <dd>{value}</dd>
+            <dd className={LITERAL_FACTS.has(key) ? 'mono' : undefined}>{value}</dd>
           </div>
         ))}
     </dl>
@@ -125,14 +128,14 @@ export function SampleView({ sample }: { sample: EvalSampleDetail }) {
                       <span className="field-hint">{t('sample.judge', { model: check.judgement.model ?? '—' })}</span>
                       {check.judgement.reason && <q>{check.judgement.reason}</q>}
                       {check.judgement.evidence.map((seq) => (
-                        <button key={seq} type="button" className="btn btn-small mono" onClick={() => goTo(seq)}>
+                        <button key={seq} type="button" className="btn btn-small tnum" onClick={() => goTo(seq)}>
                           {t('sample.evidence', { seq })}
                         </button>
                       ))}
                     </span>
                   )}
                   {check.evidenceSeq !== null && (
-                    <button type="button" className="btn btn-small mono" onClick={() => goTo(check.evidenceSeq as number)}>
+                    <button type="button" className="btn btn-small tnum" onClick={() => goTo(check.evidenceSeq as number)}>
                       {t('sample.evidence', { seq: check.evidenceSeq })}
                     </button>
                   )}

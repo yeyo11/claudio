@@ -141,7 +141,7 @@ function CommentItem({ comment, person, runs }: { comment: WorkItemComment; pers
         <div className="comment-head">
           <b>{agent ? (role ? roleName(role) : t('actor.agent')) : person}</b>
           {run && run.state === 'ended' && <RunStatusBadge run={run} />}
-          {agent && chat && <span className="mono small muted">{run ? `${t('run.flowRun')} · ${t('link.chat', { id: shortId(chat) })}` : t('link.chat', { id: shortId(chat) })}</span>}
+          {agent && chat && <span className="small muted">{run ? `${t('run.flowRun')} · ${t('link.chat', { id: shortId(chat) })}` : t('link.chat', { id: shortId(chat) })}</span>}
           <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>
             {timeAgo(comment.createdAt)}
           </time>

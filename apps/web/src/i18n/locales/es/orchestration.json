@@ -124,7 +124,7 @@
     },
     "noMatch": "Ninguna orquestación coincide",
     "showAll": "Mostrarlas todas",
-    "where": "etapa {{stage}} · {{task}}",
+    "where": "Etapa {{stage}} · {{task}}",
     "advanced": "Opciones avanzadas",
     "title": "Orquestaciones",
     "parallel": "{{n}} en paralelo",

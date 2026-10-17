@@ -77,7 +77,7 @@ export function InstructionsDiffDialog({ proposal, onClose }: { proposal: Memory
       <div className="instr-diff-head">
         <span className="mono instr-diff-path">{preview?.path ?? 'CLAUDE.md'}</span>
         {preview && (
-          <span className="mono small muted tnum">
+          <span className="small muted tnum">
             {t('memoryTab.diff.bytesAfter', { size: formatBytes(preview.bytesAfter) })}
             {!preview.exists && ` · ${t('memoryTab.diff.created')}`}
           </span>

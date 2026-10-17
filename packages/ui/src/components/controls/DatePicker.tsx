@@ -130,7 +130,9 @@ function Calendar({
     grid.current?.querySelector<HTMLButtonElement>(`button[data-day="${toDay(focused)}"]`)?.focus();
   }, [focused, focusGrid]);
 
-  const monthTitle = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(focused);
+  // "septiembre de 2026" is a sentence: only its first letter goes up, and in the text, not by CSS
+  const monthName = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(focused);
+  const monthTitle = monthName.charAt(0).toLocaleUpperCase(locale) + monthName.slice(1);
   const dayName = new Intl.DateTimeFormat(locale, { dateStyle: 'full' });
   const weeks = monthGrid(focused, firstDay);
   const weekdays = (weeks[0] ?? []).map((day) => ({

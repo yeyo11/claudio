@@ -20,7 +20,7 @@
 }
 
 .suggest-dialog-title > .mono {
-  font-weight: 400;
+  font-weight: var(--fw-regular);
   letter-spacing: 0;
 }
 
@@ -77,11 +77,11 @@
 .suggest-line-text {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .suggest-line-text b {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .suggest-line.is-failed > svg {
@@ -123,12 +123,12 @@
 }
 
 .suggest-count {
-  font-size: 13px;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 
 .suggest-count b {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .suggest-mfoot {
@@ -139,7 +139,7 @@
 
 .suggest-mfoot > .btn {
   min-height: 48px;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .suggest-mfoot > .btn-primary {
@@ -157,7 +157,7 @@
 
 .suggest-body.is-phone .suggest-focus-field input {
   min-height: 44px;
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .suggest-body.is-phone .suggest-again {
@@ -280,9 +280,9 @@
 
 .resources-proposals-title h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .resources-proposals-facts {
@@ -296,7 +296,7 @@
   margin: 0;
   padding: 14px;
   color: var(--fg-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .resources-proposals-hint {
@@ -321,7 +321,7 @@
 
 .resource-proposal-desc {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
 }
@@ -368,9 +368,9 @@
 .resources-list-head h2 {
   flex: 1 1 auto;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .resources-groups {
@@ -396,7 +396,7 @@
   margin: 0;
   padding: 6px 12px;
   color: var(--fg-3);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .resource-item {
@@ -409,8 +409,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 .resource-item-desc {
@@ -428,7 +428,7 @@
   border: 0;
   background: none;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
 }
@@ -477,32 +477,32 @@
 .resources-missing {
   margin: 0;
   color: var(--fg-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .resource-proposal-name {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 /* The name it will be saved under, editable until it is: a free one when the proposed is taken */
 .resource-proposal-name-input {
   flex: 0 1 240px;
   min-width: 120px;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .resource-proposal-editor.is-phone .resource-proposal-name-input {
   flex-basis: 100%;
   min-height: 44px;
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .resource-proposal-editor .editor-meta .path {
   flex: 1 1 auto;
   min-width: 0;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -528,7 +528,7 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
 }
 
@@ -608,7 +608,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 /* While the file streams in: the live verb and the file it writes, as the reference's head says it */
@@ -650,7 +650,7 @@
 .create-ai-file {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
   overflow-wrap: anywhere;
 }
@@ -676,14 +676,14 @@
   flex: 1 1 auto;
   min-height: 44px;
   padding-inline: 6px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .resources-page.is-phone .resources-ai-actions > .btn {
   flex: 1 1 0;
   min-height: 44px;
   justify-content: center;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .resources-page.is-phone .resources-new {
@@ -706,7 +706,7 @@
 }
 
 .create-ai-body.is-phone textarea {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 @media (max-width: 1100px) {

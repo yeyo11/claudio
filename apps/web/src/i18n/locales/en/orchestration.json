@@ -124,7 +124,7 @@
     },
     "noMatch": "No orchestration matches",
     "showAll": "Show them all",
-    "where": "stage {{stage}} · {{task}}",
+    "where": "Stage {{stage}} · {{task}}",
     "advanced": "Advanced options",
     "title": "Orchestrations",
     "parallel": "{{n}} in parallel",

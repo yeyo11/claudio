@@ -26,7 +26,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 var(--sans);
+  font: var(--fw-regular) var(--fs-body) / var(--lh-body) var(--sans);
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -63,42 +63,40 @@ body {
   background: transparent;
 }
 
-/* The type scale (design system §1): display 34 · h1 24 · h2 15 · body 14 · small 13 · xs 12 · label 11 */
+/* The type scale (docs/plans/claudio-designer.md §1): title 20 · section 15 · body 14 · small 13, two weights */
 h1,
 h2 {
   margin: 0;
-  font-weight: 600;
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 h1 {
-  font-size: 24px;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
 }
 
 h2 {
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
   color: var(--text);
 }
 
-/* A hero figure or headline: one per screen */
+/* A hero figure or headline: one per screen, at the title size like every other big number */
 .text-display {
-  font-size: 34px;
-  font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.035em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  line-height: var(--lh-title);
+  letter-spacing: var(--tracking-title);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Section labels, ids, paths and counts share the mono voice */
+/* A section's label is a heading in sentence case, not a literal: sans, the small size, strong */
 .section-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  line-height: var(--lh-small);
+  color: var(--fg-2);
 }
 
 a {
@@ -122,11 +120,21 @@ p a:not([class]),
   text-underline-offset: 3px;
 }
 
+/*
+ * Mono says "literal, the machine reads it": ids, paths, models, commands, hashes, code. It takes the
+ * size of its line, so a path in a body sentence does not drop a step; ids keep their digits apart.
+ */
 code,
 .mono {
   font-family: var(--mono);
-  font-size: 0.9em;
   font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+/* Not on a field: a field keeps the input size, which on touch is 16 px so iOS does not zoom (I10) */
+code,
+.mono:not(input, textarea, select) {
+  font-size: inherit;
 }
 
 code {
@@ -134,7 +142,6 @@ code {
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   padding: 1px 5px;
-  font-size: 0.86em;
 }
 
 hr {
@@ -153,11 +160,11 @@ svg.lucide {
 }
 
 .small {
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .strong {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   color: var(--text);
 }
 
@@ -217,7 +224,7 @@ svg.lucide {
   background: var(--bg-elev);
   border: 1px solid var(--border-strong);
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   box-shadow: var(--shadow-md);
   transform: translateY(-160%);
 }
@@ -240,10 +247,4 @@ svg.lucide {
 .gauge-value,
 .nav-count {
   font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 900px) {
-  h1 {
-    font-size: 21px;
-  }
 }

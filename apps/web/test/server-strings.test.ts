@@ -91,6 +91,11 @@ test('Spanish picks the plural from the count and writes figures its own way', (
   assert.equal(shownParams({ count: 1200 }).count, 1200);
 });
 
+test('a percentage takes its sign and spacing from the language, never from the copy', () => {
+  assert.equal(inLanguage('en', () => serverText('health.context', { percent: 85 }, '')).startsWith('85% of'), true);
+  assert.match(inLanguage('es', () => serverText('health.context', { percent: 85 }, '')), /^85\s%\sde/);
+});
+
 test('a chat with no signal says "nothing unusual" in the active language', () => {
   const health = { reason: 'Nothing unusual.', signals: [] };
   assert.equal(inLanguage('es', () => healthReason(health)), 'Nada fuera de lo normal.');

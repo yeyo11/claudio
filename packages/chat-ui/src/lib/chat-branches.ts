@@ -16,7 +16,7 @@ export interface Branch {
   key: string;
   kind: BranchKind;
   id: string;
-  /** What the mono badge says: the agent's type, `bash`, `workflow` */
+  /** What the badge says, in mono: the agent's type, `bash`, `workflow` */
   label: string;
   /** Its description; a command without one shows the command (`mono`) */
   description: string;

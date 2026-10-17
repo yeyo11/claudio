@@ -6,7 +6,7 @@ import { NavLink } from 'react-router-dom';
 import { api, keys, useAccounts, useSpend } from '../../api';
 import { accountName, signInProblem, usagePct, windowRows } from '../../lib/accounts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
-import { formatCost } from '@claudio/ui/lib/format';
+import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
 import { useLimitWindowName } from '../../lib/limit-words';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
@@ -85,7 +85,7 @@ function LimitMeter({ label, percent, exhausted }: { label: string; percent: num
     <span className="more-account-limit">
       <span className="more-account-limit-head">
         <span>{label}</span>
-        <span className={tone === 'neutral' ? undefined : `statusbar-${tone}`}>{percent}%</span>
+        <span className={tone === 'neutral' ? undefined : `statusbar-${tone}`}>{formatPercent(percent)}</span>
       </span>
       <span className="meter-track meter-thin" aria-hidden>
         <span className={`meter-fill ${tone === 'neutral' ? '' : `is-${tone}`}`.trim()} style={{ width: `${percent}%` }} />
@@ -108,15 +108,17 @@ export function ProviderCard({ now, connection }: { now: Now; connection: Connec
   // Before the providers are read, or with none enabled, the card still says whether the CLI works
   if (!status)
     return (
-      <NavLink to={PROVIDERS_SETTINGS_PATH} className="card grad-border glow-top more-account" title={t('shell:account.card')}>
-        <span className="more-account-head">
-          <span className="more-account-text">
-            <span className="more-account-name ellipsis">{statuses ? t('shell:account.none') : connection.title}</span>
-            {connection.detail && !statuses && <span className="more-account-meta ellipsis">{connection.detail}</span>}
+      <Tooltip content={t('shell:account.card')}>
+        <NavLink to={PROVIDERS_SETTINGS_PATH} className="card grad-border glow-top more-account">
+          <span className="more-account-head">
+            <span className="more-account-text">
+              <span className="more-account-name ellipsis">{statuses ? t('shell:account.none') : connection.title}</span>
+              {connection.detail && !statuses && <span className="more-account-meta ellipsis">{connection.detail}</span>}
+            </span>
+            <ChevronRight {...ICON} className="more-cell-chevron" />
           </span>
-          <ChevronRight {...ICON} className="more-cell-chevron" />
-        </span>
-      </NavLink>
+        </NavLink>
+      </Tooltip>
     );
   const limit: ProviderLimit | null | undefined = now.limits.find((l) => l.provider === status.id) ?? status.limit;
   const reading = limitReading(limit);
@@ -128,29 +130,31 @@ export function ProviderCard({ now, connection }: { now: Now; connection: Connec
   // A reading that is not there says why a bar is missing, in words
   const missing = rows.length === 0 ? (limit?.state === 'unknown' ? t('shell:account.limitUnknown') : !status.capabilities.includes('rateLimitWindows') ? t('shell:account.limitNone') : null) : null;
   return (
-    <NavLink to={PROVIDERS_SETTINGS_PATH} className="card grad-border glow-top more-account" title={t('shell:account.card')}>
-      <span className="more-account-head">
-        <span className="more-account-avatar" aria-hidden>
-          <ProviderMark provider={status.id} label={status.label} decorative />
-        </span>
-        <span className="more-account-text">
-          <span className="more-account-name ellipsis">{status.label}</span>
-          <span className="more-account-meta ellipsis">
-            <StatusDot tone={tone} live={ready && connection.live && !reading} />
-            {[word, note].filter(Boolean).join(' · ')}
+    <Tooltip content={t('shell:account.card')}>
+      <NavLink to={PROVIDERS_SETTINGS_PATH} className="card grad-border glow-top more-account">
+        <span className="more-account-head">
+          <span className="more-account-avatar" aria-hidden>
+            <ProviderMark provider={status.id} label={status.label} decorative />
           </span>
+          <span className="more-account-text">
+            <span className="more-account-name ellipsis">{status.label}</span>
+            <span className="more-account-meta ellipsis">
+              <StatusDot tone={tone} live={ready && connection.live && !reading} />
+              {[word, note].filter(Boolean).join(' · ')}
+            </span>
+          </span>
+          <ChevronRight {...ICON} className="more-cell-chevron" />
         </span>
-        <ChevronRight {...ICON} className="more-cell-chevron" />
-      </span>
-      {rows.length > 0 && (
-        <span className="more-account-limits">
-          {rows.map((row) => (
-            <LimitMeter key={row.name} label={windowOf(row.name)} percent={row.percent} exhausted={reading?.state === 'exhausted' && row.name === limit?.window} />
-          ))}
-        </span>
-      )}
-      {missing && <span className="more-account-meta">{missing}</span>}
-    </NavLink>
+        {rows.length > 0 && (
+          <span className="more-account-limits">
+            {rows.map((row) => (
+              <LimitMeter key={row.name} label={windowOf(row.name)} percent={row.percent} exhausted={reading?.state === 'exhausted' && row.name === limit?.window} />
+            ))}
+          </span>
+        )}
+        {missing && <span className="more-account-meta">{missing}</span>}
+      </NavLink>
+    </Tooltip>
   );
 }
 
@@ -167,7 +171,7 @@ export function AccountCard({ now, connection }: { now: Now; connection: Connect
   const kind = problem ? signInProblem(problem) : null;
   const alert =
     problem && kind ? (
-      <NavLink to="/accounts" className="more-account-alert" title={t('account.signInAgain')}>
+      <NavLink to="/accounts" className="more-account-alert">
         <TriangleAlert {...ICON_SM} />
         <span className="ellipsis">{t(kind === 'expired' ? 'account.signInExpired' : 'account.signInIncomplete', { name: accountName(problem) })}</span>
         <span className="more-account-alert-action">
@@ -196,28 +200,30 @@ function CurrentAccountCard({ now, connection }: { now: Now; connection: Connect
   const tone: DotTone = exhausted ? 'bad' : current.limits?.state === 'near' ? 'warn' : 'ok';
   const word = exhausted ? t('statusbar.limit.exhausted') : current.limits?.state === 'near' ? t('statusbar.limit.near') : t('account.ready');
   return (
-    <NavLink to="/accounts" className="card grad-border glow-top more-account" title={t('account.card')}>
-      <span className="more-account-head">
-        <span className="more-account-avatar" aria-hidden>
-          {name.charAt(0).toUpperCase()}
-        </span>
-        <span className="more-account-text">
-          <span className="more-account-name ellipsis">{name}</span>
-          <span className="more-account-meta ellipsis">
-            <StatusDot tone={tone} live={connection.live && tone === 'ok' && rows.length === 0} />
-            {[word, snapshot && snapshot.total > 1 ? t('account.ofTotal', { ready: snapshot.ready, total: snapshot.total }) : null].filter(Boolean).join(' · ')}
+    <Tooltip content={t('account.card')}>
+      <NavLink to="/accounts" className="card grad-border glow-top more-account">
+        <span className="more-account-head">
+          <span className="more-account-avatar" aria-hidden>
+            {name.charAt(0).toUpperCase()}
           </span>
+          <span className="more-account-text">
+            <span className="more-account-name ellipsis">{name}</span>
+            <span className="more-account-meta ellipsis">
+              <StatusDot tone={tone} live={connection.live && tone === 'ok' && rows.length === 0} />
+              {[word, snapshot && snapshot.total > 1 ? t('account.ofTotal', { ready: snapshot.ready, total: snapshot.total }) : null].filter(Boolean).join(' · ')}
+            </span>
+          </span>
+          <ChevronRight {...ICON} className="more-cell-chevron" />
         </span>
-        <ChevronRight {...ICON} className="more-cell-chevron" />
-      </span>
-      {rows.length > 0 && (
-        <span className="more-account-limits">
-          {rows.map((row) => (
-            <LimitMeter key={row.key} label={windowOf(row.key === 'five_hour' ? '5h' : '7d')} percent={row.pct} exhausted={exhausted && row.pct >= 100} />
-          ))}
-        </span>
-      )}
-    </NavLink>
+        {rows.length > 0 && (
+          <span className="more-account-limits">
+            {rows.map((row) => (
+              <LimitMeter key={row.key} label={windowOf(row.key === 'five_hour' ? '5h' : '7d')} percent={row.pct} exhausted={exhausted && row.pct >= 100} />
+            ))}
+          </span>
+        )}
+      </NavLink>
+    </Tooltip>
   );
 }
 
@@ -230,10 +236,12 @@ function AccountChip({ now }: { now: Now }) {
   const pct = usagePct(current.limits);
   const tone = pct === null ? 'neutral' : usageTone(pct, current.limits?.state === 'exhausted');
   return (
-    <NavLink to="/accounts" className="statusbar-item" title={t('statusbar.account')}>
-      <span className="ellipsis">{accountName(current)}</span>
-      {pct !== null && <span className={`mono ${tone === 'neutral' ? '' : `statusbar-${tone}`}`.trim()}>{pct}%</span>}
-    </NavLink>
+    <Tooltip content={t('statusbar.account')} side="top">
+      <NavLink to="/accounts" className="statusbar-item">
+        <span className="ellipsis">{accountName(current)}</span>
+        {pct !== null && <span className={tone === 'neutral' ? undefined : `statusbar-${tone}`}>{formatPercent(pct)}</span>}
+      </NavLink>
+    </Tooltip>
   );
 }
 
@@ -252,8 +260,8 @@ export function SpendItem() {
   const tip = (
     <span className="statusbar-tip">
       <span>{t('statusbar.spend.tipSpent', { spent: formatCost(state.spentUsd), cap: formatCost(state.capUsd) })}</span>
-      {state.unreported > 0 && <span className="mono">{t('statusbar.spend.tipUnreported', { count: state.unreported })}</span>}
-      <span className="mono">{t('statusbar.spend.tipZone', { time, zone: state.timezone })}</span>
+      {state.unreported > 0 && <span>{t('statusbar.spend.tipUnreported', { count: state.unreported })}</span>}
+      <span>{t('statusbar.spend.tipZone', { time, zone: state.timezone })}</span>
     </span>
   );
   return (
@@ -267,7 +275,7 @@ export function SpendItem() {
             <span className="meter-track meter-thin statusbar-meter" aria-hidden>
               <span className={`meter-fill ${view.tone === 'neutral' ? '' : `is-${view.tone}`}`.trim()} style={{ width: `${view.fill}%` }} />
             </span>
-            <span className="mono">{t('statusbar.spend.percent', { value: view.percent })}</span>
+            <span>{t('statusbar.spend.percent', { percent: formatPercent(view.percent) })}</span>
             {view.tone === 'warn' && <span>{t('statusbar.spend.near')}</span>}
           </>
         )}
@@ -294,7 +302,7 @@ function TerminalItem() {
         <SquareTerminal size={13} strokeWidth={1.75} aria-hidden />
         <span>{t('bar.label')}</span>
         {/* The space keeps the word and the count apart in the name; the flex item does not draw it */}
-        {count > 0 && <> <span className="mono">{count}</span></>}
+        {count > 0 && <> <span className="tnum">{count}</span></>}
       </button>
     </Tooltip>
   );

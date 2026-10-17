@@ -9,7 +9,7 @@ PATH = '~/proyectos/claude-wrapper'
 
 
 def c(n, text, bold=False):
-  w = ' style="font-weight: 600"' if bold else ''
+  w = ' style="font-weight: var(--fw-strong)"' if bold else ''
   return f'<span style="color: var(--term-ansi-{n})"{w}>{text}</span>'
 
 
@@ -60,7 +60,7 @@ def desktop_terminal():
             '<input placeholder="Buscar" aria-label="Buscar en la terminal"><span class="kbd">Ctrl⇧F</span></label>')
   main = f'''<main class="col" style="flex: 1 1 auto; min-height: 0; padding: 28px 32px; gap: 18px; overflow: hidden">
 <div class="row" style="gap: 12px">
-<div class="col grow" style="gap: 4px"><h1 style="margin: 0; font-size: 24px; font-weight: 600">Terminales</h1>
+<div class="col grow" style="gap: 4px"><h1 style="margin: 0; font-size: var(--fs-title); font-weight: var(--fw-strong)">Terminales</h1>
 <span class="t-sm fg-2">Tu propia terminal en {PROJECT}. Corre como tu usuario y solo la abres tú.</span></div>
 <div class="row" style="gap: 0"><button type="button" class="btn btn-primary" style="border-radius: var(--r) 0 0 var(--r)">{ico("plus")}Nueva terminal</button>
 <button type="button" class="btn btn-primary btn-icon" aria-label="Elegir dónde abrirla" style="border-radius: 0 var(--r) var(--r) 0; width: 30px; margin-left: 1px">{ico("down", "ico ico-sm")}</button></div>
@@ -86,7 +86,7 @@ def mobile_terminal():
   keys = ''.join(f'<button type="button" class="term-key{" on" if k == "Ctrl" else ""}">{k}</button>' for k in KEYS)
   inner = f'''<header class="row" style="flex-shrink: 0; height: 52px; padding: 0 8px; gap: 6px; border-bottom: 1px solid var(--line); background: var(--bg)">
 <a href="MobileChats.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico("left", "ico ico-lg")}</a>
-<span class="mono grow ellipsis" style="font-size: 13px">claude-wrapper</span>
+<span class="t-num grow ellipsis" style="font-size: var(--fs-small)">claude-wrapper</span>
 {OK}
 <button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico("more", "ico ico-lg", "stroke-width: 3")}</button>
 </header>

@@ -153,7 +153,7 @@ export function IntegrationsTab() {
         {checking === 'all' ? <Spinner /> : <RefreshCw {...ICON_SM} />}
         {t('refresh')}
       </button>
-      <span className="prov-checked mono">{checkedAt ? t('checkedAgo', { time: timeAgo(checkedAt) }) : t('notChecked')}</span>
+      <span className="prov-checked tnum">{checkedAt ? t('checkedAgo', { time: timeAgo(checkedAt) }) : t('notChecked')}</span>
     </div>
   );
 
@@ -250,7 +250,7 @@ export function IntegrationsTab() {
       className={nothing ? 'prov-card' : 'grad-border prov-card'}
       title={<span>{t('tracker.title')}</span>}
       actions={
-        <span className="mono prov-summary">
+        <span className="prov-summary tnum">
           {t('tracker.total', { count: trackerList.length })} · {t('list.ready', { count: trackersReady })}
         </span>
       }
@@ -313,7 +313,7 @@ export function IntegrationsTab() {
           className="prov-card"
           title={<span>{t('list.title')}</span>}
           actions={
-            <span className="mono prov-summary">
+            <span className="prov-summary tnum">
               {t('list.total', { count: list.length })} · {t('list.ready', { count: ready })}
             </span>
           }

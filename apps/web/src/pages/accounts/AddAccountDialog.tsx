@@ -8,6 +8,7 @@ import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { CopyButton, ErrorBox, Field, Segmented } from '@claudio/ui/components/ui';
 
 type Kind = 'login' | 'token' | 'api-key';
@@ -49,11 +50,13 @@ export function SignInSession({ session, onCode, sending, error }: { session: Ac
             </li>
           </ol>
           <div className="signin-code-box">
-            <a className="c-accent signin-link signin-url" href={url} target="_blank" rel="noopener noreferrer" title={url}>
-              <span className="signin-url-text">{url.replace(/^https:\/\//, '')}</span>
-              <ExternalLink {...ICON_SM} />
-              <span className="sr-only"> ({t('signIn.opensNewTab')})</span>
-            </a>
+            <Tooltip content={url}>
+              <a className="c-accent signin-link signin-url" href={url} target="_blank" rel="noopener noreferrer">
+                <span className="signin-url-text">{url.replace(/^https:\/\//, '')}</span>
+                <ExternalLink {...ICON_SM} />
+                <span className="sr-only"> ({t('signIn.opensNewTab')})</span>
+              </a>
+            </Tooltip>
             <CopyButton text={url} label={t('signIn.copyLink')} shown />
           </div>
           <form

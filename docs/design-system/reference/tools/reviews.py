@@ -177,7 +177,7 @@ def fdir(path):
 
 def file_aside():
   return f'''<aside class="col" style="width: 288px; flex-shrink: 0; gap: 0; border-right: 1px solid var(--line); background: var(--bg-1)" aria-label="Archivos cambiados">
-<div class="row" style="height: 46px; padding: 0 12px 0 18px; gap: 8px; border-bottom: 1px solid var(--line)"><span class="t-label">Archivos</span><span class="count">4</span><span class="grow"></span><span class="mono t-xs fg-3">3 hilos</span></div>
+<div class="row" style="height: 46px; padding: 0 12px 0 18px; gap: 8px; border-bottom: 1px solid var(--line)"><span class="t-label">Archivos</span><span class="count">4</span><span class="grow"></span><span class="t-num t-xs fg-3">3 hilos</span></div>
 <nav class="fmap grow" style="padding: 8px 0; overflow: hidden">
 {fdir('apps/api/src/routes')}
 {fmap_row('M', 'projects.ts', 21, 19)}
@@ -195,7 +195,7 @@ def review_head(host):
   return f'''<header class="row" style="flex-shrink: 0; gap: 12px; padding: 12px 20px 12px 12px; border-bottom: 1px solid var(--line)">
 <a href="DesktopTareaMR.html" class="btn btn-ghost btn-icon btn-sm" aria-label="Volver a la tarea">{ico('left')}</a>
 <div class="col grow" style="gap: 2px; min-width: 0"><span class="t-xs fg-3 ellipsis">AGN-26 · Plantillas de proyecto</span>
-<div class="row" style="gap: 12px"><h1 class="t-h1" style="font-size: 20px">Cambios de la {noun} {num}</h1><span class="mono t-xs fg-3" style="white-space: nowrap">{BRANCH} · 4 archivos</span><span class="cnt"><span class="a">+214</span> <span class="d">−37</span></span></div></div>
+<div class="row" style="gap: 12px"><h1 class="t-h1" style="font-size: var(--fs-title)">Cambios de la {noun} {num}</h1><span class="mono t-xs fg-3" style="white-space: nowrap">{BRANCH} · 4 archivos</span><span class="cnt"><span class="a">+214</span> <span class="d">−37</span></span></div></div>
 <span class="chip" style="height: 32px">{ico('edit', 'ico ico-sm')}Tu borrador<span class="n">1 nota</span></span>
 <a href="#" class="btn btn-sm" target="_blank" rel="noreferrer">{ext_ico()}Abrir {noun} {num} en {name}</a>
 </header>'''
@@ -278,7 +278,7 @@ def diff_desktop_c():
 
 
 def desktop_page(name, title, host, diff):
-  crumb = '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><a href="DesktopTareaMR.html" class="fg-2">AGN-26</a><span class="fg-3">/</span><span style="font-weight: 500">Cambios</span>'
+  crumb = '<a href="DesktopTablero.html" class="fg-2">Tareas</a><span class="fg-3">/</span><a href="DesktopTareaMR.html" class="fg-2">AGN-26</a><span class="fg-3">/</span><span style="font-weight: var(--fw-regular)">Cambios</span>'
   main = f'''{review_head(host)}
 <div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0">
 {file_aside()}
@@ -292,7 +292,7 @@ def desktop_page(name, title, host, diff):
 
 def phone_head():
   return (f'<header class="m-head" style="padding-left: 4px; gap: 2px; border-bottom: 1px solid var(--line)"><a href="MobileTareaMR.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver a la tarea">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
-          f'<span class="col grow" style="gap: 1px; min-width: 0"><span class="mono" style="font-size: 16px; font-weight: 600">{FILE_NAME}</span>'
+          f'<span class="col grow" style="gap: 1px; min-width: 0"><span class="mono" style="font-size: var(--fs-input); font-weight: var(--fw-strong)">{FILE_NAME}</span>'
           f'<span class="mono t-xs fg-3 ellipsis">{FILE_DIR[:-1]} · <span class="c-ok">+38</span> <span class="c-bad">−12</span></span></span>'
           f'<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones del archivo">{ico("more", "ico ico-lg", "stroke-width: 3")}</button></header>')
 
@@ -300,7 +300,7 @@ def phone_head():
 def phone_bar():
   return (f'<div class="row" style="flex-shrink: 0; gap: 10px; padding: 10px 16px; flex-wrap: wrap">'
           f'<div class="seg" role="radiogroup" aria-label="Cómo comparar"><button type="button" role="radio" aria-checked="true" class="on" style="height: 30px">Lectura</button><button type="button" role="radio" aria-checked="false" style="height: 30px">Unificado</button></div>'
-          f'<span class="grow"></span><span class="mono t-xs fg-2">3 hilos · 1 sin resolver</span></div>'
+          f'<span class="grow"></span><span class="t-num t-xs fg-2">3 hilos · 1 sin resolver</span></div>'
           f'<div class="row" style="flex-shrink: 0; gap: 8px; padding: 0 16px 10px"><span class="mono t-xs fg-3">MR !12 · {BRANCH}</span><span class="grow"></span>'
           f'<span class="row t-xs fg-2" style="gap: 5px">{ico("edit", "ico ico-sm")}Tu borrador · 1 nota</span></div>')
 
@@ -333,13 +333,13 @@ def phone_screen(name, title, overlay='', variant='threads'):
 
 def compose_sheet():
   fix = (f'<div class="rt-sugg"><div class="rt-sugg-head">{ico("sparkle", "ico ico-sm")}Sugerencia<span class="grow"></span>sustituye la línea 9</div>'
-         f'<label class="field field-area field-mono" style="border: 0; border-radius: 0; background: var(--bg)"><textarea rows="2" aria-label="Línea propuesta" style="font-size: 16px">{_html.escape(L9.replace("readFileSync", "existsSync"))}</textarea></label></div>')
+         f'<label class="field field-area field-mono" style="border: 0; border-radius: 0; background: var(--bg)"><textarea rows="2" aria-label="Línea propuesta" style="font-size: var(--fs-input)">{_html.escape(L9.replace("readFileSync", "existsSync"))}</textarea></label></div>')
   return f'''{scrim()}
 <div class="sheet" role="dialog" aria-label="Nota nueva en la línea 9" style="z-index: 11; padding: 10px 16px 28px; display: flex; flex-direction: column; gap: 12px; max-height: 90%; overflow: hidden">
 <div class="grab" style="margin-bottom: 0"></div>
-<div class="row" style="gap: 10px"><span class="col grow" style="gap: 2px; min-width: 0"><b style="font-weight: 500; font-size: 15px">Nota nueva</b><span class="mono t-xs fg-3 ellipsis">{FILE_NAME}:9</span></span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar">{ico('x', 'ico ico-lg')}</button></div>
+<div class="row" style="gap: 10px"><span class="col grow" style="gap: 2px; min-width: 0"><b style="font-weight: var(--fw-regular); font-size: var(--fs-section)">Nota nueva</b><span class="mono t-xs fg-3 ellipsis">{FILE_NAME}:9</span></span><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Cerrar">{ico('x', 'ico ico-lg')}</button></div>
 <div class="rt-sugg" style="margin-top: 0"><div class="rt-sugg-row add"><i>+</i><code>{hl(L9)}</code></div></div>
-<label class="field field-area"><textarea rows="3" aria-label="Nota" style="font-size: 16px">Aquí el fichero puede no existir: ¿devolvemos los valores por defecto?</textarea></label>
+<label class="field field-area"><textarea rows="3" aria-label="Nota" style="font-size: var(--fs-input)">Aquí el fichero puede no existir: ¿devolvemos los valores por defecto?</textarea></label>
 <button type="button" class="btn btn-lg" aria-pressed="true" style="justify-content: center">{ico('sparkle', 'ico')}Sugerir un cambio</button>
 {fix}
 <span class="t-xs fg-3">Solo la ves tú hasta que envíes la revisión.</span>
@@ -471,7 +471,7 @@ def bar(s, mobile):
     head_badge = '<span class="badge b-warn">envío a medias</span>'
     sub = f'<span class="mono t-xs fg-3">2 de {len(dr)} guardados</span>'
     notes = ''.join(note_row(*d, mark=m) for d, m in zip(dr, marks))
-    extra = callout('warn', 'warn', f'<b style="color: var(--fg); font-weight: 500">2 de {len(dr)} comentarios se guardaron como borradores en GitLab y el envío se detuvo.</b> {why}')
+    extra = callout('warn', 'warn', f'<b style="color: var(--fg); font-weight: var(--fw-regular)">2 de {len(dr)} comentarios se guardaron como borradores en GitLab y el envío se detuvo.</b> {why}')
     acts = (f'<button type="button" class="btn btn-ghost {size}">Descartar los guardados</button>'
             f'<button type="button" class="btn btn-primary {size}">Publicar los guardados</button>')
   else:
@@ -485,7 +485,7 @@ def bar(s, mobile):
               f'<button type="button" class="btn btn-primary {size}">Enviar revisión</button>')
   side = ''
   if kind == 'pending-exists':
-    extra = callout('warn', 'warn', f'<b style="color: var(--fg); font-weight: 500">Tienes una revisión en {name} sin enviar.</b> Envíala o descártala allí primero.',
+    extra = callout('warn', 'warn', f'<b style="color: var(--fg); font-weight: var(--fw-regular)">Tienes una revisión en {name} sin enviar.</b> Envíala o descártala allí primero.',
                     f'<span class="row" style="gap: 4px 16px"><a href="#" class="pr-remedy" target="_blank" rel="noreferrer">Abrir en {name}{ext_ico()}</a></span>')
     acts = f'<button type="button" class="btn btn-primary {size}" disabled>Enviar revisión</button>'
   if s['own']:
@@ -524,7 +524,7 @@ def mr_panel(host, mobile=False):
   name, noun, num, _ = MR_HOST[host]
   size = 'btn btn-lg' if mobile else 'btn btn-sm'
   return f'''<section class="callout" aria-label="{"Merge request" if host == "gitlab" else "Pull request"}" style="align-items: flex-start; flex-wrap: wrap">{ico('branch', 'ico fg-3', 'flex-shrink: 0; margin-top: 2px')}
-<div class="col grow" style="gap: 6px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><b style="color: var(--fg); font-weight: 500">La {noun} {num} espera que la fusiones en {name}</b>{ci_badge('passing')}</span>
+<div class="col grow" style="gap: 6px; min-width: 0"><span class="row" style="gap: 8px; flex-wrap: wrap"><b style="color: var(--fg); font-weight: var(--fw-regular)">La {noun} {num} espera que la fusiones en {name}</b>{ci_badge('passing')}</span>
 <span>Cuando se fusione, la tarea pasará sola a Hecho.</span></div>
 {"" if mobile else f'<a href="#" class="{size}" target="_blank" rel="noreferrer">{ext_ico()}Abrir {noun} {num} en {name}</a>'}</section>'''
 
@@ -573,7 +573,7 @@ def submit_body(host, mobile=False):
   dr = DRAFTS
   area = (f'<label class="col" style="gap: 6px"><span class="t-label">Resumen (opcional)</span><span class="field field-area"'
           f'{" style=&quot;min-height: 104px&quot;" if mobile else ""}><textarea rows="3" aria-label="Resumen de la revisión"'
-          f'{" style=&quot;font-size: 16px&quot;" if mobile else ""} placeholder="Qué opinas de la {noun} en conjunto"></textarea></span></label>').replace('&quot;', '"')
+          f'{" style=&quot;font-size: var(--fs-input)&quot;" if mobile else ""} placeholder="Qué opinas de la {noun} en conjunto"></textarea></span></label>').replace('&quot;', '"')
   notes = (f'<div class="col" style="gap: 8px"><span class="t-label">Se envía con {count_words(dr)}</span>'
            f'<ul class="rv-notes">{"".join(note_row(*d) for d in dr)}</ul></div>')
   if host == 'gitlab':
@@ -772,7 +772,7 @@ def list_head(triage, mobile=False):
 # ---------------------------------------------------------------- the dialog and its Sheet
 def notes(host, triage):
   untrusted = (f'<div class="callout" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}'
-               f'<span><b style="color: var(--fg); font-weight: 500">Los comentarios son de otras personas.</b> El desarrollador los pesa como peticiones, no como órdenes: '
+               f'<span><b style="color: var(--fg); font-weight: var(--fw-regular)">Los comentarios son de otras personas.</b> El desarrollador los pesa como peticiones, no como órdenes: '
                f'hace lo que la tarjeta y el comentario acuerdan, y te dice cuáles ha atendido y cuáles no, y por qué.</span></div>')
   push = (f'<div class="callout" style="align-items: flex-start">{ico("info", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}'
           f'<span>Como lo pides tú, el cambio se sube solo cuando QA lo dé por bueno. Mover la tarjeta antes retira ese permiso. '
@@ -780,7 +780,7 @@ def notes(host, triage):
   off = ''
   if not triage:
     off = (f'<div class="callout callout-warn" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
-           f'<span><b style="color: var(--fg); font-weight: 500">review.triage está apagado.</b> Ningún hilo viene elegido de antemano: elige los que quieras que atienda el desarrollador.</span></div>')
+           f'<span><b style="color: var(--fg); font-weight: var(--fw-regular)">review.triage está apagado.</b> Ningún hilo viene elegido de antemano: elige los que quieras que atienda el desarrollador.</span></div>')
   return off + untrusted + push
 
 
@@ -846,7 +846,7 @@ def dialog_section():
        'Los tres hilos que el triaje marca «agente» vienen elegidos; «persona» y «sin acción» no. La marca solo elige de antemano: un clic cambia cualquier hilo y el botón cuenta lo elegido.'),
       ('gitlab', False, 'plain', 'Con review.triage apagado (MR de GitLab)',
        'Sin marcas y sin nada elegido: el botón principal espera a que elijas al menos un hilo. El aviso dice por qué.')]:
-    rows += (f'<div class="col" style="gap: 12px"><div class="col" style="gap: 4px"><span class="t-sm" style="font-weight: 600">{title}</span>'
+    rows += (f'<div class="col" style="gap: 12px"><div class="col" style="gap: 4px"><span class="t-sm" style="font-weight: var(--fw-strong)">{title}</span>'
              f'<span class="t-xs fg-3" style="line-height: 1.45; max-width: 760px">{note}</span></div>'
              f'<div style="display: grid; grid-template-columns: 640px 390px; gap: 48px; align-items: start">{dialog(host, triage, variant)}{sheet(host, triage)}</div></div>')
   return f'<section class="col" style="gap: 28px"><span class="t-label">El diálogo de atender, y su Sheet en el móvil</span>{rows}</section>'
@@ -860,10 +860,10 @@ def marks_section():
     word, _, _, what = MARK[m]
     pre = 'Viene elegido.' if m == 'agent' else 'No viene elegido.'
     cards += (f'<div class="card col" style="padding: 18px; gap: 10px"><div class="row" style="gap: 8px">{mark_badge(m)}<span class="mono t-xs fg-3">«{word}»</span></div>'
-              f'<span class="t-sm" style="font-weight: 500">{what}</span>'
+              f'<span class="t-sm" style="font-weight: var(--fw-regular)">{what}</span>'
               f'<p class="addr-quote" style="-webkit-line-clamp: 3">{example}</p><span class="t-xs fg-3">{pre}</span></div>')
   asks = ('<div class="col" style="gap: 6px"><span class="t-label">La pregunta</span>'
-          '<span class="t-sm" style="font-weight: 500">¿Quién debería atender este comentario de la revisión?</span>'
+          '<span class="t-sm" style="font-weight: var(--fw-regular)">¿Quién debería atender este comentario de la revisión?</span>'
           '<span class="t-xs fg-3" style="line-height: 1.5; max-width: 720px">Una sola vez por hilo sin resolver, hasta 40, con la ruta, el autor, si está desactualizado y el cuerpo cortado a 1 KiB. '
           'Es un punto que sugiere, por proyecto: no mueve nada, no responde y no resuelve.</span></div>')
   return (f'<section class="col" style="gap: 14px"><span class="t-label">Las marcas de review.triage</span>{asks}'
@@ -890,7 +890,7 @@ def live_rows(mobile):
 def addressing_panel(host, mobile=False):
   size = 'btn btn-lg' if mobile else 'btn btn-sm'
   return (f'<section class="fix-panel live rail-live" aria-label="Atender los comentarios"><div class="fix-head">'
-          f'<div class="col grow" style="gap: 4px"><span class="fix-title"><span class="spin-braille" aria-hidden="true"></span>El desarrollador atiende 3 comentarios<time class="mono t-xs fg-3" style="font-weight: 400">1:12</time></span>'
+          f'<div class="col grow" style="gap: 4px"><span class="fix-title"><span class="spin-braille" aria-hidden="true"></span>El desarrollador atiende 3 comentarios<time class="mono t-xs fg-3" style="font-weight: var(--fw-regular)">1:12</time></span>'
           f'<span class="fix-sub">Lo has pedido tú: si QA da el cambio por bueno, se sube solo. Mover la tarjeta mientras tanto retira ese permiso.</span></div></div>'
           f'{live_rows(mobile)}'
           f'<div class="fix-foot"><a href="DesktopChatTarea.html" class="{size}">{ico("chats", "ico ico-sm")}Ver el chat del desarrollador</a></div></section>')
@@ -953,12 +953,12 @@ def item_excerpt(state, host, mobile=False):
     head = (f'<div class="row" style="gap: 6px; flex-wrap: wrap"><a href="MobileTablero.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver al tablero" style="margin-left: -10px">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
             f'{tico("story", True)}<span class="wi-key boxed">AGN-26</span></div>'
             f'<div class="row" style="gap: 6px; flex-wrap: wrap">{item_status(state)}</div>'
-            f'<h1 class="t-h2" style="font-size: 17px; line-height: 1.35">Plantillas de proyecto</h1>')
+            f'<h1 class="t-h2" style="font-size: var(--fs-title); line-height: 1.35">Plantillas de proyecto</h1>')
     return f'<div class="col" style="gap: 12px">{head}<span class="t-label" style="padding: 0 2px">Su {word}</span>{pr}{panel}</div>'
   head = (f'<div class="row" style="gap: 10px; flex-wrap: wrap"><a href="DesktopTablero.html" class="btn btn-icon btn-sm" aria-label="Volver al tablero">{ico("left")}</a>'
           f'{tico("story", True)}<span class="wi-key boxed">AGN-26</span>{item_status(state)}<span class="grow"></span>'
           f'<a href="DesktopChatTarea.html" class="btn btn-sm">{ico("chats", "ico ico-sm")}Ver el chat</a></div>')
-  return (f'<div class="card col" style="padding: 18px; gap: 14px">{head}<h1 class="t-h1" style="font-size: 22px">Plantillas de proyecto</h1>'
+  return (f'<div class="card col" style="padding: 18px; gap: 14px">{head}<h1 class="t-h1" style="font-size: var(--fs-title)">Plantillas de proyecto</h1>'
           f'<div class="row" style="gap: 10px"><h2 class="t-h2 grow">Su {word}</h2></div>{pr}{panel}</div>')
 
 
@@ -971,7 +971,7 @@ ITEM_STATES = [
 def item_section():
   rows = ''
   for state, host, code, note in ITEM_STATES:
-    head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: 500">{code}</span>'
+    head = (f'<div class="col" style="gap: 6px"><span class="mono t-sm" style="font-weight: var(--fw-regular)">{code}</span>'
             f'<span class="row t-xs fg-2" style="gap: 6px">{ref(host)}</span><span class="t-xs fg-3" style="line-height: 1.45">{note}</span></div>')
     rows += (f'<div style="display: grid; grid-template-columns: 220px minmax(0, 1fr) 390px; gap: 40px; align-items: start; padding: 18px 0; border-top: 1px solid var(--line)">'
              f'{head}{item_excerpt(state, host)}{pframe(item_excerpt(state, host, True))}</div>')
@@ -1193,16 +1193,16 @@ def steps(state, cells=None, mobile=False):
   out = ''
   for s in STEP_NAMES:
     if s in ('Etapa 1', 'Etapa 2', 'Etapa 3', 'Integración'):
-      out += f'<li class="col" style="gap: 8px"><div class="bar ok"><i style="width: 100%"></i></div><span class="row t-sm" style="gap: 6px; font-weight: 500">{ico("check", "ico ico-sm", "color: var(--ok)")}{s}</span><span class="mono t-xs fg-3">hecha</span></li>'
+      out += f'<li class="col" style="gap: 8px"><div class="bar ok"><i style="width: 100%"></i></div><span class="row t-sm" style="gap: 6px; font-weight: var(--fw-regular)">{ico("check", "ico ico-sm", "color: var(--ok)")}{s}</span><span class="mono t-xs fg-3">hecha</span></li>'
     elif s == 'Verificación':
       bar = ''.join(f'<i class="{c}"' + (' style="--p: 55%"' if c == 'live' else '') + '></i>' for c in (cells or []))
       if state == 'running':
         out += (f'<li class="col" style="gap: 8px"><span class="segbar" role="img" aria-label="Ejecuciones de la revisión">{bar}</span>'
-                f'<span class="row t-sm" style="gap: 6px; font-weight: 500"><span class="spin-ring" aria-hidden="true"></span>{s}</span>'
+                f'<span class="row t-sm" style="gap: 6px; font-weight: var(--fw-regular)"><span class="spin-ring" aria-hidden="true"></span>{s}</span>'
                 f'<span class="mono t-xs fg-2">revisión · ronda 1 de 3 · 3 de 4 revisores</span></li>')
       else:
         out += (f'<li class="col" style="gap: 8px"><div class="bar bad"><i style="width: 100%"></i></div>'
-                f'<span class="row t-sm" style="gap: 6px; font-weight: 500">{ico("warn", "ico ico-sm", "color: var(--bad)")}{s}</span><span class="mono t-xs c-bad">revisión bloqueada</span></li>')
+                f'<span class="row t-sm" style="gap: 6px; font-weight: var(--fw-regular)">{ico("warn", "ico ico-sm", "color: var(--bad)")}{s}</span><span class="mono t-xs c-bad">revisión bloqueada</span></li>')
     else:
       out += f'<li class="col" style="gap: 8px"><div class="bar"><i style="width: 0"></i></div><span class="t-sm fg-2">{s}</span><span class="mono t-xs fg-3">pendiente</span></li>'
   return f'<ol aria-label="Pasos" style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px">{out}</ol>'
@@ -1243,7 +1243,7 @@ def blocked_gate(mobile=False):
 
 
 def orch_desktop(name, title, state, card, overlay='', h=1024):
-  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: 500">spanish-copy</span>'
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span style="font-weight: var(--fw-regular)">spanish-copy</span>'
   cells = ['ok', 'ok', 'live', ''] if state == 'running' else None
   main = f'<main class="page" style="gap: 18px; overflow: hidden">{orch_header(state)}{steps(state, cells)}{card}</main>'
   write(name, desktop(title, 'orch', crumb, main, overlay=overlay).replace('height: 1024px', f'height: {h}px', 1))
@@ -1254,7 +1254,7 @@ def orch_mobile(name, title, state, card, overlay=''):
   chips += ('<span class="badge b-live" style="height: 28px; flex-shrink: 0"><span class="spin-braille" aria-hidden="true"></span>verificando</span>' if state == 'running'
             else '<span class="badge b-bad" style="height: 28px; flex-shrink: 0">verificación fallida</span>')
   head = (f'<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 2px"><a href="MobileOrquestaciones.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico("left", "ico ico-lg", "stroke-width: 2")}</a>'
-          f'<span class="col grow" style="gap: 2px"><span style="font-weight: 600; font-size: 16px">spanish-copy</span><span class="mono t-xs fg-3">6 tareas · 20:32</span></span>'
+          f'<span class="col grow" style="gap: 2px"><span style="font-weight: var(--fw-strong); font-size: var(--fs-input)">spanish-copy</span><span class="mono t-xs fg-3">6 tareas · 20:32</span></span>'
           f'<button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Más acciones">{ico("more", "ico ico-lg", "stroke-width: 3")}</button></header>')
   inner = f'{head}\n<div class="m-body" style="gap: 14px; overflow: hidden"><div class="row" style="gap: 6px; overflow: hidden">{chips}</div>{card}</div>\n{overlay}'
   write(name, mobile(title, inner, 'glow-top', 'background-size: 100% 300px'))
@@ -1264,7 +1264,7 @@ def accept_body(mobile=False):
   size = 'btn-lg' if mobile else ''
   return (f'<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">La revisión está <b>incompleta</b>: un revisor falló dos veces. Si la aceptas, la verificación pasa sin ella.</p>'
           f'<label class="col" style="gap: 6px"><span class="t-label">Motivo <span class="fg-3">· obligatorio</span></span>'
-          f'<span class="field field-area"><textarea rows="3" aria-label="Motivo" style="{"font-size: 16px" if mobile else ""}">The reviewer crashed on the generated lockfile twice; the rest of the diff was reviewed and the checks pass.</textarea></span></label>'
+          f'<span class="field field-area"><textarea rows="3" aria-label="Motivo" style="{"font-size: var(--fs-input)" if mobile else ""}">The reviewer crashed on the generated lockfile twice; the rest of the diff was reviewed and the checks pass.</textarea></span></label>'
           f'<div class="callout callout-warn" role="note" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
           f'<span class="col" style="gap: 4px"><span>La verificación pasará sin la revisión. Queda registrado con tu nombre.</span>'
           f'<span class="mono t-xs fg-3">Vale solo para {GATE_HEAD}: un commit nuevo la anula.</span></span></div>')
@@ -1421,7 +1421,7 @@ def finding_page():
 {finding_diff()}
 </section>
 </div>'''
-  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span class="fg-2">spanish-copy</span><span class="fg-3">/</span><span style="font-weight: 500">Cambios</span>'
+  crumb = '<a href="DesktopOrquestaciones.html" class="fg-2">Orquestaciones</a><span class="fg-3">/</span><span class="fg-2">spanish-copy</span><span class="fg-3">/</span><span style="font-weight: var(--fw-regular)">Cambios</span>'
   write('DesktopRevisionHallazgos.html', desktop('Revisión, hallazgos en el diff', 'orch', crumb, main, agents=2, running=2))
 
 
@@ -1485,7 +1485,8 @@ def register_gate():
                   f'<span class="mono t-xs fg-3">{f} · {w}×{h} · <a class="c-accent" href="screenshots/{f[:-5]}-light.webp">light</a></span></div>\n' for f, t, w, h in GATE_SCREENS)
   sec = (f'<section class="col" style="gap:12px"><h2 class="t-h2">Review gate <span class="t-label" style="margin-left:8px">Plan: review-gate.md</span></h2><div class="grid">\n'
          f'{shots}</div></section>\n')
-  open(ix, 'w').write(s.replace('</div></body></html>', sec + '</div></body></html>'))
+  import voice
+  open(ix, 'w').write(voice.apply(s.replace('</div></body></html>', sec + '</div></body></html>')))
 
 
 # ---------------------------------------------------------------- run

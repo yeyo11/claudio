@@ -376,7 +376,14 @@
       "sonnet-medium": "Sonnet 5.5 rinde bien en medium en tareas bien especificadas y en el chat; en low puede saltarse la verificación.",
       "sonnet-high": "Sonnet 5.5 rinde mejor en high al planificar y al arreglar lo que falló, donde el trabajo es difícil o largo."
     },
-    "unavailableModel": "Este modelo no admite niveles de effort."
+    "unavailableModel": "Este modelo no admite niveles de effort.",
+    "levels": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto",
+      "xhigh": "Muy alto",
+      "max": "Máximo"
+    }
   },
   "spendCap": {
     "title": "Has alcanzado el tope de gasto diario",

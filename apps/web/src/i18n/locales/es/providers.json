@@ -94,7 +94,7 @@
       "probe": "sin ejecutar nada",
       "failure": "cuando un turno lo alcanzó"
     },
-    "used": "{{window}}: {{percent}} % usado",
+    "used": "{{window}}: {{percent}} usado",
     "resets": "renueva {{when}}",
     "resetUnknown": "renovación desconocida",
     "unknown": "La última lectura está desactualizada, así que el límite se desconoce hasta que llegue una nueva.",

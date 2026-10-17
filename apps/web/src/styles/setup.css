@@ -50,19 +50,17 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
 .setup-step-name .n {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
 .setup-step.is-current .setup-step-name {
   color: var(--fg);
-  font-weight: 500;
 }
 
 .setup-step.is-done .setup-step-name {
@@ -71,8 +69,7 @@
 
 .setup-step-skip {
   margin-top: -4px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -155,8 +152,8 @@
 
 .setup-card-head h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 /* A generated token, shown once: neutral, since nothing went wrong */
@@ -179,7 +176,7 @@
 
 .token-once-row code {
   padding: 6px 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   overflow-wrap: anywhere;
 }
 
@@ -220,7 +217,7 @@
 .signin-note {
   margin: 0;
   max-width: 640px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.55;
   color: var(--fg-2);
 }
@@ -234,7 +231,7 @@
   align-items: center;
   align-self: flex-start;
   gap: 5px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .signin-actions {
@@ -265,7 +262,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -276,8 +273,7 @@
 }
 
 .signin-steps .n {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
@@ -287,7 +283,7 @@
   align-items: center;
   gap: 5px;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -332,11 +328,11 @@
 }
 
 .signin-code {
+  /* literal: the device code typed back */
   font-family: var(--mono);
-  font-size: 34px;
+  font-size: var(--fs-title);
   line-height: 1.1;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: var(--fw-strong);
   color: var(--fg);
   font-variant-numeric: tabular-nums;
 }
@@ -347,7 +343,7 @@
   gap: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -357,8 +353,7 @@
 
 .signin-wait .left {
   margin-left: auto;
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
@@ -376,7 +371,7 @@
   padding: 12px 14px;
   border-radius: var(--radius-lg);
   background: var(--bad-soft);
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg);
 }
@@ -403,7 +398,7 @@
 }
 
 .signin-result .mono {
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -428,13 +423,13 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
 .secrets-warning .alert-body strong {
   color: var(--fg);
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 /* ---- Done ---- */
@@ -486,18 +481,17 @@
 }
 
 .setup-sum-name {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .setup-sum-detail {
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
 .setup-where {
   justify-self: end;
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
   text-decoration: none;
 }
@@ -521,13 +515,13 @@
 
   .signin-url {
     min-height: var(--touch);
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .signin-note,
   .signin-steps,
   .signin-link {
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .signin-link {
@@ -544,7 +538,7 @@
   /* No zoom on focus: a field under 16 px makes iOS zoom the page */
   .signin-sheet input,
   .setup-page input {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .setup-sum-row {
@@ -559,6 +553,6 @@
     align-items: center;
     min-height: var(--touch);
     margin: -8px 0 -12px;
-    font-size: 12px;
+    font-size: var(--fs-small);
   }
 }

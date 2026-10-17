@@ -113,7 +113,7 @@ export function projectMonogram(name: string): string {
 export function Monogram({ name, size = 36, project = false }: { name: string; size?: number; /** Two letters even for one word */ project?: boolean }) {
   const letters = monogramLetters(name, project);
   return (
-    <span className="monogram" style={{ '--hue': nameHue(name), width: size, height: size } as React.CSSProperties} aria-hidden>
+    <span className="monogram" style={{ '--hue': nameHue(name), '--monogram-size': `${size}px`, width: size, height: size } as React.CSSProperties} aria-hidden>
       {letters || '?'}
     </span>
   );

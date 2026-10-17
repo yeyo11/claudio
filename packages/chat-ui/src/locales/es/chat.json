@@ -110,7 +110,7 @@
       "whenTurnEnds": "Al terminar este turno",
       "pending": "El chat pasará a esta cuenta cuando termine el turno actual.",
       "undo": "Deshacer",
-      "used": "{{percent}} % de la ventana usado"
+      "used": "{{percent}} de la ventana usado"
     }
   },
   "controls": {
@@ -340,10 +340,10 @@
     "open": "Abrir {{what}}",
     "openButton": "Abrir",
     "state": {
-      "running": "trabajando",
-      "completed": "terminado",
-      "failed": "ha fallado",
-      "stopped": "detenido"
+      "running": "Trabajando",
+      "completed": "Terminado",
+      "failed": "Ha fallado",
+      "stopped": "Detenido"
     },
     "nested": "de {{owner}}",
     "workflowFacts": "{{done}}/{{total}} agentes · fase {{n}}",

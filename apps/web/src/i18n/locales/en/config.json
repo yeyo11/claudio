@@ -321,7 +321,7 @@
     "desktopManual": "Download it from the release page.",
     "download": "Download Claudio {{version}}",
     "looking": "Looking for the download…",
-    "downloading": "Downloading Claudio {{version}}: {{percent}}%",
+    "downloading": "Downloading Claudio {{version}}: {{percent}}",
     "downloadProgress": "Downloading Claudio {{version}}",
     "restart": "Restart to update to {{version}}",
     "scheduled": "Claudio {{version}} will be installed the next time you quit.",

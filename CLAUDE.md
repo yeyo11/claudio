@@ -64,6 +64,11 @@ system in [docs/design-system.md](docs/design-system.md). The reference is in
 light screenshots of every screen. Before changing a screen, open its reference, and compare the
 result against it before you finish.
 
+The `claudio-ui` skill (`.claude/skills/claudio-ui/`) is the design judgement on top of it: load it
+for any UI task. `/ui-audit`, `/ui-explore` and `/ui-review` launch its agents. Hooks lint every UI
+file you edit (`scripts/design-lint.mjs`), run the fast invariants when `pnpm dev` is up, and ask for
+`/ui-review` before you stop ([docs/plans/claudio-designer.md](docs/plans/claudio-designer.md)).
+
 A change that breaks one of these rules is not done:
 
 - **Tokens only.** Colours, radii, shadows, fonts, durations and easings come from
@@ -72,9 +77,12 @@ A change that breaks one of these rules is not done:
   exception.
 - **Dark first, both themes.** Dark is the default theme, and every screen also works in
   `[data-theme='light']`. Contrast is ≥ 4.5:1 for text and ≥ 3:1 for large numbers, in both themes.
-- **Type.** Use Geist for the UI and Geist Mono for ids, paths, commands, counts, times and section
-  labels, on the scale in the doc (34 / 24 / 15 / 14 / 13 / 12 / 11 label). Numbers are
-  tabular.
+- **Type.** Geist for the UI on four sizes and two weights, from the tokens: `--fs-title` 20,
+  `--fs-section` 15, `--fs-body` 14, `--fs-small` 13 (`--fs-input` 16 on phone fields), and
+  `--fw-regular` 450, `--fw-strong` 600. Geist Mono only for literals the machine reads (ids, paths,
+  model ids, commands, hashes, code), never for labels, badges, counts, times or money. Uppercase
+  only on the sidebar's group headings. No weight change on hover or selection. Numbers are tabular
+  and go through `packages/ui/src/lib/format.ts`; copy never carries the `%` sign.
 - **The gradient is the brand, used sparingly.**
   - `--grad` goes on the one primary action of a zone, the FAB, the logo and the active-account
     avatar.

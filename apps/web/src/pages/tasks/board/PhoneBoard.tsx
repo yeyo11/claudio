@@ -1,4 +1,5 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { WORK_ITEM_STATUSES } from '@claudio/shared';
 import { ArrowDown, ArrowUp, Check, CornerDownRight, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -138,7 +139,7 @@ export function PhoneBoard({
           >
             <div className="workitem-msection-head">
               <WorkItemStatusIcon status={status} decorative />
-              <span className="workitem-col-name">{label(status)}</span>
+              <FullText className="workitem-col-name">{label(status)}</FullText>
               <span className={`workitem-col-count ${over ? 'is-over' : ''}`.trim()}>
                 <b>{column.count}</b>
                 {!allProjects && column.limit !== null && `/${column.limit}`}

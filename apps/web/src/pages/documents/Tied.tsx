@@ -13,7 +13,7 @@ import { formatNumber } from '@claudio/ui/lib/format';
 import { DOCUMENT_KINDS, newDocumentContent, newDocumentPath, normalizeNewPath, type TiedDocument } from './model';
 import { RoleAvatar, useRoleName } from '../team/RoleAvatar';
 
-/** The mono tag of a kind of document (SPEC, ADR, INFO, DOC). */
+/** The tag of a kind of document (SPEC, ADR, INFO, DOC). */
 export function DocumentKindTag({ kind }: { kind: DocumentKind }) {
   const { t } = useTranslation('documents');
   return (
@@ -65,7 +65,7 @@ export function TiedList({
           <h2 id="doc-tied-title" className="section-label doc-fill">
             {t('tied.title')}
           </h2>
-          <span className="mono small muted tnum">{formatNumber(docs.length)}</span>
+          <span className="small muted tnum">{formatNumber(docs.length)}</span>
         </div>
         <ul className="card doc-rows">
           {docs.map((doc) => (

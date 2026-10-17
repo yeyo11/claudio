@@ -48,8 +48,8 @@ export function ProjectHead({
           <WorkItemKey value={project.key} boxed />
           {template && <span className="badge badge-muted project-head-template">{t(`projects:templates.${template}.name`)}</span>}
         </div>
-        <span className="mono small muted project-head-facts">
-          <span className="ellipsis" title={project.path}>
+        <span className="small muted tnum project-head-facts">
+          <span className="mono ellipsis" title={project.path}>
             {project.path}
           </span>
           <span aria-hidden>·</span>

@@ -2,7 +2,7 @@ import type { SpendState } from '@claudio/shared';
 import { Gauge } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { formatCost } from '@claudio/ui/lib/format';
+import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { spendResetTime, spendView } from '../lib/spend-cap';
 import { SPEND_CAP_SETTINGS_PATH } from './SpendCapDialog';
 
@@ -24,11 +24,11 @@ export function SpendLineView({ state }: { state: SpendState }) {
       <span className="sep" aria-hidden>
         ·
       </span>
-      <span className="mono">{t('cap.figure', { spent: formatCost(state.spentUsd), cap: formatCost(state.capUsd) })}</span>
+      <span className="tnum">{t('cap.figure', { spent: formatCost(state.spentUsd), cap: formatCost(state.capUsd) })}</span>
       <span className="meter-track meter-thin usage-cap-meter" aria-hidden>
         <span className={`meter-fill ${view.tone === 'neutral' ? '' : `is-${view.tone}`}`.trim()} style={{ width: `${view.fill}%` }} />
       </span>
-      <span className="mono usage-cap-pct">{t('cap.percent', { value: view.percent })}</span>
+      <span className="tnum usage-cap-pct">{t('cap.percent', { percent: formatPercent(view.percent) })}</span>
       {word && <span className="usage-cap-word">{word}</span>}
       {view.overUsd > 0 && <span className="usage-cap-sub">{t('cap.over', { amount: formatCost(view.overUsd) })}</span>}
       {state.unreported > 0 && <span className="usage-cap-sub">{t('cap.unreported', { count: state.unreported })}</span>}

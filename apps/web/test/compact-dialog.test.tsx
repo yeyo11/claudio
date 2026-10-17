@@ -33,12 +33,12 @@ test('it says what compaction does, that it is a paid turn, and how big the cont
   assert.doesNotMatch(form({ size: null }), /about .* tokens/);
 });
 
-test('the focus field is a textarea capped at 500, with a mono counter and an example placeholder', () => {
+test('the focus field is a textarea capped at 500, with a tabular counter and an example placeholder', () => {
   assert.equal(COMPACT_FOCUS_MAX, 500);
   const html = form({ focus: 'the plan' });
   assert.match(html, /<textarea[^>]*maxLength="500"/);
   assert.match(html, /placeholder="the plan and the failing test"/);
-  assert.match(html, /<span class="mono small muted compact-count"[^>]*>8 \/ 500<\/span>/);
+  assert.match(html, /<span class="small muted tnum compact-count"[^>]*>8 \/ 500<\/span>/);
   assert.match(form({}, 'es'), /placeholder="el plan y el test que falla"/);
   assert.match(form({ focus: 'x'.repeat(500) }), />500 \/ 500</);
 });

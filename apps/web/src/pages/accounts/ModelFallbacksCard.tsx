@@ -2,7 +2,7 @@ import type { ModelFallback } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Plus, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { ModelPicker } from '../../components/ModelPicker';
 import { Tooltip } from '@claudio/ui/components/controls';
@@ -118,7 +118,9 @@ export function ModelFallbacksCard({ fallbacks }: { fallbacks: ModelFallback[] }
         <div role="status" className="small">
           {suggested && (
             <span className="meta-icon">
-              <span className="mono">{t('modelFallbacks.suggestion', suggested)}</span>
+              <span>
+                <Trans t={t} i18nKey="modelFallbacks.suggestion" values={suggested} components={{ mono: <span className="mono" /> }} />
+              </span>
               <button
                 type="button"
                 className="btn btn-small"

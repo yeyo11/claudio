@@ -62,7 +62,7 @@
     "nothingHint": "Chats you start, and what your orchestrations do, show up here.",
     "rightNow": "Right now",
     "working": "{{n}} working",
-    "context": "{{percent}}% context",
+    "context": "{{percent}} context",
     "costUnavailable": "no cost",
     "noProject": "no project",
     "nothingSpent": "Nothing spent yet today.",
@@ -265,10 +265,10 @@
     "inProject": "in this project",
     "fiveHour": "5 h limit",
     "resets": "resets {{when}}",
-    "weekly": "weekly {{pct}}%",
+    "weekly": "weekly {{percent}}",
     "accountExhausted": "exhausted",
-    "fiveHourShort": "5h {{pct}}%",
-    "weeklyShort": "7d {{pct}}%"
+    "fiveHourShort": "5h {{percent}}",
+    "weeklyShort": "7d {{percent}}"
   },
   "memoryTab": {
     "intro": "What the team shares. Every agent gets it when it starts: <mono>CLAUDE.md</mono>, the project's memory and the newest entries of the journal. No role has a memory of its own.",

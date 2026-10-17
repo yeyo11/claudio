@@ -69,7 +69,7 @@ export function PendingProposalNav({ proposals, current, onOpen }: { proposals: 
       <div className="resources-group-head">
         <Sparkle {...ICON_SM} />
         <span className="section-label grow">{t('resourcesAi.proposalsShort')}</span>
-        <span className="mono small muted">{proposals.length}</span>
+        <span className="small muted tnum">{proposals.length}</span>
       </div>
       <ul className="master-list" aria-label={t('resourcesAi.proposalsShort')}>
         {proposals.map((proposal) => (
@@ -82,7 +82,7 @@ export function PendingProposalNav({ proposals, current, onOpen }: { proposals: 
             >
               <span className="master-item-head">
                 <span className="mono resource-item-name">{proposal.resource.kind === 'commands' ? `/${proposal.resource.name}` : proposal.resource.name}</span>
-                <span className="mono small muted">{t(`resourcesAi.kindLower.${proposal.resource.kind}`)}</span>
+                <span className="small muted">{t(`resourcesAi.kindLower.${proposal.resource.kind}`)}</span>
               </span>
               <span className="small muted resource-item-desc">{proposal.resource.description || proposal.reason}</span>
               {proposal.id === current && (

@@ -12,7 +12,7 @@
   background: var(--bg-elev);
   color: var(--text-muted);
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
@@ -26,8 +26,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 /* ---------- context meter ---------- */
@@ -35,7 +35,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   --ctx-tone: var(--accent);
@@ -79,7 +79,7 @@
 .ctx-warn .ctx-text,
 .ctx-full .ctx-text {
   color: var(--ctx-tone);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 /* ---------- a chat's own page ---------- */
@@ -95,7 +95,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .chat-note svg {
   flex: none;
@@ -123,21 +123,21 @@
 .chat-tokens {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
-/* The column names in the voice of section labels, the figures in mono */
+/* The column names in the voice of section labels, the figures in tabular sans */
 .chat-tokens thead th {
   text-align: right;
-  font: 500 10.5px var(--mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
   padding: 0 0 6px 8px;
 }
 .chat-tokens td {
   text-align: right;
-  font: 12px var(--mono);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
   padding: 4px 0 4px 8px;
 }
 .chat-tokens tbody th,
@@ -154,11 +154,11 @@
 /* Model names head their rows but read as data, not as column headings */
 .chat-tokens tbody th[scope='row'] {
   color: var(--text);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
 }
 .chat-tokens tfoot :is(th, td) {
   border-top: 1px solid var(--border);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   text-align: right;
   padding: 2px 0 2px 8px;
 }
@@ -186,7 +186,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 

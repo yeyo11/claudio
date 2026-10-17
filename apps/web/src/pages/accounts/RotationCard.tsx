@@ -2,6 +2,7 @@ import type { AccountsSettings } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatPercent } from '@claudio/ui/lib/format';
 import { api, keys } from '../../api';
 import { NumberInput, Slider, Switch } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
@@ -54,7 +55,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
           <div className="rotation-field">
             <span className="section-label">{t('rotation.threshold')}</span>
             <Slider aria-label={t('rotation.threshold')} min={50} max={99} value={draft.threshold} onChange={(threshold) => setDraft({ ...draft, threshold })} />
-            <span className="field-hint">{t('rotation.thresholdAt', { pct: draft.threshold })}</span>
+            <span className="field-hint">{t('rotation.thresholdAt', { percent: formatPercent(draft.threshold) })}</span>
           </div>
           <div className="rotation-field">
             <span className="section-label">{t('rotation.strategy')}</span>

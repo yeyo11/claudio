@@ -1,4 +1,5 @@
 import type { ChatSummary, Orchestration, OrchestrationSummary } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import {
   CalendarClock,
@@ -27,7 +28,7 @@ import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Empty, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { detailHref } from '../../../lib/detail';
-import { formatCost, formatDuration, formatNumber, timeAgo, timeUntil, truncate } from '@claudio/ui/lib/format';
+import { formatCost, formatDuration, formatNumber, formatPercent, timeAgo, timeUntil, truncate } from '@claudio/ui/lib/format';
 import { formatElapsed } from '@claudio/ui/lib/live';
 import { CLAUDE_CODE_ID, SIGN_IN_SETTINGS_PATH, stateLabelKey } from '../../../lib/provider-state';
 import { PROVIDERS_SETTINGS_PATH, providerSetup, reasonText, useEnabledProviders } from '../../../lib/provider-status';
@@ -67,9 +68,9 @@ function ContextRing({ chat }: { chat: ChatSummary }) {
   const percent = contextPercent(chat);
   if (percent === null) return null;
   return (
-    <span className="home-ring" role="img" aria-label={t('activity.context', { percent })}>
+    <span className="home-ring" role="img" aria-label={t('activity.context', { percent: formatPercent(percent) })}>
       <ProgressRing value={percent / 100} size={28} stroke={3} tone={usageTone(percent)}>
-        <span aria-hidden>{percent}%</span>
+        <span aria-hidden>{formatPercent(percent)}</span>
       </ProgressRing>
     </span>
   );
@@ -117,7 +118,7 @@ function TaskSegments({ orchestration: o }: { orchestration: OrchestrationSummar
 }
 
 function ElapsedBadge({ ms }: { ms: number }) {
-  return <span className="badge mono orch-item-elapsed">{Number.isFinite(ms) ? formatElapsed(ms) : '—'}</span>;
+  return <span className="badge tnum orch-item-elapsed">{Number.isFinite(ms) ? formatElapsed(ms) : '—'}</span>;
 }
 
 /** How long it has been going, ticking every second while it does. */
@@ -141,19 +142,29 @@ function OrchestrationItem({ orchestration: o }: { orchestration: OrchestrationS
   const runningTask = o.tasks.find((task) => task.status === 'running' && task.activity);
   const live = o.status === 'running';
   const current = stages.findIndex((stage) => stage.state === 'current' || stage.state === 'waiting');
-  const meta = [t('widgets.orchestrations.kind'), o.model, o.concurrency > 1 ? t('widgets.orchestrations.parallel', { n: o.concurrency }) : null].filter(Boolean).join(' · ');
+  const parallel = o.concurrency > 1 ? t('widgets.orchestrations.parallel', { n: o.concurrency }) : null;
   return (
     <li className={`orch-item ${live ? 'live-rail' : ''}`.trim()}>
       <div className="orch-item-head">
         <InitialsBadge name={o.name} tone={live ? 'accent' : 'idle'} />
         <span className="orch-item-name">
-          <Link to={orchestrationHref(o)} className="strong ellipsis">
-            {o.name}
+          <Link to={orchestrationHref(o)} className="strong orch-item-link">
+            <FullText className="ellipsis">{o.name}</FullText>
           </Link>
-          <span className="mono faint ellipsis">{meta}</span>
+          {/* The model id is the one literal of the line, so it alone is mono */}
+          <FullText className="faint ellipsis">
+            {t('widgets.orchestrations.kind')}
+            {o.model && (
+              <>
+                {' · '}
+                <span className="mono">{o.model}</span>
+              </>
+            )}
+            {parallel && ` · ${parallel}`}
+          </FullText>
         </span>
         {!live && <StatusBadge status={o.status} />}
-        <span className="mono tnum orch-item-cost">{formatCost(o.costUsd)}</span>
+        <span className="tnum orch-item-cost">{formatCost(o.costUsd)}</span>
         <Elapsed from={o.createdAt} to={o.endedAt} />
       </div>
       <TaskSegments orchestration={o} />
@@ -181,7 +192,7 @@ function OrchestrationItem({ orchestration: o }: { orchestration: OrchestrationS
           </span>
         )}
         {stages.length > 1 && (
-          <span className="mono faint orch-item-stage">
+          <span className="faint tnum orch-item-stage">
             {t('widgets.orchestrations.stageOf', { n: (current === -1 ? stages.length - 1 : current) + 1, total: stages.length })}
           </span>
         )}
@@ -189,7 +200,7 @@ function OrchestrationItem({ orchestration: o }: { orchestration: OrchestrationS
       {runningTask ? (
         <div className="run-line">
           <ActivityTicker activity={runningTask.activity} className="run-line-ticker" />
-          <span className="mono faint ellipsis run-line-task">{runningTask.name}</span>
+          <span className="faint ellipsis run-line-task">{runningTask.name}</span>
         </div>
       ) : !live ? (
         <div className="small muted">
@@ -218,9 +229,9 @@ function WorkingChat({ chat, showProject }: { chat: ChatSummary; showProject: bo
           <span className="small muted ellipsis">{t('widgets.now.noActivity')}</span>
         )}
       </div>
-      <span className="meta mono now-meta">
+      <span className="meta tnum now-meta">
         {showProject && <span>{chat.project?.name ?? t('activity.noProject')}</span>}
-        {chat.worktree?.branch && <span>{chat.worktree.branch}</span>}
+        {chat.worktree?.branch && <span className="mono">{chat.worktree.branch}</span>}
         <span>{chat.cost.usd === null ? t('activity.costUnavailable') : formatCost(chat.cost.usd)}</span>
       </span>
       <ContextRing chat={chat} />
@@ -367,7 +378,7 @@ export function NowWidget({ project, title, id }: WidgetProps) {
         {t('widgets.now.live')}
       </span>
     ) : rows.length > 0 && !onlySetup ? (
-      <span className="mono small muted">{t('widgets.now.needYou', { count: rows.length, n: formatNumber(rows.length) })}</span>
+      <span className="small muted tnum">{t('widgets.now.needYou', { count: rows.length, n: formatNumber(rows.length) })}</span>
     ) : undefined;
 
   let body: ReactNode;
@@ -450,7 +461,11 @@ export function NowWidget({ project, title, id }: WidgetProps) {
                   </span>
                   <div className="inbox-main">
                     <div className="inbox-what">{row.what}</div>
-                    {row.detail && <div className="small muted ellipsis">{row.detail}</div>}
+                    {row.detail && (
+                      <FullText as="div" className="small muted ellipsis">
+                        {row.detail}
+                      </FullText>
+                    )}
                   </div>
                   <Link to={row.to} className="btn btn-small btn-primary">
                     {row.action}
@@ -511,7 +526,7 @@ export function OrchestrationsWidget({ project, title, id, config }: WidgetProps
       id={id}
       title={title}
       className="rows-widget"
-      aside={running > 0 ? <span className="mono small muted">{t('widgets.orchestrations.running', { n: formatNumber(running) })}</span> : undefined}
+      aside={running > 0 ? <span className="small muted tnum">{t('widgets.orchestrations.running', { n: formatNumber(running) })}</span> : undefined}
       actions={
         <Link to="/orchestration" className="link-more">
           {t('widgets.orchestrations.all')}
@@ -569,14 +584,14 @@ export function PickUpWidget({ project, title, id, config }: WidgetProps) {
                 <Link to={chatHref(chat)} className="home-row pick-row">
                   <span className={`dot ${troubled ? 'dot-bad' : 'dot-idle'}`} aria-hidden />
                   <span className="pick-main">
-                    <span className="pick-title ellipsis">{displayTitle(chat)}</span>
-                    <span className="pick-phone mono faint ellipsis">{[percent !== null ? `${percent}%` : null, cost, timeAgo(chat.updatedAt)].filter(Boolean).join(' · ')}</span>
+                    <FullText className="pick-title ellipsis">{displayTitle(chat)}</FullText>
+                    <span className="pick-phone faint tnum ellipsis">{[percent !== null ? formatPercent(percent) : null, cost, timeAgo(chat.updatedAt)].filter(Boolean).join(' · ')}</span>
                   </span>
-                  {troubled && outcome ? <span className="badge badge-bad">{t(`widgets.pickUp.${outcome}`)}</span> : !project && <span className="mono faint nowrap pick-project">{chat.project?.name ?? t('activity.noProject')}</span>}
+                  {troubled && outcome ? <span className="badge badge-bad">{t(`widgets.pickUp.${outcome}`)}</span> : !project && <span className="faint nowrap pick-project">{chat.project?.name ?? t('activity.noProject')}</span>}
                   <span className="pick-wide">
                     <ContextRing chat={chat} />
                   </span>
-                  <span className="mono tnum pick-wide pick-cost">{cost}</span>
+                  <span className="tnum pick-wide pick-cost">{cost}</span>
                   <span className="faint small nowrap pick-wide pick-when">{timeAgo(chat.updatedAt)}</span>
                   <ChevronRight {...ICON_SM} className="pick-chevron" aria-hidden />
                 </Link>
@@ -634,7 +649,7 @@ export function SchedulesWidget({ project, title, id, config }: WidgetProps) {
           {upcoming.map((s) => (
             <li key={s.id} className="widget-row">
               <span className="ellipsis">{s.name}</span>
-              <time className="mono small muted nowrap" dateTime={s.nextRunAt}>
+              <time className="small muted tnum nowrap" dateTime={s.nextRunAt}>
                 {timeUntil(Date.parse(s.nextRunAt) / 1000)}
               </time>
             </li>
@@ -659,7 +674,7 @@ export function ProjectsWidget({ title, id }: WidgetProps) {
     <WidgetCard
       id={id}
       title={title}
-      aside={list.length > 0 ? <span className="mono small faint">{formatNumber(list.length)}</span> : undefined}
+      aside={list.length > 0 ? <span className="small faint tnum">{formatNumber(list.length)}</span> : undefined}
       actions={
         <Link to="/projects" className="link-more">
           {t('widgets.projects.all')}
@@ -686,7 +701,7 @@ export function ProjectsWidget({ title, id }: WidgetProps) {
               <li key={p.id}>
                 <Link to={`/?project=${encodeURIComponent(p.id)}`} className="home-row project-row">
                   <InitialsBadge name={p.name} tone={counts?.working ? 'accent' : 'neutral'} />
-                  <span className="strong ellipsis project-row-name">{p.name}</span>
+                  <FullText className="strong ellipsis project-row-name">{p.name}</FullText>
                   {counts?.waiting ? <span className="project-waiting small">{t('widgets.projects.waiting', { n: formatNumber(counts.waiting) })}</span> : null}
                   {counts?.working ? <StatusDot tone="active" live title={t('activity.working', { n: formatNumber(counts.working) })} /> : null}
                   <span className="faint small nowrap">{counts?.working ? t('widgets.projects.now') : p.lastActivity ? timeAgo(p.lastActivity) : t('widgets.projects.never')}</span>

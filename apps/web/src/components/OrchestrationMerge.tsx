@@ -221,7 +221,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
     <section className="omrg" aria-label={t('merge.title')}>
       <div className="omrg-head">
         <h3 className="section-label grow">{t('merge.title')}</h3>
-        {state?.canMerge && <span className="mono small muted">{t('merge.ready')}</span>}
+        {state?.canMerge && <span className="small muted">{t('merge.ready')}</span>}
       </div>
       {merge.isLoading && <p className="muted small">{t('merge.reading', { host: words.host })}</p>}
       {merge.isError && <ErrorBox error={merge.error} />}
@@ -235,7 +235,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
                 {auto.armedBy
                   ? t('merge.armedBy', { method: auto.method ? t(`merge.method.${auto.method}`) : t('merge.methodUnknown'), who: auto.armedBy })
                   : t('merge.armedByUnknown', { method: auto.method ? t(`merge.method.${auto.method}`) : t('merge.methodUnknown'), host: words.host })}
-                {auto.armedAt && <span className="mono muted"> · {formatDateTime(auto.armedAt)}</span>}
+                {auto.armedAt && <span className="tnum muted"> · {formatDateTime(auto.armedAt)}</span>}
               </span>
               <button type="button" className="btn btn-small" disabled={busy} onClick={() => disarm.mutate()}>
                 {t('merge.turnOff')}
@@ -259,7 +259,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
             </p>
           )}
           {blockers.length > 1 && (
-            <p className="mono small muted">
+            <p className="small muted">
               {t('merge.others', {
                 words: blockers
                   .slice(1)
@@ -294,7 +294,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
                 <div className="col omrg-col">
                   <span className="section-label">{t('merge.message')}</span>
                   <label className="field">
-                    <input type="text" className="mono" value={subject} aria-label={t('merge.subject')} placeholder={t('merge.subjectPlaceholder')} onChange={(e) => setSubject(e.target.value)} />
+                    <input type="text" value={subject} aria-label={t('merge.subject')} placeholder={t('merge.subjectPlaceholder')} onChange={(e) => setSubject(e.target.value)} />
                   </label>
                   <label className="field field-area">
                     <textarea rows={3} value={message} aria-label={t('merge.body')} placeholder={t('merge.bodyPlaceholder')} onChange={(e) => setMessage(e.target.value)} />
@@ -305,7 +305,7 @@ export function OrchestrationMerge({ orch, pr, words }: { orch: Orchestration; p
           )}
           {!isArmed(state) && (
             <div className="omrg-foot">
-              {state.canMerge && state.headSha && <span className="small muted omrg-guard">{t('merge.guard', { head: state.headSha.slice(0, 8) })}</span>}
+              {state.canMerge && state.headSha && <span className="small muted omrg-guard"><Trans t={t} i18nKey="merge.guard" values={{ head: state.headSha.slice(0, 8) }} components={{ mono: <span className="mono" /> }} /></span>}
               <span className="grow" />
               <button type="button" className={`btn ${leadMerge ? 'btn-primary' : ''}`.trim()} disabled={busy || !body || !state.canMerge} onClick={() => body && doMerge.mutate(body)}>
                 <GitMerge {...ICON_SM} /> {doMerge.isPending ? t('merge.merging') : t('merge.action', { label })}

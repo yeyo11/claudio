@@ -31,7 +31,7 @@ export function MemoryWidget({ project, title, id }: WidgetProps) {
   const filesRow = (
     <>
       <span>{t('widgets.memory.files')}</span>
-      <span className="mono small muted">{memory.isLoading ? '…' : formatNumber(files)}</span>
+      <span className="small muted tnum">{memory.isLoading ? '…' : formatNumber(files)}</span>
     </>
   );
   return (
@@ -76,7 +76,7 @@ export function WorktreesWidget({ project, title, id, config }: WidgetProps) {
     <WidgetCard
       id={id}
       title={title}
-      aside={project.worktrees.length > 0 ? <span className="mono small muted">{formatNumber(project.worktrees.length)}</span> : undefined}
+      aside={project.worktrees.length > 0 ? <span className="small muted tnum">{formatNumber(project.worktrees.length)}</span> : undefined}
       actions={
         <Link to="/?view=worktrees" className="link-more">
           {t('widgets.worktrees.all')}
@@ -131,7 +131,7 @@ export function ResourcesWidget({ project, title, id }: WidgetProps) {
             <li key={kind}>
               <Link to={`/?view=resources&section=${kind}`} className="widget-row widget-link">
                 <span>{t(`config:config.tabs.${kind}`)}</span>
-                <span className="mono small muted">{n === undefined ? (query?.isError ? '—' : '…') : formatNumber(n)}</span>
+                <span className="small muted tnum">{n === undefined ? (query?.isError ? '—' : '…') : formatNumber(n)}</span>
               </Link>
             </li>
           );

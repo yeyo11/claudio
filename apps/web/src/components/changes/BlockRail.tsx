@@ -11,6 +11,7 @@ export interface RailView {
   height: number;
 }
 
+// design-lint-ok: a CSS length (a tick's top and height), not a number anyone reads
 const pct = (fraction: number) => `${(Math.min(1, Math.max(0, fraction)) * 100).toFixed(2)}%`;
 
 /** Stretches of the rail a tick can stand for on its own: below this a tick is under a pixel apart */

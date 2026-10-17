@@ -205,7 +205,7 @@ test('Team activity lists every run by day, "Now" first, with its step by column
   assert.match(words, /Today 3 runs 1 running 1 queued 0 failed/);
   assert.match(words, /All Running 1 Failed 3 Sent back 1/);
   assert.match(html, /aria-pressed="true">All</);
-  assert.match(words, /By member today/);
+  assert.match(words, /By member Today/);
   assert.match(words, /Answers for no column: Architect\./);
   assert.match(words, /Flow limits Edit At once 2 1 in use · 1 queued Cost per run No limit Bounces 3 at most/);
   // A page of 50 at a time, with what is left

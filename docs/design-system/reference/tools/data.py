@@ -62,7 +62,7 @@ def live_strip(who, verb, t, detail=''):
 
 def orch_strip(node='nodo 3 de 9'):
   return ('<div class="wi-strip live" role="status">' + actor('orch') + '<span class="spin-braille" aria-hidden="true"></span>'
-          f'<span class="verb mono" style="flex: 0 0 auto; font-size: 11.5px">{node}</span>'
+          f'<span class="verb mono" style="flex: 0 0 auto; font-size: var(--fs-small)">{node}</span>'
           '<span class="segbar" aria-hidden="true"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>')
 
 
@@ -76,11 +76,11 @@ def fail_strip(who, what, why):
 
 
 def quote_strip(who, text):
-  return f'<div class="wi-strip">{actor(who)}<span class="verb" style="color: var(--fg-2); font-weight: 400">«{text}»</span></div>'
+  return f'<div class="wi-strip">{actor(who)}<span class="verb" style="color: var(--fg-2); font-weight: var(--fw-regular)">«{text}»</span></div>'
 
 
 def queue_strip(who, text):
-  return f'<div class="wi-strip">{actor(who)}{ico("wait", "ico", "color: var(--fg-3)")}<span class="verb" style="color: var(--fg-2); font-weight: 400">{text}</span></div>'
+  return f'<div class="wi-strip">{actor(who)}{ico("wait", "ico", "color: var(--fg-3)")}<span class="verb" style="color: var(--fg-2); font-weight: var(--fw-regular)">{text}</span></div>'
 
 
 def bounce(n, of=3):

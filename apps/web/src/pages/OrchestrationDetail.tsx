@@ -180,7 +180,10 @@ function IntegrationCard({ orch }: { orch: Orchestration }) {
           {pr && (
             <div className="meta">
               <span className={`badge ${PR_PHASE_BADGE[pr.phase]}`.trim()}>{t(`config:detail.prPhase.${pr.phase}`)}</span>
-              <span className="mono">{words.ref(pr.number, pr.ref) ? `${words.noun} ${words.ref(pr.number, pr.ref)}` : words.noun}</span>
+              <span>
+                {words.noun}
+                {words.ref(pr.number, pr.ref) && <span className="mono">{` ${words.ref(pr.number, pr.ref)}`}</span>}
+              </span>
               <span className="mono">{t('config:detail.prBranches', { branch: pr.branch, base: pr.base })}</span>
               {pr.phase === 'open' && <CiBadge ci={pr.ci} />}
             </div>
@@ -965,7 +968,7 @@ export function OrchestrationDetail() {
           </div>
           <div className="card orch-kpi">
             <dt className="section-label">{t('kpi.time')}</dt>
-            <dd className="orch-kpi-value mono orch-clock">{formatElapsed(elapsedSince(orch.createdAt, orch.endedAt ? Date.parse(orch.endedAt) : Date.now()))}</dd>
+            <dd className="orch-kpi-value tnum orch-clock">{formatElapsed(elapsedSince(orch.createdAt, orch.endedAt ? Date.parse(orch.endedAt) : Date.now()))}</dd>
           </div>
           <div className={`card orch-kpi ${costLit ? 'grad-border' : ''}`.trim()} title={other > 0 ? t('costOnNoTask', { cost: formatCost(other) }) : undefined}>
             <dt className="section-label">{t('costLabel')}</dt>

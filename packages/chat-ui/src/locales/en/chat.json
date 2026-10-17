@@ -110,7 +110,7 @@
       "whenTurnEnds": "When this turn ends",
       "pending": "The chat moves to this account when the current turn ends.",
       "undo": "Undo",
-      "used": "{{percent}} % of the window used"
+      "used": "{{percent}} of the window used"
     }
   },
   "controls": {
@@ -340,10 +340,10 @@
     "open": "Open {{what}}",
     "openButton": "Open",
     "state": {
-      "running": "working",
-      "completed": "done",
-      "failed": "failed",
-      "stopped": "stopped"
+      "running": "Working",
+      "completed": "Done",
+      "failed": "Failed",
+      "stopped": "Stopped"
     },
     "nested": "from {{owner}}",
     "workflowFacts": "{{done}}/{{total}} agents · phase {{n}}",

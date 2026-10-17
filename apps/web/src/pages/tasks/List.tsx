@@ -1,4 +1,5 @@
 import type { BoardColumn, WorkItem, WorkItemPage } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query';
 import { Check, ChevronDown, ListOrdered, TriangleAlert, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -18,6 +19,7 @@ import { WorkItemStrip } from './board/WorkItemStrip';
 import { DONE_SHOWN, openBlockers } from './board/model';
 import { listGroups, listMore } from './list-model';
 import { Assignee } from './board/WorkItemCard';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /**
  * The list view of Tasks (`/tasks?view=list`): the same items as the board, grouped by column in
@@ -124,7 +126,7 @@ export function List({
             <div className="workitem-group">
               <span className="workitem-group-name">
                 <WorkItemStatusIcon status={column.status} decorative />
-                <span className="workitem-col-name">{t(columnMeta(column.status).label)}</span>
+                <FullText className="workitem-col-name">{t(columnMeta(column.status).label)}</FullText>
                 <span className="workitem-col-count">{counted}</span>
                 {over && (
                   <span className="badge badge-warn">
@@ -296,21 +298,22 @@ function Row({
     const chosen = selection.selected.has(item.id);
     const blocked = selection.blockedReason(item);
     return (
-      <button
-        type="button"
-        className={`${classes} is-select ${chosen ? 'is-selected' : ''}`.trim()}
-        aria-pressed={chosen}
-        aria-disabled={blocked ? true : undefined}
-        title={blocked ? t(`select.why.${blocked}`) : undefined}
-        data-row
-        data-item-id={item.id}
-        onClick={() => {
-          if (!blocked) selection.toggle(item);
-        }}
-      >
-        {cells}
-        {chosen && <Check size={14} strokeWidth={2} aria-hidden className="workitem-row-check" />}
-      </button>
+      <Tooltip content={blocked ? t(`select.why.${blocked}`) : undefined}>
+        <button
+          type="button"
+          className={`${classes} is-select ${chosen ? 'is-selected' : ''}`.trim()}
+          aria-pressed={chosen}
+          aria-disabled={blocked ? true : undefined}
+          data-row
+          data-item-id={item.id}
+          onClick={() => {
+            if (!blocked) selection.toggle(item);
+          }}
+        >
+          {cells}
+          {chosen && <Check size={14} strokeWidth={2} aria-hidden className="workitem-row-check" />}
+        </button>
+      </Tooltip>
     );
   }
   return (

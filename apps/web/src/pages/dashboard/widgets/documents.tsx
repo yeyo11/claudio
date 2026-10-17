@@ -59,7 +59,15 @@ export function DocumentsWidget({ project, size, config, title, id }: WidgetProp
                   <FileText {...ICON_SM} className="doc-row-icon" />
                   <span className="doc-row-text">
                     <span className="doc-name ellipsis">{file.name}</span>
-                    <span className="small muted mono ellipsis">{folder ? `${folder} · ${author}` : author}</span>
+                    <span className="small muted ellipsis">
+                      {folder && (
+                        <>
+                          <span className="mono">{folder}</span>
+                          {' · '}
+                        </>
+                      )}
+                      {author}
+                    </span>
                   </span>
                   <span className="badge">{t(`documents:kinds.${kind}.tag`)}</span>
                   <span className="small muted doc-row-age">{timeAgo(file.updatedAt)}</span>

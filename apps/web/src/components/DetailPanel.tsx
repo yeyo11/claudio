@@ -365,7 +365,7 @@ function ChatBody({ chatId }: { chatId: string }) {
         {chat.cost.usd !== null && chat.cost.usd > 0 && (
           <>
             <dt>{t('detail.cost')}</dt>
-            <dd className="mono">{formatCost(chat.cost.usd)}</dd>
+            <dd className="tnum">{formatCost(chat.cost.usd)}</dd>
           </>
         )}
         <dt>{t('detail.chat')}</dt>

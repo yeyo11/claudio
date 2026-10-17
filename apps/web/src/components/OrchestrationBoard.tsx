@@ -108,7 +108,7 @@ export function StageHead({ title, tasks }: { title: string; tasks: Orchestratio
   return (
     <div className="board-col-head">
       <h3 className="board-col-title">{title}</h3>
-      <span className="count mono" aria-hidden>
+      <span className="count tnum" aria-hidden>
         {completed}/{tasks.length}
       </span>
       <ProgressBar counts={orchestrationProgress(tasks)} unit={t('board.tasksUnit')} className="board-col-progress" />
@@ -279,9 +279,11 @@ function useTaskActions(orch: Orchestration, task: OrchestrationTaskState): { bu
         </button>
       )}
       {decisions.retry && (
-        <button type="button" className="btn btn-small btn-primary" disabled={decide.isPending} title={t('board.retryTitle')} onClick={() => decide.mutate('retry')}>
-          <RotateCcw {...ICON_SM} /> {t('board.retry')}
-        </button>
+        <Tooltip content={t('board.retryTitle')}>
+          <button type="button" className="btn btn-small btn-primary" disabled={decide.isPending} onClick={() => decide.mutate('retry')}>
+            <RotateCcw {...ICON_SM} /> {t('board.retry')}
+          </button>
+        </Tooltip>
       )}
     </>
   );
@@ -524,9 +526,11 @@ function TaskBody({ orch, task, inspected, onInspect }: { orch: Orchestration; t
             </button>
           )}
           {chat && finished && (
-            <Link to={chat} className="btn btn-small btn-quiet" title={t('board.forkTitle')}>
-              <GitFork {...ICON_SM} /> {t('board.fork')}
-            </Link>
+            <Tooltip content={t('board.forkTitle')}>
+              <Link to={chat} className="btn btn-small btn-quiet">
+                <GitFork {...ICON_SM} /> {t('board.fork')}
+              </Link>
+            </Tooltip>
           )}
           {chat && (
             <Link to={chat} className="btn btn-small">
@@ -572,7 +576,7 @@ export function TaskCard({
       <span className="board-task-fill" aria-hidden />
       <div className="board-task-head">
         <TaskStatusBadge task={task} />
-        <span className="muted small mono board-task-facts">
+        <span className="muted small tnum board-task-facts">
           <TaskDuration task={task} />
           {task.costUsd > 0 && (
             <>
@@ -661,7 +665,7 @@ export function TaskRow({
   // Waiting for a reset is not live work: no rail, no energy border
   const live = task.waiting ? '' : energy ? 'live-energy' : task.status === 'running' ? 'live-rail' : '';
   const facts = (
-    <span className="task-row-facts mono small muted">
+    <span className="task-row-facts tnum small muted">
       <TaskDuration task={task} />
       {task.costUsd > 0 && (
         <>

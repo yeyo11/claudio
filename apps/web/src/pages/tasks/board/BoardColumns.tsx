@@ -1,4 +1,5 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { WORK_ITEM_STATUSES } from '@claudio/shared';
 import { ChevronDown, Plus, TriangleAlert } from 'lucide-react';
 import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
@@ -207,7 +208,7 @@ export function BoardColumns({
           <section key={status} className={`workitem-col ${over ? 'is-over' : ''}`.trim()} aria-label={label(status)} data-status={status} {...columnDrag(status)}>
             <div className="workitem-col-head">
               <WorkItemStatusIcon status={status} decorative />
-              <span className="workitem-col-name">{label(status)}</span>
+              <FullText className="workitem-col-name">{label(status)}</FullText>
               <span className="workitem-col-count">
                 <span aria-hidden>
                   <b>{column.count}</b>

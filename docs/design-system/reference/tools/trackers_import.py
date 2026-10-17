@@ -116,9 +116,9 @@ def list_head(host, mobile=False, browse=False, triage=True):
 
 def legend():
   return (f'<span class="form-hint">Las marcas las pone <span class="mono">issue.triage</span> sobre los primeros 40 resultados y solo ayudan a elegir. '
-          f'<b style="font-weight: 500; color: var(--fg-2)">lista</b>: un agente puede empezar tal como está. '
-          f'<b style="font-weight: 500; color: var(--fg-2)">por refinar</b>: falta el objetivo o el criterio de aceptación. '
-          f'<b style="font-weight: 500; color: var(--fg-2)">no es para agentes</b>: necesita a una persona.</span>')
+          f'<b style="font-weight: var(--fw-regular); color: var(--fg-2)">lista</b>: un agente puede empezar tal como está. '
+          f'<b style="font-weight: var(--fw-regular); color: var(--fg-2)">por refinar</b>: falta el objetivo o el criterio de aceptación. '
+          f'<b style="font-weight: var(--fw-regular); color: var(--fg-2)">no es para agentes</b>: necesita a una persona.</span>')
 
 
 def more_row(host, shown):
@@ -128,11 +128,11 @@ def more_row(host, shown):
 def query_field(host, mobile=False):
   t = TRK[host]
   if host == 'github':
-    value, hint = 'is:open', 'Es la búsqueda de GitHub: añade <span class="mono">label:bug</span> o <span class="mono">author:marta-gil</span>. Solo salen issues, no PR.'
+    value, hint = 'is:open', 'Es la búsqueda de GitHub: añade <span class="t-num">label:bug</span> o <span class="mono">author:marta-gil</span>. Solo salen issues, no PR.'
   else:
     value, hint = '', 'GitLab busca por texto en el título y la descripción. Solo salen los issues abiertos.'
   lg = ' field-lg' if mobile else ''
-  fs = ' style="font-size: 16px"' if mobile else ''
+  fs = ' style="font-size: var(--fs-input)"' if mobile else ''
   ph = ' placeholder="Buscar issues"' if not value else ''
   scope = '' if mobile else f'<span class="mono t-xs fg-3" style="white-space: nowrap; padding-right: 8px; border-right: 1px solid var(--line-2)">{t["scope"]}</span>'
   field = (f'<label class="field field-mono{lg} grow">{ico("search", "ico ico-lg" if mobile else "ico")}{scope}'
@@ -154,7 +154,7 @@ def dialog(host, chosen, triage=True):
   off = ''
   if not triage:
     off = (f'<div class="callout callout-warn" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn); margin-top: 1px")}'
-           f'<span><b style="color: var(--fg); font-weight: 500">issue.triage está apagado.</b> Los issues no llevan marca: elige los que quieras.</span></div>')
+           f'<span><b style="color: var(--fg); font-weight: var(--fw-regular)">issue.triage está apagado.</b> Los issues no llevan marca: elige los que quieras.</span></div>')
   body = (f'{query_field(host)}'
           f'<div class="col" style="gap: 8px">{list_head(host, triage=triage)}<div class="addr-list">{rows}</div>{more_row(host, len(RESULTS[host]))}{legend() if triage else ""}</div>'
           f'{off}<div class="callout" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--fg-3); margin-top: 1px")}'
@@ -213,7 +213,7 @@ def board_page(overlay='', primary=True, name='', title=''):
 {toolbar()}
 <div class="wi-board">{cols}</div>
 </main>'''
-  write(name, desktop(title, 'tasks', '<span style="font-weight: 500">Tareas</span>', main, overlay=overlay))
+  write(name, desktop(title, 'tasks', '<span style="font-weight: var(--fw-regular)">Tareas</span>', main, overlay=overlay))
 
 
 def desktop_import():
@@ -327,7 +327,7 @@ def issue_row(host, n, title, s, state, why, detail='', acts=(), mobile=False):
 def panel(host, rows, sub, mobile=False):
   name = TRK[host]['host']
   return (f'<section class="fix-panel" aria-label="Issues enlazados"><div class="fix-head"><div class="col grow" style="gap: 4px">'
-          f'<span class="fix-title">{ico("issue", "ico", "color: var(--fg-3)")}Issues de {name}<span class="mono t-xs fg-3" style="font-weight: 400">{len(rows)}</span></span>'
+          f'<span class="fix-title">{ico("issue", "ico", "color: var(--fg-3)")}Issues de {name}<span class="mono t-xs fg-3" style="font-weight: var(--fw-regular)">{len(rows)}</span></span>'
           f'<span class="fix-sub">{sub}</span></div></div><div class="addr-list">{"".join(rows)}</div></section>')
 
 

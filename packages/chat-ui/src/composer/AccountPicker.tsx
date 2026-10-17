@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { usageTone } from '@claudio/ui/components/motion';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatClock } from '@claudio/ui/lib/format';
+import { formatClock, formatPercent } from '@claudio/ui/lib/format';
 import { accountLabel, accountRow, canChoose, type AccountRow } from '../lib/account-choice';
 import { chatKeys, useChatUi } from '../lib/context';
 
@@ -118,14 +118,14 @@ function AccountItem({ row, model, waiting, tabbable, busy, onChoose }: { row: A
         <span className="composer-account-body">
           <span className="composer-account-head">
             <span className="composer-account-name ellipsis">{accountLabel(account)}</span>
-            {account.plan && <span className="composer-account-plan mono small muted">{account.plan}</span>}
+            {account.plan && <span className="composer-account-plan small muted">{account.plan}</span>}
           </span>
           {pct !== null && (
             <span className="composer-account-usage">
-              <span className="meter-track meter-thin" role="img" aria-label={t('composerMenu.account.used', { percent: pct })}>
+              <span className="meter-track meter-thin" role="img" aria-label={t('composerMenu.account.used', { percent: formatPercent(pct) })}>
                 <span className={tone === 'neutral' ? 'meter-fill' : `meter-fill is-${tone}`} style={{ width: `${fill}%` }} />
               </span>
-              <span className="mono small muted">{pct} %</span>
+              <span className="small muted tnum">{formatPercent(pct)}</span>
             </span>
           )}
           <span className="composer-account-state small">

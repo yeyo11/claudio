@@ -4,8 +4,8 @@
 
 .iss-key {
   font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   color: var(--fg);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -14,8 +14,8 @@
 /* The issue's title is another person's text: it wraps anywhere and gets no markup */
 .iss-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
   line-height: 1.4;
   color: var(--fg);
   overflow-wrap: anywhere;
@@ -32,7 +32,7 @@
 /* Imported already: no box where the checkbox would be, the title in the quieter colour */
 .addr-thread.imported .iss-title {
   color: var(--fg-2);
-  font-weight: 400;
+  font-weight: var(--fw-regular);
 }
 
 .iss-gap {
@@ -115,7 +115,7 @@
   border: 1px solid var(--line-2);
   background: var(--bg-2);
   color: var(--fg-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   text-decoration: none;
 }
@@ -181,23 +181,23 @@ a.iss-chip:hover {
   border-radius: var(--radius-sm);
   background: var(--bad-soft);
   color: var(--fg-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .iss-failure b {
   color: var(--bad);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 @media (max-width: 900px) {
   .iss-chip {
     min-height: var(--touch);
     padding: 0 12px;
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
 
   .iss-search .field,
   .iss-search input {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 }

@@ -36,8 +36,11 @@ export function FailedFlowRunNote({ item, run, chatId = null }: { item: Pick<Wor
         <span className="chat-run-failed-text">
           <b>{t(`workItem:run.failedHead.${runStep(run)}`)}</b> {reason} {t('workItem:run.commented', { role, key: item.key })}
         </span>
-        <span className="chat-run-failed-why mono">
-          <RawError run={run} />
+        <span className="chat-run-failed-why tnum">
+          {/* The core's own text is a literal; the time after it is not */}
+          <span className="mono">
+            <RawError run={run} />
+          </span>
           {run.endedAt && (
             <>
               {rawError(run) && ' · '}

@@ -129,7 +129,7 @@ export function Milestones() {
         {open.length > 0 && (
           <section className="milestone-section" aria-labelledby="milestones-open">
             <h2 id="milestones-open" className="milestone-label">
-              {t('milestones.open')} <span className="mono">{open.length}</span>
+              {t('milestones.open')} <span className="tnum">{open.length}</span>
             </h2>
             {open.map((milestone, index) => (
               <MilestoneCard key={milestone.id} milestone={milestone} project={named(milestone)} featured={index === 0} phone={phone} onEdit={() => setEditing({ projectId: milestone.projectId, milestone })} />
@@ -139,7 +139,7 @@ export function Milestones() {
         {closed.length > 0 && (
           <section className="milestone-section" aria-labelledby="milestones-closed">
             <h2 id="milestones-closed" className="milestone-label">
-              {t('milestones.closed')} <span className="mono">{closed.length}</span>
+              {t('milestones.closed')} <span className="tnum">{closed.length}</span>
             </h2>
             <div className="card milestone-rows">
               {closed.map((milestone) => (
@@ -151,7 +151,7 @@ export function Milestones() {
         {loose.length > 0 && (
           <section className="milestone-section" aria-labelledby="milestones-none">
             <h2 id="milestones-none" className="milestone-label">
-              {t('milestones.none')} <span className="mono">{loose.length}</span>
+              {t('milestones.none')} <span className="tnum">{loose.length}</span>
             </h2>
             <div className="card milestone-rows">
               <div className="milestone-row">
@@ -381,7 +381,7 @@ function MilestoneForm({ projectId, milestone, onClose }: { projectId: string; m
     >
       <form id="milestone-form" className="milestone-form" onSubmit={submit}>
         <Field label={t('milestones.name')} hint={t('milestones.nameHint')}>
-          <input data-autofocus className="mono" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
+          <input data-autofocus value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
         </Field>
         <Field label={t('milestones.description')} hint={t('milestones.descriptionHint')}>
           <textarea rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />

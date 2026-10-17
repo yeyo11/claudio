@@ -7,7 +7,7 @@ import { api, keys } from '../../api';
 import { Collapsible, Select } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Empty, ErrorBox, Loading, Segmented } from '@claudio/ui/components/ui';
-import { formatDateTime } from '@claudio/ui/lib/format';
+import { formatDateTime, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { accountName } from '../../lib/accounts';
 import { seriesOf, sinceOf, summarise, USAGE_RANGES, type UsageRange } from '../../lib/usage-history';
 import { UsageChart } from './UsageChart';
@@ -105,9 +105,9 @@ export function UsageHistoryCard({ accounts, threshold }: { accounts: Account[];
                       <th scope="row">
                         {labelOf(row.account)}
                       </th>
-                      <td>{Math.round(row.latest)}%</td>
-                      <td>{Math.round(row.peak)}%</td>
-                      <td>{row.readings}</td>
+                      <td>{formatPercent(row.latest)}</td>
+                      <td>{formatPercent(row.peak)}</td>
+                      <td>{formatNumber(row.readings)}</td>
                       <td className="small muted">{formatDateTime(row.latestAt)}</td>
                     </tr>
                   ))}

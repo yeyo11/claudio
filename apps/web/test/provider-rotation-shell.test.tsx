@@ -15,6 +15,7 @@ import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { decisionsOn } from '../src/lib/orchestration-board';
 import { failureReason } from '../src/pages/tasks/item/runs';
+import { formatPercent } from '@claudio/ui/lib/format';
 
 // The usage limit, in the places automated work and the shell say it: the strip a provider's limit
 // takes in the status bar, the wait of a task, and the words of the two causes.
@@ -68,8 +69,9 @@ const bar = (statuses: ProviderStatus[], limits: ProviderLimit[], lang: 'en' | '
 
 test('the status bar shows a provider with a limit reading as a bar and a figure, neutral below 60 %', () => {
   const html = bar([status('claude-code')], [limit('claude-code')]);
-  assert.match(html, /Claude Code 2\.1\.282/);
-  assert.match(html, /45 %/);
+  // The version is the one literal of the item, so it alone is mono
+  assert.match(html, /Claude Code <span class="mono">2\.1\.282<\/span>/);
+  assert.ok(html.includes(formatPercent(45)));
   assert.doesNotMatch(html, /is-warn|is-bad|statusbar-warn|statusbar-bad/);
 });
 
@@ -77,7 +79,7 @@ test('near its limit the word comes with the colour, and exhausted says when it 
   const near = bar([status('claude-code', { state: 'degraded', reason: 'limit-near' })], [limit('claude-code', { state: 'near', utilization: 0.72 })]);
   assert.match(near, /Claude Code · limit/);
   assert.match(near, /statusbar-warn/);
-  assert.match(near, /72 %/);
+  assert.ok(near.includes(formatPercent(72)));
   // 72 % is warn, not bad: the bar turns bad from 75 %
   assert.match(near, /meter-fill is-warn/);
 });

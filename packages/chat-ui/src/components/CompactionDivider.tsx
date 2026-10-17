@@ -29,7 +29,7 @@ export function compactionLabel(entry: TranscriptEntry, t: TFunction<'chat'>): s
 }
 
 /**
- * A compaction in the transcript: a hairline with a centred mono label, and under it the summary
+ * A compaction in the transcript: a hairline with a centred small label, and under it the summary
  * Claude continued from, behind a fold. It is not a message — no avatar, no menu, no copy — and it
  * is not a status either, so it takes no colour and does not move.
  */

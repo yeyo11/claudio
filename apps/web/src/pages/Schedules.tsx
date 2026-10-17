@@ -324,11 +324,11 @@ function RunHistory({ runs, loading, error }: { runs: ScheduleRun[] | undefined;
         <tbody>
           {runs.map((run) => (
             <tr key={run.id}>
-              <td className="mono">{formatDateTime(run.at)}</td>
+              <td className="tnum">{formatDateTime(run.at)}</td>
               <td>
                 <RunStatus status={run.status} />
               </td>
-              <td className="mono">{run.slot ? formatDateTime(run.slot) : <span className="muted">{t('history.byHand')}</span>}</td>
+              <td className="tnum">{run.slot ? formatDateTime(run.slot) : <span className="muted">{t('history.byHand')}</span>}</td>
               <td className="break">
                 {run.chatId ? (
                   <Link to={`/chats/${run.chatId}`}>{t('history.openChat')}</Link>

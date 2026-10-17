@@ -1,3 +1,4 @@
+// design-lint-ok-file: shiki's github themes, held against the themes by a test; code colours, not the UI's
 // What the painters share: the palette, the meaning of a TanStack class, and the helper that cuts
 // a token into coloured pieces. One painter per language family, each in its own chunk, so a
 // TypeScript block never downloads the rules for shell or markdown.

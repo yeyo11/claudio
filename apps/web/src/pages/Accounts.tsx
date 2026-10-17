@@ -182,7 +182,7 @@ export function Accounts() {
             {[...(events.data ?? [])].reverse().map((event) => (
               <li key={event.seq} className="list-row list-row-flow small">
                 <StatusBadge status={event.event} />
-                <span className="muted nowrap mono" title={formatDateTime(event.ts)}>
+                <span className="muted nowrap tnum" title={formatDateTime(event.ts)}>
                   {timeAgo(event.ts)}
                 </span>
                 <span className="break">

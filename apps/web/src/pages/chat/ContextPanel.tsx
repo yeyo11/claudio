@@ -16,7 +16,7 @@ import { usageTone } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatNumber } from '@claudio/ui/lib/format';
+import { formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { api, keys } from '../../api';
 import { CompactDialog } from './CompactDialog';
@@ -265,7 +265,7 @@ function SnapshotHead({ usage }: { usage: ChatContextUsage }) {
   return (
     <div className="ctx-head">
       <p className="small">
-        <span className="mono ctx-figure">{snapshot.window === null ? t('context.panel.tokensOnly', { used: formatNumber(snapshot.used) }) : t('context.panel.tokensOf', { used: formatNumber(snapshot.used), window: formatNumber(snapshot.window) })}</span>
+        <span className="ctx-figure">{snapshot.window === null ? t('context.panel.tokensOnly', { used: formatNumber(snapshot.used) }) : t('context.panel.tokensOf', { used: formatNumber(snapshot.used), window: formatNumber(snapshot.window) })}</span>
       </p>
       <Meter used={snapshot.compactedSince?.postTokens ?? snapshot.used} window={snapshot.window} mark={null} label={t('badges.context.inUse', { ns: 'chat' })} />
     </div>
@@ -281,7 +281,7 @@ function Head({ breakdown, agent }: { breakdown: ContextBreakdown; agent: string
     <div className="ctx-head">
       <div className="ctx-head-line">
         <span className="mono small">{breakdown.model}</span>
-        <span className="mono small ctx-figure">
+        <span className="small ctx-figure">
           {window === null
             ? t('context.panel.tokensOnly', { used: formatNumber(breakdown.totalTokens) })
             : t('context.panel.tokensOf', { used: formatNumber(breakdown.totalTokens), window: formatNumber(window) })}
@@ -293,7 +293,7 @@ function Head({ breakdown, agent }: { breakdown: ContextBreakdown; agent: string
       <p className="small muted">
         {autoCompact.enabled
           ? mark !== null
-            ? t('context.panel.autoAt', { agent, percent: Math.round(mark * 100) })
+            ? t('context.panel.autoAt', { agent, percent: formatPercent(Math.round(mark * 100)) })
             : t('context.panel.autoOn', { agent })
           : t('context.panel.autoOff')}
       </p>
@@ -338,8 +338,8 @@ function Categories({ breakdown }: { breakdown: ContextBreakdown }) {
       <th scope="row">
         <CategoryName category={category} />
       </th>
-      <td className="mono num">{formatNumber(category.tokens)}</td>
-      <td className="mono num">{(category.kind === 'deferred' ? null : shareText(category.tokens, window, t('context.panel.lessThanOne'))) ?? '—'}</td>
+      <td className="num">{formatNumber(category.tokens)}</td>
+      <td className="num">{(category.kind === 'deferred' ? null : shareText(category.tokens, window, t('context.panel.lessThanOne', { percent: formatPercent(1) }))) ?? '—'}</td>
     </tr>
   );
   return (
@@ -385,7 +385,7 @@ function ServerRow({ server, live, switching, onToggle }: { server: ContextBreak
     <li className="ctx-server">
       <div className="ctx-server-body">
         <span className="ctx-server-name ellipsis">{name}</span>
-        <span className="mono small muted">{t('context.panel.mcpTools', { loaded: server.loadedTools, total: server.tools, tokens: formatNumber(server.tokens) })}</span>
+        <span className="small muted tnum">{t('context.panel.mcpTools', { loaded: server.loadedTools, total: server.tools, tokens: formatNumber(server.tokens) })}</span>
       </div>
       {live && (
         <Switch
@@ -414,7 +414,7 @@ function McpSection({ breakdown, servers, switching, switchError, onToggle }: { 
         <ul className="ctx-warnings list-plain">
           {mcp.warnings.map((warning) => (
             <li key={warning}>
-              <Tag tone="warn">{warning === 'many-tools' ? t('context.panel.warn.many-tools', { count: mcp.loadedTools }) : t('context.panel.warn.large-share', { percent: Math.round(mcp.share * 100) })}</Tag>
+              <Tag tone="warn">{warning === 'many-tools' ? t('context.panel.warn.many-tools', { count: mcp.loadedTools }) : t('context.panel.warn.large-share', { percent: formatPercent(Math.round(mcp.share * 100)) })}</Tag>
             </li>
           ))}
         </ul>
@@ -452,7 +452,7 @@ function Facts({ breakdown }: { breakdown: ContextBreakdown }) {
                 <span className="mono small ctx-file-path" title={file.path}>
                   {middleCut(file.path)}
                 </span>
-                <span className="mono small muted num">{formatNumber(file.tokens)}</span>
+                <span className="small muted num">{formatNumber(file.tokens)}</span>
                 <CopyButton text={file.path} label={t('context.panel.copyPath', { path: file.path })} />
               </li>
             ))}
@@ -466,19 +466,19 @@ function Facts({ breakdown }: { breakdown: ContextBreakdown }) {
             {agents.length > 0 && (
               <>
                 <dt>{t('context.panel.agents')}</dt>
-                <dd className="mono">{t('context.panel.agentsValue', { count: agents.length, tokens: formatNumber(agents.reduce((n, a) => n + a.tokens, 0)) })}</dd>
+                <dd className="tnum">{t('context.panel.agentsValue', { count: agents.length, tokens: formatNumber(agents.reduce((n, a) => n + a.tokens, 0)) })}</dd>
               </>
             )}
             {skills && (
               <>
                 <dt>{t('context.panel.skills')}</dt>
-                <dd className="mono">{counted(skills)}</dd>
+                <dd className="tnum">{counted(skills)}</dd>
               </>
             )}
             {slashCommands && (
               <>
                 <dt>{t('context.panel.commands')}</dt>
-                <dd className="mono">{counted(slashCommands)}</dd>
+                <dd className="tnum">{counted(slashCommands)}</dd>
               </>
             )}
             {messages &&
@@ -498,7 +498,7 @@ function MessagePart({ label, tokens }: { label: string; tokens: number }) {
   return (
     <>
       <dt>{label}</dt>
-      <dd className="mono">{formatTokens(tokens)}</dd>
+      <dd className="tnum">{formatTokens(tokens)}</dd>
     </>
   );
 }

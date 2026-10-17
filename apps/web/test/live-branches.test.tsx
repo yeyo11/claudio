@@ -117,7 +117,7 @@ test('a branch that just ended keeps its word for the grace, then the strip goes
   const ended = children({ subagents: [sub({ status: 'failed', endedAt: ago(1000) })] });
   const html = withStorage({ [BRANCHES_STORAGE_KEY]: 'open' }, () => strip(ended));
   assert.match(html, /chat-branch-row is-failed/);
-  assert.match(html, /<span class="word">failed<\/span>/);
+  assert.match(html, /<span class="word">Failed<\/span>/);
   assert.equal(liveBranches(ended, Date.now() + 5000).length, 0);
 });
 
@@ -125,13 +125,13 @@ test('a card under the step: live rail while it runs, never a gradient', () => {
   const [running] = liveBranches(children({ subagents: [sub({ activity: reading })] }), Date.now());
   const html = render(<BranchCard branch={running!} onOpen={() => {}} />, 'es');
   assert.match(html, /class="chat-launch is-agent live-rail is-running"/);
-  assert.match(html, /chat-launch-status is-running">trabajando</);
+  assert.match(html, /chat-launch-status is-running">Trabajando</);
   assert.match(html, /aria-label="Abrir Read the stream"/);
   assert.doesNotMatch(html, /grad-border/);
   const [done] = liveBranches(children({ backgroundTasks: [task({ status: 'completed', endedAt: ago(100) })] }), Date.now());
   const record = render(<BranchCard branch={done!} />);
   assert.match(record, /class="chat-launch is-task"/);
-  assert.match(record, /chat-launch-status is-completed">done</);
+  assert.match(record, /chat-launch-status is-completed">Done</);
   assert.match(record, /chat-launch-facts">pnpm test · 1m 10s</);
 });
 

@@ -20,6 +20,7 @@ Python 3.12 or later (the generators use backslashes inside f-strings) with Pill
 | Script | Writes |
 |---|---|
 | `common.py` | the shell (sidebar, top bar, tab bar), the icons and `desktop()` / `mobile()` / `write()`. Not run on its own |
+| `voice.py` | nothing on its own: `write()` passes every screen through `voice.apply()`, which keeps mono only on literals (ids, paths, model ids, commands, hashes, branches, env vars, code, keys) and sets the rest in sans with tabular figures, splitting a mixed line into sans text and mono literals ([plans/claudio-designer.md](../../../plans/claudio-designer.md) §1.2). `python3 voice.py '../*.html'` applies it to the reference in place; it is idempotent |
 | `data.py` | the one data set of `claude-wrapper`: the work items, their columns, epics and milestones, and `card()` / `col()` |
 | `phone.py` | the phone-only states: wizard steps 1 and 4, board selection and filters, a work item's Activity and Changes, Tasks with All projects, the assistant's Team and Resources proposals, the assistant with nothing to read, and suggestions while they run. Run after the others; it imports them |
 | `board.py` | `DesktopTablero`, `MobileTablero` |

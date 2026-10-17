@@ -19,6 +19,7 @@ import { api, keys, useOrchestrations, useProjects } from '../api';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { FabStandIn } from '../components/shell/Fab';
 import { Collapsible, Combobox, NumberInput, Select, Switch } from '@claudio/ui/components/controls';
+import { FullText } from '@claudio/ui/components/FullText';
 import { ICON } from '@claudio/ui/components/icons';
 import { WorkItemStatusIcon } from '../components/work-item-icons';
 import { WorkItemKeyLink } from '../components/WorkItemKeyLink';
@@ -525,7 +526,7 @@ function LiveLine({ orch }: { orch: OrchestrationRecord }) {
   if (!live) return null;
   return (
     <div className="orch-row-live small">
-      <span className="orch-row-where mono">{t('list.where', { stage: live.stage, task: live.task.name || live.task.id })}</span>
+      <span className="orch-row-where">{t('list.where', { stage: live.stage, task: live.task.name || live.task.id })}</span>
       {live.task.activity ? (
         <ActivityTicker activity={live.task.activity} className="orch-row-ticker" />
       ) : (
@@ -589,11 +590,17 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
         <div className="orch-card-title">
           {/* The name is the card's link; its box covers the card, so the whole card opens the graph */}
           <Link to={href} className="orch-card-link strong">
-            {orch.name}
+            <FullText className="ellipsis">{orch.name}</FullText>
           </Link>
-          <span className="orch-card-meta mono">
-            {[orch.model, t('list.parallel', { n: orch.concurrency }), timeAgo(orch.createdAt)].filter(Boolean).join(' · ')}
-          </span>
+          <FullText className="orch-card-meta tnum">
+            {orch.model && (
+              <>
+                <span className="mono">{orch.model}</span>
+                {' · '}
+              </>
+            )}
+            {[t('list.parallel', { n: orch.concurrency }), timeAgo(orch.createdAt)].join(' · ')}
+          </FullText>
         </div>
         <BoardStatusBadge status={orch.status} />
       </div>
@@ -638,7 +645,7 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
             )}
           </span>
         ) : (
-          <span className="orch-card-facts mono">
+          <span className="orch-card-facts">
             <span>{t('list.tasksDone', { done: completed, total: orch.tasks.length })}</span>
             {running && stage.of > 1 && <span>{t('list.stageOf', { at: stage.at, of: stage.of })}</span>}
             {blocked > 0 && <span className="text-warn">{t('blockedWaiting', { count: blocked })}</span>}
@@ -649,7 +656,7 @@ function OrchestrationCard({ orch, energy }: { orch: OrchestrationRecord; energy
           {orch.relaunchedFrom && <Tag tone="muted">{tv('origin.relaunched')}</Tag>}
           {orch.templateId && <Tag tone="muted">{tv('origin.fromTemplate')}</Tag>}
         </span>
-        <span className="orch-card-cost mono">{formatCost(orch.costUsd)}</span>
+        <span className="orch-card-cost">{formatCost(orch.costUsd)}</span>
       </div>
       {resumable && (
         <div className="orch-card-actions">

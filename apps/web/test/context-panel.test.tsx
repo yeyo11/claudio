@@ -116,7 +116,7 @@ test('idle with a live process: categories as a captioned table, shares, the exa
   assert.match(html, /142,000 of 200,000 tokens/);
   assert.match(html, /claude-sonnet-5-5/);
   // 120,000 / 200,000
-  assert.match(html, /60 %/);
+  assert.match(html, /60%/);
   assert.match(html, /Counted by estimate/);
   assert.match(html, /Count exactly/);
   assert.doesNotMatch(html, /aria-description="The exact count/);
@@ -135,7 +135,7 @@ test('deferred rows sit in their own group, outside every share', () => {
   assert.ok(at > 0);
   assert.match(html.slice(at), /MCP tools \(deferred\)/);
   // the deferred row carries no share
-  assert.match(html.slice(at), /<td class="mono num">—<\/td>/);
+  assert.match(html.slice(at), /<td class="num">—<\/td>/);
   const groups = categoryGroups(breakdown().categories);
   assert.deepEqual(groups.deferred.map((c) => c.name), ['MCP tools (deferred)']);
   assert.equal(groups.used.length, 3);
@@ -146,7 +146,7 @@ test('MCP warnings are a tag with the triangle and the words', () => {
   assert.match(html, /badge-warn/);
   assert.match(html, /<svg[^>]*aria-hidden/);
   assert.match(html, /Many MCP tools \(93\)/);
-  assert.match(html, /MCP takes 27 % of the context/);
+  assert.match(html, /MCP takes 27% of the context/);
   assert.doesNotMatch(body({ usage: usage({ breakdown: breakdown({ mcp: { ...breakdown().mcp, warnings: [] } }) }) }), /Many MCP tools/);
 });
 
@@ -218,7 +218,7 @@ test('an HTTP error is an alert, with a retry', () => {
 test('auto-compaction is a tick on the bar and the same fact in words; off says so', () => {
   const html = body();
   assert.match(html, /class="bar-mark" aria-hidden="true" style="left:92%"/);
-  assert.match(html, /compacts by itself at 92 %/);
+  assert.match(html, /compacts by itself at 92%/);
   const off = body({ usage: usage({ breakdown: breakdown({ autoCompact: { enabled: false, thresholdTokens: null } }) }) });
   assert.doesNotMatch(off, /bar-mark/);
   assert.match(off, /Automatic compaction is off/);
@@ -245,7 +245,7 @@ test('an unknown window: tokens only, no bar, no share', () => {
   assert.doesNotMatch(html, /bar-mark/);
 });
 
-test('a 1M window: grouped figures in the language, "<1 %" for what is small', () => {
+test('a 1M window: grouped figures in the language, "<1%" for what is small', () => {
   const big = usage({
     breakdown: breakdown({
       totalTokens: 967_248,
@@ -254,16 +254,17 @@ test('a 1M window: grouped figures in the language, "<1 %" for what is small', (
     }),
   });
   assert.match(body({ usage: big }), /967,248 of 1,000,000 tokens/);
-  assert.match(body({ usage: big }), /<td class="mono num">&lt;1 %<\/td>/);
+  assert.match(body({ usage: big }), /<td class="num">&lt;1%<\/td>/);
   assert.match(body({ usage: big }, 'es'), /967\.248 de 1\.000\.000 tokens/);
-  assert.equal(shareText(0, 1000, '<1 %'), '0 %');
-  assert.equal(shareText(5, null, '<1 %'), null);
+  // The last body was Spanish: the share follows the active language, 0 % there
+  assert.match(shareText(0, 1000, '<1%') ?? '', /^0\s%$/);
+  assert.equal(shareText(5, null, '<1%'), null);
 });
 
 test('Spanish: translated names, the CLI threshold sentence, the unreported sentence', () => {
   const html = body({}, 'es');
   assert.match(html, /Mensajes/);
-  assert.match(html, /compacta solo al 92 %/);
+  assert.match(html, /compacta solo al 92\s%/);
   assert.match(html, /Contado con estimación/);
   assert.match(html, /Contar con exactitud/);
   assert.match(body({ usage: usage({ live: false, unreported: 'no-process', breakdown: null }) }, 'es'), /El desglose lo da el agente mientras la conversación está abierta/);

@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { formatNumber } from '@claudio/ui/lib/format';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /**
  * The documents folder as a tree (`.tree-row` of editors.css): folders open and close, the open
@@ -38,7 +39,7 @@ export function DocumentTree({
             <ChevronRight {...ICON_SM} className={`tree-chevron ${rootOpen ? 'is-open' : ''}`.trim()} />
             <Folder {...ICON_SM} className="tree-icon" />
             <span className="tree-name is-dir">{root}/</span>
-            <span className="tree-size mono tnum">{formatNumber(rootCount)}</span>
+            <span className="tree-size tnum">{formatNumber(rootCount)}</span>
           </button>
         </div>
         {rootOpen && <Branch nodes={nodes} depth={1} selected={selected} open={open} onToggle={onToggle} onOpen={onOpen} />}
@@ -75,7 +76,7 @@ function Branch({
                   <ChevronRight {...ICON_SM} className={`tree-chevron ${isOpen ? 'is-open' : ''}`.trim()} />
                   <Folder {...ICON_SM} className="tree-icon" />
                   <span className="tree-name is-dir">{node.name}/</span>
-                  <span className="tree-size mono tnum">{formatNumber(node.fileCount ?? 0)}</span>
+                  <span className="tree-size tnum">{formatNumber(node.fileCount ?? 0)}</span>
                 </button>
               </div>
               {isOpen && <Branch nodes={node.children ?? []} depth={depth + 1} selected={selected} open={open} onToggle={onToggle} onOpen={onOpen} />}
@@ -86,18 +87,19 @@ function Branch({
         return (
           <li key={node.path} role="treeitem" aria-selected={on}>
             <div className="tree-line">
-              <button
-                type="button"
-                className={`tree-row ${on ? 'tree-row-on' : ''}`.trim()}
-                style={style}
-                aria-current={on ? 'true' : undefined}
-                title={node.title ?? undefined}
-                onClick={() => onOpen(node.path)}
-              >
-                <span className="tree-spacer" aria-hidden />
-                <FileText {...ICON_SM} className="tree-icon" />
-                <span className="tree-name">{node.name}</span>
-              </button>
+              <Tooltip content={node.title ?? undefined}>
+                <button
+                  type="button"
+                  className={`tree-row ${on ? 'tree-row-on' : ''}`.trim()}
+                  style={style}
+                  aria-current={on ? 'true' : undefined}
+                  onClick={() => onOpen(node.path)}
+                >
+                  <span className="tree-spacer" aria-hidden />
+                  <FileText {...ICON_SM} className="tree-icon" />
+                  <span className="tree-name">{node.name}</span>
+                </button>
+              </Tooltip>
             </div>
           </li>
         );

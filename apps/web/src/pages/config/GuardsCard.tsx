@@ -361,7 +361,7 @@ function RecentBlocks({ events, error }: { events: GuardEvent[] | undefined; err
         <ul className="guard-events">
           {events.map((event) => (
             <li key={event.seq} className="guard-event">
-              <span className="mono small muted nowrap">{formatDateTime(event.at)}</span>
+              <span className="small muted nowrap tnum">{formatDateTime(event.at)}</span>
               <code className="mono small">{event.rule satisfies GuardRuleId}</code>
               <Tag tone={outcomeTone(event.outcome)}>{t(`security.guards.recent.outcome.${event.outcome}`)}</Tag>
               <span className="mono small guard-excerpt" title={event.excerpt}>

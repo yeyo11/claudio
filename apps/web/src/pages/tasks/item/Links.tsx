@@ -62,7 +62,7 @@ function LinkRow({ link, item, chat }: { link: WorkItemLink; item: WorkItemDetai
         )}
         <span className="work-link-state">
           <LinkState link={link} chat={chat} />
-          {cost !== undefined && <span className="mono small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
+          {cost !== undefined && <span className="small muted tnum">{cost === null ? t('link.noCost') : formatCost(cost)}</span>}
         </span>
         <span className="work-link-meta">
           {where} · {said}

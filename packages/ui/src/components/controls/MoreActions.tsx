@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Ellipsis } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { ICON_SM } from '../icons';
@@ -37,6 +37,7 @@ export function MoreActions({
   const { t } = useTranslation('primitives');
   const narrow = useMediaQuery(NARROW);
   const [open, setOpen] = useState(false);
+  const reasonId = useId();
   const name = label ?? t('menu.more');
   const labelled = text !== undefined;
   if (!narrow && !labelled) return <Menu entries={entries} label={name} align={align} className={className} />;
@@ -88,7 +89,8 @@ export function MoreActions({
                 type="button"
                 className={className}
                 disabled={item.disabled}
-                title={item.disabled ? item.disabledReason : undefined}
+                // The reason is written out under the buttons; a disabled button would never show a tooltip
+                aria-describedby={item.disabled && item.disabledReason ? `${reasonId}-${item.id}` : undefined}
                 aria-pressed={item.checked}
                 onClick={() => {
                   // The sheet closes before the action runs, so a confirmation is not stacked over it
@@ -104,7 +106,7 @@ export function MoreActions({
           {itemsOf(entries)
             .filter((item) => item.disabled && item.disabledReason)
             .map((item) => (
-              <p key={`${item.id}-reason`} className="sheet-action-reason">
+              <p key={`${item.id}-reason`} id={`${reasonId}-${item.id}`} className="sheet-action-reason">
                 {item.disabledReason}
               </p>
             ))}

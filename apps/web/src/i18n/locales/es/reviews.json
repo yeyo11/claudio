@@ -46,7 +46,7 @@
   },
   "approve": {
     "mine": "aprobada",
-    "commit": "commit {{sha}}",
+    "commit": "commit <mono>{{sha}}</mono>",
     "revoke": "Revocar mi aprobación",
     "revoked": "Aprobación revocada",
     "failed": "No se ha podido revocar la aprobación"

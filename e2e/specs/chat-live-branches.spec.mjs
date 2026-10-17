@@ -106,8 +106,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     let shown = await cards();
     const agentCard = shown.find((c) => c.cls.includes('is-agent'));
     const taskCard = shown.find((c) => c.cls.includes('is-task'));
-    check(agentCard?.name === 'Explore the notes' && agentCard.status === 'working', `the agent's card is running (${JSON.stringify(agentCard)})`);
-    check(Boolean(taskCard) && taskCard.status === 'working', `the command's card is running (${JSON.stringify(taskCard)})`);
+    check(agentCard?.name === 'Explore the notes' && agentCard.status === 'Working', `the agent's card is running (${JSON.stringify(agentCard)})`);
+    check(Boolean(taskCard) && taskCard.status === 'Working', `the command's card is running (${JSON.stringify(taskCard)})`);
     check(shown.every((c) => c.cls.includes('live-rail') && !c.cls.includes('grad-border')), 'a running card carries the live rail and no gradient');
     check(shown.every((c) => c.open), 'each card offers to open its branch');
 
@@ -117,18 +117,18 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     writeFileSync(join(work, HOLDS.agent), '');
     await page.waitFor(
       `const rows = [...document.querySelectorAll('.chat-branches .chat-branch-row')];
-       return rows.length === 2 && rows.every((r) => r.classList.contains('is-completed') && r.querySelector('.word')?.textContent.trim() === 'done');`,
+       return rows.length === 2 && rows.every((r) => r.classList.contains('is-completed') && r.querySelector('.word')?.textContent.trim() === 'Done');`,
       { label: 'both rows say done', timeout: 15_000 },
     );
     await page.waitFor(`return !document.querySelector('.chat-branches')`, { label: 'the strip leaves once its rows have', timeout: 15_000 });
     shown = await cards();
-    check(shown.length === 2 && shown.every((c) => c.status === 'done' && !c.cls.includes('is-running')), `the cards keep their final word (${JSON.stringify(shown)})`);
+    check(shown.length === 2 && shown.every((c) => c.status === 'Done' && !c.cls.includes('is-running')), `the cards keep their final word (${JSON.stringify(shown)})`);
 
     // ---- a reload shows the same record ----
     await page.goto(`/chats/${chatId}`, 1500);
     await page.waitFor(`return document.querySelectorAll('.transcript .chat-launch').length === 2`, { label: 'the cards after a reload' });
     shown = await cards();
-    check(shown.every((c) => c.status === 'done'), `after a reload the cards say done (${JSON.stringify(shown)})`);
+    check(shown.every((c) => c.status === 'Done'), `after a reload the cards say done (${JSON.stringify(shown)})`);
     check(!(await page.eval(`return !!document.querySelector('.chat-branches')`)), 'after a reload nothing is running, and there is no strip');
   } finally {
     await page.eval(`localStorage.removeItem(${JSON.stringify(STORAGE)}); return true`).catch(() => {});

@@ -1,3 +1,4 @@
+import { FullText } from '@claudio/ui/components/FullText';
 import type { ReactNode } from 'react';
 
 /**
@@ -32,7 +33,7 @@ export function WidgetCard({
         <h2 id={heading} className="widget-title">
           {title}
         </h2>
-        {aside !== undefined && <span className="widget-aside">{aside}</span>}
+        {aside !== undefined && <FullText className="widget-aside">{aside}</FullText>}
         {actions && <span className="widget-actions">{actions}</span>}
       </div>
       {children}

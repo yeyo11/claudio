@@ -10,6 +10,7 @@ import type {
   DecisionUnavailableReason,
 } from '@claudio/shared';
 import { isEffort } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Cpu, KeyRound, Save, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -620,7 +621,7 @@ function JevKey({ saved }: { saved: DecisionSettings }) {
                   <span className={`dot ${result.ok ? 'dot-ok' : 'dot-bad'}`} />
                   {result.ok ? t('engine.connected') : t('engine.failed')}
                 </span>
-                <span className="mono">
+                <span className="tnum">
                   {result.ok ? `${formatNumber(result.latencyMs / 1000, { maximumFractionDigits: 1 })} s` : result.reason ? t(`engine.reason.${result.reason}`) : ''}
                   {testedAt !== null && ` · ${timeAgo(testedAt)}`}
                 </span>
@@ -760,7 +761,7 @@ function PointsSection({
               <ChevronRight size={14} strokeWidth={2} className="dp-group-chevron" aria-hidden />
               <span className="section-label">{t(`points.areas.${group.id}`)}</span>
               <span className="dp-group-count">{formatNumber(group.points.length)}</span>
-              <span className="dp-group-summary">{groupSummary(group.points.map(modeOf), (mode, count) => t(`points.summary.${mode}`, { count }))}</span>
+              <FullText className="dp-group-summary">{groupSummary(group.points.map(modeOf), (mode, count) => t(`points.summary.${mode}`, { count }))}</FullText>
             </button>
             <BulkMode scope={t(`points.areas.${group.id}`)} onApply={(mode) => onBulk(group.points, mode)} />
           </div>

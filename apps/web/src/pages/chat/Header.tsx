@@ -1,4 +1,5 @@
 import type { Chat } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, CirclePause, CircleSlash, Copy, Download, GitFork, GraduationCap, Hand, Info, Minimize2, Search, Square, Trash2, WifiOff } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
@@ -245,15 +246,15 @@ export const ChatHeader = memo(function ChatHeader({
         </Link>
       </Tooltip>
       <div className="chat-heading">
-        <h1 className="chat-title ellipsis">{displayTitle(chat)}</h1>
+        <FullText as="h1" className="chat-title ellipsis">{displayTitle(chat)}</FullText>
         {/* Where it runs, which chat it is and on what, in the mono of ids: the title is the prompt */}
-        <span className="chat-sub ellipsis">
+        <FullText className="chat-sub ellipsis" full={[facts.where, agentNameFor(chat), facts.model].filter(Boolean).join(' · ')}>
           {facts.where}
           <span className="chat-sub-agent">
             <ProviderBadge provider={chat.provider} label={agentNameFor(chat)} />
           </span>
           {facts.model}
-        </span>
+        </FullText>
       </div>
       {limitPhase === 'none' ? <StatePill chat={chat} connected={connected} /> : <LimitBadge phase={limitPhase} resetsAt={limitResetsAt} />}
       {chat.health.level !== 'ok' && <HealthBadge health={chat.health} />}

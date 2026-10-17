@@ -6,6 +6,7 @@ import { CodeEditor } from '../../../components/CodeEditor';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useDirty } from '../../../lib/dirty';
 import type { ItemActions } from './hooks';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 const Markdown = lazy(() => import('@claudio/ui/components/Markdown'));
 
@@ -39,9 +40,11 @@ export function Title({ item, actions }: { item: WorkItemDetail; actions: ItemAc
   return (
     <div className="workitem-title">
       <h1>{item.title}</h1>
-      <button type="button" className="icon-btn workitem-edit" aria-label={t('actions.editTitle')} title={t('actions.editTitle')} onClick={() => setDraft(item.title)}>
-        <Pencil {...ICON_SM} />
-      </button>
+      <Tooltip content={t('actions.editTitle')}>
+        <button type="button" className="icon-btn workitem-edit" aria-label={t('actions.editTitle')} onClick={() => setDraft(item.title)}>
+          <Pencil {...ICON_SM} />
+        </button>
+      </Tooltip>
     </div>
   );
 }
@@ -74,7 +77,7 @@ export function Description({ item, actions }: { item: WorkItemDetail; actions: 
           onSave={save}
         />
         <div className="workitem-edit-actions">
-          <span className="mono small muted">{t('description.markdown')}</span>
+          <span className="small muted">{t('description.markdown')}</span>
           <span className="grow" />
           <button type="button" className="btn btn-small" onClick={() => setDraft(null)}>
             {t('actions.cancel')}
@@ -97,15 +100,16 @@ export function Description({ item, actions }: { item: WorkItemDetail; actions: 
       ) : (
         <p className="muted workitem-none">{t('description.empty')}</p>
       )}
-      <button
-        type="button"
-        className="icon-btn workitem-edit"
-        aria-label={t('actions.editDescription')}
-        title={t('actions.editDescription')}
-        onClick={() => setDraft(item.description)}
-      >
-        <Pencil {...ICON_SM} />
-      </button>
+      <Tooltip content={t('actions.editDescription')}>
+        <button
+          type="button"
+          className="icon-btn workitem-edit"
+          aria-label={t('actions.editDescription')}
+          onClick={() => setDraft(item.description)}
+        >
+          <Pencil {...ICON_SM} />
+        </button>
+      </Tooltip>
     </div>
   );
 }

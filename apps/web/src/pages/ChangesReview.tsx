@@ -1,8 +1,8 @@
 import type { ChangedFile, ChangeSummary, EditStep } from '@claudio/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ChevronLeft, Copy, Crosshair } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, keys, useOrchestration, useWorkItemByKey } from '../api';
 import { Counts, FileMap, MapLegend, RowDetails, StatusLetter, type MapFile } from '../components/changes/FileMap';
@@ -502,18 +502,25 @@ function ReviewHeader({
   const navigate = useNavigate();
   const totals = totalsOf(files);
   const stepsLens = lens === 'steps';
-  const metaParts = stepsLens
+  // The branch and the base commit are literals and keep the mono of ids; the counts beside them are sans
+  const metaParts: ReactNode[] = stepsLens
     ? stepCount
       ? [t('steps.count', { count: stepCount, agent })]
       : []
     : summary
     ? [
-        summary.branch ?? t('meta.detached'),
-        ...(phone ? [] : summary.base ? [t('meta.from', { base: summary.base.slice(0, 7) })] : []),
+        summary.branch ? <span className="mono">{summary.branch}</span> : t('meta.detached'),
+        ...(phone ? [] : summary.base ? [<Trans t={t} i18nKey="meta.from" values={{ base: summary.base.slice(0, 7) }} components={{ ref: <span className="mono" /> }} />] : []),
         t('meta.commits', { count: summary.ahead }),
         ...(phone ? [] : [t('meta.files', { count: files.length })]),
       ]
     : [];
+  const meta = metaParts.map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && ' · '}
+      {part}
+    </Fragment>
+  ));
   const setScope = (next: ReviewScope) => navigate(hrefWith({ scope: scopeParam(next), lens: null, step: null }), { replace: true });
   const commits = summary?.commits ?? [];
   const scopeLabel =
@@ -574,7 +581,7 @@ function ReviewHeader({
           {back}
           <div className="changes-head-text">
             <h1 className="changes-title">{t('title')}</h1>
-            {metaParts.length > 0 && <span className="changes-meta">{metaParts.join(' · ')}</span>}
+            {metaParts.length > 0 && <span className="changes-meta">{meta}</span>}
           </div>
           {!noWorktree && summary && !stepsLens && (
             <MoreActions
@@ -613,7 +620,7 @@ function ReviewHeader({
           )}
           <div className="changes-title-row">
             <h1 className="changes-title">{t('title')}</h1>
-            {metaParts.length > 0 && <span className={`changes-meta${stepsLens ? ' is-sentence' : ''}`}>{metaParts.join(' · ')}</span>}
+            {metaParts.length > 0 && <span className={`changes-meta${stepsLens ? ' is-sentence' : ''}`}>{meta}</span>}
             {summary && !stepsLens && <Counts additions={totals.additions} deletions={totals.deletions} />}
             {live}
           </div>

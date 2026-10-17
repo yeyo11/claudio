@@ -6,6 +6,8 @@
 .main:has(> .page > .changes-review) {
   padding: 0;
   overflow: hidden;
+  /* The page does not scroll here, and a stable gutter would still keep an empty strip */
+  scrollbar-gutter: auto;
 }
 
 .page:has(> .changes-review) {
@@ -50,7 +52,7 @@
 
 .changes-review .changes-subject {
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -66,21 +68,20 @@
 
 .changes-review .changes-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .changes-review .changes-meta {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
 }
 
 .changes-review .changes-counts {
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -97,7 +98,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--live);
   white-space: nowrap;
 }
@@ -190,8 +191,8 @@
 
 .changes-review .changes-map-head .changes-seen-of {
   margin-left: auto;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
 }
@@ -213,7 +214,7 @@
 
 .changes-review .changes-filter .list-toolbar-search input {
   padding: 4px 0;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 .changes-review .changes-tree {
@@ -231,7 +232,7 @@
   padding: 0 12px;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -248,7 +249,7 @@
   padding: 0 12px 0 20px;
   border-radius: var(--radius-sm);
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg);
   text-decoration: none;
 }
@@ -334,9 +335,10 @@
 }
 
 .changes-review .changes-st {
+  /* literal: git's status letter (A, M, D, R) */
   font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   text-align: center;
   color: var(--fg-2);
 }
@@ -369,7 +371,7 @@
   gap: 8px;
   padding: 12px 18px 14px;
   border-top: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -391,7 +393,7 @@
 
 .changes-review .changes-empty-map {
   padding: 12px 18px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -458,7 +460,7 @@
   min-width: 0;
   overflow: hidden;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -469,7 +471,7 @@
 
 .changes-review .changes-path-name {
   color: var(--fg);
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .changes-review .changes-sep {
@@ -507,8 +509,7 @@
   align-items: center;
   gap: 2px;
   margin-left: 6px;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
   color: var(--fg-2);
   white-space: nowrap;
@@ -532,7 +533,7 @@
   padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
   cursor: pointer;
   white-space: nowrap;
@@ -560,7 +561,7 @@
   gap: 8px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--line);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
 }
@@ -584,18 +585,18 @@
   border-radius: var(--radius-xs);
   background: var(--bg-2);
   font-family: var(--mono);
-  font-size: 0.9em;
+  font-size: inherit;
 }
 
 .changes-review .changes-why-when {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
 }
 
 .changes-review .changes-why-link {
-  font-size: 12px;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 
@@ -620,7 +621,7 @@
 .changes-review .changes-diff-note {
   padding: 8px 18px;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -649,7 +650,7 @@
   }
 
   .changes-review .changes-title {
-    font-size: 24px;
+    font-size: var(--fs-title);
   }
 
   .changes-review .changes-head .changes-lens {
@@ -659,24 +660,24 @@
 
   .changes-review .changes-head .changes-lens .segment {
     flex: 1;
-    min-height: 40px;
-    font-size: 15px;
+    min-height: var(--touch);
+    font-size: var(--fs-section);
   }
 
   .changes-review .changes-totals {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 15px;
+    font-size: var(--fs-section);
   }
 
   .changes-review .changes-totals .changes-counts {
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .changes-review .changes-totals .changes-live {
     margin-left: auto;
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .changes-review .changes-cells {
@@ -695,8 +696,8 @@
   }
 
   .changes-review .changes-cells-head .changes-seen-of {
-    font-family: var(--mono);
-    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--fs-small);
     color: var(--fg-3);
   }
 
@@ -725,7 +726,7 @@
   }
 
   .changes-review .changes-cell .changes-st {
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
 
   .changes-review .changes-cell-text {
@@ -741,7 +742,7 @@
     gap: 6px;
     min-width: 0;
     font-family: var(--mono);
-    font-size: 15px;
+    font-size: var(--fs-section);
   }
 
   .changes-review .changes-cell.is-seen .changes-cell-name {
@@ -751,14 +752,14 @@
   .changes-review .changes-cell-dir {
     overflow: hidden;
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: var(--fs-small);
     color: var(--fg-3);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 
   .changes-review .changes-cell .changes-file-end .changes-counts {
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
 
   .changes-review .changes-cells .changes-map-foot {
@@ -791,14 +792,14 @@
 
   .changes-review .changes-phone-name {
     font-family: var(--mono);
-    font-size: 16px;
-    font-weight: 600;
+    font-size: var(--fs-section);
+    font-weight: var(--fw-strong);
   }
 
   .changes-review .changes-phone-sub {
     overflow: hidden;
-    font-family: var(--mono);
-    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-size: var(--fs-small);
     color: var(--fg-3);
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -807,7 +808,7 @@
   .changes-review .changes-phone-head .changes-seen.check {
     min-height: 44px;
     padding: 0 14px;
-    font-size: 15px;
+    font-size: var(--fs-section);
   }
 
   .changes-review .changes-phone-modes {
@@ -819,13 +820,13 @@
   }
 
   .changes-review .changes-phone-modes .segment {
-    min-height: 36px;
-    font-size: 14px;
+    min-height: var(--touch);
+    font-size: var(--fs-body);
   }
 
   .changes-review .changes-phone-hint {
     margin-left: auto;
-    font-size: 12.5px;
+    font-size: var(--fs-small);
     color: var(--fg-3);
     text-align: right;
   }
@@ -841,7 +842,7 @@
   .changes-review .changes-phone-file .changes-why {
     align-items: flex-start;
     padding: 8px 16px 12px;
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   .changes-review .changes-phone-file .changes-why-spark {
@@ -854,7 +855,7 @@
 
   .changes-review .changes-phone-file .changes-why-when {
     font-family: var(--sans);
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
 
   .changes-review .changes-phone-sub {
@@ -864,6 +865,7 @@
 
   .changes-review .changes-phone-dir {
     overflow: hidden;
+    font-family: var(--mono);
     text-overflow: ellipsis;
   }
 
@@ -889,7 +891,7 @@
     min-width: 0;
     min-height: 44px;
     font-family: var(--mono);
-    font-size: 13px;
+    font-size: var(--fs-small);
     color: var(--fg-2);
     text-decoration: none;
   }
@@ -945,7 +947,7 @@
   border-radius: var(--radius-lg);
   background: var(--bg-1);
   font-family: var(--sans);
-  font-size: 13.5px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg);
   white-space: normal;
@@ -959,7 +961,7 @@
   min-height: 34px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--line);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -969,14 +971,14 @@
 }
 
 .rt-head .where {
+  /* literal: file.ts:12 */
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
 .rt-count {
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 
@@ -998,7 +1000,7 @@
 }
 
 .rt-avatar .monogram {
-  font-size: 10.5px;
+  font-size: var(--fs-small);
 }
 
 .rt-who {
@@ -1006,17 +1008,16 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 2px 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .rt-who b {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
   color: var(--fg);
 }
 
 .rt-who time {
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
@@ -1030,7 +1031,7 @@
 
 .rt .rt-body code {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   background: var(--bg-3);
@@ -1043,12 +1044,12 @@
 .rt-more {
   margin: 0;
   padding: 0 12px 10px 46px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
 .rt-note {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -1068,8 +1069,8 @@
   padding: 0 10px;
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -1083,8 +1084,8 @@
   grid-template-columns: 3px 18px minmax(0, 1fr);
   min-height: 20px;
   font-family: var(--mono);
-  font-size: 12px;
-  line-height: 20px;
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
   color: var(--fg);
 }
 
@@ -1133,8 +1134,8 @@
 
 .rt-hunk-note {
   padding: 2px 12px 6px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -1155,7 +1156,7 @@
   margin: 0;
   padding: 6px 10px;
   border-left: var(--diff-rail-w) solid var(--line-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   overflow-wrap: anywhere;
 }
@@ -1167,7 +1168,7 @@
 }
 
 .rt-sheet textarea {
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 /* A resolved or outdated thread folds into one row until it is opened */
@@ -1182,7 +1183,7 @@
   border-radius: var(--radius);
   background: var(--bg-1);
   font-family: var(--sans);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: normal;
 }
@@ -1194,7 +1195,7 @@
 .rt-fold .btn {
   min-height: 24px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .rt-unfold {
@@ -1209,8 +1210,8 @@
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
   color: var(--fg);
 }
 
@@ -1233,8 +1234,8 @@
 
 .rt-edit .field-mono textarea {
   font-family: var(--mono);
-  font-size: 12.5px;
-  line-height: 20px;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
 .rt-tools {
@@ -1247,7 +1248,7 @@
 .rt-tools .hint {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -1269,8 +1270,8 @@
   border-radius: var(--radius-pill);
   background: var(--bg-3);
   box-shadow: inset 0 0 0 1px var(--line-2);
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-family: var(--sans);
+  font-size: var(--fs-small);
   line-height: 1;
   color: var(--fg-2);
   font-variant-numeric: tabular-nums;
@@ -1330,8 +1331,7 @@
 }
 
 .changes-threads-chip .n {
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--idle);
   font-variant-numeric: tabular-nums;
 }
@@ -1380,7 +1380,7 @@
   }
 
   .rt-foot .field input {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 }
 
@@ -1388,23 +1388,23 @@
    (.rt-sev: critical and high bad, medium warn, low neutral). Nothing in a finding is live. The section (.rg) takes .energy only while
    reviewers run; every other state stands still, and a running row borrows .live-rail and .spin-ring from §11. */
 .rt.finding .rt-head { gap: 6px 8px; }
-.rt-sev { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: var(--bg-3); color: var(--fg-2); font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.rt-sev { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: var(--radius-xs); border: 1px solid var(--line); background: var(--bg-3); color: var(--fg-2); font-size: var(--fs-small); font-weight: var(--fw-strong); white-space: nowrap; }
 .rt-sev.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 .rt-sev.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
-.rt-dim { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--bg-3); font-family: var(--mono); font-size: 11px; color: var(--fg-2); white-space: nowrap; }
-.rt-verdict { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11.5px; color: var(--fg-2); white-space: nowrap; }
+.rt-dim { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: var(--radius-xs); background: var(--bg-3); font-size: var(--fs-small); color: var(--fg-2); white-space: nowrap; }
+.rt-verdict { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-small); color: var(--fg-2); white-space: nowrap; }
 .rt-verdict.warn { color: var(--warn); }
 .rt-finding-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
-.rt-title { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--fg); overflow-wrap: anywhere; }
+.rt-title { margin: 0; font-size: var(--fs-small); font-weight: var(--fw-strong); color: var(--fg); overflow-wrap: anywhere; }
 .rt-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.rt-fact > .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); }
+.rt-fact > .k { font-size: var(--fs-small); font-weight: var(--fw-strong); color: var(--fg-2); }
 .rt-fact > p { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
-.rt-evidence { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); font-family: var(--mono); font-size: 12px; line-height: 20px; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
-.rt-verifier { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--fg-2); }
+.rt-evidence { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); font-family: var(--mono); font-size: var(--fs-small); line-height: var(--lh-small); color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rt-verifier { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: var(--fs-small); color: var(--fg-2); }
 .rt.finding.refuted .rt-title, .rt.finding.refuted .rt-fact > p { color: var(--fg-2); }
 
 @media (max-width: 900px) {
-  .rt.finding .rt-title { font-size: 15px; }
+  .rt.finding .rt-title { font-size: var(--fs-section); }
 }
 
 .changes-findings-chip {
@@ -1413,8 +1413,7 @@
 }
 
 .changes-findings-count {
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
   color: var(--warn);
   font-variant-numeric: tabular-nums;
 }

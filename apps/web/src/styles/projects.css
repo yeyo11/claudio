@@ -22,7 +22,7 @@
 .btn.btn-tall {
   min-height: 44px;
   padding: 8px 18px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .form-row {
@@ -34,7 +34,7 @@
 
 .form-hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--text-muted);
 }
@@ -42,11 +42,11 @@
 .form-hint .mono,
 .field-hint .mono {
   color: var(--text-muted);
-  font-size: 11.5px;
+  font-size: var(--fs-small);
 }
 
 .field-error {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--bad);
 }
@@ -99,8 +99,8 @@
 }
 
 .module-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
 }
 
 .module-card:not(.is-on) .module-name {
@@ -108,7 +108,7 @@
 }
 
 .module-desc {
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--text-muted);
 }
@@ -118,8 +118,7 @@
   align-items: center;
   gap: 6px;
   margin-top: 3px;
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -155,7 +154,7 @@
   border: 1px solid var(--border);
   background: var(--bg-sunken);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
 }
 
@@ -167,7 +166,7 @@
 
 .modules-note strong {
   color: var(--text);
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 /* The four modules as marks: filled when on, dashed when off */
@@ -272,13 +271,13 @@
 }
 
 .template-name {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
   padding-right: 18px;
 }
 
 .template-desc {
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--text-muted);
 }
@@ -339,8 +338,8 @@
 
 .wizard-section-head h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .wizard-section-hint {
@@ -356,15 +355,15 @@
   border-radius: var(--radius-pill);
   background: var(--bg-hover);
   color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
 }
 
 .wizard-section-aside .modules-note {
   padding: 0;
   border: 0;
   background: none;
-  font-size: 12px;
+  font-size: var(--fs-small);
   align-items: center;
 }
 
@@ -407,7 +406,13 @@
 .wizard-where-head .segment {
   min-height: 24px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--fs-small);
+}
+
+@media (pointer: coarse) {
+  .wizard-where-head .segment {
+    min-height: var(--touch);
+  }
 }
 
 .wizard-summary {
@@ -442,7 +447,7 @@
 }
 
 .summary-project-id strong {
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .summary-rows {
@@ -458,7 +463,7 @@
   min-height: 38px;
   padding: 4px 0;
   border-top: 1px solid var(--border);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .summary-row-top {
@@ -561,8 +566,8 @@
 
 .wizard-phone-title h1 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
 }
 
 .wizard-steps {
@@ -600,14 +605,14 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-faint);
   white-space: nowrap;
 }
 
 .wizard-step.is-on .wizard-step-name {
   color: var(--text);
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .wizard-step.is-done .wizard-step-name {
@@ -623,13 +628,13 @@
 
 .wizard-phone-body h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .wizard-phone-body > p {
   margin: -6px 0 0;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 
@@ -646,7 +651,7 @@
 .wizard-phone .segment {
   flex: 1;
   min-height: 44px;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .wizard-phone .segment-label {
@@ -658,7 +663,7 @@
 .wizard-phone input,
 .wizard-phone .combobox-input {
   min-height: 44px;
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 
 .wizard-origin-note {
@@ -671,7 +676,7 @@
   border: 1px solid var(--border);
   background: var(--bg-sunken);
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 
@@ -701,12 +706,12 @@
 }
 
 .wizard-phone .template-name {
-  font-size: 15px;
+  font-size: var(--fs-section);
   padding-right: 0;
 }
 
 .wizard-phone .template-desc {
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .wizard-phone .template-mods {
@@ -771,7 +776,6 @@
 }
 
 .project-head-template {
-  font-family: var(--mono);
 }
 
 .project-head-facts {
@@ -802,7 +806,7 @@
 }
 
 .project-head-phone h1 {
-  font-size: 24px;
+  font-size: var(--fs-title);
 }
 
 /* The tab strip: taller than a card's, each tab with its icon and a neutral count */
@@ -812,7 +816,7 @@
 
 .project-tabs .tab {
   min-height: 42px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .project-tabs .tab svg {
@@ -824,10 +828,10 @@
 }
 
 .project-tabs .count {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   /* On the pill's --bg-4 the faint grey reads 4.4:1; the muted one keeps the count legible */
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* A phone's stand-in for the strip */
@@ -878,7 +882,7 @@
 }
 
 .project-assistant-row-title {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 /* ---- the project's own settings ---- */
@@ -907,8 +911,8 @@
 .project-general-card h2,
 .project-remove h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 .project-general-card > p {
@@ -944,7 +948,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -986,8 +990,8 @@
 
 .project-cli-head h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
 }
 
 @media (max-width: 1180px) {
@@ -1021,7 +1025,7 @@
   flex: none;
   width: 80px;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .project-general-cell input {
@@ -1029,7 +1033,7 @@
   background: none;
   padding: 0;
   min-height: 44px;
-  font-size: 16px;
+  font-size: var(--fs-input);
   box-shadow: none;
 }
 
@@ -1121,41 +1125,41 @@
 .host-line-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .host-line .monogram { flex-shrink: 0; }
 .host-line-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; }
-.host-path { font-family: var(--mono); font-size: 13px; color: var(--fg-2); overflow-wrap: anywhere; }
-.host-path b { font-weight: 500; color: var(--fg); }
+.host-path { font-family: var(--mono); font-size: var(--fs-small); color: var(--fg-2); overflow-wrap: anywhere; }
+.host-path b { font-weight: var(--fw-regular); color: var(--fg); }
 .host-line-why { display: flex; align-items: center; gap: 12px; padding-left: 50px; }
 .host-line-why .prov-reason { flex: 1 1 0; }
 .host-line.stacked .host-line-why { flex-direction: column; align-items: stretch; padding-left: 0; gap: 10px; }
-.host-line.stacked .prov-reason { font-size: 14px; }
+.host-line.stacked .prov-reason { font-size: var(--fs-body); }
 .host-line.stacked .badge { align-self: flex-start; }
 .project-host-card { padding: 14px; }
 
 /* ---- Project tracker: the chooser, the scope and query, and the status map. Reference: `.trk-*` of claudio-ds.css, on ProyectoTracker ---- */
 .project-tracker-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; }
-.project-tracker-card > .card-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.project-tracker-card > .card-head h2 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-strong); letter-spacing: var(--tracking-title); }
 .project-tracker-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .trk-opts { display: flex; flex-direction: column; gap: 8px; }
 .trk-opt { display: grid; grid-template-columns: 36px minmax(0, 1fr) 16px; gap: 14px; align-items: center; padding: 12px 14px; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg-elev); text-align: left; color: var(--text); cursor: pointer; transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 .trk-opt:hover { border-color: var(--line-3); }
 .trk-opt.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .trk-opt[aria-disabled='true'] { background: var(--bg-sunken); cursor: not-allowed; }
-.trk-opt .monogram, .trk-opt .trk-none { width: 36px; height: 36px; border-radius: var(--radius); font-size: 12px; }
+.trk-opt .monogram, .trk-opt .trk-none { width: 36px; height: 36px; border-radius: var(--radius); font-size: var(--fs-small); }
 .trk-none { display: grid; place-items: center; background: var(--bg-hover); color: var(--text-muted); }
 .trk-opt-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.trk-opt-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 500; font-size: 14px; }
-.trk-opt-why { font-size: 12.5px; line-height: 1.45; color: var(--text-muted); }
+.trk-opt-name { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: var(--fw-regular); font-size: var(--fs-body); }
+.trk-opt-why { font-size: var(--fs-small); line-height: 1.45; color: var(--text-muted); }
 .trk-map { display: flex; flex-direction: column; gap: 10px; }
 .trk-map-row { display: grid; grid-template-columns: 150px 16px 240px minmax(0, 1fr); gap: 12px; align-items: center; }
-.trk-map-col { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.trk-map-col { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); }
 .trk-map-row > .ico { color: var(--text-faint); }
-.trk-map-note { font-size: 12px; line-height: 1.45; color: var(--text-faint); }
+.trk-map-note { font-size: var(--fs-small); line-height: 1.45; color: var(--text-faint); }
 .trk-sel { display: block; min-width: 0; }
 .trk-sel .select-trigger { width: 100%; }
 @media (max-width: 900px) {
   .trk-opt { min-height: 64px; }
-  .trk-opt-why { font-size: 13px; }
+  .trk-opt-why { font-size: var(--fs-small); }
   .trk-map { gap: 14px; }
   .trk-map-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .trk-map-row > .ico { display: none; }
-  .trk-map-note { font-size: 13px; }
+  .trk-map-note { font-size: var(--fs-small); }
 }

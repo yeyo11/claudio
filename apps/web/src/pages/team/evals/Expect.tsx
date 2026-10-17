@@ -97,7 +97,7 @@ export function CallFields({ value, onChange, label, invalid }: { value: CallFor
             aria-label={t('call.scopeLabel', { call: label })}
           />
         </div>
-        {value.input && <span className="field-hint mono">{t('call.inputKept', { count: Object.keys(value.input).length })}</span>}
+        {value.input && <span className="field-hint tnum">{t('call.inputKept', { count: Object.keys(value.input).length })}</span>}
       </div>
     </div>
   );
@@ -147,11 +147,11 @@ export function ExpectRow({
           <div className="evals-expect-count">
             <label className="field">
               <span className="field-label">{t('expect.min')}</span>
-              <input className="mono" inputMode="numeric" value={value.min} onChange={(event) => set({ min: event.target.value })} />
+              <input className="tnum" inputMode="numeric" value={value.min} onChange={(event) => set({ min: event.target.value })} />
             </label>
             <label className="field">
               <span className="field-label">{t('expect.max')}</span>
-              <input className="mono" inputMode="numeric" value={value.max} onChange={(event) => set({ max: event.target.value })} />
+              <input className="tnum" inputMode="numeric" value={value.max} onChange={(event) => set({ max: event.target.value })} />
             </label>
           </div>
         )}
@@ -236,7 +236,7 @@ export function ExpectRow({
               </label>
               <label className="field">
                 <span className="field-label">{t('expect.timeoutSeconds')}</span>
-                <input className="mono" inputMode="numeric" value={value.timeoutSeconds} onChange={(event) => set({ timeoutSeconds: event.target.value })} />
+                <input className="tnum" inputMode="numeric" value={value.timeoutSeconds} onChange={(event) => set({ timeoutSeconds: event.target.value })} />
               </label>
             </div>
           </>
@@ -259,7 +259,7 @@ export function ExpectRow({
               <span className="field-label">{t('expect.judgeModel')}</span>
               <input className="mono" value={value.judgeModel} onChange={(event) => set({ judgeModel: event.target.value })} placeholder="haiku" spellCheck={false} />
             </label>
-            {value.examples && <span className="field-hint mono">{t('expect.examplesKept', { count: value.examples.length })}</span>}
+            {value.examples && <span className="field-hint tnum">{t('expect.examplesKept', { count: value.examples.length })}</span>}
           </>
         )}
         {errors.map((error) => (

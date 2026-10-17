@@ -94,8 +94,8 @@ function RunRow({ run }: { run: ReviewRun }) {
       <RunIcon state={run.state} />
       <span className="dim">
         {name}
-        {run.chunk !== null && run.chunks !== null && run.chunks > 1 && <span className="mono">{`${run.chunk}/${run.chunks}`}</span>}
-        {run.kind === 'reviewer' && run.chunk !== null && run.chunks === 1 && <span className="mono">1/1</span>}
+        {run.chunk !== null && run.chunks !== null && run.chunks > 1 && <span className="tnum">{`${run.chunk}/${run.chunks}`}</span>}
+        {run.kind === 'reviewer' && run.chunk !== null && run.chunks === 1 && <span className="tnum">1/1</span>}
       </span>
       <span className="model">{run.model ?? ''}</span>
       <span className="meta">
@@ -315,7 +315,12 @@ export function ReviewGateSection({ orch }: { orch: Orchestration }) {
         <span className="grow" />
         <span className="facts">
           {t('review.facts', { round: Math.max(state.round, 1), max: state.maxFixRounds + 1 })}
-          {state.head ? ` · ${state.head.slice(0, 7)}` : ''}
+          {state.head && (
+            <>
+              {' · '}
+              <span className="mono">{state.head.slice(0, 7)}</span>
+            </>
+          )}
           {` · ${t('review.costOf', { cost: formatCost(state.costUsd), limit: formatCost(maxCost) })}`}
         </span>
       </div>
@@ -324,7 +329,7 @@ export function ReviewGateSection({ orch }: { orch: Orchestration }) {
         <div className="rg-reason warn" role="status">
           <Clock className="ico" {...ICON_SM} />
           <span>
-            {t('review.waiting')} <span className="mono">{state.waiting.resetsAt ? formatDateTime(state.waiting.resetsAt) : ''}</span>
+            {t('review.waiting')} <span className="tnum">{state.waiting.resetsAt ? formatDateTime(state.waiting.resetsAt) : ''}</span>
           </span>
         </div>
       )}
@@ -333,7 +338,7 @@ export function ReviewGateSection({ orch }: { orch: Orchestration }) {
       {state.runs.total > 0 && (
         <div className="rg-segs">
           <ProgressBar variant="segments" counts={counts} unit={t('review.runsUnit')} />
-          <span className="mono">{t('review.runsOf', { done: state.runs.done, total: state.runs.total })}</span>
+          <span className="tnum">{t('review.runsOf', { done: state.runs.done, total: state.runs.total })}</span>
         </div>
       )}
       {runs.length > 0 && (

@@ -485,6 +485,15 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
       await sleep(200);
     },
+    /**
+     * A finger instead of a mouse: `(pointer: coarse)` and `(hover: none)` match, which is what gives
+     * every control its 44 px (--control-h). A phone width alone does not: the app sizes targets by
+     * the pointer, not the window.
+     */
+    async emulateTouch(on = true) {
+      await send('Emulation.setTouchEmulationEnabled', { enabled: on, maxTouchPoints: on ? 5 : 1 });
+      await send('Emulation.setEmitTouchEventsForMouse', { enabled: on, configuration: 'mobile' });
+    },
     async shot(name) {
       if (!shotsDir) return;
       const r = await send('Page.captureScreenshot', { format: 'png' });

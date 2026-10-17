@@ -6,7 +6,7 @@ import type { DocumentKind, DocumentNode, DocumentTie, WorkItemLink } from '@cla
  * on its own (test/documents-model.test.ts).
  */
 
-/** The mono tag each kind wears on a row (SPEC, ADR…): a kind is a fact, never a colour. */
+/** The tag each kind wears on a row (SPEC, ADR…): a kind is a fact, never a colour. */
 export const DOCUMENT_KINDS: readonly DocumentKind[] = ['spec', 'adr', 'report', 'doc'];
 
 /** A file's tie the Documents tab shows first: what an agent wrote beats a tie made by hand. */

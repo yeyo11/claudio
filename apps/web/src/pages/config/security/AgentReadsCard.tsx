@@ -9,6 +9,7 @@ import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { formatDateTime } from '@claudio/ui/lib/format';
 import { teammateLabel } from '../../../components/TeammateName';
 import { collaboratorsApi, collaboratorsKeys, useSharedProjects, type AgentReadQuery } from '../../../lib/api/collaborators';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /** The newest reads the card lists: the route keeps 20,000, a person reads the recent ones */
 export const AGENT_READS_SHOWN = 50;
@@ -94,9 +95,9 @@ export function AgentReadsView({
                 <tr key={read.id}>
                   <td className="small muted nowrap">{formatDateTime(read.at)}</td>
                   <td className="small mono">
-                    <Link to={`/chats/${encodeURIComponent(read.chatId)}`} title={read.chatId}>
-                      {read.chatId.slice(0, 8)}
-                    </Link>
+                    <Tooltip content={read.chatId}>
+                      <Link to={`/chats/${encodeURIComponent(read.chatId)}`}>{read.chatId.slice(0, 8)}</Link>
+                    </Tooltip>
                   </td>
                   <td className="small mono break">{read.tool}</td>
                   <td className="small">
@@ -105,7 +106,7 @@ export function AgentReadsView({
                   </td>
                   <td className="small nowrap">
                     {read.kind ? t(`sharing.kinds.${read.kind}`) : t('agentReads.audit.list')}
-                    {read.recordIds.length > 0 && <span className="mono muted"> · {t('agentReads.audit.records', { count: read.recordIds.length })}</span>}
+                    {read.recordIds.length > 0 && <span className="muted tnum"> · {t('agentReads.audit.records', { count: read.recordIds.length })}</span>}
                   </td>
                 </tr>
               ))}

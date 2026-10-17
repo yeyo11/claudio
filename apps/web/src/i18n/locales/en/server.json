@@ -11,7 +11,7 @@
       "failedWithError": "The last execution failed: {{error}}"
     },
     "waiting": "Stopped until a person answers a permission, a question or a plan.",
-    "context": "{{percent}}% of the context window is in use: Claude Code compacts the conversation when it fills.",
+    "context": "{{percent}} of the context window is in use: Claude Code compacts the conversation when it fills.",
     "branches_one": "{{count}} branch failed.",
     "branches_other": "{{count}} branches failed.",
     "repeatStall": "`{{kind}}` has hung {{count}} times in a row ({{count}} runs, each past {{limitSeconds}}).",

@@ -107,7 +107,7 @@ function ConnectorCard({
         <div className="connector-main">
           <h2 className="connector-name break">{connector.name}</h2>
           <ConnectorStatus status={connector.status} />
-          {connector.toolCount !== undefined && <span className="mono small muted connector-tools">{t('toolCount', { count: connector.toolCount })}</span>}
+          {connector.toolCount !== undefined && <span className="small muted tnum connector-tools">{t('toolCount', { count: connector.toolCount })}</span>}
           {connector.detail && connector.status !== 'connected' && <span className="mono small muted break">{t('cliSays', { detail: connector.detail })}</span>}
         </div>
         {connector.status === 'needs-auth' && (
@@ -232,7 +232,7 @@ export function Connectors() {
       {/* A phone keeps the header to its title, when the list was read and an icon to read it again (MobileConectores) */}
       <PageHeader
         title={t('title')}
-        subtitle={narrow ? <span className="mono small connectors-checked">{checked}</span> : t('intro')}
+        subtitle={narrow ? <span className="small tnum connectors-checked">{checked}</span> : t('intro')}
         phone={{
           subtitle: checked,
           actions: (
@@ -243,7 +243,7 @@ export function Connectors() {
         }}
         actions={
           <>
-            {!narrow && <span className="mono small muted connectors-checked">{checked}</span>}
+            {!narrow && <span className="small muted tnum connectors-checked">{checked}</span>}
             <button
               type="button"
               className={narrow ? 'icon-btn connectors-refresh' : 'btn'}

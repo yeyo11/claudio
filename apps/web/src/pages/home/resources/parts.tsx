@@ -168,7 +168,7 @@ export function ProposalsCard({
         <div className="resources-proposals-title">
           <h2>{t('resourcesAi.proposals')}</h2>
           {phone && run && <RunFacts run={run} label={t('resourcesAi.toReview', { count: pending })} ago />}
-          {!phone && <span className="mono small muted">{t('resourcesAi.toReview', { count: pending })}</span>}
+          {!phone && <span className="small muted tnum">{t('resourcesAi.toReview', { count: pending })}</span>}
         </div>
         {!phone && pending > 1 && (
           <button type="button" className="btn btn-quiet btn-small" onClick={onDiscardAll}>
@@ -250,7 +250,7 @@ export function InProjectList({
             <div className="resources-group-head">
               <KindIcon kind={kind} />
               <span className="section-label grow">{t(`config.tabs.${kind}`)}</span>
-              <span className="mono small muted">{list.length}</span>
+              <span className="small muted tnum">{list.length}</span>
             </div>
             {loading && list.length === 0 ? (
               <Skeleton rows={2} height={14} />
@@ -270,7 +270,7 @@ export function InProjectList({
                       >
                         <span className="master-item-head">
                           <span className="mono resource-item-name">{shownName(kind, resource.name)}</span>
-                          {resource.updatedAt && <span className="mono small muted">{timeAgo(resource.updatedAt)}</span>}
+                          {resource.updatedAt && <span className="small muted tnum">{timeAgo(resource.updatedAt)}</span>}
                         </span>
                         <span className="small muted resource-item-desc">{resource.description ?? t('resources.noDescription')}</span>
                       </button>

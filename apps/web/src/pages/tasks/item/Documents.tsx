@@ -13,6 +13,7 @@ import { useProjectScope } from '../../../lib/project-scope';
 import { DOCUMENT_KINDS, baseName, documentLinks, filesOf } from '../../documents/model';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import { DocumentKindTag } from '../../documents/Tied';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /** A document of the item on the Documents tab of its project, opened. */
 export function documentHref(projectId: string, path: string): string {
@@ -53,9 +54,11 @@ function DocumentRow({ link, itemId, projectId, title }: { link: WorkItemLink; i
         </span>
         {link.teamRole && <RoleAvatar role={link.teamRole} size="sm" />}
       </Link>
-      <button type="button" className="icon-btn workitem-doc-untie" aria-label={t('item.untie', { path })} title={t('item.untie', { path })} disabled={untie.isPending} onClick={() => untie.mutate()}>
-        <X {...ICON_SM} />
-      </button>
+      <Tooltip content={t('item.untie', { path })}>
+        <button type="button" className="icon-btn workitem-doc-untie" aria-label={t('item.untie', { path })} disabled={untie.isPending} onClick={() => untie.mutate()}>
+          <X {...ICON_SM} />
+        </button>
+      </Tooltip>
     </li>
   );
 }

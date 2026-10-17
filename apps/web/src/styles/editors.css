@@ -92,7 +92,8 @@
 }
 
 .change {
-  font: 12px var(--mono);
+  /* literal: a settings key */
+  font: var(--fw-regular) var(--fs-small) var(--mono);
   padding: 1px 9px;
   border-radius: var(--radius-pill);
   background: var(--warn-soft);
@@ -185,12 +186,12 @@
 }
 
 .section-title {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .section-summary {
   margin-left: auto;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
 }
 
@@ -266,9 +267,9 @@
 }
 
 .fold-card-title {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.005em;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   color: var(--text);
 }
 
@@ -283,8 +284,8 @@
 
 .env-group > .collapsible-trigger {
   justify-content: flex-start;
-  font-weight: 550;
-  font-size: 13px;
+  font-weight: var(--fw-strong);
+  font-size: var(--fs-small);
 }
 
 .env-group > .collapsible-trigger .count {
@@ -418,7 +419,7 @@ button.master-item-on:hover {
   background: none;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-fast);
@@ -494,7 +495,8 @@ button.master-item-on:hover {
 .breadcrumb {
   display: flex;
   flex-wrap: wrap;
-  font: 12.5px var(--mono);
+  /* literal: a file path */
+  font: var(--fw-regular) var(--fs-small) var(--mono);
   min-width: 0;
 }
 
@@ -540,7 +542,7 @@ button.master-item-on:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   min-width: 0;
 }
 
@@ -554,31 +556,31 @@ button.master-item-on:hover {
 @media (max-width: 900px) {
 .master-detail,
 .master-detail-files {
-    grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   }
 .master {
-    max-height: 260px;
+  max-height: 260px;
   }
 .hook-hint {
-    display: none;
+  display: none;
   }
 }
 
 @media (max-width: 560px) {
 /* Name and buttons on one line, the value under them */
 .kv-editor-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   }
 .kv-editor-row > :nth-child(2) {
-    grid-row: 2;
-    grid-column: 1 / -1;
+  grid-row: 2;
+  grid-column: 1 / -1;
   }
 }
 
 /* Like every other field (styles/primitives.css): under 16px iOS zooms the page into the editor */
 @media (pointer: coarse) {
   .code-editor .cm-editor {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 }
 
@@ -596,15 +598,6 @@ button.master-item-on:hover {
   background: linear-gradient(var(--border), var(--border)) calc(var(--settings-nav-w) - 1px) 0 / 1px 100% no-repeat;
 }
 
-/*
- * Tabs differ in height, so the scroller gains and loses its scrollbar as the tab changes. With
- * classic scrollbars (the desktop app's) that would move the whole centered page by half its width
- * every time: the nav and the body would dance. The room for it is kept either way.
- */
-.main:has(.settings-layout) {
-  scrollbar-gutter: stable;
-}
-
 /* The page fills the scroller, so the divider reaches the bottom even under a short tab */
 .page:has(> .settings-layout) {
   min-height: 100%;
@@ -618,15 +611,16 @@ button.master-item-on:hover {
   gap: 16px;
   max-height: calc(100dvh - var(--topbar-h) - env(titlebar-area-height, 0px));
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: var(--main-pad-top) 12px 20px 24px;
 }
 
 .settings-title {
   margin: 0;
   padding-left: 10px;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .settings-nav-tabs {
@@ -657,7 +651,7 @@ button.master-item-on:hover {
   background: none;
   color: var(--text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
   transition:
@@ -673,7 +667,6 @@ button.master-item-on:hover {
 .settings-nav-item.is-on {
   background: var(--bg-hover);
   color: var(--text);
-  font-weight: 500;
 }
 
 /* The same gradient tick as the sidebar's current page, hung in the nav's left gutter */
@@ -712,15 +705,15 @@ button.master-item-on:hover {
 
 .settings-head-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .settings-head-sub {
   margin: 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 /* Phone: a list of cells first, then one screen per tab */
@@ -747,9 +740,9 @@ button.master-item-on:hover {
 
 .settings-phone-title {
   margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .settings-phone-theme {
@@ -768,7 +761,7 @@ button.master-item-on:hover {
 .settings-phone-theme .segment {
   flex: 1;
   justify-content: center;
-  min-height: 38px;
+  min-height: var(--touch);
 }
 
 .settings-cells-group {
@@ -801,7 +794,7 @@ button.master-item-on:hover {
   min-height: 48px;
   padding: 0 14px;
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--fs-section);
   transition: background var(--dur-fast);
 }
 
@@ -853,7 +846,7 @@ button.master-item-on:hover {
 }
 
 .appearance-row-title {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .appearance-row-control {
@@ -880,7 +873,7 @@ button.master-item-on:hover {
   border-radius: var(--radius-lg);
   color: var(--text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   cursor: pointer;
   transition:
     border-color var(--dur-fast),
@@ -900,7 +893,6 @@ button.master-item-on:hover {
 .appearance-theme.is-on {
   border-color: transparent;
   color: var(--text);
-  font-weight: 500;
 }
 
 .appearance-thumb {
@@ -997,10 +989,8 @@ button.master-item-on:hover {
 }
 
 .appearance-preview-label {
-  color: var(--text-faint);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--fg-2);
+  font: var(--fw-strong) var(--fs-small) var(--sans);
 }
 
 /* A live bar: the stripes flow while the work is running, and stand still with the motion level */
@@ -1038,7 +1028,7 @@ button.master-item-on:hover {
   align-items: center;
   gap: 14px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .appearance-preview-signal {
@@ -1094,7 +1084,7 @@ button.master-item-on:hover {
 }
 
 .install-push-title {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .install-push-chevron {
@@ -1184,7 +1174,7 @@ button.master-item-on:hover {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .tunnel-address-url > a {
@@ -1216,7 +1206,7 @@ button.master-item-on:hover {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 /* A host that cannot be edited here, with who put it there beside it */
@@ -1244,7 +1234,7 @@ button.master-item-on:hover {
   }
 
   .tunnel-address-url {
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
 
   .tunnel-address .qr {
@@ -1265,7 +1255,7 @@ button.master-item-on:hover {
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .guard-status.is-ok {
@@ -1328,7 +1318,7 @@ button.master-item-on:hover {
 
 .guard-subtitle {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .guard-problems {
@@ -1403,12 +1393,12 @@ button.master-item-on:hover {
 
   .guard-try-row > input {
     min-height: 44px;
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .guard-configs textarea,
   .guard-try textarea {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   /* Wrap, never scroll sideways */

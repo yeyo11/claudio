@@ -157,7 +157,7 @@ def bin_panel():
   return f'''<div class="prov-bin" role="group" aria-label="Binario de Codex">
 <span class="t-label">Binario de Codex</span>
 <div class="prov-bin-row"><label class="field field-mono grow">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/codex/bin/codex" aria-label="Ruta del binario de Codex"></label><button type="button" class="btn">Buscar…</button></div>
-<span class="form-hint">Claudio usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="mono">≥ 0.40</span>).</span>
+<span class="form-hint">Claudio usa este programa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="t-num">≥ 0.40</span>).</span>
 <div class="row" style="gap: 8px"><button type="button" class="btn">Comprobar y guardar</button><button type="button" class="btn btn-ghost">Cancelar</button><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm">Usar el del PATH</button></div>
 </div>'''
 
@@ -171,10 +171,10 @@ def settings_nav():
   for g, items in SETTINGS_NAV:
     if g == 'Claudio':
       items = ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Proveedores', 'Decisiones']
-    links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Proveedores" else ""}" style="height: 30px; font-size: 13px">{i}</a>' for i in items)
+    links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Proveedores" else ""}" style="height: 30px; font-size: var(--fs-small)">{i}</a>' for i in items)
     out.append(f'<div class="col" style="gap: 1px"><span class="t-label" style="padding: 0 10px 4px">{g}</span>{links}</div>')
   return ('<nav aria-label="Secciones de ajustes" class="col" style="width: 236px; flex-shrink: 0; padding: 26px 12px 20px 24px; gap: 16px; overflow: hidden; border-right: 1px solid var(--line)">'
-          '<h1 class="t-h1" style="padding-left: 10px; font-size: 20px">Ajustes</h1>' + ''.join(out) + '</nav>')
+          '<h1 class="t-h1" style="padding-left: 10px; font-size: var(--fs-title)">Ajustes</h1>' + ''.join(out) + '</nav>')
 
 
 def counts(machine):
@@ -188,7 +188,7 @@ def default_strip(machine):
   ctl = (f'<select class="select" aria-label="Proveedor predeterminado" style="width: 230px"><option>{PROV[first["id"]][0]}</option>'
          f'<option>Automático (el primero listo)</option></select>')
   return (f'<div class="row" style="padding: 16px 18px; gap: 24px; border-bottom: 1px solid var(--line); align-items: center">'
-          f'<div class="col grow" style="gap: 4px"><span style="font-weight: 500">Proveedor predeterminado</span>'
+          f'<div class="col grow" style="gap: 4px"><span style="font-weight: var(--fw-regular)">Proveedor predeterminado</span>'
           f'<span class="t-sm fg-2">Lo usan los chats nuevos. Con «Automático» es el primero que esté listo, en el orden de esta lista: arrastra por el asa para cambiarlo.</span></div>{ctl}</div>')
 
 
@@ -200,15 +200,15 @@ def desktop_settings(name, title, machine, open_id=None, drop_after=None):
       rows.append(bin_panel())
     if p['id'] == drop_after:
       rows.append('<div class="prov-drop" aria-hidden="true"></div>')
-  head = (f'<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: 20px">Proveedores</h2>'
+  head = (f'<div class="row" style="gap: 20px; align-items: flex-end"><div class="col grow" style="gap: 4px"><h2 class="t-h1" style="font-size: var(--fs-title)">Proveedores</h2>'
           f'<p class="fg-2 t-sm" style="margin: 0; max-width: 640px">Los agentes de programación que Claudio encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, esta lista se actualiza sola.</p></div>'
-          f'<span class="mono t-xs fg-3" style="white-space: nowrap; padding-bottom: 6px">Comprobado hace 2 min</span>'
+          f'<span class="t-num t-xs fg-3" style="white-space: nowrap; padding-bottom: 6px">Comprobado hace 2 min</span>'
           f'<button type="button" class="btn">{ico("retry", "ico")}Volver a comprobar</button></div>')
   card = (f'<section class="card grad-border col" style="flex-shrink: 0; gap: 0; overflow: hidden" aria-labelledby="sec-providers">'
           f'{card_head("Proveedores", counts(machine), "sec-providers")}{default_strip(machine)}{"".join(rows)}</section>')
   main = f'<main class="col grow" style="padding: 26px 32px; gap: 18px; min-width: 0">{head}{card}</main>'
   inner = f'<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0; overflow: hidden">{settings_nav()}{main}</div>'
-  write(name, desktop(title, 'settings', '<span style="font-weight: 500">Ajustes</span>', inner, project='Todos los proyectos', agents=3, running=3))
+  write(name, desktop(title, 'settings', '<span style="font-weight: var(--fw-regular)">Ajustes</span>', inner, project='Todos los proyectos', agents=3, running=3))
 
 
 # ---------------------------------------------------------------- Settings → Providers, phone
@@ -224,7 +224,7 @@ def pcell(p, compact=False):
   chev = '' if compact else ico('right', 'ico fg-3')
   acts = ''.join(actions(p))
   acts_html = f'<div class="row" style="gap: 8px; flex-wrap: wrap">{acts}</div>' if acts else ''
-  head = (f'<div class="prov-cell-head">{mono_ico(p["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: 500">{label}</span>{dflt}</span>'
+  head = (f'<div class="prov-cell-head">{mono_ico(p["id"])}<div class="grow"><span class="row" style="gap: 8px; flex-wrap: wrap"><span style="font-weight: var(--fw-regular)">{label}</span>{dflt}</span>'
           f'<span class="prov-meta">{meta}</span></div>{badge(p["state"])}{chev}</div>')
   tag = 'div' if compact else 'div'
   return f'<{tag} class="prov-cell" data-provider="{p["id"]}">{head}<p class="prov-reason">{p["reason"]}</p>{'' if compact else limit_block(p, True)}{acts_html}</{tag}>'
@@ -234,7 +234,7 @@ def rotation_cells():
   """Where the phone reaches the two rotation screens: the on-limit settings and the model mapping."""
   def cell(icon, name, note, href):
     return (f'<a href="{href}" class="cell" style="min-height: 56px">{ico(icon, "ico fg-3")}<span class="grow col" style="gap: 1px; min-width: 0">'
-            f'<span style="font-weight: 500">{name}</span><span class="mono t-xs fg-3">{note}</span></span>{ico("right", "ico fg-3")}</a>')
+            f'<span style="font-weight: var(--fw-regular)">{name}</span><span class="mono t-xs fg-3">{note}</span></span>{ico("right", "ico fg-3")}</a>')
   return ('<div class="card" style="overflow: hidden">'
           + cell('wait', 'Al llegar a un límite', 'esperar al reinicio', 'MobileProveedoresRotacion.html')
           + cell('move', 'Equivalencias de modelos', '1 sugerida · 1 sin equivalente', 'MobileProveedoresEquivalencias.html') + '</div>')
@@ -243,11 +243,11 @@ def rotation_cells():
 def mbody(machine):
   first = PROV[machine[0]['id']][0]
   order_cell = (f'<a href="#" class="cell card" style="min-height: 56px" aria-label="Predeterminado y orden">{ico("list", "ico fg-3")}'
-                f'<span class="grow col" style="gap: 1px"><span style="font-weight: 500">Predeterminado y orden</span><span class="mono t-xs fg-3">{first} · 1.º de {len(machine)}</span></span>{ico("right", "ico fg-3")}</a>')
+                f'<span class="grow col" style="gap: 1px"><span style="font-weight: var(--fw-regular)">Predeterminado y orden</span><span class="mono t-xs fg-3">{first} · 1.º de {len(machine)}</span></span>{ico("right", "ico fg-3")}</a>')
   return f'''{mhead('Proveedores')}
 <div class="m-body" style="gap: 12px">
 <p class="t-sm fg-2" style="margin: 0 4px; line-height: 1.5">Los agentes de programación que Claudio encuentra en este equipo. Si instalas uno o inicias sesión en una terminal, la lista se actualiza sola.</p>
-<div class="row" style="gap: 10px"><button type="button" class="btn grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button><span class="mono t-xs fg-3" style="white-space: nowrap">hace 2 min</span></div>
+<div class="row" style="gap: 10px"><button type="button" class="btn grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button><span class="t-num t-xs fg-3" style="white-space: nowrap">hace 2 min</span></div>
 {order_cell}
 {rotation_cells()}
 <section class="card grad-border" style="overflow: hidden" aria-label="Proveedores">{"".join(pcell(p) for p in machine)}</section>
@@ -288,11 +288,11 @@ def binary_sheet(p):
 <div class="sheet" role="dialog" aria-label="{label}" style="z-index: 11; padding-bottom: 28px; display: flex; flex-direction: column; gap: 12px; max-height: 92%">
 <div class="grab" style="margin-bottom: 0"></div>
 <div class="prov-cell-head">{mono_ico(p["id"])}<div class="grow"><h2 class="t-h2">{label}</h2><span class="mono t-xs fg-3">{p["path"]}</span></div>{badge(p["state"])}</div>
-<p class="prov-reason" style="font-size: 14px">{p["reason"]}</p>
-<label class="row" style="gap: 12px; min-height: 48px"><span class="grow" style="font-weight: 500">Activado</span>{switch(p).replace('<span class="switch', '<span class="switch switch-lg')}</label>
+<p class="prov-reason" style="font-size: var(--fs-body)">{p["reason"]}</p>
+<label class="row" style="gap: 12px; min-height: 48px"><span class="grow" style="font-weight: var(--fw-regular)">Activado</span>{switch(p).replace('<span class="switch', '<span class="switch switch-lg')}</label>
 <div class="col" style="gap: 8px"><span class="t-label">Binario</span>
-<label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/codex/bin/codex" aria-label="Ruta del binario de Codex" style="font-size: 16px"></label>
-<span class="form-hint">Claudio lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="mono">≥ 0.40</span>).</span></div>
+<label class="field field-lg field-mono">{ico("folder", "ico fg-3")}<input class="mono" value="/opt/codex/bin/codex" aria-label="Ruta del binario de Codex" style="font-size: var(--fs-input)"></label>
+<span class="form-hint">Claudio lo usa en lugar de buscar en el PATH. Antes de guardarlo lee su versión y comprueba que está dentro del rango probado (<span class="t-num">≥ 0.40</span>).</span></div>
 <div class="col" style="gap: 8px"><button type="button" class="btn btn-lg btn-primary">Comprobar y guardar</button>
 <div class="row" style="gap: 8px"><button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">Usar el del PATH</button><button type="button" class="btn btn-lg btn-ghost">Instalar{ico("ext", "ico ico-sm")}</button></div></div>
 </div>'''
@@ -321,7 +321,7 @@ SKIP = '<button type="button" class="btn btn-ghost">Omitir por ahora</button>'
 
 
 def brand_row(right=''):
-  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span>'
+  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: var(--fw-strong); font-size: var(--fs-section); letter-spacing: -0.02em">Claudio</span>'
           f'<span class="grow"></span>{right}</div>')
 
 
@@ -377,7 +377,7 @@ def checking_row(pid, i):
 def mfirst(name, title, kind):
   if kind == 'found':
     ps = [p for st, _ in GROUPS for p in MACHINE_A if p['state'] == st]
-    body = (f'<div class="col" style="gap: 8px"><h1 class="t-h1" style="font-size: 24px">Estos son los agentes de tu equipo</h1>'
+    body = (f'<div class="col" style="gap: 8px"><h1 class="t-h1" style="font-size: var(--fs-title)">Estos son los agentes de tu equipo</h1>'
             f'<p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Empiezas con el primero que esté listo. El orden y el resto los cambias luego en Ajustes.</p></div>'
             f'<section class="card" style="overflow: hidden">{"".join(pcell(p, compact=True) for p in ps)}</section>')
     foot = ('<div class="m-foot" style="flex-direction: column"><button type="button" class="btn btn-lg btn-primary">Continuar con Claude Code</button>'
@@ -385,7 +385,7 @@ def mfirst(name, title, kind):
             f'<button type="button" class="btn btn-lg btn-ghost grow" style="justify-content: center">{ico("retry", "ico")}Volver a comprobar</button></div></div>')
   elif kind == 'checking':
     cells = [pcell(MACHINE_A[0], compact=True)] + [mchecking_cell(pid, i) for i, pid in enumerate(['copilot', 'codex', 'gemini', 'opencode'])]
-    body = (f'<div class="col" style="gap: 8px"><h1 class="t-h1" style="font-size: 24px">Buscando agentes en tu equipo</h1>'
+    body = (f'<div class="col" style="gap: 8px"><h1 class="t-h1" style="font-size: var(--fs-title)">Buscando agentes en tu equipo</h1>'
             f'<p class="t-sm fg-2" style="margin: 0; line-height: 1.5">Cada uno se comprueba por separado, así que no hace falta esperar a todos.</p></div>'
             f'<span class="prov-step-note"><span class="spin-braille"></span>Comprobando · 1 de 5</span>'
             f'<section class="card" style="overflow: hidden" aria-busy="true">{"".join(cells)}</section>')
@@ -405,7 +405,7 @@ def mfirst(name, title, kind):
 
 def mchecking_cell(pid, i):
   label = PROV[pid][0]
-  head = (f'<div class="prov-cell-head">{mono_ico(pid)}<div class="grow"><span style="font-weight: 500">{label}</span>'
+  head = (f'<div class="prov-cell-head">{mono_ico(pid)}<div class="grow"><span style="font-weight: var(--fw-regular)">{label}</span>'
           f'<span class="skeleton" style="width: 110px; height: 10px; margin-top: 4px" aria-hidden="true"></span></div>'
           f'<span class="skeleton" style="width: 84px; height: 20px" aria-hidden="true"></span></div>')
   if i == 0:

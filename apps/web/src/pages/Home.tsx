@@ -124,7 +124,7 @@ function PhoneTabCells({ views, counts }: { views: ProjectViewId[]; counts: Part
                   (IDLE_COUNT.has(view) ? (
                     <TabCount id={view} count={count} />
                   ) : (
-                    <span className="mono small muted">{view === 'board' ? t('projects:head.open', { count, n: formatNumber(count) }) : formatNumber(count)}</span>
+                    <span className="small muted tnum">{view === 'board' ? t('projects:head.open', { count, n: formatNumber(count) }) : formatNumber(count)}</span>
                   ))}
                 <ChevronRight {...ICON_SM} className="settings-cell-chevron" />
               </Link>

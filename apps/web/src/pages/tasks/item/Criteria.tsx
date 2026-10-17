@@ -8,6 +8,7 @@ import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
 import type { ItemActions } from './hooks';
 import { criteriaProgress, shortId } from './model';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 /** When a criterion was last checked, and from which chat, read from the history the store wrote. */
 function checkedEntry(history: readonly WorkItemHistoryEntry[], criterionId: string): WorkItemHistoryEntry | null {
@@ -120,7 +121,7 @@ export function Criteria({ item, actions, person, compact = false }: { item: Wor
         </h2>
         {total > 0 && (
           <>
-            <span className="mono small muted tnum">
+            <span className="small muted tnum">
               {done}/{total}
               <span className="sr-only"> {t('criteria.progress', { done, total })}</span>
             </span>
@@ -133,9 +134,11 @@ export function Criteria({ item, actions, person, compact = false }: { item: Wor
         )}
         <span className="grow" />
         {!editing && total > 0 && (
-          <button type="button" className="icon-btn" aria-label={t('criteria.edit')} title={t('criteria.edit')} onClick={() => setEditing(true)}>
-            <Pencil {...ICON_SM} />
-          </button>
+          <Tooltip content={t('criteria.edit')}>
+            <button type="button" className="icon-btn" aria-label={t('criteria.edit')} onClick={() => setEditing(true)}>
+              <Pencil {...ICON_SM} />
+            </button>
+          </Tooltip>
         )}
         {/* A phone has room for the label and the count only: the pencil opens the list to edit and add */}
         {!editing && !(compact && total > 0) && (

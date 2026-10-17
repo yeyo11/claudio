@@ -35,11 +35,11 @@ const words = (model: string | null, use: EffortUse, o: { inherited?: string | n
   effortWords(i18n.getFixedT(null, 'components'), model, use, { set: false, ...o });
 
 test('unset reads the level recommended for the model and the use, in both languages', async () => {
-  assert.equal(words('sonnet', 'chat').unset, 'medium · recommended');
-  assert.equal(words('claude-sonnet-5-5', 'planner').unset, 'high · recommended', 'the planner of Sonnet 5.5 is a harder use');
+  assert.equal(words('sonnet', 'chat').unset, 'Medium · recommended');
+  assert.equal(words('claude-sonnet-5-5', 'planner').unset, 'High · recommended', 'the planner of Sonnet 5.5 is a harder use');
   assert.match(words('opus', 'chat').tip, /Opus 5.5/, 'the reason is the tooltip');
   await i18n.changeLanguage('es');
-  assert.equal(words('opus', 'chat').unset, 'medium · recomendado');
+  assert.equal(words('opus', 'chat').unset, 'Medio · recomendado');
   assert.match(words('opus', 'chat').tip, /Opus 5.5/);
 });
 
@@ -53,7 +53,7 @@ test('a chosen level carries no recommendation tooltip', () => {
 });
 
 test('a resume that sets nothing says it starts as before', () => {
-  assert.equal(words('opus', 'chat', { inherited: 'high' }).unset, 'high · as before');
+  assert.equal(words('opus', 'chat', { inherited: 'high' }).unset, 'High · as before');
   assert.equal(words('opus', 'chat', { inherited: 'high' }).tip, '');
 });
 
@@ -69,7 +69,8 @@ test('the picker is disabled, with the reason, where the provider has no effort 
 test('the field carries its label and the tag only shows an effort that was passed', () => {
   assert.match(wrap(<EffortField value="" onChange={() => {}} model="opus" use="chat" />), /<span class="field-label">Effort<\/span>/);
   assert.equal(wrap(<EffortTag effort={null} />), '');
-  assert.match(wrap(<EffortTag effort="medium" />), /class="model-tag effort-tag"[^>]*>medium</);
+  // The level in words, with what it is for a screen reader (the tooltip says it to a pointer)
+  assert.match(wrap(<EffortTag effort="medium" />), /class="model-tag effort-tag"[^>]*><span class="sr-only">Effort used: <\/span>Medium</);
 });
 
 test('a team member keeps its effort in the body it is saved with, and the picker can clear it', () => {

@@ -1,4 +1,5 @@
 import type { Project, ProjectCandidate } from '@claudio/shared';
+import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -270,7 +271,7 @@ function ProjectCard({ project, active, live }: { project: Project; active: bool
             <RenameForm initial={project.name} pending={rename.isPending} onSave={(name) => rename.mutate(name)} onCancel={() => setRenaming(false)} />
           ) : (
             <h2 className="project-card-name">
-              <span className="ellipsis">{project.name}</span>
+              <FullText className="ellipsis">{project.name}</FullText>
               <WorkItemKey value={project.key} boxed />
               {!project.exists && <Tag tone="warn">{t('work:projects.missing')}</Tag>}
             </h2>

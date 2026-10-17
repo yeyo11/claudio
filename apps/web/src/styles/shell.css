@@ -53,9 +53,9 @@
   gap: 10px;
   min-width: 0;
   color: var(--fg);
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -0.02em;
+  font-weight: var(--fw-strong);
+  font-size: var(--fs-section);
+  letter-spacing: var(--tracking-title);
   white-space: nowrap;
 }
 
@@ -116,8 +116,8 @@
 .nav-group-label {
   padding: 0 10px 6px;
   color: var(--fg-3);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
+  font: var(--fw-regular) var(--fs-small) var(--sans);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
 
@@ -130,7 +130,7 @@
   padding: 0 10px;
   border-radius: var(--radius-sm);
   color: var(--fg-2);
-  font-size: 13.5px;
+  font-size: var(--fs-small);
   white-space: nowrap;
   transition: color var(--dur-fast), background var(--dur-fast);
 }
@@ -143,7 +143,6 @@
 
 .nav-link.is-active {
   color: var(--fg);
-  font-weight: 500;
 }
 
 /* The current page: a flat highlight, and the brand gradient as a bar on the sidebar's edge */
@@ -208,7 +207,7 @@
   border-radius: var(--radius-pill);
   background: var(--bg-4);
   color: var(--fg-2);
-  font: 500 10.5px var(--mono);
+  font: var(--fw-regular) var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -236,8 +235,8 @@
   justify-content: space-between;
   padding: 0 10px 4px;
   color: var(--fg-3);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
+  font: var(--fw-regular) var(--fs-small) var(--sans);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
 
@@ -251,7 +250,7 @@
   border-radius: var(--radius-pill);
   background: var(--live-soft);
   color: var(--live);
-  font: 500 10.5px var(--mono);
+  font: var(--fw-regular) var(--fs-small) var(--sans);
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -296,8 +295,8 @@
   align-items: baseline;
   gap: 7px;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
 }
 
 .live-row-title > .ellipsis {
@@ -312,7 +311,7 @@
 .live-row-count {
   flex: none;
   color: var(--fg-3);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -323,7 +322,7 @@
   min-width: 0;
   padding-left: calc(1ch + 7px);
   color: var(--fg-3);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
 }
 
 .live-row .ticker {
@@ -336,7 +335,7 @@
 }
 
 .live-row .ticker-line {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .live-row-state {
@@ -367,7 +366,7 @@
 .live-more {
   padding: 3px 10px 3px 14px;
   color: var(--fg-3);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
 }
 
 .live-more:hover {
@@ -405,7 +404,7 @@
   margin-left: auto;
   padding-left: 12px;
   color: var(--fg-2);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
 }
 
 /* Icon rail. The labels are still the links' names, so they are visually hidden, never display:none */
@@ -454,7 +453,7 @@
   min-width: 15px;
   height: 15px;
   padding: 0 3px;
-  font-size: 9.5px;
+  font-size: var(--fs-small);
 }
 
 .shell-rail .nav-dot {
@@ -500,13 +499,23 @@
   padding: 0;
 }
 
+/* The 28 px mark sits centred in a 44 × 44 target (I9); the negative margin keeps it where it was */
+@media (pointer: coarse) {
+  .topbar-brand {
+    justify-content: center;
+    min-width: var(--touch);
+    min-height: var(--touch);
+    margin-inline-start: -8px;
+  }
+}
+
 /* The project scope, then the page: "▢ All projects ⌄ / Home" */
 .crumbs {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   white-space: nowrap;
 }
 
@@ -515,7 +524,7 @@
 }
 
 .crumb-page {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
   min-width: 0;
 }
 
@@ -545,7 +554,7 @@
   border-color: transparent;
   background: transparent;
   color: var(--fg-2);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .topbar .select-trigger.project-selector:hover:not(:disabled) {
@@ -605,7 +614,7 @@
   border-radius: var(--radius-pill);
   background: var(--live-soft);
   color: var(--live);
-  font: 500 11.5px var(--mono);
+  font: var(--fw-strong) var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;
@@ -640,7 +649,7 @@
   flex: none;
 }
 
-/* ---- The status bar: the desktop's bottom strip, mono and quiet, as in an IDE ---- */
+/* ---- The status bar: the desktop's bottom strip, small and quiet, as in an IDE; mono only on its literals ---- */
 .statusbar {
   flex: none;
   display: flex;
@@ -651,7 +660,7 @@
   border-top: 1px solid var(--line);
   background: var(--bg-1);
   color: var(--fg-3);
-  font: 11px var(--mono);
+  font: var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -665,6 +674,11 @@
   color: inherit;
 }
 
+/* A link in the bar is a 24 px target (WCAG 2.5.8, I9) inside its 30 px, without making it taller */
+a.statusbar-item {
+  min-height: 24px;
+}
+
 a.statusbar-item:hover {
   color: var(--fg);
   text-decoration: none;
@@ -672,7 +686,8 @@ a.statusbar-item:hover {
 
 a.statusbar-item:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  /* At 24 px tall, an offset ring would be clipped by the bar */
+  outline-offset: 0;
   border-radius: var(--radius-xs);
 }
 
@@ -750,6 +765,9 @@ a.statusbar-item:focus-visible {
      which on a phone eats the gesture meant for the list. What is really wider than the column
      (a table, a board) scrolls inside its own box. */
   overflow: hidden auto;
+  /* A page that grows past the window (a list loading, a section opening) gains a classic
+     scrollbar; reserving its room keeps the centred page from jumping sideways when it does */
+  scrollbar-gutter: stable;
   padding: var(--main-pad-top) var(--main-pad-x) calc(var(--main-pad-bottom) + var(--main-covered-bottom));
   scroll-padding-bottom: calc(80px + var(--main-covered-bottom));
 }
@@ -830,14 +848,28 @@ a.statusbar-item:focus-visible {
 }
 
 .link-more {
-  font-size: 12.5px;
-  font-weight: 550;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
   color: var(--text-muted);
 }
 
 .link-more:hover {
   color: var(--accent);
   text-decoration: none;
+}
+
+/* Links that stand alone, not inside a sentence: a 24 px target with a mouse, 44 on touch (I9) */
+a.meta-icon,
+a.link-more {
+  min-height: 24px;
+}
+
+@media (pointer: coarse) {
+  a.meta-icon,
+  a.link-more {
+    min-width: var(--touch);
+    min-height: var(--touch);
+  }
 }
 
 .link-more svg {
@@ -887,8 +919,8 @@ a.statusbar-item:focus-visible {
 
   .topbar .select-trigger.project-selector {
     min-height: 44px;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--fs-section);
+    font-weight: var(--fw-strong);
     color: var(--fg);
   }
 
@@ -984,7 +1016,10 @@ a.statusbar-item:focus-visible {
     inset: auto 0 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* Equal tabs, except that none is narrower than its label: at 320 px a quarter is too narrow
+       for "Orchestrations", so that tab takes its label's width and the short ones share the rest
+       (still wider than their icon's pill). A tab bar's label is never cut. */
+    grid-template-columns: repeat(4, minmax(min-content, 1fr));
     align-items: center;
     height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
     padding: 0 calc(env(safe-area-inset-right, 0px) + 6px) env(safe-area-inset-bottom, 0px) calc(env(safe-area-inset-left, 0px) + 6px);
@@ -1007,7 +1042,7 @@ a.statusbar-item:focus-visible {
     border: 0;
     background: none;
     color: var(--fg-3);
-    font: 500 10.5px var(--sans);
+    font: var(--fw-regular) var(--fs-small) var(--sans);
     cursor: pointer;
   }
 
@@ -1069,7 +1104,7 @@ a.statusbar-item:focus-visible {
     border-radius: var(--radius-pill);
     background: var(--bg-4);
     color: var(--fg-2);
-    font: 500 10.5px/18px var(--mono);
+    font: var(--fw-regular) var(--fs-small) / var(--lh-small) var(--sans);
     font-variant-numeric: tabular-nums;
     text-align: center;
   }
@@ -1097,7 +1132,7 @@ a.statusbar-item:focus-visible {
     background: var(--grad);
     box-shadow: var(--shadow-fab);
     color: #fff;
-    font: 600 15px var(--sans);
+    font: var(--fw-strong) var(--fs-section) var(--sans);
     cursor: pointer;
     transition: transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base), opacity var(--dur-base);
   }
@@ -1175,7 +1210,7 @@ a.statusbar-item:focus-visible {
 }
 
 .more-account-name {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .more-account-meta {
@@ -1183,7 +1218,7 @@ a.statusbar-item:focus-visible {
   align-items: center;
   gap: 6px;
   color: var(--fg-3);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
 }
 
 .more-account-alert {
@@ -1196,7 +1231,7 @@ a.statusbar-item:focus-visible {
   border-radius: var(--radius-sm);
   background: var(--bad-soft);
   color: var(--text);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
   text-decoration: none;
 }
 
@@ -1231,7 +1266,7 @@ a.statusbar-item:focus-visible {
   display: flex;
   justify-content: space-between;
   color: var(--fg);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1259,7 +1294,7 @@ a.statusbar-item:focus-visible {
   border-bottom: 1px solid var(--line);
   background: none;
   color: var(--fg);
-  font: 500 15px var(--sans);
+  font: var(--fw-regular) var(--fs-section) var(--sans);
   text-align: left;
   cursor: pointer;
 }
@@ -1303,11 +1338,11 @@ a.statusbar-item:focus-visible {
   color: var(--fg-3);
 }
 
-/* A section's figure: quiet mono, as the reference's `mono t-xs fg-3`; a problem is a badge instead */
+/* A section's figure: small, quiet and tabular; a problem is a badge instead */
 .more-cell-note {
   flex: none;
   color: var(--fg-3);
-  font: 12px var(--mono);
+  font: var(--fs-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1324,8 +1359,8 @@ a.statusbar-item:focus-visible {
 .more-group-head {
   padding: 0 4px;
   color: var(--fg-3);
-  font: 500 11px var(--mono);
-  letter-spacing: 0.08em;
+  font: var(--fw-regular) var(--fs-small) var(--sans);
+  letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
 }
 
@@ -1336,7 +1371,7 @@ a.statusbar-item:focus-visible {
   min-height: 44px;
   padding: 0 4px;
   color: var(--fg-2);
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .more-link:hover {
@@ -1369,13 +1404,13 @@ a.statusbar-item:focus-visible {
 }
 
 .more-connection-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
 }
 
 .more-connection-detail {
   color: var(--fg-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 @media (max-width: 480px) {
@@ -1468,7 +1503,7 @@ a.statusbar-item:focus-visible {
 /* The sign-in screen: the whole app when the API answered 401, so it centres on its own under the
    one halo a page may have */
 .signin {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1500,20 +1535,20 @@ a.statusbar-item:focus-visible {
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: var(--fw-strong);
+  font-size: var(--fs-body);
 }
 
 .signin-head h1 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .signin-head p {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .signin-input {
@@ -1544,7 +1579,7 @@ a.statusbar-item:focus-visible {
 .signin-hint {
   margin: 0;
   color: var(--fg-2);
-  font-size: 12px;
+  font-size: var(--fs-small);
   text-align: center;
 }
 
@@ -1577,7 +1612,7 @@ a.statusbar-item:focus-visible {
   border-color: transparent;
   background: none;
   box-shadow: none;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .phone-head-lead {
@@ -1597,33 +1632,32 @@ a.statusbar-item:focus-visible {
 
 .phone-head h1 {
   margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
   line-height: 1.2;
 }
 
 /* A modal flow names itself, centred and smaller, between its way out and what it creates */
 .phone-head.is-modal h1 {
-  font-size: 17px;
+  font-size: var(--fs-title);
   text-align: center;
 }
 
 .phone-head-sub {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
 
-/* A state under the title is the mono line itself, in its tone with its icon, not a boxed badge
+/* A state under the title is the line itself, in its tone with its icon, not a boxed badge
    (MobileOrquestacion: "⠋ en curso") */
 .phone-head-sub .badge {
   min-height: 0;
   padding: 0;
   border: 0;
   background: none;
-  font-size: 12px;
+  font-size: var(--fs-small);
   letter-spacing: 0;
   line-height: inherit;
   text-transform: none;
@@ -1669,7 +1703,7 @@ a.statusbar-item:focus-visible {
   padding: 0 12px 0 16px;
   gap: 6px;
   border-radius: var(--radius-pill);
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .phone-head .select-trigger.project-selector .select-value {

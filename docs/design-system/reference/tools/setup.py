@@ -87,7 +87,7 @@ def signout_btn(tool):
 
 def key_field(label, placeholder, big=False):
   size = ' field-lg' if big else ''
-  st = ' style="font-size: 16px"' if big else ''
+  st = ' style="font-size: var(--fs-input)"' if big else ''
   return (f'<label class="col" style="gap: 6px"><span class="t-label">{label}</span>'
           f'<span class="field field-mono{size}">{ico("key", "ico fg-3")}<input type="password" class="mono" autocomplete="off" placeholder="{placeholder}" aria-label="{label}"{st}></span></label>')
 
@@ -155,7 +155,7 @@ def head(title, text):
 
 
 def brand(step):
-  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px; letter-spacing: -0.02em">Claudio</span>'
+  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: var(--fw-strong); font-size: var(--fs-section); letter-spacing: -0.02em">Claudio</span>'
           f'<span class="grow"></span><span class="t-label">Configuración · paso {step} de 4</span></div>')
 
 
@@ -171,8 +171,8 @@ def access_card(big=False):
   mode = seg('Modo de autenticación', ('Ninguno', 'Token'), 'Token', big)
   copy = f'<button type="button" class="btn{" btn-lg" if big else ""}" aria-label="Copiar el token">{ico("copy", "ico")}Copiar</button>'
   shown = (f'<div class="col" style="gap: 8px; padding: 14px; border-radius: var(--r-lg); background: var(--bg-2); border: 1px solid var(--line)">'
-           f'<span style="font-weight: 500">Copia este token ahora</span><span class="t-sm fg-2">Solo se muestra esta vez. Este navegador ya lo usa; cualquier otra cosa que llame a la API lo necesitará.</span>'
-           f'<div class="row" style="gap: 8px; flex-wrap: wrap"><code class="grow" style="font-size: 12.5px; padding: 6px 8px; overflow-wrap: anywhere">{TOKEN}</code>{copy}</div></div>')
+           f'<span style="font-weight: var(--fw-regular)">Copia este token ahora</span><span class="t-sm fg-2">Solo se muestra esta vez. Este navegador ya lo usa; cualquier otra cosa que llame a la API lo necesitará.</span>'
+           f'<div class="row" style="gap: 8px; flex-wrap: wrap"><code class="grow" style="font-size: var(--fs-small); padding: 6px 8px; overflow-wrap: anywhere">{TOKEN}</code>{copy}</div></div>')
   lg = ' btn-lg' if big else ''
   other = (f'<div class="row" style="gap: 8px; flex-wrap: wrap"><button type="button" class="btn{lg}">Generar otro</button>'
            f'<button type="button" class="btn btn-ghost{lg}">Usar mi propio token…</button></div>')
@@ -184,7 +184,7 @@ def access_card(big=False):
 
 def secrets_callout(big=False):
   return (f'<div class="callout callout-warn" style="align-items: flex-start">{ico("lock", "ico", "flex-shrink: 0; color: var(--warn)")}'
-          f'<div class="col" style="gap: 4px; flex: 1 1 0; min-width: 0"><span style="font-weight: 500; color: var(--fg)">Las claves que guardes se cifran, pero la clave está junto a los datos</span>'
+          f'<div class="col" style="gap: 4px; flex: 1 1 0; min-width: 0"><span style="font-weight: var(--fw-regular); color: var(--fg)">Las claves que guardes se cifran, pero la clave está junto a los datos</span>'
           f'<span>Protege una copia de los archivos, no el volumen. Pasa la clave en <span class="mono">CLAUDIO_SECRET_KEY</span> para que viva fuera de él.</span>'
           f'{vendor_link("Cómo pasar la clave", big)}</div></div>')
 
@@ -251,7 +251,7 @@ def gh_ready():
 
 def glab_body(big=False):
   host = (f'<label class="col" style="gap: 6px"><span class="t-label">Host</span><span class="field field-mono{" field-lg" if big else ""}">{ico("git", "ico fg-3")}'
-          f'<input class="mono" value="gitlab.com" aria-label="Host de GitLab"{" style=\"font-size: 16px\"" if big else ""}></span></label>')
+          f'<input class="mono" value="gitlab.com" aria-label="Host de GitLab"{" style=\"font-size: var(--fs-input)\"" if big else ""}></span></label>')
   return host + stdin_key_body('glab', 'Token de acceso personal', 'Crear un token en gitlab.com',
                                'Con los permisos api y write_repository. glab lo guarda en su propia configuración; Claudio no se queda con una copia.', big)
 
@@ -288,7 +288,7 @@ def sum_rows(big=False):
     lead = mono(what) if what in TOOL else f'<span class="pick-ico">{ico(what, "ico")}</span>'
     b = '<span class="badge">Omitido</span>' if state == 'skipped' else badge(state)
     h = href.replace('Desktop', 'Mobile') if big else href
-    out.append(f'<div class="setup-sum-row">{lead}<span class="col" style="gap: 1px; min-width: 0"><span style="font-weight: 500">{name}</span>'
+    out.append(f'<div class="setup-sum-row">{lead}<span class="col" style="gap: 1px; min-width: 0"><span style="font-weight: var(--fw-regular)">{name}</span>'
                f'<span class="t-sm fg-2 ellipsis">{detail}</span></span>{b}<a href="{h}" class="setup-where">{where}</a></div>')
   return ''.join(out)
 
@@ -322,10 +322,10 @@ def security_nav():
   for g, items in SETTINGS_NAV:
     if g == 'Claudio':
       items = ['Apariencia', 'Notificaciones', 'Editor', 'Cuenta', 'Proveedores', 'Integraciones', 'Decisiones']
-    links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Seguridad" else ""}" style="height: 30px; font-size: 13px">{i}</a>' for i in items)
+    links = ''.join(f'<a href="#" class="nav-item{" on" if i == "Seguridad" else ""}" style="height: 30px; font-size: var(--fs-small)">{i}</a>' for i in items)
     out.append(f'<div class="col" style="gap: 1px"><span class="t-label" style="padding: 0 10px 4px">{g}</span>{links}</div>')
   return ('<nav aria-label="Secciones de ajustes" class="col" style="width: 236px; flex-shrink: 0; padding: 26px 12px 20px 24px; gap: 16px; overflow: hidden; border-right: 1px solid var(--line)">'
-          '<h1 class="t-h1" style="padding-left: 10px; font-size: 20px">Ajustes</h1>' + ''.join(out) + '</nav>')
+          '<h1 class="t-h1" style="padding-left: 10px; font-size: var(--fs-title)">Ajustes</h1>' + ''.join(out) + '</nav>')
 
 
 def secrets_card(big=False):
@@ -335,7 +335,7 @@ def secrets_card(big=False):
           f'<p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Las claves de los agentes, el token de YouTrack y lo que pegas al iniciar sesión se guardan cifrados en <span class="mono">secrets.json</span>, '
           f'y cada uno solo llega a los procesos de su herramienta. Nunca se muestran, ni en un registro ni en una respuesta de la API.</p>'
           f'<div class="callout callout-warn" style="align-items: flex-start">{ico("warn", "ico", "flex-shrink: 0; color: var(--warn)")}<div class="col" style="gap: 4px; flex: 1 1 0; min-width: 0">'
-          f'<span style="font-weight: 500; color: var(--fg)">La clave está junto a los datos</span>'
+          f'<span style="font-weight: var(--fw-regular); color: var(--fg)">La clave está junto a los datos</span>'
           f'<span>Claudio la creó en <span class="mono">{path}</span> porque no recibió ninguna. Protege una copia de los archivos, como una copia de seguridad, pero no el volumen: quien lo lea tiene las dos cosas.</span>'
           f'<span>Recomendado: pasa la clave en la variable de entorno <span class="mono">CLAUDIO_SECRET_KEY</span> y guárdala fuera del volumen.</span>'
           f'{vendor_link("Cómo pasar la clave", big)}</div></div></section>')
@@ -358,17 +358,17 @@ def sec_access_card(big=False):
 
 
 def d_security():
-  head_ = ('<div class="col" style="gap: 4px"><h2 class="t-h1" style="font-size: 20px">Seguridad</h2>'
+  head_ = ('<div class="col" style="gap: 4px"><h2 class="t-h1" style="font-size: var(--fs-title)">Seguridad</h2>'
            '<p class="fg-2 t-sm" style="margin: 0; max-width: 640px">Quién puede usar este wrapper y cómo se guardan los secretos que le das.</p></div>')
   main = f'<main class="col grow" style="padding: 26px 32px; gap: 16px; min-width: 0; max-width: 860px">{head_}{secrets_card()}{sec_access_card()}{readonly_card()}</main>'
   inner = f'<div class="row" style="flex: 1 1 auto; min-height: 0; align-items: stretch; gap: 0; overflow: hidden">{security_nav()}{main}</div>'
-  write('DesktopAjustesSeguridad.html', desktop('Ajustes, seguridad', 'settings', '<span style="font-weight: 500">Ajustes</span>', inner, project='Todos los proyectos'))
+  write('DesktopAjustesSeguridad.html', desktop('Ajustes, seguridad', 'settings', '<span style="font-weight: var(--fw-regular)">Ajustes</span>', inner, project='Todos los proyectos'))
 
 
 # ---------------------------------------------------------------- phone
 def mbrand(step):
   # The phone's step bar keeps only the bars; the step's name rides with its number here
-  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: 600; font-size: 15px">Claudio</span>'
+  return (f'<div class="row" style="gap: 10px; height: 32px">{BRAND}<span style="font-weight: var(--fw-strong); font-size: var(--fs-section)">Claudio</span>'
           f'<span class="grow"></span><span class="t-label">{step} de 4 · {STEPS[step - 1]}</span></div>')
 
 
@@ -391,7 +391,7 @@ def mpage(name, title, step, body, foot_, sheet='', skipped=()):
 
 def mcell(tool, state, meta, reason, action=''):
   label = TOOL[tool][0]
-  head = (f'<div class="prov-cell-head">{mono(tool)}<div class="grow"><span style="font-weight: 500">{label}</span>'
+  head = (f'<div class="prov-cell-head">{mono(tool)}<div class="grow"><span style="font-weight: var(--fw-regular)">{label}</span>'
           f'<span class="prov-meta">{meta}</span></div>{badge(state)}</div>')
   act = f'<div class="row" style="gap: 8px">{action}</div>' if action else ''
   return f'<div class="prov-cell" data-tool="{tool}">{head}<p class="prov-reason">{reason}</p>{act}</div>'
@@ -573,7 +573,8 @@ def register():
   sec = (f'<section class="col" style="gap:12px"><h2 class="t-h2">In-app setup <span class="t-label" style="margin-left:8px">Plan: in-app-setup.md</span></h2><div class="grid">\n'
          f'{shots}</div></section>\n')
   s = s.replace('</div></body></html>', sec + '</div></body></html>')
-  open(ix, 'w').write(s)
+  import voice
+  open(ix, 'w').write(voice.apply(s))
 
 
 if __name__ == '__main__':

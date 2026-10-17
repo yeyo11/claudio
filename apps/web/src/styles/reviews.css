@@ -33,25 +33,22 @@
 
 .rv-title h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+  letter-spacing: var(--tracking-title);
 }
 
 .rv-sub,
 .rv-count {
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
 }
 
 .rv-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--fg-3);
+  font-size: var(--fs-small);
+  color: var(--fg-2);
+  font-weight: var(--fw-strong);
 }
 
 .rv-col {
@@ -90,7 +87,7 @@
   flex-wrap: wrap;
   gap: 6px 10px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -115,14 +112,13 @@
 }
 
 .rv-person .name {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .rv-mono {
   width: 20px;
   height: 20px;
-  font-size: 10px;
+  font-size: var(--fs-small);
 }
 
 .rv-quiet {
@@ -134,7 +130,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--bg-1);
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -160,12 +156,12 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 10px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--fg);
 }
 
 .rv-draft-head b {
-  font-weight: 500;
+  font-weight: var(--fw-regular);
 }
 
 .rv-ico {
@@ -198,7 +194,7 @@
 .rv-where {
   flex: 1 1 0;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg);
   overflow-wrap: anywhere;
   min-width: 0;
@@ -216,7 +212,7 @@
 /* The note is somebody's text: shown as text, wrapped and never read as markup */
 .rv-text {
   flex: 1 1 100%;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
   white-space: pre-wrap;
@@ -225,7 +221,7 @@
 
 .rv-text.is-code {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .badge-suggest {
@@ -240,7 +236,7 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px 12px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
@@ -276,7 +272,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-1);
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: var(--fg-2);
 }
@@ -301,7 +297,7 @@
   align-items: center;
   gap: 6px;
   color: var(--accent);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
 }
 
 /* ---- the submit sheet ---- */
@@ -332,12 +328,12 @@
 }
 
 .rv-dialog-title b {
-  font-weight: 600;
+  font-weight: var(--fw-strong);
 }
 
 .rv-dialog-title .mono {
-  font-size: 12px;
-  font-weight: 400;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
   color: var(--fg-3);
 }
 
@@ -371,7 +367,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -397,7 +393,7 @@
 
 .rc-code {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   line-height: 1.55;
   white-space: pre;
   overflow-x: auto;
@@ -418,8 +414,7 @@
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -437,7 +432,7 @@
 }
 
 .rc-private {
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--fg-3);
 }
 
@@ -505,7 +500,7 @@
   .rc-body textarea,
   .field-label + input,
   .form input {
-    font-size: 16px;
+    font-size: var(--fs-input);
   }
 
   .rv-sheet-foot .btn,

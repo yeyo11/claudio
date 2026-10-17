@@ -233,7 +233,7 @@ export function ActiveFilterChips({ facets, state, summary }: { facets: Facet[];
           </button>
         );
       })}
-      {summary && <span className="workitem-active-summary mono">{summary}</span>}
+      {summary && <span className="workitem-active-summary tnum">{summary}</span>}
     </div>
   );
 }

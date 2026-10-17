@@ -279,7 +279,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
           <h2 id="doc-folder-title" className="section-label doc-fill">
             {q ? t('phone.results') : `${here ?? root}/`}
           </h2>
-          <span className="mono small muted tnum">{formatNumber(q ? rows.length : count)}</span>
+          <span className="small muted tnum">{formatNumber(q ? rows.length : count)}</span>
         </div>
         {rows.length === 0 ? (
           <p className="small muted doc-card-note">{t('tree.noMatch')}</p>
@@ -294,7 +294,7 @@ function PhoneDocuments({ project, tree, root, fileCount, tied, address }: Layou
                 >
                   {node.type === 'dir' ? <Folder {...ICON} className="tree-icon" /> : <FileText {...ICON} className="tree-icon" />}
                   <span className={`doc-cell-name ${node.type === 'dir' ? 'mono' : ''}`.trim()}>{node.type === 'dir' ? `${node.name}/` : q ? node.path : node.name}</span>
-                  {node.type === 'dir' && <span className="mono small muted tnum">{t('phone.docCount', { count: node.fileCount ?? 0, n: formatNumber(node.fileCount ?? 0) })}</span>}
+                  {node.type === 'dir' && <span className="small muted tnum">{t('phone.docCount', { count: node.fileCount ?? 0, n: formatNumber(node.fileCount ?? 0) })}</span>}
                   <ChevronRight {...ICON_SM} className="doc-row-chevron" />
                 </button>
               </li>

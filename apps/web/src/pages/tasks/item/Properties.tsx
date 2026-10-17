@@ -200,7 +200,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
       </Row>
       {item.type === 'epic' ? (
         <Row label={t('fields.children')}>
-          <span className="mono small">{t('fields.childrenCount', { count: item.children.length })}</span>
+          <span className="small tnum">{t('fields.childrenCount', { count: item.children.length })}</span>
         </Row>
       ) : (
         <Row label={t('fields.epic')}>
@@ -241,7 +241,7 @@ export function Properties({ item, actions, person }: { item: WorkItemDetail; ac
         <LabelsEditor labels={item.labels} onChange={(labels) => actions.update.mutate({ labels })} />
       </Row>
       <Row label={t('fields.created')}>
-        <span className="mono small prop-fact" title={formatDateTime(item.createdAt)}>
+        <span className="small tnum prop-fact" title={formatDateTime(item.createdAt)}>
           {creator ? t('fields.createdBy', { when: timeAgo(item.createdAt), who: creator }) : timeAgo(item.createdAt)}
         </span>
       </Row>

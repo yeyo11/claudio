@@ -48,7 +48,7 @@ function EvidenceItem({ item }: { item: LessonEvidence }) {
         ) : (
           <span className="small muted">{t('memoryTab.lessons.chatDeleted')}</span>
         )}
-        <time className="mono small muted" dateTime={item.at}>
+        <time className="small muted tnum" dateTime={item.at}>
           {timeAgo(item.at)}
         </time>
       </p>
@@ -209,7 +209,7 @@ export function LessonRow({ lesson, global = false, onPropose }: { lesson: Lesso
         </div>
       )}
       <div className="lesson-facts">
-        <span className="mono small tnum lesson-conf" title={t('memoryTab.lessons.confidence')}>
+        <span className="small tnum lesson-conf" title={t('memoryTab.lessons.confidence')}>
           <span className="sr-only">{t('memoryTab.lessons.confidence')} </span>
           {confidence(lesson.effectiveConfidence)}
         </span>
@@ -258,14 +258,14 @@ function JobLine({ job }: { job: LessonJob }) {
   const tone = JOB_TONE[job.status] ?? (job.outcome ? JOB_TONE[job.outcome] : undefined);
   return (
     <li className="lesson-job">
-      <span className="mono small muted">{t(`memoryTab.lessons.trigger.${job.trigger}`)}</span>
+      <span className="small muted">{t(`memoryTab.lessons.trigger.${job.trigger}`)}</span>
       <span className={`small ${tone ? `lesson-job-${tone}` : ''}`.trim()}>
         {t(`memoryTab.lessons.jobStatus.${job.status}`)}
         {job.outcome && job.status !== 'failed' ? ` · ${t(`memoryTab.lessons.outcome.${job.outcome}`, { n: formatNumber(job.proposed) })}` : ''}
       </span>
       <span className="doc-fill" />
-      {job.costUsd !== null && <span className="mono small muted tnum">{formatCost(job.costUsd)}</span>}
-      <time className="mono small muted" dateTime={job.createdAt}>
+      {job.costUsd !== null && <span className="small muted tnum">{formatCost(job.costUsd)}</span>}
+      <time className="small muted tnum" dateTime={job.createdAt}>
         {timeAgo(job.createdAt)}
       </time>
     </li>
@@ -332,7 +332,7 @@ export function LessonsCard({ projectId, phone = false, settingsHref }: { projec
 
   const head = (
     <>
-      <span className="mono small muted tnum lessons-count">{t('memoryTab.lessons.count', { count: active, n: formatNumber(active) })}</span>
+      <span className="small muted tnum lessons-count">{t('memoryTab.lessons.count', { count: active, n: formatNumber(active) })}</span>
       {handed && (
         <span className="small muted tnum lessons-handed">
           {t('memoryTab.lessons.handed', { n: formatNumber(handed.lessons), total: formatNumber(handed.lessons + handed.overBudget) })}

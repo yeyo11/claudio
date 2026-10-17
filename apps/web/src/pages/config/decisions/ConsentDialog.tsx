@@ -91,7 +91,7 @@ export function ConsentDialog({
   return (
     <Dialog title={title} onClose={onClose} width={640} footer={actions}>
       <span className="dp-consent-sub">
-        {info.id} · {name}
+        <span className="mono">{info.id}</span> · {name}
       </span>
       {body}
     </Dialog>

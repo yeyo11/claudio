@@ -208,6 +208,23 @@
   /* Type */
   --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Four sizes and two weights, and no others (docs/plans/claudio-designer.md §1): a fifth size
+     is a hierarchy problem, not a missing token. Mono literals use the small pair. */
+  --fs-title: 20px;
+  --lh-title: 28px;
+  --fs-section: 15px;
+  --lh-section: 22px;
+  --fs-body: 14px;
+  --lh-body: 20px;
+  --fs-small: 13px;
+  --lh-small: 18px;
+  /* Below 16 px iOS zooms into a focused field */
+  --fs-input: 16px;
+  --fw-regular: 450;
+  --fw-strong: 600;
+  --tracking-title: -0.01em;
+  /* Only the sidebar's group headings are uppercase, and they carry this */
+  --tracking-caps: 0.06em;
 
   /* v2 names, as aliases of the v1 ones */
   --bg-1: var(--bg-sunken);

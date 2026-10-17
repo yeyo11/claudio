@@ -12,6 +12,7 @@ import { totalsOf } from '../../lib/observe';
 import { Fingerprint } from '../changes/Fingerprint';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ErrorBox, Loading } from '@claudio/ui/components/ui';
 
 /*
@@ -29,7 +30,7 @@ const signed = (n: number, sign: '+' | '−') => `${sign}${n}`;
 function Counts({ additions, deletions }: { additions: number; deletions: number }) {
   const { t } = useTranslation('observe');
   return (
-    <span className="obs-counts mono small">
+    <span className="obs-counts small tnum">
       {/* The signs and the numbers say it; the screen reader gets it as a sentence */}
       <span className="sr-only">{t('changes.counts', { additions, deletions })}</span>
       {additions > 0 && (
@@ -63,29 +64,31 @@ function FileRows({ rows, live, to, more, label }: { rows: Row[]; live: string |
     <ul className="obs-files obs-changes-files" aria-label={label}>
       {rows.map((row) => (
         <li key={row.path} className="obs-file">
-          <Link to={to(row.path)} className={`obs-file-row ${row.path === live ? 'live-rail is-live' : ''}`.trim()} title={row.path}>
-            <span className={`obs-status is-${row.letter ?? 'none'} mono`} aria-hidden>
-              {row.letter}
-            </span>
-            <span className="sr-only">{row.status}</span>
-            <span className="obs-file-what">
-              <span className="obs-file-name mono">{baseName(row.path)}</span>
-              {row.uncommitted && (
-                <span className="obs-uncommitted" title={t('changes.uncommitted')}>
-                  <span className="sr-only">{t('changes.uncommitted')}</span>
-                </span>
-              )}
-            </span>
-            <span className="obs-file-end">
-              {row.path === live && (
-                <>
-                  <Spinner />
-                  <span className="sr-only">{t('changes.editingNow', { agent: Agent })}</span>
-                </>
-              )}
-              {row.additions !== null && row.deletions !== null && <Counts additions={row.additions} deletions={row.deletions} />}
-            </span>
-          </Link>
+          <Tooltip content={row.path}>
+            <Link to={to(row.path)} className={`obs-file-row ${row.path === live ? 'live-rail is-live' : ''}`.trim()}>
+              <span className={`obs-status is-${row.letter ?? 'none'} mono`} aria-hidden>
+                {row.letter}
+              </span>
+              <span className="sr-only">{row.status}</span>
+              <span className="obs-file-what">
+                <span className="obs-file-name mono">{baseName(row.path)}</span>
+                {row.uncommitted && (
+                  <span className="obs-uncommitted" title={t('changes.uncommitted')}>
+                    <span className="sr-only">{t('changes.uncommitted')}</span>
+                  </span>
+                )}
+              </span>
+              <span className="obs-file-end">
+                {row.path === live && (
+                  <>
+                    <Spinner />
+                    <span className="sr-only">{t('changes.editingNow', { agent: Agent })}</span>
+                  </>
+                )}
+                {row.additions !== null && row.deletions !== null && <Counts additions={row.additions} deletions={row.deletions} />}
+              </span>
+            </Link>
+          </Tooltip>
         </li>
       ))}
       {more > 0 && <li className="obs-files-more small muted">{t('changes.more', { count: more })}</li>}
@@ -101,7 +104,7 @@ function LatestStep({ step, to }: { step: EditStep; to: string }) {
       <Link to={to} className="obs-step-card">
         <span className="obs-step-line">
           {step.pending && <Spinner />}
-          <span className="mono muted obs-step-time" title={step.at ? formatDateTime(step.at) : undefined}>
+          <span className="muted tnum obs-step-time" title={step.at ? formatDateTime(step.at) : undefined}>
             {step.pending ? t('changes.now') : step.at ? timeAgo(step.at) : ''}
           </span>
           <span className="badge">{step.tool}</span>
@@ -204,8 +207,10 @@ export function ChangesSummary({ summary, steps, touched = [], activity = null, 
         <h3 className="section-label">{heading}</h3>
         {files.length > 0 && <Counts {...totals} />}
       </div>
-      <p className="obs-changes-meta mono small">
-        {[summary.branch ?? t('changes.detached'), t('changes.commitCount', { count: summary.ahead }), t('changes.fileCount', { count: files.length })].join(' · ')}
+      <p className="obs-changes-meta small">
+        {/* The branch is a literal git reads; the counts beside it are words */}
+        {summary.branch ? <span className="mono">{summary.branch}</span> : t('changes.detached')}
+        {` · ${[t('changes.commitCount', { count: summary.ahead }), t('changes.fileCount', { count: files.length })].join(' · ')}`}
       </p>
       {files.length === 0 ? (
         <p className="small muted">{t('changes.nothing')}</p>

@@ -1,13 +1,13 @@
 import type { DecisionPointStats } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { formatCost, formatNumber } from '@claudio/ui/lib/format';
+import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { percent } from './model';
 
 /** The window the per-point numbers cover: last week's, as the plan says. */
 export const METRICS_DAYS = 7;
 
 const DASH = '—';
-const pct = (value: number | null) => (value === null ? DASH : `${formatNumber(value)} %`);
+const pct = (value: number | null) => (value === null ? DASH : formatPercent(value));
 
 /**
  * A point's week in nine figures (D14). The confidence is a dash for the CLI, which has none, and

@@ -116,7 +116,7 @@ function RowTime({ at }: { at: string | null }) {
 const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, account: ArrowRightLeft, guard: ShieldAlert };
 
 /**
- * Something the system said, not the person: a strip in the machine's own voice — mono, in the
+ * Something the system said, not the person: a quiet strip — small and faint, in the
  * accent colour, with its payload behind a fold — so a reader never mistakes it for a message.
  */
 function NoticeRow({ notice }: { notice: Notice }) {
@@ -320,7 +320,7 @@ export interface SubagentLink {
 }
 
 /**
- * One tool call as one row: its name and what it was pointed at in mono, a rail coloured by how it
+ * One tool call as one row: its name, what it was pointed at in mono, a rail coloured by how it
  * came back, and the input and result behind the fold. `settled` is a call that will not come back
  * any more as far as this page knows (the turn is over), so it is not shown as running.
  */

@@ -94,7 +94,7 @@ function DesktopRunning({ project, run, actions }: { project: Project; run: Assi
       <div className="assistant-side">
         {order.map((section) => (
           <section key={section} className="card assistant-card" aria-label={t(`section.${section}`)}>
-            <SectionHead section={section} note={<span className="mono">{t('waiting')}</span>} />
+            <SectionHead section={section} note={<span>{t('waiting')}</span>} />
             <SuggestionWait>{t(`wait.${section}`, { name: project.name })}</SuggestionWait>
           </section>
         ))}

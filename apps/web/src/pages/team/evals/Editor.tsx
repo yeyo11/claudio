@@ -34,6 +34,7 @@ import {
   type CaseForm,
   type EvalForm,
 } from './model';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 
 const KINDS: readonly EvalTargetKind[] = ['agent', 'skill', 'rule', 'instructions'];
 const STAGES = ['refine', 'work', 'verify'] as const;
@@ -357,10 +358,12 @@ function Form({
           </button>
         )}
         {name !== null && onRun && (
-          <button type="button" className="btn btn-primary" disabled={dirty} title={dirty ? t('editor.saveFirst') : undefined} onClick={onRun}>
-            <Play {...ICON_SM} />
-            {t('editor.run')}
-          </button>
+          <Tooltip content={dirty ? t('editor.saveFirst') : undefined}>
+            <button type="button" className="btn btn-primary" disabled={dirty} onClick={onRun}>
+              <Play {...ICON_SM} />
+              {t('editor.run')}
+            </button>
+          </Tooltip>
         )}
         <Segmented<'form' | 'json'>
           value={mode}
@@ -636,7 +639,7 @@ function Form({
                     <span className="evals-case-title">
                       <span className="mono">{c.id || t('editor.caseUntitled')}</span>
                       <span className="evals-case-gist">{c.title || c.prompt.split('\n')[0]}</span>
-                      <span className="mono evals-case-count">{t('editor.expectCount', { count: c.expect.length })}</span>
+                      <span className="evals-case-count tnum">{t('editor.expectCount', { count: c.expect.length })}</span>
                       {caseErrors > 0 && <Tag tone="bad">{t('editor.caseProblems', { count: caseErrors })}</Tag>}
                     </span>
                   }

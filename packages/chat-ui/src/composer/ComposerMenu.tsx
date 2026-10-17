@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Switch } from '@claudio/ui/components/controls/Toggle';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { AttachmentsState } from '../components/Attachments';
@@ -68,10 +69,12 @@ export function ComposerMenu({
       >
         <div className="composer-menu">
           <div className="composer-menu-actions">
-            <button type="button" className="composer-menu-item" onClick={() => close(() => input.current?.click())} title={t('attachments.attachHint', { agent })}>
-              <Paperclip {...ICON_SM} aria-hidden />
-              <span>{t('attachments.attachFiles')}</span>
-            </button>
+            <Tooltip content={t('attachments.attachHint', { agent })} side="right">
+              <button type="button" className="composer-menu-item" onClick={() => close(() => input.current?.click())}>
+                <Paperclip {...ICON_SM} aria-hidden />
+                <span>{t('attachments.attachFiles')}</span>
+              </button>
+            </Tooltip>
             {hasCommands && (
               <button type="button" className="composer-menu-item" onClick={() => close(onCommands)}>
                 <Slash {...ICON_SM} aria-hidden />
@@ -151,7 +154,7 @@ function LiveServers({ chatId }: { chatId: string }) {
                 <span className="composer-server-meta small">
                   <Tag tone={TONE[server.status]}>{server.status}</Tag>
                   {connector && <span className="muted">{t('composerMenu.connector')}</span>}
-                  {server.tools.length > 0 && <span className="muted mono">{t('composerMenu.tools', { count: server.tools.length })}</span>}
+                  {server.tools.length > 0 && <span className="muted tnum">{t('composerMenu.tools', { count: server.tools.length })}</span>}
                   {server.status === 'needs-auth' && (
                     <Link to={paths.connectors} className="composer-server-link">
                       {t('composerMenu.authorise')}

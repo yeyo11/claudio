@@ -73,7 +73,7 @@ mistake even though their own rows already gave them a Spanish word.
 | token | el token, los tokens |
 | slash command | el slash command |
 | thinking, extended thinking | el thinking, el extended thinking |
-| effort | el effort (the `--effort` level), its values untranslated |
+| effort | el effort (the `--effort` level); its levels shown as words — Bajo, Medio, Alto, Muy alto, Máximo — and left as the CLI writes them only inside a command (`--effort low`) |
 | commit | el commit; "hacer commit", "sin commit" |
 | pull request, PR | la pull request, la PR |
 | CLI | **el** CLI, never "la CLI": "el CLI no la valida" (`server.json`'s `connectors.authorise.cli`

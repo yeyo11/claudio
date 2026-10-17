@@ -172,7 +172,15 @@ export function ProjectTracker({ project }: { project: Project }) {
         <button type="button" className="settings-cell project-limits-cell" onClick={() => setOpen(true)}>
           <span className="settings-cell-name project-limits-text">
             <span>{t('tracker.title')}</span>
-            <span className="mono small muted">{saved.data ? `${trackerWords(saved.data.id).label} · ${saved.data.scope}` : t('tracker.summaryNone')}</span>
+            <span className="small muted">
+              {saved.data ? (
+                <>
+                  {trackerWords(saved.data.id).label} · <span className="mono">{saved.data.scope}</span>
+                </>
+              ) : (
+                t('tracker.summaryNone')
+              )}
+            </span>
           </span>
           <ChevronRight {...ICON_SM} className="settings-cell-chevron" />
         </button>
@@ -187,7 +195,7 @@ export function ProjectTracker({ project }: { project: Project }) {
     <section className="card project-tracker-card" aria-labelledby="project-tracker-title">
       <div className="card-head">
         <h2 id="project-tracker-title">{t('tracker.title')}</h2>
-        <span className="mono small muted">{t('tracker.optional')}</span>
+        <span className="small muted">{t('tracker.optional')}</span>
       </div>
       <p className="small muted">{t('tracker.intro')}</p>
       {body}
