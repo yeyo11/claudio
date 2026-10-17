@@ -117,6 +117,7 @@ import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
 import { CollabStore, Db } from './db.ts';
 import { CollaboratorsService, collabHostSettings } from './collab/index.ts';
+import { liveChatsOf } from './collab/readers.ts';
 import { ChatUploads } from './chat-uploads.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
 import { permissionEvents, runRef, runRefOr, SessionsWatcher } from './event-sources.ts';
@@ -1485,7 +1486,7 @@ export class Core {
         projects: () => this.projectStore.list(),
         worktreeOf: (dir) => this.locator.worktreeOf(dir),
         chats: () => this.db.loadChats().map((stored) => stored.record),
-        liveChats: () => new Map(this.runtime.list().filter((chat) => chat.pid !== null).map((chat) => [chat.id, chat.activity])),
+        liveChats: () => liveChatsOf(this.runtime.list()),
         transcriptFile,
         memory: { list: (projectId) => this.memoryFiles(projectId) },
         journal: this.journal,

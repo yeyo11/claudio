@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test, { after } from 'node:test';
 import type { Attachment, ChatActivity, ClaudioEvent, CollaboratorsKind, DocumentNode, JournalEntry, Milestone, SharedChat, WorkItem, WorkItemDetail } from '@claudio/shared';
 import type { ChatRecord } from '../src/chat-records.ts';
-import { createReaders, type ReaderSources, type SharedPlace } from '../src/collab/readers.ts';
+import { createReaders, liveChatsOf, type ReaderSources, type SharedPlace } from '../src/collab/readers.ts';
 import { addMember, createGenesis, endpointIdFromSeed, headOf, type RosterVersion } from '../src/collab/roster.ts';
 import { CollabServer, type HeldGroup, type JoinPort, type ReplySink } from '../src/collab/serve.ts';
 import { parseRequest, rawLength, type WireReply } from '../src/collab/wire.ts';
@@ -461,4 +461,16 @@ test('watch sends changed notices for the watched project only, and ends with it
 test('a malformed frame is a bad request', async () => {
   assert.equal(errorOf(await ask(member.id, { type: 'pull', shareKey: key(shared), kind: 'terminals', since: null })), 'bad-request');
   assert.equal(errorOf(await ask(member.id, 'hello')), 'bad-request');
+});
+
+test('a chat idle between turns, its process kept, is not live in a copy; a working or waiting one is', () => {
+  const editing: ChatActivity = { kind: 'tool', tool: 'Edit', since: '2026-10-16T10:00:00.000Z' };
+  const live = liveChatsOf([
+    { id: 'working', pid: 10, status: 'busy', pendingPrompts: 0, activity: editing },
+    { id: 'asking', pid: 11, status: 'busy', pendingPrompts: 1, activity: null },
+    { id: 'between-turns', pid: 12, status: 'idle', pendingPrompts: 0, activity: null },
+    { id: 'ended', pid: null, status: 'completed', pendingPrompts: 0, activity: null },
+  ]);
+  assert.deepEqual([...live.keys()].sort(), ['asking', 'working']);
+  assert.deepEqual(live.get('working'), editing);
 });

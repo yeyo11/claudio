@@ -22,6 +22,7 @@ import type {
   WorkItemDetail,
   WorkItemFilter,
 } from '@claudio/shared';
+import { stateFromRun, type RunFacts } from '../chat-model.ts';
 import type { ChatRecord } from '../chat-records.ts';
 import type { WorktreeFacts } from '../locations.ts';
 import { attachProject, type ProjectRecord } from '../projects.ts';
@@ -204,6 +205,17 @@ class HashCache {
     this.known.set(file, { size: facts.size, mtimeMs: facts.mtimeMs, sha256: hash });
     return { sha256: hash, size: bytes.length, mtime: facts.mtime };
   }
+}
+
+/**
+ * `ReaderSources.liveChats` from the runs of this install. A chat in interactive mode keeps its
+ * process between turns, idle: a teammate's copy must not read that as work, so only a run whose
+ * state is not idle counts, the way the local list draws it.
+ */
+export function liveChatsOf(runs: Iterable<RunFacts & { id: string; pid: number | null; activity: ChatActivity | null }>): Map<string, ChatActivity | null> {
+  const out = new Map<string, ChatActivity | null>();
+  for (const run of runs) if (run.pid !== null && stateFromRun(run) !== 'idle') out.set(run.id, run.activity);
+  return out;
 }
 
 function chatsOf(sources: ReaderSources, place: SharedPlace): Array<{ record: ChatRecord; branch: string | null }> {
