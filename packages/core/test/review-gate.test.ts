@@ -298,10 +298,14 @@ test('an empty diff passes without starting a run', async () => {
 test('an abort stops the running chats and ends the round incomplete as stopped', async () => {
   const { db, context } = setup();
   const abort = new AbortController();
-  const { host, stopped } = fakeHost({ reviewer: () => new Promise<RunResult>(() => undefined) });
+  // The abort has to land while a reviewer runs: before the round launched one (its diff is read
+  // first, slow on a loaded machine) there is no chat to stop, and the check below would see none
+  let started!: () => void;
+  const reviewerRunning = new Promise<void>((resolve) => (started = resolve));
+  const { host, stopped } = fakeHost({ reviewer: () => new Promise<RunResult>(() => undefined), start: () => started() });
   const progress: ReviewProgress[] = [];
   const running = runReviewRound(context(host, { signal: abort.signal, onProgress: (p) => progress.push(p) }));
-  await new Promise((r) => setTimeout(r, 50));
+  await reviewerRunning;
   abort.abort();
   const out = await running;
   assert.equal(out.status, 'incomplete');
