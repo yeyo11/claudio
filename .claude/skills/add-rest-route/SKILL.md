@@ -1,6 +1,6 @@
 ---
 name: add-rest-route
-description: Add or change a REST route in Claudio's API: shared types, OpenAPI summary and tag, README table row, schema regeneration and tests. Use whenever a route or a shared type changes.
+description: Add or change a REST route in Claudio's API: shared types, OpenAPI summary and tag, a row in docs/rest-api.md, schema regeneration and tests. Use whenever a route or a shared type changes.
 ---
 
 # Adding or changing a REST route
@@ -12,7 +12,7 @@ CI fails on each of the steps below, so do them in this order.
 3. **Core.** Put the logic in `packages/core`, not in the route. A route validates, calls the service and answers.
 4. **Route.** Add it in `apps/api/src/routes/<area>.ts`. Creating routes answer 201 when they create and 200 when nothing was added, like the other creating routes.
 5. **Docs of the route.** In `apps/api/src/openapi/routes.ts` give it a **summary and a tag**; a test enforces both.
-6. **README.** Add a row to the matching table under `## REST API` in `README.md`.
+6. **REST page.** Add a row to the matching table of `docs/rest-api.md`, one route per row (method, then the route in backticks); `apps/api/test/rest-api-doc.test.ts` fails without it.
 7. **Regenerate the schemas** when a shared type changed, and commit the result:
    ```bash
    pnpm --filter @claudio/api openapi:schemas
