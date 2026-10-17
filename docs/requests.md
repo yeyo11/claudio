@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:30:00Z
-updated_at: 2026-10-17T14:00:00Z
+updated_at: 2026-10-17T15:30:00Z
 tags:
     - status
     - requests
@@ -18,15 +18,14 @@ that built it) or when the owner drops it.
 
 ## Open
 
-| # | Request | Asked | Status |
-| --- | --- | --- | --- |
-| R6 | **Full redesign of the app with Stitch** ("rediseño completo… parece la típica app generada por IA"). Four screens follow the new frame in Stitch (Accounts, Usage, Chats, Settings); Home, Chat, Orchestration and New chat do not yet. Nothing is in code | 2026-10-15 20:37, chat e5fe37cb | Design in progress in Stitch; not implemented |
-| R8 | **WebMCP** in Claudio: researched (what it is and where it could fit); no decision to build | 2026-10-15 17:37, chat ba0064f0 | Researched; waiting for a decision |
+Nothing is open on 2026-10-17: every request is built and merged, or dropped by the owner.
 
 ## Closed
 
 | Request | Closed by |
 | --- | --- |
+| R6: a full redesign of the app with Stitch | Dropped by the owner on 2026-10-17. The four screens drafted in Stitch (Accounts, Usage, Chats, Settings) stay there; nothing was in code |
+| R8: WebMCP in Claudio | Dropped by the owner on 2026-10-17 after the research; nothing to build |
 | R10: a limit wait did not resume when another account got room first | #21 on 2026-10-17: every account reading or change makes each open wait ask the accounts again, and an account a turn failed on counts again once a newer reading says it has room ([accounts.md](accounts.md), [orchestrations.md](orchestrations.md)); tests in `accounts-rotation.test.ts` and `workflow-limits.test.ts` |
 | R11: a stopped task had no way back | #21 on 2026-10-17: retry, retry-clean and skip accept a stopped task, resume accepts a waiting graph, and `POST /limits/waits/:id/run-now` (a "Run now" beside "Stop waiting") replays a waiting turn on an account with room; tests in `orchestration-limit-way-back.test.ts` and `provider-rotation.test.ts` |
 | R9: update the desktop app on this machine once everything is in `main` | The owner installed the v0.2.0 `.deb` on 2026-10-17 (sha256 checked against the release asset); `dpkg` reports 0.2.0 |
@@ -40,7 +39,7 @@ that built it) or when the owner drops it.
 | R14: a denied join never reached the joiner; an expired invite stayed pending | Fixed in #7 on 2026-10-17 (`collab_join_denials`, a `denied` wire answer; [collaborators.md](collaborators.md)) |
 | R15: the workflow engine neither saw nor rotated a usage limit | Orchestration `b679d27e`, merged in #10 on 2026-10-17 ([plans/workflow-engine-limits.md](plans/workflow-engine-limits.md)) |
 | R16: dimmed streaming text, a gap above the composer, the assistant's own composer | Orchestration `c4d3807c`, merged in #9 on 2026-10-17 |
-| R7: collaborators, a project shared between teammates' Claudio over iroh, P2P | Built by orchestration `623d02f4` from [plans/collaborators.md](plans/collaborators.md) and merged into `main` on 2026-10-16 ([collaborators.md](collaborators.md)); a run between two real machines is still to be done |
+| R7: collaborators, a project shared between teammates' Claudio over iroh, P2P | Built by orchestration `623d02f4` from [plans/collaborators.md](plans/collaborators.md) and merged into `main` on 2026-10-16 ([collaborators.md](collaborators.md)); the owner ran it between real machines on 2026-10-17 (three installs, and two machines on different networks) and it works |
 | Terminal only in the status bar, opening in the selected project's workspace, detachable and full screen | Merged into `main` on 2026-10-15/16 ([terminal.md](terminal.md)) |
 | Readable tool rows; background tasks and subagents visible in the chat | `claudio-live-branches`, merged as `c607354f4` ([chat-tool-rows-and-branches.md](chat-tool-rows-and-branches.md)) |
 | CHAT-19 reading typography | Dropped by the owner on 2026-10-16: kept at 14px / 1.65 |

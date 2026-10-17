@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-17T09:00:00Z
+updated_at: 2026-10-17T15:30:00Z
 tags:
     - plan
     - collaborators
@@ -749,7 +749,7 @@ Taken on 2026-10-16:
   `terminal-host.mjs` keeps that away from the API, and polling at 250–1000 ms is enough for presence
   and paths.
 - **`@number0/iroh` pinned at 1.1.0** until the `watch*` and `Buffer` issues are answered upstream
-  (drafted in [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md));
+  (tracked upstream as #276 and #277, see [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md));
   the wire stays 1.x-compatible either way.
 - **A QR encoder of our own** in `packages/ui`, over a dependency: the encoder is small, has tests,
   and the design system already keeps third-party art out.
@@ -891,11 +891,16 @@ The gaps that orchestration left ([requests.md](../requests.md) R12) were closed
   read-only view and a revoked share; the new `collaborators-copies.spec.mjs` covers subagents,
   uploads and a frozen group (a peer restarted without its vault). Both have entries in
   `e2e/timings.json`.
-- **iroh issues.** Both are rechecked against 1.1.0 and drafted, ready to file, in
+- **iroh issues.** Both are rechecked against 1.1.0 and drafted in
   [reports/iroh-upstream-issues.md](../reports/iroh-upstream-issues.md). The pin of §8 stays until
   they are answered.
 
-**Still open:** a run between two real machines, and filing the two iroh issues (the owner's call).
+**Closed on 2026-10-17.** The owner ran Collaborators between real machines: three separate installs
+for joins, denials and relayed joins, and two machines on different networks for invitations,
+sharing, live sync, reconnection, revocation, agent reads and the read-only view of an uncloned
+project. It works. Both iroh defects turned out to be filed upstream already (#276 open, #277 fixed
+by #281 but not released); Claudio's reproduction was added to both, and the report says where they
+stand. Nothing is open on our side.
 
 ### A denied join reaches the joiner (R14, 2026-10-17)
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-17T06:30:00Z
+updated_at: 2026-10-17T15:30:00Z
 tags:
     - status
     - project-state
@@ -18,8 +18,8 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.1.0** on `main` (merged from `feat/claude-only` on 2026-10-16), the same across all nine packages; release-please restarts from the fresh changelog |
-| Released | **v0.1.0** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`). Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
+| Version | **0.2.1** on `main`, the same across all ten `package.json` files |
+| Released | **v0.2.1** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`); the owner's machine runs v0.2.0. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 1,620 tracked `.ts`/`.tsx` files at Agentry 0.37.0, before the fork; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
 | REST | 31 route files, documented as OpenAPI 3.1 and served at `/docs` |
@@ -88,13 +88,30 @@ since #10 ([plans/workflow-engine-limits.md](plans/workflow-engine-limits.md)); 
 worker is stopped mid-boot reloads once instead of staying blank since #12
 ([plans/e2e-blank-page.md](plans/e2e-blank-page.md)).
 
+On 2026-10-17 the repository got its **front door** (#19): a short README, the long sections moved
+into pages of their own ([features.md](features.md), [rest-api.md](rest-api.md),
+[configuration.md](configuration.md), [securing.md](securing.md), [cli-surfaces.md](cli-surfaces.md),
+[ui.md](ui.md), [pwa.md](pwa.md), [development.md](development.md),
+[known-limitations.md](known-limitations.md)), the REST contract checked against
+[rest-api.md](rest-api.md) by a test ([decisions/rest-api-contract.md](decisions/rest-api-contract.md)),
+and media recorded from a seeded sandbox by `pnpm media`, the 1280×640 social preview included. The
+same day a **limit wait** started going on with the first account that gets room, and a stopped task
+got its way back (retry, start over, skip, resume a waiting graph, run now; #21, R10 and R11), and a
+Core's shutdown came to end and await what it started: timers during boot (#18) and the `gh`/`glab`
+probes (#20). The tests that failed only on a loaded machine were fixed at their causes in #16,
+#18, #20, #22–#25 ([plans/e2e-flakes-under-load.md](plans/e2e-flakes-under-load.md) for the browser
+ones; each pull request records what its flake was).
+
 ## What is open
 
-- **Collaborators, left to the owner.** A run between two real machines (everything so far ran on one
-  machine, on loopback or through n0's relay from the Docker image), and filing the two iroh issues
-  drafted in [reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md).
-- **Releases.** v0.1.0 is published; release-please keeps the next release pull request open for the
+- **Collaborators, waiting on iroh.** The owner ran it between real machines on 2026-10-17 (three
+  installs, and two machines on different networks) and it works. Both binding defects were already
+  reported upstream (#276, open; #277, fixed but not released); `@number0/iroh` stays pinned at 1.1.0
+  until a release answers them ([reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md)).
+- **Releases.** v0.2.1 is published; release-please keeps the next release pull request open for the
   owner. The open items of each built plan are in its Outcome section.
+- **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were
+  dropped on 2026-10-17, and everything else is built and closed in [requests.md](requests.md).
 - **The decision engine's shadow period.** Nothing has been measured yet. All 22 points have a
   resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
   no longer waits on anything: CW-25's effort control landed ([effort.md](effort.md)) and CW-4's quota hold was superseded by phase 4 of multiple providers; see the plan's
