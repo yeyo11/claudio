@@ -16,7 +16,7 @@ import type {
 import type { Db } from '../db.ts';
 import { decisionPoint, DECISION_POINTS, type DecisionPointDefinition, type DecisionSubject } from './points.ts';
 import { redactState, stateBytes } from './redact.ts';
-import { DEFAULT_THRESHOLD, JEV_MODEL, type DecisionSettingsStore } from './settings.ts';
+import { DEFAULT_THRESHOLD, JEV_MODEL, SUPERVISOR_POINT, type DecisionSettingsStore } from './settings.ts';
 
 /** What a provider is asked: the redacted state and the typed questions, one batch, one call */
 export interface DecisionRequest {
@@ -65,7 +65,7 @@ export interface EffectiveDecision {
   threshold: number;
   provider: DecisionProviderId;
   consent: NonNullable<DecisionSettings['points'][DecisionPointId]>['consent'];
-  /** Active in name only: an act point on `cli` never clears a threshold, and a point without consent asks nothing */
+  /** Active in name only: an act point on `cli` never clears a threshold (`supervisor.intervene` aside), and a point without consent asks nothing */
   limited: boolean;
 }
 
@@ -104,8 +104,11 @@ export class DecisionEngine {
     const threshold = override?.threshold ?? global?.threshold ?? def?.defaultThreshold ?? DEFAULT_THRESHOLD;
     const consent = global?.consent ?? null;
     const consented = !!def && !!consent && consent.stateVersion === def.stateVersion && consent.providers.includes(provider);
-    // The CLI has no calibrated confidence, and the palette needs a provider that answers in a blink
-    const limited = mode === 'active' && (!consented || (def?.kind === 'act' && provider === 'cli'));
+    // The CLI has no calibrated confidence, and the palette needs a provider that answers in a blink.
+    // The Supervisor's Active is sending its hints on its own, which needs no probability and asks
+    // the engine nothing under the CLI, so it is Active in full there (docs/plans/settings-ia.md §7.2)
+    const selfActing = point === SUPERVISOR_POINT && provider === 'cli';
+    const limited = mode === 'active' && !selfActing && (!consented || (def?.kind === 'act' && provider === 'cli'));
     return { mode, threshold, provider, consent, limited };
   }
 

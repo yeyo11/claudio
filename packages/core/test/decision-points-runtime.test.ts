@@ -12,7 +12,7 @@ import { DecisionEngine, type DecisionProvider, type DecisionRequest, type Provi
 import { decisionPoint } from '../src/decisions/points.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
-import { DEFAULT_SUPERVISOR, Supervisor, SupervisorSettings } from '../src/supervisor.ts';
+import { Supervisor } from '../src/supervisor.ts';
 import { tempConfig } from './helpers.ts';
 
 // The runtime decision points (docs/plans/decision-engine.md, D2 w3): orchestration.retry,
@@ -58,7 +58,7 @@ async function deciding(point: DecisionPointId, mode: 'off' | 'shadow' | 'active
     await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), provider: 'jev', points: { [point]: { mode, threshold: 0.85, consent: null } } });
     await settings.setConsent(point, { granted: true, stateVersion: decisionPoint(point)?.stateVersion ?? 1, providers: ['jev'] });
   }
-  return { db, engine, calls, rows: () => db.listDecisions().items };
+  return { db, settings, engine, calls, rows: () => db.listDecisions().items };
 }
 
 function repoWithCommit(): string {
@@ -361,44 +361,53 @@ const transcript: TranscriptEntry[] = [
   },
 ];
 
-async function supervising(mode: 'off' | 'shadow' | 'active', reply: Reply) {
+/** The point is the Supervisor's one switch (docs/plans/settings-ia.md §7.2); `deciding` sets it under Jev, with consent */
+async function supervising(mode: 'off' | 'shadow' | 'active', reply: Reply, opts: { provider?: 'jev' | 'cli' } = {}) {
   const config = tempConfig();
   const db = new Db(config);
   const d = await deciding('supervisor.intervene', mode, reply, db);
-  const settings = new SupervisorSettings(config);
-  await settings.set({ ...DEFAULT_SUPERVISOR, enabled: true });
+  if (opts.provider === 'cli') {
+    const { jev: _jev, ...stored } = d.settings.get();
+    await d.settings.set({ ...stored, provider: 'cli' });
+    await d.settings.setConsent('supervisor.intervene', { granted: true, stateVersion: decisionPoint('supervisor.intervene')?.stateVersion ?? 1, providers: ['cli'] });
+  }
   const asked: string[] = [];
+  const sent: string[] = [];
   const supervisor = new Supervisor({
-    settings,
+    settings: d.settings,
     db,
     ask: (q) => {
       asked.push(q.prompt);
       return Promise.resolve({ text: 'Check the open socket.', costUsd: 0.002, isError: false });
     },
     steps: () => Promise.resolve(transcript),
-    hint: () => Promise.resolve(),
+    hint: (p) => {
+      sent.push(p.id);
+      return Promise.resolve();
+    },
     emit: () => undefined,
     charge: () => undefined,
     decisions: d.engine,
   });
-  return { ...d, supervisor, asked };
+  return { ...d, supervisor, asked, sent };
 }
 
 const waitFor = async (read: () => boolean): Promise<void> => {
   for (let i = 0; i < 100 && !read(); i++) await new Promise((r) => setTimeout(r, 20));
 };
 
-test('supervisor.intervene: off asks the supervisor for a hint as before and asks nothing else', async () => {
+test('supervisor.intervene: off does not watch, asks for no hint and asks nothing else', async () => {
   const s = await supervising('off', replying(() => false));
-  assert.equal((await s.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
-  assert.equal(s.asked.length, 1);
+  assert.equal(await s.supervisor.wake(chat, null, [hung]), null);
+  assert.equal(s.asked.length, 0);
   assert.equal(s.calls.length, 0);
   assert.equal(s.rows().length, 0);
 });
 
-test('supervisor.intervene: shadow records the answer and the hint is still asked for', async () => {
+test('supervisor.intervene: shadow under Jev records the answer and proposes the hint for a person to send', async () => {
   const s = await supervising('shadow', replying(() => false));
   assert.equal((await s.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
+  assert.equal(s.sent.length, 0);
   await waitFor(() => s.rows().length === 1);
   assert.equal(s.asked.length, 1);
   assert.equal(s.rows()[0]?.acted, false);
@@ -407,7 +416,7 @@ test('supervisor.intervene: shadow records the answer and the hint is still aske
   assert.deepEqual(s.calls[0]?.state, { signal: 'hung-command', detail: 'pnpm e2e', calls: [{ tool: 'Bash', error: 'exit 1: no such file' }] });
 });
 
-test('supervisor.intervene: active spares the hint above the threshold on a no, and only then', async () => {
+test('supervisor.intervene: active under Jev spares the hint above the threshold on a no, and sends it on its own otherwise', async () => {
   const no = await supervising('active', replying(() => false));
   assert.equal(await no.supervisor.wake(chat, null, [hung]), null);
   assert.equal(no.asked.length, 0, 'no housekeeping chat was started');
@@ -418,15 +427,34 @@ test('supervisor.intervene: active spares the hint above the threshold on a no, 
   assert.equal(no.calls.length, 1);
 
   const unsure = await supervising('active', replying(() => false, 0.5));
-  assert.equal((await unsure.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
+  assert.equal((await unsure.supervisor.wake(chat, null, [hung]))?.status, 'sent');
   const yes = await supervising('active', replying(() => true));
-  assert.equal((await yes.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
+  assert.equal((await yes.supervisor.wake(chat, null, [hung]))?.status, 'sent');
+  assert.equal(yes.sent.length, 1);
 });
 
 test('supervisor.intervene: an unavailable provider asks for the hint at once', async () => {
   const s = await supervising('active', noQuota);
-  assert.equal((await s.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
+  assert.equal((await s.supervisor.wake(chat, null, [hung]))?.status, 'sent');
   assert.equal(s.rows()[0]?.unavailable, 'no-quota');
+});
+
+test('supervisor.intervene: under the CLI the engine is never asked; Active sends every hint, Shadow proposes it', async () => {
+  const active = await supervising('active', replying(() => false), { provider: 'cli' });
+  assert.equal(active.engine.effective('supervisor.intervene', null).limited, false, 'Active in full, not in name only');
+  assert.equal((await active.supervisor.wake(chat, null, [hung]))?.status, 'sent');
+  assert.equal(active.sent.length, 1);
+
+  const shadow = await supervising('shadow', replying(() => false), { provider: 'cli' });
+  assert.equal((await shadow.supervisor.wake(chat, null, [hung]))?.status, 'proposed');
+  assert.equal(shadow.sent.length, 0);
+
+  // Nothing waits on the engine, and nothing is recorded in the background either
+  await new Promise((r) => setTimeout(r, 50));
+  for (const s of [active, shadow]) {
+    assert.equal(s.calls.length, 0);
+    assert.equal(s.rows().length, 0);
+  }
 });
 
 test('notification.urgency: the state may carry the risk of the chat\'s recent calls, at state version 2', () => {

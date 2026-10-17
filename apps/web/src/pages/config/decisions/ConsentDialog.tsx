@@ -98,6 +98,47 @@ export function ConsentDialog({
   );
 }
 
+/**
+ * "See an example payload" under Who answers (owner's decision 5): the consent dialog's own preview,
+ * of what one point would send to Jev, with nothing to agree to. It replaces the privacy box: the
+ * payload itself is the explanation.
+ */
+export function ExamplePayloadDialog({ info, name, onClose }: { info: DecisionPointInfo; name: string; onClose: () => void }) {
+  const { t } = useTranslation('decisions');
+  const narrow = useMediaQuery(NARROW);
+  const preview = useQuery({ queryKey: keys.decisionPreview(info.id), queryFn: () => api.decisionPreview(info.id), gcTime: 0, staleTime: 0 });
+  const title = t('engine.exampleTitle');
+
+  const body = (
+    <div className="dp-consent-body">
+      <ConsentNotice leaves />
+      <ErrorBox error={preview.error} />
+      {preview.isPending ? <Skeleton rows={4} /> : preview.data && <PreviewBody data={preview.data} leaves />}
+    </div>
+  );
+  const close = (
+    <button type="button" className="btn" data-autofocus onClick={onClose}>
+      {t('engine.exampleClose')}
+    </button>
+  );
+
+  if (narrow) {
+    return (
+      <Sheet open onOpenChange={(open) => !open && onClose()} title={title} description={`${info.id} · ${name}`} footer={<div className="dp-consent-actions">{close}</div>}>
+        {body}
+      </Sheet>
+    );
+  }
+  return (
+    <Dialog title={title} onClose={onClose} width={640} footer={close}>
+      <span className="dp-consent-sub">
+        <span className="mono">{info.id}</span> · {name}
+      </span>
+      {body}
+    </Dialog>
+  );
+}
+
 /** The exact state a point sends, where it goes and how big it is: shared by the single and the bulk consent. */
 export function PreviewBody({ data, leaves }: { data: DecisionPreview; leaves: boolean }) {
   const { t } = useTranslation('decisions');

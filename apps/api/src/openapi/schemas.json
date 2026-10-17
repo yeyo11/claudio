@@ -18612,7 +18612,7 @@
       },
       "model": {
         "type": "string",
-        "description": "Model of the housekeeping chat; `haiku` by default, because it reads a few lines and writes two"
+        "description": "Model of the housekeeping chat: the decision engine's CLI model"
       },
       "autoSend": {
         "type": "boolean",
@@ -18620,7 +18620,7 @@
       },
       "maxCostUsd": {
         "type": "number",
-        "description": "Passed to the housekeeping chat as `--max-budget-usd`"
+        "description": "Passed to the housekeeping chat as `--max-budget-usd`: the engine's cap per decision"
       }
     },
     "required": [
@@ -18629,11 +18629,28 @@
       "autoSend",
       "maxCostUsd"
     ],
-    "description": "`supervisor.json` in the data directory: settings-shaped."
+    "description": "The view `GET /settings/supervisor` derives from the point (deprecated: read `GET /decisions/settings`). `enabled` is the mode not being `off`, `autoSend` the mode being `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.maxCostUsd`."
   },
   "UpdateSupervisorConfigRequest": {
-    "$ref": "#/components/schemas/SupervisorConfig",
-    "description": "Replaces the whole document (`PUT /settings/supervisor`)."
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "autoSend": {
+        "type": "boolean"
+      },
+      "model": {
+        "type": "string"
+      },
+      "maxCostUsd": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "enabled"
+    ],
+    "description": "`PUT /settings/supervisor` (deprecated): `enabled` and `autoSend` set the `supervisor.intervene` point's mode (off, shadow, active); `model` and `maxCostUsd` are accepted and ignored."
   },
   "PushKeyInfo": {
     "type": "object",
@@ -30552,7 +30569,7 @@
           },
           "limited": {
             "type": "boolean",
-            "description": "True when the mode is `active` but the point behaves as `shadow` (act point on `cli`, or no consent)"
+            "description": "True when the mode is `active` but the point behaves as `shadow` (act point on `cli` other than `supervisor.intervene`, or no consent)"
           }
         },
         "required": [
