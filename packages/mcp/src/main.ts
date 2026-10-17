@@ -2,7 +2,8 @@
 // of the Claudio that started the chat. The CLI starts it from the file passed with --mcp-config.
 import { createInterface } from 'node:readline';
 import { apiUrlFrom, createClient } from './client.ts';
-import { createServer } from './server.ts';
+import { CLAUDIO_MCP_TOOLSETS_ENV, toolsetsFrom } from './names.ts';
+import { createServer, toolsFor } from './server.ts';
 
 const baseUrl = apiUrlFrom(process.env.CLAUDIO_API_URL);
 if (!baseUrl) {
@@ -13,6 +14,8 @@ if (!baseUrl) {
 const server = createServer({
   api: createClient({ baseUrl, token: process.env.CLAUDIO_API_TOKEN, chatId: process.env.CLAUDIO_CHAT_ID }),
   version: process.env.CLAUDIO_VERSION || 'unknown',
+  // Claudio names the toolsets in the chat's config: a project chat gets the reads of its teammates' copies and nothing else
+  tools: toolsFor(toolsetsFrom(process.env[CLAUDIO_MCP_TOOLSETS_ENV])),
 });
 
 // Requests are answered in the order they came, so a slow call cannot reorder the replies' lines

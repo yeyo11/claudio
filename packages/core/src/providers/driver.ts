@@ -112,6 +112,8 @@ export interface SessionLaunch {
   allowedTools?: string[];
   disallowedTools?: string[];
   mcpConfig?: string;
+  /** `mcpConfig` adds to the servers the CLI loads on its own instead of replacing them */
+  mcpConfigAdds?: boolean;
   confine?: ChatConfinement;
   /** Where attached files live, when this session may read them */
   uploadsDir?: string;

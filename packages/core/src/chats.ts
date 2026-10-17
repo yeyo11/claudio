@@ -35,7 +35,7 @@ import {
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
-import type { AssistantChatOptions } from './claudio-mcp.ts';
+import type { AssistantChatOptions, CollabMcpLaunch } from './claudio-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
 import { RunEventPublisher } from './event-sources.ts';
@@ -196,6 +196,12 @@ export class ChatManager extends EventEmitter {
    * such a chat is refused rather than started unconfined.
    */
   assistantLaunch: ((marker: ClaudioAssistantMarker) => AssistantChatOptions) | null = null;
+  /**
+   * Claudio's reads of teammates' copies for a chat that is not the assistant, decided at every
+   * process from its directory and its mode, or null when its scope allows none; Core sets it
+   * (docs/plans/collaborators-agent-access.md). `mcpConfig` is the file of the servers the chat chose.
+   */
+  agentReadsLaunch: ((chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null }) => CollabMcpLaunch | null) | null = null;
   /** Where chats with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every chat may read them */
@@ -1271,9 +1277,26 @@ export class ChatManager extends EventEmitter {
     return { appendSystemPrompt: joined };
   }
 
+  /**
+   * The reads of teammates' copies this process gets, or null. The assistant has its own launch, and
+   * housekeeping and confined chats get none; the rest is the scope's to say.
+   */
+  private agentReads(chat: LiveChat): CollabMcpLaunch | null {
+    const { opts } = chat;
+    if (!this.agentReadsLaunch || opts.claudioAssistant || opts.confine || opts.internal || chat.origin === 'internal' || chat.provider !== LEGACY_PROVIDER) return null;
+    try {
+      return this.agentReadsLaunch({ dir: chat.workingDir ?? chat.cwd, permissionMode: chat.permissionMode, mcpConfig: opts.mcp?.config ?? null });
+    } catch (err) {
+      // The chat runs without them rather than not at all
+      chat.push({ kind: 'notice', text: `This process cannot read what teammates share: ${err instanceof Error ? err.message : String(err)}` });
+      return null;
+    }
+  }
+
   /** What a process of the chat is started from: the driver turns it into a command line. */
   private launchSpec(chat: LiveChat, account: AccountRef | null): SessionLaunch {
     const { opts } = chat;
+    const reads = this.agentReads(chat);
     return {
       ...(account ? { account } : {}),
       id: chat.id,
@@ -1286,9 +1309,9 @@ export class ChatManager extends EventEmitter {
       ...(opts.model ? { model: opts.model } : {}),
       ...(chat.effort ? { effort: chat.effort } : {}),
       ...this.appendedPrompt(chat),
-      ...(opts.allowedTools ? { allowedTools: opts.allowedTools } : {}),
+      ...(opts.allowedTools || reads ? { allowedTools: [...(opts.allowedTools ?? []), ...(reads?.allowedTools ?? [])] } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
-      ...(opts.mcp?.config ? { mcpConfig: opts.mcp.config } : {}),
+      ...(reads ? { mcpConfig: reads.mcpConfig, ...(reads.adds ? { mcpConfigAdds: true } : {}) } : opts.mcp?.config ? { mcpConfig: opts.mcp.config } : {}),
       ...(opts.confine ? { confine: opts.confine } : {}),
       // Attached files live outside every project: a session that may read them is told where they are
       ...(this.uploads && opts.uploads !== false ? { uploadsDir: this.uploads.dir } : {}),

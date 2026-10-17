@@ -4,13 +4,13 @@
  * token splits), which is most of their weight and none of what picks a row.
  */
 
-type Obj = Record<string, unknown>;
+export type Obj = Record<string, unknown>;
 
-const isObj = (value: unknown): value is Obj => typeof value === 'object' && value !== null && !Array.isArray(value);
-const objs = (value: unknown): Obj[] => (Array.isArray(value) ? value.filter(isObj) : []);
+export const isObj = (value: unknown): value is Obj => typeof value === 'object' && value !== null && !Array.isArray(value);
+export const objs = (value: unknown): Obj[] => (Array.isArray(value) ? value.filter(isObj) : []);
 
 /** The listed keys that are present; absent ones and nulls are left out, which costs a model nothing */
-function pick(source: Obj, keys: readonly string[]): Obj {
+export function pick(source: Obj, keys: readonly string[]): Obj {
   const out: Obj = {};
   for (const key of keys) {
     const value = source[key];
