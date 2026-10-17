@@ -92,4 +92,31 @@ export default async ({ page, api, check }) => {
     await unblock();
   }
   page.takeErrors();
+
+  // ---- A page whose module graph never loads ----
+  // What the CI's blank pages were: the worker went away with the entry's preloaded chunks in flight,
+  // the browser aborted them, and the entry never ran (docs/plans/e2e-blank-page.md). A chunk of the
+  // entry that fails to load stands in for it here. The boot guard reloads once and then, the chunk
+  // still failing, says the app could not start, rather than reloading again or staying blank.
+  await page.goto('/', 1500);
+  const countDocuments = await page.onNewDocument(`sessionStorage.setItem('e2e-documents', String(Number(sessionStorage.getItem('e2e-documents') ?? 0) + 1))`);
+  const unblockEntry = await page.blockUrls(['*/assets/api-*.js']);
+  try {
+    await page.eval(`sessionStorage.removeItem('e2e-documents'); sessionStorage.removeItem('claudio:boot-retry'); return true`);
+    await page.goto('/', 0);
+    const fallback = await page.waitFor(`return document.querySelector('#root .boot-failed')?.innerText ?? ''`, { label: 'the boot fallback' });
+    check(fallback.includes('Claudio could not start') && fallback.includes('Reload'), `a page whose bundle never ran says so and offers a reload: ${fallback}`);
+    check((await page.eval(`return document.querySelector('#root .boot-failed')?.getAttribute('role')`)) === 'alert', 'the fallback is announced');
+    // Long enough for a third document to have started if the guard looped
+    await page.sleep(1500);
+    const documents = await page.eval(`return Number(sessionStorage.getItem('e2e-documents'))`);
+    check(documents === 2, `the blank page reloaded itself once and then stopped (${documents} documents)`);
+  } finally {
+    await unblockEntry();
+    await countDocuments();
+  }
+  await page.click('#root .boot-failed .btn-primary', undefined, 0);
+  await page.waitFor(`return (document.querySelector('main')?.innerText.trim().length ?? 0) > 10`, { label: 'the app after Reload' });
+  check((await page.eval(`return sessionStorage.getItem('claudio:boot-retry')`)) === null, 'a page that booted forgets the retry');
+  page.takeErrors();
 };

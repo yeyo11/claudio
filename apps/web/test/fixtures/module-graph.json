@@ -319,6 +319,7 @@
   "assistant [ASSISTANT_PROPOSAL_ACTIONS, ASSISTANT_PROPOSAL_KINDS, ASSISTANT_PROPOSAL_KINDS_OF_RUN, ASSISTANT_PROPOSAL_STATUSES, ASSISTANT_RESOURCE_KINDS, ASSISTANT_RUN_ACTIONS, ASSISTANT_RUN_KINDS, ASSISTANT_RUN_STATUSES, ASSISTANT_SOURCE_KINDS, ASSISTANT_SOURCE_STATES, ASSISTANT_SOURCE_UNITS, DEFAULT_ASSISTANT_MODEL, assistantOnCreateByDefault, assistantResourcePath]",
   "auth [authHeaders, getToken, probeAuth, setChallenge, setToken, signIn, useAuthChallenge, useAuthSettled, withToken]",
   "board [Board]",
+  "boot []",
   "brand-art [BRAND_ART, BrandArt, BrandShape]",
   "calendar [Weekday, addDays, addMonths, clampDay, firstDayOfWeek, monthGrid, moveFocus, outOfRange, parseDay, sameDay, toDay]",
   "cards [Describe, DoneLine, EmptyLine, NoRun, ReadPanel, ResourcesCard, TasksCard, TeamCard]",

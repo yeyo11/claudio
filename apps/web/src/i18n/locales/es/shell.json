@@ -121,6 +121,10 @@
     "reducedForced": "Tu sistema pide reducir el movimiento, así que nada se mueve mientras ese ajuste esté activo. La opción de abajo vuelve a aplicarse cuando lo desactives.",
     "preview": "Vista previa"
   },
+  "boot": {
+    "title": "Claudio no ha podido arrancar",
+    "hint": "Una parte de la aplicación no se ha cargado. Al recargar se suele arreglar."
+  },
   "reload": {
     "updated": "Claudio se ha actualizado a la versión {{version}}.",
     "stale": "Claudio se ha actualizado.",

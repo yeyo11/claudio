@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
+import { bootGuardScript, bootStrings, injectBootGuard } from './scripts/boot-guard.ts';
 import { buildServiceWorker } from './scripts/sw-shell.ts';
 
 // release-please bumps every package.json together, and the root one is where the build reads it
@@ -44,8 +45,27 @@ function serviceWorkerShell(): Plugin {
   };
 }
 
+/**
+ * Puts the boot guard into index.html's head, in `pnpm dev` too: a page whose module graph failed
+ * to load reloads once instead of staying blank (boot-guard.js says why).
+ */
+function bootGuard(): Plugin {
+  let root = '';
+  return {
+    name: 'claudio:boot-guard',
+    configResolved(config) {
+      root = config.root;
+    },
+    transformIndexHtml: {
+      // Before Vite adds the module script and its preloads, so the guard is the first script there
+      order: 'pre',
+      handler: (html) => injectBootGuard(html, bootGuardScript(readFileSync(resolve(root, 'boot-guard.js'), 'utf8'), bootStrings(root))),
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), serviceWorkerShell()],
+  plugins: [react(), bootGuard(), serviceWorkerShell()],
   // Compared with the version the server puts in every `stream.hello` (src/lib/reload.ts)
   define: { __CLAUDIO_VERSION__: JSON.stringify(VERSION) },
   // One instance of each stateful library across the app and the packages it imports: two React
