@@ -419,6 +419,8 @@ function useWorkflowRun(orch: Orchestration | undefined): ChatWorkflow | null {
 /** What a step is called, on the stepper and over its panel. */
 function useStepLabel(): (step: OrchestrationStep) => string {
   const { t } = useTranslation(['config', 'orchestrationV2']);
+  // The step stands before any pull request exists, so it has no host, number or ref to name
+  const words = useChangeRequestWords(undefined);
   return (step) => {
     switch (step.kind) {
       case 'stage':
@@ -430,7 +432,7 @@ function useStepLabel(): (step: OrchestrationStep) => string {
       case 'synthesis':
         return t('config:detail.synthesis');
       case 'pull-request':
-        return t('config:detail.pullRequest');
+        return t('config:detail.push', { noun: words.noun });
       case 'phase':
         return step.phase ?? t('config:orchestration.workflow');
       case 'workflow':
