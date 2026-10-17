@@ -27,7 +27,9 @@
 // `page`, the same browser tab with `goto` aimed at that wrapper, `openTab()`, a tab of its own at
 // that wrapper, for a page that must stay loaded while another install acts (its console errors fail
 // the spec, it is captured on a failure and closed after the spec), and `restart()`, which starts its
-// server again on the same port and directories). Every wrapper of a run binds
+// server again on the same port and directories). Every spec's context also has `capture(label)`,
+// the failure screenshots taken now (from a spec's `catch`, before its cleanup changes the page), and
+// `serverLog(pattern?)`, the stderr lines every server wrote during the spec. Every wrapper of a run binds
 // its iroh endpoint on the minimal preset to a fixed loopback port (CLAUDIO_COLLAB_PRESET,
 // CLAUDIO_COLLAB_BIND): no relay and no discovery, so installs reach each other by their loopback
 // tickets and the suite needs no network, and an invite stays good across a turn off and on.
@@ -234,6 +236,22 @@ const fakeEnv = {
   CLAUDE_BIN: join(here, 'fake-cli', 'claude'),
 };
 
+/**
+ * What every server of the run (the main one and the peers, each line prefixed with its name) wrote
+ * to stderr while the spec running now ran: a spec reads it through `serverLog()` to say why it failed,
+ * which the shard's interleaved output does not. Null between specs.
+ */
+let specLog = null;
+/** Splits a stream into lines for `specLog`; a line cut across two chunks is kept until it ends */
+function specLogLines(prefix) {
+  let partial = '';
+  return (chunk) => {
+    const lines = (partial + chunk).split('\n');
+    partial = lines.pop() ?? '';
+    if (specLog) for (const line of lines) if (line.trim()) specLog.push(`${prefix}${line}`);
+  };
+}
+
 /** The server running now, and which CLI it was given */
 let server = null;
 let serverCli = null;
@@ -244,10 +262,12 @@ function startServer(cli) {
   // Its own process group: `pnpm`, `tsx` and the API are killed together, by the leader's PID
   const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: cli === 'fake' ? fakeEnv : env, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
   serverStderr = '';
+  const toSpecLog = specLogLines('');
   // Still shown as it comes, as when stderr was inherited; kept as well, so a start that fails can say why
   child.stderr.on('data', (chunk) => {
     process.stderr.write(chunk);
     if (server === child) serverStderr = (serverStderr + chunk).slice(-STDERR_TAIL_CHARS);
+    toSpecLog(chunk);
   });
   child.on('error', () => {});
   server = child;
@@ -389,9 +409,11 @@ async function startPeer(name, page, browser) {
   const boot = async () => {
     const child = spawn('pnpm', ['--filter', '@claudio/api', 'start'], { cwd: root, env: peerEnv, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
     stderr = '';
+    const toSpecLog = specLogLines(`[${name}] `);
     child.stderr.on('data', (chunk) => {
       process.stderr.write(`[${name}] ${chunk}`);
       stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS);
+      toSpecLog(chunk);
     });
     child.on('error', () => {});
     entry.child = child;
@@ -429,6 +451,12 @@ async function startPeers(names, page, browser) {
   }
   const started = await Promise.all(names.map((name) => startPeer(name, page, browser)));
   return Object.fromEntries(started.map((peer) => [peer.name, peer]));
+}
+
+/** The main tab and every peer's own tab, as screenshots under E2E_SHOTS (nothing without it) */
+async function captureFailure(name, page) {
+  await page.shot(name).catch(() => {});
+  for (const { name: peer, tab } of peerTabs) await tab.shot(`${name}-${peer}`).catch(() => {});
 }
 
 function check(condition, message) {
@@ -470,7 +498,12 @@ try {
     try {
       await browser.page.reset();
       browser.page.takeErrors();
+      specLog = [];
       const context = cli === 'fake' ? { page: browser.page, api, check, dirs: { ...dirs, configDir: join(sandbox, 'claude') }, fakeCli, releases } : { page: browser.page, api, check, dirs, releases };
+      // A spec's `finally` runs before the harness sees its error: one whose cleanup changes the page
+      // captures it from its own `catch`, and says why with what the servers logged meanwhile
+      context.capture = (label) => captureFailure(`FAILED-${file}-${label}`, browser.page);
+      context.serverLog = (pattern) => (specLog ?? []).filter((line) => !pattern || pattern.test(line));
       if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page, browser);
       await within(spec.default(context), limit, file);
       const errors = [...browser.page.takeErrors(), ...takePeerTabErrors()];
@@ -480,14 +513,14 @@ try {
       failed++;
       failedFiles.push(file);
       console.log(`✗ ${file}\n  ${error.message.replaceAll('\n', '\n  ')}`);
-      await browser.page.shot(`FAILED-${file}`).catch(() => {});
-      for (const { name, tab } of peerTabs) await tab.shot(`FAILED-${file}-${name}`).catch(() => {});
+      await captureFailure(`FAILED-${file}`, browser.page);
       // A spec that timed out is still running in the background: the browser is not safe to reuse
       if (error.message.endsWith(`took longer than ${limit / 1000}s`)) {
         console.log('- stopping: the timed-out spec may still be driving the browser');
         break;
       }
     } finally {
+      specLog = null;
       // Closed before their servers stop: a page whose server goes away under it is noise
       await closePeerTabs().catch(() => {});
       stopPeers();
