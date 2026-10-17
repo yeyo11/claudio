@@ -90,6 +90,11 @@ function configFromForm(form: ServerForm): Record<string, unknown> {
   return config;
 }
 
+/** How a server is reached, as its config says it: the Connections screen lists it beside the name. */
+export function serverTransport(config: Record<string, unknown>): string {
+  return isObject(config) && typeof config.type === 'string' ? config.type : config.url ? 'http' : 'stdio';
+}
+
 function target(config: Record<string, unknown>): string {
   if (typeof config.url === 'string') return config.url;
   return [config.command, ...stringList(config.args)].filter((p) => typeof p === 'string').join(' ');
@@ -346,7 +351,8 @@ export function McpTab({ scope }: { scope: Scope }) {
 
   return (
     <Card
-      title={t('config.tabs.mcp')}
+      // In Settings the detail's title names the list already; a project's settings have none
+      title={scope.projectId ? t('config.tabs.mcp') : undefined}
       actions={
         <div className="toolbar">
           <button type="button" className="btn btn-small" disabled={check.isPending || servers.length === 0} onClick={() => check.mutate()}>
@@ -403,7 +409,7 @@ export function McpTab({ scope }: { scope: Scope }) {
             <tbody>
               {servers.map((server) => {
                 const status = health.get(server.name);
-                const transport = isObject(server.config) && typeof server.config.type === 'string' ? server.config.type : server.config.url ? 'http' : 'stdio';
+                const transport = serverTransport(server.config);
                 return (
                   <tr key={`${server.scope}:${server.name}`} className={remove.isPending && remove.variables === server ? 'row-busy' : ''}>
                     <td className="strong">{server.name}</td>

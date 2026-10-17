@@ -1498,6 +1498,13 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-row:last-child { border-bottom: 0; }
 /* First run: no handle and no switch, the person is only reading what was found */
 .prov-row.compact { grid-template-columns: 36px minmax(0, 250px) minmax(0, 1fr) auto; }
+/* In a settings section the list is narrower: below 760 px of its width the state and the remedies go under the name */
+.settings-section > .prov-card { container: host-list / inline-size; }
+@container host-list (max-width: 760px) {
+  .prov-row.compact { grid-template-columns: 36px minmax(0, 1fr); row-gap: 10px; }
+  .prov-row.compact > .prov-state, .prov-row.compact > .prov-actions { grid-column: 2; }
+  .prov-row.compact > .prov-actions { flex-wrap: wrap; justify-content: flex-start; }
+}
 .prov-row .proj { width: 36px; height: 36px; border-radius: var(--r); font-size: var(--fs-small); }
 .prov-row.open { background: var(--bg-1); border-bottom: 0; }
 .prov-row.lifted { background: var(--bg-3); box-shadow: var(--shadow-pop); border-radius: var(--r); position: relative; z-index: 1; }
@@ -2584,8 +2591,24 @@ a.cont-from:hover { color: var(--fg); }
 .lesson-job { display: flex; align-items: baseline; gap: 10px; }
 .lesson-job-warn { color: var(--warn); }
 .lesson-job-bad { color: var(--bad); }
-.lessons-settings { display: flex; flex-direction: column; gap: 14px; }
-.lessons-switches { display: flex; flex-direction: column; gap: 10px; }
+/* Settings → Instructions & memory → Lessons: each setting a row, the label and its hint beside the
+   control; below 480 px of its own width the control goes under the label */
+.lessons-settings { container: lessons-settings / inline-size; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.lessons-settings > p { margin: 0; }
+/* The error line is reserved: two lines, so a message that wraps on a phone moves nothing either */
+.lessons-problem { min-height: calc(2 * 1.45em); }
+.lessons-row { min-width: 0; }
+.lessons-row > .field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); align-items: center; gap: 2px 16px; }
+.lessons-row > .field > .field-label { grid-column: 1; grid-row: 1; }
+.lessons-row > .field > .field-hint { grid-column: 1; grid-row: 2; }
+.lessons-row > .field > :nth-child(2) { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+@container lessons-settings (max-width: 480px) {
+  .lessons-row > .field { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .lessons-row > .field > .field-label,
+  .lessons-row > .field > .field-hint,
+  .lessons-row > .field > :nth-child(2) { grid-column: 1; grid-row: auto; }
+}
+.lessons-switches { display: flex; flex-direction: column; gap: 12px; }
 .lessons-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .project-lessons-cell { display: flex; align-items: center; min-height: var(--touch); padding: 0 16px; }
 /* The CLAUDE.md diff: a Dialog on a desktop, a full-height Sheet on a phone */
@@ -2668,12 +2691,18 @@ a.cont-from:hover { color: var(--fg); }
 .settings-back:hover { color: var(--fg); }
 .settings-group { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
 .settings-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-section > p { margin: 0; }
 .settings-section-title { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-strong); }
 /* A row that opens a detail ("Skills · 12 · 3 from plugins"): the whole row is the link, 44 px on a phone */
 .settings-detail-row { display: flex; align-items: center; gap: 12px; min-height: 40px; min-width: 0; padding: 0 10px; margin: 0 -10px; border-radius: var(--r-sm); color: var(--fg); }
 .settings-detail-row:hover { background: var(--bg-3); }
-.settings-detail-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.settings-detail-name { flex: 1; min-width: 0; overflow-wrap: break-word; }
 .settings-detail-note { flex: none; color: var(--fg-2); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+.settings-detail-text { display: flex; flex: 1 1 14ch; flex-direction: column; gap: 2px; min-width: 12ch; padding: 6px 0; }
+.settings-detail-text ~ .settings-detail-note { flex: 0 1 auto; min-width: 0; text-align: end; overflow-wrap: break-word; }
+.settings-detail-desc { color: var(--fg-2); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.settings-row-sections { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.settings-row-section { min-width: 0; }
 /* The row a result opened: a fill that holds a moment and fades; it does not move under the reduced motion levels */
 [data-setting].is-found { border-radius: var(--r-sm); animation: setting-found var(--dur-slow) var(--ease-out) var(--dur-slow) both; }
 :root[data-motion='subtle'] [data-setting].is-found, :root[data-motion='off'] [data-setting].is-found { animation: none; }

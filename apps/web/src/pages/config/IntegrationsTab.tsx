@@ -1,20 +1,22 @@
 import type { CodeHostId, CodeHostsSettings, CodeHostStatus, TrackerId, TrackersSettings, TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { ExternalLink, RefreshCw, TerminalSquare } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Sheet } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { keepsCredentials, trackerEntry, trackerWords, TRACKER_IDS, withTrackerEntry } from '../../lib/trackers';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { BinaryEditor, ExternalLinkText, HostRow, LINKS, TrackerRow, trackerBinaryWords, trackerReasonText, WORKS } from './integrations/rows';
 import { hostTool } from '../../lib/setup';
 import { SignInPanel, SignInSheet } from '../../components/setup/SignInPanel';
+import { SettingsSection } from './groups/Section';
+import { sectionLabel } from './settingsGroups';
 import { WebhooksSection } from './WebhooksSection';
 import { YoutrackAccess } from './YoutrackAccess';
 
@@ -24,12 +26,15 @@ const latestCheck = (list: Array<{ checkedAt: string }>): string | null =>
   list.reduce<string | null>((latest, s) => (latest === null || s.checkedAt > latest ? s.checkedAt : latest), null);
 
 /**
- * The code host CLIs Claudio reaches (gh, glab): each one's state in words, the host names it knows
- * with their accounts, and a binary of the person's own when the search cannot find one. Nothing is
- * stored but that path; the sessions are the programs' own.
+ * Settings → Connections → Code hosts, Trackers and Webhooks (docs/plans/settings-ia.md §6.3): the
+ * code host CLIs Claudio reaches (gh, glab), each one's state in words, the host names it knows with
+ * their accounts, and a binary of the person's own when the search cannot find one; then the issue
+ * trackers and the webhooks. Three sections of one component, because the hosts and the trackers
+ * are read and checked again together. Nothing is stored but the paths; the sessions are the
+ * programs' own.
  */
 export function IntegrationsTab() {
-  const { t } = useTranslation('integrations');
+  const { t } = useTranslation(['integrations', 'config', 'webhooks']);
   const toast = useToast();
   const queryClient = useQueryClient();
   const narrow = useMediaQuery(NARROW);
@@ -68,8 +73,26 @@ export function IntegrationsTab() {
   const [signInOf, setSignInOf] = useState<{ id: CodeHostId; host: string | null } | null>(null);
 
   const failed = hosts.error ?? settings.error ?? trackers.error ?? trackerSettings.error;
-  if (failed) return <ErrorBox error={failed} />;
-  if (!hosts.data || !settings.data || !trackers.data || !trackerSettings.data) return <Skeleton rows={4} />;
+  const sections = (codeHosts: ReactNode, trackerBody: ReactNode, rest?: ReactNode) => (
+    <>
+      <SettingsSection id="code-hosts" title={t(sectionLabel('code-hosts'))}>
+        <p className="small muted">{t('section.hosts')}</p>
+        {codeHosts}
+      </SettingsSection>
+      <SettingsSection id="trackers" title={t(sectionLabel('trackers'))}>
+        <p className="small muted">{t('section.trackers')}</p>
+        {trackerBody}
+      </SettingsSection>
+      <SettingsSection id="webhooks" title={t(sectionLabel('webhooks'))}>
+        <p className="small muted">{t('webhooks:line')}</p>
+        {projects.error ? <ErrorBox error={projects.error} /> : projects.data ? <WebhooksSection projects={projects.data} /> : <Skeleton rows={3} />}
+      </SettingsSection>
+      {rest}
+    </>
+  );
+  if (failed) return sections(<ErrorBox error={failed} />, null);
+  // The skeletons hold the height of the toolbar and the rows they wait for
+  if (!hosts.data || !settings.data || !trackers.data || !trackerSettings.data) return sections(<Skeleton rows={3} height={20} />, <Skeleton rows={3} height={20} />);
 
   const list = hosts.data;
   const current = settings.data;
@@ -149,7 +172,7 @@ export function IntegrationsTab() {
 
   const toolbar = (
     <div className="prov-toolbar">
-      <button type="button" className="btn" disabled={checking !== null} onClick={() => void recheck('all')}>
+      <button type="button" className="btn btn-small" disabled={checking !== null} onClick={() => void recheck('all')}>
         {checking === 'all' ? <Spinner /> : <RefreshCw {...ICON_SM} />}
         {t('refresh')}
       </button>
@@ -165,6 +188,7 @@ export function IntegrationsTab() {
         status={status}
         enabled={entry.enabled}
         variant={narrow ? 'cell' : 'row'}
+        setting={`code-hosts.${status.id}`}
         open={binaryOf === status.id || signInOf?.id === status.id}
         checking={checking === 'all' || checking === status.id}
         onRetry={() => void recheck(status.id)}
@@ -205,6 +229,7 @@ export function IntegrationsTab() {
         status={status}
         enabled={entry.enabled}
         variant={narrow ? 'cell' : 'row'}
+        setting={keepsCredentials(status.id) ? 'trackers.youtrack' : undefined}
         open={trackerBinaryOf === status.id || (accessOpen && keepsCredentials(status.id))}
         accessOpen={accessOpen && keepsCredentials(status.id)}
         checking={checking === 'all' || checkingTracker === status.id}
@@ -241,22 +266,15 @@ export function IntegrationsTab() {
   });
 
   // The gradient border goes on what the screen is about: the trackers, unless the empty state has it
-  const trackersCard = narrow ? (
-    <section className={`card${nothing ? '' : ' grad-border'} prov-card`} aria-label={t('tracker.title')}>
-      {trackerRows}
-    </section>
-  ) : (
-    <Card
-      className={nothing ? 'prov-card' : 'grad-border prov-card'}
-      title={<span>{t('tracker.title')}</span>}
-      actions={
-        <span className="prov-summary tnum">
-          {t('tracker.total', { count: trackerList.length })} · {t('list.ready', { count: trackersReady })}
-        </span>
-      }
-    >
-      {trackerRows}
-    </Card>
+  const trackersBody = (
+    <>
+      <p className="prov-summary tnum">
+        {t('tracker.total', { count: trackerList.length })} · {t('list.ready', { count: trackersReady })}
+      </p>
+      <section className={`card${nothing ? '' : ' grad-border'} prov-card`} aria-label={t('tracker.title')}>
+        {trackerRows}
+      </section>
+    </>
   );
 
   const missing = (
@@ -266,65 +284,59 @@ export function IntegrationsTab() {
     </p>
   );
 
-  return (
-    <div className="prov-page">
-      {narrow && <p className="host-intro">{t('intro')}</p>}
+  // A section beside others keeps the compact empty state: the illustrated one is for a whole screen
+  const hostsBody = nothing ? (
+    <div className="card grad-border prov-card">
+      <Empty
+        icon={TerminalSquare}
+        title={t('empty.title')}
+        action={
+          <>
+            <a className="btn btn-primary" href={LINKS.github.install} target="_blank" rel="noopener noreferrer">
+              {t('empty.install')}
+              <ExternalLink {...ICON_SM} />
+              <span className="sr-only"> ({t('row.opensNewTab')})</span>
+            </a>
+            <button type="button" className="btn" disabled={checking !== null} onClick={() => void recheck('all')}>
+              {t('refresh')}
+            </button>
+          </>
+        }
+      >
+        {t('empty.body')}
+      </Empty>
+      <div className="host-also">
+        <span className="section-label">{t('empty.also')}</span>
+        <div className="host-also-chips">
+          <a className="chip" href={LINKS.gitlab.install} target="_blank" rel="noopener noreferrer">
+            {t('empty.installGlab')}
+            <span className="sr-only"> ({t('row.opensNewTab')})</span>
+          </a>
+          <button type="button" className="chip" onClick={() => setBinaryOf(list[0]?.id ?? null)}>
+            {t('empty.chooseBinary')}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <>
+      <p className="prov-summary tnum">
+        {t('list.total', { count: list.length })} · {t('list.ready', { count: ready })}
+      </p>
+      <section className="card prov-card" aria-label={t('list.aria')}>
+        {rows}
+      </section>
+    </>
+  );
+
+  return sections(
+    <>
       {toolbar}
-      {nothing ? (
-        <Card className="grad-border prov-card" title={<span>{t('list.title')}</span>}>
-          <Empty
-            illustration="cli-missing"
-            tone="warn"
-            title={t('empty.title')}
-            action={
-              <>
-                <a className="btn btn-primary" href={LINKS.github.install} target="_blank" rel="noopener noreferrer">
-                  {t('empty.install')}
-                  <ExternalLink {...ICON_SM} />
-                  <span className="sr-only"> ({t('row.opensNewTab')})</span>
-                </a>
-                <button type="button" className="btn" disabled={checking !== null} onClick={() => void recheck('all')}>
-                  {t('refresh')}
-                </button>
-              </>
-            }
-          >
-            {t('empty.body')}
-          </Empty>
-          <div className="host-also">
-            <span className="section-label">{t('empty.also')}</span>
-            <div className="host-also-chips">
-              <a className="chip" href={LINKS.gitlab.install} target="_blank" rel="noopener noreferrer">
-                {t('empty.installGlab')}
-                <span className="sr-only"> ({t('row.opensNewTab')})</span>
-              </a>
-              <button type="button" className="chip" onClick={() => setBinaryOf(list[0]?.id ?? null)}>
-                {t('empty.chooseBinary')}
-              </button>
-            </div>
-          </div>
-        </Card>
-      ) : narrow ? (
-        <section className="card prov-card" aria-label={t('list.aria')}>
-          {rows}
-        </section>
-      ) : (
-        <Card
-          className="prov-card"
-          title={<span>{t('list.title')}</span>}
-          actions={
-            <span className="prov-summary tnum">
-              {t('list.total', { count: list.length })} · {t('list.ready', { count: ready })}
-            </span>
-          }
-        >
-          {rows}
-        </Card>
-      )}
-      <p className="prov-step-note host-missing">{t('tracker.note')}</p>
-      {trackersCard}
-      {projects.data && <WebhooksSection projects={projects.data} />}
+      {hostsBody}
       {missing}
+    </>,
+    trackersBody,
+    <>
       {narrow && signInOf && (
         <SignInSheet
           key={`${signInOf.id}:${signInOf.host ?? ''}`}
@@ -366,6 +378,6 @@ export function IntegrationsTab() {
           />
         </Sheet>
       )}
-    </div>
+    </>,
   );
 }
