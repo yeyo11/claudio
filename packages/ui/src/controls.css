@@ -150,9 +150,12 @@
    they were simply invisible */
 .menu {
   z-index: 1170;
-  min-width: var(--radix-select-trigger-width, var(--radix-popover-trigger-width, 180px));
-  max-width: min(420px, calc(100vw - 16px));
-  max-height: min(340px, var(--radix-select-content-available-height, var(--radix-popover-content-available-height, 340px)));
+  min-width: var(--radix-select-trigger-width, var(--radix-popover-trigger-width, var(--radix-dropdown-menu-trigger-width, 180px)));
+  max-width: min(420px, calc(100vw - var(--ov-left) - var(--ov-right)));
+  max-height: min(
+    340px,
+    var(--radix-select-content-available-height, var(--radix-popover-content-available-height, var(--radix-dropdown-menu-content-available-height, 340px)))
+  );
   padding: 5px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -161,7 +164,10 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transform-origin: var(--radix-select-content-transform-origin, var(--radix-popover-content-transform-origin));
+  transform-origin: var(
+    --radix-select-content-transform-origin,
+    var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin))
+  );
   animation: menu-in var(--dur-base) var(--ease-out);
 }
 .menu-viewport {
@@ -217,6 +223,7 @@
 .menu-item-check {
   display: inline-flex;
   flex: none;
+  margin-left: auto;
   color: var(--accent);
 }
 
@@ -481,7 +488,9 @@
 
 /* ---------- Collapsible ---------- */
 
-.collapsible-trigger {
+/* :where() keeps the reset at no weight, so the class a caller passes as triggerClassName always
+   wins: at equal weight this rule, loaded after the app's styles, wiped their padding */
+:where(.collapsible-trigger) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -644,9 +653,19 @@
 /* ---------- Menu: the dropdown behind a ⋯ ---------- */
 /* Radix's dropdown has no viewport element of its own, so the content itself is the scroller. */
 .menu-dropdown {
+  min-width: 200px;
+  max-width: min(340px, calc(100vw - var(--ov-left) - var(--ov-right)));
   padding: 5px;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+/* The menu is a flex column that scrolls: nothing in it may shrink, or a two-line row (an item with
+   its reason) is squeezed under its own height and spills over the next one */
+.menu > *,
+.menu-group,
+.menu-sep,
+.menu-item {
+  flex-shrink: 0;
 }
 .menu-sep {
   height: 1px;
@@ -664,8 +683,33 @@
   flex: none;
   color: var(--text-faint);
 }
+/* A row with a reason has two lines: the icon sits on the label's line, not between the two */
+.menu-item:has(.menu-item-why) {
+  align-items: flex-start;
+}
+.menu-item:has(.menu-item-why) .menu-item-icon {
+  margin-top: 2px;
+}
 .menu-item-icon.is-off {
   opacity: 0;
+}
+/* Groups are told apart by space, not by a line: the heading of the next one has room above it */
+.menu-group + .menu-group {
+  margin-top: 6px;
+}
+.menu-item-more {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-faint);
+}
+.menu-item[data-state='open'] {
+  background: var(--bg-hover);
+}
+/* A finger, not a pointer: every row of a menu is a touch target */
+@media (pointer: coarse) {
+  .menu-item {
+    min-height: 44px;
+  }
 }
 .menu-item-key {
   flex: none;
@@ -696,16 +740,20 @@
 /* Disabled but still reachable: the reason is the point of keeping it there. */
 .menu-item.is-disabled {
   cursor: default;
-  color: var(--text-faint);
+  color: var(--fg-2);
+}
+.menu-item.is-disabled.is-destructive {
+  color: var(--fg-2);
+}
+.menu-item.is-disabled .menu-item-icon,
+.menu-item.is-disabled.is-destructive .menu-item-icon {
+  color: var(--fg-3);
 }
 .menu-item-why {
   font-size: var(--fs-small);
-  color: var(--text-faint);
+  color: var(--fg-3);
   white-space: normal;
-}
-.menu-item.is-disabled .menu-item-text > span:first-child {
-  text-decoration: line-through;
-  text-decoration-color: var(--border-strong);
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Sheet: a bottom sheet on a phone, a side panel on a desktop ---------- */
@@ -747,16 +795,17 @@ body:has(> .sheet-scrim) > #root {
 }
 .sheet-bottom {
   inset: auto 0 0 0;
-  max-height: min(86dvh, 720px);
-  padding-bottom: env(safe-area-inset-bottom);
+  max-height: min(86dvh, 720px, calc(100dvh - var(--ov-top)));
+  padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   border-width: 1px 0 0;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   animation: sheet-up var(--dur-base) var(--ease-out);
 }
 .sheet-right {
-  inset: 0 0 0 auto;
-  width: min(420px, 100vw);
-  border-width: 0 0 0 1px;
+  inset: var(--ov-top) var(--ov-right) var(--ov-bottom) auto;
+  width: min(420px, calc(100vw - var(--ov-left) - var(--ov-right)));
+  border-width: 1px;
+  border-radius: var(--radius-xl);
   animation: sheet-in var(--dur-base) var(--ease-out);
 }
 /* The strip a thumb pulls down on. It is decoration: the close button is the way out for everyone else. */
@@ -831,13 +880,58 @@ body:has(> .sheet-scrim) > #root {
   min-height: 44px;
   justify-content: flex-start;
 }
-/* An unchecked toggle keeps its label in line with the checked ones' */
-.sheet-action-gap {
-  width: 14px;
+.sheet-action {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sheet-action-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+.sheet-action-check {
   flex: none;
+  color: var(--accent);
+}
+/* The group a sheet keeps from the menu: its heading, then its rows, with space and no line between groups */
+.sheet-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sheet-actions > .sheet-group,
+.sheet-actions > .sheet-action + .sheet-group {
+  margin-top: 8px;
+}
+.sheet-group-label {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-strong);
+}
+.sheet-action-meta {
+  color: var(--fg-3);
+  font-size: var(--fs-small);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sheet-back {
+  align-self: flex-start;
+}
+.sheet-actions .btn.is-disabled {
+  color: var(--fg-2);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 .sheet-action-reason {
   margin: 0;
+  padding: 0 4px;
+  overflow-wrap: anywhere;
   color: var(--fg-3);
   font-size: var(--fs-small);
 }

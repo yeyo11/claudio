@@ -64,16 +64,16 @@ test('trimming keeps the newest entries and moves the start up by what was dropp
 
 test('runs beyond what every chat may hold between them go, least recently read first, never the one on the page', () => {
   const client = new QueryClient();
-  const slot = (id: string) => ['chat', id, false, RUN_TAG];
+  const slot = (id: string) => ['chat', id, 'transcript', RUN_TAG];
   client.setQueryData(slot('old'), run(0, 3000), { updatedAt: 1 });
   client.setQueryData(slot('older'), run(0, 3000), { updatedAt: 2 });
   client.setQueryData(slot('shown'), run(0, 3000), { updatedAt: 3 });
-  client.setQueryData(['chat', 'shown', false], { entries: [] }, { updatedAt: 0 });
+  client.setQueryData(['chat', 'shown', 'transcript'], { entries: [] }, { updatedAt: 0 });
   evictRuns(client, slot('shown'), 6000);
   assert.equal(client.getQueryData(slot('old')), undefined, 'the least recently read run went');
   assert.ok(client.getQueryData(slot('older')), 'which brought the total under the cap, so the next stayed');
   assert.ok(client.getQueryData(slot('shown')));
-  assert.ok(client.getQueryData(['chat', 'shown', false]), 'the newest page is not a run and is not counted');
+  assert.ok(client.getQueryData(['chat', 'shown', 'transcript']), 'the newest page is not a run and is not counted');
   evictRuns(client, slot('shown'), 6000);
   assert.ok(client.getQueryData(slot('older')), 'under the cap nothing goes');
 });

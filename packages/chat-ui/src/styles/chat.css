@@ -659,12 +659,23 @@
   margin: 0;
 }
 
-/* The placeholder sits on the empty first line, out of the text and out of the caret's way */
+/* The placeholder sits on the empty first line, out of the text and out of the caret's way. One line
+   and an ellipsis, whatever the width: it inherited the editor's break-spaces and overflow-wrap, and
+   on a phone it broke mid-word and spilled out of the box */
+.composer-input p.is-empty:first-child {
+  position: relative;
+}
+
 .composer-input p.is-empty:first-child::before {
   content: attr(data-placeholder);
-  float: left;
-  height: 0;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  overflow: hidden;
   color: var(--text-faint);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
   pointer-events: none;
 }
 
@@ -680,50 +691,6 @@
   height: 36px;
 }
 
-.composer-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: min(360px, 86vw);
-  max-width: 420px;
-}
-
-.composer-menu-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.composer-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 0;
-  border-radius: var(--radius);
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: var(--fs-small);
-  text-align: left;
-  cursor: pointer;
-}
-
-.composer-menu-item:hover,
-.composer-menu-item:focus-visible {
-  background: var(--bg-hover);
-}
-
-.composer-menu-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-}
-
 .composer-menu-note {
   display: flex;
   flex-direction: column;
@@ -736,22 +703,56 @@
   margin: 0;
 }
 
-.composer-accounts {
+.account-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.account-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
+.account-picker-search:focus-within {
+  border-color: var(--accent);
+}
+
+.account-picker-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  /* 16 px keeps a phone from zooming the page when the field takes focus */
+  font-size: var(--fs-input);
+  outline: none;
+}
+
+.account-picker-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  max-height: min(50dvh, 360px);
+  overflow-y: auto;
 }
 
-.composer-account-btn {
+.account-picker-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   width: 100%;
   min-height: 44px;
-  padding: 6px 4px;
+  padding: 6px 10px;
   border: 0;
   border-radius: var(--radius);
   background: none;
@@ -761,69 +762,52 @@
   cursor: pointer;
 }
 
-.composer-account-btn:hover,
-.composer-account-btn:focus-visible {
+.account-picker-row:hover,
+.account-picker-row:focus-visible {
   background: var(--bg-hover);
 }
 
-.composer-account.is-off .composer-account-btn {
+.account-picker-row[aria-disabled='true'] {
+  color: var(--fg-2);
   cursor: default;
 }
 
-.composer-account.is-off .composer-account-name,
-.composer-account.is-off .composer-account-plan {
-  color: var(--text-faint);
-}
-
-.composer-account-mark {
-  display: inline-grid;
+.account-picker-check {
   flex: none;
-  place-items: center;
-  width: 14px;
-  height: 20px;
-  color: var(--text-muted);
+  margin-left: auto;
+  color: var(--accent);
 }
 
-.composer-account-body {
+/* Name, plan and use on one line: the name gives way first, the plan and the number never wrap */
+.account-picker-line {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.composer-account-head,
-.composer-account-usage {
-  display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
+  min-width: 0;
 }
 
-.composer-account-name {
+.account-picker-name {
   min-width: 0;
+}
+
+.account-picker-plan,
+.account-picker-pct {
+  flex: none;
+  color: var(--fg-3);
   font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
 }
 
-.composer-account-plan {
-  flex: none;
-}
-
-.composer-account-usage .meter-track {
-  flex: 1;
-}
-
-.composer-account-pending {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.composer-account-pending p {
-  flex: 1;
+.account-picker-why {
   margin: 0;
+  padding: 0 10px 6px;
+  color: var(--fg-3);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.account-picker-cancel {
+  align-self: flex-start;
+  gap: 8px;
 }
 
 .composer-servers {
@@ -1697,11 +1681,6 @@
   font-size: var(--fs-body);
 }
 
-.new-composer-wrap > .composer-status,
-.new-chat.is-narrow .composer-wrap > .composer-status {
-  align-self: flex-start;
-}
-
 /* Tool calls a run is holding until someone decides. */
 .permission-list {
   position: sticky;
@@ -2169,18 +2148,42 @@ a.attachment-chip:hover {
   font-weight: var(--fw-strong);
 }
 
+/* The foot: how the count was made on the left, the paid action on the right */
 .ctx-foot {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   width: 100%;
 }
 
+.ctx-count {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+/* The body reads at full contrast; the dialog's muted default would flatten every level of it */
 .ctx-breakdown {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
   min-width: 0;
+  color: var(--fg);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  container-type: inline-size;
+}
+
+.ctx-note {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
 .ctx-head {
@@ -2192,15 +2195,29 @@ a.attachment-chip:hover {
 .ctx-head-line {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
-.ctx-figure,
-.ctx-table .num,
-.ctx-file .num {
+/* The one figure that matters */
+.ctx-figure {
+  color: var(--fg);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  line-height: var(--lh-title);
   font-variant-numeric: tabular-nums;
+}
+
+.ctx-of {
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* literal: the model id the CLI reports */
+.ctx-model {
+  margin-left: auto;
+  color: var(--fg-3);
+  font-size: var(--fs-small);
 }
 
 .ctx-over {
@@ -2208,23 +2225,28 @@ a.attachment-chip:hover {
   font-weight: var(--fw-strong);
 }
 
-/* A usage bar with the CLI's auto-compaction point drawn on it as a tick */
-.ctx-bar {
+/* A usage bar with the CLI's auto-compaction point drawn on it as a tick. Its own class: the chat list's meter is also .ctx-bar */
+.ctx-meter {
   position: relative;
+  width: 100%;
 }
 
-.ctx-bar .meter-fill {
+.ctx-meter .meter-track {
+  height: 8px;
+}
+
+.ctx-meter .meter-fill {
   transition: none;
 }
 
-.bar-mark {
+.ctx-meter .bar-mark {
   position: absolute;
   top: -3px;
   bottom: -3px;
   width: 2px;
   margin-left: -1px;
   border-radius: var(--radius-xs);
-  background: var(--text);
+  background: var(--fg);
 }
 
 .ctx-section {
@@ -2234,6 +2256,17 @@ a.attachment-chip:hover {
   min-width: 0;
 }
 
+.ctx-section > .dialog-section {
+  margin: 0;
+}
+
+.ctx-deferred {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
 .ctx-subhead {
   margin: 0;
   color: var(--fg-2);
@@ -2241,33 +2274,64 @@ a.attachment-chip:hover {
   font-weight: var(--fw-strong);
 }
 
-.ctx-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--fs-small);
+/* One grid for every quantity: name, tokens, share. Fixed number columns so sections line up. */
+.ctx-grid,
+.ctx-servers {
+  display: flex;
+  flex-direction: column;
 }
 
-.ctx-table th,
-.ctx-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-weight: var(--fw-regular);
+.ctx-row,
+.ctx-server {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9ch 9ch;
+  align-items: center;
+  column-gap: 16px;
+  min-height: 32px;
 }
 
-.ctx-table thead th {
-  color: var(--fg-2);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
+.ctx-name {
+  min-width: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
 }
 
-.ctx-table .num {
+.ctx-num,
+.ctx-share {
   text-align: right;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.ctx-table .is-muted {
-  color: var(--text-muted);
+.ctx-num {
+  color: var(--fg);
+}
+
+.ctx-share {
+  color: var(--fg-2);
+}
+
+.ctx-row.is-spare .ctx-name,
+.ctx-row.is-spare .ctx-num {
+  color: var(--fg-2);
+}
+
+.ctx-row.is-sub {
+  min-height: 28px;
+}
+
+.ctx-row.is-sub .ctx-name {
+  padding-left: 16px;
+}
+
+.ctx-row.is-sub .ctx-name,
+.ctx-row.is-sub .ctx-num {
+  color: var(--fg-2);
+}
+
+/* literal: a path */
+.ctx-file-path {
+  font-size: var(--fs-small);
 }
 
 .ctx-warnings {
@@ -2276,51 +2340,36 @@ a.attachment-chip:hover {
   gap: 8px;
 }
 
-.ctx-servers {
-  display: flex;
-  flex-direction: column;
-}
-
 .ctx-server {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   min-height: 44px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
 }
 
 .ctx-server-body {
   display: flex;
-  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
 .ctx-server-name {
-  font-size: var(--fs-small);
-  font-weight: var(--fw-strong);
+  font-weight: var(--fw-regular);
 }
 
-.ctx-file {
+.ctx-server-switch {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
+  justify-content: flex-end;
 }
 
-.ctx-file-path {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+/* On a narrow panel the share goes: the token count is the figure that stays */
+@container (max-width: 360px) {
+  .ctx-row:not(.is-file, .is-counts) {
+    grid-template-columns: minmax(0, 1fr) 9ch;
+  }
 
-.ctx-count {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  .ctx-row:not(.is-file, .is-counts) .ctx-share {
+    display: none;
+  }
 }
 
 .compact-form {
@@ -2415,10 +2464,12 @@ a.attachment-chip:hover {
   align-self: center;
   width: 100%;
   max-width: 780px;
-  margin-top: 8px;
-  border-top: 1px solid var(--line);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  /* A bar of its own above the composer, not a tab glued to it: the composer is a card rounded on
+     every side, so a half-rounded strip 4 px over it read as cramped and cut off */
+  margin: 8px 0 4px;
+  border-radius: var(--radius-lg);
   background: var(--bg-2);
+  overflow: hidden;
 }
 
 .chat-branches-bar {
@@ -2426,10 +2477,11 @@ a.attachment-chip:hover {
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 32px;
-  padding: 0 12px;
+  height: 36px;
+  /* The composer's own inset, so the strip's words start where the message does */
+  padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-lg);
   background: none;
   color: var(--fg);
   font-size: var(--fs-small);
@@ -2458,6 +2510,10 @@ a.attachment-chip:hover {
   margin-left: auto;
   color: var(--fg-3);
   transform: rotate(-90deg);
+}
+
+.chat-branches-bar[data-state='open'] {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .chat-branches-bar[data-state='open'] .collapsible-chevron {
@@ -2557,9 +2613,17 @@ a.attachment-chip:hover {
 }
 
 .chat-branch-kind {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  gap: 5px;
   /* literal: the agent's type, bash, workflow, as the CLI names them */
   font-family: var(--mono);
+}
+
+.chat-branch-kind svg {
+  flex: none;
+  color: var(--fg-2);
 }
 
 .chat-branch-desc {

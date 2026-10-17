@@ -903,7 +903,7 @@
 .decided-pop {
   z-index: 60;
   width: 340px;
-  max-width: calc(100vw - 16px);
+  max-width: calc(100vw - var(--ov-left) - var(--ov-right));
   display: flex;
   flex-direction: column;
   gap: 14px;

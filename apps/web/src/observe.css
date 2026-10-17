@@ -329,30 +329,29 @@
 }
 
 /* Health and the ways to step in */
-.obs-health-head {
+.obs-health-head,
+.obs-health-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
-.obs-signals {
-  gap: 10px;
+.obs-health-head {
+  justify-content: space-between;
 }
-.obs-signal {
+.obs-signals {
+  gap: 12px;
+}
+/* The level is the shape and colour of the icon; rows are told apart by space */
+.obs-signal,
+.obs-proposal {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-left: 10px;
-  border-left: 2px solid var(--border-strong);
-}
-.obs-signal-warn {
-  border-left-color: var(--warn);
-}
-.obs-signal-bad {
-  border-left-color: var(--bad);
+  gap: 4px;
+  min-width: 0;
 }
 .obs-proposal {
-  border-left-color: var(--accent);
+  gap: 6px;
 }
 .obs-proposal .obs-signal-line svg {
   color: var(--accent);
@@ -360,11 +359,13 @@
 .obs-proposal-text {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .obs-signal-line {
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  min-width: 0;
   font-size: var(--fs-small);
 }
 .obs-signal-line svg {
@@ -376,6 +377,114 @@
 }
 .obs-signal-bad .obs-signal-line svg {
   color: var(--bad);
+}
+.obs-signal-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-weight: var(--fw-strong);
+}
+.obs-signal-figure {
+  flex: none;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.obs-signal > .obs-signal-literal,
+.obs-signal > .obs-signal-short,
+.obs-signal > .obs-details,
+.obs-signal > .task-actions,
+.obs-signal > .obs-hint {
+  margin-left: 22px;
+}
+.obs-signal-literal {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.obs-signal-short {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+/* Actions of a signal sit on one line from the left, not pushed to the right edge */
+.obs-signal .task-actions,
+.obs-proposal .task-actions {
+  margin-left: 0;
+  justify-content: flex-start;
+}
+.obs-signal > .task-actions {
+  margin-left: 22px;
+}
+.obs-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  min-width: 0;
+}
+.obs-details-body p {
+  margin: 0;
+}
+.obs-signal-full {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.obs-signal-full pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: 9em;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.obs-hint textarea {
+  field-sizing: content;
+  min-height: 4.5em;
+  max-height: 12em;
+}
+
+/* A text cut at two or three lines; ClampText measures it and offers the rest */
+.clamp-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.clamp-text.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-text.clamp-2.is-clamped {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.clamp-text.clamp-3.is-clamped {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* Inside the inspector a branch is a row, not a card in a section */
+.side-item.side-item-flat {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.side-item-flat + .side-item-flat {
+  margin-top: 6px;
+}
+.side-literal {
+  display: block;
+  min-width: 0;
 }
 
 @media (pointer: coarse) {

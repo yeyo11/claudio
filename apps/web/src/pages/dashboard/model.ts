@@ -16,6 +16,7 @@ import type {
   PermissionRequest,
   Schedule,
 } from '@claudio/shared';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 import { filesOf } from '../documents/model';
 import type { ProgressCounts, ProgressStatus, StepState } from '@claudio/ui/lib/progress';
@@ -147,14 +148,14 @@ export interface ProjectLive {
 }
 
 /** How many chats work or wait in each project, from the lists the page already has. */
-export function liveByProject(chats: readonly Pick<ChatSummary, 'id' | 'project' | 'state'>[]): Map<string, ProjectLive> {
+export function liveByProject(chats: readonly Pick<ChatSummary, 'id' | 'project' | 'state' | 'alive'>[]): Map<string, ProjectLive> {
   const counts = new Map<string, ProjectLive>();
   const seen = new Set<string>();
   for (const chat of chats) {
     if (!chat.project || seen.has(chat.id)) continue;
     seen.add(chat.id);
     const entry = counts.get(chat.project.id) ?? { working: 0, waiting: 0 };
-    if (chat.state === 'working') entry.working += 1;
+    if (chatBusy(chat)) entry.working += 1;
     else if (chat.state === 'waiting') entry.waiting += 1;
     counts.set(chat.project.id, entry);
   }

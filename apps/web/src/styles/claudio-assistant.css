@@ -1,7 +1,7 @@
 /*
  * The Claudio assistant (pages/claudio-assistant): the references `DesktopAsistenteClaudio` and
  * `MobileAsistenteClaudio`. The composer and the transcript are the chat's own; this lays out the
- * greeting, the starters and the context chip.
+ * greeting, the starters and the context chip. The box under the greeting is New chat's start box.
  */
 
 .as-entry .run-scroll {
@@ -123,7 +123,8 @@
   color: var(--fg-2);
 }
 
-/* The context, first in the chat composer's line of chips (`.composer-foot`) */
+/* The context, first in the start box's line of chips: a `.composer-status-word` of its own, beside
+   the button that opens the model and the effort */
 .as-context {
   min-width: 0;
   gap: 4px;
@@ -187,10 +188,7 @@
     min-height: var(--touch);
   }
 
-  .as-context {
-    flex: 1 1 auto;
-  }
-
+  /* The × is a 44 px target on touch, drawn over the chip's height */
   .as-context .x {
     width: var(--touch);
     height: var(--touch);

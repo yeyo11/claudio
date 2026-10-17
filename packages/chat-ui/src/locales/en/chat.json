@@ -7,7 +7,6 @@
     "notFoundHint": "It may have been deleted. <anchor>Browse chats</anchor> to find the conversation.",
     "conversation": "Conversation",
     "back": "Back to chats",
-    "subagentMessages": "Subagent messages",
     "interruptHint": "End this turn and keep the chat open for your next message",
     "export": {
       "markdown": "Export Markdown",
@@ -72,8 +71,8 @@
   "composer": {
     "message": "Message",
     "firstMessage": "First message for the copy",
-    "placeholderFork": "First message for the copy… (drop or paste files to attach them)",
-    "placeholderResume": "Send a message — the chat will be resumed…",
+    "placeholderFork": "First message of the copy…",
+    "placeholderResume": "Message to resume the chat…",
     "resume": "Resume",
     "resuming": "Resuming…",
     "fork": "Fork",
@@ -84,8 +83,8 @@
     "pastedFile": "pasted-text.txt"
   },
   "composerMenu": {
-    "title": "Add to the message",
-    "open": "Attach files, commands and servers",
+    "title": "Add and options",
+    "open": "Add and options",
     "commands": "Commands and skills",
     "servers": "Servers and connectors",
     "serversAtStart": "The MCP servers and connectors are chosen when the chat starts: pick them for this resume or fork.",
@@ -100,7 +99,6 @@
     "serversPersist": "A switch applies at once, and the CLI keeps it for this folder: new chats here start with it too.",
     "account": {
       "title": "Account",
-      "inUse": "In use",
       "disabled": "Disabled",
       "signInExpired": "Sign-in expired",
       "signedOut": "Signed out",
@@ -108,9 +106,20 @@
       "exhaustedUntil": "Exhausted until {{time}}",
       "noModel": "Doesn’t offer {{model}}",
       "whenTurnEnds": "When this turn ends",
-      "pending": "The chat moves to this account when the current turn ends.",
-      "undo": "Undo",
-      "used": "{{percent}} of the window used"
+      "cancel": "Cancel switch",
+      "pendingTo": "Moves to {{name}} when this turn ends",
+      "failed": "Couldn’t switch the account",
+      "search": "Search accounts",
+      "none": "No account matches."
+    },
+    "back": "Back to the menu",
+    "noCommands": "This chat hasn’t reported any commands yet.",
+    "serversOn": "{{on}} of {{total}} on",
+    "serversAtStartShort": "Chosen when the chat starts",
+    "groups": {
+      "add": "Add",
+      "account": "Account",
+      "servers": "Servers"
     }
   },
   "controls": {
@@ -143,8 +152,8 @@
       "none": "none",
       "noServers": "none: the chat started without any MCP server",
       "serversDefault": "as the CLI loads them",
-      "strictNote": "Only these servers load: nothing else is picked up from the project, the user or claude.ai.",
-      "frozenNote": "Fixed when the chat started or was last resumed. Editing a preset afterwards does not change it."
+      "strictNote": "Only these servers load.",
+      "frozenNote": "Fixed at start or at the last resume."
     },
     "defaultPreset": "Default ({{name}})",
     "noPresetAtAll": "No preset: the CLI's own tools",
@@ -215,7 +224,7 @@
     },
     "executions": {
       "title": "Executions ({{n}})",
-      "empty": "Claudio has not run this chat: it was written in a terminal.",
+      "empty": "Written in a terminal: Claudio has not run it.",
       "lasted": "lasted {{duration}}",
       "up": "up {{duration}}",
       "turns_one": "{{count}} turns",
@@ -226,7 +235,7 @@
     },
     "branches": {
       "title": "Branches ({{n}})",
-      "empty": "Nothing was delegated: no subagents, background tasks or workflows.",
+      "empty": "Nothing was delegated to subagents or tasks.",
       "subagents": "Subagents",
       "backgroundTasks": "Background tasks",
       "workflows": "Workflows",
@@ -247,7 +256,7 @@
       "worktree": "Worktree",
       "forkedFrom": "Forked from",
       "updated": "Updated",
-      "environmentEmpty": "Nothing has reported what {{agent}} loaded for this chat yet.",
+      "environmentEmpty": "{{agent}} has not reported what it loaded yet.",
       "messages": "Messages"
     },
     "workItem": {
@@ -320,7 +329,7 @@
     "kind": "Kind",
     "kindChat": "Chat",
     "kindOrchestration": "Orchestration",
-    "placeholder": "Describe the task: a change, a review, an investigation…",
+    "placeholder": "Describe the task…",
     "start": "Start",
     "keys": "Ctrl ↵",
     "where": "runs in {{dir}} · drag or paste files to attach them",
@@ -589,8 +598,8 @@
     "loadEarlier": "Load earlier messages ({{n}} above)"
   },
   "runView": {
-    "placeholderQueued": "Send a message (queued until the current turn ends)…",
-    "placeholderFollowUp": "Send a follow-up message…",
+    "placeholderQueued": "Queue a message…",
+    "placeholderFollowUp": "Send a message…",
     "sending": "Sending…",
     "send": "Send",
     "notSent": "Message not sent",

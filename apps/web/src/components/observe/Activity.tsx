@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TranscriptEntry } from '@claudio/shared';
 import { api } from '../../api';
-import { currentActivity } from '../../lib/observe';
+import { openCallInTurn } from '@claudio/chat-ui/lib/liveness';
+import { describeCall, lastEventAt } from '../../lib/observe';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
 import { ICON_SM } from '@claudio/ui/components/icons';
 
@@ -25,7 +26,7 @@ export function useChatTail(chatId: string | null, live: boolean): TranscriptEnt
   const { data } = useQuery({
     // Under the chat's own key: the events that say the chat moved refresh it
     queryKey: ['chat', chatId, 'tail'],
-    queryFn: () => api.chat(chatId ?? '', false, { limit: 40 }),
+    queryFn: () => api.chat(chatId ?? '', { limit: 40 }),
     enabled: Boolean(chatId),
     refetchInterval: live ? 5_000 : false,
   });
@@ -41,8 +42,8 @@ export function ActivityLine({ entries, live }: { entries: TranscriptEntry[] | n
   const { t } = useTranslation('observe');
   const now = useNow(live);
   if (!entries) return null;
-  const { running, lastEventAt } = currentActivity(entries);
-  const last = toMs(lastEventAt);
+  const running = openCallInTurn(entries);
+  const last = toMs(lastEventAt(entries));
   const since = toMs(running?.at);
   return (
     <div className="stack-tight obs-now" aria-live="off">
@@ -50,7 +51,7 @@ export function ActivityLine({ entries, live }: { entries: TranscriptEntry[] | n
         <p className="obs-running">
           <Terminal {...ICON_SM} />
           <span>
-            <span className="strong">{t('activity.runningNow', { tool: running.name })}</span> <span className="mono small break">{running.summary}</span>
+            <span className="strong">{t('activity.runningNow', { tool: running.name })}</span> <span className="mono small break">{describeCall(running.name, running.input)}</span>
             {since !== null && <span className="muted small"> · {t('activity.for', { time: formatDuration(Math.max(0, now - since)) })}</span>}
           </span>
         </p>

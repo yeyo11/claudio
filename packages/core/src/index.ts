@@ -730,7 +730,7 @@ export class Core {
     this.runtime.accounts = this.accounts;
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
     this.watchAccounts();
-    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events);
+    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {
@@ -1044,7 +1044,7 @@ export class Core {
           internal: chat.origin === 'internal',
           confined: false,
           assistant: !!chat.claudioAssistant,
-          live: chat.execution !== null && chat.state !== 'idle',
+          live: chat.alive && chat.state !== 'idle',
           driven: chat.origin === 'orchestration' || this.flow.ownsChat(chat.id),
         };
       },

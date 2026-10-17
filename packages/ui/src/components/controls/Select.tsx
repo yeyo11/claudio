@@ -2,7 +2,7 @@ import * as RadixSelect from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ICON_SM } from '../icons';
-import { LAYER_ATTR } from './layer';
+import { LAYER_ATTR, layerCollisionPadding } from './layer';
 
 // Radix reserves the empty string to clear the selection, so "" options travel under this value
 const EMPTY = '__empty__';
@@ -59,7 +59,7 @@ export function Select<T extends string>({
         </RadixSelect.Icon>
       </RadixSelect.Trigger>
       <RadixSelect.Portal>
-        <RadixSelect.Content {...LAYER_ATTR} className="menu select-menu" position="popper" sideOffset={6} collisionPadding={8}>
+        <RadixSelect.Content {...LAYER_ATTR} className="menu select-menu" position="popper" sideOffset={6} collisionPadding={layerCollisionPadding()}>
           <RadixSelect.Viewport className="menu-viewport">
             {options.map((option) => (
               <RadixSelect.Item key={option.value} value={encode(option.value)} disabled={option.disabled} className="menu-item" {...nameFromContent(option.hint)}>

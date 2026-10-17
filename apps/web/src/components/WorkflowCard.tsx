@@ -1,10 +1,11 @@
 import type { ChatWorkflow, ChatWorkflowAgent } from '@claudio/shared';
-import { CircleCheck, CircleX } from 'lucide-react';
+import { CircleCheck, CircleX, OctagonX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { useDetailPanel } from '../lib/detail';
 import { durationBetween, formatDuration, formatNumber, truncate } from '@claudio/ui/lib/format';
 import { BranchStatus } from '@claudio/chat-ui/components/ChatBadges';
+import { effectiveBranch, workflowAgentLive } from '@claudio/chat-ui/lib/liveness';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { CodeBlock } from '@claudio/ui/components/CodeBlock';
 // Direct import: the chat page that renders this is in the shell bundle
@@ -19,18 +20,22 @@ const tokens = (n: number | null) =>
       : i18n.t('components:workflowCard.tokens', { n: formatNumber(n, { useGrouping: false }) });
 
 /** The status is this icon and the word beside it, never a coloured dot alone. */
-function AgentIcon({ status }: { status: ChatWorkflowAgent['status'] }) {
+function AgentIcon({ status, live }: { status: ChatWorkflowAgent['status']; live: boolean }) {
   if (status === 'completed') return <CircleCheck className="wf-agent-icon text-ok" size={12} strokeWidth={2} aria-hidden />;
   if (status === 'failed') return <CircleX className="wf-agent-icon text-bad" size={12} strokeWidth={2} aria-hidden />;
+  // Only an agent whose workflow still runs moves; one it left behind was stopped
+  if (!live) return <OctagonX className="wf-agent-icon text-warn" size={12} strokeWidth={2} aria-hidden />;
   return <span className="spinner spinner-xs wf-agent-icon" aria-hidden />;
 }
 
 /** `open` is set when the agent's transcript can be read. */
-function AgentRow({ agent, open }: { agent: ChatWorkflowAgent; open: (() => void) | null }) {
+function AgentRow({ agent, live, open }: { agent: ChatWorkflowAgent; live: boolean; open: (() => void) | null }) {
+  // A record that says running in a workflow that is over is read as stopped
+  const status = agent.status === 'running' && !live ? 'stopped' : agent.status;
   const preview = agent.status === 'completed' ? agent.resultPreview : agent.promptPreview;
   return (
     <li className="wf-agent">
-      <AgentIcon status={agent.status} />
+      <AgentIcon status={status} live={live} />
       {open ? (
         <button type="button" className="link-btn wf-agent-label" onClick={open}>
           {agent.label}
@@ -39,7 +44,7 @@ function AgentRow({ agent, open }: { agent: ChatWorkflowAgent; open: (() => void
         <span className="wf-agent-label">{agent.label}</span>
       )}
       <span className="muted small wf-agent-meta">
-        {[agent.status, agent.durationMs !== null ? formatDuration(agent.durationMs) : null, tokens(agent.tokens)].filter(Boolean).join(' · ')}
+        {[status, agent.durationMs !== null ? formatDuration(agent.durationMs) : null, tokens(agent.tokens)].filter(Boolean).join(' · ')}
       </span>
       {preview && <span className="wf-agent-preview">{agent.status === 'completed' ? '→ ' : ''}{truncate(preview.replace(/\s+/g, ' '), 140)}</span>}
     </li>
@@ -60,17 +65,21 @@ function byPhase(workflow: ChatWorkflow): Array<[string | null, ChatWorkflowAgen
 
 /** One run of a Claude Code workflow inside a chat: its phases, where each agent is, and what it returned. */
 export function WorkflowCard({
-  workflow,
+  workflow: held,
   chatId,
+  alive = true,
   phase,
 }: {
   workflow: ChatWorkflow;
   chatId: string;
+  /** Whether a process still holds the chat; a workflow of a chat nothing holds reads stopped */
+  alive?: boolean;
   /** Only the agents of this phase (`null`: those the CLI reported without one); every phase when absent */
   phase?: string | null;
 }) {
   const { t } = useTranslation('components');
   const { open } = useDetailPanel();
+  const workflow = effectiveBranch({ alive, state: alive ? 'working' : 'idle' }, held);
   const done = workflow.agents.filter((a) => a.status === 'completed').length;
   const total = workflow.agents.length;
   const hasResult = workflow.result !== undefined && workflow.result !== null;
@@ -97,6 +106,7 @@ export function WorkflowCard({
                 <AgentRow
                   key={`${agent.index}:${agent.id ?? agent.label}`}
                   agent={agent}
+                  live={workflowAgentLive(workflow, agent)}
                   open={agent.id && workflow.id.startsWith('wf_') ? () => open({ kind: 'workflow-agent', chatId, workflowId: workflow.id, agentId: agent.id ?? '' }) : null}
                 />
               ))}

@@ -32,7 +32,7 @@
 }
 
 .notif-panel {
-  width: min(420px, calc(100vw - 16px));
+  width: min(420px, calc(100vw - var(--ov-left) - var(--ov-right)));
   max-height: min(600px, var(--radix-popover-content-available-height, 600px));
   padding: 0;
   gap: 0;

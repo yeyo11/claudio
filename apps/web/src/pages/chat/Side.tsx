@@ -1,6 +1,7 @@
-import type { Chat, Execution, HealthLevel } from '@claudio/shared';
+import type { Chat, Execution } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
-import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
+import { CircleCheck, TriangleAlert } from 'lucide-react';
+import { branchLive, effectiveBranch } from '@claudio/chat-ui/lib/liveness';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -10,18 +11,19 @@ import { BranchStatus, ControlBadge, LastOutcome, OriginBadge, OutcomeBadge, Pro
 import { upperFirst, useAgentName } from '@claudio/chat-ui/lib/agent';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
-import { HealthBadge, HealthPanel, isStepIn } from '../../components/observe/Health';
+import { HealthBadge, HealthPanel, InterruptButton, isStepIn } from '../../components/observe/Health';
 import { EnvironmentBody } from '../../components/EnvironmentPanel';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ProgressRing } from '@claudio/ui/components/motion';
 import { CopyButton, Tag } from '@claudio/ui/components/ui';
+import { ClampText } from '../../components/ClampText';
 import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
 import { contextLevel, contextShare, formatPercent, formatTokens, roleOf } from '@claudio/chat-ui/lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
-import { durationBetween, formatCost, formatDateTime, formatHour, formatNumber, timeAgo, toMs } from '@claudio/ui/lib/format';
+import { durationBetween, formatCost, formatDateTime, formatHour, formatNumber, shortPath, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { useLimitWindowName } from '../../lib/limit-words';
-import { healthReason, signalReason } from '../../lib/server-strings';
+import { healthReason } from '../../lib/server-strings';
 import { compactState } from './context-model';
 import { CompactButton, useContextControls } from './ContextPanel';
 import { Section } from './Section';
@@ -178,7 +180,7 @@ function ExecutionRow({ execution, previous }: { execution: Execution; previous:
             ? t('side.executions.lasted', { duration: durationBetween(execution.startedAt, execution.endedAt) })
             : t('side.executions.up', { duration: durationBetween(execution.startedAt, null) })}</span>
         <span>{t('side.executions.turns', { count: execution.turns })}</span>
-        <span>{execution.permissionMode}</span>
+        <span>{modeLabel(execution.permissionMode)}</span>
         {execution.model && <span className="mono">{execution.model}</span>}
         {execution.effort && <span className="mono">{execution.effort}</span>}
         {execution.model && previous?.model && previous.model !== execution.model && (
@@ -191,7 +193,7 @@ function ExecutionRow({ execution, previous }: { execution: Execution; previous:
           <TriangleAlert size={14} strokeWidth={1.75} aria-hidden className="alert-icon" />
           <div className="alert-body">
             <span className="sr-only">{t('side.executions.errorPrefix')} </span>
-            {execution.error}
+            <ClampText text={execution.error} lines={3} className="break" />
           </div>
         </div>
       )}
@@ -223,7 +225,10 @@ export function ExecutionsCard({ chat }: { chat: Chat }) {
 export function BranchesCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'work', 'common']);
   const { open } = useDetailPanel();
-  const { subagents, backgroundTasks, workflows } = chat.children;
+  const { workflows } = chat.children;
+  // A branch of a chat nothing holds reads stopped, whatever its record still says
+  const subagents = chat.children.subagents.map((sub) => ({ ...effectiveBranch(chat, sub), tasks: sub.tasks.map((task) => effectiveBranch(chat, task)) }));
+  const backgroundTasks = chat.children.backgroundTasks.map((task) => effectiveBranch(chat, task));
   const count = subagents.length + backgroundTasks.length + workflows.length;
   return (
     <Section title={t('side.branches.title', { n: count })}>
@@ -235,7 +240,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
             <section aria-label={t('side.branches.subagents')} className="stack-tight">
               <h3 className="dialog-section">{t('chat:runView.subagents', { n: subagents.length })}</h3>
               {subagents.map((sub) => (
-                <div key={sub.id} className="side-item">
+                <div key={sub.id} className="side-item side-item-flat">
                   <div className="side-item-head">
                     <BranchStatus status={sub.status} />
                     <span className="muted small">
@@ -243,11 +248,15 @@ export function BranchesCard({ chat }: { chat: Chat }) {
                     </span>
                   </div>
                   <button type="button" className="link-btn detail-task-link" onClick={() => open({ kind: 'subagent', chatId: chat.id, agentId: sub.id })}>
-                    {sub.description || sub.kind}
+                    <span className="clamp-2 clamp-text is-clamped">{sub.description || sub.kind}</span>
                   </button>
                   {/* What it is doing now; one with no open call reads as working, from when it started */}
-                  {sub.status === 'running' && <ActivityTicker activity={sub.activity ?? { kind: 'tool', since: sub.startedAt }} />}
-                  {sub.cwd && <span className="mono small muted break">{sub.cwd}</span>}
+                  {branchLive(chat, sub) && <ActivityTicker activity={sub.activity ?? { kind: 'tool', since: sub.startedAt }} />}
+                  {sub.cwd && (
+                    <FullText className="mono small muted ellipsis side-literal" full={sub.cwd}>
+                      {shortPath(sub.cwd, 40)}
+                    </FullText>
+                  )}
                   {/* What it launched hangs off it: the chat's own background tasks are only the ones the chat started */}
                   {sub.tasks.map((task) => (
                     <div key={task.id} className="side-item-head">
@@ -265,7 +274,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
             <section aria-label={t('side.branches.backgroundTasks')} className="stack-tight">
               <h3 className="dialog-section">{t('chat:runView.backgroundTasks', { n: backgroundTasks.length })}</h3>
               {backgroundTasks.map((task) => (
-                <div key={task.id} className="side-item">
+                <div key={task.id} className="side-item side-item-flat">
                   <div className="side-item-head">
                     <BranchStatus status={task.status} />
                     <span className="muted small">
@@ -276,7 +285,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
                   <button type="button" className="link-btn detail-task-link" onClick={() => open({ kind: 'task', chatId: chat.id, taskId: task.id })}>
                     {task.description || task.id}
                   </button>
-                  {task.summary && <div className="muted small">{task.summary}</div>}
+                  {task.summary && <div className="muted small clamp-text clamp-2 is-clamped">{task.summary}</div>}
                 </div>
               ))}
             </section>
@@ -285,7 +294,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
             <section aria-label={t('side.branches.workflows')} className="stack-tight">
               <h3 className="dialog-section">{t('chat:runView.workflows', { n: workflows.length })}</h3>
               {workflows.map((workflow) => (
-                <WorkflowCard key={workflow.id} workflow={workflow} chatId={chat.id} />
+                <WorkflowCard key={workflow.id} workflow={workflow} chatId={chat.id} alive={chat.alive} />
               ))}
             </section>
           )}
@@ -297,44 +306,50 @@ export function BranchesCard({ chat }: { chat: Chat }) {
 
 // ---------- health ----------
 
-const NOTE_ICON: Record<HealthLevel, typeof Info> = { ok: CircleCheck, warn: TriangleAlert, bad: TriangleAlert };
-// The icon is decorative, so the level is also said in words (side.health.level)
-
 /**
- * What core says of the chat's health: the facts of the chat itself as notes, and the signals a
- * person can step in on with their actions (cancel the command, send a written hint, interrupt).
+ * What core says of the chat's health, in one list worst first: the signals a person can step in on
+ * with their actions (cancel the command, send a written hint) and the facts of the chat itself.
+ * Interrupt sits in the header, since it belongs to the section and not to a signal.
  */
 export function HealthCard({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');
   const controls = useContextControls();
   const compact = compactState(chat);
   const { health } = chat;
-  const facts = health.signals.filter((s) => !isStepIn(s));
-  const notes: Array<{ kind: string; level: HealthLevel; reason: string }> =
-    health.signals.length > 0
-      ? facts.map((signal) => ({ kind: signal.kind, level: signal.level, reason: signalReason(signal) }))
-      : [{ kind: 'ok', level: 'ok', reason: healthReason(health) }];
+  const live = Boolean(chat.execution);
+  const stepIn = health.signals.some(isStepIn) || health.proposal?.status === 'proposed';
   return (
-    <Section title={t('side.health.title')} actions={<HealthBadge health={health} />}>
-      <HealthPanel health={health} chatId={chat.id} live={Boolean(chat.execution)} badge={false} sendHint={(text) => api.hintChat(chat.id, { text })} />
-      {notes.length > 0 && (
+    <Section
+      title={t('side.health.title')}
+      actions={
+        <div className="obs-health-actions">
+          <HealthBadge health={health} />
+          {live && stepIn && <InterruptButton chatId={chat.id} />}
+        </div>
+      }
+    >
+      {health.signals.length === 0 ? (
         <ul className="chat-notes">
-          {notes.map((note) => {
-            const Icon = NOTE_ICON[note.level];
-            return (
-              <li key={note.kind} className={`chat-note chat-note-${note.level}`}>
-                <Icon {...ICON_SM} />
-                <span>
-                  <span className="sr-only">{t('side.health.levelSaid', { level: t(`side.health.level.${note.level}`) })} </span>
-                  {note.reason}
-                </span>
-                {/* The context signal is the one a compaction answers */}
-                {note.kind === 'context' && compact.available && <CompactButton chat={chat} onClick={controls.openCompact} />}
-              </li>
-            );
-          })}
+          <li className="chat-note chat-note-ok">
+            <CircleCheck {...ICON_SM} />
+            <span>
+              <span className="sr-only">{t('side.health.levelSaid', { level: t('side.health.level.ok') })} </span>
+              {healthReason(health)}
+            </span>
+          </li>
         </ul>
-      )}
+      ) : null}
+      <HealthPanel
+        health={health}
+        chatId={chat.id}
+        live={live}
+        badge={false}
+        interrupt={false}
+        all
+        sendHint={(text) => api.hintChat(chat.id, { text })}
+        // The context signal is the one a compaction answers
+        extra={(signal) => (signal.kind === 'context' && compact.available ? <CompactButton chat={chat} onClick={controls.openCompact} /> : null)}
+      />
     </Section>
   );
 }
@@ -389,11 +404,15 @@ export function FactsCard({ chat }: { chat: Chat }) {
         <dt>{t('chat:shared.project')}</dt>
         <dd>{chat.project ? chat.project.name : t('side.facts.noProject')}</dd>
         <dt>{t('chat:runView.directory')}</dt>
-        <dd className="mono break">{chat.cwd || '—'}</dd>
+        <dd className="mono">{chat.cwd ? <FullText className="ellipsis side-literal" full={chat.cwd}>{shortPath(chat.cwd, 40)}</FullText> : '—'}</dd>
         {chat.worktree && (
           <>
             <dt>{t('side.facts.worktree')}</dt>
-            <dd className="mono break">{chat.worktree.branch ?? chat.worktree.name ?? chat.worktree.path}</dd>
+            <dd className="mono">
+              <FullText className="ellipsis side-literal" full={chat.worktree.path}>
+                {chat.worktree.branch ?? chat.worktree.name ?? shortPath(chat.worktree.path, 40)}
+              </FullText>
+            </dd>
           </>
         )}
         <dt>{t('chat:runView.session')}</dt>

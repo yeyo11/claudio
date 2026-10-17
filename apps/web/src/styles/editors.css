@@ -145,7 +145,7 @@
 
 .popover {
   z-index: 1100;
-  width: min(380px, calc(100vw - 16px));
+  width: min(380px, calc(100vw - var(--ov-left) - var(--ov-right)));
   padding: 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);

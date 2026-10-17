@@ -261,6 +261,11 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
     const result = o.toolUseResult as Record<string, unknown> | undefined;
     if (at && result && typeof result === 'object') {
       if (typeof result.agentId === 'string' && !activity.agents.has(result.agentId)) activity.agents.set(result.agentId, at);
+      // A foreground agent never gets a notification: its call's own result is how it reports back,
+      // with `status: 'completed'` (a background one's says `async_launched`, and its notification ends it)
+      if (typeof result.agentId === 'string' && result.status === 'completed') {
+        activity.stops.set(result.agentId, { at, status: 'completed', summary: null });
+      }
       // A task stopped on request never gets a notification: all it leaves is TaskStop's result.
       // Without this it would read as running for as long as its session lived.
       if (typeof result.task_id === 'string' && typeof result.message === 'string' && /stopped/i.test(result.message)) {
@@ -627,6 +632,8 @@ export class SessionStore {
     }
     const out: BackgroundTask[] = [];
     const nowIso = new Date().toISOString();
+    // When a session that ended took its commands down with it: the last thing it wrote
+    const endedWith = live ? null : ((await stat(found.file).catch(() => null))?.mtime.toISOString() ?? nowIso);
     for (const [id, launch] of launches) {
       const stop = stops.get(id);
       // The CLI kills a monitor at its timeout; should that notice not have reached the transcript,
@@ -640,7 +647,7 @@ export class SessionStore {
         status: stop ? stop.status : expired || !live ? 'stopped' : 'running',
         toolUseId: launch.toolUseId,
         startedAt: launch.at,
-        endedAt: stop?.at ?? (expired ? launch.expiresAt : null),
+        endedAt: stop?.at ?? (expired ? launch.expiresAt : endedWith),
         summary: stop?.summary ?? null,
         sessionId,
         command: launch.command,

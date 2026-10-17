@@ -1,4 +1,5 @@
 import type { ChatSummary, Orchestration, OrchestrationSummary } from '@claudio/shared';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { FullText } from '@claudio/ui/components/FullText';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import {
@@ -69,8 +70,9 @@ function ContextRing({ chat }: { chat: ChatSummary }) {
   if (percent === null) return null;
   return (
     <span className="home-ring" role="img" aria-label={t('activity.context', { percent: formatPercent(percent) })}>
-      <ProgressRing value={percent / 100} size={28} stroke={3} tone={usageTone(percent)}>
-        <span aria-hidden>{formatPercent(percent)}</span>
+      {/* The figure alone fits the ring; the name above says it is a percentage */}
+      <ProgressRing value={percent / 100} size={34} stroke={3} tone={usageTone(percent)}>
+        <span aria-hidden>{formatNumber(percent)}</span>
       </ProgressRing>
     </span>
   );
@@ -215,7 +217,9 @@ function OrchestrationItem({ orchestration: o }: { orchestration: OrchestrationS
 function WorkingChat({ chat, showProject }: { chat: ChatSummary; showProject: boolean }) {
   const { t } = useTranslation('home');
   return (
-    <li className="now-row live-rail">
+    // No live rail: the card around it carries the energy border whenever a chat works, and two signs
+    // of "live" on one row said the same thing twice
+    <li className="now-row">
       <span className="initials-badge is-live" aria-hidden>
         <MessageCircle {...ICON_SM} />
       </span>
@@ -363,7 +367,8 @@ export function NowWidget({ project, title, id }: WidgetProps) {
     });
   }
 
-  const working = workingChats.data ?? [];
+  // A chat nothing holds is not at work, whatever the list still says
+  const working = (workingChats.data ?? []).filter((chat) => chatBusy(chat));
   const loading = overview.isLoading || waitingChats.isLoading || workingChats.isLoading;
   const running = working.length + liveOrchestrations.filter((o) => o.status === 'running').length;
   const unreachable = overview.isError && !overview.data;

@@ -52,6 +52,7 @@ import { COARSE, COMPACT, NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useMinute } from '../lib/minute';
 import { useListParams } from '../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import i18n from '../i18n';
 
 /*
@@ -86,7 +87,7 @@ function originLabel(chat: ChatSummary): string {
 
 /** How the last execution ended, when an idle chat's last run went wrong. */
 function badOutcome(chat: ChatSummary) {
-  const ended = chat.state === 'idle' && !chat.execution ? lastEnded(chat) : null;
+  const ended = chat.state === 'idle' && !chat.alive ? lastEnded(chat) : null;
   return ended?.outcome && ended.outcome !== 'completed' ? ended.outcome : null;
 }
 
@@ -96,7 +97,7 @@ function badOutcome(chat: ChatSummary) {
  * decoration: the word it stands for is on the line under the title.
  */
 function StateMark({ chat }: { chat: ChatSummary }) {
-  if (chat.state === 'working') return <Spinner className="crow-spinner" />;
+  if (chatBusy(chat)) return <Spinner className="crow-spinner" />;
   const tone = chat.state === 'waiting' ? 'dot-idle' : badOutcome(chat) ? 'dot-bad' : 'crow-dot-rest';
   return <span className={`dot ${tone}`} aria-hidden />;
 }
@@ -106,8 +107,9 @@ function StateWord({ chat }: { chat: ChatSummary }) {
   const { t } = useTranslation('chats');
   const bad = badOutcome(chat);
   // A working chat with an activity has its ticker here instead, verb included
-  if (chat.state === 'working' && chat.activity) return <ActivityTicker activity={chat.activity} className="crow-ticker" />;
-  if (chat.state === 'working') return <span className="crow-word is-live">{STATE_LABEL.working}</span>;
+  const busy = chatBusy(chat);
+  if (busy && chat.activity) return <ActivityTicker activity={chat.activity} className="crow-ticker" />;
+  if (busy) return <span className="crow-word is-live">{STATE_LABEL.working}</span>;
   if (chat.state === 'waiting') return <span className="crow-word is-idle">{STATE_LABEL.waiting}</span>;
   if (bad) return <span className="badge badge-bad crow-outcome">{t(`list.outcome.${bad}`)}</span>;
   return <span className="sr-only">{STATE_LABEL.idle}</span>;
@@ -163,7 +165,7 @@ const ChatRow = memo(function ChatRow({
   const agent = useProviderLabel()(chat.provider);
   const place = chat.origin === 'orchestration' && chat.orchestration ? originLabel(chat) : (chat.project?.name ?? t('list.noProject'));
   const tags = rowTags(chat);
-  const working = chat.state === 'working';
+  const working = chatBusy(chat);
   const share = contextShare(chat);
   const contextTone = share === null ? 'neutral' : usageTone(Math.round(share * 100));
 

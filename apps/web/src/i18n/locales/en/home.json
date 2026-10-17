@@ -165,7 +165,7 @@
     "quickStart": {
       "title": "Quick start",
       "prompt": "Prompt for a new chat in {{name}}",
-      "placeholder": "Ask the agent something in {{name}}…",
+      "placeholder": "Ask the agent…",
       "defaultModel": "default model",
       "defaultMode": "default mode",
       "noPreset": "no preset",

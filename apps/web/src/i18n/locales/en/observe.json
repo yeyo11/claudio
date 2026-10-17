@@ -62,12 +62,76 @@
     "cancelled": "Command cancelled",
     "hint": "Send a hint",
     "hintLabel": "Hint for the worker",
-    "hintExplained": "Written for this signal; edit it before sending. It is added to what the worker is doing now, and the worker carries on.",
+    "hintExplained": "Written for this signal; edit it before sending.",
     "hintSent": "Hint sent",
     "sendHint": "Send the hint",
     "sending": "Sending…",
     "interrupt": "Interrupt",
-    "interruptHint": "Interrupts the turn that is running. The chat stays open and waits for what you send next."
+    "interruptHint": "Interrupts the turn that is running. The chat stays open and waits for what you send next.",
+    "signal": {
+      "hung-command": "Command hung",
+      "repeat-stall": "Hangs again",
+      "loop": "Looping",
+      "weakened-test": "Test weakened",
+      "no-progress": "No progress",
+      "silence": "Silent",
+      "budget": "Near its limit",
+      "guard-blocked": "Blocked by the guard",
+      "guard-missing": "Guard not answering",
+      "last-execution": "Last run failed",
+      "context": "Context nearly full",
+      "waiting": "Waiting for you",
+      "branches": "Branches failed"
+    },
+    "figure": {
+      "minutes": "{{n}} min",
+      "times": "×{{n}}",
+      "count": "{{n}}"
+    },
+    "short": {
+      "hungCommand": {
+        "usual": "Usually takes about {{usualSeconds}}",
+        "fixed": "Expected to end within {{limitMinutes}} min"
+      },
+      "silence": "No command is running",
+      "lastExecution": {
+        "interrupted": "Its process was lost",
+        "failed": "No error was reported",
+        "failedWithError": "{{error}}"
+      },
+      "waiting": "A permission, a question or a plan",
+      "context": "Compacts on its own when it fills",
+      "branches": "See Branches under Environment",
+      "repeatStall": "Each run past {{limitSeconds}}",
+      "loop": {
+        "command": "The same result each time",
+        "call": "{{tool}} with the same result",
+        "error": "{{error}}",
+        "semantic": "Looks like the same attempt again"
+      },
+      "weakenedTest": {
+        "judged": "May assert less than before",
+        "assertionsRemoved_one": "{{count}} assertion removed",
+        "assertionsRemoved_other": "{{count}} assertions removed",
+        "skipped": "A test is skipped",
+        "tautology": "An assertion that cannot fail",
+        "weakMatchers": "Matchers that pass for almost anything"
+      },
+      "noProgress": "No commit and no file changed",
+      "budget": {
+        "timeNear": "of {{limitMinutes}} min used",
+        "timePast": "Past its limit of {{limitMinutes}} min",
+        "cost": "of {{limitUsd}} spent"
+      },
+      "guardBlocked": "Last rule: {{rule}}",
+      "guardMissing": "Nothing says what it runs"
+    },
+    "cancelCommand": "Cancel command",
+    "details": "Details",
+    "detailsReason": "What happened",
+    "detailsLiteral": "In full",
+    "copyLiteral": "Copy",
+    "since": "Since {{when}}"
   },
   "activity": {
     "title": "Doing now",

@@ -15,6 +15,7 @@ import { useMotionLevel } from '@claudio/ui/lib/motion';
 import { useSmoothText } from '@claudio/chat-ui/lib/smooth-text';
 import { useToast } from '@claudio/ui/components/Toast';
 import { endsWithAssistant, preloadMarkdown, StreamingEntry, Transcript, WorkingLine, type MessageActions, type BranchLinks, type SubagentLink, type TranscriptEdits } from '@claudio/chat-ui/components/Transcript';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { LiveBranches } from '@claudio/chat-ui/components/LiveBranches';
 import type { Branch } from '@claudio/chat-ui/lib/chat-branches';
 import { FindBar, useFindFocus, useFindHighlight, useTranscriptFind, type FindTarget } from '@claudio/chat-ui/components/TranscriptSearch';
@@ -79,7 +80,7 @@ const LiveTail = memo(function LiveTail({ stream, chat, continued }: { stream: C
       ))}
       {activity && (
         <div className="chat-now" data-find-ignore>
-          {chat.state === 'working' ? <WorkingLine detail={activityTarget(activity)} /> : <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />}
+          {chatBusy(chat) ? <WorkingLine detail={activityTarget(activity)} /> : <ActivityTicker activity={activity} showElapsed={Boolean(activity.since)} />}
         </div>
       )}
     </>
@@ -94,14 +95,15 @@ export function ChatView() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const detail = useDetailPanel();
-  const [sidechains, setSidechains] = useState(false);
   const [forking, setForking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const inspector = useInspector();
 
-  const transcript = useChatTranscript(id, sidechains);
+  const transcript = useChatTranscript(id);
   const { chat } = transcript;
   const { agentNameFor } = useChatUi();
+  // The stream exists only while Claudio's own process runs the chat (the API answers 404 otherwise);
+  // a chat a terminal holds is alive for its branches, but there is no stream to open
   const stream = useChatStream(id, Boolean(chat?.execution));
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
@@ -117,11 +119,11 @@ export function ChatView() {
     ({ id: messageId, text }: { id: string | null; text: string }) => {
       const uuid = messageId ?? `optimistic-${crypto.getRandomValues(new Uint32Array(1))[0]}`;
       const entry = optimisticEntry(uuid, text);
-      const cached = [keys.chat(id, false), keys.chat(id, true)];
-      for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? appendStreamed(page, entry).page : page));
+      const cached = keys.chat(id);
+      queryClient.setQueryData<ChatDetail>(cached, (page) => (page ? appendStreamed(page, entry).page : page));
       setFollow(true);
       return () => {
-        for (const key of cached) queryClient.setQueryData<ChatDetail>(key, (page) => (page ? dropOptimistic(page, uuid) : page));
+        queryClient.setQueryData<ChatDetail>(cached, (page) => (page ? dropOptimistic(page, uuid) : page));
       };
     },
     [id, queryClient, setFollow],
@@ -144,8 +146,8 @@ export function ChatView() {
   useLayoutEffect(() => stream.settle(), [lastKey, stream]);
 
   const find = useTranscriptFind({
-    scope: ['chat', id, sidechains],
-    search: useCallback((q: string) => api.searchChat(id, sidechains, q), [id, sidechains]),
+    scope: ['chat', id],
+    search: useCallback((q: string) => api.searchChat(id, q), [id]),
   });
   // `?at=` (a step's "See it in the conversation"): the entry to open the chat at. It is read once
   // the chat is here, then dropped from the address, so a reload opens the chat at its end
@@ -164,8 +166,6 @@ export function ChatView() {
       setSearch(now, { replace: true });
     }
     if (at === null) return;
-    // A step's entry counts the main view: with the subagents' turns shown it would land elsewhere
-    setSidechains(false);
     setJump({ index: at });
   }, [loaded, atParam, setSearch]);
 
@@ -179,11 +179,10 @@ export function ChatView() {
     setSearch(now, { replace: true });
     // Not cancelled by the effect's cleanup: dropping the param above re-runs it before the answer is here
     void api
-      .searchChat(id, false, GUARD_NOTICE_TEXT)
+      .searchChat(id, GUARD_NOTICE_TEXT)
       .then((found) => {
         const first = found.hits[0];
         if (!first) return;
-        setSidechains(false);
         setJump({ index: first.index });
       })
       .catch(() => undefined);
@@ -255,6 +254,7 @@ export function ChatView() {
   // What the chat delegated is a card under its step and a row of the strip over the composer: a
   // subagent and a command open their panel, a workflow its whole card in the inspector
   const children = chat?.children;
+  const chatAlive = chat?.alive;
   const showInspector = inspector.show;
   const openBranch = useCallback(
     (branch: Branch) => {
@@ -264,7 +264,7 @@ export function ChatView() {
     },
     [openDetail, id, showInspector],
   );
-  const branches = useMemo<BranchLinks | undefined>(() => (children ? { children, open: openBranch } : undefined), [children, openBranch]);
+  const branches = useMemo<BranchLinks | undefined>(() => (children ? { children, alive: chatAlive, open: openBranch } : undefined), [children, chatAlive, openBranch]);
 
   // "Create a task from this message": in Backlog of the chat's project, then offered to open
   const toast = useToast();
@@ -331,8 +331,6 @@ export function ChatView() {
   const actions = useMemo<HeaderActions>(
     () => ({
       find: { open: findOpen, show: findShow, close: findClose },
-      sidechains,
-      setSidechains,
       forking,
       setForking,
       stop: { run: () => stopChat(), pending: stopping },
@@ -346,7 +344,7 @@ export function ChatView() {
       },
       inspector,
     }),
-    [findOpen, findShow, findClose, sidechains, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector],
+    [findOpen, findShow, findClose, forking, stopChat, stopping, interruptChat, interrupting, remove.isPending, inspector],
   );
 
   if (transcript.query.isLoading) return <ChatLoading label={t('view.loading')} />;
@@ -365,7 +363,8 @@ export function ChatView() {
 
   const { control } = chat;
   const agent = agentNameFor(chat);
-  const working = chat.state === 'working';
+  const working = chatBusy(chat);
+  // Claudio's process is on it: what the connection pill and sending act on, not what is alive
   const live = Boolean(chat.execution);
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
   // While the agent writes the answer after its calls, the step above is done, not current
@@ -472,7 +471,7 @@ export function ChatView() {
           </AnimatePresence>
         </div>
 
-        {children && <LiveBranches branches={children} onOpen={openBranch} />}
+        {children && <LiveBranches branches={children} alive={chat.alive} onOpen={openBranch} />}
         {composer === 'fork' && (
           <div className="chat-fork" role="group" aria-label={t('chat:sessionView.continueCopy')}>
             <div className="chat-fork-head">

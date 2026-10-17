@@ -105,7 +105,7 @@ export function IntegrationChanges({ orch }: { orch: Orchestration }) {
 export function ChatActivityCard({ chat, entries }: { chat: Chat; entries: TranscriptEntry[] | null }) {
   const { t } = useTranslation('observe');
   // Waiting on a permission prompt is not running a command, so only `working` says a call is in flight
-  const live = chat.state === 'working';
+  const live = chat.alive && chat.state === 'working';
   return (
     <Card
       title={

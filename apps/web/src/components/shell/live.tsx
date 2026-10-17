@@ -28,7 +28,7 @@ type Counts = Overview['counts'] | undefined;
  * lists themselves are the same queries the Chats and Orchestrations pages read, so the feed
  * keeps them fresh too.
  */
-export function useLive(counts: Counts): LiveSummary & { any: boolean } {
+export function useLive(counts: Counts): LiveSummary & { any: boolean; agents: number } {
   const fallback = useFallbackInterval();
   const working = counts?.chatsWorking ?? 0;
   const waiting = counts?.chatsWaiting ?? 0;
@@ -51,9 +51,12 @@ export function useLive(counts: Counts): LiveSummary & { any: boolean } {
     chats: [...(working > 0 ? (workingChats.data ?? []) : []), ...(waiting > 0 ? (waitingChats.data ?? []) : [])],
     orchestrations: running > 0 ? (orchestrations.data ?? []) : [],
   });
+  // Agents a chat delegated work: the overview counts only those a live chat holds, so the chip, the
+  // list and Home agree on how many are working
+  const agents = working + (counts?.subagents ?? 0) + (counts?.workflows ?? 0);
   // The counts are the numbers everywhere; the lists only say which. Worker chats of an
   // orchestration count as working but are listed under their orchestration, not one by one.
-  return { ...summary, working, waiting, running, any: working + waiting + running > 0 };
+  return { ...summary, working, waiting, running, agents, any: agents + waiting + running > 0 };
 }
 
 /** "2 working · 1 waiting · 1 running", only the parts that are not zero. */
@@ -102,15 +105,16 @@ export function useLiveEntries(live: LiveSummary): MenuEntry[] {
  * exactly what, each a link. Live work pings in cyan; a chat waiting for a person is a still dot
  * in warn, because nothing moves until they answer.
  */
-export function LiveChip({ live }: { live: LiveSummary & { any: boolean } }) {
+export function LiveChip({ live }: { live: LiveSummary & { any: boolean; agents?: number } }) {
   const { t } = useTranslation('shell');
   const entries = useLiveEntries(live);
   if (!live.any) return null;
-  const working = live.working > 0 || live.running > 0;
+  const agents = live.agents ?? live.working;
+  const working = agents > 0 || live.running > 0;
   // Worker chats count as working, so the chats are the agents; an orchestration between two tasks
   // has none working and is counted as itself
   const visible = [
-    ...(live.working ? [t('live.agentsWorking', { count: live.working })] : live.running ? [t('live.running', { count: live.running })] : []),
+    ...(agents ? [t('live.agentsWorking', { count: agents })] : live.running ? [t('live.running', { count: live.running })] : []),
     ...(live.waiting ? [t('live.waiting', { count: live.waiting })] : []),
   ];
   // The visible words are the name, so what is read is what is seen; only the "Live" prefix is extra
@@ -169,12 +173,13 @@ function LiveRow({ item }: { item: LiveItem }) {
  * The sidebar's Live section: what is running and what waits for a person, each a
  * link. In the icon rail it folds into one button with the count that opens the same list.
  */
-export function LiveSection({ live, rail }: { live: LiveSummary & { any: boolean }; rail: boolean }) {
+export function LiveSection({ live, rail }: { live: LiveSummary & { any: boolean; agents?: number }; rail: boolean }) {
   const { t } = useTranslation('shell');
   const words = useLiveWords(live);
   const entries = useLiveEntries(live);
   if (!live.any) return null;
-  const total = live.working + live.waiting + live.running;
+  const agents = live.agents ?? live.working;
+  const total = agents + live.waiting + live.running;
 
   if (rail) {
     const name = t('live.chipLabel', { count: total, summary: words.join(', ') });
@@ -187,7 +192,7 @@ export function LiveSection({ live, rail }: { live: LiveSummary & { any: boolean
           align="start"
           trigger={
             <button type="button" className="nav-link live-rail-btn" aria-label={name}>
-              <span className="nav-icon">{live.working || live.running ? <Spinner /> : <Activity {...ICON} />}</span>
+              <span className="nav-icon">{agents || live.running ? <Spinner /> : <Activity {...ICON} />}</span>
               <span className="nav-count live-count" aria-hidden>
                 {total}
               </span>

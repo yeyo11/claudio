@@ -10,7 +10,11 @@ export interface Bar {
   value: number | null;
 }
 
-const PAD = { top: 12, right: 8, bottom: 26, left: 56 };
+const PAD = { top: 12, right: 8, bottom: 26 };
+/** Room for the axis figures: as wide as the longest one needs (13 px tabular figures run about 7.6 px each), never less than this */
+const MIN_LEFT = 32;
+const AXIS_CHAR = 7.6;
+const AXIS_GAP = 12;
 /** Below this width the chart is on a phone: shorter, so the page around it stays in view */
 const NARROW = 480;
 /** How far from an edge the tooltip stops being centred on its bar, so it never leaves the card */
@@ -60,13 +64,15 @@ export function BarChart({
 
   const height = width < NARROW ? 180 : 260;
   const scale = niceScale(Math.max(0, ...bars.map((b) => b.value ?? 0)), 3, integer);
-  const plotW = width - PAD.left - PAD.right;
+  // A fixed gutter let "3000,00 US$" run out of the card on the left: it is measured from the labels
+  const left = Math.max(MIN_LEFT, Math.ceil(Math.max(0, ...scale.ticks.map((tick) => formatAxis(tick).length)) * AXIS_CHAR) + AXIS_GAP);
+  const plotW = width - left - PAD.right;
   const plotH = height - PAD.top - PAD.bottom;
   const step = bars.length > 0 ? plotW / bars.length : plotW;
   const barW = Math.max(2, Math.min(28, step * 0.72));
   const stride = labelStride(bars.length, plotW);
   const y = (v: number) => PAD.top + plotH - (v / scale.max) * plotH;
-  const cx = (i: number) => PAD.left + step * i + step / 2;
+  const cx = (i: number) => left + step * i + step / 2;
 
   let peak: number | null = null;
   for (const [i, bar] of bars.entries()) {
@@ -87,7 +93,7 @@ export function BarChart({
 
   const shown = active === null ? undefined : bars[active];
   const tipX = active === null ? 0 : cx(active);
-  const tipSide = tipX < PAD.left + TIP_EDGE ? 'is-start' : tipX > width - PAD.right - TIP_EDGE ? 'is-end' : '';
+  const tipSide = tipX < left + TIP_EDGE ? 'is-start' : tipX > width - PAD.right - TIP_EDGE ? 'is-end' : '';
 
   return (
     <div ref={ref} className="chart">
@@ -122,8 +128,8 @@ export function BarChart({
         </defs>
         {scale.ticks.map((tick) => (
           <g key={tick}>
-            {tick > 0 && <line className="chart-grid" x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} />}
-            <text className="chart-axis" x={PAD.left - 10} y={y(tick)} textAnchor="end" dominantBaseline="middle">
+            {tick > 0 && <line className="chart-grid" x1={left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} />}
+            <text className="chart-axis" x={left - 10} y={y(tick)} textAnchor="end" dominantBaseline="middle">
               {formatAxis(tick)}
             </text>
           </g>
@@ -147,7 +153,7 @@ export function BarChart({
               {/* The hit target is the whole column, not just the bar: an empty day is worth reading too */}
               <rect
                 className="chart-hit"
-                x={PAD.left + step * i}
+                x={left + step * i}
                 y={PAD.top}
                 width={step}
                 height={plotH}
@@ -160,7 +166,7 @@ export function BarChart({
             </g>
           );
         })}
-        <line className="chart-base" x1={PAD.left} x2={width - PAD.right} y1={y(0)} y2={y(0)} />
+        <line className="chart-base" x1={left} x2={width - PAD.right} y1={y(0)} y2={y(0)} />
       </svg>
       {tip && shown && active !== null && (
         <div className={`chart-tip ${tipSide}`} style={{ left: tipX, top: y(shown.value ?? 0) - 8 }} aria-hidden>

@@ -245,8 +245,7 @@ export async function readSessionWorkflows(transcript: string, sessionId: string
  * a restart, or taken over from a terminal, ran others before, and only the files know those. The
  * files know a run by its `wf_…` id, which is what an agent's transcript is filed under, so a run
  * both report keeps that id and the stream's fresher progress. `onDisk` is read as for an ended
- * session: a run without a record that the stream does not report went down with an earlier
- * process, unless it began after this one started and its first event is still on the way.
+ * session: a run without a record that the stream does not report is over.
  */
 export function mergeLiveWorkflows(streamed: readonly WorkflowRun[], onDisk: readonly WorkflowRun[], processStartedAt: string | null): WorkflowRun[] {
   const pending = new Set(streamed);
@@ -283,9 +282,11 @@ export function mergeLiveWorkflows(streamed: readonly WorkflowRun[], onDisk: rea
       out.push(joinRun(disk, live));
       continue;
     }
-    const recent = processStartedAt !== null && disk.startedAt >= processStartedAt;
-    // A record is final; a journal-only run is running only if this process can be the one running it
-    out.push(disk.taskId === null && disk.status === 'stopped' && recent ? { ...disk, status: 'running', endedAt: null } : disk);
+    // The stream is the only thing that knows a run is going on: a run it does not report, with no
+    // record, is not running, whenever it began. (One begun a moment ago whose first event is still
+    // on the way shows as stopped until it arrives, which is a blink; a stopped run shown as running
+    // for ever is what people saw.)
+    out.push(disk);
   }
   out.push(...pending);
   return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));

@@ -9,7 +9,7 @@ import { api, keys } from '../api';
 import { formatCost, formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { answerLines, type AnswerLine } from '../pages/config/decisions/model';
-import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { LAYER_ATTR, layerCollisionPadding } from '@claudio/ui/components/controls/layer';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox } from '@claudio/ui/components/ui';
@@ -95,7 +95,7 @@ export function DecisionMarkOf({ decision }: { decision: DecisionRecord }) {
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
-        <RadixPopover.Content {...LAYER_ATTR} className="decided-pop" role="dialog" aria-label={t('mark.popoverLabel')} align="start" sideOffset={6} collisionPadding={8}>
+        <RadixPopover.Content {...LAYER_ATTR} className="decided-pop" role="dialog" aria-label={t('mark.popoverLabel')} align="start" sideOffset={6} collisionPadding={layerCollisionPadding()}>
           <div className="decided-head">
             <div className="col">
               <h2 className="decided-title">{title}</h2>

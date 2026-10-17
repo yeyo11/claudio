@@ -67,11 +67,11 @@ export function ChatChangesReview() {
   // The chat itself, for its title, its directory and what it is running now
   const head = useQuery({
     queryKey: [...keys.chatScope(id), 'changes', 'head'],
-    queryFn: () => api.chat(id, false, { limit: 1 }),
-    refetchInterval: (q) => (q.state.data?.chat.execution ? LIVE_REFRESH_MS : false),
+    queryFn: () => api.chat(id, { limit: 1 }),
+    refetchInterval: (q) => (q.state.data?.chat.alive ? LIVE_REFRESH_MS : false),
   });
   const chat = head.data?.chat;
-  const live = Boolean(chat?.execution);
+  const live = Boolean(chat?.alive);
   const target = chat?.activity?.kind === 'tool' ? (chat.activity.target ?? null) : null;
   const source = useMemo<ReviewSource>(
     () => ({

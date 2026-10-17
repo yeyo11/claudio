@@ -57,7 +57,8 @@ export function ToolsCard({ chat }: { chat: Chat }) {
           )}
         </dd>
       </dl>
-      <p className="small muted">{tools.mcp ? `${t('tools.card.strictNote')} ${t('tools.card.frozenNote')}` : t('tools.card.frozenNote')}</p>
+      {tools.mcp && <p className="small muted">{t('tools.card.strictNote')}</p>}
+      <p className="small muted">{t('tools.card.frozenNote')}</p>
     </Section>
   );
 }

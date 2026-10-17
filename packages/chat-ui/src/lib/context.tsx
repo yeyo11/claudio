@@ -34,7 +34,7 @@ export interface StartChoices {
 
 /** What the chat package asks of the server. `api` in apps/web satisfies it, plus two URL builders. */
 export interface ChatClient {
-  chat(id: string, sidechains: boolean, page?: { limit?: number; before?: number }, o?: { signal?: AbortSignal }): Promise<ChatDetail>;
+  chat(id: string, page?: { limit?: number; before?: number }, o?: { signal?: AbortSignal }): Promise<ChatDetail>;
   chatPermissions(id: string): Promise<PermissionRequest[]>;
   chatTasks(id: string): Promise<ChatBackgroundTask[]>;
   answerPermission(id: string, requestId: string, decision: PermissionDecision): Promise<unknown>;
@@ -116,9 +116,9 @@ export const chatKeys = {
   chats: ['chats'] as const,
   /** Prefix of a chat's page and of everything read for it */
   chatScope: (id: string) => ['chat', id] as const,
-  chat: (id: string, sidechains: boolean) => ['chat', id, sidechains] as const,
+  chat: (id: string) => ['chat', id, 'transcript'] as const,
   /** The pages of a chat read back from its newest one, kept across visits */
-  chatEarlier: (id: string, sidechains: boolean) => ['chat', id, sidechains, RUN_TAG] as const,
+  chatEarlier: (id: string) => ['chat', id, 'transcript', RUN_TAG] as const,
   chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
   chatTasks: (chatId: string) => ['tasks', 'chat', chatId] as const,
   agentDetail: ['agent-detail'] as const,

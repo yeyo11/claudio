@@ -327,6 +327,9 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   if (isError && !chat.interruptRequested) chat.error = event.failure;
   chat.interruptRequested = false;
   chat.activity.turnEnded();
+  // A foreground agent the turn ended on without its answer (an interrupt) is not running any more,
+  // as a call left open is not (`trace`); a background one outlives the turn
+  chat.branches.endForeground(now());
   chat.branchActivity.clear();
   host.persist();
   chat.push({ ...event.run, outcome: { ...(event.run.outcome as RunOutcome), ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) } });

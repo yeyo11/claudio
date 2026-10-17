@@ -95,7 +95,12 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  min-width: 0;
   font-size: var(--fs-small);
+}
+.chat-note > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .chat-note svg {
   flex: none;

@@ -727,6 +727,10 @@
       "control": {
         "$ref": "#/components/schemas/ChatControl"
       },
+      "alive": {
+        "type": "boolean",
+        "description": "Whether a process still holds the chat: an execution of Claudio's, or a terminal's or another program's. Nothing delegated from a chat that is not alive can be running, so every screen that would show a spinner for a branch asks this first."
+      },
       "execution": {
         "anyOf": [
           {
@@ -841,6 +845,7 @@
       "derivedFrom",
       "state",
       "control",
+      "alive",
       "execution",
       "executions",
       "context",
@@ -13287,6 +13292,10 @@
       "control": {
         "$ref": "#/components/schemas/ChatControl"
       },
+      "alive": {
+        "type": "boolean",
+        "description": "Whether a process still holds the chat: an execution of Claudio's, or a terminal's or another program's. Nothing delegated from a chat that is not alive can be running, so every screen that would show a spinner for a branch asks this first."
+      },
       "execution": {
         "anyOf": [
           {
@@ -13422,6 +13431,7 @@
       "derivedFrom",
       "state",
       "control",
+      "alive",
       "execution",
       "executions",
       "context",
@@ -13626,8 +13636,10 @@
         "enum": [
           "running",
           "completed",
-          "failed"
-        ]
+          "failed",
+          "stopped"
+        ],
+        "description": "`stopped`: it was still running when its workflow, or the chat holding it, ended"
       },
       "id": {
         "type": [
@@ -14844,6 +14856,10 @@
       "control": {
         "$ref": "#/components/schemas/ChatControl"
       },
+      "alive": {
+        "type": "boolean",
+        "description": "Whether a process still holds the chat: an execution of Claudio's, or a terminal's or another program's. Nothing delegated from a chat that is not alive can be running, so every screen that would show a spinner for a branch asks this first."
+      },
       "execution": {
         "anyOf": [
           {
@@ -14940,6 +14956,7 @@
       }
     },
     "required": [
+      "alive",
       "cliVersion",
       "context",
       "control",

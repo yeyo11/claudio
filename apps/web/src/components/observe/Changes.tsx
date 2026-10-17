@@ -238,7 +238,7 @@ export function ChangesSummary({ summary, steps, touched = [], activity = null, 
 
 /** A chat: its git summary when it works in a checkout, and the steps of its transcript. */
 export function ChatChangesSummary({ chat }: { chat: Chat }) {
-  const live = Boolean(chat.execution);
+  const live = chat.alive;
   const interval = live ? LIVE_REFRESH_MS : false;
   const changes = useQuery({ queryKey: keys.chatChanges(chat.id), queryFn: () => api.chatChanges(chat.id), refetchInterval: interval });
   const steps = useQuery({ queryKey: keys.chatSteps(chat.id), queryFn: () => api.chatSteps(chat.id), refetchInterval: interval });

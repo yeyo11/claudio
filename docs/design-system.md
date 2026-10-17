@@ -2426,7 +2426,7 @@ the file being edited is its only moving part.
 - The transcript's edit chips share the folded step's line, as `DesktopChatCambios` draws them; an
   opened step takes the row and pushes them under it.
 - "See it in the conversation" opens `/chats/:id?at=<entryIndex>`: the chat drops `?at=` from the
-  address, turns subagent messages off (the index counts the main view) and marks the entry for a
+  address and marks the entry for a
   moment in the accent, where a search hit takes the warning colour.
 
 **Fixed after landing** (2026-09-28, `fix/changes-review-polish`)

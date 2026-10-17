@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ContentBlock, Health, HealthSignal, TranscriptEntry } from '@claudio/shared';
-import { cancellable, checklistProgress, currentActivity, describeCall, healthWord, totalsOf } from '../src/lib/observe.ts';
+import { cancellable, checklistProgress, describeCall, healthWord, lastEventAt, totalsOf } from '../src/lib/observe.ts';
 
 const entry = (uuid: string, blocks: ContentBlock[], extra: Partial<TranscriptEntry> = {}): TranscriptEntry => ({
   uuid,
@@ -31,32 +31,14 @@ test('a call is described by what it acts on', () => {
   assert.ok(describeCall('Bash', { command: 'x'.repeat(500) }).length <= 120);
 });
 
-test('the call with no result yet is what the chat is running', () => {
+test('the quiet time counts from the newest entry of the main agent', () => {
   const entries = [
     entry('1', [call('a', 'Read', { file_path: '/x.ts' })]),
     entry('2', [result('a')], { role: 'user', timestamp: '2026-05-01T10:00:05.000Z' }),
-    entry('3', [call('b', 'Bash', { command: 'pnpm e2e' })], { timestamp: '2026-05-01T10:00:10.000Z' }),
+    entry('3', [call('s', 'Bash', { command: 'inner' })], { isSidechain: true, timestamp: '2026-05-01T10:00:20.000Z' }),
   ];
-  const now = currentActivity(entries);
-  assert.equal(now.running?.id, 'b');
-  assert.equal(now.running?.summary, 'pnpm e2e');
-  assert.equal(now.lastEventAt, '2026-05-01T10:00:10.000Z');
-});
-
-test('when every call has come back, nothing is running', () => {
-  const entries = [entry('1', [call('a', 'Bash', { command: 'ls' })]), entry('2', [result('a')], { role: 'user', timestamp: '2026-05-01T10:00:02.000Z' })];
-  const now = currentActivity(entries);
-  assert.equal(now.running, null);
-  assert.equal(now.lastEventAt, '2026-05-01T10:00:02.000Z');
-});
-
-test('a subagent is a branch of the chat: its calls are not what the chat runs', () => {
-  const entries = [entry('1', [call('a', 'Task', { description: 'review' })]), entry('2', [call('s', 'Bash', { command: 'inner' })], { isSidechain: true })];
-  assert.equal(currentActivity(entries).running?.id, 'a');
-});
-
-test('a transcript with nothing in it says nothing', () => {
-  assert.deepEqual(currentActivity([]), { running: null, lastEventAt: null });
+  assert.equal(lastEventAt(entries), '2026-05-01T10:00:05.000Z');
+  assert.equal(lastEventAt([]), null);
 });
 
 const health = (level: Health['level'], kinds: HealthSignal['kind'][]): Pick<Health, 'level' | 'signals'> => ({

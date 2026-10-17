@@ -1,5 +1,6 @@
 import * as RadixTooltip from '@radix-ui/react-tooltip';
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { layerCollisionPadding } from './layer';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
@@ -43,7 +44,7 @@ export function Tooltip({
     <RadixTooltip.Root open={open && !empty} onOpenChange={(next) => setOpen(nextTooltipOpen(next, empty))}>
       <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
       <RadixTooltip.Portal>
-        <RadixTooltip.Content className="tooltip" side={side} sideOffset={6} collisionPadding={8}>
+        <RadixTooltip.Content className="tooltip" side={side} sideOffset={6} collisionPadding={layerCollisionPadding()}>
           {content}
         </RadixTooltip.Content>
       </RadixTooltip.Portal>

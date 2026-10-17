@@ -1,4 +1,5 @@
 import type { Chat, TranscriptEntry } from '@claudio/shared';
+import { chatBusy } from '@claudio/chat-ui/lib/liveness';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, FileText, GitCompareArrows, PanelRightClose, PanelRightOpen, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react';
@@ -89,7 +90,7 @@ export type InspectorState = ReturnType<typeof useInspector>;
 /** The checklist the chat keeps for itself, as a timeline: what is done, what it is on, what is left. */
 function ChecklistSteps({ chat }: { chat: Chat }) {
   const { t } = useTranslation('observe');
-  const live = chat.state === 'working';
+  const live = chatBusy(chat);
   const { data, error } = useQuery({ queryKey: ['chat', chat.id, 'checklist'], queryFn: () => api.chatChecklist(chat.id), refetchInterval: live ? 10_000 : false });
   if (error) return <ErrorBox error={error} />;
   if (!data) return null;
@@ -97,7 +98,7 @@ function ChecklistSteps({ chat }: { chat: Chat }) {
   const { done, total, current } = checklistProgress(data.items);
   return (
     <div className="stack-tight">
-      <p className="small muted">
+      <p className="small muted ellipsis tnum">
         {t('checklist.progress', { done, total })}
         {current ? ` · ${t('checklist.onIt', { text: current.text })}` : ''}
       </p>
@@ -113,7 +114,7 @@ function ChecklistSteps({ chat }: { chat: Chat }) {
 function ActivityTab({ chat, entries }: { chat: Chat; entries: TranscriptEntry[] }) {
   const { t } = useTranslation('observe');
   // Waiting on a permission prompt is not running a command, so only `working` says a call is in flight
-  const live = chat.state === 'working';
+  const live = chat.alive && chat.state === 'working';
   return (
     <>
       <Section title={t('activity.title')}>

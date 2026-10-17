@@ -1460,28 +1460,12 @@ a.link-more {
 /*
  * The window controls are painted over the page, and a panel that reaches the top of the window put
  * its own close button right under them: pressing the drawer's corner closed the window instead.
- * Anything that opens against the right edge starts below the title bar, so its corner is its own.
+ * --chrome-top is the band they occupy; the overlay tokens (--ov-top) start below it, so a dialog,
+ * a drawer and a side sheet all keep their corner to themselves. The top bar height is the floor
+ * for when the platform reports no overlay area (macOS keeps its lights in the same band).
  */
-.is-desktop .sheet-right {
-  top: env(titlebar-area-height, 0px);
-}
-
-/* A dialog tall enough to reach the top of the window has the same corner to lose */
-.is-desktop .overlay {
-  padding-top: max(16px, env(titlebar-area-height, 0px));
-}
-
-.is-desktop .overlay .dialog {
-  max-height: 100%;
-}
-
-.is-desktop .overlay-drawer {
-  padding-top: env(titlebar-area-height, 0px);
-}
-
-.is-desktop .overlay-drawer .dialog-drawer {
-  height: calc(100dvh - env(titlebar-area-height, 0px));
-  max-height: 100%;
+.is-desktop {
+  --chrome-top: max(env(titlebar-area-height, 0px), var(--topbar-h));
 }
 
 /* macOS keeps its traffic lights top-left, over the sidebar's head (or the bar when it is hidden) */

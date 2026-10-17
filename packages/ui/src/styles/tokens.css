@@ -190,6 +190,15 @@
 
   /* Layout */
   --topbar-h: 52px;
+  /* Overlays keep a gutter from the window, plus the notch/home-bar insets, so a dialog, drawer or
+     sheet never touches the edge. --chrome-top is the title bar band the desktop app paints over
+     the page (the shell sets it); it is 0 in a browser. */
+  --overlay-gutter: 24px;
+  --chrome-top: 0px;
+  --ov-top: max(var(--overlay-gutter), env(safe-area-inset-top, 0px), var(--chrome-top));
+  --ov-right: max(var(--overlay-gutter), env(safe-area-inset-right, 0px));
+  --ov-bottom: max(var(--overlay-gutter), env(safe-area-inset-bottom, 0px));
+  --ov-left: max(var(--overlay-gutter), env(safe-area-inset-left, 0px));
   /* The one-line status strip under a composer, and the rail that marks a live block */
   --statusbar-h: 26px;
   --rail-w: 2px;
@@ -242,6 +251,12 @@
 
   /* Lets height:auto animate where the browser supports it */
   interpolate-size: allow-keywords;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --overlay-gutter: 12px;
+  }
 }
 
 @media (pointer: coarse) {

@@ -1063,7 +1063,8 @@ export interface ChatSubagent {
 export interface ChatWorkflowAgent {
   index: number;
   label: string;
-  status: 'running' | 'completed' | 'failed';
+  /** `stopped`: it was still running when its workflow, or the chat holding it, ended */
+  status: 'running' | 'completed' | 'failed' | 'stopped';
   /** Id of its transcript inside the chat, when it has one */
   id: string | null;
   phase: string | null;
@@ -1165,6 +1166,12 @@ export interface Chat {
   pendingAccount?: string | null;
   state: ChatState;
   control: ChatControl;
+  /**
+   * Whether a process still holds the chat: an execution of Claudio's, or a terminal's or another
+   * program's. Nothing delegated from a chat that is not alive can be running, so every screen that
+   * would show a spinner for a branch asks this first.
+   */
+  alive: boolean;
   /** The live execution, when Claudio has a process on the chat; also the last of `executions` */
   execution: Execution | null;
   /** What that execution is doing right now; `null` whenever none is live */

@@ -61,7 +61,7 @@
     "tasksIntroPhone": "Tell me what you will build and I will propose the first tasks. You can also create them yourself.",
     "describe": "What you will build",
     "describePlaceholder": "What you will build…",
-    "describePlaceholderPhone": "A notes app with labels and search…",
+    "describePlaceholderPhone": "A notes app…",
     "propose": "Propose tasks",
     "proposeHint": "Opens a CLI chat with <mono>--json-schema</mono>; its cost counts in Usage, like any chat's.",
     "resourcesLater": "Once there is code, ask for them from the Resources tab with “Suggest”",
@@ -164,8 +164,7 @@
       }
     },
     "message": "Message",
-    "placeholder": "Ask about projects, tasks, orchestrations or usage…",
-    "placeholderShort": "Ask something…",
+    "placeholder": "Ask Claudio…",
     "send": "Send",
     "starting": "Starting…",
     "context": "With {{name}} as context",

@@ -2,7 +2,7 @@ import * as RadixPopover from '@radix-ui/react-popover';
 import { ChevronDown, Folder, ListFilter, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { LAYER_ATTR, layerCollisionPadding } from '@claudio/ui/components/controls/layer';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { Checkbox } from '@claudio/ui/components/controls/Toggle';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -117,7 +117,7 @@ export function FacetChips({ facets, state }: { facets: Facet[]; state: TaskFilt
                 </button>
               </RadixPopover.Trigger>
               <RadixPopover.Portal>
-                <RadixPopover.Content className="popover workitem-facet-pop" align="start" sideOffset={6} collisionPadding={8} aria-label={facet.label} {...LAYER_ATTR}>
+                <RadixPopover.Content className="popover workitem-facet-pop" align="start" sideOffset={6} collisionPadding={layerCollisionPadding()} aria-label={facet.label} {...LAYER_ATTR}>
                   <FacetOptions facet={facet} state={state} />
                 </RadixPopover.Content>
               </RadixPopover.Portal>

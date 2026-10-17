@@ -1,6 +1,6 @@
 import * as RadixPopover from '@radix-ui/react-popover';
 import type { ReactNode } from 'react';
-import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { LAYER_ATTR, layerCollisionPadding } from '@claudio/ui/components/controls/layer';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 
@@ -21,7 +21,7 @@ export function OptionsPanel({ trigger, title, open, onOpenChange, children }: {
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
       <RadixPopover.Portal>
-        <RadixPopover.Content className="popover composer-options" side="top" align="start" sideOffset={6} collisionPadding={8} aria-label={title} {...LAYER_ATTR}>
+        <RadixPopover.Content className="popover composer-options" side="top" align="start" sideOffset={6} collisionPadding={layerCollisionPadding()} aria-label={title} {...LAYER_ATTR}>
           {children}
         </RadixPopover.Content>
       </RadixPopover.Portal>

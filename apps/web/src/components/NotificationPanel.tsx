@@ -9,7 +9,7 @@ import { api, keys } from '../api';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { clearNotifications, markAllRead, markRead, removeNotification, unreadCount, useNotifications, type AppNotification } from '../lib/notifications';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
-import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { LAYER_ATTR, layerCollisionPadding } from '@claudio/ui/components/controls/layer';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { NotificationPreferences } from './NotificationPreferences';
@@ -164,7 +164,7 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
           className="popover notif-panel"
           align="end"
           sideOffset={8}
-          collisionPadding={8}
+          collisionPadding={layerCollisionPadding()}
           // A click on the bell is "outside" for the popover, which would close it just before the
           // bell's own click reopens it
           onInteractOutside={(e) => anchor.current?.contains(e.target as Node) && e.preventDefault()}

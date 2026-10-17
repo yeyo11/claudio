@@ -1,17 +1,22 @@
 import type { Health, HealthSignal, SupervisorProposal } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, CircleSlash, Clock, Lightbulb, Pencil, Repeat, Send, TriangleAlert, OctagonX, X, type LucideIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
 import { cancellable, healthWord, type HealthWord } from '../../lib/observe';
-import { healthReason, signalHint, signalReason } from '../../lib/server-strings';
+import i18n from '../../i18n';
+import { healthReason, shownParams, signalHint, signalReason } from '../../lib/server-strings';
+import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
+import { FullText } from '@claudio/ui/components/FullText';
+import { formatCost, shortPath, timeAgo } from '@claudio/ui/lib/format';
+import { ClampText } from '../ClampText';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { DecisionMark } from '../DecisionMark';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { ErrorBox, Field } from '@claudio/ui/components/ui';
+import { CopyButton, ErrorBox, Field } from '@claudio/ui/components/ui';
 
 const TONE: Record<HealthWord, string> = { ok: 'ok', slow: 'warn', stuck: 'bad', looping: 'bad' };
 // A shape per word besides the colour and the text: it still reads in greyscale
@@ -74,13 +79,13 @@ function ProposalRow({
   };
 
   return (
-    <div className="obs-signal obs-proposal" role="group" aria-label={t('observe:supervisor.title')}>
+    <div className="obs-proposal" role="group" aria-label={t('observe:supervisor.title')}>
       <div className="obs-signal-line">
         <Lightbulb {...ICON_SM} />
         <span className="strong">{t('observe:supervisor.proposes')}</span>
         <DecisionMark subjectKind="chat" subjectId={proposal.chatId} />
       </div>
-      <p className="small break obs-proposal-text">{proposal.hint}</p>
+      <ClampText text={proposal.hint} className="small obs-proposal-text" />
       {!editing && (
         <div className="task-actions">
           {live && (
@@ -131,14 +136,14 @@ function HintBox({ initial, send, onDone }: { initial: string; send: (text: stri
   });
   return (
     <form
-      className="stack-tight"
+      className="stack-tight obs-hint"
       onSubmit={(e) => {
         e.preventDefault();
         if (text.trim()) mutation.mutate();
       }}
     >
       <Field label={t('observe:health.hintLabel')} hint={t('observe:health.hintExplained')}>
-        <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus />
       </Field>
       <ErrorBox error={mutation.error} />
       <div className="form-actions">
@@ -153,18 +158,107 @@ function HintBox({ initial, send, onDone }: { initial: string; send: (text: stri
   );
 }
 
+// A signal's short line comes from a key per reason code, built from the same figures as the sentence
+const tr = i18n.t.bind(i18n) as unknown as (key: string, options?: Record<string, string | number>) => string;
+
+const LEVEL_ICON: Record<HealthSignal['level'], LucideIcon> = { warn: TriangleAlert, bad: OctagonX };
+
+/** The figure that says how much: minutes, a count, a share or what was spent. */
+function figureOf(signal: HealthSignal): string | null {
+  const shown = shownParams(signal.params);
+  if (shown.spentUsd !== undefined && typeof signal.params?.spentUsd === 'number') return formatCost(signal.params.spentUsd);
+  if (shown.percent !== undefined) return String(shown.percent);
+  if (shown.minutes !== undefined) return tr('observe:health.figure.minutes', { n: shown.minutes });
+  // A weakened test counts assertions, which its short line already says
+  if (shown.count !== undefined && signal.kind !== 'weakened-test') return tr('observe:health.figure.times', { n: shown.count });
+  return null;
+}
+
+/** The command or the file the signal is about, the only part of it that is a literal. */
+function literalOf(signal: HealthSignal): string | null {
+  const { params } = signal;
+  const named = [params?.file, params?.command].find((value): value is string => typeof value === 'string' && value !== '');
+  if (named) return named;
+  const detail = signal.detail && signal.detail !== 'time' && signal.detail !== 'cost' ? signal.detail : null;
+  return signal.kind === 'hung-command' || signal.kind === 'repeat-stall' ? detail : null;
+}
+
+/** At most one short line of what happened, or the sentence itself (cut by CSS) for a code this build has no line for. */
+function shortOf(signal: HealthSignal): string {
+  if (signal.reasonCode) {
+    const key = `observe:${signal.reasonCode.replace(/^health\./, 'health.short.')}`;
+    const options = shownParams(signal.params);
+    if (i18n.exists(key, options)) return tr(key, options);
+  }
+  return signalReason(signal);
+}
+
+/**
+ * One signal, as a name and a figure, the literal it is about on a line of its own and one short
+ * line; everything longer (the sentence, the whole command, since when, the hint) is under
+ * Details. The level is told by the shape of the icon and a word for a screen reader.
+ */
+export function SignalItem({ signal, children }: { signal: HealthSignal; children?: ReactNode }) {
+  const { t } = useTranslation('observe');
+  const Icon = LEVEL_ICON[signal.level];
+  const figure = figureOf(signal);
+  const literal = literalOf(signal);
+  const full = signal.detail && signal.detail !== 'time' && signal.detail !== 'cost' ? signal.detail : literal;
+  const hint = signalHint(signal);
+  const title = i18n.exists(`observe:health.signal.${signal.kind}`) ? tr(`observe:health.signal.${signal.kind}`) : signalReason(signal);
+  return (
+    <li className={`obs-signal obs-signal-${signal.level}`}>
+      <div className="obs-signal-line">
+        <Icon {...ICON_SM} />
+        <span className="obs-signal-title">
+          <span className="sr-only">{t(`health.level.${signal.level}`)}: </span>
+          {title}
+        </span>
+        {figure && <span className="obs-signal-figure tnum">{figure}</span>}
+      </div>
+      {literal && (
+        <FullText className="mono small muted obs-signal-literal" full={full ?? literal}>
+          {signal.kind === 'weakened-test' ? shortPath(literal, 40) : literal}
+        </FullText>
+      )}
+      <div className="small muted obs-signal-short">{shortOf(signal)}</div>
+      <Collapsible className="obs-details" triggerClassName="small" title={t('health.details')}>
+        <div className="obs-details-body">
+          <p className="small break">{signalReason(signal)}</p>
+          {full && (
+            <div className="obs-signal-full">
+              <pre className="mono small break">{full}</pre>
+              <CopyButton text={full} label={t('health.copyLiteral')} />
+            </div>
+          )}
+          {signal.since && <p className="small muted tnum">{t('health.since', { when: timeAgo(signal.since) })}</p>}
+          {hint && (
+            <>
+              <p className="small muted">{t('health.hintLabel')}</p>
+              <p className="small break obs-proposal-text">{hint}</p>
+            </>
+          )}
+        </div>
+      </Collapsible>
+      {children}
+    </li>
+  );
+}
+
 function SignalRow({
   signal,
   chatId,
   live,
   sendHint,
   onChanged,
+  extra,
 }: {
   signal: HealthSignal;
   chatId: string | null;
   live: boolean;
   sendHint: (text: string) => Promise<unknown>;
   onChanged: () => void;
+  extra?: ReactNode;
 }) {
   const { t } = useTranslation(['observe', 'common']);
   const confirm = useConfirm();
@@ -179,19 +273,10 @@ function SignalRow({
   });
   const toolUseId = cancellable(signal) ? signal.toolUseId : null;
   const hint = signalHint(signal);
-  // `detail` is a command or a path for most signals, and the word `time` or `cost` for a budget
-  const detail = signal.detail && signal.detail !== 'time' && signal.detail !== 'cost' ? signal.detail : null;
+  const detail = literalOf(signal) ?? signal.detail ?? null;
 
   return (
-    <li className={`obs-signal obs-signal-${signal.level}`}>
-      <div className="obs-signal-line">
-        <TriangleAlert {...ICON_SM} />
-        <span>
-          <span className="sr-only">{t(`observe:health.level.${signal.level}`)}: </span>
-          {signalReason(signal)}
-        </span>
-      </div>
-      {detail && <div className="mono small muted break">{detail}</div>}
+    <SignalItem signal={signal}>
       {live && chatId && (toolUseId || hint) && (
         <div className="task-actions">
           {toolUseId && (
@@ -215,7 +300,7 @@ function SignalRow({
                 })
               }
             >
-              <CircleSlash {...ICON_SM} /> {t('observe:health.cancel')}
+              <CircleSlash {...ICON_SM} /> {t('observe:health.cancelCommand')}
             </button>
           )}
           {hint && !hinting && (
@@ -225,9 +310,36 @@ function SignalRow({
           )}
         </div>
       )}
+      {extra}
       <ErrorBox error={cancel.error} />
       {hinting && <HintBox initial={hint ?? ''} send={sendHint} onDone={() => setHinting(false)} />}
-    </li>
+    </SignalItem>
+  );
+}
+
+function useRefreshHealth(chatId: string | null) {
+  const queryClient = useQueryClient();
+  return () => {
+    if (chatId) void queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
+    void queryClient.invalidateQueries({ queryKey: ['orchestration'] });
+    void queryClient.invalidateQueries({ queryKey: ['orchestrations'] });
+  };
+}
+
+/** Ends the turn that is running; the chat stays open for what comes next. */
+export function InterruptButton({ chatId }: { chatId: string }) {
+  const { t } = useTranslation('observe');
+  const refresh = useRefreshHealth(chatId);
+  const interrupt = useMutation({ mutationFn: () => api.interruptChat(chatId), onSuccess: refresh });
+  return (
+    <>
+      <Tooltip content={t('health.interruptHint')}>
+        <button type="button" className="btn btn-small" disabled={interrupt.isPending} onClick={() => interrupt.mutate()}>
+          <CircleSlash {...ICON_SM} /> {t('health.interrupt')}
+        </button>
+      </Tooltip>
+      <ErrorBox error={interrupt.error} />
+    </>
   );
 }
 
@@ -242,6 +354,9 @@ export function HealthPanel({
   live,
   sendHint,
   badge = true,
+  interrupt = true,
+  all = false,
+  extra,
 }: {
   health: Health;
   /** The chat that does the work: a task's worker or the chat itself */
@@ -250,38 +365,33 @@ export function HealthPanel({
   sendHint: (text: string) => Promise<unknown>;
   /** Off where the caller already shows the badge */
   badge?: boolean;
+  /** Off where the caller puts Interrupt in its own header */
+  interrupt?: boolean;
+  /** Draw the facts of the chat (a failed run, a full context) in the same list, worst first */
+  all?: boolean;
+  /** What a fact signal offers besides being read, like compacting for a full context */
+  extra?: (signal: HealthSignal) => ReactNode;
 }) {
   const { t } = useTranslation('observe');
-  const queryClient = useQueryClient();
-  const signals = health.signals.filter(isStepIn);
+  const signals = (all ? health.signals : health.signals.filter(isStepIn)).slice().sort((a, b) => Number(b.level === 'bad') - Number(a.level === 'bad'));
   const proposal = health.proposal?.status === 'proposed' ? health.proposal : null;
-  const refresh = () => {
-    if (chatId) void queryClient.invalidateQueries({ queryKey: ['chat', chatId] });
-    void queryClient.invalidateQueries({ queryKey: ['orchestration'] });
-    void queryClient.invalidateQueries({ queryKey: ['orchestrations'] });
-  };
-  const interrupt = useMutation({ mutationFn: () => api.interruptChat(chatId ?? ''), onSuccess: refresh });
+  const refresh = useRefreshHealth(chatId);
 
   if (signals.length === 0 && !proposal) return null;
   return (
     <div className="stack-tight obs-health" role="group" aria-label={t('health.title')}>
-      <div className="obs-health-head">
-        {badge && <HealthBadge health={health} />}
-        {live && chatId && (
-          <Tooltip content={t('health.interruptHint')}>
-            <button type="button" className="btn btn-small" disabled={interrupt.isPending} onClick={() => interrupt.mutate()}>
-              <CircleSlash {...ICON_SM} /> {t('health.interrupt')}
-            </button>
-          </Tooltip>
-        )}
-      </div>
+      {(badge || (interrupt && live && chatId)) && (
+        <div className="obs-health-head">
+          {badge && <HealthBadge health={health} />}
+          {interrupt && live && chatId && <InterruptButton chatId={chatId} />}
+        </div>
+      )}
       {proposal && <ProposalRow key={proposal.id} proposal={proposal} live={live && Boolean(chatId)} sendHint={sendHint} onChanged={refresh} />}
       <ul className="obs-signals">
         {signals.map((signal) => (
-          <SignalRow key={`${signal.kind}:${signal.toolUseId ?? signal.detail ?? ''}`} signal={signal} chatId={chatId} live={live} sendHint={sendHint} onChanged={refresh} />
+          <SignalRow key={`${signal.kind}:${signal.toolUseId ?? signal.detail ?? ''}`} signal={signal} chatId={chatId} live={live} sendHint={sendHint} onChanged={refresh} extra={extra?.(signal)} />
         ))}
       </ul>
-      <ErrorBox error={interrupt.error} />
     </div>
   );
 }

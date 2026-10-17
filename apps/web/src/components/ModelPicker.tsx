@@ -5,7 +5,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useModelOptions } from './ui';
 import type { ComboboxOption } from '@claudio/ui/components/controls/Combobox';
-import { LAYER_ATTR } from '@claudio/ui/components/controls/layer';
+import { LAYER_ATTR, layerCollisionPadding } from '@claudio/ui/components/controls/layer';
 import { nameFromContent } from '@claudio/ui/components/controls/Select';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 
@@ -121,7 +121,7 @@ export function ModelPicker({
         </RadixSelect.Icon>
       </RadixSelect.Trigger>
       <RadixSelect.Portal>
-        <RadixSelect.Content {...LAYER_ATTR} className="menu select-menu model-pick-menu" position="popper" sideOffset={6} collisionPadding={8}>
+        <RadixSelect.Content {...LAYER_ATTR} className="menu select-menu model-pick-menu" position="popper" sideOffset={6} collisionPadding={layerCollisionPadding()}>
           <RadixSelect.Viewport className="menu-viewport">
             {picks.map((pick) => (
               <RadixSelect.Item key={pick.value} value={pick.value} className="menu-item" {...nameFromContent(pick.hint)}>

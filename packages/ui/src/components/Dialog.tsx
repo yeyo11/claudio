@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { X } from 'lucide-react';
@@ -101,7 +102,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        style={width ? { width } : undefined}
+        style={width ? ({ '--dialog-w': `${width}px` } as CSSProperties) : undefined}
       >
         <div className="dialog-head">
           <h2 id={titleId}>{title}</h2>

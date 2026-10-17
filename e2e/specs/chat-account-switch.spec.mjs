@@ -1,5 +1,5 @@
 // Switching a chat's account on demand (docs/plans/chat-account-switch.md), against the fake CLI: the
-// Account section of the composer's "+" menu, a switch while the chat is idle (the next message runs
+// Account submenu of the composer's "+" menu, a switch while the chat is idle (the next message runs
 // on the other account, read from the execution through the API), a switch while it works (queued,
 // applied when the turn ends), and an exhausted account shown disabled with its reason.
 //
@@ -32,17 +32,22 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   };
   const detail = async (id) => (await api.get(`/chats/${id}`)).body?.chat;
   const lastAccount = async (id) => ((await detail(id))?.executions ?? []).at(-1)?.account ?? null;
+  // The "+" is a menu; its Account item opens a submenu of radio items (a picker beyond six accounts)
   const openMenu = async (id) => {
     await page.goto(`/chats/${id}`, 1200);
     await page.waitFor(`return !!document.querySelector('main .composer-plus')`, { label: 'the "+" button' });
     await page.click('main .composer-plus');
-    await page.waitFor(`return document.querySelectorAll('.composer-account').length >= 3`, { label: 'the accounts in the menu' });
+    await page.waitFor(`return [...document.querySelectorAll('[role=menu] [role=menuitem]')].some((i) => i.innerText.startsWith('Account'))`, { label: 'the Account item' });
+    await page.eval(`[...document.querySelectorAll('[role=menu] [role=menuitem]')].find((i) => i.innerText.startsWith('Account'))?.click(); return true`);
+    await page.waitFor(`return document.querySelectorAll('[role=menuitemradio]').length >= 3`, { label: 'the accounts in the submenu' });
   };
+  const ROW = '[role=menuitemradio]';
   const rows = () =>
-    page.eval(`return [...document.querySelectorAll('.composer-account')].map((r) => ({ text: r.innerText.replace(/\\s+/g, ' ').trim(), off: r.classList.contains('is-off'), current: r.classList.contains('is-current') }))`);
-  const clickAt = (index) => page.eval(`document.querySelectorAll('.composer-account-btn')[${index}]?.click(); return true`);
+    page.eval(`return [...document.querySelectorAll('${ROW}')].map((r) => ({ text: r.innerText.replace(/\\s+/g, ' ').trim(), off: r.getAttribute('aria-disabled') === 'true', current: r.getAttribute('aria-checked') === 'true' }))`);
+  // A disabled item stays focusable and inert: clicking it must change nothing
+  const clickAt = (index) => page.eval(`document.querySelectorAll('${ROW}')[${index}]?.click(); return true`);
   const clickRow = (name) =>
-    page.eval(`const b = [...document.querySelectorAll('.composer-account-btn')].find((x) => x.innerText.includes(${JSON.stringify(name)})); b?.click(); return !!b`);
+    page.eval(`const b = [...document.querySelectorAll('${ROW}')].find((x) => x.innerText.includes(${JSON.stringify(name)})); b?.click(); return !!b`);
 
   try {
     const limited = await api.post('/accounts/token', { kind: 'token', alias: 'e2e-sw-limited', secret: 'fake-limited-sw' });
@@ -66,7 +71,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(listed.length >= 3, `the menu lists the accounts (${listed.length})`);
     const out = listed.find((r) => r.text.includes('e2e-sw-limited'));
     check(out?.off === true && /exhausted/i.test(out.text), `the exhausted account is disabled, with its reason (${out?.text})`);
-    check(listed.filter((r) => r.current).length === 1 && /in use/i.test(listed.find((r) => r.current)?.text ?? ''), 'the chat\'s own account is marked "In use"');
+    check(listed.filter((r) => r.current).length === 1, 'the chat\'s own account is the one checked radio');
     await page.shot('chat-account-switch-menu');
     await clickRow('e2e-sw-limited');
     await sleep(500);
@@ -98,8 +103,11 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await clickAt(next);
     const pending = await until(async () => (await detail(work.body.id))?.pendingAccount, 'the switch to be pending');
     check((await detail(work.body.id)).account === moved, 'a working chat keeps its account until the turn ends');
-    await page.waitFor(`return !!document.querySelector('.composer-account-pending')`, { label: 'the pending note' });
-    check(true, 'the menu says the switch waits for the turn to end');
+    // The menu closed on the choice; reopened, the Account item says where the chat is going and offers to cancel it
+    await openMenu(work.body.id);
+    await page.waitFor(`return [...document.querySelectorAll('[role=menuitem]')].some((i) => /when this turn ends/i.test(i.innerText) && /cancel switch/i.test(i.innerText))`, { label: 'the Cancel switch item' });
+    check(true, 'the menu says the switch waits for the turn to end, and offers to cancel it');
+    await page.key('Escape');
     writeFileSync(join(dirs.workspaceDir, 'sw-work.hold'), '');
     await until(async () => {
       const chat = await detail(work.body.id);

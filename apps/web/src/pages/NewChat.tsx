@@ -1,19 +1,19 @@
 import type { Effort, NewChatRequest, PermissionMode } from '@claudio/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, ArrowUp, Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
-import { useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Check, FolderOpen, MessageSquare, Network, Search, X, type LucideIcon } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useAccounts, useOverview, useProjects } from '../api';
-import { AttachButton, AttachmentTray, useAttachments } from '@claudio/chat-ui/components/Attachments';
+import { useAttachments } from '@claudio/chat-ui/components/Attachments';
 import { ChatToolsPicker, type ToolChoices } from '../components/ChatToolsPicker';
 import { NEW_ORCHESTRATION_PATH } from '../components/CommandPalette';
 import { Combobox, Select, Switch } from '@claudio/ui/components/controls';
-import { accountName } from '../lib/accounts';
+import { AccountList } from '@claudio/chat-ui/composer/AccountList';
+import { accountRow } from '@claudio/chat-ui/lib/account-choice';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Illustration } from '@claudio/ui/components/illustrations';
-import { SlashMenu, useSlashMenu } from '@claudio/chat-ui/components/SlashMenu';
 import { useProjectScope } from '../lib/project-scope';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ErrorBox, Field, Segmented, usePageTitle } from '@claudio/ui/components/ui';
@@ -24,8 +24,8 @@ import { CLAUDE_CODE_ID } from '../lib/provider-state';
 import { useProviders } from '../lib/providers';
 import { upperFirst } from '@claudio/chat-ui/lib/agent';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
-import { KeysHint, OptionsPanel, StatusChips } from '@claudio/chat-ui/composer/Composer';
-import { RichEditor, type RichEditorHandle } from '@claudio/chat-ui/composer/editor/RichEditor';
+import { OptionsPanel, StartComposer, StatusChips } from '@claudio/chat-ui/composer/Composer';
+import type { RichEditorHandle } from '@claudio/chat-ui/composer/editor/RichEditor';
 
 type Kind = 'chat' | 'orchestration';
 
@@ -54,17 +54,16 @@ export function NewChat() {
   // A prompt another page prepared (the fix of failing checks, with the project's flow off) arrives in the route's state
   const handed = (useLocation().state as { prompt?: unknown } | null)?.prompt;
   const [initialPrompt] = useState(typeof handed === 'string' ? handed : '');
-  const [prompt, setPrompt] = useState(initialPrompt);
-  const [caret, setCaret] = useState(initialPrompt.length);
   const files = useAttachments();
   const box = useRef<RichEditorHandle>(null);
-  const ready = (prompt.trim() || files.ids.length > 0) && !files.uploading;
   const [cwd, setCwd] = useState(params.get('cwd') ?? scope.project?.path ?? '');
   const [model, setModel] = useState('');
   const [effort, setEffort] = useState<Effort | ''>('');
   // '' lets the rotation policy choose; only offered once there is more than one account to choose between
   const [account, setAccount] = useState('');
   const accounts = useAccounts().data ?? [];
+  // Chosen is the row in use; '' (automatic) matches none of them
+  const accountRows = accounts.map((a) => accountRow(a, { account, model: null }, undefined));
   const [permissionMode, setPermissionMode] = useState<PermissionMode | ''>('');
   const [askHere, setAskHere] = useState(true);
   const [appendSystemPrompt, setAppendSystemPrompt] = useState('');
@@ -82,8 +81,8 @@ export function NewChat() {
   const toolScope = { projectId: known?.id };
 
   const start = useMutation({
-    mutationFn: () => {
-      const opts: NewChatRequest = { prompt: prompt.trim(), permissionPrompts: askHere ? 'host' : 'none' };
+    mutationFn: (prompt: string) => {
+      const opts: NewChatRequest = { prompt, permissionPrompts: askHere ? 'host' : 'none' };
       if (files.ids.length) opts.attachments = files.ids;
       if (cwd.trim()) opts.cwd = cwd.trim();
       if (model.trim()) opts.model = model.trim();
@@ -106,23 +105,16 @@ export function NewChat() {
   // What the CLI reported the last time a chat started in that directory: a new chat gets the same
   const where = cwd.trim() || system?.workspaceDir || '';
   const environment = useQuery({ queryKey: keys.environments(where), queryFn: () => api.environments(where), enabled: Boolean(where) });
-  const slash = useSlashMenu({ text: prompt, caret, commands: environment.data?.[0]?.slashCommands ?? [], skills: environment.data?.[0]?.skills, target: box });
+  const commands = environment.data?.[0]?.slashCommands ?? [];
+  const skills = environment.data?.[0]?.skills;
   // The chips: where it runs, with what — the same words the chat's own chips show
   const place = known?.name ?? directory.split(/[\\/]/).filter(Boolean).at(-1) ?? directory;
   const words = [place, model.trim() || tc('newChat.defaultModel'), permissionMode ? modeLabel(permissionMode) : tc('newChat.defaultMode', { mode: defaultModeWord })];
 
-  const send = () => {
-    if (ready && !start.isPending) start.mutate();
-  };
   const pick = (example: string) => {
     box.current?.setText(example);
     box.current?.focus();
   };
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    send();
-  };
-  const startName = start.isPending ? t('new.starting') : files.uploading ? t('new.uploading') : t('new.start');
 
   const kind = (
     <Segmented<Kind>
@@ -162,16 +154,6 @@ export function NewChat() {
             <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
           </Field>
           <EffortField value={effort} onChange={setEffort} model={model} use="chat" unavailable={effortUnavailable} />
-          {accounts.length > 1 && (
-            <Field label={t('new.account')} hint={t('new.accountHint')}>
-              <Select<string>
-                aria-label={t('new.account')}
-                value={account}
-                onChange={setAccount}
-                options={[{ value: '', label: t('new.accountAuto') }, ...accounts.filter((a) => a.enabled && a.signedIn).map((a) => ({ value: a.id, label: accountName(a) }))]}
-              />
-            </Field>
-          )}
           <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>
             <Select<PermissionMode | ''>
               aria-label={t('new.permissionMode')}
@@ -184,6 +166,12 @@ export function NewChat() {
             />
           </Field>
         </div>
+        {accounts.length > 1 && (
+          // The rows the "+" menu of a chat offers, so an account reads the same wherever it is chosen
+          <Field label={t('new.account')} hint={t('new.accountHint')}>
+            <AccountList rows={accountRows} model={model.trim() || null} chosen={account} auto={t('new.accountAuto')} label={t('new.account')} onChoose={setAccount} />
+          </Field>
+        )}
         <Field label={t('new.appendSystemPrompt')} hint={t('new.optional')}>
           <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
         </Field>
@@ -196,20 +184,24 @@ export function NewChat() {
   );
 
   // The first message is usually long: Enter breaks the line and Ctrl/⌘+Enter starts the chat
-  const editor = (
-    <RichEditor
-      ref={box}
+  const composer = (
+    <StartComposer
+      editor={box}
+      layout="start"
+      files={files}
+      commands={commands}
+      {...(skills ? { skills } : {})}
       initialText={initialPrompt}
       autoFocus={!narrow}
-      ariaLabel={t('new.prompt')}
-      placeholder={narrow ? t('new.promptPlaceholder', { agent }) : tc('newChat.placeholder')}
-      ariaProps={slash.ariaProps}
-      submitKey="mod-enter"
-      onChange={setPrompt}
-      onCaret={setCaret}
-      onSubmit={send}
-      onKeyDown={slash.onKeyDown}
-      onPasteFiles={files.add}
+      label={t('new.prompt')}
+      placeholder={tc('newChat.placeholder')}
+      sendLabel={{ idle: t('new.start'), pending: t('new.starting'), uploading: t('new.uploading') }}
+      startLabel={tc('newChat.start')}
+      pending={start.isPending}
+      onStart={(message) => start.mutate(message)}
+      status={chips}
+      error={<ErrorBox error={start.error} title={t('new.startError')} />}
+      note={<p className="new-where">{tc('newChat.where', { dir: directory })}</p>}
     />
   );
 
@@ -262,22 +254,7 @@ export function NewChat() {
               {examples}
             </div>
           </div>
-          <div className="composer-wrap new-composer-wrap">
-            <ErrorBox error={start.error} title={t('new.startError')} />
-            {chips}
-            <div {...files.dropProps}>
-              <AttachmentTray state={files} />
-              <SlashMenu state={slash}>
-                <form className="composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
-                  <AttachButton state={files} compact disabled={start.isPending} />
-                  {editor}
-                  <button type="submit" className="composer-send" aria-label={startName} disabled={!ready || start.isPending}>
-                    <ArrowUp {...ICON_SM} />
-                  </button>
-                </form>
-              </SlashMenu>
-            </div>
-          </div>
+          {composer}
         </section>
       </div>
     );
@@ -290,35 +267,7 @@ export function NewChat() {
           <div className="run-scroll new-chat-scroll glow-top" data-scroll-root>
             {hero}
             {kind}
-            <div className="new-composer-wrap">
-              <div {...files.dropProps}>
-                <AttachmentTray state={files} />
-                <SlashMenu state={slash}>
-                  <form className="composer new-composer grad-border" aria-label={t('new.prompt')} onSubmit={submit}>
-                    {editor}
-                    <div className="new-composer-foot">
-                      <AttachButton state={files} compact disabled={start.isPending} />
-                      {chips}
-                      <KeysHint>
-                        {tc('newChat.keys')
-                          .split(' ')
-                          .map((key) => (
-                            <kbd key={key}>{key}</kbd>
-                          ))}
-                      </KeysHint>
-                      <Tooltip content={startName}>
-                        <button type="submit" className="btn btn-primary new-start" aria-label={t('new.start')} disabled={!ready || start.isPending}>
-                          {tc('newChat.start')}
-                          <ArrowRight {...ICON_SM} />
-                        </button>
-                      </Tooltip>
-                    </div>
-                  </form>
-                </SlashMenu>
-              </div>
-              <ErrorBox error={start.error} title={t('new.startError')} />
-              <p className="new-where">{tc('newChat.where', { dir: directory })}</p>
-            </div>
+            {composer}
             {examples}
           </div>
         </div>

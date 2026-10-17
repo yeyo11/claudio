@@ -74,7 +74,7 @@ export function useTranscriptFind({
   // New hits for a new query start at the newest one; a refetch leaves the reader where they are
   const landedFor = useRef<string | null>(null);
 
-  // Another transcript, or the same one counted differently (sidechains): old indices mean nothing
+  // Another transcript: old indices mean nothing
   const scopeKey = JSON.stringify(scope);
   useEffect(() => {
     landedFor.current = null;

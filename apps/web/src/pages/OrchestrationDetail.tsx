@@ -1,7 +1,7 @@
 import type { ChatWorkflow, Orchestration, OrchestrationPullRequestPhase, ResumeOrchestrationRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookmarkPlus, ChevronRight, Combine, ExternalLink, FolderGit2, GitMerge, GitPullRequest, MessageSquare, Play, Radio, RotateCw, Rocket, Save, Square, Trash2, Waypoints } from 'lucide-react';
-import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useId, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiRequestError, keys, useOrchestration, useProjects } from '../api';
@@ -10,6 +10,7 @@ import { CodeBlock } from '@claudio/ui/components/CodeBlock';
 import { Collapsible, MoreActions, Switch, type MenuEntry } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { ClampText } from '../components/ClampText';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice, WorkflowEndedNotice, WorkflowWaitNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
@@ -376,31 +377,12 @@ function ResumePanel({
 function Objective({ text }: { text: string }) {
   const { t } = useTranslation('orchestrationDetail');
   const id = useId();
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [text]);
   return (
     <section className="orch-objective" aria-labelledby={`${id}-title`}>
       <h2 id={`${id}-title`} className="section-label">
         {t('objective')}
       </h2>
-      <div id={id} ref={ref} className={`prose orch-objective-text ${open ? '' : 'is-clamped'}`.trim()}>
-        {text}
-      </div>
-      {(overflows || open) && (
-        <button type="button" className="link-btn small" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)}>
-          {open ? t('showLess') : t('showMore')}
-        </button>
-      )}
+      <ClampText text={text} className="prose orch-objective-text" />
     </section>
   );
 }
@@ -410,7 +392,7 @@ function useWorkflowRun(orch: Orchestration | undefined): ChatWorkflow | null {
   const runId = orch?.engine === 'workflow' ? (orch.workflow?.runId ?? null) : null;
   const { data } = useQuery({
     queryKey: ['orchestrations', orch?.id, 'workflow-run', runId],
-    queryFn: () => api.chat(runId ?? '', false, { limit: 1 }),
+    queryFn: () => api.chat(runId ?? '', { limit: 1 }),
     enabled: runId !== null,
     // The chat's own events refresh its page, not this read of it
     refetchInterval: orch?.status === 'running' ? 5000 : false,

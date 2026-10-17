@@ -61,7 +61,7 @@
     "tasksIntroPhone": "Cuéntame qué vas a construir y te propongo las primeras tareas. También puedes crearlas tú.",
     "describe": "Qué vas a construir",
     "describePlaceholder": "Qué vas a construir…",
-    "describePlaceholderPhone": "Una app de notas con etiquetas y búsqueda…",
+    "describePlaceholderPhone": "Una app de notas…",
     "propose": "Proponer tareas",
     "proposeHint": "Abre un chat del CLI con <mono>--json-schema</mono>; su coste cuenta en Uso, como el de cualquier chat.",
     "resourcesLater": "Cuando haya código, pídelos desde la pestaña Recursos con «Sugerir»",
@@ -164,8 +164,7 @@
       }
     },
     "message": "Mensaje",
-    "placeholder": "Pregunta por proyectos, tareas, orquestaciones o uso…",
-    "placeholderShort": "Pregunta algo…",
+    "placeholder": "Pregúntale a Claudio…",
     "send": "Enviar",
     "starting": "Iniciando…",
     "context": "Con {{name}} como contexto",

@@ -586,13 +586,13 @@ export const api = {
       })}`,
       o,
     ),
-  chat: (id: string, sidechains: boolean, page: { limit?: number; before?: number } = {}, o?: ReadOptions) =>
+  chat: (id: string, page: { limit?: number; before?: number } = {}, o?: ReadOptions) =>
     request<ChatDetail>(
-      `/chats/${enc(id)}${qs({ sidechains: sidechains ? '1' : undefined, limit: num(page.limit), before: num(page.before) })}`,
+      `/chats/${enc(id)}${qs({ limit: num(page.limit), before: num(page.before) })}`,
       o,
     ),
-  searchChat: (id: string, sidechains: boolean, q: string) =>
-    request<TranscriptSearchResult>(`/chats/${enc(id)}/search${qs({ q, sidechains: sidechains ? '1' : undefined })}`),
+  searchChat: (id: string, q: string) =>
+    request<TranscriptSearchResult>(`/chats/${enc(id)}/search${qs({ q })}`),
   createChat: (req: NewChatRequest) => request<ChatSummary>('/chats', { method: 'POST', body: req }),
   resumeChat: (id: string, req: ResumeChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/resume`, { method: 'POST', body: req }),
   forkChat: (id: string, req: ForkChatRequest) => request<ChatSummary>(`/chats/${enc(id)}/fork`, { method: 'POST', body: req }),

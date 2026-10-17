@@ -65,6 +65,7 @@ const chat = (over: Partial<ChatSummary> = {}): ChatSummary => ({
   orchestration: null,
   derivedFrom: null,
   state: 'idle',
+  alive: false,
   control: { mode: 'resumable' },
   execution: null,
   executions: [],
