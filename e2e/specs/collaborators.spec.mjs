@@ -15,6 +15,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { diagnosis, dropGroups, recordInvites } from './collab-shared.mjs';
 
 export const fakeCli = true;
 export const peers = ['ben', 'cleo'];
@@ -69,7 +70,7 @@ const joinNotice = `return (JSON.parse(localStorage.getItem('${NOTIFICATIONS}') 
 
 const text = (selector) => `return [...document.querySelectorAll(${JSON.stringify(selector)})].map((e) => e.innerText).join('\\n')`;
 
-export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cleo } }) => {
+export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cleo }, capture, serverLog }) => {
   const anaDir = join(dirs.workspaceDir, 'e2e-collab-api');
   const benDir = join(ben.dirs.workspaceDir, 'api');
   const savedScripts = existsSync(fake.scripts) ? readFileSync(fake.scripts, 'utf8') : null;
@@ -110,6 +111,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     check(groupId, 'the group was created');
 
     // ---------- the invite, made as its dialog opens (Ana owns one group) ----------
+    // With a second group (one an earlier spec left on this wrapper) the dialog asks which first
+    const owned = ((await api.get('/collaborators/groups')).body?.groups ?? []).filter((g) => g.isOwner).map((g) => g.name);
+    check(JSON.stringify(owned) === '["Backend"]', `Ana owns Backend alone (${JSON.stringify(owned)})`);
+    await page.eval(recordInvites);
     await page.click('button[data-testid=collab-invite]', undefined, 800);
     await page.waitFor(`return !!document.querySelector('div[data-testid=collab-invite] textarea')?.value`, { label: 'the invite text' });
     const invite = await page.eval(`return document.querySelector('div[data-testid=collab-invite] textarea').value`);
@@ -330,6 +335,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     check(!(await ben.page.eval(`return !!document.querySelector('.shared-project [role=tablist]')`)), 'nothing of the revoked copy is drawn');
     await ben.page.goto('/collaborators', 1200);
     await ben.page.waitFor(`return !!document.querySelector('.collab-shared') && !(${notesRow})`, { label: 'the notes gone from Shared with you' });
+  } catch (error) {
+    await capture('before-cleanup');
+    error.message += `\n${await diagnosis({ page, api, serverLog })}`;
+    throw error;
   } finally {
     if (chatId) {
       writeFileSync(join(anaDir, RELEASE), '');
@@ -341,6 +350,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     }
     // The main wrapper outlives this spec: what it shared goes, and Collaborators is off again
     for (const id of projects) await api.put(`/projects/${id}/sharing`, { groups: [] }).catch(() => {});
+    // A group left on Ana makes the next Collaborators spec's Invite dialog ask which one
+    await dropGroups(api, [groupId]);
     await api.put('/collaborators', { enabled: false }).catch(() => {});
     for (const id of projects) await api.del(`/projects/${id}`).catch(() => {});
     if (savedScripts === null) writeFileSync(fake.scripts, '{}');

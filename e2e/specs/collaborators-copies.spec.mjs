@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { dropGroups } from './collab-shared.mjs';
 
 export const fakeCli = true;
 export const peers = ['ben'];
@@ -179,6 +180,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben } })
     }
     // The main wrapper outlives this spec: what it shared goes, and Collaborators is off again
     if (projectId) await api.put(`/projects/${projectId}/sharing`, { groups: [] }).catch(() => {});
+    // A group left on Ana makes the next Collaborators spec's Invite dialog ask which one
+    await dropGroups(api, [groupId]);
     await api.put('/collaborators', { enabled: false }).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
     if (savedScripts === null) writeFileSync(fake.scripts, '{}');
