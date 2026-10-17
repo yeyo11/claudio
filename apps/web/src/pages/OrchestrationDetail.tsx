@@ -28,7 +28,7 @@ import { elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useClockTick } from '@claudio/ui/lib/motion';
 import { costSplit } from '../lib/orchestration-board';
-import { followedStep, layerTasks, orchestrationSteps, reviewProgress, type OrchestrationStep } from '../lib/orchestration-steps';
+import { followedStep, layerTasks, orchestrationSteps, reviewProgress, stepLabel, type OrchestrationStep } from '../lib/orchestration-steps';
 import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
 import { canRelaunch, checksShown, pullRequestHeld, rerunBlockedByPullRequest, reviewHolds } from '../lib/orchestration-v2';
@@ -421,24 +421,7 @@ function useStepLabel(): (step: OrchestrationStep) => string {
   const { t } = useTranslation(['config', 'orchestrationV2']);
   // The step stands before any pull request exists, so it has no host, number or ref to name
   const words = useChangeRequestWords(undefined);
-  return (step) => {
-    switch (step.kind) {
-      case 'stage':
-        return t('config:detail.stage', { n: step.index + 1 });
-      case 'integration':
-        return t('config:detail.integration');
-      case 'verification':
-        return t('orchestrationV2:verification.title');
-      case 'synthesis':
-        return t('config:detail.synthesis');
-      case 'pull-request':
-        return t('config:detail.push', { noun: words.noun });
-      case 'phase':
-        return step.phase ?? t('config:orchestration.workflow');
-      case 'workflow':
-        return t('config:orchestration.workflow');
-    }
-  };
+  return (step) => stepLabel(t, words.noun, step);
 }
 
 function stepMeta(step: OrchestrationStep, orch: Orchestration, reviewMeta: (progress: NonNullable<ReturnType<typeof reviewProgress>>) => string): string | undefined {

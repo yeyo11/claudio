@@ -1,5 +1,6 @@
 import type { ChatWorkflow, ChatWorkflowAgent, Orchestration, OrchestrationStatus, OrchestrationTaskSpec, OrchestrationTaskState, OrchestrationTaskSummary } from '@claudio/shared';
 import { currentStepIndex, type ProgressCounts, type StepState } from '@claudio/ui/lib/progress';
+import type { TFunction } from 'i18next';
 import { pullRequestHeld } from './orchestration-v2';
 
 /**
@@ -335,4 +336,27 @@ export function liveTask<T extends OrchestrationTaskSummary>(orch: { tasks: read
     }
   }
   return found;
+}
+
+/**
+ * What a step is called, on the stepper and over its panel. `noun` is the host's word for a change
+ * request: the pull-request step stands before any exists, so there is no number or host to name.
+ */
+export function stepLabel(t: TFunction<readonly ['config', 'orchestrationV2']>, noun: string, step: OrchestrationStep): string {
+  switch (step.kind) {
+    case 'stage':
+      return t('config:detail.stage', { n: step.index + 1 });
+    case 'integration':
+      return t('config:detail.integration');
+    case 'verification':
+      return t('orchestrationV2:verification.title');
+    case 'synthesis':
+      return t('config:detail.synthesis');
+    case 'pull-request':
+      return t('config:detail.push', { noun });
+    case 'phase':
+      return step.phase ?? t('config:orchestration.workflow');
+    case 'workflow':
+      return t('config:orchestration.workflow');
+  }
 }
