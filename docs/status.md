@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-16T23:00:00Z
+updated_at: 2026-10-17T06:30:00Z
 tags:
     - status
     - project-state
@@ -78,11 +78,23 @@ Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point 
 `active`) and a Decisions tab in Settings. All 22 points ship `off`; nothing is sent anywhere until
 the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
+**Collaborators** were merged into `main` in #7 on 2026-10-17: teammates' Claudios share projects
+read only, peer to peer over iroh, with the follow-ups of R12 and the denied-join fix of R14
+([collaborators.md](collaborators.md)). Agents can read what teammates share since #13: the global
+assistant always, a project's chats when the project opts in, never in `bypassPermissions`, within
+the sharer's flag and with an audit ([plans/collaborators-agent-access.md](plans/collaborators-agent-access.md)).
+The workflow orchestration engine follows its journal live and waits or rotates at a usage limit
+since #10 ([plans/workflow-engine-limits.md](plans/workflow-engine-limits.md)); a page whose service
+worker is stopped mid-boot reloads once instead of staying blank since #12
+([plans/e2e-blank-page.md](plans/e2e-blank-page.md)).
+
 ## What is open
 
-- **Before the first release.** The ECC plans are all built. What stands between the branch and a tag is the
-  integrator's e2e run and the owner's checklist in [reports/release-readiness.md](reports/release-readiness.md).
-  The open items of each built plan are in its Outcome section.
+- **Collaborators, left to the owner.** A run between two real machines (everything so far ran on one
+  machine, on loopback or through n0's relay from the Docker image), and filing the two iroh issues
+  drafted in [reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md).
+- **Releases.** v0.1.0 is published; release-please keeps the next release pull request open for the
+  owner. The open items of each built plan are in its Outcome section.
 - **The decision engine's shadow period.** Nothing has been measured yet. All 22 points have a
   resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
   no longer waits on anything: CW-25's effort control landed ([effort.md](effort.md)) and CW-4's quota hold was superseded by phase 4 of multiple providers; see the plan's
