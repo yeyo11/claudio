@@ -12,7 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, capConsequence, draftOf, examplePoint, supervisorMeaning } from '../src/pages/config/decisions/model';
+import { activeBlocked, capConsequence, draftOf, examplePoint, isLimited, supervisorMeaning } from '../src/pages/config/decisions/model';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
@@ -179,6 +179,15 @@ test("the Supervisor's point can be active on the CLI, and its row says what eac
   assert.match(at('active', 'jev'), /Envía una pista cuando Jev espera que ayude/);
   assert.match(at('shadow', 'cli'), /Propone pistas para que las envíes tú/);
   assert.match(at('off', 'cli'), /No vigila/);
+
+  // Active on the CLI without consent is Active in full for the Supervisor, as the engine has it
+  const unconsented = (provider: 'cli' | 'jev') =>
+    row(supervisor, settings({ 'supervisor.intervene': { mode: 'active', threshold: 0.85, consent: null } }), provider, null);
+  assert.doesNotMatch(unconsented('cli'), /Funciona como sombra/);
+  assert.match(unconsented('jev'), /Funciona como sombra hasta que tenga consentimiento/);
+  assert.equal(isLimited(supervisor, null, 'active', 'cli'), false);
+  assert.equal(isLimited(supervisor, null, 'active', 'jev'), true);
+  assert.equal(isLimited(info(), null, 'shadow', 'jev'), false);
 });
 
 test("the example payload is the first consented point's, or the Supervisor's when none is", () => {

@@ -317,8 +317,13 @@ function JevKey({ saved }: { saved: DecisionSettings }) {
                 onChange={(event) => setKey(event.target.value)}
               />
             </div>
-            <button type="submit" className="btn btn-primary" disabled={key.trim() === '' || putKey.isPending}>
-              <KeyRound {...ICON_SM} /> {putKey.isPending ? t('engine.savingKey') : t('engine.saveKey')}
+            {/* Secondary: the screen's primary action is the save bar's, and two gradients are the most a screen takes */}
+            <button type="submit" className="btn" disabled={key.trim() === '' || putKey.isPending}>
+              <KeyRound {...ICON_SM} />
+              <span className="dp-save-label">
+                <span aria-hidden={putKey.isPending}>{t('engine.saveKey')}</span>
+                <span aria-hidden={!putKey.isPending}>{t('engine.savingKey')}</span>
+              </span>
             </button>
             {saved.jev.keySet && (
               <button

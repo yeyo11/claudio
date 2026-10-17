@@ -24,6 +24,8 @@ import {
   areaOf,
   evidenceOf,
   groupSummary,
+  isLimited,
+  needsConsent,
   supervisorMeaning,
   type AreaId,
   type Draft,
@@ -156,7 +158,6 @@ export function PointsSection({
                 <button type="button" className="dp-area-toggle" aria-expanded={isOpen} aria-controls={`dp-area-${group.id}`} onClick={() => toggle(group.id)}>
                   <ChevronRight size={14} strokeWidth={2} className="dp-area-chevron" aria-hidden />
                   <span className="dp-area-name">{t(`points.areas.${group.id}`)}</span>
-                  <span className="dp-area-count tnum">{formatNumber(group.points.length)}</span>
                   <FullText className="dp-area-summary">{groupSummary(group.points.map(modeOf), (mode, count) => t(`points.summary.${mode}`, { count }))}</FullText>
                 </button>
                 <BulkMode scope={t(`points.areas.${group.id}`)} onApply={(mode) => onBulk(group.points, mode)} />
@@ -242,7 +243,7 @@ export function PointRow({
       />
       <p className="dp-evidence">
         <EvidenceLine id={info.id} stats={stats} />
-        {!off && <ConsentPart info={info} settings={settings} mode={point.mode} {...(onWithdraw ? { onWithdraw } : {})} />}
+        {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} />}
       </p>
       {supervisor && <p className="dp-point-line">{t(`supervisor.${supervisorMeaning(point.mode, provider)}`)}</p>}
       {showThreshold && (
@@ -286,7 +287,19 @@ function EvidenceLine({ id, stats }: { id: DecisionPointId; stats: DecisionPoint
 }
 
 /** "Consented on 17 Oct · Withdraw", on a point that is not off: what lets it send its state. */
-function ConsentPart({ info, settings, mode, onWithdraw }: { info: DecisionPointInfo; settings: DecisionSettings; mode: DecisionMode; onWithdraw?: () => void }) {
+function ConsentPart({
+  info,
+  settings,
+  mode,
+  provider,
+  onWithdraw,
+}: {
+  info: DecisionPointInfo;
+  settings: DecisionSettings;
+  mode: DecisionMode;
+  provider: DecisionProviderId;
+  onWithdraw?: () => void;
+}) {
   const { t } = useTranslation('decisions');
   const consent = settings.points[info.id]?.consent ?? null;
   const state = !consent ? 'none' : consent.stateVersion === info.stateVersion ? 'given' : 'stale';
@@ -295,7 +308,7 @@ function ConsentPart({ info, settings, mode, onWithdraw }: { info: DecisionPoint
       <span className={`dp-evidence-consent ${state === 'given' ? '' : 'is-none'}`} {...(state === 'stale' ? { title: t('points.consent.staleHint') } : {})}>
         {state === 'given' && consent ? t('evidence.consentedOn', { date: formatDate(consent.at) }) : state === 'stale' ? t('points.consent.stale') : t('points.consent.none')}
       </span>
-      {state !== 'given' && mode === 'active' && <span className="dp-evidence-consent is-none">{t('points.limited')}</span>}
+      {isLimited(info, consent, mode, provider) && needsConsent(info, consent, provider) && <span className="dp-evidence-consent is-none">{t('points.limited')}</span>}
       {consent && onWithdraw && (
         <button type="button" className="link-btn" aria-label={t('consent.withdrawPoint', { point: info.id })} onClick={onWithdraw}>
           {t('consent.withdrawAction')}

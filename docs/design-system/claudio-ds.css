@@ -1022,13 +1022,13 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .dp-area-toggle { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px; border-radius: var(--r-sm); }
 .dp-area-toggle:hover { background: var(--bg-3); }
 .dp-area-name { font-weight: var(--fw-strong); }
-.dp-area-count, .dp-evidence > :not(:last-child)::after { color: var(--fg-3); }
+.dp-evidence > :not(:last-child)::after { color: var(--fg-3); }
 .dp-area-points { display: flex; flex-direction: column; gap: 12px; padding: 8px 0 16px 24px; }
 .dp-point { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 16px; padding: 6px 0; }
 .dp-evidence, .dp-point-line { grid-column: 1 / -1; margin: 0; font-size: var(--fs-small); color: var(--fg-2); }
 .dp-evidence { display: flex; flex-wrap: wrap; align-items: baseline; }
 .dp-evidence > :not(:last-child)::after { content: '·'; display: inline-block; padding: 0 6px; }
-.dp-screen > .dp-foot { position: sticky; bottom: 0; z-index: 5; }
+.dp-screen > .dp-foot { position: sticky; bottom: 0; z-index: 5; flex-direction: row; align-items: center; justify-content: flex-end; }
 /* Usage: one line, over the page's window, hidden when nothing was decided in it */
 .usage-decisions { flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 40px; padding: 0 16px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-size: var(--fs-small); color: var(--fg-2); }
 .usage-decisions .ico { flex-shrink: 0; color: var(--fg-3); }

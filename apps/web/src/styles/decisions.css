@@ -1214,12 +1214,6 @@
   font-weight: var(--fw-strong);
 }
 
-.dp-area-count {
-  flex: none;
-  font-size: var(--fs-small);
-  color: var(--fg-3);
-}
-
 .dp-area-summary {
   flex: 1 1 auto;
   min-width: 0;
@@ -1293,12 +1287,13 @@
   color: var(--fg-3);
 }
 
-/* A link inside a line of text still takes a whole target: 24 px here, 44 px on a phone */
+/* A link inside a line of text still takes a whole target, 24 px here and 44 px on a phone, and the
+   negative margin gives the room back, so the line does not grow when the link appears */
 .dp-who .link-btn,
 .dp-evidence .link-btn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
+  display: inline-block;
+  padding-block: 2px;
+  margin-block: -2px;
 }
 
 .dp-evidence-consent.is-none,
@@ -1324,7 +1319,14 @@
   position: sticky;
   bottom: var(--stick-bottom, 0px);
   z-index: 5;
+  /* `.card` stacks its children; the bar is one row: the error, then Save and Discard at its end */
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-end;
+}
+
+.dp-screen > .dp-foot > .alert {
+  flex: 1 1 100%;
 }
 
 /* Both labels share one cell, so the button keeps the width of the longer one (AP10) */
@@ -1389,11 +1391,15 @@
 
 @media (max-width: 900px) {
   .dp-point > .segmented .segment,
-  .dp-who .link-btn,
-  .dp-evidence .link-btn,
   .dp-area-toggle,
   .dp-advanced > .collapsible-trigger {
     min-height: var(--touch);
+  }
+
+  .dp-who .link-btn,
+  .dp-evidence .link-btn {
+    padding-block: 12px;
+    margin-block: -12px;
   }
 
   .dp-point-thr .slider {

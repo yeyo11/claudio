@@ -94,6 +94,22 @@ export function groupSummary(modes: readonly DecisionMode[], label: (mode: Decis
 export const activeBlocked = (info: Pick<DecisionPointInfo, 'id' | 'kind'>, provider: DecisionProviderId) =>
   info.kind === 'act' && provider === 'cli' && info.id !== SUPERVISOR_POINT;
 
+/**
+ * Active in name only, as the engine's `effective().limited` says: without consent for what it
+ * sends to this provider it runs as shadow. The Supervisor on the CLI asks the engine nothing, so
+ * it is Active in full there, consent or not.
+ */
+export function isLimited(
+  info: Pick<DecisionPointInfo, 'id' | 'kind' | 'stateVersion'>,
+  consent: DecisionPointSettings['consent'],
+  mode: DecisionMode,
+  provider: DecisionProviderId,
+): boolean {
+  if (mode !== 'active') return false;
+  if (info.id === SUPERVISOR_POINT && provider === 'cli') return false;
+  return needsConsent(info, consent, provider) || (info.kind === 'act' && provider === 'cli');
+}
+
 /** What the Supervisor does in each mode, on each provider: the line under its row. */
 export function supervisorMeaning(mode: DecisionMode, provider: DecisionProviderId): 'off' | 'shadow' | 'activeCli' | 'activeJev' {
   if (mode === 'active') return provider === 'jev' ? 'activeJev' : 'activeCli';
