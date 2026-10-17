@@ -22,7 +22,8 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
  */
 export function FailedByChecksNotice({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation('orchestrationV2');
-  if (orch.status !== 'failed' || !orch.error) return null;
+  // A workflow runs no checks: its `error` says why the run did not finish (`WorkflowEndedNotice`)
+  if (orch.status !== 'failed' || !orch.error || orch.engine === 'workflow') return null;
   return (
     <div className="alert alert-bad" role="alert">
       <ShieldAlert className="alert-icon" {...ICON_SM} />
