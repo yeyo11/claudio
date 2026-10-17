@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { describePage, networkRecorder } from './driver.mjs';
 import { groupAlive, killGroup } from './processes.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -43,7 +44,8 @@ const alive = (pids) => pids.filter((pid) => {
 
 // Four ports per run: a sharded run takes E2E_PORT and the ones after it
 const PORTS_PER_RUN = 4;
-let nextPort = 8900 + (process.pid % 25) * PORTS_PER_RUN * 2;
+// E2E_HARNESS_PORT pins the first one, for a machine where only some ports are free to take
+let nextPort = Number(process.env.E2E_HARNESS_PORT) || 8900 + (process.pid % 25) * PORTS_PER_RUN * 2;
 
 /**
  * Runs the real runner over one spec, or over `specs` (file name → source). `beforeEnd(ctx)` is
@@ -255,6 +257,83 @@ test("a peer's own tab stays on the peer's origin while the main tab moves, and 
   assert.equal(noisy.code, 1, noisy.output);
   assert.match(noisy.output, /console errors:[\s\S]*\[ben\] peer tab broke/);
   assert.deepEqual(noisy.survivors, { chrome: [], server: false });
+});
+
+// ---------- what a failed wait reports ----------
+
+test('a failed wait names the console errors, the failed requests and what is still open, since the last document only', () => {
+  const recorder = networkRecorder();
+  recorder.mainFrame = 'main';
+  const sent = (requestId, url, type = 'Fetch', frameId = 'main') => recorder.event('Network.requestWillBeSent', { requestId, frameId, type, request: { method: 'GET', url } });
+  // The page being left: its requests must not speak for the next one
+  sent('old-doc', 'http://h/old', 'Document');
+  sent('old-404', 'http://h/old.js', 'Script');
+  recorder.event('Network.responseReceived', { requestId: 'old-404', response: { status: 404 } });
+  sent('old-stream', 'http://h/api/events', 'EventSource');
+  // The new document, from the service worker, and what it asked for
+  sent('doc', 'http://h/?project=all', 'Document');
+  recorder.event('Network.loadingFailed', { requestId: 'old-stream', errorText: 'net::ERR_ABORTED', canceled: true });
+  recorder.event('Network.responseReceived', { requestId: 'doc', response: { status: 200, fromServiceWorker: true } });
+  recorder.event('Network.loadingFinished', { requestId: 'doc' });
+  sent('chunk', 'http://h/assets/Home-abc.js', 'Script');
+  recorder.event('Network.responseReceived', { requestId: 'chunk', response: { status: 404 } });
+  recorder.event('Network.loadingFinished', { requestId: 'chunk' });
+  sent('refused', 'http://h/api/usage', 'Fetch');
+  recorder.event('Network.loadingFailed', { requestId: 'refused', errorText: 'net::ERR_CONNECTION_REFUSED' });
+  sent('settings', 'http://h/api/settings/app');
+  recorder.event('Network.requestWillBeSentExtraInfo', { requestId: 'settings' });
+  sent('queued', 'http://h/api/projects');
+  // A subframe's document is not a new page
+  sent('frame', 'http://h/frame', 'Document', 'child');
+  recorder.event('Log.entryAdded', { entry: { level: 'error', source: 'network', text: 'Failed to load resource: the server responded with a status of 404', url: 'http://h/assets/Home-abc.js' } });
+  recorder.event('Log.entryAdded', { entry: { level: 'info', source: 'other', text: 'not worth reporting' } });
+  recorder.note('Page.navigate to /x answered net::ERR_ABORTED');
+
+  const report = describePage({
+    state: { href: 'http://h/?project=all', readyState: 'complete', title: 'Claudio', worker: 'http://h/sw.js', root: '<div id="root"></div>', body: '' },
+    errors: ['TypeError: boom\n    at a (x.js:1)', 'TypeError: boom\n    at a (x.js:1)'],
+    network: recorder.snapshot(Date.now()),
+  });
+  assert.match(report, /^page: http:\/\/h\/\?project=all, readyState complete, title "Claudio", service worker http:\/\/h\/sw\.js$/m);
+  assert.match(report, /^#root: <div id="root"><\/div>$/m);
+  assert.equal(report.match(/TypeError: boom/g)?.length, 1, 'one line per distinct error');
+  assert.match(report, /^ {2}404 GET http:\/\/h\/assets\/Home-abc\.js$/m);
+  assert.match(report, /^ {2}net::ERR_CONNECTION_REFUSED GET http:\/\/h\/api\/usage$/m);
+  assert.match(report, /^ {2}error \(network\) Failed to load resource: the server responded with a status of 404 http:\/\/h\/assets\/Home-abc\.js$/m);
+  assert.match(report, /GET http:\/\/h\/api\/settings\/app \(Fetch, sent, no response, /);
+  assert.match(report, /GET http:\/\/h\/api\/projects \(Fetch, not sent, /);
+  assert.match(report, /^navigation:\n {2}Page\.navigate to \/x answered net::ERR_ABORTED$/m);
+  assert.doesNotMatch(report, /old|api\/events|not worth reporting/, 'the document that was left says nothing');
+});
+
+test('a page that does not answer is reported as such, with what the network said', () => {
+  const recorder = networkRecorder();
+  recorder.event('Network.requestWillBeSent', { requestId: 'a', type: 'Fetch', request: { method: 'GET', url: 'http://h/api/x' } });
+  const report = describePage({ state: null, errors: [], network: recorder.snapshot(Date.now()) });
+  assert.match(report, /^page: did not answer within 5 s/);
+  assert.match(report, /still open:\n {2}GET http:\/\/h\/api\/x \(Fetch, not sent, /);
+});
+
+test('a wait that times out reports the page, and a failed assertion the console errors it would have failed on', { skip }, async () => {
+  // Six event streams hold every connection Chrome allows one host over HTTP/1.1, so a request
+  // made after them waits in the browser and is never sent: what a page starved of connections shows
+  const blank =
+    `export default async ({ page }) => {` +
+    ` await page.goto('/', 300);` +
+    ` await page.eval("console.error('the page broke'); await fetch('/api/no-such-route').catch(() => {}); for (let i = 0; i < 6; i++) new EventSource('/api/events?probe=' + i); setTimeout(() => fetch('/api/system?probe=queued').catch(() => {}), 500); return true");` +
+    ` await page.waitFor('return false', { timeout: 3000, label: 'what never comes' }); };`;
+  const asserted = `export default async ({ page, check }) => { await page.goto('/', 300); await page.eval("console.error('logged before the assertion'); return true"); check(false, 'on purpose'); };`;
+  const result = await run({ specs: { 'blank.spec.mjs': blank, 'asserted.spec.mjs': asserted }, env: { E2E_SHARDS: '1' } });
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /timed out waiting for: what never comes \(at http:\/\/127\.0\.0\.1:\d+\/\)\n {2}page: http:\/\/127\.0\.0\.1:\d+\/, readyState complete/);
+  assert.match(result.output, /#root: <div id="root">/);
+  assert.match(result.output, /console errors:\n {4}the page broke/);
+  assert.match(result.output, /failed requests:\n(?: {4}.*\n)* {4}404 GET http:\/\/127\.0\.0\.1:\d+\/api\/no-such-route/);
+  assert.match(result.output, /GET http:\/\/127\.0\.0\.1:\d+\/api\/events\?probe=0 \(EventSource, 200, /);
+  assert.match(result.output, /GET http:\/\/127\.0\.0\.1:\d+\/api\/system\?probe=queued \(Fetch, not sent, /);
+  assert.match(result.output, /^ {2}server: GET \/api\/health answered 200 in \d+ ms$/m);
+  assert.match(result.output, /assertion failed: on purpose\n {2}console errors:\n {4}logged before the assertion/);
+  assert.deepEqual(result.survivors, { chrome: [], server: false });
 });
 
 // ---------- shards ----------
