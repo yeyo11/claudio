@@ -401,6 +401,8 @@ and that the decision is the owner's, not a technical one; the owner said it is 
 
 ## 7. Open decisions for the owner
 
+**Owner, 2026-10-17:** D1 — no host limits for now. D3 — parked: the study stays documented here and is taken up later. D4 to D8 — the owner reviews them in this pull request. D2 stays his, unanswered.
+
 **D1. Host limits now?** Apply the measures of §4 to his session's systemd configuration?
 Options: (a) approve the CPU-side measures (`CPUQuota` and `CPUWeight` on the scope Claudio runs in)
 plus the memory safety net (`MemoryHigh`, `MemoryMax`, `MemorySwapMax=0`), first with `--runtime`;
