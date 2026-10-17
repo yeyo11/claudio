@@ -1017,6 +1017,11 @@ export class Orchestrator {
    * dependants still receive their context. Everything else — stopped, failed, blocked or given up —
    * goes back to pending and is attempted again: a task that already has a chat continues it, in a
    * new execution, in the worktree it left, and keeps what it cost.
+   *
+   * A graph that waits for a decision resumes the same way: every task it waits on is decided to be
+   * worth another go at once (R11: a task stopped while it waited for a reset left the graph with no
+   * way out but a stop and a resume). Nothing of it runs while it waits, except a chat a person went
+   * on in by hand, which is refused rather than sent a second turn.
    */
   resume(id: string, changes: ResumeOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
@@ -1024,10 +1029,12 @@ export class Orchestrator {
     if (orch.status === 'running') return orch;
     // Before anything of the graph is touched, so a mode the CLI would refuse leaves it as it was
     validatePermissionMode(changes.permissionMode);
-    if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const unfinished = orch.tasks.filter((t) => t.status !== 'completed');
     if (unfinished.length === 0) throw new Error('every task already completed');
+    // Stopping a graph stops its tasks' chats; waiting stopped none of them, and one may be in use
+    const working = orch.status === 'waiting' ? unfinished.find((t) => t.runId && ['busy', 'starting'].includes(this.runs.get(t.runId)?.status ?? '')) : undefined;
+    if (working) throw new Error(`task ${working.id} is still working in its chat: wait for it, or stop it first`);
     // A graph that died for lack of permissions, or by editing the checkout the wrapper runs from,
     // would only die the same way again: correct those before relaunching what is left.
     if (changes.worktree === true && orch.engine === 'workflow') {
@@ -3332,11 +3339,12 @@ ${quoted}
   }
 
   /**
-   * Runs a failed task again in its own chat, with its worktree, once more than its attempts allowed:
-   * this is the person deciding it is worth it. What waited behind it stops waiting.
+   * Runs a failed or stopped task again in its own chat, with its worktree, once more than its
+   * attempts allowed: this is the person deciding it is worth it. What waited behind it stops waiting.
+   * A stopped task is one a person stopped waiting for a reset (R11), and has the same way back.
    */
   retryTask(id: string, taskId: string): Orchestration {
-    const { orch, task } = this.decidable(id, taskId, ['failed']);
+    const { orch, task } = this.decidable(id, taskId, ['failed', 'stopped']);
     task.status = 'pending';
     task.result = null;
     task.endedAt = null;
@@ -3351,11 +3359,11 @@ ${quoted}
   }
 
   /**
-   * Starts a failed task over: a new chat, in a worktree rebuilt from the base. What the old chat did
+   * Starts a failed or stopped task over: a new chat, in a worktree rebuilt from the base. What the old chat did
    * is thrown away, its branch with it, and it stays listed as the record of what was tried.
    */
   retryTaskClean(id: string, taskId: string): Orchestration {
-    const { orch, task } = this.decidable(id, taskId, ['failed']);
+    const { orch, task } = this.decidable(id, taskId, ['failed', 'stopped']);
     if (task.runId && this.runs.get(task.runId)?.pid) throw new Error('the task still has a process running: stop it first');
     this.startOver(orch, task);
     return this.reopen(orch);
@@ -3453,7 +3461,7 @@ ${quoted}
    * are skipped. The chat keeps whatever it did; nothing is deleted.
    */
   skipTask(id: string, taskId: string): Orchestration {
-    const { orch, task } = this.decidable(id, taskId, ['failed', 'blocked']);
+    const { orch, task } = this.decidable(id, taskId, ['failed', 'stopped', 'blocked']);
     task.status = 'skipped';
     task.endedAt ??= now();
     return this.reopen(orch);
