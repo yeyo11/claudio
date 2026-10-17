@@ -142,11 +142,12 @@ function DesktopSettings({
       <div className="settings-body" role="tabpanel" id={panelId} aria-labelledby={tabId(group)} key={`${group}/${detail ?? ''}`}>
         <header className="settings-head">
           {detail && (
-            <Link className="settings-back" to={settingsHref(group)}>
+            // Named in words: a screen reader would read the arrow of the visible label
+            <Link className="settings-back" to={settingsHref(group)} aria-label={t('config:settings.backTo', { group: t(groupLabel(group)) })}>
               {t('config:settings.back', { group: t(groupLabel(group)) })}
             </Link>
           )}
-          <h2 className="settings-head-title">{detail ? t(detailLabel(detail)) : t(groupLabel(group))}</h2>
+          <h2 className="settings-head-title" tabIndex={-1} data-settings-title>{detail ? t(detailLabel(detail)) : t(groupLabel(group))}</h2>
         </header>
         <SectionLevel.Provider value={3}>
           <Screen group={group} detail={detail} />

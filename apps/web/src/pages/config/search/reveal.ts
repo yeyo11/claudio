@@ -59,6 +59,8 @@ export function useRevealSetting(): void {
       const target = find();
       if (!target) {
         if (performance.now() - started < WAIT_MS) frame = requestAnimationFrame(tick);
+        // Nothing on this screen carries the anchor yet: the screen's title takes the focus instead of the search
+        else document.querySelector<HTMLElement>('[data-settings-title]')?.focus({ preventScroll: true });
         return;
       }
       target.scrollIntoView?.({ block: setting ? 'center' : 'start' });

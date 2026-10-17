@@ -64,7 +64,7 @@ export function SettingsSearchField({ search, listId, inputRef }: { search: Sett
         placeholder={t('settings.search.placeholder')}
         aria-keyshortcuts="/"
         aria-autocomplete="list"
-        aria-expanded={search.query !== ''}
+        aria-expanded={showing}
         aria-controls={listId}
         {...(showing ? { 'aria-activedescendant': optionId(listId, search.active) } : {})}
         autoComplete="off"
@@ -73,6 +73,10 @@ export function SettingsSearchField({ search, listId, inputRef }: { search: Sett
         onChange={(event) => search.setQuery(event.target.value)}
         onKeyDown={search.onKeyDown}
       />
+      {/* Mounted before it has anything to say, so a screen reader hears it when it does */}
+      <span className="sr-only" role="status">
+        {search.query !== '' && search.results.length === 0 ? t('settings.search.none', { query: search.query }) : ''}
+      </span>
     </label>
   );
 }
@@ -82,7 +86,7 @@ export function SettingsSearchResults({ search, listId }: { search: SettingsSear
   const { t } = useTranslation('config');
   if (search.results.length === 0) {
     return (
-      <p id={listId} className="settings-results-none" role="status">
+      <p id={listId} className="settings-results-none">
         {t('settings.search.none', { query: search.query })}
       </p>
     );

@@ -644,6 +644,11 @@ button.master-item-on:hover {
   min-width: 0;
 }
 
+/* Escape clears the field: the browser's own small clear button would be a second, tiny way */
+.settings-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
 /* A result: its group above it in the faint level, the label in the body's */
 .settings-results {
   display: flex;
@@ -768,7 +773,13 @@ button.master-item-on:hover {
 
 /* A detail's way back to its group, above its title: a quiet link, not a button */
 .settings-back {
+  display: inline-flex;
+  align-items: center;
   align-self: flex-start;
+  min-height: 28px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-size: var(--fs-small);
 }
@@ -791,6 +802,10 @@ button.master-item-on:hover {
   gap: 12px;
   min-width: 0;
   scroll-margin-top: 16px;
+}
+
+.settings-head-title:focus {
+  outline: none;
 }
 
 .settings-section-title {

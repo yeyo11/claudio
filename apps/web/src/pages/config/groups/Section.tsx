@@ -23,7 +23,8 @@ export function SettingsSection({ id, title, children }: { id: string; title: st
   const level = useContext(SectionLevel);
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
-    <section id={id} className="settings-section" aria-labelledby={`${id}-title`}>
+    // Not a named region: a tab moved in whole may be one already, and two of one name confuse a reader
+    <section id={id} className="settings-section">
       <Heading id={`${id}-title`} className="settings-section-title" tabIndex={-1} data-section-heading>
         {title}
       </Heading>

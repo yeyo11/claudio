@@ -2664,7 +2664,7 @@ a.cont-from:hover { color: var(--fg); }
 .settings-result-group { color: var(--fg-3); font-size: var(--fs-small); }
 .settings-result-label { font-size: var(--fs-small); overflow-wrap: anywhere; }
 .settings-results-none { margin: 0; padding: 6px 10px; color: var(--fg-2); font-size: var(--fs-small); }
-.settings-back { align-self: flex-start; color: var(--fg-2); font-size: var(--fs-small); }
+.settings-back { display: inline-flex; align-items: center; align-self: flex-start; min-height: 28px; padding: 0 8px; margin: 0 -8px; border-radius: var(--r-sm); color: var(--fg-2); font-size: var(--fs-small); }
 .settings-back:hover { color: var(--fg); }
 .settings-group { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
 .settings-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -2675,7 +2675,8 @@ a.cont-from:hover { color: var(--fg); }
 .settings-detail-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .settings-detail-note { flex: none; color: var(--fg-2); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
 /* The row a result opened: a fill that holds a moment and fades; it does not move under the reduced motion levels */
-[data-setting].is-found { border-radius: var(--r-sm); animation: setting-found var(--dur-slow) ease-out var(--dur-slow) both; }
+[data-setting].is-found { border-radius: var(--r-sm); animation: setting-found var(--dur-slow) var(--ease-out) var(--dur-slow) both; }
+:root[data-motion='subtle'] [data-setting].is-found, :root[data-motion='off'] [data-setting].is-found { animation: none; }
 @keyframes setting-found { from { background: var(--bg-3); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { [data-setting].is-found { animation: none; } }
 @media (max-width: 900px) {
