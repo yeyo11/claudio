@@ -11,7 +11,7 @@ import { Db } from '../src/db.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { defaultProvidersSettings, defaultRotationSettings } from '../src/providers/settings.ts';
-import { ProviderRotation } from '../src/rotation.ts';
+import { ProviderRotation, RunNowRefusal } from '../src/rotation.ts';
 import { tempConfig } from './helpers.ts';
 
 // Several accounts over the fake Claude: the account a process runs on, the limit path (move to
@@ -429,6 +429,42 @@ test('a reading that leaves every account out moves the wait to the earliest res
     const before = r.spawns().length;
     await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
     assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.b], 'its reset passing is a way back');
+  } finally {
+    r.close();
+  }
+});
+
+// R11: "Stop waiting" also offers "run it now on an account with room"
+test('run now sends a waiting turn on at once, on the first account the readings allow, even one it died on (R11)', async () => {
+  const r = await rig({ work, limited: (d) => Object.values(d), pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    // Nothing says when any account is back (no reading came with the 429s); the person knows better
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    const before = r.spawns().length;
+    const done = await r.rotation.runNow(move?.id ?? '');
+    assert.equal(done.account, DEFAULT_ID, 'the first account in the order');
+    assert.equal(done.move.state, 'resumed');
+    await waitFor(() => r.spawns().length > before && r.chats.get(chat.id)?.status !== 'busy' && r.chats.get(chat.id)?.status !== 'starting');
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[DEFAULT_ID]);
+    assert.equal(r.chats.atLimit(chat.id), false, 'the turn went through');
+    assert.deepEqual(r.db.rotationEvents().at(-1)?.reason, 'person', 'recorded as a person\'s move');
+    await assert.rejects(r.rotation.runNow(move?.id ?? ''), (e: unknown) => e instanceof RunNowRefusal && e.code === 'wait-over');
+  } finally {
+    r.close();
+  }
+});
+
+test('run now is refused while every account reads out, and the wait stays (R11)', async () => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    await assert.rejects(r.rotation.runNow(move?.id ?? ''), (e: unknown) => e instanceof RunNowRefusal && e.code === 'no-room' && /until/.test(e.message));
+    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting');
   } finally {
     r.close();
   }

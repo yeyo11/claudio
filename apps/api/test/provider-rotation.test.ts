@@ -116,7 +116,25 @@ test('waiting is the person\'s click: a wait row opens, a second is refused, and
   assert.deepEqual((await app.inject(`/api/limits/waits?chatId=${id}&state=waiting`)).json(), []);
 });
 
-test("the removed routes are gone, and a chat's token cannot wait or cancel a wait", async () => {
+test('run now is refused with its code while every account reads out, and once the wait is over (R11)', async () => {
+  // The CLI's report says the only account is out for an hour: there is no account to run on now.
+  // That a wait with an account that has room goes on at once is core's test (accounts-rotation)
+  const id = await chatAtLimit();
+  const move = (await app.inject({ method: 'POST', url: `/api/chats/${id}/wait` })).json<ProviderMove>();
+  const refused = await app.inject({ method: 'POST', url: `/api/limits/waits/${move.id}/run-now` });
+  assert.equal(refused.statusCode, 409, refused.body);
+  assert.equal(refused.json<{ code?: string }>().code, 'no-room');
+  assert.match(refused.json<{ error: string }>().error, /until/);
+  assert.equal(core.db.providerMove(move.id)?.state, 'waiting', 'the wait stays');
+
+  assert.equal((await app.inject({ method: 'POST', url: `/api/limits/waits/${move.id}/cancel` })).statusCode, 200);
+  const over = await app.inject({ method: 'POST', url: `/api/limits/waits/${move.id}/run-now` });
+  assert.equal(over.statusCode, 409);
+  assert.equal(over.json<{ code?: string }>().code, 'wait-over');
+  assert.equal((await app.inject({ method: 'POST', url: '/api/limits/waits/nope/run-now' })).statusCode, 404);
+});
+
+test("the removed routes are gone, and a chat's token cannot wait, cancel a wait or run it now", async () => {
   for (const url of ['/api/accounts/usage', '/api/providers/candidates', '/api/providers/moves', '/api/providers/model-map/suggestions', '/api/providers/cswap-retirement']) assert.equal((await app.inject(url)).statusCode, 404, url);
 
   const id = await chatAtLimit();
@@ -136,6 +154,7 @@ test("the removed routes are gone, and a chat's token cannot wait or cancel a wa
     for (const [method, url, body] of [
       ['POST', `/api/chats/${id}/wait`, undefined],
       ['POST', '/api/limits/waits/some/cancel', undefined],
+      ['POST', '/api/limits/waits/some/run-now', undefined],
     ] as const) {
       assert.equal((await app.inject(fromChat(method, url, body))).statusCode, 403, `${method} ${url}`);
     }
@@ -164,6 +183,7 @@ test('the routes of a limit are documented with a summary and a tag', async () =
     ['post', '/api/chats/{id}/wait', 'Chats'],
     ['get', '/api/limits/waits', 'Providers'],
     ['post', '/api/limits/waits/{id}/cancel', 'Providers'],
+    ['post', '/api/limits/waits/{id}/run-now', 'Providers'],
   ] as const) {
     const op = spec.paths[path]?.[method];
     assert.ok(op?.summary, `${method} ${path} has no summary`);

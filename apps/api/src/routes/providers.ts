@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import type { ModelOption, ProviderMove, ProviderMoveState, ProviderStatus, ProvidersSettings } from '@claudio/shared';
+import { RunNowRefusal } from '@claudio/core';
+import type { ModelOption, ProviderMove, ProviderMoveState, ProviderStatus, ProvidersSettings, RunLimitWaitNowResponse } from '@claudio/shared';
 
 /**
  * Claude Code's detection (served from the detector's cache), a re-detection on demand and the
@@ -47,6 +48,18 @@ export const providerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     if (!move) throw fail(404, `move ${req.params.id} not found`);
     if (!core.rotation.cancel(move.id)) throw fail(409, 'this wait is already over');
     return core.db.providerMove(move.id) ?? move;
+  });
+
+  // Run it now: the turn goes on at once on an account with room, instead of waiting for the reset
+  app.post<{ Params: { id: string } }>('/limits/waits/:id/run-now', async (req): Promise<RunLimitWaitNowResponse> => {
+    const move = core.db.providerMove(req.params.id);
+    if (!move) throw fail(404, `move ${req.params.id} not found`);
+    try {
+      return await core.rotation.runNow(move.id);
+    } catch (err) {
+      if (!(err instanceof RunNowRefusal)) throw err;
+      throw Object.assign(new Error(err.message), { statusCode: 409, reason: err.code });
+    }
   });
 
   app.get<{ Params: { id: string } }>('/providers/:id', async (req): Promise<ProviderStatus> => {

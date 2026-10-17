@@ -277,7 +277,7 @@ export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type 
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
-export { ProviderRotation, effectiveOnLimit, openWaitOf } from './rotation.ts';
+export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
 export { EvalFileError } from './evals/definition.ts';
