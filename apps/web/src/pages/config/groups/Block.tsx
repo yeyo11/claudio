@@ -63,7 +63,8 @@ export function SaveButton({
   return (
     <button
       type={type}
-      className={dirty ? 'btn btn-primary' : 'btn'}
+      // A save nobody can press is not the zone's next step: the gradient goes to what is
+      className={dirty && !disabled ? 'btn btn-primary' : 'btn'}
       disabled={disabled || !dirty || pending}
       data-states="idle|loading"
       data-state={pending ? 'loading' : 'idle'}

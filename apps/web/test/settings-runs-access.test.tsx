@@ -15,6 +15,7 @@ import i18n, { setLanguage } from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { RunsCard } from '../src/pages/config/AppSettingsCards';
 import { Access } from '../src/pages/config/groups/Access';
+import { SaveButton } from '../src/pages/config/groups/Block';
 import { Runs } from '../src/pages/config/groups/Runs';
 import { sectionsOf } from '../src/pages/config/settingsGroups';
 import { SETTINGS_INDEX } from '../src/pages/config/settingsIndex';
@@ -120,6 +121,14 @@ test('a quiet section saves with a plain button that keeps its width while savin
     html,
     /<button type="submit" class="btn" disabled="" data-states="idle\|loading" data-state="idle"><span class="btn-states"><span class="btn-state-idle">Save<\/span><span class="btn-state-loading">Saving…<\/span>/,
   );
+});
+
+test('a save takes the gradient only while it has changes it can send', () => {
+  const save = (dirty: boolean, disabled: boolean) => render(<SaveButton label="Save" savingLabel="Saving…" dirty={dirty} pending={false} disabled={disabled} />);
+  assert.match(save(true, false), /class="btn btn-primary"/);
+  // Token picked with no token set: changed, but nothing it could save
+  assert.match(save(true, true), /class="btn" disabled=""/);
+  assert.match(save(false, false), /class="btn" disabled=""/);
 });
 
 test('the hosts say how many names answer besides localhost', () => {
