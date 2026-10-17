@@ -553,13 +553,16 @@
 
 .orch-item-head {
   display: flex;
+  /* On a narrow card the status, cost and time go under the name rather than squeezing it: at
+     320 px they left the name 38 px, a link too narrow to read or to hit */
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
 .orch-item-name {
-  flex: 1;
+  flex: 1 1 160px;
   min-width: 0;
   display: flex;
   flex-direction: column;

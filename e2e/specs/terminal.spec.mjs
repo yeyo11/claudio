@@ -75,7 +75,7 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     // The project chosen in the top bar is what the panel's first shell opens in
     const home = `/?project=${encodeURIComponent(projectId)}`;
     const ITEM = '.statusbar-btn';
-    const item = () => page.eval(`const b=document.querySelector('${ITEM}'); return { count: b?.querySelector('.mono')?.textContent ?? '0', expanded: b?.getAttribute('aria-expanded'), name: b?.getAttribute('aria-label') }`);
+    const item = () => page.eval(`const b=document.querySelector('${ITEM}'); return { count: b?.querySelector('.tnum')?.textContent ?? '0', expanded: b?.getAttribute('aria-expanded'), name: b?.getAttribute('aria-label') }`);
     const hasPanel = () => page.eval(`return !!document.querySelector('.term-dock')`);
 
     // ---- 1. off by default: no item; on through the settings, the status bar offers the Terminal item ----
