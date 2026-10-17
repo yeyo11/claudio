@@ -32,7 +32,8 @@ import { DecisionHistory } from './decisions/DecisionHistory';
 import { type BulkPlan, activeBlocked, needsConsent, planBulk } from './decisions/model';
 import { METRICS_DAYS, PointMetrics } from './decisions/PointMetrics';
 import { SupervisorTab } from './SupervisorTab';
-import type { DecisionsSection } from './settingsTabs';
+/** A section of the Decisions tab; `#point-supervisor-intervene` scrolls to the Supervisor's. */
+export type DecisionsSection = 'engine' | 'points' | 'supervisor' | 'history';
 
 /** The server refuses a ceiling outside (0, 5] and a history outside 1..365 days. */
 const MAX_COST = 5;

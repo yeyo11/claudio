@@ -6,6 +6,7 @@ import { TeammateName } from '../components/TeammateName';
 import { reviewLink, reviewPath } from './changes-summary';
 import { useFallbackInterval } from './feed';
 import { useProviderLabel } from './provider-status';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 /** `api`'s chat methods, plus the two URLs the chat package cannot build without knowing the base. */
 export const chatClient: ChatClient = {
@@ -43,7 +44,7 @@ const slots: ChatUiConfig['slots'] = {
 const paths: ChatUiConfig['paths'] = {
   chat: (id) => `/chats/${enc(id)}`,
   chatChangeStep: (chatId, stepId) => reviewLink(reviewPath.chat(chatId), { lens: 'steps', step: stepId }),
-  connectors: '/connectors',
+  connectors: settingsHref('connections', { section: 'connectors' }),
 };
 
 /** Mounted around `<App />`: the detail panel, orchestrations, work items and Home use chat hooks too. */

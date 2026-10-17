@@ -21,6 +21,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { columnMeta, notReadyReason, openCount } from '../../lib/work-items';
 import { columnLimitsOf, LIMIT_STATUSES, moduleFigure, normalizePrefix, prefixProblem, PROJECT_MODULES, sameModules, toggleModule, type ModuleFigures } from '../projects/model';
 import { HiddenNote, ModuleCard, ModulesOffNote } from '../projects/parts';
+import { settingsHref } from '../config/settingsGroups';
 
 type Limits = Partial<Record<WorkItemStatus, number>>;
 
@@ -119,7 +120,7 @@ function ProjectHostLine({ project, stacked }: { project: Project; stacked: bool
             <>
               {' '}
               {remedy.kind === 'settings' || !remedy.url ? (
-                <Link to="/settings?tab=integrations">{remedyLabel}</Link>
+                <Link to={settingsHref('connections', { section: 'code-hosts' })}>{remedyLabel}</Link>
               ) : (
                 <a href={remedy.url} target="_blank" rel="noreferrer">
                   {remedyLabel}
@@ -312,7 +313,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
       </Switch>
       <span className="field-hint">
         {t('general.guardsHint', { rules: guardRules })}{' '}
-        <Link to="/settings?tab=security#guards" className="team-link">
+        <Link to={settingsHref('access', { section: 'guards' })} className="team-link">
           {t('general.guardsLink')}
         </Link>
       </span>

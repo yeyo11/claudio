@@ -117,7 +117,7 @@ test('a row shows the state as a word, the reason and the path in mono', async (
 test('Sign in opens Settings → Account for Claude Code', async () => {
   await i18n.changeLanguage('en');
   const own = render(<ProviderRow status={status({ id: 'claude-code', label: 'Claude Code', state: 'signed-out', reason: 'missing-credentials' })} />);
-  assert.match(own, /data-action="sign-in" href="\/settings\?tab=account"/);
+  assert.match(own, /data-action="sign-in" href="\/settings\/claude-code#sign-in"/);
 });
 
 test('a missing program offers Install, a check that failed offers Retry, and Choose binary needs its handler', async () => {

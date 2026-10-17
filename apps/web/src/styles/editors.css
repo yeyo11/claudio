@@ -584,7 +584,7 @@ button.master-item-on:hover {
   }
 }
 
-/* ---- Settings: the grouped side nav on a desktop, grouped cells on a phone ---- */
+/* ---- Settings: eight groups and a search in a side nav on a desktop; list → group → detail on a phone ---- */
 
 /* The nav runs the height of the page, flush with its top and left edges, like the app's own sidebar */
 .settings-layout {
@@ -626,17 +626,72 @@ button.master-item-on:hover {
 .settings-nav-tabs {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.settings-nav-group {
-  display: flex;
-  flex-direction: column;
   gap: 1px;
 }
 
-.settings-nav-label {
-  padding: 0 10px 4px;
+/* While the search has a query its results take the groups' place */
+.settings-nav-tabs[hidden] {
+  display: none;
+}
+
+/* The search heads the nav, and the phone's list */
+.settings-search {
+  min-width: 0;
+}
+
+.settings-search input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Escape clears the field: the browser's own small clear button would be a second, tiny way */
+.settings-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+/* A result: its group above it in the faint level, the label in the body's */
+.settings-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.settings-result.is-active {
+  background: var(--bg-hover);
+}
+
+.settings-result-group {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+.settings-result-label {
+  min-width: 0;
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.settings-results-none {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
 }
 
 .settings-nav-item {
@@ -714,6 +769,148 @@ button.master-item-on:hover {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-small);
+}
+
+/* A detail's way back to its group, above its title: a quiet link, not a button */
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.settings-back:hover {
+  color: var(--text);
+}
+
+/* A group's screen: sections separated by space, never by a card's border */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  scroll-margin-top: 16px;
+}
+
+.settings-head-title:focus {
+  outline: none;
+}
+
+/* Reached when an address names an anchor the screen does not draw: the focus still shows */
+.settings-head-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.settings-section-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+}
+
+.settings-section-title:focus {
+  outline: none;
+}
+
+.settings-section-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* A row that opens a detail: the name, its count and sources, a chevron; the whole row is the link */
+.settings-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  transition: background var(--dur-fast);
+}
+
+.settings-detail-row:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-detail-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-detail-note {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.settings-detail-chevron {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/*
+ * The row a search result or the palette opened: a fill that holds a moment and fades, so the eye
+ * finds it once. --bg-3, not --bg-2: on the light page --bg-2 is the white of a card and would not show.
+ */
+[data-setting].is-found {
+  border-radius: var(--radius-sm);
+  animation: setting-found var(--dur-slow) var(--ease-out) var(--dur-slow) both;
+}
+
+@keyframes setting-found {
+  from {
+    background: var(--bg-3);
+  }
+
+  to {
+    background: transparent;
+  }
+}
+
+:root[data-motion='subtle'] [data-setting].is-found,
+:root[data-motion='off'] [data-setting].is-found {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-setting].is-found {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-search input {
+    min-height: var(--touch);
+    font-size: var(--fs-input);
+  }
+
+  .settings-result {
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .settings-detail-row {
+    min-height: var(--touch);
+  }
 }
 
 /* Phone: a list of cells first, then one screen per tab */

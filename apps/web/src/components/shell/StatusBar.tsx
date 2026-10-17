@@ -23,6 +23,7 @@ import { useTerminalBar } from '../terminal/terminal-bar';
 import { runningCount } from '../terminal/terminal-model';
 import { useTerminalList } from '../terminal/use-terminals';
 import { ProviderDots } from './ProviderDots';
+import { settingsHref } from '../../pages/config/settingsGroups';
 
 type Now = ReturnType<typeof useUsageNow>;
 
@@ -318,7 +319,7 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
   return (
     <footer className="statusbar" aria-label={t('statusbar.label')}>
       <Tooltip content={[connection.title, connection.detail].filter(Boolean).join(' · ')} side="top">
-        <NavLink to="/settings?tab=account" className="statusbar-item statusbar-conn">
+        <NavLink to={settingsHref('claude-code', { section: 'sign-in' })} className="statusbar-item statusbar-conn">
           <StatusDot tone={connection.tone} live={connection.live} />
           <span className="ellipsis">{connection.short}</span>
         </NavLink>

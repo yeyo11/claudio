@@ -260,7 +260,7 @@ function outcome(status: number): { tone: 'ok' | 'warn' | 'bad'; key: 'ok' | 'un
 /** What the audit's filters keep until they are cleared, as typed */
 const AUDIT_PARAMS = ['path', 'method', 'status'] as const;
 
-function AuditCard() {
+export function AuditCard() {
   const { t } = useTranslation(['config', 'common']);
   const { params, patch, reset } = useListParams('audit', AUDIT_PARAMS, GLOBAL_SCOPE);
   const filter = params.get('path') ?? '';

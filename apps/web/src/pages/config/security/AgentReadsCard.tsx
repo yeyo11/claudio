@@ -28,7 +28,7 @@ export function AgentReadsCard() {
   });
   const shared = useSharedProjects();
 
-  // `?tab=security#agent-reads` lands on the card once the tab has drawn it
+  // An old `#agent-reads` link lands on the card once the screen has drawn it
   useEffect(() => {
     if (window.location.hash === '#agent-reads') document.getElementById('agent-reads')?.scrollIntoView?.({ block: 'start' });
   }, [reads.isSuccess]);

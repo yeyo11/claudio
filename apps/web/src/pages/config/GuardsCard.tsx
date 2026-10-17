@@ -393,7 +393,7 @@ export function GuardsCard({ readOnly }: { readOnly: boolean }) {
   });
   const check = useMutation({ mutationFn: api.checkGuard });
 
-  // `?tab=security#guards` lands on the card once the tab has drawn it
+  // `/settings/access#guards` lands on the card once the screen has drawn it
   useEffect(() => {
     if (window.location.hash === '#guards') document.getElementById('guards')?.scrollIntoView?.({ block: 'start' });
   }, [settings.isSuccess]);

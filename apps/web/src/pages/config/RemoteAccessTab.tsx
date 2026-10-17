@@ -16,6 +16,7 @@ import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
 import { SignOutButton } from '../../components/setup/SignOutButton';
+import { settingsHref } from './settingsGroups';
 
 /** Where Tailscale is downloaded, and where a tailnet turns MagicDNS and HTTPS certificates on. */
 export const TAILSCALE_DOWNLOAD_URL = 'https://tailscale.com/download';
@@ -233,7 +234,7 @@ export function TunnelPanel({
             <strong>{t('remote.authRequired.title')}</strong>
             <div className="small">{t('remote.authRequired.body')}</div>
             <div className="form-actions">
-              <Link className="btn btn-small" to="/settings?tab=security">
+              <Link className="btn btn-small" to={settingsHref('access', { section: 'access' })}>
                 {t('remote.authRequired.action')}
               </Link>
             </div>

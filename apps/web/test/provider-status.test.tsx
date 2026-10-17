@@ -77,7 +77,7 @@ test('the status bar shows a dot and a word per provider that is there', () => {
   assert.match(html, /tone-ok/);
   assert.match(html, /tone-warn/);
   assert.match(html, /statusbar-warn/);
-  assert.match(html, /href="\/settings\?tab=providers"/);
+  assert.match(html, /href="\/settings\/claude-code#provider"/);
 });
 
 test('the status bar says so when no agent is found, in both languages', () => {

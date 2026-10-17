@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Switch } from '@claudio/ui/components/controls';
 import { Card } from '@claudio/ui/components/ui';
+import { settingsHref } from '../config/settingsGroups';
 
 /**
  * Whether the Claudio assistant reads what teammates share (docs/plans/collaborators-agent-access.md,
@@ -17,7 +18,7 @@ export function AgentsCard({ settings, busy, onSave }: { settings: Collaborators
         <span>{t('agents.assistant')}</span>
       </Switch>
       <p className="small muted">{t('agents.hint')}</p>
-      <Link to="/settings?tab=security#agent-reads" className="link-btn small" data-testid="collab-agent-reads-link">
+      <Link to={settingsHref('access', { detail: 'agent-reads' })} className="link-btn small" data-testid="collab-agent-reads-link">
         {t('agents.audit')}
       </Link>
     </Card>
