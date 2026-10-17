@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-16T16:00:00Z
+updated_at: 2026-10-17T02:30:00Z
 tags:
     - accounts
     - rotation
@@ -91,6 +91,14 @@ Accounts page and the status bar card show "Sign-in expired" with a "Sign in aga
   event and a notice in the chat. With no usable account, automated work waits with the move reason
   "sign-in expired" and resumes as soon as an account can take it; a person's chat follows
   `rotateOnLimit`.
+- **A workflow graph** ([orchestrations.md](orchestrations.md#the-workflow-engine)) rotates as a
+  whole: its one lead session runs every task. A subagent refused at a limit or a sign-in is read
+  from the workflow's journal and the agent's transcript (structured fields only) and recorded on
+  the account as the stream's reading would be (`ChatManager.limitReached`); the lead's own limit
+  comes from its stream. The rotation then moves the session to an account with room, or waits for
+  the reset, and goes on by resuming the workflow from its cache in the same session
+  (`RotationDeps.replay` → `Orchestrator.replayWorkflow`), not by replaying the lead's turn. The
+  cache is visible from every account because their `projects/` directories are one.
 - **A retry** of an orchestration task resumes the same chat, but the account is chosen again at
   that launch: an exhausted or expired one is skipped, and the chat's own account is kept only if it
   is usable. A limit hit on the retry moves the turn like any other.
@@ -125,10 +133,11 @@ The unit tests run against `packages/accounts/test/fake-claude.mjs`, which honou
 `e2e/fake-cli`: a token account starting with `fake-limited` is out on the `FAKE-LIMIT-ACCOUNT`
 line, and the chat is replayed on another account; one starting with `fake-expired` fails to sign in on
 the `FAKE-AUTH-EXPIRED-ACCOUNT` line, and the chat moves with the account marked "Sign-in expired".
-The retry is guarded in core by `packages/core/test/orchestration-retry-account.test.ts`.
+The retry is guarded in core by `packages/core/test/orchestration-retry-account.test.ts`, and a
+workflow's limit by `workflow-limits.test.ts` and `rotation.test.ts`.
 `e2e/specs/chat-account-switch.spec.mjs` covers the on-demand switch from the "+" menu: idle, while
 working, and an exhausted account shown disabled.
 
 ## Related
 
-[[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
+[[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[plans/workflow-engine-limits.md]] · [[orchestrations.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
