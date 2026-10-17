@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ToastProvider } from '@claudio/ui/components/Toast';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
 import i18n from '../src/i18n';
 import { WorkflowEndedNotice, WorkflowWaitNotice } from '../src/components/OrchestrationBoard';
@@ -85,7 +86,10 @@ function render(node: ReactNode, language = 'en'): string {
   client.setQueryData(keys.providers, [provider]);
   const html = renderToStaticMarkup(
     <QueryClientProvider client={client}>
-      <ToastProvider>{node}</ToastProvider>
+      {/* main.tsx wraps the app in it */}
+      <TooltipProvider>
+        <ToastProvider>{node}</ToastProvider>
+      </TooltipProvider>
     </QueryClientProvider>,
   );
   void i18n.changeLanguage('en');
@@ -107,12 +111,13 @@ test("a workflow held at a limit has one wait, the lead's, and its tasks give th
   assert.equal(workflowWait(orch([task('g8', { status: 'running' })])), null);
 });
 
-test('the wait is said once over the graph: warn, the hour, the cache, and a way to stop it', () => {
+test('the wait is said once over the graph: warn, the hour, the cache, and the ways out: stop it, or run it now', () => {
   const html = render(<WorkflowWaitNotice orch={held()} />);
   assert.equal((html.match(/class="wait-line"/g) ?? []).length, 1);
   assert.match(html, /Waiting for Claude Code/);
   assert.match(html, /resumes from its cache at the reset/);
-  assert.match(html, /<button[^>]*wait-line-go[^>]*>Stop waiting<\/button>/);
+  assert.match(html, /<span class="wait-line-go"><button[^>]*>Stop waiting<\/button>/);
+  assert.match(html, /<button[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*Run now<\/button>/, 'R11: or run it now on an account with room');
   // Nothing moves while it waits
   assert.doesNotMatch(html, /spinner|live-/);
   assert.equal(render(<WorkflowWaitNotice orch={orch([task('g8', { status: 'running' })])} />), '');
@@ -123,6 +128,7 @@ test('the wait reads in Spanish too', () => {
   assert.match(html, /Esperando a Claude Code/);
   assert.match(html, /se reanuda desde su caché/);
   assert.match(html, />Dejar de esperar</);
+  assert.match(html, /Ejecutar ahora</);
 });
 
 test("why a workflow did not finish is the server's sentence, bad when it failed and warn when it was stopped", () => {

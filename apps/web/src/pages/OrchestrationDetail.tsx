@@ -27,7 +27,7 @@ import { formatCost, formatDateTime, formatNumber, shortPath } from '@claudio/ui
 import { elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useClockTick } from '@claudio/ui/lib/motion';
-import { costSplit } from '../lib/orchestration-board';
+import { canResume, costSplit } from '../lib/orchestration-board';
 import { followedStep, layerTasks, orchestrationSteps, reviewProgress, stepLabel, type OrchestrationStep } from '../lib/orchestration-steps';
 import { pullRequestErrorKey } from '../lib/work-items';
 import { CiBadge, reasonValues, useChangeRequestWords } from './tasks/board/PullRequest';
@@ -842,15 +842,16 @@ export function OrchestrationDetail() {
   const worktreeEntry: MenuEntry = { id: 'worktree', label: t('viewWorktree'), icon: FolderGit2, onSelect: openWorktree };
 
   // On a phone the header keeps the name: the rest of its actions go behind its `⋯`
+  const resumeEntry: MenuEntry = { id: 'resume', label: t('config:detail.resume', { count: unfinished }), icon: Play, onSelect: () => setResuming(true) };
+  // A graph that waits for a decision can also be resumed whole: every task it waits on goes on (R11)
+  const resumeWaiting = canResume(orch) && orch.status === 'waiting' && !resuming;
   const menu: MenuEntry[] = live
-    ? narrow
-      ? [...(tree ? [worktreeEntry] : []), stopEntry]
-      : []
+    ? [...(narrow && tree ? [worktreeEntry] : []), ...(resumeWaiting ? [resumeEntry] : []), ...(narrow ? [stopEntry] : [])]
     : [
         ...(narrow && tree ? [worktreeEntry] : []),
         // Its own head has no room for a second button: relaunching joins the sheet
         ...(ownHead && canRelaunch(orch) ? [{ id: 'relaunch', label: tv('relaunch.button'), icon: Rocket, disabled: relaunching, onSelect: () => setRelaunching(true) }] : []),
-        ...(unfinished > 0 && !resuming ? [{ id: 'resume', label: t('config:detail.resume', { count: unfinished }), icon: Play, onSelect: () => setResuming(true) }] : []),
+        ...(unfinished > 0 && !resuming ? [resumeEntry] : []),
         { id: 'template', label: tv('templates.saveAs'), icon: BookmarkPlus, onSelect: () => setSavingTemplate(true) },
         { id: 'sep', separator: true as const },
         {
@@ -899,7 +900,7 @@ export function OrchestrationDetail() {
                 <FolderGit2 {...ICON_SM} /> {t('viewWorktree')}
               </button>
             )}
-            {/* Waiting is stoppable but nothing else: resuming or deleting would throw away the decision it waits for */}
+            {/* Waiting is stoppable and, from the menu, resumable; deleting would throw away the decision it waits for */}
             {live ? (
               !narrow && (
                 <button className="btn btn-danger" disabled={stop.isPending} onClick={() => stop.mutate()}>

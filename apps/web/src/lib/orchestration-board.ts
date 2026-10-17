@@ -19,17 +19,28 @@ const NONE: TaskDecisions = { retry: false, retryClean: false, skip: false, hint
 export function decisionsOn(orch: Orchestration, task: OrchestrationTaskState): TaskDecisions {
   if ((orch.engine ?? 'graph') !== 'graph') return NONE;
   if (orch.status !== 'running' && orch.status !== 'waiting') return NONE;
+  // A task stopped while it waited for a reset has the same way back as a failed one (R11)
+  const decided = task.status === 'failed' || task.status === 'stopped';
   return {
-    retry: task.status === 'failed',
-    retryClean: task.status === 'failed',
-    skip: task.status === 'failed' || task.status === 'blocked',
+    retry: decided,
+    retryClean: decided,
+    skip: decided || task.status === 'blocked',
     // A task waiting for a reset has no worker to nudge: its chat is not running
     hint: task.status === 'running' && !task.waiting,
   };
 }
 
 /**
- * The failed tasks a blocked one waits behind, found through the tasks in between: the decision that
+ * Whether a graph can be resumed: it is not running and has work left. A graph that waits for a
+ * decision resumes too, every task it waits on at once (R11); the server refuses while one of them
+ * still works in its chat.
+ */
+export function canResume(orch: { status: Orchestration['status']; tasks: ReadonlyArray<Pick<OrchestrationTaskState, 'status'>> }): boolean {
+  return orch.status !== 'running' && orch.tasks.some((t) => t.status !== 'completed');
+}
+
+/**
+ * The failed or stopped tasks a blocked one waits behind, found through the tasks in between: the decision that
  * frees it is taken on them, not on it.
  */
 export function blockedBy(orch: Orchestration, task: OrchestrationTaskState): OrchestrationTaskState[] {
@@ -41,7 +52,7 @@ export function blockedBy(orch: Orchestration, task: OrchestrationTaskState): Or
       const dep = byId.get(id);
       if (!dep || seen.has(id)) continue;
       seen.add(id);
-      if (dep.status === 'failed') found.set(id, dep);
+      if (dep.status === 'failed' || dep.status === 'stopped') found.set(id, dep);
       else if (dep.status === 'blocked') walk(dep);
     }
   };
@@ -68,10 +79,11 @@ export function attemptLabel(orch: Orchestration, task: OrchestrationTaskState):
 }
 
 /** What the orchestration's status means for the person looking at it, when it asks for anything. */
-export function waitingSummary(orch: Orchestration): { failed: OrchestrationTaskState[]; blocked: OrchestrationTaskState[] } | null {
+export function waitingSummary(orch: Orchestration): { failed: OrchestrationTaskState[]; stopped: OrchestrationTaskState[]; blocked: OrchestrationTaskState[] } | null {
   if (orch.status !== 'waiting') return null;
   return {
     failed: orch.tasks.filter((t) => t.status === 'failed'),
+    stopped: orch.tasks.filter((t) => t.status === 'stopped'),
     blocked: orch.tasks.filter((t) => t.status === 'blocked'),
   };
 }
