@@ -447,7 +447,7 @@
   "offline [Offline]",
   "orchestration [canRelaunch, canRerun, cleanTask, limitsOf, rerunBlockedByPullRequest, specOfOrchestration, specOfTask, withoutWorkItems]",
   "orchestration-board [TaskDecisions, attemptLabel, blockedBy, costSplit, decisionsOn, waitShownOnGraph, waitingSummary, workflowEnded, workflowWait]",
-  "orchestration-steps [GraphShape, OrchestrationStep, followedStep, graphShape, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, reviewProgress, stageState, taskStage, workflowPhaseSteps]",
+  "orchestration-steps [GraphShape, OrchestrationStep, followedStep, graphShape, layerTasks, liveTask, orchestrationProgress, orchestrationSteps, reviewProgress, stageState, stepLabel, taskStage, workflowPhaseSteps]",
   "orchestration-timings [PHASE_CELLS, WAIT_TONE, phaseCellCounts, phaseCells, phaseTone, timingsPhaseKey]",
   "orchestration-v2 [EMPTY_REVIEW, EMPTY_VERIFICATION, InstallMode, ReviewDraft, VerificationDraft, canRelaunch, canRerun, checksShown, cleanTask, commandsText, dependantsOf, draftOfReview, draftOfVerification, isErrorLine, limitsOf, orchestrationFix, parseCommands, pullRequestHeld, rerunBlockedByPullRequest, reviewHolds, reviewOf, specOfOrchestration, specOfTask, verificationOf]",
   "orchestrations [Orchestrations]",
