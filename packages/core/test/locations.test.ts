@@ -77,6 +77,8 @@ test('a session run in a worktree carries the CLI record, and stays loose until 
   const loose = await core.chats.list({ project: null, origins: ['claudio', 'external'] });
   assert.deepEqual(loose.map((c) => c.id).sort(), ['p-1', 'w-1']);
 
-  core.db.close();
+  // The whole Core: with only its database closed, its timers go on querying it while the file runs
+  core.shutdown();
+  await core.restored;
 });
 

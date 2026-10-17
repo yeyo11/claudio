@@ -532,6 +532,14 @@ export class Core {
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
+  /** Set by `shutdown`: what was still on its way when it ran must not start anything */
+  private closed = false;
+  /**
+   * Settles once the chats of the last run are back and what waited for them has started (or, shut
+   * down first, has not). Whoever ends a Core it just made awaits it after `shutdown`, so nothing of
+   * the boot is left to touch the closed database.
+   */
+  readonly restored: Promise<void>;
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
@@ -1375,7 +1383,10 @@ export class Core {
         event.type === 'orchestration.removed';
       if (ended) void this.schedules.drain().catch(() => undefined);
     });
-    void this.runtime.restore(this.sessions).finally(() => {
+    const restored = this.runtime.restore(this.sessions).finally(() => {
+      // Shut down before the chats came back: nothing may start, and the database is closed. Started
+      // anyway, the pull request watcher and the scheduler armed timers no shutdown would ever clear
+      if (this.closed) return;
       this.orchestrator.recover();
       void this.evals.load().catch(() => undefined);
       try {
@@ -1394,6 +1405,12 @@ export class Core {
       // otherwise waits for seconds on a machine with hundreds of megabytes of them
       void this.sessions.listSessions().catch(() => undefined);
     });
+    this.restored = restored.then(
+      () => undefined,
+      (error: unknown) => {
+        if (!this.closed) console.warn(`restore: ${error instanceof Error ? error.message : String(error)}`);
+      },
+    );
     this.connectors = new Connectors(config, { account: () => this.accounts.ref(DEFAULT_ID) });
     this.projectDocs = new ProjectDocsService({ config, runtime: this.runtime, connectors: this.connectors });
     // A project's agent file is also a team member's: the team announces it, however it was written
@@ -3290,6 +3307,7 @@ export class Core {
   }
 
   shutdown(): void {
+    this.closed = true;
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();

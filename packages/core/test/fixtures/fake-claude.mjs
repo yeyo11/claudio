@@ -6,6 +6,8 @@
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
 //   FAKE-HANG                     never answers, like a worker someone has to stop
 //   FAKE-SLEEP <ms>               waits that long before the turn goes on, so a test can act while it works
+//   FAKE-WAIT-FOR <file>          waits until <file> exists before the turn goes on: a turn that is
+//                                 still working whatever the test does first, however loaded the machine
 //   FAKE-FAIL <message>           ends the turn with an error result
 //   FAKE-FAIL-ONCE <message>      fails like that, and every later turn of the session succeeds and
 //                                 answers `retried: <the prompt it got>`
@@ -247,6 +249,16 @@ lines.on('line', async (line) => {
 
   const nap = /^FAKE-SLEEP (\d+)$/m.exec(prompt);
   if (nap) await new Promise((resolve) => setTimeout(resolve, Number(nap[1])));
+  const gate = /^FAKE-WAIT-FOR (\S+)$/m.exec(prompt);
+  if (gate) {
+    await new Promise((resolve) => {
+      const wait = setInterval(() => {
+        if (!existsSync(gate[1])) return;
+        clearInterval(wait);
+        resolve();
+      }, 20);
+    });
+  }
   if (/^FAKE-FOREIGN-HOOK$/m.test(prompt)) {
     out({ type: 'system', subtype: 'hook_started', hook_id: 'person-1', hook_name: 'PreToolUse:Bash', hook_event: 'PreToolUse', uuid: randomUUID(), session_id: sessionId });
     out({ type: 'system', subtype: 'hook_response', hook_id: 'person-1', hook_name: 'PreToolUse:Bash', hook_event: 'PreToolUse', output: 'lint ok\n', stdout: '', stderr: 'lint ok\n', exit_code: 0, outcome: 'success', uuid: randomUUID(), session_id: sessionId });

@@ -217,7 +217,9 @@ test('importing adopts the chats already there, worktrees included; removing let
     assert.equal((await chatsIn(null)).length, 4);
     await assert.rejects(core.purgeProject(imported.id), /project not found/);
   } finally {
-    core.db.close();
+    // The whole Core: with only its database closed, its timers go on querying it while the file runs
+    core.shutdown();
+    await core.restored;
   }
 });
 
