@@ -68,6 +68,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* The desktop's least target; the phone rule raises it to --touch */
+  min-height: 24px;
   white-space: nowrap;
 }
 
