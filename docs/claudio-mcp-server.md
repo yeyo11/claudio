@@ -19,7 +19,8 @@ write tools (CW-17, [below](#write-tools)) and seven reads of teammates' shared 
 [plans/claudio-assistant.md](plans/claudio-assistant.md)).
 
 It adds no screen and no route. The Claudio assistant's chat ([claudio-assistant.md](claudio-assistant.md))
-is what hands it to a chat, through the helper below.
+is what hands it to a chat, through the helper below; a chat of a project that lets its agents read
+what teammates share gets it too, with only the `collab_*` tools ([below](#teammates-shared-copies)).
 
 ## The one rule
 
@@ -202,4 +203,4 @@ The helper returns what a caller spreads into `runtime.start`:
 Stop, skip, rerun and delete tools, moving a card to Done, and listing `claudio` in the person's MCP
 settings: it is internal and given only to chats Claudio confines.
 
-Related: [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]]
+Related: [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]], [[collaborators.md]], [[plans/collaborators-agent-access.md]]
