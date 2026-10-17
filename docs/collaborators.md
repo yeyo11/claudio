@@ -195,6 +195,13 @@ What the sharing side does enforce, on its own machine:
   `collaborators.join-ended` (its join denied, or its invite expired unanswered). A join request
   notifies the owner in the bell and by push, and its answer clears it
   ([notifications.md](notifications.md#join-requests)).
+- **End-to-end specs.** `collaborators` and `collaborators-copies` drive peers the harness starts
+  fresh for each spec, but the main wrapper outlives every spec of its shard. Each spec therefore
+  takes its group off it in its cleanup (`e2e/specs/collab-shared.mjs`): a group left there makes the
+  next spec's Invite dialog ask which group instead of making the invite as it opens, which is how
+  `collaborators` failed only when the other spec ran before it. On a failure the spec records,
+  before its cleanup, the dialog's text, the invite answers the page received, the groups and the
+  collab lines every server logged (the harness's `capture()` and `serverLog()`).
 
 ## Related
 
