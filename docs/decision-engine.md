@@ -353,7 +353,7 @@ switches a point to `active` by itself.
 
 ## Routes
 
-All under tag `decisions`; the full table is in the README's [REST API](../README.md#decisions).
+All under tag `decisions`; the full table is in the [REST API](rest-api.md#decisions).
 
 | Method | Route | What |
 | --- | --- | --- |

@@ -258,7 +258,7 @@ another tab's lists and its All projects views follow; a directory imported agai
 created. Every change emits `project.updated` on the event feed, naming what changed (`name`, `key`,
 `modules`, `settings`). That includes importing a known directory again with other modules: the
 import emits it, records the template the request named, and keeps whatever else the old document
-holds, a part a hand edit broke included. The README's [Projects](../README.md#projects) table has every route.
+holds, a part a hand edit broke included. The [Projects](rest-api.md#projects) table of the REST API has every route.
 
 ## Removing and importing again
 

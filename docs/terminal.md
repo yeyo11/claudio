@@ -40,7 +40,7 @@ its name and `remote: 'any'`; the ticket's `Origin` check is then against the pr
 and refuses, so use the built app (`pnpm build && pnpm start`) for that. The rule is in
 [security-model.md](security-model.md#the-terminal).
 
-The gate's reasons (`GET /terminal` → `reason`) are listed in the [REST API tables](../README.md).
+The gate's reasons (`GET /terminal` → `reason`) are listed in the [REST API tables](rest-api.md#terminal).
 
 ## What a shell gets
 

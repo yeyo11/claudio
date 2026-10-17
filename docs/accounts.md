@@ -118,7 +118,7 @@ Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
 
 ## Where it shows
 
-- **API:** `/accounts` and its sub-routes, in the README's Accounts table. A chat's token reads
+- **API:** `/accounts` and its sub-routes, in the [Accounts](rest-api.md#accounts) table of the REST API. A chat's token reads
   them and cannot change them.
 - **Terminal:** the `claudio-accounts` binary of the package, on the same data dir.
 - **MCP:** `list_accounts` ([claudio-mcp-server.md](claudio-mcp-server.md)) answers each account's

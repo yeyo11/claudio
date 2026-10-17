@@ -109,7 +109,7 @@ and the final text at 8 KiB, all with secrets masked. The 100 newest ended runs 
 
 ## API
 
-Every route is in the Evals tag (`apps/api/src/routes/evals.ts`) and in the README's Evals table.
+Every route is in the Evals tag (`apps/api/src/routes/evals.ts`) and in the [Evals](rest-api.md#evals) table of the REST API.
 
 | Method | Route |
 |---|---|

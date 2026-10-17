@@ -31,7 +31,7 @@ The shape: `packages/shared` holds the types every other package imports,
 server, `apps/api` serves Fastify over the core, `packages/ui` and `packages/chat-ui` hold the web's
 primitives and the conversation, `apps/web` is the React UI, and `apps/desktop` wraps it in Electron
 for Linux. See
-[Monorepo layout](../README.md#monorepo-layout).
+[Monorepo layout](development.md#monorepo-layout).
 
 The UI follows the **Night Shift** design system ([design-system.md](design-system.md)): near-black
 neutrals and Geist, dark by default, a status bar on desktop, and four tabs and a FAB on a phone.
@@ -110,7 +110,7 @@ worker is stopped mid-boot reloads once instead of staying blank since #12
   ([schedule-words.md](schedule-words.md)), the look-alike bars are `ProgressBar` (each remaining bar
   class is mapped in the [design system](design-system.md)), and the unused meter style is gone. See
   the plan's [Outcome](plans/redesign-night-shift.md#outcome).
-- **Known limitations** are catalogued in the README ([Known limitations](../README.md#known-limitations)),
+- **Known limitations** are catalogued in [known-limitations.md](known-limitations.md),
   and what was considered and refused is under [Decided against, for now](../ROADMAP.md#decided-against-for-now).
   Neither is a backlog: they are decisions, with the reasons attached.
 
@@ -229,7 +229,7 @@ shared types — after changing `packages/shared/src/types.ts`, run
 Branch off `main`, one pull request per piece of work, squash-merged. Commits follow Conventional
 Commits because release-please builds `CHANGELOG.md` and the version bump from them, which is why
 the changelog is never edited by hand. A new route needs a summary and a tag in
-`apps/api/src/openapi/routes.ts` and a row in the README's REST API tables.
+`apps/api/src/openapi/routes.ts` and a row in [rest-api.md](rest-api.md), which a test checks.
 [CONTRIBUTING.md](../CONTRIBUTING.md) is the source of truth for all of it.
 
 Locally the wrapper uses the real `~/.claude`; set `CLAUDE_CONFIG_DIR` to experiment safely. Git

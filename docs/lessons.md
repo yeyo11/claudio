@@ -198,7 +198,7 @@ true. The worst case of mining is 1 USD a day in total; with `lesson.mine` off i
 
 ## Routes
 
-The REST rows are in the README. Lessons: list a project's (`status`, with what is `handed`), export,
+The REST rows are in [rest-api.md](rest-api.md). Lessons: list a project's (`status`, with what is `handed`), export,
 mining jobs, global list, settings, one lesson, edit or pin, confirm, retire, restore, delete, promote,
 demote, propose for `CLAUDE.md`, and `POST /chats/:id/lessons/mine`. Events: `lesson.changed` and
 `lesson.job`. Every route that decides, edits, mines or configures a lesson answers 403 to a chat's
