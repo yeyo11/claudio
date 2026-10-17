@@ -229,7 +229,7 @@ read ("from Ana · laptop · api").
   the core as `terminal-host.mjs` is. A panic in the native binding loses the connections and nothing
   else; the core restarts it and reports it. The host polls and never uses the binding's `watch*`
   calls, which abort the process in `@number0/iroh` 1.1.0 (pinned until that and the `Buffer` issue
-  are answered upstream; both are drafted, not filed, in
+  are answered upstream; where both stand is in
   [reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md)).
 - **Its own protocol**, `claudio/collab/1`, as length-prefixed JSON frames on QUIC streams. The HTTP
   API is never exposed to the network.
