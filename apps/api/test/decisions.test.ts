@@ -288,6 +288,8 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
       ['PUT', '/api/decisions/points/flow.bounce/consent', { granted: true, stateVersion: 1, providers: ['jev'] }],
       ['POST', '/api/decisions/some-row/palette-action', { commandId: null }],
       ['POST', '/api/decisions/notification-opened', { key: 'chat:c1:waiting' }],
+      // The deprecated door to the supervisor.intervene point's mode
+      ['PUT', '/api/settings/supervisor', { enabled: true, autoSend: true }],
     ];
     for (const [method, url, body] of forbidden) {
       const answer = await app.inject(fromChat(method, url, body));

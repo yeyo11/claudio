@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   DecisionMode,
@@ -261,15 +261,77 @@ export interface ConsentInput {
   providers: DecisionProviderId[];
 }
 
+/** The point the Supervisor became (docs/plans/settings-ia.md §7.2) */
+export const SUPERVISOR_POINT = 'supervisor.intervene' satisfies DecisionPointId;
+
+/**
+ * The two fields of `supervisor.json` that carry over; the model and the cap are the engine's now.
+ * A field that went bad by hand reads as false, as the Supervisor itself read it.
+ */
+function readLegacySupervisor(file: string): { enabled: boolean; autoSend: boolean } | null {
+  if (!existsSync(file)) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    raw = null;
+  }
+  const body = isObject(raw) ? raw : {};
+  return { enabled: body.enabled === true, autoSend: body.autoSend === true };
+}
+
 /** `decisions.json` in the data directory; absent until the first save, which reads as the defaults. */
 export class DecisionSettingsStore {
   private readonly file: string;
+  private readonly legacySupervisorFile: string;
   private readonly credentials: DecisionCredentialStore;
 
   constructor(config: CoreConfig, credentials: DecisionCredentialStore) {
     this.credentials = credentials;
     this.file = join(config.dataDir, 'decisions.json');
+    this.legacySupervisorFile = join(config.dataDir, 'supervisor.json');
     mkdirSync(config.dataDir, { recursive: true });
+  }
+
+  /** The raw document, or null when it is absent or not a JSON object */
+  private readRaw(): Record<string, unknown> | null {
+    if (!existsSync(this.file)) return null;
+    try {
+      const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
+      return isObject(raw) ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** True once `supervisor.json` was folded into its point; the mark lives in the document, outside what the API serves */
+  supervisorMigrated(): boolean {
+    return this.readRaw()?.supervisorMigrated === true;
+  }
+
+  /**
+   * Folds `supervisor.json` into `supervisor.intervene`, once: disabled is Off, enabled is Shadow,
+   * enabled with `autoSend` is Active. A point the person had already set to Shadow or Active keeps
+   * its mode, unless the Supervisor was disabled. The mark is written with the result, so a later
+   * start never reads the file again, and the file itself is left as it was. Synchronous because it
+   * runs while Core is built, before anything reads the point. Returns the mode it set, or null when
+   * there was nothing to fold.
+   */
+  migrateSupervisor(): DecisionMode | null {
+    // A document broken by hand is not overwritten at start: the next start tries again
+    if (existsSync(this.file) && !this.readRaw()) return null;
+    if (this.supervisorMigrated()) return null;
+    const legacy = readLegacySupervisor(this.legacySupervisorFile);
+    if (!legacy) return null;
+    const stored = this.readStored();
+    const current = stored.points[SUPERVISOR_POINT];
+    const fromFile: DecisionMode = !legacy.enabled ? 'off' : legacy.autoSend ? 'active' : 'shadow';
+    const mode = legacy.enabled && current && current.mode !== 'off' ? current.mode : fromFile;
+    stored.points[SUPERVISOR_POINT] = { mode, threshold: current?.threshold ?? DEFAULT_THRESHOLD, consent: current?.consent ?? null };
+    const tmp = `${this.file}.${String(process.pid)}.tmp`;
+    writeFileSync(tmp, this.serialize(stored, true), 'utf8');
+    renameSync(tmp, this.file);
+    return mode;
   }
 
   private readStored(): StoredDecisionSettings {
@@ -334,8 +396,22 @@ export class DecisionSettingsStore {
     return this.get();
   }
 
+  /** One point's mode, the rest of the document as it is: what `PUT /settings/supervisor` writes */
+  async setPointMode(point: DecisionPointId, mode: DecisionMode): Promise<DecisionSettings> {
+    const stored = this.readStored();
+    const current = stored.points[point];
+    stored.points[point] = { mode, threshold: current?.threshold ?? DEFAULT_THRESHOLD, consent: current?.consent ?? null };
+    await this.write(stored);
+    return this.get();
+  }
+
+  private serialize(settings: StoredDecisionSettings, supervisorMigrated: boolean): string {
+    return `${JSON.stringify(supervisorMigrated ? { ...settings, supervisorMigrated: true } : settings, null, 2)}\n`;
+  }
+
+  /** Keeps the migration's mark: a save that dropped it would fold a stale `supervisor.json` in again on the next start */
   private async write(settings: StoredDecisionSettings): Promise<void> {
-    await writeAtomic(this.file, `${JSON.stringify(settings, null, 2)}\n`);
+    await writeAtomic(this.file, this.serialize(settings, this.supervisorMigrated()));
   }
 }
 
