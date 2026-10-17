@@ -166,7 +166,11 @@ test("the team's activity card leads to the whole view, and says a failure with 
   assert.match(text(card), /SHOP-2 failed to check it Product Owner · no account had quota left/);
 });
 
-test('Team activity lists every run by day, "Now" first, with its step by column, its state and its time', () => {
+test('Team activity lists every run by day, "Now" first, with its step by column, its state and its time', (t) => {
+  // Midday, so a run 15 minutes ago is still today whenever the suite runs
+  const noon = new Date();
+  noon.setHours(12, 0, 0, 0);
+  t.mock.timers.enable({ apis: ['Date'], now: noon });
   const runs = [
     run('5', { state: 'running', outcome: null, stage: 'verify', step: 'verify', column: 'in_review', role: 'qa', agent: 'qa', startedAt: minutesAgo(1), endedAt: null }),
     run('4', { state: 'queued', outcome: null, chatId: null, stage: 'refine', step: 'refine', column: 'backlog', role: 'product-owner', agent: 'product-owner', startedAt: null, endedAt: null, queuedAt: minutesAgo(6) }),
