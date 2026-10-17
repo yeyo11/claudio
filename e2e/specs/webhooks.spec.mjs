@@ -201,8 +201,14 @@ export default async ({ page, api, check, dirs }) => {
     await page.sleep(wait);
   };
   const actionsOf = (id) => page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${rowOf(id)} [data-action]`)})].map((a) => a.getAttribute('data-action'))`);
-  const openWebhooks = async (id, kind, label) => {
+  // A new document each time, so the theme and the overlay's config are read again: from the same
+  // path, an address that differs only in its #section is a same-document navigation
+  const loadWebhooks = async () => {
+    await page.goto('/settings', 0);
     await page.goto(WEBHOOKS, 300);
+  };
+  const openWebhooks = async (id, kind, label) => {
+    await loadWebhooks();
     await page.waitFor(`return document.querySelectorAll('.wh-card [data-project]').length === 2`, { label: `${label}: a row per project` });
     await page.waitFor(kindIs(id, kind), { label: `${label}: the GitHub row is ${kind}` });
   };
@@ -280,7 +286,7 @@ export default async ({ page, api, check, dirs }) => {
     await openWebhooks(ghId, 'off', 'with an address, light');
     await everyScreen('webhooks-off-light', 'Webhooks with an address, light');
     await setTheme('dark');
-    await page.goto(WEBHOOKS, 300);
+    await loadWebhooks();
     await page.waitFor(kindIs(ghId, 'off'), { label: 'the row, off' });
 
     const callsBefore = ghCalls().length;

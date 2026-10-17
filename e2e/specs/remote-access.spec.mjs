@@ -50,6 +50,13 @@ const status = (state, extra = {}) => ({
 });
 
 export default async ({ page, api, check }) => {
+  // A new document each time, so the fake injected with onNewDocument runs: from the same path, an
+  // address that differs only in its #section is a same-document navigation that loads nothing
+  const openRemote = async () => {
+    await page.goto('/settings', 0);
+    await page.goto('/settings/access#remote', 1500);
+  };
+
   // ---- The real server, with the guard open ----
   const refused = await api.post('/tunnel/start');
   check(refused.status === 409, `the server refuses a tunnel while authentication is off (got ${refused.status})`);
@@ -68,7 +75,7 @@ export default async ({ page, api, check }) => {
   // "Start with Claudio" is saved, and a change made elsewhere reaches the page through the feed
   const before = (await api.get('/tunnel')).body.settings.startWithClaudio;
   try {
-    await page.goto('/settings/access#remote', 1500);
+    await openRemote();
     await page.click(`${TAB} [role=switch]`, undefined, 800);
     check((await api.get('/tunnel')).body.settings.startWithClaudio === !before, 'the switch saved the setting');
     await api.put('/tunnel/settings', { startWithClaudio: before });
@@ -82,7 +89,7 @@ export default async ({ page, api, check }) => {
   // ---- A fake open tunnel ----
   let remove = await page.onNewDocument(fakeTunnel(status('active')));
   try {
-    await page.goto('/settings/access#remote', 1500);
+    await openRemote();
     await page.waitFor(`return !!document.querySelector('[data-testid=tunnel-address]')`, { label: 'the open address' });
     const url = await page.eval(`return document.querySelector('[data-testid=tunnel-url]')?.textContent ?? ''`);
     check(url === FAKE_URL, `the address is shown (got ${url})`);
@@ -102,7 +109,7 @@ export default async ({ page, api, check }) => {
   const missing = { state: 'missing', version: null, host: null, reason: { code: 'tunnel.tailscaleMissing', text: 'No tailscale' } };
   remove = await page.onNewDocument(fakeTunnel(status('stopped', { tailscale: missing })));
   try {
-    await page.goto('/settings/access#remote', 1500);
+    await openRemote();
     await page.waitFor(`return !!document.querySelector('${TAB} [data-testid=tunnel-tailscale-missing] .state-illustrated')`, { label: 'the not-installed state' });
     const text = await page.text(TAB);
     check(text.includes('Tailscale is not installed'), 'the section says Tailscale is missing');
@@ -116,7 +123,7 @@ export default async ({ page, api, check }) => {
   const signedOut = { state: 'loggedOut', version: '1.102.4', host: null, reason: { code: 'tunnel.tailscaleLoggedOut', text: 'Signed out' } };
   remove = await page.onNewDocument(fakeTunnel(status('stopped', { tailscale: signedOut })));
   try {
-    await page.goto('/settings/access#remote', 1500);
+    await openRemote();
     await page.waitFor(`return !!document.querySelector('${TAB} [data-testid=tunnel-tailscale-loggedOut]')`, { label: 'the signed-out state' });
     const text = await page.text(TAB);
     check(text.includes('Tailscale is not signed in') && text.includes('tailscale up'), 'the section says to run tailscale up');

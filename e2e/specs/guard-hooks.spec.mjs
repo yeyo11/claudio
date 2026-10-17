@@ -34,6 +34,12 @@ export default async ({ page, api, check, dirs }) => {
     chats.push(res.body.id);
     return res.body.id;
   };
+  // A new document: from the same path, an address that differs only in its #section is a
+  // same-document navigation, which neither reloads the page nor fetches the guards' status again
+  const openGuards = async () => {
+    await page.goto('/settings', 0);
+    await page.goto('/settings/access#guards', 1500);
+  };
   const theme = (name) => page.eval(`localStorage.setItem('claudio-theme', '${name}'); return true`);
   let bundleMode = null;
   let projectId = null;
@@ -113,7 +119,7 @@ export default async ({ page, api, check, dirs }) => {
     const before = await rule('secrets');
     await page.click('#guards [data-rule="secrets"] [role=switch]', undefined, 1200);
     check((await rule('secrets')) !== before, 'the secrets switch flipped');
-    await page.goto('/settings/access#guards', 1500);
+    await openGuards();
     await page.waitFor(`return !!document.querySelector('#guards [data-rule="secrets"] [role=switch]')`, { label: 'the secrets switch after a reload' });
     check((await rule('secrets')) !== before, 'the switch kept its state after a reload');
     check((await api.get('/settings/guards')).body.settings.rules.secrets === (before !== 'true'), 'the server holds the new state');
@@ -141,7 +147,7 @@ export default async ({ page, api, check, dirs }) => {
     {
       bundleMode = statSync(GUARD_BUNDLE).mode & 0o777;
       chmodSync(GUARD_BUNDLE, 0o666);
-      await page.goto('/settings/access#guards', 1500);
+      await openGuards();
       await page.waitFor(`return !!document.querySelector('#guards .guard-status.is-bad')`, { label: 'the bad status', timeout: 30_000 });
       const unavailable = await api.post('/chats', { prompt: 'run: ls', cwd: project.path });
       if (unavailable.status === 201) chats.push(unavailable.body.id);

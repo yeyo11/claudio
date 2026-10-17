@@ -78,7 +78,8 @@ export default async ({ page, api, check, dirs }) => {
     const known = await page.text('.prov-row[data-host="gitlab"] .host-known');
     check(known.includes('gitlab.com') && known.includes('tanuki'), `glab's row names the host it knows and the account (${known})`);
     check((await page.eval(`return document.querySelectorAll('.grad-border').length`)) <= 2, 'at most two gradient surfaces');
-    check((await page.eval(`return !!document.querySelector('.prov-checked')`)) && (await page.text('.prov-checked')).startsWith('Checked'), 'the page says when it checked');
+    // Scoped: Connections also holds the connectors, whose own line comes first and may still be asking the CLI
+    check((await page.eval(`return !!document.querySelector('#code-hosts .prov-checked')`)) && (await page.text('#code-hosts .prov-checked')).startsWith('Checked'), 'the page says when it checked');
     await page.shot('integrations-dark');
     await scan(page, check, 'Settings → Connections → Code hosts, dark');
     await theme(page, 'light');
