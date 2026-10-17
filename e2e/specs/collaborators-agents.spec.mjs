@@ -171,7 +171,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben }, s
     // The chat's page: the chip in the header, and the tool row naming whose share it read
     await page.goto(`/chats/${reader}`, 1500);
     await page.waitFor(`return !!document.querySelector('[data-testid=chat-teammate-reads]')`, { label: 'the "Reads teammates\' shares" chip', timeout: 30_000 });
-    check((await page.eval(`return document.querySelector('[data-testid=chat-teammate-reads]').innerText`)).includes("Reads teammates' shares"), 'the chip says it in words');
+    // textContent: a badge is drawn in capitals (feedback.css), and innerText carries the capitals
+    check((await page.eval(`return document.querySelector('[data-testid=chat-teammate-reads]').textContent`)).includes("Reads teammates' shares"), 'the chip says it in words');
     await page.eval(`for (const t of document.querySelectorAll('.tool-step > .collapsible-trigger[aria-expanded=false]')) t.click(); return true`);
     await page.waitFor(`return [...document.querySelectorAll('.teammate-read')].some((r) => r.innerText.includes('Ben'))`, { label: "the tool row naming Ben's share", timeout: 30_000 });
     const row = await page.eval(`return [...document.querySelectorAll('.teammate-read')].map((r) => r.innerText).join(' | ')`);
