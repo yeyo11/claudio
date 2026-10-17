@@ -38,8 +38,9 @@ export function buildArgs(spec: SessionLaunch): string[] {
   if (spec.allowedTools?.length) args.push(`--allowedTools=${spec.allowedTools.join(',')}`);
   if (spec.disallowedTools?.length) args.push(`--disallowedTools=${spec.disallowedTools.join(',')}`);
   // Strict, because the point of choosing servers is that no other one loads. The `=` form keeps
-  // the variadic flag from taking whatever follows it as another file.
-  if (spec.mcpConfig) args.push(`--mcp-config=${spec.mcpConfig}`, '--strict-mcp-config');
+  // the variadic flag from taking whatever follows it as another file. A chat that chose none and
+  // only gets Claudio's reads of teammates' copies keeps the servers it always loaded.
+  if (spec.mcpConfig) args.push(`--mcp-config=${spec.mcpConfig}`, ...(spec.mcpConfigAdds ? [] : ['--strict-mcp-config']));
   if (spec.confine) {
     // `--restricted` confines the file tools to the working directory, which is why no other
     // directory is added. The `=` forms keep an empty list a value of its flag.

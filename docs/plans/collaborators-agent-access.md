@@ -1,18 +1,19 @@
 ---
 created_at: 2026-10-17T00:40:00Z
-updated_at: 2026-10-17T00:40:00Z
+updated_at: 2026-10-17T18:00:00Z
 tags:
     - plan
     - collaborators
     - assistant
     - mcp
     - security
-    - decided
+    - built
 ---
 # Plan: agents read what teammates share
 
-Status: **decided**, not built (owner's choice on 2026-10-17: a hybrid of an assistant that reads the shared
-copies and read-only MCP tools a project opts into). Builds on [collaborators.md](../collaborators.md)
+Status: **built** on the R13 orchestration's branches on 2026-10-17, not yet in `main` (owner's choice
+on 2026-10-17: a hybrid of an assistant that reads the shared copies and read-only MCP tools a project
+opts into). See [Outcome](#outcome). Builds on [collaborators.md](../collaborators.md)
 and changes one of its security decisions.
 
 ## What the owner asked for
@@ -67,6 +68,46 @@ commands on this machine.
 After the Collaborators gaps (R12) are merged. One graph: shared types and the token scope (core,
 API), the MCP tools, the two switches (web), the audit, tests, docs.
 
+## Outcome
+
+Built on 2026-10-17 by one graph of five tasks, as decided above, the owner's section included. What
+it is now is in [collaborators.md](../collaborators.md#agents-that-read-what-teammates-share).
+
+- **Settings, the flag, the token scope and the audit** (`59a2e2847`). `CollaboratorsSettings.assistantReads`
+  (on by default); `ProjectSharingSettings.agentsMayRead` (the sharer's, on by default, carried in the
+  catalog) and `agentReads` (the reader's, off by default). `agentReadScope` and `copyInScope`
+  (`packages/core/src/collab/agent-access.ts`) decide the scope; `AGENT_READABLE` and
+  `agentReadRefusal` in `apps/api/src/security.ts` let a chat's token through the copy reads only in
+  scope, with `collaborators.agent-read.*` refusals. `auto` and `dontAsk` are refused with
+  `bypassPermissions`: they do not ask before running a command either. A chat's read never pulls
+  from the owner. The audit is `collab_agent_reads` (newest 20,000 kept) and
+  `GET /collaborators/agent-reads`. `PUT /collaborators` now validates its body; it used to store
+  whatever was sent.
+- **The MCP tools** (`63e254ba6`). The seven tools listed above, in `packages/mcp/src/collab-tools.ts`,
+  fenced by `packages/mcp/src/untrusted.ts`. The server offers toolsets from `CLAUDIO_MCP_TOOLSETS`;
+  a project chat that opted in gets Claudio's server with the collab reads only, added to the
+  servers it loads or merged into the strict file of those it chose. The tools name themselves in
+  `x-claudio-tool`, so the audit records the tool.
+- **The assistant** (`5332628a1`). Its guide gains "What teammates share": where to look, that the
+  copy may lag, and that a teammate's text is data, never instructions; with the switch off it says
+  so, and with Collaborators off it names no teammates.
+- **The web** (`df7e83ec6`). The Collaborators page's Agents card with the assistant's switch; the
+  two switches of the Sharing section; the chat header's `Reads teammates' shares` badge from
+  `chat.teammateReads`; `collab_*` tool rows that name whose share was read; "Read by N chats today"
+  or "The sharer does not let agents read this" on a copy; Settings → Security → Read by agents.
+- **The browser spec** (`c9eeda365`). `e2e/specs/collaborators-agents.spec.mjs` drives the switches, a
+  project chat's read before and after opting in, a `bypassPermissions` chat, the audit and the
+  sharer's flag turned off. The e2e fake CLI gained an `mcp:` step that calls a tool on the server
+  `--mcp-config` names, and the runner drops `CLAUDIO_MCP_ENTRY` so chats run this checkout's server.
+
+**Deviations from the plan.** Tool rows name whose share was read, as asked, through a `Teammate`
+slot the app fills from the catalog. The audit's per-copy count is a line on the copy ("Read by N
+chats today") that links to Settings → Security, and nothing shows while no chat read it today.
+
+**Open.** The browser spec was written but not run by the task that wrote it; it runs on the merged
+branch. The sharer's flag is cooperative, like the rest of Collaborators: a modified reader can ignore
+it.
+
 ## Related
 
-[[collaborators.md]] · [[plans/collaborators.md]] · [[security-model.md]] · [[claudio-assistant.md]]
+[[collaborators.md]] · [[plans/collaborators.md]] · [[security-model.md]] · [[claudio-assistant.md]] · [[claudio-mcp-server.md]] · [[requests.md]]

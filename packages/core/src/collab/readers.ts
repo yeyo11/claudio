@@ -46,6 +46,8 @@ export interface SharedPlace {
   remote: string | null;
   subpath: string | null;
   kinds: readonly CollaboratorsKind[];
+  /** The sharer's flag, carried in the catalog: teammates' agents may read this copy */
+  agentsMayRead: boolean;
 }
 
 /**

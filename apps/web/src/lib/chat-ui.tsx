@@ -2,6 +2,7 @@ import { lazy, useMemo, type ReactNode } from 'react';
 import { api, BASE, enc } from '../api';
 import { withToken } from './auth';
 import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
+import { TeammateName } from '../components/TeammateName';
 import { reviewLink, reviewPath } from './changes-summary';
 import { useFallbackInterval } from './feed';
 import { useProviderLabel } from './provider-status';
@@ -35,6 +36,8 @@ const slots: ChatUiConfig['slots'] = {
   LiveOptions: lazy(() => import('../pages/chat/Controls').then((m) => ({ default: m.LiveOptions }))),
   // Lazy too: the comparator is only needed once a reader opens an edit
   Diff: lazy(() => import('../components/changes/DiffSlot').then((m) => ({ default: m.DiffSlot }))),
+  // Not lazy: a row names its teammate as it draws, and a suspended name would blank the step
+  Teammate: TeammateName,
 };
 
 const paths: ChatUiConfig['paths'] = {

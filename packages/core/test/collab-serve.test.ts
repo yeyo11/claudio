@@ -68,6 +68,7 @@ const place = (p: typeof shared, groups: string[], kinds: CollaboratorsKind[] = 
   remote: 'origin',
   subpath: null,
   kinds,
+  agentsMayRead: true,
 });
 
 let places: SharedPlace[] = [];
@@ -333,6 +334,22 @@ test('unsharing a project refuses its frames from then on', async () => {
   try {
     assert.equal(errorOf(await ask(member.id, { type: 'pull', shareKey: key(shared), kind: 'chats', since: null })), 'not-found');
     assert.equal(errorOf(await ask(member.id, { type: 'blob', shareKey: key(shared), sha256: docHash })), 'not-found');
+  } finally {
+    resetPlaces();
+  }
+});
+
+test("the catalog carries the sharer's flag on agent reads, so the reading install can honour it", async () => {
+  const flagOf = async (): Promise<boolean | undefined> => {
+    const catalog = (await ask(member.id, { type: 'catalog', groupId: team.groupId })).frames[0];
+    return catalog?.type === 'catalog' ? catalog.projects.find((p) => p.shareKey === key(shared))?.agentsMayRead : undefined;
+  };
+  assert.equal(await flagOf(), true);
+  places = places.map((p) => (p.projectId === shared.id ? { ...p, agentsMayRead: false } : p));
+  try {
+    assert.equal(await flagOf(), false);
+    // The person still reads it: the flag is about agents only
+    assert.equal(errorOf(await ask(member.id, { type: 'pull', shareKey: key(shared), kind: 'chats', since: null })), null);
   } finally {
     resetPlaces();
   }

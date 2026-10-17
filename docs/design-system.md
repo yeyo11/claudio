@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-17T10:00:00Z
+updated_at: 2026-10-17T18:00:00Z
 tags:
     - design-system
     - web
@@ -1951,6 +1951,10 @@ bad always sit beside a word and the shield icon.
   (**`.guard-always`**) instead of a Switch.
 - **`.guard-tag`** is the chat header's `.badge`, a button: neutral "Guards" when armed, warn
   "Observe", bad "Guards not running". A press opens a `Sheet` with **`.guard-rules-list`**.
+- **`.teammate-reads-tag`** is the chat header's neutral `.badge` beside the guard's, in the same
+  mono: "Reads teammates' shares" on a chat whose agent may read what teammates share
+  (docs/plans/collaborators-agent-access.md). A fact, not a status: no colour, no motion, what it
+  reads in its tooltip.
 - **`.chip.guard`** is the warn chip of a task or a flow run, "N blocked" in tabular figures, a link
   to the chat at its first guard notice. It shows only when the count is above 0. Warn fill
   (`--warn-soft`), text in `--fg`, the shield in `--warn`.
@@ -2467,6 +2471,8 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - `.call-lines`: a Read's numbered code. The numbers come from a CSS counter, so copying leaves them
   out; the reference draws `CodeBlock`, which has no line numbers.
 - `.tool-hint-aside`: the muted mono path after a Grep pattern in the folded hint.
+- `.teammate-read`: after a teammate-read tool's hint, "from Ana · laptop · api", whose share went into
+  the chat; never cut when the hint before it is.
 - `.call-diff.is-all`: the diff once "Show all" lifted its 360 px cap.
 - `.call-checklist .word`: the status word beside a checklist item's icon, so a status is never colour
   alone.
@@ -2529,6 +2535,25 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   Accounts, Connectors, Usage, Settings, with the `Network` icon. On a phone it is in **More**,
   after Projects. `shell.spec.mjs` asserts the desktop order and `a11y-shell.spec.mjs` the More
   entry.
+- **Agents reading what teammates share** (R13, [plans/collaborators-agent-access.md](plans/collaborators-agent-access.md)).
+  No gradient, no motion and no illustration: these are settings and facts, not live work.
+  - The Collaborators page has an **Agents** card (`.collab-agents`, a `Card` with no CSS of its own):
+    the `Switch` "The assistant reads what is shared with you", a muted hint, and "See what agents
+    read" as a link button to Settings → Security.
+  - A project's Sharing section gains the sharer's `Switch` "Teammates' agents may read this" with a
+    `.field-hint`, inside the share key's card, and a `.settings-cells` card of its own, after it, for
+    the reader's "Agents in this project can read what teammates share here".
+  - A shared copy's header line (the Shared tab and the read-only view) adds, after the sync words, a
+    muted `.collab-share-where` line with a Lucide icon: "Read by N chats today" (`Bot`), a link to
+    Settings → Security, shown only when the count is above 0; or "The sharer does not let agents read
+    this" (`BotOff`). Neutral: neither is a status.
+  - Settings → Security has a **Read by agents** card: a `.table` of when, chat (its id in mono, a
+    link), tool (mono), shared project (the teammate's name, then the share key in muted mono), and
+    what (the kind and "N records" in mono), with a refresh icon button; with no row it is the compact
+    `Empty`, no illustration.
+  - The chat header's `.teammate-reads-tag` and the tool row's `.teammate-read` are described above
+    (in "Guards: the row, the rules sheet, the header tag…" and "Tool rows and live branches, as
+    built").
 
 ## Related
 

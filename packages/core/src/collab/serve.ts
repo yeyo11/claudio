@@ -236,7 +236,7 @@ export class CollabServer {
         for (const entry of entries) byId[entry.id] = entry.version;
         versions[kind] = byId;
       }
-      projects.push({ shareKey: place.shareKey, name: place.name, remote: place.remote, subpath: place.subpath, kinds: [...place.kinds], counts, versions });
+      projects.push({ shareKey: place.shareKey, name: place.name, remote: place.remote, subpath: place.subpath, kinds: [...place.kinds], counts, versions, agentsMayRead: place.agentsMayRead });
     }
     return { type: 'catalog', groupId: group.groupId, projects };
   }

@@ -97,6 +97,11 @@ export interface CatalogEntry {
   kinds: CollaboratorsKind[];
   counts: Partial<Record<CollaboratorsKind, number>>;
   versions: Partial<Record<CollaboratorsKind, Record<string, string>>>;
+  /**
+   * The sharer's "Teammates' agents may read this". An install from before the flag sends none, and
+   * a share without it is readable, as the flag is on by default; only `true` or absent allow it
+   */
+  agentsMayRead?: boolean;
 }
 
 /**

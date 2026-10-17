@@ -29,7 +29,7 @@ const project: Project = { id: 'p1', name: 'api', path: '/tmp/api', worktrees: [
 
 const status = (enabled: boolean, unavailable = false): CollaboratorsStatus => ({
   unavailable: unavailable ? { code: 'platform', reason: { code: 'platform', text: 'Not available on this platform' } as never } : null,
-  settings: { enabled, displayName: 'Me', label: 'desktop', relayUrl: null },
+  settings: { enabled, displayName: 'Me', label: 'desktop', relayUrl: null, assistantReads: true },
   endpointId: enabled ? 'me' : null,
   connection: enabled ? 'online' : 'off',
   homeRelay: null,
@@ -50,6 +50,7 @@ const sharedProject = (over: Partial<SharedProject> = {}): SharedProject => ({
   sync: { state: 'live', lastSyncedAt: new Date().toISOString(), path: 'direct', error: null },
   matches: ['p1'],
   linkedProjectId: null,
+  agentsMayRead: true,
   ...over,
 });
 
@@ -374,6 +375,8 @@ const sharing = (over: Partial<ProjectSharing> = {}): ProjectSharing => ({
   keyInUse: null,
   kinds: ['chats', 'memory', 'journal', 'documents', 'artifacts', 'board'],
   seenAs: { name: 'api', remote: 'github.com/acme/api' },
+  agentsMayRead: true,
+  agentReads: false,
   ...over,
 });
 

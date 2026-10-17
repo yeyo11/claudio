@@ -27,8 +27,13 @@ export class ApiError extends Error {
 
 export type Query = Record<string, string | number | boolean | undefined>;
 
+/** What a read says about itself: `tool` is sent as `x-claudio-tool`, which the API's audit of a teammate's copy records */
+export interface ReadOptions {
+  tool?: string;
+}
+
 export interface ApiClient {
-  get(path: string, query?: Query): Promise<unknown>;
+  get(path: string, query?: Query, opts?: ReadOptions): Promise<unknown>;
   /** The write tools' only way out: a POST or a PATCH with a JSON body, nothing else */
   send(method: 'POST' | 'PATCH', path: string, body?: unknown): Promise<unknown>;
   /** Kept so the refusal belongs to the client, not to whoever calls it */
@@ -56,7 +61,7 @@ export function createClient(options: ClientOptions): ApiClient {
   // Informational: it grants nothing, it lets a later audit attribute the call
   if (options.chatId) headers['x-claudio-chat'] = options.chatId;
 
-  async function perform(method: string, path: string, query: Query = {}, body?: unknown): Promise<unknown> {
+  async function perform(method: string, path: string, query: Query = {}, body?: unknown, extra: Record<string, string> = {}): Promise<unknown> {
     const search = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') search.set(key, String(value));
     const qs = search.toString();
@@ -66,7 +71,7 @@ export function createClient(options: ClientOptions): ApiClient {
     try {
       const res = await doFetch(url, {
         method,
-        headers: body === undefined ? headers : { ...headers, 'content-type': 'application/json' },
+        headers: body === undefined ? { ...headers, ...extra } : { ...headers, ...extra, 'content-type': 'application/json' },
         signal: controller.signal,
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
@@ -90,7 +95,7 @@ export function createClient(options: ClientOptions): ApiClient {
 
   return {
     request: (method, path, query) => (method === 'GET' ? perform(method, path, query) : Promise.reject(new ApiError(`this server only reads: ${method} is refused`, null))),
-    get: (path, query) => perform('GET', path, query),
+    get: (path, query, opts) => perform('GET', path, query, undefined, opts?.tool ? { 'x-claudio-tool': opts.tool } : {}),
     send: (method, path, body) => perform(method, path, {}, body ?? {}),
   };
 }

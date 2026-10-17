@@ -158,6 +158,9 @@ export type JoinAnswerOutcome = { state: 'joined'; chain: RosterVersion[] } | { 
 /** What a joiner asks with to learn it was denied: never the secret, nor the hash the owner spends it by */
 export const inviteDenialTag = (invite: Invite): string => denialTag(secretHash(invite.secret));
 
+/** What a catalog entry says of agent reads: absent is an owner from before the flag, which is on by default */
+export const catalogAllowsAgents = (entry: Pick<CatalogEntry, 'agentsMayRead'>): boolean => entry.agentsMayRead === undefined || entry.agentsMayRead === true;
+
 // ---------- The catalog kept between runs ----------
 
 /** What a peer's last catalog said, so the Collaborators page lists its shares while it is offline */
@@ -170,6 +173,11 @@ export interface KnownShare {
   counts: Partial<Record<CollaboratorsKind, number>>;
   /** The groups this install sees it through, sorted; the first holds its cursors */
   groupIds: string[];
+  /**
+   * The sharer lets teammates' agents read it, as its last catalog said. Absent in a cache written
+   * before the flag: read as off until the owner's catalog is read again, so a refusal is never lost
+   */
+  agentsMayRead?: boolean;
 }
 
 interface CatalogDoc {
@@ -708,6 +716,7 @@ export class SyncClient {
         kinds: entry.kinds.filter((k): k is CollaboratorsKind => typeof k === 'string'),
         counts: entry.counts && typeof entry.counts === 'object' ? entry.counts : {},
         groupIds: [...groupIds].sort(),
+        agentsMayRead: catalogAllowsAgents(entry),
       };
       known.push(share);
       const key = stateKey(peer.id, shareKey);

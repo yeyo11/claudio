@@ -8,6 +8,8 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AgentReadEntry,
+  AgentReadList,
   CollaboratorsStatus,
   CreateGroupRequest,
   Group,
@@ -37,6 +39,22 @@ export interface SharedRef {
 }
 
 const shared = ({ owner, shareId }: SharedRef) => `/collaborators/shared/${enc(owner)}/${enc(shareId)}`;
+
+/** What `GET /collaborators/agent-reads` filters on: one copy, one chat, a moment, how many */
+export interface AgentReadQuery {
+  owner?: string;
+  shareId?: string;
+  chatId?: string;
+  since?: string;
+  limit?: number;
+}
+
+const agentReadsPath = (q: AgentReadQuery) => {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(q)) if (value !== undefined && value !== '') query.set(key, String(value));
+  const qs = query.toString();
+  return `/collaborators/agent-reads${qs ? `?${qs}` : ''}`;
+};
 
 export const collaboratorsApi = {
   status: (o: ReadOptions = {}) => request<CollaboratorsStatus>('/collaborators', o),
@@ -70,6 +88,8 @@ export const collaboratorsApi = {
   sharedBoard: (ref: SharedRef, o: ReadOptions = {}) => request<SharedBoard>(`${shared(ref)}/work-items`, o),
   sharedArtifacts: (ref: SharedRef, o: ReadOptions = {}) => request<SharedArtifact[]>(`${shared(ref)}/artifacts`, o),
   sharedTranscript: (ref: SharedRef, chatId: string, o: ReadOptions = {}) => request<SharedTranscriptPage>(`${shared(ref)}/chats/${enc(chatId)}/transcript`, o),
+  /** What agents read of the copies, newest first (docs/plans/collaborators-agent-access.md) */
+  agentReads: (q: AgentReadQuery, o: ReadOptions = {}) => request<AgentReadList>(agentReadsPath(q), o),
   /** Where a blob is served; the first open fetches it from the owner, so it may take a while */
   sharedBlobUrl: (ref: SharedRef, sha256: string) => `${BASE}${shared(ref)}/blobs/${enc(sha256)}`,
   /** A blob as text (a document's content), with the credential a bare URL cannot carry */
@@ -88,6 +108,25 @@ export const collaboratorsKeys = {
   shared: ['collaborators', 'shared'] as const,
   sharing: (projectId: string) => ['collaborators', 'sharing', projectId] as const,
   copy: (ref: SharedRef, kind: string, ...rest: string[]) => ['collaborators', 'copy', ref.owner, ref.shareId, kind, ...rest] as const,
+  agentReads: (q: AgentReadQuery) => ['collaborators', 'agent-reads', q] as const,
+};
+
+/** The local midnight a "today" starts at, as the route's `since` */
+export function startOfToday(now: Date = new Date()): string {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+}
+
+/** How many different chats the reads came from: "read by 3 chats today" counts chats, not calls */
+export const chatsThatRead = (reads: readonly Pick<AgentReadEntry, 'chatId'>[]): number => new Set(reads.map((r) => r.chatId)).size;
+
+/**
+ * Today's agent reads of one copy. The audit is written by agents' tools, which send no event, so
+ * it is read again every minute while it is on screen.
+ */
+export const useCopyReadsToday = (ref: SharedRef, enabled = true) => {
+  const since = startOfToday();
+  const q: AgentReadQuery = { owner: ref.owner, shareId: ref.shareId, since, limit: 1000 };
+  return useQuery({ queryKey: collaboratorsKeys.agentReads(q), queryFn: ({ signal }) => collaboratorsApi.agentReads(q, { signal }), enabled, refetchInterval: 60_000 });
 };
 
 export const useCollaboratorsStatus = () => useQuery({ queryKey: collaboratorsKeys.status, queryFn: ({ signal }) => collaboratorsApi.status({ signal }) });

@@ -222,7 +222,11 @@
       "documents": "Documentos",
       "artifacts": "Artefactos",
       "board": "Tablero"
-    }
+    },
+    "agentsMayRead": "Los agentes de tus compañeros pueden leerlo",
+    "agentsMayReadHint": "Desactivado, el asistente y los chats de un compañero no reciben este proyecto; el compañero lo sigue leyendo en su pestaña Compartido.",
+    "agentReads": "Los agentes de este proyecto pueden leer lo que comparten aquí tus compañeros",
+    "agentReadsHint": "Solo reciben las herramientas de lectura los chats que preguntan antes de ejecutar un comando: nunca uno en Sin comprobar permisos, ni los workers de una orquestación. Lo que leen aparece en Ajustes → Seguridad."
   },
   "shared": {
     "member": "Colaborador",
@@ -282,5 +286,37 @@
     "gone": "Este proyecto ya no se comparte contigo",
     "goneHint": "Su propietario ha dejado de compartirlo o ya no estás en un grupo con él.",
     "back": "Volver a Colaboradores"
+  },
+  "agents": {
+    "title": "Agentes",
+    "assistant": "El asistente lee lo que comparten contigo",
+    "hint": "El asistente no ejecuta comandos, así que puede responder a preguntas sobre lo que comparten tus compañeros. Los chats de un proyecto solo leen cuando el proyecto lo permite en su sección Compartir, y nunca en chats que ejecutan comandos sin preguntar. El texto de un compañero les llega como contenido de terceros, nunca como instrucciones.",
+    "audit": "Ver lo que han leído los agentes"
+  },
+  "agentReads": {
+    "forbidden": "Quien lo comparte no deja que lo lean los agentes",
+    "today_one": "Lo ha leído {{count}} chat hoy",
+    "today_other": "Lo han leído {{count}} chats hoy",
+    "chip": {
+      "label": "Lee lo que comparten tus compañeros",
+      "assistant": "Este chat puede leer todo lo que comparten contigo tus compañeros, salvo lo que alguien prohíba",
+      "project": "Este chat puede leer lo que tus compañeros comparten en su proyecto, salvo lo que alguien prohíba"
+    },
+    "audit": {
+      "title": "Leído por agentes",
+      "intro": "Cada lectura que el agente de un chat ha hecho de lo que comparten contigo tus compañeros, de la más reciente a la más antigua. Los archivos subidos nunca se entregan a un agente.",
+      "refresh": "Actualizar",
+      "none": "Ningún agente ha leído lo que comparten tus compañeros",
+      "noneHint": "El asistente y los chats de los proyectos que lo permiten aparecerán aquí cuando lean algo que comparte un compañero.",
+      "when": "Cuándo",
+      "chat": "Chat",
+      "tool": "Herramienta",
+      "copy": "Proyecto compartido",
+      "what": "Qué",
+      "list": "Lista de proyectos compartidos",
+      "goneCopy": "Ya no se comparte",
+      "records_one": "{{count}} registro",
+      "records_other": "{{count}} registros"
+    }
   }
 }

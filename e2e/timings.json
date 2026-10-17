@@ -9,6 +9,7 @@
   "changes-steps.spec.mjs": 9.1,
   "chat-page.spec.mjs": 12.7,
   "chats.spec.mjs": 13.5,
+  "collaborators-agents.spec.mjs": 150.0,
   "collaborators-copies.spec.mjs": 95.0,
   "collaborators.spec.mjs": 200.0,
   "config.spec.mjs": 12.3,

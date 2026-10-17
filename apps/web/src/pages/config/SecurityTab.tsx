@@ -16,6 +16,7 @@ import { SecretsCard } from '../../components/setup/SecretsCard';
 import { AppSettingsCards } from './AppSettingsCards';
 import { GuardsCard } from './GuardsCard';
 import { OwnTokenForm, RevealedToken, useTokenActions } from './security/token';
+import { AgentReadsCard } from './security/AgentReadsCard';
 import { TerminalCard } from './security/TerminalCard';
 
 const MODES: AuthMode[] = ['none', 'token', 'oidc'];
@@ -58,6 +59,7 @@ export function SecurityTab() {
       <GuardsCard readOnly={auth?.readOnly ?? false} />
       <TerminalCard />
       <AuditCard />
+      <AgentReadsCard />
       <p className="small muted">{t('security.footnote')}</p>
     </>
   );

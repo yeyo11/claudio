@@ -1,8 +1,8 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import { CLAUDIO_MCP_COLLAB_TOOLS, CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_SERVER, CLAUDIO_MCP_TOOLSETS_ENV, type ClaudioMcpToolset } from '@claudio/mcp';
 import type { ChatToolConfig, McpSelection, PermissionMode } from '@claudio/shared';
 import { writeMcpConfigSync } from './chat-tools.ts';
 import type { ChatConfinement } from './live-chat.ts';
@@ -31,6 +31,11 @@ export interface ClaudioMcpOptions {
   env?: NodeJS.ProcessEnv;
   /** The binary that runs the server: Node, or the Electron binary acting as Node */
   execPath?: string;
+  /**
+   * What the server offers: `claudio` (the assistant's reads and writes, the default) and `collab`
+   * (the reads of teammates' copies), each only where the chat's scope allows it
+   */
+  toolsets?: readonly ClaudioMcpToolset[];
 }
 
 /**
@@ -73,29 +78,73 @@ export async function claudioMcp(opts: ClaudioMcpOptions): Promise<ClaudioMcpLau
 
 /** `claudioMcp` for a caller that cannot wait: a process about to spawn. */
 export function claudioMcpSync(opts: ClaudioMcpOptions): ClaudioMcpLaunch {
-  if (!opts.apiUrl) throw new Error("Claudio's MCP server needs the API's address, and the API is not listening yet");
-  const env = opts.env ?? process.env;
-  const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
-  const config = writeMcpConfigSync(opts.dataDir, {
-    [CLAUDIO_MCP_SERVER]: {
-      command,
-      args,
-      env: {
-        CLAUDIO_API_URL: opts.apiUrl,
-        CLAUDIO_CHAT_ID: '${CLAUDIO_CHAT_ID}',
-        CLAUDIO_API_TOKEN: '${CLAUDIO_API_TOKEN}',
-        CLAUDIO_VERSION: opts.version,
-        // The desktop's Electron binary runs the bundle as Node only with this
-        ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-      },
-    },
-  });
+  const toolsets = opts.toolsets ?? ['claudio'];
+  const config = writeMcpConfigSync(opts.dataDir, { [CLAUDIO_MCP_SERVER]: serverEntry(opts, toolsets) });
   return {
     mcp: { servers: [CLAUDIO_MCP_SERVER], config },
-    allowedTools: [...CLAUDIO_MCP_READ_TOOLS],
+    allowedTools: allowedFor(toolsets),
     confine: { tools: [], settingSources: [] },
     permissionMode: 'dontAsk',
   };
+}
+
+/** The `claudio` entry of a config file: how the CLI starts the server, and with what */
+function serverEntry(opts: ClaudioMcpOptions, toolsets: readonly ClaudioMcpToolset[]): Record<string, unknown> {
+  if (!opts.apiUrl) throw new Error("Claudio's MCP server needs the API's address, and the API is not listening yet");
+  const env = opts.env ?? process.env;
+  const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
+  return {
+    command,
+    args,
+    env: {
+      CLAUDIO_API_URL: opts.apiUrl,
+      CLAUDIO_CHAT_ID: '${CLAUDIO_CHAT_ID}',
+      CLAUDIO_API_TOKEN: '${CLAUDIO_API_TOKEN}',
+      CLAUDIO_VERSION: opts.version,
+      // Named only when it is not the default, so the assistant's file stays the one it always was
+      ...(toolsets.length === 1 && toolsets[0] === 'claudio' ? {} : { [CLAUDIO_MCP_TOOLSETS_ENV]: toolsets.join(',') }),
+      // The desktop's Electron binary runs the bundle as Node only with this
+      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+    },
+  };
+}
+
+/** The tools allowed ahead of time: every read, never a write, which the person confirms one by one */
+function allowedFor(toolsets: readonly ClaudioMcpToolset[]): string[] {
+  return [...(toolsets.includes('claudio') ? CLAUDIO_MCP_READ_TOOLS : []), ...(toolsets.includes('collab') ? CLAUDIO_MCP_COLLAB_TOOLS : [])];
+}
+
+/** What a chat that is not the assistant gets to read its teammates' copies with */
+export interface CollabMcpLaunch {
+  /** The file for `--mcp-config` */
+  mcpConfig: string;
+  /**
+   * The file adds to the servers the CLI loads on its own (no `--strict-mcp-config`): the chat chose
+   * none. When it chose some, the file is theirs and the server together, and stays strict.
+   */
+  adds: boolean;
+  /** The collab read tools, allowed ahead of time on top of the chat's own list */
+  allowedTools: string[];
+}
+
+/**
+ * Claudio's MCP server with only the reads of teammates' copies, for a chat of a project that opted
+ * in (docs/plans/collaborators-agent-access.md). The caller decided the chat's scope allows it; the
+ * API decides again at every call. `chosen` is the config file of the servers the chat picked, if
+ * any: one `--mcp-config` file is all the CLI is ever given, so the server joins that file.
+ */
+export function collabMcpSync(opts: ClaudioMcpOptions, chosen: string | null): CollabMcpLaunch {
+  const entry = serverEntry(opts, ['collab']);
+  let servers: Record<string, Record<string, unknown>> = {};
+  if (chosen) {
+    const parsed: unknown = JSON.parse(readFileSync(chosen, 'utf8'));
+    const listed = parsed && typeof parsed === 'object' && 'mcpServers' in parsed ? parsed.mcpServers : null;
+    if (!listed || typeof listed !== 'object' || Array.isArray(listed)) throw new Error(`the chat's MCP config ${chosen} lists no servers`);
+    servers = { ...(listed as Record<string, Record<string, unknown>>) };
+  }
+  // Ours under its own name, over any server of the person's that took it: the tools' names say `claudio`
+  servers[CLAUDIO_MCP_SERVER] = entry;
+  return { mcpConfig: writeMcpConfigSync(opts.dataDir, servers), adds: chosen === null, allowedTools: [...CLAUDIO_MCP_COLLAB_TOOLS] };
 }
 
 /**

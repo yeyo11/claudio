@@ -107,6 +107,13 @@ function SharingSettings({ project }: { project: Project }) {
 
       <div className="card stack">
         <ShareKey project={project} sharing={current} saving={save.isPending} onSave={(body) => save.mutate(body)} />
+        {/* The sharer's flag travels with the share: the reading install honours it */}
+        <div className="stack-tight">
+          <Switch checked={current.agentsMayRead} disabled={save.isPending} onChange={(agentsMayRead) => save.mutate({ agentsMayRead })}>
+            <span className="settings-cell-name">{t('sharing.agentsMayRead')}</span>
+          </Switch>
+          <span className="field-hint">{t('sharing.agentsMayReadHint')}</span>
+        </div>
         <div className="stack-tight">
           <span className="section-label">{t('sharing.included')}</span>
           <div className="inline-form">
@@ -118,6 +125,18 @@ function SharingSettings({ project }: { project: Project }) {
         <div className="stack-tight">
           <span className="section-label">{t('sharing.seenAs')}</span>
           <span className="mono small break">{current.seenAs.remote ? `${current.seenAs.name} · ${current.seenAs.remote}` : current.seenAs.name}</span>
+        </div>
+      </div>
+
+      {/* The reader's side: what teammates share into this project, read by its own chats */}
+      <div className="card settings-cells">
+        <div className="settings-cell">
+          <Switch checked={current.agentReads} disabled={save.isPending} onChange={(agentReads) => save.mutate({ agentReads })}>
+            <span className="settings-cell-name">{t('sharing.agentReads')}</span>
+          </Switch>
+        </div>
+        <div className="settings-cell">
+          <span className="settings-cell-name small muted">{t('sharing.agentReadsHint')}</span>
         </div>
       </div>
     </>

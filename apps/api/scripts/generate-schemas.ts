@@ -99,7 +99,7 @@ const ROOT_TYPES = [
   // Collaborators
   'CollaboratorsStatus', 'UpdateCollaboratorsRequest', 'RosterVersion', 'Group', 'GroupList', 'CreateGroupRequest', 'GroupInvite', 'JoinGroupRequest', 'JoinGroupResult', 'JoinRequest', 'TransferGroupOwnershipRequest',
   'ProjectSharing', 'UpdateProjectSharingRequest', 'ShareKeyInUseError', 'SharedProject', 'LinkSharedProjectRequest',
-  'SharedChat', 'SharedSubagent', 'SharedTranscriptPage', 'SharedAgentTranscriptPage', 'SharedMemoryFile', 'SharedDocument', 'SharedBoard', 'SharedArtifact',
+  'SharedChat', 'SharedSubagent', 'SharedTranscriptPage', 'SharedAgentTranscriptPage', 'SharedMemoryFile', 'SharedDocument', 'SharedBoard', 'SharedArtifact', 'AgentReadScope', 'AgentReadEntry', 'AgentReadList',
 ];
 
 const generator = createGenerator({
