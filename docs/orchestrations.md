@@ -199,8 +199,8 @@ wait (`LimitWait`) on it ([accounts.md](accounts.md#choosing-and-switching)).
 - **A graph that waits for a decision can be resumed whole** (`resume`, the page's menu): every
   task it waits on goes on, in its chat, as for a stopped graph. It is refused while one of those
   tasks' chats is still working (a person went on in it by hand).
-- **Tests.** `packages/core/test/orchestrator.test.ts` (the R11 cases, and a turn replayed while
-  the limited process was still exiting), `accounts-rotation.test.ts`, and
+- **Tests.** `packages/core/test/orchestration-limit-way-back.test.ts` (the R11 cases, and a turn
+  replayed while the limited process was still exiting), `accounts-rotation.test.ts`, and
   `apps/web/test/orchestration-board.test.ts`.
 
 ## The workflow engine
