@@ -808,6 +808,13 @@ button.master-item-on:hover {
   outline: none;
 }
 
+/* Reached when an address names an anchor the screen does not draw: the focus still shows */
+.settings-head-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
 .settings-section-title {
   margin: 0;
   font-size: var(--fs-section);

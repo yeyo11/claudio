@@ -61,5 +61,13 @@ export function matchSettings(items: readonly SearchableSetting[], query: string
     if (tier >= 0) ranked.push({ item, tier, at });
   });
   ranked.sort((a, b) => a.tier - b.tier || groupRank(a.item.entry.group) - groupRank(b.item.entry.group) || a.at - b.at);
-  return ranked.slice(0, limit).map(({ item }) => item);
+  // A section whose one row has its own name ("Skills", "Daily spend cap") would show twice: one
+  // result, the row's when it opens a detail, the section's otherwise
+  const unique: SearchableSetting[] = [];
+  for (const { item } of ranked) {
+    const twin = unique.findIndex((kept) => kept.entry.group === item.entry.group && kept.label === item.label);
+    if (twin < 0) unique.push(item);
+    else if (item.entry.detail && !unique[twin]?.entry.detail) unique[twin] = item;
+  }
+  return unique.slice(0, limit);
 }

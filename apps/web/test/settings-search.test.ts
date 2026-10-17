@@ -17,8 +17,8 @@ test('folding drops case and accents', () => {
 });
 
 test('accents and case do not matter, either way round', async () => {
-  assert.equal((await search('es', 'auditoria'))[0], 'audit');
-  assert.equal((await search('es', 'AUDITORÍA'))[0], 'audit');
+  assert.equal((await search('es', 'auditoria'))[0], 'audit.log');
+  assert.equal((await search('es', 'AUDITORÍA'))[0], 'audit.log');
   assert.ok((await search('es', 'suscripcion')).includes('sign-in.account'));
   assert.ok((await search('es', 'tunel')).includes('remote.tunnel'));
 });
@@ -48,6 +48,14 @@ test('Spanish searches the Spanish words', async () => {
   // An English word that is only in the English copy finds nothing in Spanish
   assert.deepEqual(await search('es', 'appearance'), []);
   assert.equal((await search('en', 'appearance'))[0], 'appearance');
+});
+
+test('a section and its one row of the same name are one result, the detail when there is one', async () => {
+  const skills = await search('en', 'skills');
+  assert.equal(skills.filter((id) => id === 'skills' || id === 'skills.list').length, 1);
+  assert.ok(skills.includes('skills.list'));
+  const cap = await search('en', 'daily spend cap');
+  assert.deepEqual(cap.filter((id) => id.startsWith('spend-cap')), ['spend-cap']);
 });
 
 test('at most twelve results, and a decision point found by its name', async () => {
