@@ -104,59 +104,16 @@ jobs:
       # specs (limits, signals, shards, no survivors). They sit here rather than in a shard because
       # this job has minutes to spare while the shards are the ones everybody waits for
       - name: The e2e runner and its shards
-        run: node --test e2e/shards.test.mjs e2e/harness.test.mjs
+        run: node --test e2e/shards.test.mjs e2e/remote.test.mjs e2e/harness.test.mjs
 
-  # The e2e suite, cut into 4 shards that run side by side (e2e/shards.mjs balances them over
-  # e2e/timings.json, at about 4.5 of the suite's 17-18 minutes each). 4 is where a shard's suite
-  # stops being the longest part of the job: install, build and the CLI take about 2 minutes of it.
+  # The e2e suite, on 4 shards side by side. It lives in e2e.yml, which `pnpm e2e:remote` also
+  # dispatches on a branch, so a pull request and an agent's run use the same jobs.
   e2e:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    name: e2e (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
-    # About 6.5 minutes a shard (2 to set up, 4.5 of specs). About 2.5x that, rounded up to 5 minutes
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-
-      # The e2e suite needs the CLI binary (plugins, MCP) but no login: it runs on empty temp dirs.
-      # The installer is checked against the digest the Dockerfile pins rather than a second copy of
-      # it, so rotating the pin is one edit and the two can never disagree about which script is
-      # trusted. The `docker` job builds the same pinned step, so this adds no new way to fail.
-      - name: Install Claude Code
-        run: |
-          sha=$(sed -n 's/^ARG CLAUDE_CODE_INSTALLER_SHA256=//p' docker/Dockerfile)
-          test -n "$sha"
-          curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh
-          echo "$sha  /tmp/claude-install.sh" | sha256sum -c -
-          bash /tmp/claude-install.sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: End-to-end (headless Chrome), shard ${{ matrix.shard }} of 4
-        run: pnpm e2e
-        env:
-          E2E_SHARD: ${{ matrix.shard }}/4
-          E2E_SHOTS: e2e-shots
-
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: e2e-screenshots-${{ matrix.shard }}
-          path: e2e-shots
+    uses: ./.github/workflows/e2e.yml
+    with:
+      shards: 4
 
   # The one check main is protected on. It stands for the jobs above: the checks passed, and the e2e
   # shards passed, or were skipped because the change did not need them. Named `test` so branch

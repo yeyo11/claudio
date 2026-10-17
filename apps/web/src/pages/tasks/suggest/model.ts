@@ -82,3 +82,12 @@ export function readPhrases(sources: readonly AssistantSource[], max = 3): Sourc
 
 /** Whether the run still works: the only state in which the dialog moves. */
 export const isRunning = (run: Pick<AssistantRun, 'status'> | null | undefined): boolean => run?.status === 'running';
+
+/**
+ * Whether the dialog still shows the run as working. The list and the run's own record are two
+ * queries the same event refreshes, and they come back apart: with the list already completed and
+ * the record still the running one, without its proposals, the dialog said "found nothing new to
+ * propose" until the record caught up. It is done only once neither says it runs.
+ */
+export const stillRunning = (latest: Pick<AssistantRun, 'status'> | null | undefined, record: Pick<AssistantRun, 'status'> | null | undefined): boolean =>
+  isRunning(latest) || isRunning(record);

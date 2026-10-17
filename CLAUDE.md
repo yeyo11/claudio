@@ -30,8 +30,15 @@ describes what a provider is.
 ```bash
 pnpm typecheck
 pnpm test
-pnpm build && pnpm e2e
+pnpm build
+pnpm e2e:remote <spec prefixes>   # on GitHub, for the pushed branch; no prefix runs the whole suite
 ```
+
+**The e2e suite never runs on this machine.** `pnpm e2e` refuses outside CI: push the branch and use
+`pnpm e2e:remote` (the `e2e-on-github` skill), which runs it on GitHub Actions and waits for it. Each
+run boots a server and a Chrome per shard, and a few agents doing that at once froze the host
+([docs/decisions/e2e-on-github.md](docs/decisions/e2e-on-github.md)). `E2E_ALLOW_LOCAL=1` is the
+owner's, to watch one spec in a browser; an agent never sets it.
 
 After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (CI fails if they
 drift): `pnpm --filter @claudio/api openapi:schemas`. Every new route needs a summary and a tag in

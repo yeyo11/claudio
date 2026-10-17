@@ -13,7 +13,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { backlogRunsFor } from '../../team/model';
 import { useRoleName } from '../../team/RoleAvatar';
 import { FullScreen } from '../FullScreen';
-import { initialSelection, isRunning, latestFocus, selectedPending, suggestRequest, workItemProposals } from './model';
+import { initialSelection, latestFocus, selectedPending, stillRunning, suggestRequest, workItemProposals } from './model';
 import { ProposalRow, RunLine } from './Results';
 
 /**
@@ -35,7 +35,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
   const latest = runs.data?.[0] ?? null;
   const detail = useAssistantRun(latest?.id ?? null);
   const run: AssistantRunDetail | null = detail.data && detail.data.id === latest?.id ? detail.data : null;
-  const running = isRunning(latest);
+  const running = stillRunning(latest, run);
   const proposals = useMemo(() => workItemProposals(run?.proposals), [run?.proposals]);
 
   const [focus, setFocus] = useState('');

@@ -21,8 +21,9 @@
 // Chrome, and prints one report in the order a single run would (default: one shard per two cores,
 // at most 4, never more than there are groups; E2E_PORT, when set, is the first of N ports). The
 // split is greedy longest-first over e2e/timings.json (seconds per spec, checked in so every CI job
-// computes the same split; a spec missing from it weighs the median), and every fakeCli spec stays
-// in one shard, behind one restart of its server. See e2e/shards.mjs.
+// computes the same split; a spec missing from it weighs the median). fakeCli specs spread over the
+// shards like any other, and each shard runs its own last, behind one restart of its server. See
+// e2e/shards.mjs.
 // Collaborators (docs/plans/collaborators.md, C4): a spec that exports `peers = ['ben', …]` gets one
 // more wrapper per name, each with a sandbox, a port and a fake `claude` of its own, started before
 // it and stopped after it; its context gains `peers.<name>` (`api`, `dirs`, `fakeCli`, `baseUrl`,
@@ -64,6 +65,22 @@ function envMs(name, fallback) {
 const SPEC_LIMIT_MS = envMs('E2E_SPEC_TIMEOUT', 180_000);
 const RUN_LIMIT_MS = envMs('E2E_TIMEOUT', 1_500_000);
 const specsDir = process.env.E2E_SPECS_DIR ? resolve(process.env.E2E_SPECS_DIR) : join(here, 'specs');
+
+// The suite runs on GitHub, never on a developer's machine (docs/decisions/e2e-on-github.md): each
+// run boots a server and a Chrome per shard as if it had the machine to itself, and a few agents
+// doing that at once froze the host. E2E_ALLOW_LOCAL=1 is the owner's way to watch one spec here.
+if (process.env.CI !== 'true' && process.env.E2E_ALLOW_LOCAL !== '1') {
+  console.error(
+    [
+      'The e2e suite does not run on this machine: it runs on GitHub Actions.',
+      '  pnpm e2e:remote                  the whole suite on the pushed branch, 4 shards',
+      '  pnpm e2e:remote config palette   only some specs (the same prefixes `pnpm e2e` takes)',
+      'Push the branch first. See .claude/skills/e2e-on-github/SKILL.md.',
+      'E2E_ALLOW_LOCAL=1 runs it here anyway; it is for a person debugging one spec, never for an agent.',
+    ].join('\n'),
+  );
+  process.exit(2);
+}
 
 if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   console.error('apps/web/dist is missing: run `pnpm build` first.');

@@ -1,7 +1,7 @@
 {
   "name": "claudio",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Run Claude Code as a service: a REST API, a web UI, a Linux desktop app and multi-agent orchestration over the Claude Code CLI",
   "type": "module",
   "packageManager": "pnpm@10.17.1",
@@ -20,6 +20,7 @@
     "docker:down": "docker compose down",
     "test": "pnpm --filter @claudio/shared --filter @claudio/core --filter @claudio/api --filter @claudio/mcp --filter @claudio/web --filter @claudio/ui --filter @claudio/chat-ui --filter @claudio/desktop test",
     "e2e": "node e2e/run.mjs",
+    "e2e:remote": "node e2e/remote.mjs",
     "media": "node scripts/record-media.mjs",
     "desktop:dev": "pnpm --filter @claudio/desktop dev",
     "desktop:dist": "pnpm --filter @claudio/desktop dist:linux"

@@ -72,12 +72,20 @@ assumes ([docs/chat-environment.md](docs/chat-environment.md)).
 pnpm typecheck    # every package
 pnpm test         # each package's unit tests + API integration (Fastify inject)
 pnpm build
-pnpm e2e          # headless Chrome over CDP, against an isolated instance
+pnpm e2e:remote   # the browser suite, on GitHub Actions, for the branch you pushed
 ```
 
-CI runs exactly these, plus a Docker image build: a `checks` job (audit, typecheck, tests, build
-and the e2e runner's own tests) beside four `e2e (k/4)` shards, and a `test` job that passes when
-they all did. A pull request that changes only documentation (`docs/`, `*.md`) skips the e2e shards.
+The browser suite (headless Chrome over CDP, against an isolated instance) **runs on GitHub, never on
+your machine**: `pnpm e2e` refuses to start outside CI. `pnpm e2e:remote [spec prefixes]` dispatches
+`.github/workflows/e2e.yml` on your pushed branch, for the whole suite or only the specs you name, waits
+for it (up to 9 minutes a call; `--wait <run id>` goes on) and, on a failure, downloads every failed
+shard's log and screenshots. The `e2e-on-github` skill has the steps, and
+[docs/decisions/e2e-on-github.md](docs/decisions/e2e-on-github.md) the reasons. `E2E_ALLOW_LOCAL=1`
+runs it here anyway, for a person watching one spec; agents never set it.
+
+CI runs the same checks, plus a Docker image build: a `checks` job (audit, typecheck, tests, build
+and the e2e runner's own tests) beside the four `e2e (k/4)` shards of `e2e.yml`, and a `test` job
+that passes when they all did. A pull request that changes only documentation (`docs/`, `*.md`) skips the e2e shards.
 CI also regenerates the OpenAPI component schemas and fails if they differ from what you committed,
 so if you touched a shared type:
 
@@ -139,8 +147,8 @@ searches are documents nobody wrote.
   runs it over the tree. A line that breaks one on purpose says why with `design-lint-ok: <reason>`.
 - **A UI change is reviewed before it is done.** Claude Code's Stop hook asks for `/ui-review <route>`
   once when a session edited UI files and no review ran; `node scripts/ui-check.mjs --route <route>`
-  takes the screenshots and runs the invariants against `pnpm dev`, and `pnpm e2e ui-invariants` runs
-  them over the main screens with long content.
+  takes the screenshots and runs the invariants against `pnpm dev`, and `pnpm e2e:remote ui-invariants` runs
+  them on GitHub over the main screens with long content.
 - **UI controls come from `packages/ui/src/components/controls`** (Select, Combobox, Checkbox,
   Switch, Slider, NumberInput, Tooltip, Collapsible, Menu, Sheet), not from native `<select>`, `<datalist>`,
   checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones

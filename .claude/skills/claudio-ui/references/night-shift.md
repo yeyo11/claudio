@@ -22,4 +22,4 @@ caps and weights follow `typography-voice.md`, which replaced Night Shift's olde
 - [ ] **Accessibility.** Icon-only buttons have an `aria-label`; everything is reachable by keyboard with a visible ring; `e2e/specs/a11y-*.spec.mjs` passes in both themes and at phone width.
 - [ ] **Lazy routes** use `lazyPage()`, never a bare `React.lazy`.
 
-Run `pnpm --filter @claudio/web test`, then `pnpm build && pnpm e2e` (or the specs your change touches).
+Run `pnpm --filter @claudio/web test`, then push and run the specs your change touches on GitHub with `pnpm e2e:remote <specs>` (the `e2e-on-github` skill). The e2e suite never runs on this machine.

@@ -42,19 +42,18 @@ export function median(values) {
 }
 
 /**
- * Groups the specs that must share a shard. Every spec that wants the fake CLI goes into one group,
- * so its shard restarts the server once, as a single run does; every other spec is a group of one.
- * `entries` are `{ file, fake }`; a spec that failed to load is simply not fake.
+ * The units the split places: every spec is a group of one, the fakeCli ones included. They used to
+ * be one group, so the suite restarted its server with the fake CLI once; by 2026-10-17 that group
+ * was 35 specs and about 900 of the suite's 1,970 seconds, so one CI shard took 16 minutes while
+ * the other three took 6 to 7. Each shard runs its own fakeCli specs last, behind one restart of
+ * its own server (e2e/run.mjs), which costs seconds. `entries` are `{ file, fake }`.
  */
 export function groupSpecs(entries, timings = {}) {
   const known = Object.values(timings);
   const fallback = median(known);
   const weight = (file) => timings[file] ?? fallback;
   const sorted = [...entries].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
-  const fake = sorted.filter((e) => e.fake).map((e) => e.file);
-  const groups = sorted.filter((e) => !e.fake).map((e) => ({ files: [e.file], weight: weight(e.file) }));
-  if (fake.length) groups.push({ files: fake, weight: fake.reduce((sum, f) => sum + weight(f), 0) });
-  return groups;
+  return sorted.map((e) => ({ files: [e.file], weight: weight(e.file) }));
 }
 
 /**

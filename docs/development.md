@@ -22,17 +22,28 @@ pnpm install
 pnpm dev          # API on :8797, UI on :5181 (proxies /api)
 pnpm typecheck
 pnpm test         # unit tests (shared, core, mcp, web, ui, chat-ui, desktop) + API integration (node:test)
-pnpm build && pnpm e2e   # browser suite: isolated wrapper + headless Chrome, never touches ~/.claude
+pnpm e2e:remote [specs] # browser suite on GitHub Actions, for the pushed branch (see below)
+pnpm build && E2E_ALLOW_LOCAL=1 pnpm e2e <spec>  # here, only for a person watching one spec
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
                          # E2E_SERVER_START_TIMEOUT (120000 ms) bounds the wait for the API's /api/health
                          # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
                          # E2E_SHARD=k/N runs only shard k, as each CI job does (split: e2e/timings.json)
-E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
+E2E_ALLOW_LOCAL=1 E2E_LIVE=1 pnpm e2e chat # specs that talk to Claude (logged-in CLI, costs a few tokens)
 pnpm media        # re-record docs/media (needs pnpm build first)
 ```
 
 Locally the wrapper uses your real `~/.claude`. Point `CLAUDE_CONFIG_DIR` somewhere else to
 experiment with config writes safely.
+
+**The browser suite runs on GitHub, not here.** `pnpm e2e` refuses to start outside CI unless
+`E2E_ALLOW_LOCAL=1` is set, and agents never set it: each run boots a server and a Chrome per shard as
+if it had the machine to itself, and a few agents doing that at once froze the host
+([decisions/e2e-on-github.md](decisions/e2e-on-github.md)). `pnpm e2e:remote [spec prefixes]`
+dispatches `.github/workflows/e2e.yml` on the pushed branch (4 shards for the whole suite, one per two
+spec files otherwise, `--shards N` to choose), waits up to `E2E_REMOTE_WAIT` seconds (540) and exits
+3 with a `--wait <run id>` line to go on with; a failure downloads each failed shard's `e2e.log` and
+screenshots to `$TMPDIR/claudio-e2e-remote-<run id>/`. The live specs (`E2E_LIVE=1`) need a logged-in
+CLI, so they are the one part that can only run here, by a person.
 
 The browser suite boots its own wrapper with temporary config, workspace and data directories (on
 port 8809 when it runs as one shard; each parallel shard gets its own port, sandbox and Chrome), seeds whatever each spec needs and drives headless Chrome over the DevTools
