@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/yeyo11/claudio/compare/v0.3.0...v0.4.0) (2026-10-17)
+
+
+### Features
+
+* **accounts:** Refresh reads the real quota from the CLI's get_usage; the card names the plan, the per-model weekly limits and the credits ([#31](https://github.com/yeyo11/claudio/issues/31)) ([d369c9e](https://github.com/yeyo11/claudio/commit/d369c9ef31677a4057c03fb92f6e5685c16e866d))
+
+
+### Documentation
+
+* **plans:** the process isolation study, completed from its transcript ([#32](https://github.com/yeyo11/claudio/issues/32)) ([65b9655](https://github.com/yeyo11/claudio/commit/65b9655bfc4daf0aba9ad15b9d1fbf5738c01ef0))
+
 ## [0.3.0](https://github.com/yeyo11/claudio/compare/v0.2.1...v0.3.0) (2026-10-17)
 
 
