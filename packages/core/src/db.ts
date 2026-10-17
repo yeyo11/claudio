@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@claudio/shared';
 import type {
+  AgentReadEntry,
   AuditEntry,
   AuditFilter,
   HealthSignalKind,
@@ -64,6 +65,8 @@ import { pruneWebhookDeliveries } from './webhook-store.ts';
 const KEEP_ROTATION_EVENTS = 2_000;
 /** Guard events kept: the newest rows */
 export const KEEP_GUARD_EVENTS = 20_000;
+/** Agents' reads of teammates' copies kept: the newest rows */
+export const KEEP_AGENT_READS = 20_000;
 
 /**
  * Applied in order; `user_version` records how many have run, so each one is written once. A
@@ -1347,6 +1350,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      expires_at TEXT NOT NULL,
      PRIMARY KEY (group_id, endpoint_id, tag)
    );`,
+  // Every read of a teammate's copy by an agent, as a row (docs/plans/collaborators-agent-access.md):
+  // the chat whose token read it, the tool that asked, the copy and the records. Keyed by the owner's
+  // endpoint id and share key like the copies themselves, so a row outlives a dropped copy
+  `CREATE TABLE collab_agent_reads (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     at TEXT NOT NULL,
+     chat_id TEXT NOT NULL,
+     tool TEXT NOT NULL,
+     owner_id TEXT NOT NULL,
+     share_key TEXT NOT NULL,
+     share_id TEXT NOT NULL,
+     kind TEXT,
+     record_ids TEXT NOT NULL
+   );
+   CREATE INDEX collab_agent_reads_copy ON collab_agent_reads (owner_id, share_id, id);
+   CREATE INDEX collab_agent_reads_chat ON collab_agent_reads (chat_id, id);`,
 ];
 
 /**
@@ -1378,6 +1397,14 @@ export const GUARD_EVENTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m 
 export function pruneGuardEvents(db: DatabaseSync, keep = KEEP_GUARD_EVENTS): number {
   const result = db
     .prepare('DELETE FROM guard_events WHERE seq <= COALESCE((SELECT seq FROM guard_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)')
+    .run(keep);
+  return Number(result.changes);
+}
+
+/** Drops all but the newest `keep` agent reads of teammates' copies; returns how many went. */
+export function pruneAgentReads(db: DatabaseSync, keep = KEEP_AGENT_READS): number {
+  const result = db
+    .prepare('DELETE FROM collab_agent_reads WHERE id <= COALESCE((SELECT id FROM collab_agent_reads ORDER BY id DESC LIMIT 1 OFFSET ?), -1)')
     .run(keep);
   return Number(result.changes);
 }
@@ -1788,6 +1815,7 @@ export class Db {
     this.pruneAudit();
     pruneWebhookDeliveries(this.db);
     pruneGuardEvents(this.db);
+    pruneAgentReads(this.db);
     this.pruneProviderMoves();
     // A server that stays up for weeks prunes the history daily too; unref'd so it never keeps a process alive
     this.movesPruneTimer = setInterval(() => this.pruneProviderMoves(), 24 * 60 * 60 * 1000);
@@ -3179,6 +3207,29 @@ const collabRecordOf = (r: CollabRecordRow): CollabRecord => ({
   syncedAt: r.synced_at,
 });
 
+interface AgentReadRow {
+  id: number;
+  at: string;
+  chat_id: string;
+  tool: string;
+  owner_id: string;
+  share_key: string;
+  share_id: string;
+  kind: CollaboratorsKind | null;
+  record_ids: string;
+}
+
+function agentReadOf(r: AgentReadRow): AgentReadEntry {
+  let recordIds: string[] = [];
+  try {
+    const parsed = JSON.parse(r.record_ids) as unknown;
+    if (Array.isArray(parsed)) recordIds = parsed.filter((id): id is string => typeof id === 'string');
+  } catch {
+    // A row written by hand that does not parse names no records
+  }
+  return { id: r.id, at: r.at, chatId: r.chat_id, tool: r.tool, owner: r.owner_id, shareKey: r.share_key, shareId: r.share_id, kind: r.kind, recordIds };
+}
+
 const collabPeerOf = (r: CollabPeerRow): CollabPeer => ({ endpointId: r.endpoint_id, lastSeenAt: r.last_seen_at, path: r.path });
 
 const collabJoinOf = (r: CollabJoinRow): CollabJoinRequest => ({
@@ -3199,6 +3250,42 @@ const collabJoinOf = (r: CollabJoinRow): CollabJoinRequest => ({
  */
 export class CollabStore {
   constructor(private readonly sql: DatabaseSync) {}
+
+  // agents' reads
+
+  appendAgentRead(read: Omit<AgentReadEntry, 'id'>): AgentReadEntry {
+    const row = this.sql
+      .prepare('INSERT INTO collab_agent_reads (at, chat_id, tool, owner_id, share_key, share_id, kind, record_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id')
+      .get(read.at, read.chatId, read.tool, read.owner, read.shareKey, read.shareId, read.kind, JSON.stringify(read.recordIds)) as { id: number };
+    return { id: row.id, ...read, recordIds: [...read.recordIds] };
+  }
+
+  /** Newest first; `since` keeps the rows at or after it, `limit` is at most 1000. */
+  agentReads(filter: { owner?: string; shareId?: string; chatId?: string; since?: string; limit?: number } = {}): AgentReadEntry[] {
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (filter.owner !== undefined) {
+      where.push('owner_id = ?');
+      params.push(filter.owner);
+    }
+    if (filter.shareId !== undefined) {
+      where.push('share_id = ?');
+      params.push(filter.shareId);
+    }
+    if (filter.chatId !== undefined) {
+      where.push('chat_id = ?');
+      params.push(filter.chatId);
+    }
+    if (filter.since !== undefined) {
+      where.push('at >= ?');
+      params.push(filter.since);
+    }
+    const limit = Math.min(Math.max(Math.trunc(filter.limit ?? 200), 1), 1000);
+    const rows = this.sql
+      .prepare(`SELECT * FROM collab_agent_reads ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY id DESC LIMIT ?`)
+      .all(...params, limit) as unknown as AgentReadRow[];
+    return rows.map(agentReadOf);
+  }
 
   private tx<T>(fn: () => T): T {
     this.sql.exec('BEGIN');

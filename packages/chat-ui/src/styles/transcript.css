@@ -765,6 +765,14 @@
   color: var(--text-faint);
 }
 
+/* Whose share a teammate-read call read: kept whole when the hint before it is cut */
+.teammate-read {
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
 /* ---- an opened call: a lens per tool, read as what happened (plans/tool-rows-and-live-branches.md §3.2) ---- */
 .call-body {
   display: flex;

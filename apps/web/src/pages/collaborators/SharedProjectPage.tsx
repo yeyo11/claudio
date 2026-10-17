@@ -9,7 +9,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { PageHeader } from '../../components/PageHeader';
 import { collaboratorsApi, collaboratorsKeys, type SharedRef } from '../project/shared-data';
-import { SharedSections, SyncLine } from '../project/SharedView';
+import { AgentReadsLine, SharedSections, SyncLine } from '../project/SharedView';
 import { LinkDialog } from './dialogs';
 import { localProjectOf, sharedTabPath } from './model';
 
@@ -97,6 +97,7 @@ export function SharedProjectView({ shared, error, projects }: { shared: SharedP
           </span>
         )}
         <SyncLine sync={shared.sync} />
+        <AgentReadsLine shared={shared} />
       </div>
       <p className="small muted">{local ? t('readOnly.hintLinked', { project: localName }) : t('readOnly.hint')}</p>
       <SharedSections shared={shared} />

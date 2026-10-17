@@ -15,6 +15,7 @@ import { CreateGroupDialog, InviteDialog, JoinDialog, LinkDialog } from './colla
 import { GroupCard, type GroupActions } from './collaborators/GroupCard';
 import { ownedGroups, pageState } from './collaborators/model';
 import { PendingJoinRow, SharedWithYou } from './collaborators/SharedWithYou';
+import { AgentsCard } from './collaborators/AgentsCard';
 import { YouCard } from './collaborators/YouCard';
 
 type Open = { kind: 'invite' } | { kind: 'join' } | { kind: 'create' } | { kind: 'link'; project: SharedProject } | null;
@@ -202,6 +203,7 @@ export function CollaboratorsView({
       />
 
       <YouCard status={status} groups={list} busy={working} onSave={onUpdate} onTurnOff={() => void onUpdate({ enabled: false })} />
+      <AgentsCard settings={status.settings} busy={working} onSave={onUpdate} />
 
       <section className="collab-groups" aria-labelledby="collab-groups-title">
         <div className="collab-section-head">

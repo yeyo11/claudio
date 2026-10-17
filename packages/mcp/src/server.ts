@@ -1,6 +1,9 @@
 import { ApiError, type ApiClient } from './client.ts';
+import { COLLAB_TOOLS } from './collab-tools.ts';
+import type { ClaudioMcpToolset } from './names.ts';
 import { validate } from './schema.ts';
 import { TOOLS, type Tool } from './tools.ts';
+import { TextResult } from './untrusted.ts';
 import { WRITE_TOOLS } from './write-tools.ts';
 
 /** Longest tool result, in characters, before it is cut */
@@ -33,6 +36,11 @@ export function render(value: unknown): string {
   return `${json.slice(0, RESULT_MAX_CHARS)}…\n{"truncated":true,"hint":${JSON.stringify(TRUNCATION_HINT)}}`;
 }
 
+/** The tools a process offers for its toolsets, in the order of the catalogue */
+export function toolsFor(toolsets: readonly ClaudioMcpToolset[]): Tool[] {
+  return [...(toolsets.includes('claudio') ? [...TOOLS, ...WRITE_TOOLS] : []), ...(toolsets.includes('collab') ? COLLAB_TOOLS : [])];
+}
+
 export function createServer(options: { api: ApiClient; version: string; tools?: readonly Tool[] }): Server {
   const tools = options.tools ?? [...TOOLS, ...WRITE_TOOLS];
   const byName = new Map(tools.map((tool) => [tool.name as string, tool]));
@@ -45,7 +53,9 @@ export function createServer(options: { api: ApiClient; version: string; tools?:
     const problem = validate(tool.inputSchema, args);
     if (problem) return outcome(`invalid arguments for ${tool.name}: ${problem}`, true);
     try {
-      return outcome(render(await tool.run((args ?? {}) as Record<string, unknown>, options.api)), false);
+      const result = await tool.run((args ?? {}) as Record<string, unknown>, options.api);
+      // A teammate's content comes already fenced and cut to size: cutting it here could lose the closing fence
+      return outcome(result instanceof TextResult ? result.text : render(result), false);
     } catch (err) {
       if (err instanceof ApiError) return outcome(`${tool.name} failed: ${err.message}`, true);
       return outcome(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`, true);

@@ -1,4 +1,5 @@
-import './lib/legacy-storage-init'; // first: the modules below read their stored keys as they load
+import './lib/boot'; // first of all: the boot guard in index.html waits for this module to run
+import './lib/legacy-storage-init'; // before the modules below, which read their stored keys as they load
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

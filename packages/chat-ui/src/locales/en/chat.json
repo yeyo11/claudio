@@ -431,6 +431,10 @@
       "account": "Switched to",
       "guard": "Guard blocked",
       "guardMissing": "Guard did not run for this call"
+    },
+    "teammate": {
+      "list": "every teammate's shares",
+      "from": "from"
     }
   },
   "agent": {

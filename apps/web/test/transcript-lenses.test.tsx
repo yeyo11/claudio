@@ -163,3 +163,36 @@ test('a call still waiting says so, under what it was asked', () => {
   assert.deepEqual(labels(html), ['Call']);
   assert.match(html, /Waiting for the result/);
 });
+
+test("a teammate-read row says whose share it read, through the app's Teammate slot or the install's id", () => {
+  const entry: TranscriptEntry = {
+    uuid: 'e-collab',
+    role: 'assistant',
+    timestamp: null,
+    model: null,
+    isSidechain: false,
+    parentToolUseId: null,
+    blocks: [
+      { type: 'tool_use', id: 'toolu_c1', name: 'mcp__claudio__collab_read_memory', input: { owner: 'ana-endpoint-0123456789', shareId: 's1' } },
+      { type: 'tool_use', id: 'toolu_c2', name: 'mcp__claudio__collab_list_shared', input: {} },
+    ],
+  };
+  const bare = render(<EntryView entry={entry} />);
+  assert.match(bare, /class="teammate-read">from <span class="mono">ana-endpoi<\/span>/);
+  assert.match(bare, /class="teammate-read">every teammate&#x27;s shares</);
+  const named = renderToStaticMarkup(
+    <MemoryRouter>
+      <ChatUiProvider value={{ ...config, slots: { ...config.slots, Teammate: ({ owner, shareId }: { owner: string; shareId: string | null }) => <b>{`${owner}/${shareId}`}</b> } }}>
+        <TooltipProvider>
+          <ToastProvider>
+            <EntryView entry={entry} />
+          </ToastProvider>
+        </TooltipProvider>
+      </ChatUiProvider>
+    </MemoryRouter>,
+  );
+  assert.match(named, /from <b>ana-endpoint-0123456789\/s1<\/b>/);
+  // Another MCP tool names nobody
+  const other = render(<EntryView entry={{ ...entry, blocks: [{ type: 'tool_use', id: 'toolu_o', name: 'mcp__pando__kb_search', input: { owner: 'x' } }] }} />);
+  assert.doesNotMatch(other, /teammate-read/);
+});

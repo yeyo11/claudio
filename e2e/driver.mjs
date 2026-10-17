@@ -48,6 +48,108 @@ async function devtoolsEndpoint(profile, chrome, output, wait = 30_000) {
 
 const tail = (text) => (text.trim() ? `. Chrome printed:\n${text.trim().split('\n').slice(-15).join('\n')}` : '');
 
+/** How long a failed wait gives the page to describe itself before it is reported as unresponsive */
+const DIAGNOSE_WAIT_MS = 5_000;
+/** Enough of the root's HTML to tell an empty root from a fallback, an error screen or a page */
+const ROOT_HTML_CHARS = 600;
+/** Each list a failed wait reports is cut to this many entries, the newest kept */
+const DIAGNOSE_LIST = 20;
+
+const keepLast = (list, entry) => {
+  list.push(entry);
+  if (list.length > DIAGNOSE_LIST) list.shift();
+};
+
+/**
+ * What one tab's network and console log said since its main frame last began loading a document:
+ * the requests that failed or answered an error status, the ones still open, and the console's
+ * error and warning entries that are not script errors (a resource that failed to load, a refused
+ * script). It is fed every DevTools event; a new document in the main frame starts it over, so the
+ * page being left cannot speak for the one that replaced it.
+ */
+export function networkRecorder() {
+  const open = new Map();
+  let failed = [];
+  let log = [];
+  let notes = [];
+  const recorder = {
+    /** The tab's own frame, whose document requests start a new record; set once the tab is enabled */
+    mainFrame: null,
+    note: (text) => keepLast(notes, text),
+    event(method, params) {
+      if (method === 'Network.requestWillBeSent') {
+        if (params.type === 'Document' && params.frameId === recorder.mainFrame && !params.redirectResponse) {
+          open.clear();
+          failed = [];
+          log = [];
+          notes = [];
+        }
+        open.set(params.requestId, { method: params.request.method, url: params.request.url, type: params.type ?? 'Other', started: Date.now() });
+      } else if (method === 'Network.requestWillBeSentExtraInfo') {
+        // The headers went out on a connection: a request open without this is still queued in the browser
+        const request = open.get(params.requestId);
+        if (request) request.sent = true;
+      } else if (method === 'Network.responseReceived') {
+        const request = open.get(params.requestId);
+        if (!request) return;
+        request.status = params.response.status;
+        request.fromServiceWorker = params.response.fromServiceWorker === true;
+        if (params.response.status >= 400) keepLast(failed, `${params.response.status} ${request.method} ${request.url}${request.fromServiceWorker ? ' (from the service worker)' : ''}`);
+      } else if (method === 'Network.loadingFinished') {
+        open.delete(params.requestId);
+      } else if (method === 'Network.loadingFailed') {
+        const request = open.get(params.requestId);
+        // Unknown: a request of the document that was left, cancelled as it went
+        if (!request) return;
+        open.delete(params.requestId);
+        const why = [params.errorText, params.blockedReason, params.canceled ? 'canceled' : null].filter(Boolean).join(', ');
+        keepLast(failed, `${why} ${request.method} ${request.url}`);
+      } else if (method === 'Log.entryAdded') {
+        const { level, source, text, url } = params.entry;
+        if (level === 'error' || level === 'warning') keepLast(log, `${level} (${source}) ${text}${url && !text.includes(url) ? ` ${url}` : ''}`);
+      }
+    },
+    snapshot(now) {
+      return {
+        failed: [...failed],
+        log: [...log],
+        notes: [...notes],
+        open: [...open.values()].map((r) => ({ ...r, age: now - r.started })).sort((a, b) => b.age - a.age),
+      };
+    },
+  };
+  return recorder;
+}
+
+/**
+ * The report of a failed wait, as lines under its message. `state` is what the page said about
+ * itself, or null when it did not answer in time.
+ */
+export function describePage({ state, errors, network }) {
+  const lines = [];
+  if (!state) lines.push(`page: did not answer within ${DIAGNOSE_WAIT_MS / 1000} s (its main thread is busy, or the renderer is gone)`);
+  else if (state.threw) lines.push(`page: could not be read (${state.threw})`);
+  else {
+    lines.push(`page: ${state.href}, readyState ${state.readyState}, title ${JSON.stringify(state.title)}, service worker ${state.worker ?? 'none'}`);
+    lines.push(`#root: ${state.root === null ? 'missing' : state.root.replace(/\s+/g, ' ')}`);
+    if (state.body) lines.push(`text: ${JSON.stringify(state.body)}`);
+  }
+  // The newest of what was said, and the oldest of what is still open: those are the stuck ones
+  const list = (title, items, keep = (all) => all.slice(-DIAGNOSE_LIST)) => {
+    if (items.length) lines.push(`${title}:`, ...keep(items).map((item) => `  ${item}`));
+  };
+  list('console errors', [...new Set(errors)].map((e) => e.split('\n').slice(0, 4).join(' | ')));
+  list('console log', network.log);
+  list('failed requests', network.failed);
+  list('navigation', network.notes);
+  list(
+    'still open',
+    network.open.map((r) => `${r.method} ${r.url} (${r.type}${r.status ? `, ${r.status}${r.fromServiceWorker ? ' from the service worker' : ''}` : r.sent ? ', sent, no response' : ', not sent'}, ${(r.age / 1000).toFixed(1)} s)`),
+    (all) => all.slice(0, DIAGNOSE_LIST),
+  );
+  return lines.join('\n');
+}
+
 /**
  * Starts headless Chrome and returns `{ page, close, pid }`. `close()` is idempotent and also runs
  * from the process's 'exit', so the browser goes down on every way out: the end of the run, a
@@ -153,6 +255,7 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
     pending.clear();
   };
   const errors = [];
+  const network = networkRecorder();
   ws.onmessage = (m) => {
     const d = JSON.parse(m.data);
     if (d.id && pending.has(d.id)) {
@@ -164,6 +267,8 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
       errors.push(d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text);
     } else if (d.method === 'Runtime.consoleAPICalled' && d.params.type === 'error') {
       errors.push(d.params.args.map((a) => a.value ?? a.description).join(' '));
+    } else if (d.method) {
+      network.event(d.method, d.params);
     }
   };
   const send = (method, params = {}) =>
@@ -178,6 +283,10 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
     });
   await send('Page.enable');
   await send('Runtime.enable');
+  // Neither fails a spec: they are what a failed wait reports, so a page that stayed blank says why
+  await send('Log.enable');
+  await send('Network.enable');
+  network.mainFrame = (await send('Page.getFrameTree')).result?.frameTree?.frame?.id ?? null;
 
   const page = {
     baseUrl,
@@ -208,20 +317,38 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
      * Returns what lifts the block, which a spec must call before it finishes.
      */
     async blockUrls(patterns) {
-      await send('Network.enable');
       await send('Network.setBypassServiceWorker', { bypass: true });
       await send('Network.setBlockedURLs', { urls: patterns });
       return async () => {
         await send('Network.setBlockedURLs', { urls: [] });
         await send('Network.setBypassServiceWorker', { bypass: false });
-        await send('Network.disable');
       };
     },
     /** Console errors and uncaught exceptions seen so far; `takeErrors()` also clears them. */
     takeErrors: () => errors.splice(0),
     async goto(path, wait = 1200) {
-      await send('Page.navigate', { url: `${baseUrl}${path}` });
+      const navigated = await send('Page.navigate', { url: `${baseUrl}${path}` });
+      // Kept, not thrown: a navigation the page itself interrupted is aborted and still lands
+      if (navigated.result?.errorText) network.note(`Page.navigate to ${path} answered ${navigated.result.errorText}`);
       await sleep(wait);
+    },
+    /**
+     * What a failed wait is reported with: where the page is, whether its document finished loading,
+     * what its root holds, the service worker in control, and what the console and the network said
+     * since the document loaded (failed requests, error responses, requests still open). A renderer
+     * too busy to answer is a finding of its own, and the network half is still reported.
+     */
+    async diagnose() {
+      const probe =
+        `const root=document.getElementById('root');` +
+        `return {href:location.href,readyState:document.readyState,title:document.title,` +
+        `worker:navigator.serviceWorker?.controller?.scriptURL??null,` +
+        `root:root?root.outerHTML.slice(0,${ROOT_HTML_CHARS}):null,body:document.body?document.body.innerText.trim().slice(0,200):null}`;
+      const state = await Promise.race([
+        send('Runtime.evaluate', { expression: `(()=>{${probe}})()`, returnByValue: true }).then((r) => r.result?.result?.value ?? { threw: r.result?.exceptionDetails?.text ?? 'no value' }),
+        sleep(DIAGNOSE_WAIT_MS).then(() => null),
+      ]).catch((error) => ({ threw: error.message }));
+      return describePage({ state, errors: [...errors], network: network.snapshot(Date.now()) });
     },
     async eval(body) {
       const r = await send('Runtime.evaluate', { expression: `(async()=>{${body}})()`, awaitPromise: true, returnByValue: true });
@@ -243,7 +370,9 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
         if (value) return value;
         if (Date.now() > end) {
           const where = await this.eval('return location.href').catch(() => 'unknown');
-          throw new Error(`timed out waiting for: ${label} (at ${where}${lastError ? `; the last check threw: ${lastError.message}` : ''})`);
+          const page = await this.diagnose().catch((error) => `the page could not be described: ${error.message}`);
+          // `diagnosed`: the report already carries the console errors, so the runner does not repeat them
+          throw Object.assign(new Error(`timed out waiting for: ${label} (at ${where}${lastError ? `; the last check threw: ${lastError.message}` : ''})\n${page}`), { diagnosed: true });
         }
         await sleep(150);
       }

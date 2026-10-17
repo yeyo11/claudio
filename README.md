@@ -1059,12 +1059,12 @@ The person's own shell, in a project's directory or a chat's worktree. Off until
 
 ### Collaborators
 
-Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](docs/plans/collaborators.md)). A chat's token is refused on every route below, reads included, so a teammate's transcript never reaches an agent's context. A share key holds `/` and `#`, so a shared project is named in a path by its `shareId` (`sha256(shareKey)`, 32 hex characters). Refusals carry a `code`: `off`, `unavailable` (503), `not-ready`, `not-found` (404), `not-owner` (403), `invalid` and `expired` (400), `refused`, `conflict`, `unreachable` (502); the rest are 409.
+Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](docs/plans/collaborators.md)). A chat's token is refused on every route below, reads included, so a teammate's transcript never reaches an agent's context unasked. The one exception ([plan](docs/plans/collaborators-agent-access.md)) is the copy reads (the shared list, one shared project, its kinds and transcripts; never a blob): the Claudio assistant's token reads every copy while Collaborators and its `assistantReads` switch are on, and the token of another chat reads only its own project's copies when that project's `agentReads` is on; never a chat in `bypassPermissions`, `auto` or `dontAsk`, and never a copy whose sharer turned `agentsMayRead` off. Such a refusal is 403 with a `collaborators.agent-read.*` code, a chat's read never pulls from the owner (`refresh` is ignored), and every read is a row of `GET /collaborators/agent-reads`. A share key holds `/` and `#`, so a shared project is named in a path by its `shareId` (`sha256(shareKey)`, 32 hex characters). Refusals carry a `code`: `off`, `unavailable` (503), `not-ready`, `not-found` (404), `not-owner` (403), `invalid` and `expired` (400), `refused`, `conflict`, `unreachable` (502); the rest are 409.
 
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/collaborators` | On or off, the settings, this install's endpoint id, the connection (`off`, `starting`, `online`, `no-relay`, `offline`) and `unavailable` with its reason when the module cannot load |
-| PUT | `/collaborators` | `{ enabled?, displayName?, label?, relayUrl? }`; turning it on generates the key once and binds the endpoint. Emits `collaborators.changed` |
+| PUT | `/collaborators` | `{ enabled?, displayName?, label?, relayUrl?, assistantReads? }`; turning it on generates the key once and binds the endpoint. Emits `collaborators.changed` |
 | GET | `/collaborators/groups` | The groups, each with its roster head, members and whether it is frozen, and the joins this install sent that wait for an owner |
 | POST | `/collaborators/groups` | `{ name }`: this install becomes the owner |
 | DELETE | `/collaborators/groups/:id` | Leave: deletes the copies and tells the owner. An owner with members transfers first (409) |
@@ -1077,7 +1077,7 @@ Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](d
 | DELETE | `/collaborators/groups/:id/members/:endpointId` | Owner: remove a member; the copies it holds stay with it |
 | PUT | `/collaborators/groups/:id/owner` | Owner: `{ endpointId }`, hand the group to another member |
 | GET | `/projects/:id/sharing` | The groups the project is shared with, its share key and `shareId`, the remotes to compute it from and `keyInUse` |
-| PUT | `/projects/:id/sharing` | `{ groups?, shareKey?, remote? }`; 409 `share-key-in-use` with the other project's `projectId` and `projectName` |
+| PUT | `/projects/:id/sharing` | `{ groups?, shareKey?, remote?, agentsMayRead?, agentReads? }`; 409 `share-key-in-use` with the other project's `projectId` and `projectName` |
 | GET | `/collaborators/shared` | What teammates share with this install, with each project's `shareId`, sync state, matching local projects and link |
 | GET | `/collaborators/shared/:owner/:shareId` | One shared project as the list gives it, for the read-only view of a project not cloned here; 404 once it is no longer shared |
 | PUT | `/collaborators/shared/:owner/:shareId/link` | `{ projectId }`: show the shared project inside a local one |
@@ -1085,6 +1085,7 @@ Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](d
 | GET | `/collaborators/shared/:owner/:shareId/{chats,memory,journal,documents,work-items,artifacts}?refresh=1` | The copies held; `refresh=1` pulls from the owner first |
 | GET | `/collaborators/shared/:owner/:shareId/chats/:chatId/transcript?limit=&before=` | A copied transcript, paged as `GET /chats/:id` pages a local one |
 | GET | `/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId?workflow=&limit=&before=` | A copied subagent's (or workflow agent's) transcript, pulled with its chat's |
+| GET | `/collaborators/agent-reads?owner=&shareId=&chatId=&since=&limit=` | What agents read of teammates' copies, newest first: chat, tool, copy, kind and record ids |
 | GET | `/collaborators/shared/:owner/:shareId/blobs/:sha256` | A document's or an upload's content, fetched from the owner on first open; a hash no copied record names is 404 |
 
 ### Chats

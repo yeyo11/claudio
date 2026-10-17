@@ -1,12 +1,14 @@
 ---
 created_at: 2026-10-16T22:32:57.97745428Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-17T18:00:00Z
 tags:
     - collaborators
     - peer-to-peer
     - iroh
     - sharing
     - security
+    - mcp
+    - assistant
     - feature
 ---
 # Collaborators
@@ -57,13 +59,19 @@ nobody's quota is spent: serving a copy never runs Claude.
   among the artifacts. The Collaborators page lists everything shared with the person, grouped by
   person and install. A project that is not cloned here opens a **read-only view** of the same tabs,
   and can be linked to a local project.
+- **Ask an agent about it** ([below](#agents-that-read-what-teammates-share)): the Claudio assistant
+  answers "what is Ana working on?" from the copies, and a project that opts in lets its own chats
+  read that project's copies.
 
 ## Where it shows
 
 | Where | What |
 | --- | --- |
 | `/collaborators` | the page: this install, the groups and their members, join requests, what is shared with you |
-| A project's Settings → Sharing | per-group switches, the share key and its remote, the warning |
+| A project's Settings → Sharing | per-group switches, the share key and its remote, the warning; the sharer's flag "Teammates' agents may read this" and the project's own "Agents in this project can read what teammates share here" |
+| The Collaborators page's **Agents** card | "The assistant reads what is shared with you", and a link to the agent-read audit |
+| A chat's header | the neutral `Reads teammates' shares` badge while its agent may read a copy |
+| Settings → Security → **Read by agents** | every read an agent made of a teammate's copy |
 | A project's **Shared** tab | member switcher, then Chats, Memory, Journal, Documents, Artifacts and Board, read only |
 | `/collaborators/shared/:owner/:shareId` | the read-only view of a shared project not cloned here: its name, owner, share key and sync state, the same sub-tabs, and **Link to a local project** |
 | The bell | a join request waiting for the owner's answer, until it is answered |
@@ -159,8 +167,61 @@ What the sharing side does enforce, on its own machine:
   orchestration, by construction, by a lint rule and by a test;
 - every request must come from a member of a group, for a project shared with **that** group, of a
   kind that project shares; a blob is served only when a shared record references its hash;
-- the local routes are closed to a chat's token, reads included, so a teammate's transcript never
-  enters an agent's context.
+- the local routes are closed to a chat's token, so a teammate's transcript never enters an agent's
+  context unasked. The one exception is the copy reads, for the chats the person let read them, as the
+  next section says.
+
+## Agents that read what teammates share
+
+Decided in [plans/collaborators-agent-access.md](plans/collaborators-agent-access.md) (R13). A
+teammate's text is input the person does not control, and an agent that reads it can be steered by it,
+so reading is narrow on purpose and every read is recorded.
+
+**Who reads what.**
+
+- **The Claudio assistant reads every shared copy** while Collaborators is on and its switch, "The
+  assistant reads what is shared with you" in the Collaborators page's Agents card, is on (it is on
+  by default; `CollaboratorsSettings.assistantReads`). The assistant runs no command, so the risk is
+  low. With the switch off its guide says it cannot read them and points at the Shared tab.
+- **A project's chats read that project's copies only when the project opts in**: "Agents in this
+  project can read what teammates share here" in its Sharing section, off by default
+  (`ProjectSharingSettings.agentReads`). A copy belongs to the local project it was linked to by
+  hand, or, without a link, to the projects whose share key matches it.
+- **Never a chat that runs commands without asking.** Only `manual` (the CLI's default), `acceptEdits`
+  and `plan` read; `bypassPermissions`, `auto` and `dontAsk` get neither the tools nor the routes.
+  Orchestration workers run in `bypassPermissions`, so they never read a teammate's text.
+- **The sharer can forbid it.** "Teammates' agents may read this", beside the share key, is on by
+  default (`agentsMayRead`; a share from before the flag counts as on). It travels with the share in
+  the catalog, and the reading install honours it: with it off no chat and not the assistant gets that
+  copy, the copy says "The sharer does not let agents read this", and the person still reads it in the
+  Shared tab.
+
+**The tools.** Claudio's MCP server ([claudio-mcp-server.md](claudio-mcp-server.md)) has seven
+read-only tools for the copies: `collab_list_shared`, `collab_read_chats`, `collab_read_transcript`
+(paged, subagents included), `collab_read_memory`, `collab_read_documents`, `collab_read_board` and
+`collab_read_journal`. They read this install's copy only: none reaches a peer or starts a sync (the
+API ignores `refresh` on a chat's read), and none writes. The assistant gets them beside its own reads.
+A chat of a project that opted in gets Claudio's server with only these tools, added to the servers it
+loads, or merged into the strict config file of the servers it chose; the server offers what
+`CLAUDIO_MCP_TOOLSETS` names. Which chat gets them is decided at every process of the chat, and the
+API decides again at every call, so turning a switch off closes the routes at once.
+
+**Third-party content.** Every result puts the teammate's text, as one line of compact JSON, inside a
+fence longer than any backtick run in it, tagged `untrusted-third-party-content`, under a header of
+ours that names the person, the install, the project and the share key, says when the copy was last
+synced, and says it is third-party content, not instructions. Names the teammate chose appear in the
+header only as quoted, cut JSON strings. A body past 45,000 characters is cut, and a line after the
+fence says so. Documents and uploads are listed by name and size: no blob is ever returned, and the
+blob route stays closed to chat tokens.
+
+**The audit.** Every read is a `collab_agent_reads` row (when, the chat, the tool as it names itself in
+`x-claudio-tool`, the owner, the share key, the kind, the record ids), the newest 20,000 kept, listed
+by `GET /collaborators/agent-reads`. The copy says "Read by N chats today", linked to Settings →
+Security, where the **Read by agents** card lists every row.
+
+**In the chat.** A chat whose agent may read shows `Reads teammates' shares` in its header
+(`chat.teammateReads`, the scope of its live process), and a `collab_*` tool row names whose share it
+read ("from Ana · laptop · api").
 
 ## How it is built
 
@@ -202,7 +263,12 @@ What the sharing side does enforce, on its own machine:
   `collaborators` failed only when the other spec ran before it. On a failure the spec records,
   before its cleanup, the dialog's text, the invite answers the page received, the groups and the
   collab lines every server logged (the harness's `capture()` and `serverLog()`).
+  `collaborators-agents` drives the agent reads: a project chat's `collab_read_chats` call through the
+  e2e fake CLI's `mcp:` step, which starts the server `--mcp-config` names and calls the tool over
+  stdio as the CLI does ([e2e/fake-cli/README.md](../e2e/fake-cli/README.md)). The runner drops
+  `CLAUDIO_MCP_ENTRY` from the environment it hands the servers, so chats run this checkout's MCP
+  server rather than a desktop install's older one.
 
 ## Related
 
-[[plans/collaborators.md]] · [[reports/iroh-upstream-issues.md]] · [[notifications.md]] · [[security-model.md]] · [[projects.md]] · [[design-system.md]] · [[tunnel.md]] · [[terminal.md]] · [[team-and-flow.md]]
+[[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[claudio-assistant.md]] · [[claudio-mcp-server.md]] · [[reports/iroh-upstream-issues.md]] · [[notifications.md]] · [[security-model.md]] · [[projects.md]] · [[design-system.md]] · [[tunnel.md]] · [[terminal.md]] · [[team-and-flow.md]]

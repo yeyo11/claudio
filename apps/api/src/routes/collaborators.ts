@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Core } from '@claudio/core';
 import { CollaboratorsError } from '@claudio/core';
 import { normalizeMessage, TRANSCRIPT_PAGE, TRANSCRIPT_PAGE_MAX } from '@claudio/shared';
+import { auditSummary } from '../security.ts';
 import type {
+  AgentReadList,
   CollaboratorsKind,
   CreateGroupRequest,
   JoinGroupRequest,
@@ -59,11 +61,18 @@ export function transcriptPage(chatId: string, lines: readonly string[], live: b
   return { chatId, entries: entries.slice(from, to), from, total, live };
 }
 
+/** The MCP tool a read came from, as `x-claudio-tool` names it; anything else is not a tool name */
+const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+/** The most record ids one audit row keeps: a list of hundreds says no more than its first ones */
+const MAX_AUDITED_IDS = 200;
+
 /**
- * Collaborators (docs/plans/collaborators.md §6): the owner's routes only, reads included, so a
- * chat's token never pulls a teammate's transcript into its own context. Every route here is in
- * `CHAT_FORBIDDEN_COLLABORATORS` in `security.ts`. A share key holds `/` and `#`, so a shared
- * project is named in a path by its `shareId`.
+ * Collaborators (docs/plans/collaborators.md §6): the owner's routes, reads included, so a chat's
+ * token never pulls a teammate's transcript into its own context unasked. Every route here is in
+ * `CHAT_FORBIDDEN_COLLABORATORS` in `security.ts`; the copy reads of `AGENT_READABLE` are let
+ * through for a chat in scope (docs/plans/collaborators-agent-access.md), filtered to that scope,
+ * never pulling from the owner, and written down as a row each. A share key holds `/` and `#`, so a
+ * shared project is named in a path by its `shareId`.
  */
 export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const collab = core.collaborators;
@@ -110,39 +119,81 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
 
   // ---- What others share with this install
   type Shared = { owner: string; shareId: string };
-  app.get('/collaborators/shared', () => collab.shared());
-  app.get<{ Params: Shared }>('/collaborators/shared/:owner/:shareId', (req) => collab.sharedProject(req.params.owner, req.params.shareId));
+  /** The chat whose token made the request; null for the person */
+  const chatOf = (req: FastifyRequest): string | null => (req.actor?.startsWith('chat:') ? req.actor.slice('chat:'.length) : null);
+  /**
+   * One audit row for a chat's read of one copy. The guard let the request through, so the copy is
+   * in the chat's scope; the tool is what the MCP server says it is, the route's summary otherwise.
+   */
+  const audit = (req: FastifyRequest, p: Shared, kind: CollaboratorsKind | null, recordIds: readonly string[]): void => {
+    const chatId = chatOf(req);
+    if (chatId === null) return;
+    const share = collab.sharedKey(p.owner, p.shareId);
+    if (!share) return;
+    const header = req.headers['x-claudio-tool'];
+    const tool = typeof header === 'string' && TOOL_NAME.test(header) ? header : auditSummary(req.method, req.routeOptions.url, req.url.split('?')[0] ?? req.url);
+    collab.recordAgentRead({ chatId, tool, owner: p.owner, shareKey: share, kind, recordIds: recordIds.slice(0, MAX_AUDITED_IDS) });
+  };
+
+  app.get('/collaborators/shared', async (req) => {
+    const chatId = chatOf(req);
+    if (chatId === null) return collab.shared();
+    // The guard checked the chat has a scope; the list is the copies in it, each listing audited
+    const decision = core.agentReadScope(chatId);
+    if (!('scope' in decision)) return [];
+    const listed = await collab.sharedForAgent(decision.scope);
+    for (const share of listed) audit(req, share, null, []);
+    return listed;
+  });
+  app.get<{ Params: Shared }>('/collaborators/shared/:owner/:shareId', async (req) => {
+    const found = await collab.sharedProject(req.params.owner, req.params.shareId);
+    audit(req, req.params, null, []);
+    return found;
+  });
   app.put<{ Params: Shared; Body: LinkSharedProjectRequest }>('/collaborators/shared/:owner/:shareId/link', (req) => collab.link(req.params.owner, req.params.shareId, bodyOf(req.body).projectId));
   app.delete<{ Params: Shared }>('/collaborators/shared/:owner/:shareId/link', (req) => collab.unlink(req.params.owner, req.params.shareId));
 
-  // `?refresh=1` pulls the kind from its owner first; an owner away leaves the copy as it is
-  const fresh = async (p: Shared, kind: CollaboratorsKind, refresh: string | undefined): Promise<void> => {
-    if (refresh === '1') await collab.refresh(p.owner, p.shareId, kind);
+  // `?refresh=1` pulls the kind from its owner first; an owner away leaves the copy as it is. A chat's
+  // read never reaches a peer: it reads the copy held, whatever it asks
+  const fresh = async (req: FastifyRequest, p: Shared, kind: CollaboratorsKind, refresh: string | undefined): Promise<void> => {
+    if (refresh === '1' && chatOf(req) === null) await collab.refresh(p.owner, p.shareId, kind);
   };
   type Copy = { Params: Shared; Querystring: { refresh?: string } };
   app.get<Copy>('/collaborators/shared/:owner/:shareId/chats', async (req) => {
-    await fresh(req.params, 'chats', req.query.refresh);
-    return collab.sharedChats(req.params.owner, req.params.shareId);
+    await fresh(req, req.params, 'chats', req.query.refresh);
+    const chats = collab.sharedChats(req.params.owner, req.params.shareId);
+    audit(req, req.params, 'chats', chats.map((c) => c.id));
+    return chats;
   });
   app.get<Copy>('/collaborators/shared/:owner/:shareId/memory', async (req) => {
-    await fresh(req.params, 'memory', req.query.refresh);
-    return collab.sharedMemory(req.params.owner, req.params.shareId);
+    await fresh(req, req.params, 'memory', req.query.refresh);
+    const files = collab.sharedMemory(req.params.owner, req.params.shareId);
+    audit(req, req.params, 'memory', files.map((f) => f.name));
+    return files;
   });
   app.get<Copy>('/collaborators/shared/:owner/:shareId/journal', async (req) => {
-    await fresh(req.params, 'journal', req.query.refresh);
-    return collab.sharedJournal(req.params.owner, req.params.shareId);
+    await fresh(req, req.params, 'journal', req.query.refresh);
+    const entries = collab.sharedJournal(req.params.owner, req.params.shareId);
+    audit(req, req.params, 'journal', entries.map((e) => e.id));
+    return entries;
   });
   app.get<Copy>('/collaborators/shared/:owner/:shareId/documents', async (req) => {
-    await fresh(req.params, 'documents', req.query.refresh);
-    return collab.sharedDocuments(req.params.owner, req.params.shareId);
+    await fresh(req, req.params, 'documents', req.query.refresh);
+    const documents = collab.sharedDocuments(req.params.owner, req.params.shareId);
+    audit(req, req.params, 'documents', documents.map((d) => d.path));
+    return documents;
   });
   app.get<Copy>('/collaborators/shared/:owner/:shareId/work-items', async (req) => {
-    await fresh(req.params, 'board', req.query.refresh);
-    return collab.sharedBoard(req.params.owner, req.params.shareId);
+    await fresh(req, req.params, 'board', req.query.refresh);
+    const board = collab.sharedBoard(req.params.owner, req.params.shareId);
+    audit(req, req.params, 'board', [...board.items.map((i) => i.id), ...board.milestones.map((m) => m.id)]);
+    return board;
   });
   app.get<Copy>('/collaborators/shared/:owner/:shareId/artifacts', async (req) => {
-    await fresh(req.params, 'artifacts', req.query.refresh);
-    return collab.sharedArtifacts(req.params.owner, req.params.shareId);
+    await fresh(req, req.params, 'artifacts', req.query.refresh);
+    const artifacts = collab.sharedArtifacts(req.params.owner, req.params.shareId);
+    audit(req, req.params, 'artifacts', artifacts.map((a) => a.id));
+    return artifacts;
   });
 
   // Every line is read: an entry's index depends on the lines before it, and the copy is local
@@ -170,6 +221,7 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
     // The query is checked before the copy is read, so a bad one is 400 whatever is held
     const window = windowOf(req.query);
     const { lines, live } = copiedLines(owner, shareId, chatId);
+    audit(req, req.params, 'chats', [chatId]);
     return transcriptPage(chatId, lines, live, window);
   });
 
@@ -181,9 +233,26 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
       const workflowRunId = req.query.workflow || null;
       const window = windowOf(req.query);
       const { lines, live } = copiedLines(owner, shareId, chatId, { agentId, workflowRunId });
+      audit(req, req.params, 'chats', [chatId, agentId]);
       return { ...transcriptPage(chatId, lines, live, { ...window, agent: true }), agentId, workflowRunId };
     },
   );
+
+  // What agents read of the copies, for Settings → Security and the copy's own "read by" line
+  app.get<{ Querystring: { owner?: string; shareId?: string; chatId?: string; since?: string; limit?: string } }>('/collaborators/agent-reads', (req): AgentReadList => {
+    const { owner, shareId, chatId, since } = req.query;
+    if (since !== undefined && Number.isNaN(Date.parse(since))) throw Object.assign(new Error('since must be a date'), { statusCode: 400 });
+    const limit = count(req.query.limit, 'limit');
+    return {
+      reads: collab.agentReads({
+        ...(owner ? { owner } : {}),
+        ...(shareId ? { shareId } : {}),
+        ...(chatId ? { chatId } : {}),
+        ...(since ? { since: new Date(since).toISOString() } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      }),
+    };
+  });
 
   app.get<{ Params: Shared & { sha256: string } }>('/collaborators/shared/:owner/:shareId/blobs/:sha256', async (req, reply) => {
     const { owner, shareId, sha256 } = req.params;

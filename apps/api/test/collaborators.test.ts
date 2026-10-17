@@ -10,6 +10,7 @@ import type { CollaboratorsStatus, GroupInvite, GroupList, ProjectSharing, Share
 import { buildApp } from '../src/app.ts';
 import { ROUTE_DOCS } from '../src/openapi/routes.ts';
 import { transcriptPage } from '../src/routes/collaborators.ts';
+import { AGENT_READABLE } from '../src/security.ts';
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -78,12 +79,12 @@ function collaboratorRoutes(projectId: string): Array<{ method: string; url: str
 
 test('documents every route of §6 under the Collaborators tag', () => {
   const routes = collaboratorRoutes('p').map((r) => r.route);
-  assert.equal(routes.length, 28);
+  assert.equal(routes.length, 29);
   for (const route of ['GET /collaborators/shared/:owner/:shareId', 'GET /projects/:id/sharing', 'PUT /projects/:id/sharing', 'GET /collaborators/shared/:owner/:shareId/blobs/:sha256', 'GET /collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId'])
     assert.ok(routes.includes(route), route);
 });
 
-test("a chat's token is refused on every route, reads included, in either access mode", async (t) => {
+test("a chat's token is refused on every route, reads included, in either access mode, when it has no scope to read in", async (t) => {
   const { app, core } = await wrapper(t);
   const projectId = await project(app, 'shared-api');
   const routes = collaboratorRoutes(projectId);
@@ -93,7 +94,9 @@ test("a chat's token is refused on every route, reads included, in either access
     for (const { method, url, route } of routes) {
       const res = await app.inject({ method: method as 'GET', url, headers: bearer(chat), ...(method === 'GET' || method === 'DELETE' ? {} : { payload: {} }) });
       assert.equal(res.statusCode, 403, `${label}: ${route} answered ${res.statusCode} ${res.body}`);
-      assert.equal(res.json().code, 'collaborators.chat-token', route);
+      // A copy read is refused by the scope check, with the reason; everything else outright
+      if (AGENT_READABLE.has(`${method} /api${route.slice(method.length + 1)}`)) assert.match(res.json().code, /^collaborators\.agent-read\./, route);
+      else assert.equal(res.json().code, 'collaborators.chat-token', route);
     }
   };
   // Open mode: the token only labels the request, and the label is what refuses it

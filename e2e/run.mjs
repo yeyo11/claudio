@@ -215,6 +215,10 @@ const env = {
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
   ...(await collabEnv()),
 };
+// Claudio's MCP server runs from this checkout's source, never from a bundle the environment pointed
+// at: a desktop install exports CLAUDIO_MCP_ENTRY for its own packaged server, which lacks the tools
+// this build added, and a chat's call of one would read "unknown tool" instead of what the spec tests
+delete env.CLAUDIO_MCP_ENTRY;
 // The fake CLI's sandbox: the same directories, with the fake first on PATH. The config directory is
 // always the sandbox's, live or not, since the fake has no login to need the real one. Health is
 // checked every half second, so a signal reaches the page within a spec's patience.
@@ -338,6 +342,18 @@ async function waitForServer(child = server, url = baseUrl, stderr = () => serve
     child.off('exit', onExit);
   }
 }
+
+/** How the main server answers a cheap request now, or that it did not within a few seconds */
+async function serverAnswers() {
+  const started = Date.now();
+  try {
+    const res = await fetch(`${baseUrl}/api/health`, { signal: AbortSignal.timeout(SERVER_PROBE_MS) });
+    return `GET /api/health answered ${res.status} in ${Date.now() - started} ms`;
+  } catch (error) {
+    return `GET /api/health did not answer (${error.name === 'TimeoutError' ? `nothing within ${SERVER_PROBE_MS / 1000} s` : error.message})`;
+  }
+}
+const SERVER_PROBE_MS = 5000;
 
 function apiAt(url) {
   const client = {
@@ -513,6 +529,11 @@ try {
       failed++;
       failedFiles.push(file);
       console.log(`✗ ${file}\n  ${error.message.replaceAll('\n', '\n  ')}`);
+      // A spec that failed on an assertion never reached the console check: what the page logged may be why
+      const logged = [...browser.page.takeErrors(), ...takePeerTabErrors()];
+      if (logged.length && !error.diagnosed) console.log(`  console errors:\n    ${[...new Set(logged)].join('\n    ').replaceAll('\n', '\n    ')}`);
+      // A page left waiting on the API is told apart from one the API answered: is the server answering now?
+      if (error.diagnosed) console.log(`  server: ${await serverAnswers()}`);
       await captureFailure(`FAILED-${file}`, browser.page);
       // A spec that timed out is still running in the background: the browser is not safe to reuse
       if (error.message.endsWith(`took longer than ${limit / 1000}s`)) {

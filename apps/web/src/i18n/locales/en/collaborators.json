@@ -222,7 +222,11 @@
       "documents": "Documents",
       "artifacts": "Artifacts",
       "board": "Board"
-    }
+    },
+    "agentsMayRead": "Teammates' agents may read this",
+    "agentsMayReadHint": "Off, a teammate's assistant and chats do not get this project; the teammate still reads it in their Shared tab.",
+    "agentReads": "Agents in this project can read what teammates share here",
+    "agentReadsHint": "Only chats that ask before running a command get the read tools: never one in Skip permission checks, and never an orchestration's workers. What they read is listed in Settings → Security."
   },
   "shared": {
     "member": "Collaborator",
@@ -282,5 +286,37 @@
     "gone": "This project is no longer shared with you",
     "goneHint": "Its owner stopped sharing it, or you are no longer in a group with them.",
     "back": "Back to Collaborators"
+  },
+  "agents": {
+    "title": "Agents",
+    "assistant": "The assistant reads what is shared with you",
+    "hint": "The assistant runs no command, so it can answer questions about what teammates share. A project's chats read only when the project allows it in its Sharing section, and never in chats that run commands without asking. A teammate's text is shown to them as third-party content, never as instructions.",
+    "audit": "See what agents read"
+  },
+  "agentReads": {
+    "forbidden": "The sharer does not let agents read this",
+    "today_one": "Read by {{count}} chat today",
+    "today_other": "Read by {{count}} chats today",
+    "chip": {
+      "label": "Reads teammates' shares",
+      "assistant": "This chat can read everything teammates share with you, unless a sharer forbids it",
+      "project": "This chat can read what teammates share into its project, unless a sharer forbids it"
+    },
+    "audit": {
+      "title": "Read by agents",
+      "intro": "Every read a chat's agent made of what teammates share with you, newest first. Uploads are never handed to an agent.",
+      "refresh": "Refresh",
+      "none": "No agent has read what teammates share",
+      "noneHint": "The assistant and the chats of projects that allow it will show up here once they read a teammate's share.",
+      "when": "When",
+      "chat": "Chat",
+      "tool": "Tool",
+      "copy": "Shared project",
+      "what": "What",
+      "list": "List of shared projects",
+      "goneCopy": "No longer shared",
+      "records_one": "{{count}} record",
+      "records_other": "{{count}} records"
+    }
   }
 }

@@ -30,6 +30,7 @@ import type {
   Overview,
   AccountsSnapshot,
   PermissionDecision,
+  PermissionMode,
   PermissionRequest,
   Project,
   ProjectCandidate,
@@ -117,6 +118,7 @@ import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
 import { CollabStore, Db } from './db.ts';
 import { CollaboratorsService, collabHostSettings } from './collab/index.ts';
+import type { AgentReadChat, AgentReadDecision } from './collab/agent-access.ts';
 import { liveChatsOf } from './collab/readers.ts';
 import { ChatUploads } from './chat-uploads.ts';
 import { HealthMonitor, HealthService } from './health-service.ts';
@@ -139,7 +141,7 @@ import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
-import { claudioMcp, claudioMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions } from './claudio-mcp.ts';
+import { claudioMcp, claudioMcpSync, collabMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
 import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
@@ -246,6 +248,7 @@ export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, t
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
+export { AGENT_READ_MODES, agentReadScope, copyInScope, type AgentReadChat, type AgentReadDecision, type AgentReadRefusal } from './collab/agent-access.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
 export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
 export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
@@ -707,6 +710,7 @@ export class Core {
     this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
     this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
+    this.runtime.agentReadsLaunch = (chat) => this.agentReadsLaunch(chat);
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
@@ -872,6 +876,10 @@ export class Core {
       memberChat: (chatId) => this.memberChat(chatId),
       guardsForChat: (cwd) => this.guardsForChat(cwd),
       compact: (chat) => this.context.availability(chat),
+      teammateReads: (chatId) => {
+        const decision = this.agentReadScope(chatId);
+        return 'scope' in decision ? decision.scope : null;
+      },
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
       rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),
@@ -1677,6 +1685,23 @@ export class Core {
     }
   }
 
+  /**
+   * Which teammates' copies a chat may read through its own token, or why none
+   * (docs/plans/collaborators-agent-access.md). Decided on the live process Claudio has for the chat:
+   * its marker, its permission mode now and the project it works in.
+   */
+  agentReadScope(chatId: string): AgentReadDecision {
+    const runtime = this.runtime.get(chatId);
+    const chat: AgentReadChat | null = runtime
+      ? {
+          assistant: !!runtime.claudioAssistant,
+          projectId: this.projectOf(resolve(runtime.workingDir || runtime.cwd)).project?.id ?? null,
+          permissionMode: runtime.permissionMode,
+        }
+      : null;
+    return this.collaborators.agentReadScope(chat);
+  }
+
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
     const attached = this.attach(dir);
     const facts = attached ? attached.worktree : this.locator.worktreeOf(dir);
@@ -1889,8 +1914,24 @@ export class Core {
   private assistantChatLaunch(marker: ClaudioAssistantMarker): AssistantChatOptions {
     const project = marker.projectId ? this.projectStore.get(marker.projectId) : null;
     const scope = project ? { id: project.id, name: project.name, key: this.projectSettingsStore.stored(project.id, project.name)?.keyPrefix ?? '', path: project.path } : null;
-    const launch = claudioMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION });
-    return assistantChatOptions(launch, claudioAssistantPrompt(scope, marker.language));
+    // The assistant always asks before it runs anything (`assistantChatOptions`): its reads of teammates' copies hang on the switches alone
+    const decision = this.collaborators.agentReadScope({ assistant: true, projectId: null, permissionMode: 'manual' });
+    const reads = 'scope' in decision;
+    const launch = claudioMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION, toolsets: reads ? ['claudio', 'collab'] : ['claudio'] });
+    const teammates = reads ? 'reads' : decision.refusal === 'assistant-off' ? 'off' : null;
+    return assistantChatOptions(launch, claudioAssistantPrompt(scope, marker.language, teammates));
+  }
+
+  /**
+   * The reads of teammates' copies for a process of a chat that is not the assistant: offered when
+   * its project opted in and its mode asks before running commands, decided again at every process
+   * and checked again by the API at every call (docs/plans/collaborators-agent-access.md).
+   */
+  private agentReadsLaunch(chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null }): CollabMcpLaunch | null {
+    const projectId = this.projectOf(resolve(chat.dir)).project?.id ?? null;
+    const decision = this.collaborators.agentReadScope({ assistant: false, projectId, permissionMode: chat.permissionMode });
+    if (!('scope' in decision)) return null;
+    return collabMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION }, chat.mcpConfig);
   }
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {

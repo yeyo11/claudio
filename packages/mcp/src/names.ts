@@ -46,7 +46,47 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
 ] as const;
 
 export type ClaudioMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];
-export type ClaudioMcpToolName = ClaudioMcpReadToolName | ClaudioMcpWriteToolName;
+
+/**
+ * The reads of what teammates share (docs/plans/collaborators-agent-access.md). Offered only to a
+ * chat whose scope allows it: the assistant while its switch is on, a chat of a project that opted
+ * in. Each reads this install's copy, and the API checks the chat's scope again at every call.
+ */
+export const CLAUDIO_MCP_COLLAB_TOOL_NAMES = [
+  'collab_list_shared',
+  'collab_read_chats',
+  'collab_read_transcript',
+  'collab_read_memory',
+  'collab_read_documents',
+  'collab_read_board',
+  'collab_read_journal',
+] as const;
+
+export type ClaudioMcpCollabToolName = (typeof CLAUDIO_MCP_COLLAB_TOOL_NAMES)[number];
+export type ClaudioMcpToolName = ClaudioMcpReadToolName | ClaudioMcpWriteToolName | ClaudioMcpCollabToolName;
+
+export const CLAUDIO_MCP_COLLAB_TOOLS: readonly string[] = CLAUDIO_MCP_COLLAB_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
+
+/**
+ * Which tools a server process offers, from `CLAUDIO_MCP_TOOLSETS` (comma separated): `claudio` is the
+ * assistant's reads and writes, `collab` the reads of teammates' copies. Unset, it is `claudio`.
+ */
+export const CLAUDIO_MCP_TOOLSETS_ENV = 'CLAUDIO_MCP_TOOLSETS';
+export const CLAUDIO_MCP_TOOLSET_NAMES = ['claudio', 'collab'] as const;
+export type ClaudioMcpToolset = (typeof CLAUDIO_MCP_TOOLSET_NAMES)[number];
+
+/**
+ * The toolsets an environment value names. Unset or empty is `claudio`, as before toolsets; unknown
+ * names are dropped, so a value naming nothing known offers nothing rather than more.
+ */
+export function toolsetsFrom(value: string | undefined): ClaudioMcpToolset[] {
+  if (!value?.trim()) return ['claudio'];
+  const named = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part): part is ClaudioMcpToolset => (CLAUDIO_MCP_TOOLSET_NAMES as readonly string[]).includes(part));
+  return [...new Set(named)];
+}
 
 export const CLAUDIO_MCP_WRITE_TOOLS: readonly string[] = CLAUDIO_MCP_WRITE_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 

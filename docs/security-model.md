@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-16T23:00:00Z
+updated_at: 2026-10-17T18:00:00Z
 tags:
     - security
     - secrets
@@ -267,10 +267,43 @@ protocol (`claudio/collab/1`), never the HTTP API.
 - **A blob is never served by its hash alone.** The hash must be referenced by a shared record of that
   project, and an unknown hash answers like a missing one.
 - **The local routes are the owner's.** Every `/collaborators` route, and the project's `sharing`
-  routes, are in `CHAT_FORBIDDEN_COLLABORATORS`: a chat's token gets `403`, reads included, so a
-  teammate's transcript never reaches an agent's context.
+  routes, are in `CHAT_FORBIDDEN_COLLABORATORS`: a chat's token gets `403`, so a teammate's transcript
+  never reaches an agent's context unasked. The copy reads are the one exception, below.
 - **The endpoint runs in a child process** (`collab-host.mjs`), so a fault in the native binding
   cannot take the API down.
+
+**Agents that read teammates' copies (changed 2026-10-17).** The first decision closed every
+`/collaborators` route to a chat's token, reads included. The owner then chose to let agents read what
+teammates share, narrowly ([plans/collaborators-agent-access.md](plans/collaborators-agent-access.md),
+R13; [collaborators.md](collaborators.md#agents-that-read-what-teammates-share)). A teammate's text is
+input the person does not control, and a model that reads it can be steered by it (prompt injection),
+so:
+
+- **Only the copy reads open, and only in scope.** `AGENT_READABLE` in `apps/api/src/security.ts` lists
+  them: the shared list, one shared project, its chats, memory, journal, documents, work items and
+  artifacts, and its transcripts. On those, a chat's token is let through only when
+  `agentReadScope` (`packages/core/src/collab/agent-access.ts`) gives its chat a scope, and the copy
+  the route names is in it; otherwise `403` with a `collaborators.agent-read.*` code (`off`,
+  `assistant-off`, `no-chat`, `mode`, `no-project`, `project-off`, `copy`) and a sentence the tool
+  can repeat. The list itself is filtered by the same scope. Everything else (blobs, links,
+  settings, a project's sharing, the audit list) stays closed to chat tokens.
+- **Two scopes.** The Claudio assistant, which runs no command, reads every copy while Collaborators
+  and its `assistantReads` switch are on (on by default). Any other chat reads only the copies of its
+  own project, and only when the project's `agentReads` is on (off by default).
+- **Never a chat that acts without asking.** The scope needs the live process to run in `manual`,
+  `acceptEdits` or `plan`: `bypassPermissions`, `auto` and `dontAsk` read nothing, so an
+  orchestration worker never does. The MCP tools are handed out on the same decision, at every process,
+  and the API decides again at every call.
+- **The sharer's flag is honoured by the reader.** `agentsMayRead` travels in the catalog; with it off,
+  no chat of the reading install gets the copy. Like everything here it is cooperative: a modified
+  reader can ignore it.
+- **Third-party content, never instructions.** The MCP tools return a teammate's text fenced, under a
+  header that names its author and says it is data; names they chose appear only as quoted, cut
+  strings. No blob is ever handed to an agent.
+- **A read changes nothing.** A chat's read never pulls from the owner (`refresh` is ignored), so an
+  agent cannot make this install contact a peer.
+- **Audited.** Every read is a `collab_agent_reads` row (chat, tool, copy, kind, record ids; the newest
+  20,000 kept), listed in Settings → Security and counted on the copy.
 
 **The vault's new kind of secret.** The iroh secret key is generated once, when Collaborators is
 first turned on, and kept in the vault. It is the first vault value that is not handed to a CLI's
@@ -320,4 +353,4 @@ switched off from inside the run without the run being stopped.
 ## Related
 
 [[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]

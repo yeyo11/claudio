@@ -2532,6 +2532,8 @@ a.cont-from:hover { color: var(--fg); }
 .guard-rule-id, .guard-always { font-family: var(--mono); font-size: 11px; color: var(--fg-2); }
 .guard-rule.is-locked > svg { color: var(--fg-2); }
 .guard-tag { cursor: pointer; }
+.teammate-reads-tag { font-family: var(--mono); }
+.teammate-read { flex: none; white-space: nowrap; color: var(--fg-2); }
 .chip.guard { border-color: transparent; background: var(--warn-soft); color: var(--fg); font-variant-numeric: tabular-nums; text-decoration: none; }
 .chip.guard > svg { color: var(--warn); }
 .chip.guard:hover { border-color: var(--warn); }
