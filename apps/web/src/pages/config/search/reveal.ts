@@ -46,11 +46,15 @@ export function useRevealSetting(): void {
     let frame = 0;
     let row: HTMLElement | null = null;
     // While it waits for the row, the person may open something else (the palette, a dialog):
-    // the focus stays where they put it, and only the scroll and the fill still happen
+    // the focus stays where they put it, and only the scroll and the fill still happen. A dialog is
+    // never theirs to lose, even when the screen mounted after it opened; `<main>` is where the shell
+    // parks the focus on a route change, after this effect ran, so it is not a choice of theirs
     const before = document.activeElement;
     const mayFocus = () => {
       const active = document.activeElement;
-      return !active || active === document.body || active === before || !active.isConnected;
+      if (!active || active === document.body || !active.isConnected) return true;
+      if (active.closest('[role=dialog], [role=alertdialog]')) return false;
+      return active === before || active.matches('main');
     };
 
     const find = (): HTMLElement | null => {
