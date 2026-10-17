@@ -21,6 +21,7 @@ import { Select, Switch, type SelectOption } from '@claudio/ui/components/contro
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { errorMessage, formatDateTime } from '@claudio/ui/lib/format';
+import { SaveButton } from './groups/Block';
 
 const RECENT_BLOCKS = 20;
 const MAX_GLOB_LENGTH = 300;
@@ -266,9 +267,7 @@ function ProtectConfigs({ data, readOnly, saving, saveError, onSave }: GuardsCar
         </ul>
       )}
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={readOnly || saving || !dirty || problems.length > 0}>
-          {saving ? t('shared.saving') : t('shared.save')}
-        </button>
+        <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={saving} disabled={readOnly || problems.length > 0} />
         <button type="button" className="btn" disabled={readOnly || atDefaults} onClick={() => setText(DEFAULT_PROTECTED_CONFIGS.join('\n'))}>
           {t('security.guards.configs.restore')}
         </button>
@@ -314,7 +313,7 @@ function TryCommand({ checking, checkResult, checkError, onCheck }: GuardsCardVi
           value={target}
           onChange={(event) => setTarget(event.target.value)}
         />
-        <button type="submit" className="btn btn-primary" disabled={!request || checking}>
+        <button type="submit" className="btn" disabled={!request || checking}>
           {t('security.guards.try.action')}
         </button>
       </div>

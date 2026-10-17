@@ -12,7 +12,7 @@ import { api, keys } from '../../../api';
 import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs';
 import { unavailableKey } from '../../../components/terminal/terminal-model';
 import { useTerminalStatus } from '../../../components/terminal/use-terminals';
-import { SettingsReveal } from '../groups/Block';
+import { SaveButton, SettingsReveal } from '../groups/Block';
 
 const REMOTE: TerminalRemote[] = ['off', 'tunnel', 'any'];
 // The server's own bounds (core's terminal settings); a value outside them is refused with a 400
@@ -114,7 +114,7 @@ function History() {
 }
 
 function Form({ status }: { status: TerminalStatus }) {
-  const { t } = useTranslation('terminal');
+  const { t } = useTranslation(['terminal', 'config']);
   const { settings, sources } = status;
   const [draft, setDraft] = useState<Numbers>({ maxTerminals: settings.maxTerminals, idleMinutes: settings.idleMinutes, scrollbackLines: settings.scrollbackLines });
   const [number, setNumber] = useState<Partial<Numbers>>({});
@@ -161,13 +161,13 @@ function Form({ status }: { status: TerminalStatus }) {
         <span>{t('settings.enabled')}</span>
       </Switch>
       {fromEnv('enabled') && <p className="small muted">{t('settings.fromEnv')}</p>}
-      {auth.data?.mode === 'none' && (
+      {settings.enabled && auth.data?.mode === 'none' && (
         <p className="term-note">
           <TriangleAlert {...ICON_SM} aria-hidden />
           {t('settings.agentReach')}
         </p>
       )}
-      {!status.available && status.reason && (
+      {!status.available && status.reason && status.reason !== 'off' && (
         <p className="term-note">
           <TriangleAlert {...ICON_SM} aria-hidden />
           {t(unavailableKey(status.reason))}
@@ -198,9 +198,14 @@ function Form({ status }: { status: TerminalStatus }) {
           {field('scrollbackLines')}
         </div>
         <div className="form-actions">
-          <button type="button" className="btn btn-primary" disabled={!dirty || numbers.isPending} onClick={() => numbers.mutate(change, { onSuccess: () => setNumber({}) })}>
-            {t('settings.save')}
-          </button>
+          <SaveButton
+              type="button"
+              label={t('settings.save')}
+              savingLabel={t('config:shared.saving')}
+              dirty={dirty}
+              pending={numbers.isPending}
+              onClick={() => numbers.mutate(change, { onSuccess: () => setNumber({}) })}
+            />
         </div>
 
         <Field label={t('settings.shell')} hint={t('settings.shellHint')}>
@@ -230,7 +235,7 @@ export function TerminalCard() {
       {isLoading && <Skeleton rows={4} />}
       {data && (
         <>
-          <Form key={JSON.stringify(data.settings)} status={data} />
+          <Form key={`${data.settings.maxTerminals}:${data.settings.idleMinutes}:${data.settings.scrollbackLines}`} status={data} />
           <History />
         </>
       )}

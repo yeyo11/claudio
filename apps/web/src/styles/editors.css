@@ -1511,9 +1511,26 @@ button.master-item-on:hover {
   gap: 12px;
   min-width: 0;
   min-height: 0;
-  /* Clipped while it opens, with room left for the focus ring of what is inside */
   overflow: clip;
+}
+
+/* Open, it leaves room for the focus ring of what is inside; closed, nothing of it may paint */
+.settings-reveal.is-open > .settings-reveal-body {
   overflow-clip-margin: 4px;
+}
+
+/* A save's two words in one cell: the button keeps the longer's width in both states */
+.btn-states {
+  display: inline-grid;
+}
+
+.btn-states > span {
+  grid-area: 1 / 1;
+}
+
+[data-state='idle'] > .btn-states > .btn-state-loading,
+[data-state='loading'] > .btn-states > .btn-state-idle {
+  visibility: hidden;
 }
 
 @media (max-width: 900px) {

@@ -8,7 +8,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { PERMISSION_MODES } from '../../components/ui';
-import { SettingsReveal, SettingsRow } from './groups/Block';
+import { SaveButton, SettingsReveal, SettingsRow } from './groups/Block';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
@@ -158,9 +158,7 @@ export function EvalsCard({ saved }: { saved: AppSettings }) {
         <EnvNote setting="evalsPhase2" />
       ) : (
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-            {save.isPending ? t('shared.saving') : t('shared.save')}
-          </button>
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={save.isPending} />
         </div>
       )}
     </form>
@@ -234,9 +232,7 @@ export function HostsCard({ saved }: { saved: AppSettings }) {
           {answering === 0 ? t('appSettings.hosts.consequenceNone') : t('appSettings.hosts.consequence', { count: answering, formatted: formatNumber(answering) })}
         </p>
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-            {save.isPending ? t('shared.saving') : t('shared.save')}
-          </button>
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={save.isPending} />
           {dirty && (
             <button type="button" className="btn" onClick={() => setText(layers.file.join('\n'))}>
               {t('shared.discard')}
@@ -309,9 +305,7 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
       </div>
       {!(modeFromEnv && runsFromEnv) && (
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!runsValid || Object.keys(change).length === 0 || save.isPending}>
-            {save.isPending ? t('shared.saving') : t('shared.save')}
-          </button>
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={Object.keys(change).length > 0} pending={save.isPending} disabled={!runsValid} />
         </div>
       )}
     </form>
@@ -409,9 +403,7 @@ export function SpendCard({ saved }: { saved: AppSettings }) {
         <EnvNote setting="dailySpendCapUsd" />
       ) : (
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-            {save.isPending ? t('shared.saving') : t('shared.save')}
-          </button>
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={save.isPending} />
           {dirty && (
             <button
               type="button"

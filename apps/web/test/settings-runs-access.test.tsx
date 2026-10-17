@@ -113,6 +113,15 @@ test('the run defaults say what each value does, live', () => {
   assert.ok(one.includes('Up to 1 run at once; a new chat past it is refused.'));
 });
 
+test('a quiet section saves with a plain button that keeps its width while saving', () => {
+  const html = render(<Runs />, '/settings/runs');
+  assert.doesNotMatch(html, /btn-primary/, 'no gradient until a section has changes');
+  assert.match(
+    html,
+    /<button type="submit" class="btn" disabled="" data-states="idle\|loading" data-state="idle"><span class="btn-states"><span class="btn-state-idle">Save<\/span><span class="btn-state-loading">Saving…<\/span>/,
+  );
+});
+
 test('the hosts say how many names answer besides localhost', () => {
   assert.ok(text(render(<Access />)).includes('Answers to 1 name besides localhost.'));
 });

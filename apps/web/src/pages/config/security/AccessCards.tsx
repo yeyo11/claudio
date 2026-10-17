@@ -8,7 +8,7 @@ import { useConfirm } from '@claudio/ui/components/Dialog';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Field, Segmented, Tag } from '@claudio/ui/components/ui';
 import { getToken } from '../../../lib/auth';
-import { SettingsBlock, SettingsReveal, SettingsRow } from '../groups/Block';
+import { SaveButton, SettingsBlock, SettingsReveal, SettingsRow } from '../groups/Block';
 import { OwnTokenForm, RevealedToken, useTokenActions } from './token';
 
 const MODES: AuthMode[] = ['none', 'token', 'oidc'];
@@ -141,9 +141,7 @@ export function AccessCard({ auth }: { auth: AuthConfig }) {
           </div>
         </SettingsReveal>
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!dirty || Boolean(missing) || update.isPending}>
-            {update.isPending ? t('shared.saving') : t('security.access.save')}
-          </button>
+          <SaveButton label={t('security.access.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={update.isPending} disabled={Boolean(missing)} />
           <button
             type="button"
             className="btn"

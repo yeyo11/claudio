@@ -37,3 +37,42 @@ export function SettingsReveal({ open, children }: { open: boolean; children: Re
     </div>
   );
 }
+
+/**
+ * A section's save: both its words stacked in one cell, so it keeps the width of the longer and
+ * nothing beside it moves while it saves (AP10, invariant I5). It takes the gradient only while the
+ * section has changes, so a screen of quiet sections shows none.
+ */
+export function SaveButton({
+  label,
+  savingLabel,
+  dirty,
+  pending,
+  disabled = false,
+  type = 'submit',
+  onClick,
+}: {
+  label: string;
+  savingLabel: string;
+  dirty: boolean;
+  pending: boolean;
+  disabled?: boolean;
+  type?: 'submit' | 'button';
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type={type}
+      className={dirty ? 'btn btn-primary' : 'btn'}
+      disabled={disabled || !dirty || pending}
+      data-states="idle|loading"
+      data-state={pending ? 'loading' : 'idle'}
+      onClick={onClick}
+    >
+      <span className="btn-states">
+        <span className="btn-state-idle">{label}</span>
+        <span className="btn-state-loading">{savingLabel}</span>
+      </span>
+    </button>
+  );
+}
