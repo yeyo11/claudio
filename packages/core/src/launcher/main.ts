@@ -97,7 +97,13 @@ function pick(o: Required<Omit<LauncherOptions, 'env'>>, image: ImageInfo, keys:
   for (const role of ['trial', 'active', 'previous'] as const) {
     const v = state[role];
     if (v === null) continue;
-    const failed = state.bad.includes(v) ? 'it failed before' : checkOverlay({ dir: overlayDir(root, v), version: v, keys, image, nodeAbi: process.versions.modules });
+    // A trial must be newer than what runs now as well as the image: the agents' user can write
+    // state.json, and pointing the trial at an older signed bundle would be a downgrade
+    const failed = state.bad.includes(v)
+      ? 'it failed before'
+      : role === 'trial' && state.active !== null && compareVersions(v, state.active) <= 0
+        ? `${v} is not newer than the active ${state.active}`
+        : checkOverlay({ dir: overlayDir(root, v), version: v, keys, image, nodeAbi: process.versions.modules });
     if (failed === null) {
       if (role === 'previous') {
         state.active = v;
@@ -110,7 +116,8 @@ function pick(o: Required<Omit<LauncherOptions, 'env'>>, image: ImageInfo, keys:
     }
     o.log(`overlay ${v} refused: ${failed}`);
     if (!state.bad.includes(v)) state.bad.push(v);
-    if (role !== 'previous') state.lastRollback = { from: v, to: state.previous ?? image.version, at: new Date().toISOString() };
+    // A refused trial falls back to the active overlay, a refused active one to the previous
+    if (role !== 'previous') state.lastRollback = { from: v, to: (role === 'trial' ? state.active : state.previous) ?? image.version, at: new Date().toISOString() };
     state[role] = null;
     if (role === 'trial') state.attempts = 0;
     changed = true;

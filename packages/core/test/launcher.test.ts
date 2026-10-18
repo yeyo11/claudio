@@ -204,6 +204,21 @@ test('an overlay not newer than the image is refused, and the previous good one 
   assert.equal(after.previous, null);
 });
 
+test('a trial not newer than the active overlay is refused, and the active one keeps running', async () => {
+  const s = setup('exit0');
+  overlay(s, '0.6.8', 'exit0');
+  const active = overlay(s, '0.7.0', 'exit0');
+  state(s, { trial: '0.6.8', active: '0.7.0' });
+  const result = await run(s);
+  assert.equal(result.boots[0]?.dir, active);
+  const after = readLauncherState(s);
+  assert.equal(after.trial, null);
+  assert.equal(after.active, '0.7.0');
+  assert.deepEqual(after.bad, ['0.6.8']);
+  assert.equal(after.lastRollback?.to, '0.7.0');
+  assert.match(result.stderr, /0\.6\.8 is not newer than the active 0\.7\.0/);
+});
+
 test('a version in state.json is never a path', async () => {
   const s = setup('exit0');
   mkdirSync(join(s.dataDir, 'app'), { recursive: true });
