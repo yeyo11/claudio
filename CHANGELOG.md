@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/yeyo11/claudio/compare/v0.4.0...v0.4.1) (2026-10-18)
+
+
+### Bug fixes
+
+* **core:** the execution that died at a limit keeps its cause when a replay stops it ([#36](https://github.com/yeyo11/claudio/issues/36)) ([2924f48](https://github.com/yeyo11/claudio/commit/2924f48d5896ed9b7ccba2743658bc9ac5998531))
+
 ## [0.4.0](https://github.com/yeyo11/claudio/compare/v0.3.0...v0.4.0) (2026-10-18)
 
 
