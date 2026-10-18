@@ -1197,7 +1197,7 @@ button.master-item-on:hover {
   visibility: hidden;
 }
 
-/* ---- Settings → Appearance ---- */
+/* ---- Settings → General → Appearance ---- */
 /* Its controls are pictures with no text line to share with the label: they line up by the top */
 .appearance .pref-row {
   align-items: start;
@@ -1386,7 +1386,7 @@ button.master-item-on:hover {
   gap: 6px;
 }
 
-/* ---- Settings → Install ---- */
+/* ---- Settings → General → Install ---- */
 .install {
   display: flex;
   flex-direction: column;
@@ -1468,7 +1468,7 @@ button.master-item-on:hover {
   }
 }
 
-/* ---- Settings → Remote access ---- */
+/* ---- Settings → Access & safety → Remote access ---- */
 .tunnel-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1707,7 +1707,7 @@ button.master-item-on:hover {
   }
 }
 
-/* Settings → Security → Guards. Status colours pair with a word and the shield; nothing here moves */
+/* Settings → Access & safety → Guards. Status colours pair with a word and the shield; nothing here moves */
 .guard-status {
   display: flex;
   align-items: center;

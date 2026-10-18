@@ -256,7 +256,7 @@
   }
 }
 
-/* Settings → Providers: the page, the default row, the list of rows and the sheets of the phone */
+/* Settings → Claude Code: the page, the default row, the list of rows and the sheets of the phone */
 .prov-page {
   display: flex;
   flex-direction: column;

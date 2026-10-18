@@ -59,7 +59,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.shot(`pages-${theme}`);
   }
   // Claudio rotates between Claude accounts (docs/accounts.md): /accounts is a page of its own again,
-  // not the redirect to Settings → Providers Claudio left when it retired claude-swap
+  // not the redirect to Settings → Claude Code Claudio left when it retired claude-swap
   await page.goto('/accounts', 900);
   await page.waitFor(`return location.pathname === '/accounts' && (document.querySelector('main')?.innerText.trim().length ?? 0) > 20`, { label: '/accounts stays on the Accounts page' });
 

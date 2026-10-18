@@ -223,7 +223,7 @@ const SETUP_MODES: AuthMode[] = ['none', 'token'];
 
 /**
  * Step 1: who may open Claudio, and from where. The mode (None or Token) and the token shown once,
- * from the same pieces as Settings → Security; OIDC and the read-only mode stay there. Turning Token
+ * from the same pieces as Settings → Access & safety; OIDC and the read-only mode stay there. Turning Token
  * on makes a token first when this browser holds none, so the step can never lock the person out.
  * Below it, Tailscale, which Remote access goes through: signed in here where Claudio runs it (the
  * Docker image), shown as it stands where it is the machine's own, and left out where the deploy

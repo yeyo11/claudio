@@ -150,7 +150,7 @@ file contents are English records and are not translated.
 
 ## Phase 2
 
-Everything here needs `evalsPhase2` (Settings → Security → Instruction evals, or
+Everything here needs `evalsPhase2` (Settings → Runs & spend → Evals, or
 `CLAUDIO_EVALS_PHASE2`). Off, the routes answer 409 `evals-phase2-off`, the editor offers none of it
 and a version 2 file still opens. A version 1 file keeps working unchanged: it reads as neutral-only,
 and is saved as version 2 only when the person adds a version 2 field.

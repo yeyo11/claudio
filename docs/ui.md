@@ -32,7 +32,7 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
 | Claudio assistant | `/assistant`: a global chat that knows Claudio, reads it through its own MCP server and changes something only when the person allows each change. See [claudio-assistant.md](claudio-assistant.md) |
 | Accounts | `/accounts`: the Claude accounts of this machine, each signed in once, with their usage, the rotation settings and per-project policies. See [accounts.md](accounts.md) |
 | Collaborators | `/collaborators`: turning sharing on, groups, invites and members, and the read-only copies of what teammates share. See [collaborators.md](collaborators.md) |
-| Terminals | `/terminals`: the person's own shells per project and per chat, off until Settings → Security turns them on. See [terminal.md](terminal.md) |
+| Terminals | `/terminals`: the person's own shells per project and per chat, off until Settings → Access & safety turns them on. See [terminal.md](terminal.md) |
 
 ## Across the app
 
@@ -76,7 +76,7 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
 
   The list keys are ignored while you type in a field or a menu is open, and the chat list prints
   them under itself on screens with a keyboard.
-- **Appearance** (Settings → Appearance, or the palette), kept per browser:
+- **Appearance** (Settings → General → Appearance, or the palette), kept per browser:
   - **Theme**: light, dark or system, applied before first paint.
   - **Motion**: `full` (the default: braille spinners, rails that pulse while an agent works,
     numbers that count up), `subtle` (transitions only, nothing loops) or `off`. The system's
@@ -92,7 +92,7 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
   chats, prompts waiting for you, background tasks, subagents, workflows, orchestrations, changes on
   disk, health, account rotation — instead of each screen polling. If the stream drops, the sidebar status says so and the
   pages fall back to a slow poll until it returns.
-- **Updates**: Settings → Account has an **Updates** card with the version in use, the newest
+- **Updates**: Settings → General → Updates has an **Updates** card with the version in use, the newest
   Claudio release, its notes and **Check for updates**, and the steps that take it for this install —
   the commands for Docker or a source checkout, or Download and Restart to update in the desktop app.
   While a newer release is known, a dot marks Settings in the sidebar (More, on a phone); it never
@@ -123,7 +123,7 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
   opens where it can be sent.
   The list, read state and preferences are kept per browser. A finished task or subagent links straight
   to its side panel, and a finished workflow to the agent that ended it.
-  **Web Push** carries the same news to a device whose Claudio is closed: Settings → Notifications
+  **Web Push** carries the same news to a device whose Claudio is closed: Settings → General → Notifications
   registers this install with the server, which decides what is worth sending with the same function
   the browser runs on the same event. A focused window shows its toast and no push, so nothing
   arrives twice (except on iOS, which must show every push). It needs a secure origin, and on iPhone an installed app — see

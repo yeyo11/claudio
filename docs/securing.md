@@ -30,13 +30,13 @@ TLS-terminating proxy in front.
 **Guards.** Agent runs are covered by deterministic hooks that hold even in `bypassPermissions`: no
 `--no-verify`, no push, no force push, `reset --hard` or recursive delete outside the worktree, and no
 secret written into a file. They are on for orchestration workers and the flow, and per project for
-chats; Settings → Security → Guards switches them. They are defence in depth against mistakes, **not
+chats; Settings → Access & safety → Guards switches them. They are defence in depth against mistakes, **not
 a sandbox**: an agent that can run arbitrary code can get round them, so real isolation is still the
 container, the user account and the worktree ([docs/guards.md](guards.md)).
 
 ## Authentication
 
-**Modes.** Set from Settings → Security, or seeded from the environment on a fresh install
+**Modes.** Set from Settings → Access & safety, or seeded from the environment on a fresh install
 (`CLAUDIO_AUTH_MODE`, `CLAUDIO_AUTH_TOKEN`, `CLAUDIO_OIDC_*`; once an `auth.json` exists in the data
 directory it wins over the environment).
 
@@ -51,7 +51,7 @@ directory it wins over the environment).
   so it holds in `mode: none` as well. It is what stops a page on another domain from pointing that
   domain at `127.0.0.1` and driving your install from your own browser. Put a proxy in front and you
   must name the public host there; `GET /api/health` is exempt, so probes are unaffected. Without
-  the variable the list is editable in Settings → Security, and a running tunnel adds its own exact
+  the variable the list is editable in Settings → Access & safety, and a running tunnel adds its own exact
   host, never a pattern, for as long as it answers.
 - **Guessing is slowed down.** After ten failed authentications an address is answered `429` with a
   `Retry-After` that doubles from a second to a minute, and is forgotten after fifteen quiet minutes.
@@ -64,7 +64,7 @@ directory it wins over the environment).
   count — see [SECURITY.md](../SECURITY.md). Through the tunnel, whose client address is not trusted,
   all traffic shares one count of its own, apart from loopback, so a guess from the tailnet never
   makes the desk wait.
-- **The tunnel.** Settings → Remote access refuses to open while the mode is `none`, and turning the
+- **The tunnel.** Settings → Access & safety → Remote access refuses to open while the mode is `none`, and turning the
   mode to `none` closes it first. Tailscale encrypts it end to end and terminates TLS on this machine,
   so no third party sees the requests; every member of your tailnet who can reach the node can reach
   the address. See [docs/tunnel.md](tunnel.md).
@@ -103,7 +103,7 @@ directory it wins over the environment).
 - **Audit log.** Every mutating request is a row: when, who (a token id, an OIDC subject, or `local`
   when nothing guards the API), method, path, status and a one-line summary taken from the route's
   documentation. Bodies are never recorded, because they hold prompts and secrets. `GET /audit`, or
-  Settings → Security.
+  Settings → Access & safety.
 - **The bundle is served locked down.** The UI (and the SPA fallback) carries `X-Frame-Options: DENY`,
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and a Content-Security-Policy that
   names the SHA-256 of its one inline script instead of allowing inline script at all. `style-src`

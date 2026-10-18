@@ -262,7 +262,7 @@ CLI receives for a project are the same every time. It comes back as `PullReques
 |---|---|---|---|
 | 1 | `not-git` | the path is not a git repository | none |
 | 2 | `no-remote` | there is no `origin` | git's page on remotes |
-| 3 | `unsupported-host` | no host, a ported host, a host neither CLI knows, or the host's CLI is turned off in Settings | Settings → Integrations |
+| 3 | `unsupported-host` | no host, a ported host, a host neither CLI knows, or the host's CLI is turned off in Settings | Settings → Connections |
 | 4 | `cli-missing` | the host's CLI is not found (override, PATH, then install directories) or `--version` fails or is unreadable | the CLI's install page |
 | 5 | `cli-incompatible` | the version is below the manifest's minimum | the CLI's install page |
 | 6 | `cli-signed-out` | the auth probe says no for the host | the CLI's sign-in docs |
@@ -283,7 +283,7 @@ Nothing stored uses these values: failed rows record the step that failed (`fetc
 
 ### The CLIs' own status
 
-Settings → Integrations shows one `CodeHostStatus` per host (`GET /hosts`): state (`ready`,
+Settings → Connections shows one `CodeHostStatus` per host (`GET /hosts`): state (`ready`,
 `degraded`, `signed-out`, `incompatible`, `not-installed`, `unknown`), reason (`version-untested`,
 `below-minimum`, `no-hosts`, `probe-failed`, `timeout`), version, minimum and recorded releases,
 and the hosts the CLI knows with their signed-in user. `ready` here means the CLI is installed, in

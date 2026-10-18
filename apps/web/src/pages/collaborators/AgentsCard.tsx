@@ -8,7 +8,7 @@ import { settingsHref } from '../config/settingsGroups';
 /**
  * Whether the Claudio assistant reads what teammates share (docs/plans/collaborators-agent-access.md,
  * level 1). The assistant runs no command, so it is on by default; a project's chats read only when
- * their project opts in, in its Sharing section. What agents read is listed in Settings → Security.
+ * their project opts in, in its Sharing section. What agents read is listed in Settings → Access & safety.
  */
 export function AgentsCard({ settings, busy, onSave }: { settings: CollaboratorsSettings; busy: boolean; onSave: (changes: UpdateCollaboratorsRequest) => Promise<boolean> }) {
   const { t } = useTranslation('collaborators');

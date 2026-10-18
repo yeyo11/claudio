@@ -12,7 +12,7 @@ tags:
 ---
 # Remote access through Tailscale
 
-Settings → **Remote access** serves this Claudio on the person's own
+Settings → Access & safety → **Remote access** serves this Claudio on the person's own
 [Tailscale](https://tailscale.com) tailnet, so a phone or a laptop signed in to the same tailnet can
 reach it. The address is the machine's MagicDNS name on a port of Claudio's own,
 `https://<machine>.<tailnet>.ts.net:8444`, shown with a QR code, and it stays the same from one
@@ -79,7 +79,7 @@ Two more things are only learned when the rule is added, and fail the start with
 
 ## Using it
 
-1. **Turn on authentication first** (Settings → Security: a token or OIDC). While the mode is
+1. **Turn on authentication first** (Settings → Access & safety: a token or OIDC). While the mode is
    `none`, the tab shows a warning with a link to Security instead of the button. Every device on the
    tailnet that can reach the machine could otherwise drive it.
 2. Press **Open tunnel**. The state reads *opening* while the rule is added, then *checking* while

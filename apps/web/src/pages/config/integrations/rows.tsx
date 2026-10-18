@@ -17,7 +17,7 @@ import { STATE_TONE } from '../../../lib/provider-state';
 import { hostTool } from '../../../lib/setup';
 import { SignOutButton } from '../../../components/setup/SignOutButton';
 
-// The rows of Settings → Integrations, a code host's CLI and a tracker, with their binary override.
+// The rows of Settings → Connections, a code host's CLI and a tracker, with their binary override.
 // The setup assistant's "Code and work items" step lists the same rows (components/setup).
 
 /**

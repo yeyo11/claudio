@@ -316,7 +316,7 @@ switches a point to `active` by itself.
 
 ## Where it shows
 
-- **Settings → Claudio → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`, with
+- **Settings → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`, with
   `decisions/`): Engine (provider, CLI model, effort and cost cap, the Jev key with a connection test,
   history days), Decision points (mode, threshold, consent and metrics per row, grouped by area),
   Supervisor (the former tab, `supervisor.json` unchanged) and History (filter, open a row, useful /

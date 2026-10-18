@@ -17,7 +17,7 @@
     "start": "Empezar a usar Claudio",
     "ready_one": "{{count}} de {{total}} listo",
     "ready_other": "{{count}} de {{total}} listos",
-    "later": "Lo cambias cuando quieras en Ajustes → Seguridad."
+    "later": "Lo cambias cuando quieras en Ajustes → Acceso y seguridad."
   },
   "access": {
     "title": "Quién puede abrir Claudio",
@@ -28,8 +28,8 @@
     },
     "introPhone": "Si corre en un servidor o en una red, pide un token.",
     "body": "Toda petición debe llevar el token. Con “Ninguno”, cualquiera que llegue al puerto puede usar Claudio: vale en tu propio equipo, no en una red.",
-    "oidc": "OIDC está activado. Se cambia en Ajustes → Seguridad.",
-    "more": "OIDC y el modo solo lectura están en Ajustes → Seguridad.",
+    "oidc": "OIDC está activado. Se cambia en Ajustes → Acceso y seguridad.",
+    "more": "OIDC y el modo solo lectura están en Ajustes → Acceso y seguridad.",
     "shownOnceBody": "Solo se muestra esta vez. Este navegador ya lo usa; cualquier otra cosa que llame a la API lo necesitará.",
     "generateAnother": "Generar otro",
     "readOnly": "Claudio está en modo solo lectura: el acceso no se puede cambiar desde aquí."
@@ -40,7 +40,7 @@
     "meta": "Llega a Claudio desde el móvil, en tu tailnet",
     "node": "En la tailnet como {{host}}",
     "reason": {
-      "signedIn": "Con sesión iniciada. El túnel se abre en Ajustes → Acceso remoto, cuando el acceso de arriba pida un token.",
+      "signedIn": "Con sesión iniciada. El túnel se abre en Ajustes → Acceso y seguridad → Acceso remoto, cuando el acceso de arriba pida un token.",
       "loggedOut": "Todavía sin sesión en ninguna tailnet. Inicia sesión con un enlace o con una clave de autenticación.",
       "stopped": "Con sesión, pero sin conexión. Vuelve a iniciar sesión para conectarlo.",
       "daemonDown": "El servicio de Tailscale de este contenedor no responde. Reinicia el contenedor.",
@@ -72,10 +72,10 @@
     "noAccount": "Sin cuenta",
     "notConnected": "Sin conectar",
     "where": {
-      "security": "Ajustes → Seguridad",
-      "providers": "Ajustes → Proveedores",
-      "integrations": "Ajustes → Integraciones",
-      "remote": "Ajustes → Acceso remoto"
+      "security": "Ajustes → Acceso y seguridad",
+      "providers": "Ajustes → Claude Code",
+      "integrations": "Ajustes → Conexiones",
+      "remote": "Ajustes → Acceso y seguridad → Acceso remoto"
     }
   },
   "panel": {

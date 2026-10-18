@@ -142,7 +142,7 @@ export function LessonSettingsRows() {
             </Field>
           </Row>
           <Row id="miner-effort">
-            <Field label={t('config:lessons.effort')}>
+            <Field label={t('config:lessons.effort')} hint={t('config:lessons.effortHint')}>
               <EffortPicker
                 value={draft.miner.effort ?? ''}
                 onChange={(effort: Effort | '') => set((d) => ({ ...d, miner: { ...d.miner, effort: effort === '' ? null : effort } }))}
@@ -158,12 +158,12 @@ export function LessonSettingsRows() {
             </Field>
           </Row>
           <Row id="project-daily">
-            <Field label={t('config:lessons.projectDaily')}>
+            <Field label={t('config:lessons.projectDaily')} hint={t('config:lessons.projectDailyHint')}>
               <NumberInput decimal step={0.1} min={LIMITS.projectDaily.min} max={LIMITS.projectDaily.max} value={draft.caps.perProjectDailyUsd} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, perProjectDailyUsd: num(v, 0) } }))} aria-label={t('config:lessons.projectDaily')} />
             </Field>
           </Row>
           <Row id="global-daily">
-            <Field label={t('config:lessons.globalDaily')}>
+            <Field label={t('config:lessons.globalDaily')} hint={t('config:lessons.globalDailyHint')}>
               <NumberInput decimal step={0.1} min={LIMITS.globalDaily.min} max={LIMITS.globalDaily.max} value={draft.caps.globalDailyUsd} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, globalDailyUsd: num(v, 0) } }))} aria-label={t('config:lessons.globalDaily')} />
             </Field>
           </Row>
@@ -173,7 +173,7 @@ export function LessonSettingsRows() {
             </Field>
           </Row>
           <Row id="jobs-daily">
-            <Field label={t('config:lessons.jobsDaily')}>
+            <Field label={t('config:lessons.jobsDaily')} hint={t('config:lessons.jobsDailyHint')}>
               <NumberInput min={LIMITS.jobs.min} max={LIMITS.jobs.max} value={draft.caps.perProjectDailyJobs} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, perProjectDailyJobs: num(v, 0) } }))} aria-label={t('config:lessons.jobsDaily')} />
             </Field>
           </Row>

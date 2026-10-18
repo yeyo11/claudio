@@ -19,6 +19,7 @@ import {
   type Json,
 } from './settingsModel';
 import { settingsHref } from './settingsGroups';
+import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 
 const DEFAULT_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions'] as const;
 
@@ -298,9 +299,9 @@ export function SettingsGuided({
               onChange={(v) => set(['permissions', 'defaultMode'], v)}
               options={[
                 { value: '', label: t('settingsGuided.notSet') },
-                ...DEFAULT_MODES.map((mode) => ({ value: mode, label: mode })),
+                ...DEFAULT_MODES.map((mode) => ({ value: mode, label: modeLabel(mode) })),
                 // Keep a value this form does not know about selectable instead of showing it blank
-                ...(defaultMode && !(DEFAULT_MODES as readonly string[]).includes(defaultMode) ? [{ value: defaultMode, label: defaultMode }] : []),
+                ...(defaultMode && !(DEFAULT_MODES as readonly string[]).includes(defaultMode) ? [{ value: defaultMode, label: modeLabel(defaultMode) }] : []),
               ]}
             />
           </Field>

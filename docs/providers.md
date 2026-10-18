@@ -107,7 +107,7 @@ never a raw error string.
 `ProviderDetector` in core is shared by the server, the desktop app and the Docker image. It resolves
 the binary, in this order:
 
-1. **The override** the person set in Settings → Providers.
+1. **The override** the person set in Settings → Claude Code.
 2. **The person's PATH.** The login shell is run once (`$SHELL -ilc`) with sentinels around the
    output, a timeout, and a fast-path marker in the environment (`CLAUDIO_SHELL_PATH_PROBE=1`) that rc
    files can test to skip slow setup. Failure is typed: `no-shell`, `timeout`, `spawn-error` or
@@ -179,7 +179,7 @@ e2e suite never depends on the real CLI: `e2e/fake-cli/` is a fake `claude` (see
 ## The first-run step
 
 The setup assistant of [setup.md](setup.md) stands in for the app on a first start. Its Agents step
-lists Claude Code with the same Sign in panel as Settings → Providers, or the install page when none
+lists Claude Code with the same Sign in panel as Settings → Claude Code, or the install page when none
 is found (`nothingFound` in `apps/web/src/lib/first-run.ts`). It is shown while `setupSeen` in the
 app settings is off; finishing or skipping it records the setting (`POST /setup/seen`, or
 `CLAUDIO_SETUP_SEEN=on` from the environment) and it never comes back. Home and the status bar say

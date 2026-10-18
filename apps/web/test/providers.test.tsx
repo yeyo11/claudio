@@ -114,7 +114,7 @@ test('a row shows the state as a word, the reason and the path in mono', async (
   assert.match(html, /href="https:\/\/code\.claude\.com\/docs\/en\/setup"/);
 });
 
-test('Sign in opens Settings → Account for Claude Code', async () => {
+test('Sign in opens Settings → Claude Code → Sign-in for Claude Code', async () => {
   await i18n.changeLanguage('en');
   const own = render(<ProviderRow status={status({ id: 'claude-code', label: 'Claude Code', state: 'signed-out', reason: 'missing-credentials' })} />);
   assert.match(own, /data-action="sign-in" href="\/settings\/claude-code#sign-in"/);

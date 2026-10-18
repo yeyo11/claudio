@@ -1,4 +1,4 @@
-/* Settings → Integrations (plans/code-hosts.md, u1): the hosts a CLI knows, under its state. The rows,
+/* Settings → Connections (plans/code-hosts.md, u1): the hosts a CLI knows, under its state. The rows,
    cells, binary panel and sheet are the providers' (.prov-*). */
 .host-intro {
   margin: 0 4px;
@@ -101,7 +101,7 @@
   }
 }
 
-/* Settings → Integrations → Webhooks (plans/code-hosts.md, phase 6): the address line, the notice, the
+/* Settings → Connections → Webhooks (plans/code-hosts.md, phase 6): the address line, the notice, the
    facts under a row's state and the register dialog. Nothing here moves and nothing takes a gradient:
    the dialog's one primary button is the only brand surface. */
 .wh-bar,

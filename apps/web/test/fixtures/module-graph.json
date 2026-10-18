@@ -511,7 +511,7 @@
   "reset-when [resetWhen]",
   "resources [Namespace, SpanishHasNoExtraKeys, defaultNS, en, es, resources, withManyPlurals]",
   "resources [uiEn, uiEs]",
-  "reveal [RevealState, entryHref, revealState, useRevealSetting]",
+  "reveal [RevealState, entryHref, primaryControl, revealState, useRevealSetting]",
   "revealed-token [reveal, useRevealedToken]",
   "review-lines [LineAnchor, draftAnchor, draftsByLine, draftsInFile, newLineText, openChangeRequestId]",
   "review-model [PRINT_SEG_GAP, PRINT_SEG_MIN, PrintSplit, ReviewKey, ReviewScope, TreeGroup, UNEXPLAINED_POINT, byTree, filesOf, groupByDir, hourMinute, liveFile, matchesFilter, neighbour, printSegments, reviewKey, scopeOf, scopeParam, scopeQuery, splitPath, stableOrder, statusLetter, stepsFor, totalsOf, unexplainedOf, workingFiles]",

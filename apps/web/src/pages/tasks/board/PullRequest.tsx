@@ -122,7 +122,7 @@ export function CiBadge({ ci }: { ci: WorkItemPullRequestCi | null | undefined }
 /**
  * Why the project offers no change request, in words and in warn, with the underlying line of the
  * checkout or the CLI as its title and the one thing to do about it as a link (an install or sign-in
- * page, the docs, or Settings → Integrations): never a command to copy.
+ * page, the docs, or Settings → Connections): never a command to copy.
  */
 export function NotReadyNote({ readiness, className = '' }: { readiness: PullRequestReadiness | null | undefined; className?: string }) {
   const { t } = useTranslation('tasks');

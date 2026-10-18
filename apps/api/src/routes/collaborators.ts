@@ -238,7 +238,7 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
     },
   );
 
-  // What agents read of the copies, for Settings → Security and the copy's own "read by" line
+  // What agents read of the copies, for Settings → Access & safety and the copy's own "read by" line
   app.get<{ Querystring: { owner?: string; shareId?: string; chatId?: string; since?: string; limit?: string } }>('/collaborators/agent-reads', (req): AgentReadList => {
     const { owner, shareId, chatId, since } = req.query;
     if (since !== undefined && Number.isNaN(Date.parse(since))) throw Object.assign(new Error('since must be a date'), { statusCode: 400 });

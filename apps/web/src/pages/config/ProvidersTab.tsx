@@ -99,7 +99,7 @@ export function ProvidersTab() {
   // The row's own "Check again", unless its state already offers Retry, which is the same read
   const offersRetry = actionsFor(status.state, status.reason).some((action) => action.kind === 'retry');
   const checkAgain = !offersRetry && (
-    <button type="button" className="btn prov-quiet" data-setting="provider.check" disabled={checking} onClick={() => void recheck()}>
+    <button type="button" className="btn prov-quiet" data-setting="provider.check" aria-busy={checking} onClick={() => !checking && void recheck()}>
       {checking ? <Spinner /> : <RefreshCw {...ICON_SM} />}
       {t('refresh')}
     </button>

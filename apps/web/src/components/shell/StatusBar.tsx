@@ -98,7 +98,7 @@ function LimitMeter({ label, percent, exhausted }: { label: string; percent: num
 /**
  * The phone's More sheet opens on this: the default provider, whether it works, and how much of its
  * limit is used. It is what the desktop's status bar says of that provider, as a card, and leads to
- * Settings → Providers. A provider that reports no limit shows none, and says so.
+ * Settings → Claude Code. A provider that reports no limit shows none, and says so.
  */
 export function ProviderCard({ now, connection }: { now: Now; connection: Connection }) {
   const { t } = useTranslation(['shell', 'providers']);

@@ -8,6 +8,7 @@ import { useEffortUnavailable } from '../../lib/provider-status';
 import { Select } from '@claudio/ui/components/controls';
 import { ErrorBox, Tag } from '@claudio/ui/components/ui';
 import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
+import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { api, keys } from '../../api';
 import type { StartChoices } from '@claudio/chat-ui/lib/context';
 
@@ -37,7 +38,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
           value={current?.permissionMode ?? 'manual'}
           disabled={update.isPending}
           onChange={(permissionMode) => update.mutate({ permissionMode })}
-          options={PERMISSION_MODES.map((m) => ({ value: m, label: m }))}
+          options={PERMISSION_MODES.map((m) => ({ value: m, label: modeLabel(m) }))}
         />
       </dd>
       <dt>{t('chat:shared.model')}</dt>
@@ -115,7 +116,7 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
           aria-label={t('controls.permissionModeNew')}
           value={value.permissionMode ?? ''}
           onChange={(permissionMode) => onChange({ ...value, permissionMode: permissionMode || undefined })}
-          options={[{ value: '', label: last ? t('controls.asBefore', { mode: last.permissionMode }) : t('controls.default') }, ...PERMISSION_MODES.map((m) => ({ value: m, label: m }))]}
+          options={[{ value: '', label: last ? t('controls.asBefore', { mode: modeLabel(last.permissionMode) }) : t('controls.default') }, ...PERMISSION_MODES.map((m) => ({ value: m, label: modeLabel(m) }))]}
         />
       </label>
       <label>

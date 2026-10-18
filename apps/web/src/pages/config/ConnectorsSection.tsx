@@ -247,7 +247,7 @@ export function ConnectorsSection() {
     <div className="connectors">
       <p className="small muted">{t('line')}</p>
       <div className="prov-toolbar">
-        <button type="button" className="btn btn-small" onClick={() => refresh.mutate()} disabled={refresh.isPending || isFetching}>
+        <button type="button" className="btn btn-small" aria-busy={refresh.isPending || isFetching} onClick={() => !(refresh.isPending || isFetching) && refresh.mutate()}>
           {/* One icon and one label in every state, so the button keeps its width; the line beside it says it is asking */}
           <RefreshCw {...ICON_SM} aria-hidden /> {t('refresh')}
         </button>

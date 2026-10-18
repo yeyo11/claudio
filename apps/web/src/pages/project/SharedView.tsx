@@ -187,7 +187,7 @@ export function SyncLine({ sync }: { sync: SyncState }) {
 
 /**
  * What agents of this install did with the copy today (docs/plans/collaborators-agent-access.md):
- * how many chats read it, linked to the full list in Settings → Security, or that its sharer lets no
+ * how many chats read it, linked to the full list in Settings → Access & safety, or that its sharer lets no
  * agent read it. Nothing while no agent has read it today: a zero is not news.
  */
 export function AgentReadsLine({ shared }: { shared: SharedProject }) {

@@ -18,7 +18,7 @@ The worker showed nothing whenever any window of ours reported `visibilityState 
 the reasoning that the page was already showing the same news as a toast. On an iPhone that made push
 look dead:
 
-- **Test never worked from the phone.** Settings → Notifications → **Test** is pressed from the open
+- **Test never worked from the phone.** Settings → General → Notifications → **Test** is pressed from the open
   app, so the worker always saw a visible window and dropped it. A test push never goes through the
   event bus, so the page had no toast either: the UI said "sent" and nothing appeared anywhere.
 - **iOS punishes a push that shows nothing.** WebKit treats it as a silent push, which Web Push does
@@ -49,7 +49,7 @@ matters: WebKit's rule comes with Apple's push service.
 
 The default interruption level stays `important`. A chat that finishes normally is `normal`
 priority with an `ok` tone and is not pushed at that level; a person who wants those picks **All**
-for the device in Settings → Notifications.
+for the device in Settings → General → Notifications.
 
 ## Related
 

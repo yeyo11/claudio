@@ -96,8 +96,8 @@
     "unverified": "The Serve rule was sent, but this machine's Serve config does not show it pointing at Claudio.",
     "ruleRemoved": "Claudio's Serve rule was removed or changed outside Claudio, so the tunnel is closed.",
     "managedDaemonDown": "The Tailscale service this container starts for Claudio is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder.",
-    "managedLoggedOut": "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access.",
-    "managedNotConnected": "This Claudio's Tailscale is not connected ({{state}}). Sign in again from Settings → Remote access."
+    "managedLoggedOut": "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Access & safety → Remote access.",
+    "managedNotConnected": "This Claudio's Tailscale is not connected ({{state}}). Sign in again from Settings → Access & safety → Remote access."
   },
   "collaborators": {
     "sync": {

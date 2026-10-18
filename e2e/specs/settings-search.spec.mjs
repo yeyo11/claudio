@@ -13,6 +13,8 @@ export default async ({ page, check }) => {
   const query = () => page.eval(`return document.querySelector(${JSON.stringify(FIELD)})?.value ?? null`);
   const labels = () => page.eval(`return [...document.querySelectorAll('.settings-results .settings-result-label')].map((l) => l.textContent)`);
   const focusInRow = () => page.eval(`const row = document.querySelector(${JSON.stringify(ROW)}); return !!row && row.contains(document.activeElement) && document.activeElement !== row`);
+  // The control itself: a field, a select or a switch, never a helper such as a number field's Decrease
+  const focusOnControl = () => page.eval(`const a = document.activeElement; return !!a && a.tabIndex >= 0 && a.matches('input, select, textarea, [role=switch], [role=slider], [role=combobox], [role=radio]') && !!a.closest(${JSON.stringify(ROW)})`);
   // The fill is a CSS animation on the row: running at the full motion level, none at all under reduced motion
   const fill = () =>
     page.eval(`
@@ -87,6 +89,7 @@ export default async ({ page, check }) => {
     await page.waitFor(`return !!document.querySelector(${JSON.stringify(`${ROW}.is-found`)})`, { label: 'the row is marked as found' });
     check((await path()) === '/settings/runs#runs', `the address names the section (${await path()})`);
     check(await focusInRow(), "the row's control has the focus");
+    check(await focusOnControl(), 'the focus is on the number field itself, not on its Decrease button');
     check((await query()) === '', 'opening a result clears the query');
     const full = await fill();
     check(full?.animation === 'setting-found' && full.running, `the row is filled and the fill fades (${JSON.stringify(full)})`);

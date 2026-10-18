@@ -10,7 +10,7 @@ tags:
 # Settings in layers: what changes without a restart
 
 These settings used to be read from the environment once, at startup. They can now change while
-Claudio runs, from Settings → Security:
+Claudio runs, from Settings → Access & safety:
 
 | Setting | Variable | Default | Applies to |
 | --- | --- | --- | --- |
@@ -137,7 +137,7 @@ their owner adds and removes while Claudio runs. The only owner so far is the
   environment set (`packages/core/src/paths.ts`).
 - The guard reads the allowlist on every request and only rebuilds it when it changed
   (`apps/api/src/security.ts`).
-- The UI is two cards in Settings → Security, `apps/web/src/pages/config/AppSettingsCards.tsx`. The
+- The UI is two cards in Settings → Access & safety, `apps/web/src/pages/config/AppSettingsCards.tsx`. The
   hosts card lists the environment's and the runtime hosts, each with a tag, above a field that holds
   only the UI's hosts; `changedSettings` compares that field with `allowedHostLayers.file`.
 - The contract is `AppSettings` and `AllowedHostLayers` in `packages/shared/src/types.ts`.

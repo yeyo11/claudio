@@ -73,5 +73,5 @@ test('the global lessons are a detail of Instructions & memory, listing each les
   assert.equal(SETTINGS_INDEX.find((entry) => entry.id === 'lessons.global')?.detail, 'lessons');
   const html = render(<GlobalLessons />);
   assert.match(html, /L-9/);
-  assert.match(html, /promoted from a project/);
+  assert.match(html, /Handed to every project that allows them/);
 });

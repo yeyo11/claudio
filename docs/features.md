@@ -138,7 +138,7 @@ Claudio drives it through the CLI and nothing else.
   and able to tell you that a chat is waiting while it is closed, over Web Push this server signs
   with its own VAPID key. No app store, no native shell, no third-party push account. The
   push half needs HTTPS: see [pwa.md](pwa.md).
-- **Reach it from your phone, through your own tailnet** — Settings → Remote access serves this
+- **Reach it from your phone, through your own tailnet** — Settings → Access & safety → Remote access serves this
   Claudio on your [Tailscale](https://tailscale.com) tailnet with `tailscale serve` (never Funnel), at
   a stable HTTPS address with a QR code for the phone: no domain, no proxy, nothing on the public
   internet. It only opens while authentication is on, only the node's exact name is let in, and only

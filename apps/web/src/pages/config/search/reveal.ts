@@ -19,11 +19,22 @@ const isRevealState = (state: unknown): state is RevealState =>
 
 // A screen draws its rows once its data is there: look for the row a while before giving up
 const WAIT_MS = 4000;
-const FOCUSABLE = 'input:not([type=hidden]), select, textarea, button, [role=switch], [role=slider], [role=combobox], [role=radio], a[href], [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'input:not([type=hidden]), select, textarea, button, [role=switch], [role=slider], [role=combobox], [role=radio], a[href], [tabindex]';
+// The row's own control comes before its helpers (a number field's Decrease and Increase, a Reset)
+const PRIMARY = 'input:not([type=hidden]), select, textarea, [role=switch], [role=slider], [role=combobox], [role=radio]';
+
+const isReachable = (el: HTMLElement) => el.tabIndex >= 0 && !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true';
+
+/** The control a row is about: its input, select or switch, never a `tabindex="-1"` helper button. */
+export function primaryControl(row: HTMLElement): HTMLElement | null {
+  if (row.matches(FOCUSABLE) && isReachable(row)) return row;
+  const inside = (selector: string) => [...row.querySelectorAll<HTMLElement>(selector)].find(isReachable) ?? null;
+  return inside(PRIMARY) ?? inside(FOCUSABLE);
+}
 
 function focusInside(row: HTMLElement) {
-  const control = row.matches(FOCUSABLE) ? row : row.querySelector<HTMLElement>(FOCUSABLE);
-  if (control && !control.hasAttribute('disabled')) control.focus({ preventScroll: true });
+  const control = primaryControl(row);
+  if (control) control.focus({ preventScroll: true });
   else {
     if (!row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1');
     row.focus({ preventScroll: true });

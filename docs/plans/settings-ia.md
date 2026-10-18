@@ -452,9 +452,9 @@ Where the audit left a choice open, the manifesto decided:
 
 Built on 2026-10-17 by the orchestration of §10 (`c1`, `w1`–`w5`, `e1`, `x1`), as the plan settles
 it; the person's guide is [settings.md](../settings.md) and the design rules are in
-[design-system.md](../design-system.md#settings-groups-rows-details-and-search). Verification (the
-whole test suite and the e2e suite on GitHub) runs on the merged branch and is not part of this
-record.
+[design-system.md](../design-system.md#settings-groups-rows-details-and-search). Verification ran on GitHub for the
+integration branch (orchestration 07984737) and passed after five fixer attempts: typecheck, OpenAPI
+drift, design lint, every test, the build and the whole e2e suite.
 
 **Built**
 
@@ -475,11 +475,35 @@ record.
 - The shared row and section pieces (`PrefRow`, `groups/Section.tsx`, `groups/Block.tsx`) were added
   to build the screens; their classes are in the design system's
   [setting row](../design-system.md#the-setting-row-settings) and a section's parts, not in §6.
-- `e2e/ui/routes.mjs` has no interaction for the Jev reveal or Advanced on `/settings/decisions`: they
-  reveal content on purpose, which that file excludes.
-- Not confirmed against a running page: opening a search result may focus a `tabindex="-1"` button
-  (for "Concurrent runs", the number field's "Decrease") because `search/reveal.ts` takes the first
-  button of the row; the e2e spec only checks that the focus is inside the row.
+- `e2e/ui/routes.mjs` has no interaction for the Jev reveal or Advanced on `/settings/decisions`: a
+  reveal moves what follows it by design, and the layout-shift check (I4) counts every shift, the
+  ones right after an input included. Both reveals now share `SettingsReveal` and collapse to nothing
+  when closed; the check stays out of those two on purpose.
+
+**Fixed after the reviews**
+
+- A search result focuses the row's own control (the number field of "Concurrent runs"), never a
+  `tabindex="-1"` helper such as its Decrease button (`search/reveal.ts`; unit test
+  `test/reveal-focus.test.ts`, and the `settings-search` spec asserts the focused element).
+- Stale copy: "Settings → Security", "Providers", "Integrations", "Account", "Remote access" and the
+  rest now name the group and section they moved to (Access & safety, Claude Code, Connections,
+  General, Runs & spend; `es` per the glossary), in the locales, the code, the specs and the docs.
+- The Jev reveal on Decisions no longer has a copy of its own: it uses `SettingsReveal`, which gives
+  back its gap when closed, so a closed reveal leaves no empty space.
+- A Decisions area's summary wraps under its name on a phone instead of being cut.
+- "Ask the CLI again" and a provider's "Check again" stay focusable while they work (`aria-busy`,
+  not `disabled`).
+- The permission-mode lists show the chat's words (`modeLabel`) instead of `acceptEdits`.
+- The audit table wraps words normally; actors and paths are literals that end in an ellipsis and
+  carry their full text.
+- Four lessons settings gained a consequence line, and the descriptions over 60 characters are
+  shorter, in both languages.
+
+**Open, for the owner** (reviewers asked; not built here)
+
+- A per-row "changed" dot and Reset.
+- "Overridden in N projects" on a global row.
+- Granting consent from a Shadow row.
 
 ## Related
 

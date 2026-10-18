@@ -188,7 +188,7 @@ function ActionButton({
   switch (action.kind) {
     case 'sign-in': {
       // The panel signs in inside Claudio, with nothing that opens elsewhere; without one, Claude
-      // Code goes to Settings → Account and the others to their vendor's page
+      // Code goes to Settings → Claude Code → Sign-in and the others to their vendor's page
       if (onSignIn) {
         return (
           <button

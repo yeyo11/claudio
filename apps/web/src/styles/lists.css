@@ -130,6 +130,20 @@ a.list-row:hover {
   border-bottom: 0;
 }
 
+.audit-table .audit-summary {
+  min-width: 16ch;
+}
+
+/* A path or an actor is a literal: it ends in an ellipsis (its full text is the title), never mid-word wraps */
+.audit-table .audit-literal {
+  display: inline-block;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 .row-actions {
   display: flex;
   gap: 6px;

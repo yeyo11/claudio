@@ -23,7 +23,7 @@ registry as `unknown` / `not-recorded`, with no adapter and no action.
 
 - `jira` from `TrackerId`, the tracker registry and settings, and `acli` from the CLIs the
   execution layer knows (its environment, its classifier, the replay fake).
-- Jira's row in Settings → Integrations, its option in a project's tracker form, its brand mark and
+- Jira's row in Settings → Connections, its option in a project's tracker form, its brand mark and
   colour token, its strings, its tests and fixtures, and its parts of the docs, the OpenAPI
   descriptions and the design reference screens (regenerated).
 

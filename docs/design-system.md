@@ -55,7 +55,7 @@ the app recognisable:
 Things that are not working stand still.
 
 **Dark is the default theme.** A new install starts dark. "System" and "Light" are still offered
-in Settings → Appearance, and every screen must work in both themes.
+in Settings → General → Appearance, and every screen must work in both themes.
 
 ---
 
@@ -273,7 +273,7 @@ status bar (30 px).
     the dot in the status colour, the provider's name and its version, and a word when it is not
     ready ("sin sesión"). Ready is `ok`, signed out or degraded `warn`, and nothing detected a neutral
     `idle` dot. Its tooltip gives the state, the version against the tested range, and the remedy; a
-    click opens Settings → Providers. While the first check runs, the braille spinner and "Comprobando
+    click opens Settings → Claude Code. While the first check runs, the braille spinner and "Comprobando
     agentes…". Prototype: `StatusBar.html`.
 
   It takes over the sidebar footer's job, and `e2e/specs/events.spec.mjs` now reads the connection
@@ -321,7 +321,7 @@ already belong to the orchestration board.
 | `.wi-crit` (`.full`) | new `.workitem-criteria` | a 28 × 4 bar and "2/5"; complete is the one ok on a card |
 | `.wi-strip` (`.live`, `.wait`, `.fail`, neutral), `.actor-orch`, `.detail`, `.verb` | new `WorkItemStrip` (`.workitem-strip`) | **what happens to the card now, at its foot, led by who does it.** One strip per card, never two. Live: the actor (a role's squircle, the person's round monogram or the orchestration glyph), the braille spinner, the stage verb, the running clock and, on its own line, the detail in mono; the card takes `.rail-live`. Waiting for the person: an idle "te espera" and why, with "Aprobar y pasar a Hecho" when QA passed it. Failed: the actor, an ✕ and "Falló al refinar · ninguna cuenta tenía cupo". Neutral: queued ("En cola: la refinará cuando quede sitio") or QA's last words when it sent the card back; a card sent back that also waits for a place keeps QA's words, and its queued run shows in Team activity. When the strip's actor is the assignee, the foot does not repeat it |
 | `.wi-strip.warn`, `.pr-num`, `.pr-link`, `.no-pr`, `.pr-ci` | `WorkItemStrip` states `pr-*` (`.workitem-strip.is-warn`, `.workitem-strip-num`, `.workitem-strip-link`, `.pr-not-ready`, `CiBadge`) | **the card's pull request** (docs/plans/work-item-pull-requests.md). "Preparando la PR" neutral and still: Claudio prepares it, no agent works on it, so no spinner and no `--live`. "Conflicto con main · 2 archivos" in warn. "Aprobada · su PR se abrirá cuando pase la verificación" neutral. "PR #123 · esperando fusión" in idle, the number in mono and tabular, then the CI badge with its word (CI superada ok, CI pendiente neutral with no loop, CI fallida bad) and an icon link to GitHub (`target="_blank" rel="noreferrer"`, 44 px on a phone) that never opens the card. "PR #123 cerrada sin fusionar" in idle and "No se ha podido abrir la PR · motivo" in bad, both with the approval again. In a ready project the approval reads "Aprobar y abrir PR"; otherwise it stays "Aprobar y pasar a Hecho", and a warn line above it says why, "Sin PR: gh no ha iniciado sesión", with gh's own line as its title. A Done card still draws no strip |
-| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or a Claudio action (Ajustes → Integraciones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
+| `.pr-remedy`, `.pr-not-ready` | `NotReadyNote`'s remedy and the item page's readiness note (docs/plans/code-hosts.md, reason codes) | **why a project offers no PR or MR, and what to do.** On a card the warn `.no-pr` line reads "Sin MR: glab no ha iniciado sesión en git.inmoseo.net" and the remedy sits under it as one link in `--accent`, underlined, 44 px high on a phone. On the item's page `.pr-not-ready` says it in a sentence with a warn icon and the host's own first line in mono under it, then the same link. The noun follows the host: "MR" and `!12` on GitLab, "PR" and `#12` on GitHub, "PR ni MR" when no host is known. A remedy is a link or a Claudio action (Ajustes → Conexiones), never a command to copy, and `not-git` has none. The reasons and their links are in `reference/DSIntegraciones.html` |
 | `.wi-checkout` | new `.workitem-checkout-note` | the project's checkout behind `origin/<default>`: one quiet warn line under the board's toolbar, "La copia de trabajo va 3 commits por detrás de origin/main: tiene cambios sin commit", naming why Claudio did not bring it forward. Never a command to copy |
 | `.wi-proj` | new `.workitem-project` | on Tasks with All projects selected, each card names its project at the head of its context row, and no column shows a limit (each project has its own) |
 | `.wi-key` (`.boxed`) | new `.workitem-key` | `AGN-12` in mono, tabular |
@@ -907,7 +907,7 @@ the classes are the last section of `claudio-ds.css`.
 ### Integrations: the code hosts' CLIs
 
 Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation
-before P2 builds it. Settings → Integrations is a tab of the Claudio group, after Providers, and it
+before P2 builds it. Settings → Connections is a tab of the Claudio group, after Providers, and it
 reuses the provider pieces: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and the
 `Empty`. The only new rule is `.host-known`.
 
@@ -950,7 +950,7 @@ out on a self-managed host, not installed, unknown and checking), `DesktopIntegr
 ### Integrations: the issue trackers
 
 Drawn for [code hosts](plans/code-hosts.md) (task `t-p1` of phase 5 P0) and waiting for the owner's
-validation. It is a second card on the same Settings → Integrations page, under the hosts' card, and
+validation. It is a second card on the same Settings → Connections page, under the hosts' card, and
 it adds no CSS: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and `.monogram` do all of it.
 
 - **Three rows** (GitHub Issues, GitLab Issues, YouTrack), each with its `.monogram` (`GH`,
@@ -990,7 +990,7 @@ with its override open, signed out, not installed, unknown and checking), `Mobil
 ### Integrations: webhooks
 
 Drawn for [code hosts](plans/code-hosts.md) (task `w-p1` of phase 6 P0) and waiting for the owner's
-validation. It is a card on the Settings → Integrations page, under the trackers', one row per project
+validation. It is a card on the Settings → Connections page, under the trackers', one row per project
 that has a host. The rows are the providers' (`.prov-row.compact`, `.prov-cell`); three small rules are
 new, in `claudio-ds.css`: `.hook-origin` (the strip under the card's head), `.hook-facts` (mono
 `label · value` lines under a reason) and `.hook-events` (the list of events in the register dialog).
@@ -1503,7 +1503,7 @@ improvements".
 - **Daily cap in the status bar (`.statusbar .spend`).** The limit dots' grammar. See
   [the daily spend cap](#the-daily-spend-cap): neutral below 60 %, `warn` with "cerca del tope" from
   60 %, `bad` from 75 % and once reached ("tope alcanzado · vuelve a las 00:00"). It is a link to
-  Settings → Security, and nothing is drawn without a cap.
+  Settings → Access & safety, and nothing is drawn without a cap.
 - **Spend wait copy (`.wait-line`).** The existing warn strip with the clock, with these lines: on a
   queued card "Esperando al tope diario · vuelve a las 00:00"; on the orchestration page "N tareas
   esperan al tope diario · vuelven a las 00:00" with a quiet "Seguir hoy de todos modos"
@@ -1536,7 +1536,7 @@ improvements".
   `.lesson-facts`, `.lesson-conf`, `.lesson-evidence*`, `.lesson-quote`, `.lesson-edit`,
   `.lesson-proposal`, `.lesson-badges`, `.lessons-foot`, `.lessons-mining`, `.lesson-jobs`,
   `.lesson-job`).** The Memory tab's Lessons card (`DesktopMemoria`, `MobileMemoria*`), beside the CLI
-  card, and the same rows in Settings → Lessons. A row is the key `L-12` in mono, "Cuando …:" in
+  card, and the same rows in Settings → Instructions & memory → Lessons. A row is the key `L-12` in mono, "Cuando …:" in
   `--fg-2` then the action, the confidence in tabular sans, and tags that always carry a word: `ok`
   "entregada", `warn` "desvaneciéndose", neutral "fijada". Evidence opens inline as quotes in the
   person's words with the context in mono. Nothing in it is live: no `--live`, no gradient, no spinner;
@@ -1759,7 +1759,7 @@ builds it (step 5). It reads the API of [setup.md](setup.md): `GET /setup`, the 
 | `MobileConfiguracionAgentes` | Step 2 on a phone with no Sheet open: a Sign in button per cell |
 | `DesktopConfiguracionIntegraciones`, `MobileConfiguracionIntegraciones`, `MobileConfiguracionIntegracionesClave` | Step 3: GitHub ready, GitLab's key panel with its host, YouTrack's Conectar |
 | `DesktopConfiguracionListo`, `MobileConfiguracionListo` | Step 4: the summary, with step 3 skipped |
-| `DesktopAjustesSeguridad`, `MobileAjustesSeguridad` | Settings → Security with the new Secretos card |
+| `DesktopAjustesSeguridad`, `MobileAjustesSeguridad` | Settings → Access & safety with the new Secretos card |
 
 **The assistant** replaces the first run (`DesktopPrimerArranque*`, which stays as the drawing of the Agents step's
 checking and nothing-found states) while `GET /setup` says `seen: false`. It is the first run's page (`.prov-first`, no
@@ -1781,10 +1781,10 @@ shell, 760 px) with the wizard's `.steps` on top: Acceso → Agentes → Código
 - **Listo** is the one screen with an illustration: the set's `welcome` (`il-md` beside the title on a desktop, `il-sm`
   on a phone), next to a summary and no live data. Each line (`.setup-sum-row`) has the tool, its account or why not, a
   badge (Listo `ok`, Sin sesión `warn`, or the plain "Omitido": skipping is not a state to colour) and where to change it,
-  as a link in mono ("Ajustes → Proveedores"), 44 px high on a phone.
+  as a link in mono ("Ajustes → Claude Code"), 44 px high on a phone.
 
 **The sign-in panel** opens under the row (`.prov-bin.signin`, the row gets `.open`) on a desktop, and as a `Sheet` on a
-phone with the same pieces. One open at a time. It is the same panel in Settings → Providers and Settings →
+phone with the same pieces. One open at a time. It is the same panel in Settings → Claude Code and Settings →
 Integrations, so nothing is assistant-only.
 
 - **Methods.** A tool with both (`device` and a key: gh, glab) heads the panel with the `Segmented`
@@ -1817,7 +1817,7 @@ Integrations, so nothing is assistant-only.
 - **In the assistant** it is one `.prov-row.compact` (a `.prov-cell` on a phone) in its own `.card.prov-list` under the
   Access card, with the monogram "TA" (no brand art is added), the state as the tunnel tab's word in a `Tag`, and a
   sentence. Iniciar sesión and Cerrar sesión only where Claudio runs the daemon (the Docker image); elsewhere the row
-  only says how the machine's Tailscale stands. Listo lists it, pointing at "Ajustes → Acceso remoto".
+  only says how the machine's Tailscale stands. Listo lists it, pointing at "Ajustes → Acceso y seguridad → Acceso remoto".
 - **The panel** heads with "Enlace / Clave": Tailscale's sign-in is a link with no code, so it is named for what the
   person gets. A waiting link is the same `.signin-device` box with `.energy`, its two lines (open the link; sign in and
   connect this machine, with no code to type), the `.signin-url` link and **Copiar** in the code's place, and the same
@@ -1833,7 +1833,7 @@ Integrations, so nothing is assistant-only.
 - Not drawn in `reference/`: these screens reuse the drawn Access step, panel and tunnel card; a reference for them is
   left for the next pass of `setup.py`.
 
-**Settings → Security** gains a **Secretos** card first, from `SecretStorageStatus`: a `b-ok` "cifrados" badge and one
+**Settings → Access & safety** gains a **Secretos** card first, from `SecretStorageStatus`: a `b-ok` "cifrados" badge and one
 sentence on where secrets go and who receives them. With `keyBeside`, a `.callout-warn` "La clave está junto a los
 datos" names the key's path, says it protects a copy of the files and not the volume, and recommends passing
 `CLAUDIO_SECRET_KEY` in the environment, with a link to how. With no key (`sealed: false`) the badge is `b-warn` "sin
@@ -1861,7 +1861,7 @@ Copy beside a code or a token is `CopyButton` with `shown`, a neutral button tha
 the reference's names (`.signin-device`, `.signin-steps`, `.signin-url`, `.signin-code`, `.signin-wait`, `.signin-result`,
 `.setup-foot`, `.setup-sum-row`, `.setup-where`). Quiet actions (Volver, Omitir, Cerrar sesión, Cancelar) are the providers'
 `.btn.prov-quiet`. Two additions the reference does not draw: "Omitir la configuración" in the assistant's header on a
-desktop, which finishes it at once (`POST /setup/seen`), and, under a code host's row in Settings → Integrations, a quiet
+desktop, which finishes it at once (`POST /setup/seen`), and, under a code host's row in Settings → Connections, a quiet
 Iniciar sesión or Cerrar sesión at the end of each known host's line.
 
 **Copy.** Steps: Acceso, Agentes, Código y tareas, Listo. Buttons: Volver, Omitir, Continuar, Iniciar sesión, Cerrar
@@ -1872,7 +1872,7 @@ step, "Omitido" on a summary line. The `en` source follows the same structure ("
 
 ### Guards: the Settings card and its locked rule
 
-Settings → Security → Guards (`GuardsCard`, `?tab=security#guards`) sits after the app-settings cards and before the audit
+Settings → Access & safety → Guards (`GuardsCard`, `?tab=security#guards`) sits after the app-settings cards and before the audit
 log. A `Card` with the status `Tag` (shield icon and a word: ok "activas", warn "observando", bad "no disponibles") and,
 under the intro, one `.guard-status` line in the same colour. Then, in this order: the `Switch` of the automated runs, the
 rule list, the `Switch` of "Solo observar" with a warn hint, the protected-files textarea (only while `protect-configs` is
@@ -2016,7 +2016,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | `evals` | a project's Team → Evals list without evals. A prompt card (the one gradient element, floating) over three tool-call rows: two ticks and one failed | accent |
 | `no-results` | search or filters without matches, an empty usage range | accent |
 | `not-found` | 404, a chat or orchestration that no longer exists | accent |
-| `install` | Settings → Install, turning push on | accent |
+| `install` | Settings → General → Install, turning push on | accent |
 | `cli-missing` | the CLI is not detected | warn |
 | `signed-out` | the CLI is not logged in, or the wrapper asks for a credential (sign-in screen) | warn |
 | `connector` | a connector needs authorisation, push is blocked | warn |
@@ -2221,7 +2221,7 @@ the file being edited is its only moving part.
 
 - The v1 names hold the values and the v2 names are aliases, as planned. Besides the tokens in §1,
   `tokens.css` gained `--il-*` durations for the illustrations' loops and fixed `--swatch-*`
-  colours for the theme thumbnails in Settings → Appearance, which show their own theme whichever
+  colours for the theme thumbnails in Settings → General → Appearance, which show their own theme whichever
   one is on.
 - The theme preference is always stamped on `<html data-theme>`, `system` included. Light tokens
   follow the OS only under `[data-theme='system']`. The pre-paint script in `index.html` resolves
@@ -2267,7 +2267,7 @@ the file being edited is its only moving part.
   name is the link and its box covers the row, so the whole line is the touch target. A chat that
   works for the graph without a task reads its role instead of a stage: "· integration",
   "· verification" or "· synthesis" (`ChatOrchestration.role`).
-- Settings → Remote access offers nothing about the tunnel until Tailscale is ready. Not installed is
+- Settings → Access & safety → Remote access offers nothing about the tunnel until Tailscale is ready. Not installed is
   `Empty` with the `cli-missing` illustration and the install link as the one primary action; every
   other way it is not ready (too old, service down, signed out, not connected, no HTTPS) is an
   `alert-warn` with the server's reason, the command to run or the admin page to open, and "Check
@@ -2284,7 +2284,7 @@ the file being edited is its only moving part.
   a slot or a limit wait is warn ("waiting for a slot", "waiting on a limit"), a retry wait is idle,
   and a failed run of a check (`.orch-timings-run.is-failed`) carries a bad "failed". On a phone the
   figures, the critical path links and the checks stack at full width, and the bar keeps it.
-- Settings → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
+- Settings → Access & safety → Remote access draws a tunnel's open address as `.tunnel-address` (`.tunnel-address` and
   `.qr` in `claudio-ds.css`): the URL in mono with copy, beside a QR code drawn in-house
   (`components/QrCode.tsx`). The block takes `.grad-border` while the tunnel is open, because it is
   what the screen is about; the start button is the gradient action only while there is no address.
@@ -2645,15 +2645,15 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   No gradient, no motion and no illustration: these are settings and facts, not live work.
   - The Collaborators page has an **Agents** card (`.collab-agents`, a `Card` with no CSS of its own):
     the `Switch` "The assistant reads what is shared with you", a muted hint, and "See what agents
-    read" as a link button to Settings → Security.
+    read" as a link button to Settings → Access & safety.
   - A project's Sharing section gains the sharer's `Switch` "Teammates' agents may read this" with a
     `.field-hint`, inside the share key's card, and a `.settings-cells` card of its own, after it, for
     the reader's "Agents in this project can read what teammates share here".
   - A shared copy's header line (the Shared tab and the read-only view) adds, after the sync words, a
     muted `.collab-share-where` line with a Lucide icon: "Read by N chats today" (`Bot`), a link to
-    Settings → Security, shown only when the count is above 0; or "The sharer does not let agents read
+    Settings → Access & safety, shown only when the count is above 0; or "The sharer does not let agents read
     this" (`BotOff`). Neutral: neither is a status.
-  - Settings → Security has a **Read by agents** card: a `.table` of when, chat (its id in mono, a
+  - Settings → Access & safety has a **Read by agents** card: a `.table` of when, chat (its id in mono, a
     link), tool (mono), shared project (the teammate's name, then the share key in muted mono), and
     what (the kind and "N records" in mono), with a refresh icon button; with no row it is the compact
     `Empty`, no illustration.

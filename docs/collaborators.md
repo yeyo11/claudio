@@ -71,7 +71,7 @@ nobody's quota is spent: serving a copy never runs Claude.
 | A project's Settings → Sharing | per-group switches, the share key and its remote, the warning; the sharer's flag "Teammates' agents may read this" and the project's own "Agents in this project can read what teammates share here" |
 | The Collaborators page's **Agents** card | "The assistant reads what is shared with you", and a link to the agent-read audit |
 | A chat's header | the neutral `Reads teammates' shares` badge while its agent may read a copy |
-| Settings → Security → **Read by agents** | every read an agent made of a teammate's copy |
+| Settings → Access & safety → **Read by agents** | every read an agent made of a teammate's copy |
 | A project's **Shared** tab | member switcher, then Chats, Memory, Journal, Documents, Artifacts and Board, read only |
 | `/collaborators/shared/:owner/:shareId` | the read-only view of a shared project not cloned here: its name, owner, share key and sync state, the same sub-tabs, and **Link to a local project** |
 | The bell | a join request waiting for the owner's answer, until it is answered |

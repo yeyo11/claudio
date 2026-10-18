@@ -17,7 +17,7 @@
     "start": "Start using Claudio",
     "ready_one": "{{count}} of {{total}} ready",
     "ready_other": "{{count}} of {{total}} ready",
-    "later": "You can change it any time in Settings → Security."
+    "later": "You can change it any time in Settings → Access & safety."
   },
   "access": {
     "title": "Who can open Claudio",
@@ -28,8 +28,8 @@
     },
     "introPhone": "If it runs on a server or on a network, ask for a token.",
     "body": "Every request has to carry the token. With “None”, anyone who reaches the port can use Claudio: fine on your own computer, not on a network.",
-    "oidc": "OIDC is on. You change it in Settings → Security.",
-    "more": "OIDC and the read-only mode are in Settings → Security.",
+    "oidc": "OIDC is on. You change it in Settings → Access & safety.",
+    "more": "OIDC and the read-only mode are in Settings → Access & safety.",
     "shownOnceBody": "It is shown only this once. This browser already uses it; anything else that calls the API will need it.",
     "generateAnother": "Generate another",
     "readOnly": "Claudio is in read-only mode: the access cannot be changed from here."
@@ -40,7 +40,7 @@
     "meta": "Reach Claudio from your phone, on your tailnet",
     "node": "On the tailnet as {{host}}",
     "reason": {
-      "signedIn": "Signed in. You open the tunnel in Settings → Remote access, once the access above asks for a token.",
+      "signedIn": "Signed in. You open the tunnel in Settings → Access & safety → Remote access, once the access above asks for a token.",
       "loggedOut": "Not signed in to a tailnet yet. Sign in with a link or an auth key.",
       "stopped": "Signed in, but not connected. Sign in again to connect it.",
       "daemonDown": "The Tailscale service of this container is not answering. Restart the container.",
@@ -72,10 +72,10 @@
     "noAccount": "No account",
     "notConnected": "Not connected",
     "where": {
-      "security": "Settings → Security",
-      "providers": "Settings → Providers",
-      "integrations": "Settings → Integrations",
-      "remote": "Settings → Remote access"
+      "security": "Settings → Access & safety",
+      "providers": "Settings → Claude Code",
+      "integrations": "Settings → Connections",
+      "remote": "Settings → Access & safety → Remote access"
     }
   },
   "panel": {

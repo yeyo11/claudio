@@ -8,6 +8,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { PERMISSION_MODES } from '../../components/ui';
+import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { SaveButton, SettingsReveal, SettingsRow } from './groups/Block';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
@@ -283,7 +284,7 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
               value={mode}
               onChange={setMode}
               disabled={modeFromEnv}
-              options={PERMISSION_MODES.map((value) => ({ value, label: value }))}
+              options={PERMISSION_MODES.map((value) => ({ value, label: modeLabel(value) }))}
             />
           </Field>
         </div>

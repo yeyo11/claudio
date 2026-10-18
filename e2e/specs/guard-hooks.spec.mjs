@@ -1,7 +1,7 @@
 // Guards end to end (docs/plans/guards.md, "e2e"), against the fake CLI: the fake reads `--settings`,
 // runs the PreToolUse command for each `run:` step and turns exit 2 into the CLI's error tool_result
 // (e2e/fake-cli/README.md), so the real bundled guard.mjs decides here. Seven scenarios: a guarded chat
-// that is blocked, one that passes, an orchestration task blocked by `no-verify`, Settings → Guards,
+// that is blocked, one that passes, an orchestration task blocked by `no-verify`, Settings → Access & safety → Guards,
 // a chat token refused on PUT /settings/guards, the guard made unavailable, and the phone.
 //
 // guard.spec.mjs is the unsaved-changes guard; this file is about the guards of agents.
@@ -112,7 +112,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('.transcript .notice.is-guard')`, { label: 'the notice at the end of the chip', timeout: 30_000 });
     check(true, 'the chip opens the chat at the guard notice');
 
-    // ===== 4. Settings → Guards: a rule toggled survives a reload; "Try a command" names the rule =====
+    // ===== 4. Settings → Access & safety → Guards: a rule toggled survives a reload; "Try a command" names the rule =====
     await page.goto('/settings/access#guards', 1500);
     const rule = (id) => page.eval(`return document.querySelector('#guards [data-rule="${id}"] [role=switch]')?.getAttribute('aria-checked') ?? null`);
     await page.waitFor(`return !!document.querySelector('#guards [data-rule="secrets"] [role=switch]')`, { label: 'the secrets switch' });

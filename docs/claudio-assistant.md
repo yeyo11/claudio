@@ -95,7 +95,7 @@ levels: the assistant runs no command, so it reads every copy by default.
   teammate wrote is third-party content inside a fence, data and never instructions, and it says so
   when that content tries to direct it; document contents and uploads are not readable, only their
   names.
-- **Recorded.** Every read is a row of the agent-read audit (Settings → Security → Read by agents), and
+- **Recorded.** Every read is a row of the agent-read audit (Settings → Access & safety → Agent reads), and
   the chat's header shows `Reads teammates' shares`.
 
 ## Writes, confirmed one by one (option A)

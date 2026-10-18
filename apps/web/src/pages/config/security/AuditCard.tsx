@@ -7,6 +7,7 @@ import { api, keys } from '../../../api';
 import { Combobox, Select, type SelectOption } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { FullText } from '@claudio/ui/components/FullText';
 import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
 import { GLOBAL_SCOPE, useListParams } from '../../../lib/list-params';
 import { SettingsDetailRow } from '../groups/Section';
@@ -161,7 +162,7 @@ function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
   return (
     // The log outgrows its box as requests pile up: a keyboard has to be able to scroll it
     <div className="table-wrap" role="group" aria-label={t('config:security.audit.title')} tabIndex={0}>
-      <table className="table" aria-label={t('config:security.audit.title')}>
+      <table className="table audit-table" aria-label={t('config:security.audit.title')}>
         <thead>
           <tr>
             <th scope="col">{t('config:security.audit.when')}</th>
@@ -177,16 +178,16 @@ function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
             return (
               <tr key={entry.id}>
                 <td className="small muted nowrap">{formatDateTime(entry.at)}</td>
-                <td className="small mono break">{entry.actor}</td>
+                <td className="small"><FullText className="mono audit-literal">{entry.actor}</FullText></td>
                 <td>
-                  <span className="strong">{entry.method}</span> <span className="small mono break">{entry.path}</span>
+                  <span className="strong">{entry.method}</span> <FullText className="small mono audit-literal">{entry.path}</FullText>
                 </td>
                 <td className="nowrap">
                   <Tag tone={result.tone}>
                     {entry.status} · {t(`config:security.audit.outcome.${result.key}`)}
                   </Tag>
                 </td>
-                <td className="small">{entry.summary}</td>
+                <td className="small audit-summary">{entry.summary}</td>
               </tr>
             );
           })}

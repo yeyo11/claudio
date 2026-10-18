@@ -1101,26 +1101,6 @@
   min-width: 0;
 }
 
-/* Jev's model and key, shown only while Jev answers: they open in place instead of jumping in */
-.dp-reveal {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--dur-base) var(--ease-out);
-}
-
-.dp-reveal.is-open {
-  grid-template-rows: 1fr;
-}
-
-.dp-reveal-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
 /* The pinned model is a hint attached to the Jev option, not a row of its own (AP3) */
 .dp-model-hint {
   margin-top: -4px;
@@ -1222,6 +1202,22 @@
   white-space: nowrap;
   font-size: var(--fs-small);
   color: var(--fg-2);
+}
+
+/* On a phone the summary wraps under the name instead of being cut: nobody can hover for its title there */
+@media (max-width: 480px) {
+  .dp-area-toggle {
+    flex-wrap: wrap;
+    padding-block: 6px;
+  }
+
+  .dp-area-summary {
+    flex: 1 1 100%;
+    padding-left: 24px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
 }
 
 .dp-area-points {

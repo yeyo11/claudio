@@ -71,7 +71,7 @@ export function providerLink(id: string, kind: 'install' | 'sign-in'): string | 
   return kind === 'install' ? links.install : links.signIn;
 }
 
-/** Claude Code signs in inside Claudio, on Settings → Account; every other provider on its vendor's page. */
+/** Claude Code signs in inside Claudio, on Settings → Claude Code → Sign-in; every other provider on its vendor's page. */
 export const CLAUDE_CODE_ID = 'claude-code';
 export const SIGN_IN_SETTINGS_PATH = settingsHref('claude-code', { section: 'sign-in' });
 

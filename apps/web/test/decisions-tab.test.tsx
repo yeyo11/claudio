@@ -215,7 +215,7 @@ test("the cap's consequence: a day's cost at the window's volume, and how many f
 test('Who answers: the CLI keeps everything here; Jev reveals its key and model and links an example payload', () => {
   const cli = engine(settings());
   assert.match(cli, /Usa tu cuota de Claude Code\. Nada sale de esta máquina\./);
-  assert.match(cli, /class="dp-reveal "[^>]*inert/);
+  assert.match(cli, /class="settings-reveal" inert/);
   assert.doesNotMatch(cli, /Ver un ejemplo de lo que se envía/);
   // Beta once, on the Jev option, and no privacy box
   assert.equal(cli.match(/Beta/g)?.length, 1);
@@ -224,7 +224,7 @@ test('Who answers: the CLI keeps everything here; Jev reveals its key and model 
   const jev = engine(settings({}, { provider: 'jev' }));
   assert.match(jev, /Envía a Jev el estado declarado de cada punto\./);
   assert.match(jev, /Ver un ejemplo de lo que se envía/);
-  assert.match(jev, /class="dp-reveal is-open"/);
+  assert.match(jev, /class="settings-reveal is-open"/);
   assert.match(jev, /<span class="dp-mono">jev-1\.13\.0<\/span>, fijado/);
   assert.match(jev, /data-setting="engine\.jev-key"/);
   assert.match(jev, /data-setting="engine\.cap"/);

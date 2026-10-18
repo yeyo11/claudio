@@ -15,6 +15,7 @@ import { formatCost, formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { EffortPicker } from '../../../components/EffortPicker';
 import { ModelCombobox } from '../../../components/ui';
 import { settingsHref } from '../settingsGroups';
+import { SettingsReveal } from '../groups/Block';
 import { capConsequence, type Draft } from './model';
 
 /** The server refuses a ceiling outside (0, 5] and a history outside 1..365 days. */
@@ -105,12 +106,12 @@ export function EngineSection({
           )}
         </p>
       </div>
-      <Reveal open={jev}>
+      <SettingsReveal open={jev}>
         <p className="dp-field-line dp-model-hint">
           <Trans t={t} i18nKey="engine.modelPinned" values={{ model: saved.jev.model }} components={{ mono: <span className="dp-mono" /> }} />
         </p>
         <JevKey saved={saved} />
-      </Reveal>
+      </SettingsReveal>
       <Field
         setting="engine.cap"
         label={t('cap.label')}
@@ -167,18 +168,6 @@ export function EngineSection({
         </Field>
       </Collapsible>
     </>
-  );
-}
-
-/**
- * Shown only while it applies: mounted always, so it opens with `grid-template-rows` from 0fr to
- * 1fr instead of a jump, and inert while closed, so its controls are out of the tab order.
- */
-function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
-  return (
-    <div className={`dp-reveal ${open ? 'is-open' : ''}`} inert={!open}>
-      <div className="dp-reveal-inner">{children}</div>
-    </div>
   );
 }
 

@@ -27,7 +27,7 @@ const BLOCKER_ICON: Record<PushBlocker, typeof Info> = {
 };
 
 /**
- * The notification preferences, shown both in the bell's panel and in Settings → Notifications.
+ * The notification preferences, shown both in the bell's panel and in Settings → General → Notifications.
  * One store behind them, so the two are the same switches rather than two copies that drift.
  */
 export function NotificationPreferences() {

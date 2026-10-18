@@ -7,7 +7,7 @@ import { SignInPanel, SignInSheet } from './SignInPanel';
 import { SignOutButton } from './SignOutButton';
 
 /**
- * Sign in and sign out on a list of provider rows, the same in Settings → Providers and in the
+ * Sign in and sign out on a list of provider rows, the same in Settings → Claude Code and in the
  * assistant's Agents step: which row has its panel open (one at a time), what each row offers, and
  * the panel itself, under the row on a desktop or in a Sheet on a phone.
  */
