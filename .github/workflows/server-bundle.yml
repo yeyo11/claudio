@@ -65,7 +65,7 @@ jobs:
           PREVIOUS: ${{ steps.previous.outputs.url }}
         run: |
           docker buildx build -f docker/Dockerfile --target bundle-export --output type=local,dest=out \
-            --build-arg "BUNDLE_PREVIOUS=${PREVIOUS}" --build-arg "BUNDLE_COMMIT=$(git rev-parse HEAD)" .
+            --build-arg "BUNDLE_PREVIOUS=${PREVIOUS}" --build-arg "CLAUDIO_COMMIT=$(git rev-parse HEAD)" .
           ls -l out
 
       # The signature is base64 Ed25519 over the manifest's exact bytes, which is what the launcher and

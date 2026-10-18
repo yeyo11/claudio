@@ -28,6 +28,9 @@ RUN pnpm --filter @claudio/web build \
 
 # What /app/image.json says about this image (version, imageInputs, node ABI, Claude Code pin): the
 # launcher and the server read it to decide which signed bundles this image can run (minImage).
+# imageInputs hashes the runtime stage below, the entrypoint, the healthcheck and docker/keys, so the
+# script needs docker/ itself; it is copied after the build so an edit there keeps the build's cache.
+COPY docker docker
 ARG CLAUDE_CODE_VERSION
 RUN node apps/api/scripts/server-bundle.mjs --image-json /image.json --claude-code "${CLAUDE_CODE_VERSION}"
 
@@ -35,12 +38,14 @@ RUN node apps/api/scripts/server-bundle.mjs --image-json /image.json --claude-co
 # yet signed. The key never enters a build: .github/workflows/server-bundle.yml signs the manifest
 # outside, then verifies it against docker/keys. Built from `build`, so it is the very code the image
 # ships. BUNDLE_PREVIOUS is the previous release's manifest (a URL or a file), which minImage inherits from.
+# CLAUDIO_COMMIT is the commit being built (`--build-arg CLAUDIO_COMMIT=$(git rev-parse HEAD)`), recorded
+# in the manifest: .dockerignore leaves .git out of the context, so the script cannot ask git for it.
 FROM build AS server-bundle
 ARG BUNDLE_PREVIOUS=
-ARG BUNDLE_COMMIT=
+ARG CLAUDIO_COMMIT=
 RUN mkdir /out \
  && node apps/api/scripts/server-bundle.mjs --out /out \
-      ${BUNDLE_PREVIOUS:+--previous "$BUNDLE_PREVIOUS"} ${BUNDLE_COMMIT:+--commit "$BUNDLE_COMMIT"}
+      ${BUNDLE_PREVIOUS:+--previous "$BUNDLE_PREVIOUS"} ${CLAUDIO_COMMIT:+--commit "$CLAUDIO_COMMIT"}
 
 # Holds only /out, so `docker buildx build --target bundle-export --output type=local,dest=out` writes
 # the bundle and nothing else.
@@ -200,8 +205,8 @@ ENV NODE_ENV=production \
     CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
     CLAUDIO_WEB_DIST=/app/web \
-    # The guard and the MCP server are the image's own, never an update's: the launcher keeps this
-    # value when it starts an overlay, which carries neither
+    # The guard is the image's own, never an update's: the launcher keeps this value when it starts
+    # an overlay, which carries its own mcp.mjs but neither the guard nor the launcher
     CLAUDIO_GUARD_ENTRY=/app/guard.mjs \
     CLAUDIO_DISTRIBUTION=docker \
     # gh and glab keep their sign-ins in their config folders, in plain text where there is no

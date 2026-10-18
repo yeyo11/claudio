@@ -6,10 +6,14 @@
 //
 //   node apps/api/scripts/server-bundle.mjs [--out <dir>] [--version <v>] [--previous <manifest url or file>]
 //       [--sign-with <private pem>] [--verify-with <public pem>] [--image-json <file>]
+//       [--claude-code <version>] [--commit <sha>]
 //
 // --previous gives minImage: inherited when `imageInputs` (what only a new image can change) is the
 // previous release's, else this version. --image-json writes /app/image.json's content and nothing
 // else. Run on linux-x64: the native modules staged in dist are the build machine's.
+// --claude-code is the pin the image installs (its CLAUDE_CODE_VERSION build arg), which can differ
+// from the Dockerfile's default; --commit is the commit the bundle was built from, because a Docker
+// build has no .git to ask (.dockerignore leaves it out).
 import { execFileSync } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -32,6 +36,8 @@ const { values: args } = parseArgs({
     'sign-with': { type: 'string' },
     'verify-with': { type: 'string' },
     'image-json': { type: 'string' },
+    'claude-code': { type: 'string' },
+    commit: { type: 'string' },
   },
 });
 
@@ -78,7 +84,7 @@ function imageInputs() {
 const inputs = imageInputs();
 
 if (args['image-json']) {
-  const pin = /^ARG CLAUDE_CODE_VERSION=(\S+)$/m.exec(readFileSync(join(root, 'docker/Dockerfile'), 'utf8'))?.[1] ?? null;
+  const pin = args['claude-code'] || (/^ARG CLAUDE_CODE_VERSION=(\S+)$/m.exec(readFileSync(join(root, 'docker/Dockerfile'), 'utf8'))?.[1] ?? null);
   const image = { version, imageInputs: inputs, nodeAbi: process.versions.modules, claudeCode: pin && /^\d+\.\d+\.\d+/.test(pin) ? pin : null };
   writeFileSync(args['image-json'], `${JSON.stringify(image, null, 2)}\n`);
   console.log(`wrote ${args['image-json']}`);
@@ -116,7 +122,7 @@ try {
   // Owner and times are normalised: the server unpacks it as its own user, whatever built it
   execFileSync('tar', ['--sort=name', '--owner=0', '--group=0', '--numeric-owner', '--mtime=@0', '-czf', tarball, '-C', stage, '.']);
   const bytes = readFileSync(tarball);
-  const commit = (() => {
+  const commit = args.commit || (() => {
     try {
       return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     } catch {
