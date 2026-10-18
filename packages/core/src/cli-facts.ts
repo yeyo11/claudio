@@ -75,8 +75,8 @@ export interface SubagentInfo {
   toolUseId: string;
   subagentType: string;
   description: string;
-  /** `stopped` when its session ended before the agent reported back */
-  status: 'running' | 'completed' | 'failed' | 'stopped';
+  /** `stopped` when its session ended before the agent reported back; `waiting` after a turn that left its own background work running */
+  status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
   /** First launch; a resume by its parent adds a run and leaves this alone */
   startedAt: string;
   endedAt: string | null;

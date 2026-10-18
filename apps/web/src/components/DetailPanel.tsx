@@ -147,7 +147,7 @@ function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
 
 /** The strip's clock: the current run while it works, the active time over every run once it ended. */
 function agentDuration(agent: AgentTranscript): string {
-  if (agent.runs.length > 0 && agent.status === 'running') return formatDuration(runsElapsedMs(agent.runs, Date.now()));
+  if (agent.runs.length > 0 && (agent.status === 'running' || agent.status === 'waiting')) return formatDuration(runsElapsedMs(agent.runs, Date.now()));
   if (agent.status === 'running') return durationBetween(agent.startedAt, null);
   if (agent.durationMs !== null) return formatDuration(agent.durationMs);
   return durationBetween(agent.startedAt, agent.endedAt);
@@ -211,7 +211,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
       <Facts>
         <dt>{t('detail.status')}</dt>
         <dd>
-          <BranchStatus status={alive || data.status !== 'running' ? data.status : 'stopped'} />
+          <BranchStatus status={alive || (data.status !== 'running' && data.status !== 'waiting') ? data.status : 'stopped'} />
           {running && target.kind === 'subagent' && (
             <>
               {' '}
@@ -281,6 +281,12 @@ function AgentBody({ target }: { target: AgentTarget }) {
           <Link to={`/chats/${data.sessionId}`}>{data.sessionId}</Link>
         </dd>
       </Facts>
+
+      {alive && data.status === 'waiting' && (
+        <p className="muted small" role="status">
+          {t('detail.waitingBackground')}
+        </p>
+      )}
 
       {data.prompt && (
         <section className="detail-section">

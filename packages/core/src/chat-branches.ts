@@ -133,7 +133,7 @@ export function settleChildren(children: ChatChildren, endedAt: string): ChatChi
   return {
     subagents: children.subagents.map((s) => ({
       ...s,
-      ...(s.status === 'running' ? { status: 'stopped' as const, endedAt: s.endedAt ?? endedAt, runs: closeRuns(s.runs, s.endedAt ?? endedAt) } : {}),
+      ...(s.status === 'running' || s.status === 'waiting' ? { status: 'stopped' as const, endedAt: s.endedAt ?? endedAt, runs: closeRuns(s.runs, s.endedAt ?? endedAt) } : {}),
       // An ended agent is doing nothing, whatever its last call left open
       activity: null,
       tasks: s.tasks.map(task),

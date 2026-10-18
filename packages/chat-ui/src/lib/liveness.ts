@@ -1,4 +1,4 @@
-import type { Chat, ChatBranchStatus, ChatChildren, ChatWorkflow, ChatWorkflowAgent, Execution, TranscriptEntry } from '@claudio/shared';
+import type { Chat, ChatAgentStatus, ChatChildren, ChatWorkflow, ChatWorkflowAgent, Execution, TranscriptEntry } from '@claudio/shared';
 
 /*
  * Whether something is still going on, said once. Every screen that draws a spinner, a clock or a
@@ -18,7 +18,7 @@ export type LivenessChat = Pick<Chat, 'alive' | 'state'> & Partial<Pick<Chat, 'u
 
 /** What these rules read of a branch. */
 export interface BranchState {
-  status: ChatBranchStatus;
+  status: ChatAgentStatus;
   endedAt: string | null;
 }
 
@@ -44,7 +44,8 @@ export function branchLive(chat: Pick<Chat, 'alive'>, branch: Pick<BranchState, 
  * server that already settled it agree.
  */
 export function effectiveBranch<B extends BranchState>(chat: LivenessChat, branch: B): B {
-  if (chatAlive(chat) || branch.status !== 'running') return branch;
+  // A waiting agent's own background work went down with the process that held it, as a running one did
+  if (chatAlive(chat) || (branch.status !== 'running' && branch.status !== 'waiting')) return branch;
   return { ...branch, status: 'stopped', endedAt: branch.endedAt ?? stoppedAt(chat) };
 }
 

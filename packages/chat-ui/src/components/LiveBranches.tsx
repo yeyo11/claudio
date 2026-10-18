@@ -1,5 +1,5 @@
 import type { ChatChildren } from '@claudio/shared';
-import { Bot, Check, ChevronRight, CircleAlert, CircleStop, Terminal, Workflow } from 'lucide-react';
+import { Bot, Check, ChevronRight, CircleAlert, CirclePause, CircleStop, Terminal, Workflow } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
@@ -43,6 +43,7 @@ export function useCountLine(counts: BranchCounts): string {
   const { t } = useTranslation('chat');
   return [
     counts.agents > 0 ? t('branches.agents', { count: counts.agents }) : null,
+    counts.waiting > 0 ? t('branches.waiting', { count: counts.waiting }) : null,
     counts.tasks > 0 ? t('branches.tasks', { count: counts.tasks }) : null,
     counts.workflows > 0 ? t('branches.workflows', { count: counts.workflows }) : null,
   ]
@@ -67,7 +68,7 @@ function BranchClock({ branch, words = false }: { branch: Branch; words?: boolea
   return <>{words && !running ? formatDuration(ms) : formatElapsed(ms)}</>;
 }
 
-const STATE_ICON = { completed: Check, failed: CircleAlert, stopped: CircleStop } as const;
+const STATE_ICON = { completed: Check, failed: CircleAlert, stopped: CircleStop, waiting: CirclePause } as const;
 
 function SettledIcon({ status }: { status: keyof typeof STATE_ICON }) {
   const Icon = STATE_ICON[status];
@@ -213,8 +214,10 @@ function Strip({ chat, branches, onOpen }: { chat: BranchChat; branches: Branch[
   const verbOf = useVerb();
   const line = newest?.kind === 'agent' && newest.activity ? verbOf(newest) : null;
   const running = branches.some((branch) => branch.status === 'running');
-  // With nothing left running, the bar says how the last one to end finished
-  const settled = running ? null : branches.reduce<Branch | null>((last, branch) => (!last || (branch.endedAt ?? '') > (last.endedAt ?? '') ? branch : last), null);
+  const waiting = branches.some((branch) => branch.status === 'waiting');
+  // With nothing left running, the bar says how the last one to end finished; an agent waiting for
+  // its background work has not finished, so it is not one of them
+  const settled = running ? null : branches.filter((branch) => branch.status !== 'waiting').reduce<Branch | null>((last, branch) => (!last || (branch.endedAt ?? '') > (last.endedAt ?? '') ? branch : last), null);
   const announcement = useThrottled([count, newest ? (line ? `${newest.label} ${line.verb} ${line.target}` : newest.description) : ''].filter(Boolean).join(' · '));
 
   const now: ReactNode = newest ? (
@@ -233,7 +236,7 @@ function Strip({ chat, branches, onOpen }: { chat: BranchChat; branches: Branch[
   ) : null;
   const bar = (
     <>
-      {settled && settled.status !== 'running' ? <SettledIcon status={settled.status} /> : <Spinner />}
+      {running ? <Spinner /> : waiting ? <SettledIcon status="waiting" /> : settled && settled.status !== 'running' ? <SettledIcon status={settled.status} /> : <Spinner />}
       <span className="chat-branches-count">{count || (settled ? t(`branches.state.${settled.status}`) : '')}</span>
       {now}
     </>

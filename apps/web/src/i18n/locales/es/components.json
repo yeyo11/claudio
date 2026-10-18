@@ -158,6 +158,7 @@
     "outputCut": "Se muestra el final de {{size}} KiB de salida.",
     "noOutputYet": "(todavía sin salida)",
     "agentFailed": "No se ha podido leer este agente",
+    "waitingBackground": "Esperando a su tarea en segundo plano; se reanuda cuando esta informe.",
     "background": "segundo plano",
     "workflowAgentType": "agente de workflow",
     "workflow": "Workflow",

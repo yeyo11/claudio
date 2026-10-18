@@ -41,7 +41,7 @@ export function delegatesOf(chat: { subagents?: readonly SubagentInfo[]; backgro
   tasks: string[];
 } {
   return {
-    agents: (chat?.subagents ?? []).filter((s) => s.background && s.status === 'running').map((s) => s.description || s.subagentType),
+    agents: (chat?.subagents ?? []).filter((s) => s.background && (s.status === 'running' || s.status === 'waiting')).map((s) => s.description || s.subagentType),
     tasks: (chat?.backgroundTasks ?? []).filter((t) => t.status === 'running' && !t.backgroundedByUser).map((t) => t.description || t.command || t.id),
   };
 }

@@ -158,6 +158,7 @@
     "outputCut": "Showing the end of {{size}} KiB of output.",
     "noOutputYet": "(no output yet)",
     "agentFailed": "Could not read this agent",
+    "waitingBackground": "Waiting for its background task; it resumes when that reports.",
     "background": "background",
     "workflowAgentType": "workflow agent",
     "workflow": "Workflow",

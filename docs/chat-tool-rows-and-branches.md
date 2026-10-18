@@ -173,6 +173,42 @@ resume as a second agent that nothing could end, and the chat read "working" for
 - **A notification may name several tasks.** After a session restart the CLI reports what the old
   process left behind in one block listing several `<task-id>` tags, among them
   `__orphan_summary__:shell`, which is a marker and not a task. Every real id is stopped by it.
+- **An agent can be waiting on its own background work.** A background agent may end its turn while
+  a background command it started (a Bash with `run_in_background` polling GitHub, say) still runs.
+  The CLI then notifies the parent with `<status>completed</status>`, a summary `Agent "…" is
+  waiting on its own background work` and a note that the agent "may resume on its own when that
+  work completes or reports, and the same task-id notifies again if it does; the result below may be
+  interim". When that work reports, the agent resumes under the same task id and notifies again;
+  the last notification says `Agent "…" finished`.
+  - **What the stream gives.** The `task_notification` system event carries `task_id`,
+    `tool_use_id`, `status`, `summary`, `output_file` and `usage`; no field says "interim", and the
+    recordings under `packages/core/test/fixtures/recordings` carry no `note`. The `note` exists in
+    the `<task-notification>` text the parent's transcript keeps. So the case is recognised from
+    words, in one place (`isWaitingOnBackground`, `packages/shared/src/branch-runs.ts`): the summary
+    saying it is waiting on its own background work, or the note saying it stopped with work of its
+    own still running. If the CLI changes those words, the agent reads as done again (the old
+    behaviour), never as working. Nothing was captured of the event that starts the self-resume, so
+    it is assumed to be a `task_started` for the same task id, as a `SendMessage` resume is.
+  - **The `waiting` state.** `SubagentInfo.status` / `ChatSubagent.status` /
+    `AgentTranscript.status` gain `waiting` (`ChatAgentStatus`; tasks and workflows do not have
+    it). Its current run closes at the notification, so the clock stops, but `endedAt` stays null:
+    it is not over. A `task_started` for the same id reopens it on a new run; a later `completed`
+    notification that is not itself a waiting one ends it, and a stopped or failed one ends it as
+    usual. A chat nothing holds settles it to `stopped`, as it does a running agent: its background
+    work went with the process.
+  - **Disk.** A `<task-notification>` that is a waiting one is a stop with `waiting` set. With no
+    later write the agent reads `waiting` (`stopped` in a session nothing holds); an agent that
+    wrote after the stop reads running, as before. A self-resume leaves no marker on disk, so a stop
+    that follows a waiting stop begins a run at that previous stop (the wait counts in a run read
+    from disk, which the live path does not know to avoid either).
+  - **Where it shows.** The strip keeps the row (no grace period, no spinner, no clock ticking)
+    with the word "Waiting" in the `idle` tone and a pause icon, the same state word and colour
+    `common:status.waiting` has; nothing live moves. The header count line does not count it as
+    working: it gets its own part, "1 agent waiting for its background task", and with nothing
+    running the bar carries the pause icon instead of the spinner. The subagent panel says "Waiting
+    for its background task; it resumes when that reports." under the facts. The open items of a
+    chat count a waiting background agent as pending work, and no `subagent.ended` event is emitted
+    for it.
 - **Stopped is not failed.** `stopped` and `killed` map to the `stopped` state (warn); only `failed`
   is failed (bad).
 

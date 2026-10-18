@@ -7,6 +7,7 @@ import {
   entrySearchText,
   entryText,
   isModelName,
+  isWaitingOnBackground,
   normalizeMessage,
   runsElapsedMs,
   searchPattern,
@@ -224,6 +225,8 @@ interface AgentStop {
   at: string;
   status: string;
   summary: string | null;
+  /** `completed`, but the agent only ended its turn: its own background work still runs */
+  waiting?: boolean;
 }
 
 /** Where an agent stands, from the stop its parent was notified of and how recently it wrote. */
@@ -237,6 +240,8 @@ function agentState(
   const lastActivityAt = mtime ? mtime.toISOString() : null;
   const resumed = stop ? (resumedAt !== undefined && resumedAt > stop.at) || (mtime ? mtime.getTime() > Date.parse(stop.at) + RESUMED_AFTER_MS : false) : false;
   if (!stop || resumed) return { status: live ? 'running' : 'stopped', endedAt: live ? null : lastActivityAt };
+  // The background work that kept it waiting went down with a session that is no longer held
+  if (stop.waiting) return live ? { status: 'waiting', endedAt: null } : { status: 'stopped', endedAt: stop.at };
   return { status: stopStatus(stop.status), endedAt: stop.at };
 }
 
@@ -245,7 +250,7 @@ function agentFacts(activity: SessionActivity, agentId: string, mtime: Date | nu
   const resumes = activity.resumes.get(agentId) ?? [];
   const state = agentState(activity.stops.get(agentId), mtime, live, resumes.at(-1));
   const launch = activity.agents.get(agentId) ?? fallbackStart;
-  const runs = launch ? agentRuns([launch, ...resumes], activity.stopLog.get(agentId) ?? [], state) : [];
+  const runs = launch ? agentRuns([launch, ...resumes], activity.stopLog.get(agentId) ?? [], activity.waitLog.get(agentId) ?? [], state) : [];
   return { state, launch, runs };
 }
 
@@ -260,7 +265,7 @@ function stopStatus(status: string): SubagentInfo['status'] {
  * A run with no stop of its own ended when the next began (its notification was lost); the last one
  * is open while the agent runs.
  */
-function agentRuns(starts: string[], stops: string[], state: { status: SubagentInfo['status']; endedAt: string | null }): ChatBranchRun[] {
+function agentRuns(starts: string[], stops: string[], waits: string[], state: { status: SubagentInfo['status']; endedAt: string | null }): ChatBranchRun[] {
   const ordered = [...starts].sort();
   const ends = [...stops].sort();
   const runs: ChatBranchRun[] = ordered.map((startedAt, i) => {
@@ -268,6 +273,14 @@ function agentRuns(starts: string[], stops: string[], state: { status: SubagentI
     const end = ends.find((at) => at >= startedAt && (next === undefined || at < next));
     return { startedAt, endedAt: end ?? next ?? null };
   });
+  // An agent that resumed by itself leaves no marker, only the stop of its next run: a stop that
+  // ended no run began one right after the stop before it
+  for (const [i, end] of ends.entries()) {
+    if (runs.some((run) => run.endedAt === end)) continue;
+    const before = ends[i - 1];
+    if (before !== undefined && waits.includes(before)) runs.push({ startedAt: before, endedAt: end });
+  }
+  runs.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   const last = runs.at(-1);
   if (!last) return runs;
   // Written to after its last stop with no resume on record: it is working again
@@ -285,6 +298,8 @@ interface SessionActivity {
   stops: Map<string, AgentStop>;
   /** agentId → every time it stopped, oldest first, for the runs of an agent that was resumed */
   stopLog: Map<string, string[]>;
+  /** agentId → every time it stopped only to wait for its own background work, oldest first */
+  waitLog: Map<string, string[]>;
   /** agentId → every time its parent resumed it with SendMessage, oldest first */
   resumes: Map<string, string[]>;
 }
@@ -301,15 +316,17 @@ interface ActivityFold extends SessionActivity {
 function recordStop(activity: ActivityFold, id: string, stop: AgentStop): void {
   activity.stops.set(id, stop);
   activity.stopLog.set(id, [...(activity.stopLog.get(id) ?? []), stop.at]);
+  if (stop.waiting) activity.waitLog.set(id, [...(activity.waitLog.get(id) ?? []), stop.at]);
 }
 
 const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
-  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), stopLog: new Map(), resumes: new Map(), launchInputs: new Map() }),
+  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), stopLog: new Map(), waitLog: new Map(), resumes: new Map(), launchInputs: new Map() }),
   clone: (a) => ({
     agents: new Map(a.agents),
     tasks: new Map(a.tasks),
     stops: new Map(a.stops),
     stopLog: new Map([...a.stopLog].map(([id, at]) => [id, [...at]])),
+    waitLog: new Map([...a.waitLog].map(([id, at]) => [id, [...at]])),
     resumes: new Map([...a.resumes].map(([id, at]) => [id, [...at]])),
     launchInputs: new Map(a.launchInputs),
   }),
@@ -374,7 +391,8 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
     // Later lines win: an agent can be resumed and stop again, notifying each time
     const status = tag(text, 'status') ?? 'completed';
     const summary = tag(text, 'summary');
-    for (const id of taskIds(text)) recordStop(activity, id, { at, status, summary });
+    const waiting = status === 'completed' && isWaitingOnBackground({ summary, note: tag(text, 'note') });
+    for (const id of taskIds(text)) recordStop(activity, id, { at, status, summary, ...(waiting ? { waiting } : {}) });
   },
 };
 
