@@ -83,6 +83,9 @@ import type {
   CheckState,
   CliTextResult,
   CliVersionInfo,
+  LiveWork,
+  ServerUpdateApplyRequest,
+  ServerUpdateStatus,
   CodeHostsSettings,
   CodeHostStatus,
   ConfigFileContent,
@@ -314,7 +317,7 @@ import type {
   StoredDashboardLayout,
 } from '@claudio/shared';
 import i18n from './i18n';
-import { authHeaders, setChallenge, withToken } from './lib/auth';
+import { authHeaders, challengeOf, hostRefusalOf, setChallenge, setHostRefusal, withToken } from './lib/auth';
 import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
 import { mergeRefetchMs } from './lib/merge';
@@ -334,6 +337,8 @@ export class ApiRequestError extends Error {
   readonly spend?: SpendState;
   /** The fields a refused write names, `path: reason` each (an eval file that does not parse) */
   problems?: string[];
+  /** What a restart would stop, on a refusal at `update.live-work` */
+  live?: LiveWork;
 
   constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
@@ -423,7 +428,12 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     const err = json as (Partial<ApiError> & { mode?: AuthMode }) | null;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
-    if (res.status === 401) setChallenge(err?.mode ?? 'token');
+    if (res.status === 401) {
+      const { mode, firstRunToken } = challengeOf(err);
+      setChallenge(mode, firstRunToken);
+    }
+    // The host is not one this wrapper answers to: the app shows the screen that adds it
+    if (res.status === 421) setHostRefusal(hostRefusalOf(err));
     // No JSON error means Claudio did not write this answer (a proxy's or a tunnel's page): say so in
     // the person's language and keep the status line as the detail
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
@@ -440,6 +450,8 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     }
     const problems = (err as { problems?: unknown }).problems;
     const refusal = new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
+    const live = (err as { live?: unknown }).live;
+    if (code === 'update.live-work' && typeof live === 'object' && live !== null) refusal.live = live as LiveWork;
     if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
     throw refusal;
   }
@@ -559,6 +571,13 @@ export const api = {
   checkCliVersion: () => request<CliVersionInfo>('/system/cli-version/check', { method: 'POST' }),
   release: (o: ReadOptions = {}) => request<ClaudioReleaseInfo>('/system/release', o),
   checkRelease: () => request<ClaudioReleaseInfo>('/system/release/check', { method: 'POST' }),
+  serverUpdate: (o: ReadOptions = {}) => request<ServerUpdateStatus>('/system/server-update', o),
+  downloadServerUpdate: (body: { version?: string } = {}) => request<ServerUpdateStatus>('/system/server-update/download', { method: 'POST', body }),
+  applyServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/apply', { method: 'POST', body }),
+  cancelServerUpdate: () => request<ServerUpdateStatus>('/system/server-update/scheduled', { method: 'DELETE' }),
+  revertServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/revert', { method: 'POST', body }),
+  installCli: (body: { version?: string } = {}) => request<CliVersionInfo>('/system/cli-version/install', { method: 'POST', body }),
+  useImageCli: () => request<CliVersionInfo>('/system/cli-version/install', { method: 'DELETE' }),
   storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
   systemLoad: (o: ReadOptions = {}) => request<SystemLoad>('/system/load', o),
   systemProcesses: (o: ReadOptions = {}) => request<ProcessUsageReport>('/system/processes', o),
@@ -1261,6 +1280,7 @@ export const keys = {
   overview: ['overview'] as const,
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
+  serverUpdate: ['server-update'] as const,
   release: ['release'] as const,
   storage: ['storage'] as const,
   systemLoad: ['system', 'load'] as const,
