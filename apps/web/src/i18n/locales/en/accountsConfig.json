@@ -72,13 +72,13 @@
   },
   "page": {
     "title": "Accounts",
-    "add": "Add account",
+    "add": "Add an account",
     "count_one": "{{count}} account",
     "count_other": "{{count}} accounts",
     "usageRead": "usage read {{ago}}",
     "refresh": "Refresh",
-    "none": "No accounts",
-    "noneHint": "Claude Code runs on its own config directory until you add accounts. Add one to switch to it at a limit.",
+    "none": "No account yet",
+    "noneHint": "Sign in with a Claude account to run chats.",
     "refreshing": "Reading usage…"
   },
   "kind": {
@@ -146,7 +146,6 @@
     "kind": "Kind",
     "hint": {
       "login": "Signs in with Claude Code in a config directory of its own. Claudio never reads the credentials.",
-      "token": "A token from claude setup-token. It has no identity of its own, so it needs an alias.",
       "api-key": "An API key. It has no identity and no usage limits to read, so it needs an alias."
     },
     "alias": "Alias",
@@ -155,7 +154,6 @@
     "aliasPlaceholder": "work",
     "email": "Email",
     "emailHint": "Optional: pre-fills the email the sign-in asks for.",
-    "token": "Token",
     "apiKey": "API key",
     "secretHint": "Write-only: it is kept in a private file of the account and never shown again.",
     "signIn": "Sign in",
@@ -165,7 +163,11 @@
     "added": "Account added",
     "addFailed": "The account could not be added",
     "signedIn": "Account signed in",
-    "startFailed": "The sign-in could not start"
+    "startFailed": "The sign-in could not start",
+    "kinds": {
+      "login": "Claude account",
+      "api-key": "API key"
+    }
   },
   "signIn": {
     "title": "Sign in to the account",
@@ -179,8 +181,11 @@
     "codeFailed": "The code was not accepted",
     "waiting": "Waiting for you to approve",
     "starting": "Asking Claude Code for the sign-in page…",
-    "failed": "The sign-in failed. Close this dialog and try again.",
-    "cancelled": "The sign-in was cancelled."
+    "failed": "The sign-in did not finish.",
+    "expired": "The sign-in link expired.",
+    "newLink": "Get a new link",
+    "tryAgain": "Try again",
+    "expiresIn": "expires in {{left}}"
   },
   "rotation": {
     "title": "Switching accounts",
