@@ -30,6 +30,7 @@ interface FakeNode {
   magicDNS?: boolean;
   certDomains?: string[];
   operator?: boolean;
+  delayMs?: number;
   serve?: Record<string, unknown>;
 }
 
@@ -299,6 +300,64 @@ test('a rule removed in a terminal closes the tunnel, and Tailscale going down d
   await until(() => down.manager.status().state === 'failed', 'failed');
   assert.equal(down.manager.status().reason?.code, 'tunnel.tailscaleNotConnected');
   assert.deepEqual(down.hosts.list(), []);
+});
+
+test('a Tailscale that is slow to answer keeps the tunnel, its rule and its host, and says it is checking', async (t) => {
+  const r = rig(t, { timing: { monitorMs: 30, maxBackoffMs: 90, commandTimeoutMs: 400, stalledAfterMs: 400 } });
+  await openTunnel(r);
+  const opened = r.calls().length;
+  assert.equal(r.manager.status().state, 'active');
+  assert.equal(r.manager.status().checking, false);
+
+  r.setNode({ delayMs: 1500 });
+  await until(() => r.manager.status().checking, 'checking');
+  const slow = r.manager.status();
+  assert.equal(slow.state, 'active');
+  assert.equal(slow.url, `https://${NODE}:8444`);
+  assert.deepEqual(r.hosts.list(), [NODE]);
+
+  // Nothing but unknowns for longer than the limit: a warning, not a failure
+  await until(() => r.manager.status().reason?.code === 'tunnel.tailscaleNotAnswering', 'the not-answering reason');
+  assert.equal(r.manager.status().state, 'active');
+  assert.deepEqual(r.hosts.list(), [NODE]);
+  assert.ok(r.events.some((event) => event.checking), 'the feed carried the checking flag');
+
+  // The rule is still there, and no reading ever asked for it to be taken away
+  assert.deepEqual(r.node().serve, ours());
+  assert.deepEqual(r.calls().slice(opened).filter((call) => call.endsWith('off')), []);
+
+  r.setNode({ delayMs: 0 });
+  await until(() => !r.manager.status().checking, 'answers again');
+  assert.equal(r.manager.status().state, 'active');
+  assert.equal(r.manager.status().reason, null);
+  assert.deepEqual(r.hosts.list(), [NODE]);
+});
+
+test('Tailscale signed out closes the tunnel, and it opens again by itself once Tailscale is ready', async (t) => {
+  const r = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(r);
+  r.setNode({ backendState: 'NeedsLogin' });
+  await until(() => r.manager.status().state === 'failed', 'failed');
+  assert.equal(r.manager.status().reason?.code, 'tunnel.tailscaleLoggedOut');
+  assert.deepEqual(r.hosts.list(), []);
+
+  r.setNode({ backendState: 'Running' });
+  await until(() => r.manager.status().state === 'active', 'active again');
+  assert.deepEqual(r.hosts.list(), [NODE]);
+  assert.ok(r.audit.includes('Start the tunnel again: Tailscale is ready'));
+});
+
+test('a tunnel the person stopped never restarts, even once Tailscale is ready', async (t) => {
+  const r = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(r);
+  r.setNode({ backendState: 'Stopped' });
+  await until(() => r.manager.status().state === 'failed', 'failed');
+  await r.manager.stop();
+  assert.equal(r.manager.status().state, 'stopped');
+  r.setNode({ backendState: 'Running' });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(r.manager.status().state, 'stopped');
+  assert.deepEqual(r.hosts.list(), []);
 });
 
 test('a node renamed while the tunnel is open moves the allowed host with it', async (t) => {
