@@ -113,7 +113,9 @@ point (#34, 0.4.0; [settings.md](settings.md)). An execution that died at a usag
 cause when a replay stops it (#36, 0.4.1). The **Machine widget** and its page, async `git` on
 request paths, the figures history and priority for people's chats landed in #38 (0.5.0;
 [resource-control.md](resource-control.md)), and dialogs, sheets and drawers hold up on a phone and in
-the desktop app since #40 (0.5.1).
+the desktop app since #40 (0.5.1). Every full load, on the desktop, the web and the PWA, opens on the
+"Eat the code" splash since #42, merged after 0.5.1 and not yet released
+([plans/splash-eat-the-code.md](plans/splash-eat-the-code.md)).
 
 ## What is open
 
@@ -186,6 +188,7 @@ the desktop app since #40 (0.5.1).
 | [`plans/settings-ia.md`](plans/settings-ia.md) | Merged in #34, released in 0.4.0 (2026-10-18), verified on GitHub: Settings in eight groups with search at `/settings/<group>/<detail>` (the `?tab=` addresses redirect), Connectors folded into Connections, Decisions as evidence without chips, and the Supervisor folded into the `supervisor.intervene` point (`GET/PUT /settings/supervisor` deprecated). See [Outcome](plans/settings-ia.md#outcome) and [settings.md](settings.md) |
 | [`plans/claudio-designer.md`](plans/claudio-designer.md) | Merged in #26, released in 0.3.0 (2026-10-17): the `claudio-ui` skill, its review, audit and exploration agents, the machine-checked invariants and the hooks that lint every UI edit, and the typographic voice it brings to Night Shift. See [§4](plans/claudio-designer.md#4-as-built) |
 | [`plans/workflow-engine-limits.md`](plans/workflow-engine-limits.md) | Merged in #10 (2026-10-17): the workflow engine follows its journal live, holds or rotates at a usage limit, and never stays running unwatched. See its [Outcome](plans/workflow-engine-limits.md#outcome) |
+| [`plans/splash-eat-the-code.md`](plans/splash-eat-the-code.md) | Merged in #42 (2026-10-18), not yet released: the four-second brand intro on every full load of the desktop window, the web page and the installed PWA. Design: [design-system.md](design-system.md) and [desktop.md](desktop.md) |
 | [`plans/lessons.md`](plans/lessons.md) | Built (2026-10-16): lessons mined from corrections, approved by a person with their evidence, delivered to chats and workers, decayed and promoted to `CLAUDE.md` through the diff dialog; the `lesson.mine` decision point. See [lessons.md](lessons.md) and the plan's [Outcome](plans/lessons.md#outcome) |
 | [`plans/instruction-evals.md`](plans/instruction-evals.md) | Built (2026-10-16), phases 1 and 2: eval files for agent files, skills, rules and `CLAUDE.md`, runs of `current` against `proposed`, pressure levels, pass@k and intervals, the judged expectation and the promotion gate behind `evalsPhase2`. See [evals.md](evals.md) and the plan's [Outcome](plans/instruction-evals.md#outcome) |
 | [`plans/rotation-auth-fixes.md`](plans/rotation-auth-fixes.md) | Built (2026-10-16): an expired sign-in (`api_error_status: 401`) marks the account's `signInState` with `authFailedAt`, rotates the chat with reason `auth`, and a retry chooses the account again; the Accounts page and the status bar say Sign-in expired. See the plan's [Outcome](plans/rotation-auth-fixes.md#outcome) |
