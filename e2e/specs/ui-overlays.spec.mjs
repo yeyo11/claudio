@@ -80,6 +80,8 @@ export default async ({ page, api, check, dirs }) => {
     const board = `/tasks?project=${projectId}`;
 
     await page.reduceMotion(true);
+    // The tab starts on a blank document, which has no storage: land on the app before writing to it
+    await page.goto('/chats', 300);
     await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
     for (const screen of SCREENS) {
       await page.viewport(screen.width, 900);
