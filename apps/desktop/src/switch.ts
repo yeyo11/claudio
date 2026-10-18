@@ -2,12 +2,10 @@
 // where the AppImage keeps Chromium's sandbox without root, at the paths `scripts/install.sh` uses,
 // so the AppImage then updates itself without a password. The `.deb` stays installed: removing it
 // needs root, and the app never escalates. Free of Electron, so the rules are tested with fake files.
-import { accessSync, chmodSync, constants, copyFileSync, createWriteStream, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, chmodSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+import { downloadFile, type DownloadTuning } from '@claudio/core/updates/download';
 
 export interface SwitchState {
   /** The offer is shown: a `.deb` on a host where the AppImage sandboxes without root and FUSE works */
@@ -115,12 +113,14 @@ export function desktopEntry(appImage: string): string {
   ].join('\n');
 }
 
-/** Streams `url` into `file`; throws on anything but a 200 */
-export async function downloadTo(url: string, file: string, fetchFn: typeof fetch = fetch): Promise<void> {
-  const res = await fetchFn(url, { headers: { 'user-agent': 'claudio-desktop' }, signal: AbortSignal.timeout(30 * 60_000) });
-  if (!res.ok || !res.body) throw new Error(`${url} answered ${String(res.status)}`);
+/**
+ * Downloads `url` into `file`, through core's downloader: retried and resumed when the connection
+ * drops, and never through `fetch`, whose parser can throw from a socket listener on a
+ * close-delimited body (docs/updates.md). Throws once every retry failed or the answer is not the file.
+ */
+export async function downloadTo(url: string, file: string, tuning: DownloadTuning = {}): Promise<void> {
   mkdirSync(dirname(file), { recursive: true });
-  await pipeline(Readable.fromWeb(res.body as WebReadableStream<Uint8Array>), createWriteStream(file, { mode: 0o600 }));
+  await downloadFile(url, file, { headers: { 'user-agent': 'claudio-desktop' }, ...tuning });
 }
 
 /**

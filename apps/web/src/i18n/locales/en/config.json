@@ -298,6 +298,7 @@
       "integrity": "The download did not match the registry's checksum and was discarded.",
       "out-of-range": "Claudio does not support Claude Code {{version}} yet.",
       "fetch-failed": "Could not download Claude Code.",
+      "download-interrupted": "The connection kept dropping while downloading Claude Code, even after retrying. Try again when the network is steadier.",
       "not-newer": "That version is not newer than the one in use.",
       "version-mismatch": "The installed binary did not report the version it was meant to be, so it was discarded.",
       "disk": "There is not enough space in <mono>/data</mono> for Claude Code."
@@ -408,6 +409,7 @@
       "bad-signature": "The download has no valid signature and was discarded.",
       "bad-manifest": "The download's manifest is not valid and was discarded.",
       "fetch-failed": "Could not download the update.",
+      "download-interrupted": "The connection kept dropping during the download, even after retrying. Try again when the network is steadier.",
       "disk": "There is not enough space in <mono>/data</mono> for the update.",
       "needs-image": "This release needs a newer image than this container runs.",
       "needs-shell": "This release needs a newer desktop app.",

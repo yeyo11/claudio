@@ -172,6 +172,7 @@ test('actions through the shell throw a refusal as the page’s own client does,
 test('every refusal and every status error has a code the card words, and an unknown one has none', () => {
   assert.equal(updateErrorCode({ code: 'update.needs-auth' }), 'needs-auth');
   assert.equal(updateErrorCode('bad-signature'), 'bad-signature');
+  assert.equal(updateErrorCode('download-interrupted'), 'download-interrupted', 'a status error the server sets after every retry failed');
   assert.equal(updateErrorCode({ code: 'update.no-release' }), 'no-release');
   assert.equal(updateErrorCode({ code: 'update.something-new' }), null);
   assert.equal(updateErrorCode(new Error('the release 0.6.1 has no server bundle')), null);
@@ -179,7 +180,7 @@ test('every refusal and every status error has a code the card words, and an unk
 });
 
 test('only a failure another try can change offers Try again', () => {
-  for (const code of ['fetch-failed', 'bad-signature', 'bad-manifest', 'disk', 'busy', null] as const) assert.equal(canRetryUpdate(code), true, String(code));
+  for (const code of ['fetch-failed', 'download-interrupted', 'bad-signature', 'bad-manifest', 'disk', 'busy', null] as const) assert.equal(canRetryUpdate(code), true, String(code));
   for (const code of ['needs-image', 'needs-shell', 'needs-auth', 'not-owner', 'unsupported', 'no-release', 'not-ready', 'not-overlay'] as const) assert.equal(canRetryUpdate(code), false, code);
 });
 

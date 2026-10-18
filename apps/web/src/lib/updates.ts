@@ -145,6 +145,7 @@ export function refusalError(refusal: PayloadRefusal): Error & { code: string | 
 
 const UPDATE_ERROR_CODES = [
   'fetch-failed',
+  'download-interrupted',
   'bad-signature',
   'bad-manifest',
   'disk',
@@ -175,7 +176,7 @@ export function updateErrorCode(error: unknown): UpdateErrorCode | null {
 
 /** Whether pressing the same button again can change the outcome; every other code has a way out of its own */
 export function canRetryUpdate(code: UpdateErrorCode | null): boolean {
-  return code === null || code === 'fetch-failed' || code === 'bad-signature' || code === 'bad-manifest' || code === 'disk' || code === 'busy';
+  return code === null || code === 'fetch-failed' || code === 'download-interrupted' || code === 'bad-signature' || code === 'bad-manifest' || code === 'disk' || code === 'busy';
 }
 
 /** A page opened on the machine that runs the server, as opposed to a phone or another computer */

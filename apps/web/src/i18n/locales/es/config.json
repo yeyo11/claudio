@@ -298,6 +298,7 @@
       "integrity": "La descarga no coincide con la suma de comprobación del registro y se ha descartado.",
       "out-of-range": "Claudio aún no admite Claude Code {{version}}.",
       "fetch-failed": "No se ha podido descargar Claude Code.",
+      "download-interrupted": "La conexión se ha cortado varias veces al descargar Claude Code, también al reintentarlo. Vuelve a intentarlo cuando la red sea más estable.",
       "not-newer": "Esa versión no es más reciente que la que está en uso.",
       "version-mismatch": "El binario instalado no indicó la versión esperada, así que se ha descartado.",
       "disk": "No hay espacio suficiente en <mono>/data</mono> para Claude Code."
@@ -408,6 +409,7 @@
       "bad-signature": "La descarga no tiene una firma válida y se ha descartado.",
       "bad-manifest": "El manifiesto de la descarga no es válido y se ha descartado.",
       "fetch-failed": "No se ha podido descargar la actualización.",
+      "download-interrupted": "La conexión se ha cortado varias veces durante la descarga, también al reintentarla. Vuelve a intentarlo cuando la red sea más estable.",
       "disk": "No hay espacio suficiente en <mono>/data</mono> para la actualización.",
       "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor.",
       "needs-shell": "Esta versión necesita una aplicación de escritorio más reciente.",

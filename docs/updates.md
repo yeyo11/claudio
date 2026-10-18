@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-19T09:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - updates
     - docker
@@ -110,8 +110,22 @@ a desktop dev build) and shows the host commands of
    `/app`. A `bad` version is never offered again; the next release is.
 6. **The page reloads on its own** when `stream.hello` reports the new version.
 
-A download that fails comes back as `state: 'failed'` with `error` (`fetch-failed`, `bad-signature`,
-`bad-manifest`, `disk`, `needs-image`, `needs-shell`); only preconditions are HTTP errors. The card
+**Download retries.** The tarball is downloaded by `downloadFile` (`packages/core/src/updates/download.ts`)
+over `node:http`/`node:https`, never `fetch`: undici's parser asserts `!this.paused` when a
+`Connection: close` server ends the socket while the body is paused by back-pressure, and throws it
+from a socket listener no caller can catch; it took a desktop smoke run's server down mid-download
+(Node 24.22). A connection that closes early, a body shorter than its `Content-Length` or than the
+manifest's size, a reset or 60 s without data is an interrupted attempt, retried three times after
+2, 8 and 30 s, as is a 5xx, 408 or 429. A retry goes on from the partial file with `Range` (and
+`If-Range` with the ETag or `Last-Modified`) when the server sent `Accept-Ranges: bytes` and answers
+206 from exactly where the file ends; otherwise it starts over. A partial file never counts as
+downloaded: the sha256 and the signature are checked on the whole file as it lies on disk, and a size
+other than the manifest's fails at once. The same downloader fetches the Claude Code tarball and
+the desktop shell's AppImage when it switches from the `.deb`.
+
+A download that fails comes back as `state: 'failed'` with `error` (`fetch-failed`,
+`download-interrupted` when every retry was interrupted, `bad-signature`, `bad-manifest`, `disk`,
+`needs-image`, `needs-shell`); only preconditions are HTTP errors. The card
 shows every error and refusal (`update.<code>`, including `update.needs-shell`) from its code in the
 person's language, each with its way out, never the server's English text. A downloaded update applies at the next
 restart of any kind, since the trial is set at download time.
@@ -172,7 +186,8 @@ The Claude Code CLI updates in-app too, into `/data/cli/<version>/`
   start the launcher removes `current` when it is not newer than the image's pin (a newer image
   wins) and deletes versions nothing points at. A binary override in Settings → Claude Code still beats
   both.
-- Errors: `integrity`, `out-of-range`, `not-newer`, `version-mismatch`, `fetch-failed`, `disk`; and
+- Errors: `integrity`, `out-of-range`, `not-newer`, `version-mismatch`, `fetch-failed`,
+  `download-interrupted` (retried as the bundle is), `disk`; and
   `cli.no-version` (400) when no newer version is known. *Use the image's version* removes the link.
 
 ## Files and variables

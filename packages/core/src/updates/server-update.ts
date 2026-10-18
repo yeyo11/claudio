@@ -1,9 +1,6 @@
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { Readable, Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import type {
   AuthMode,
@@ -40,6 +37,7 @@ import {
   type PayloadBase,
 } from '../launcher/protocol.ts';
 import type { ReleaseAsset } from '../release-watch.ts';
+import { DownloadError, downloadFile, fetchOpener, hashFile, type DownloadTuning } from './download.ts';
 
 const run = promisify(execFile);
 
@@ -76,7 +74,10 @@ export interface ServerUpdatesOptions {
   /** The version this process runs */
   running: string;
   env?: NodeJS.ProcessEnv;
+  /** For the manifest, and for the tarball too when `download.open` is not given (tests) */
   fetch?: typeof fetch;
+  /** How the tarball is downloaded: `node:http` with three retries unless a test says otherwise */
+  download?: DownloadTuning;
   /** The newest release and its assets, as the last release check left them */
   release: () => { version: string; assets: ReleaseAsset[] } | null;
   security: () => { mode: AuthMode; readOnly: boolean };
@@ -389,9 +390,7 @@ export class ServerUpdates {
   }
 
   private fail(err: unknown): void {
-    const code: ServerUpdateError =
-      err instanceof Failed ? err.code : (err as NodeJS.ErrnoException | null)?.code === 'ENOSPC' ? 'disk' : 'fetch-failed';
-    this.set({ state: 'failed', error: code });
+    this.set({ state: 'failed', error: failureCode(err) });
   }
 
   private async unpack(v: string, { bytes, signature, manifest }: { bytes: Buffer; signature: string; manifest: BundleManifest }, assets: ReleaseAsset[]): Promise<void> {
@@ -402,25 +401,19 @@ export class ServerUpdates {
       if (!asset || !manifest.tarball.name.startsWith(bundleName(v))) throw new Failed('bad-manifest', `the release has no ${manifest.tarball.name}`);
       rmSync(staging, { recursive: true, force: true });
       mkdirSync(staging, { recursive: true });
-      const res = await this.get(asset.url);
-      if (!res.body) throw new Failed('fetch-failed', 'the tarball came empty');
-      const hash = createHash('sha256');
-      let received = 0;
       const total = manifest.tarball.size;
-      const count = new Transform({
-        transform: (chunk: Buffer, _encoding, done) => {
-          hash.update(chunk);
-          received += chunk.length;
-          if (received > total) {
-            done(new Failed('bad-signature', 'the tarball is larger than the manifest says'));
-            return;
-          }
-          this.progress = total > 0 ? received / total : null;
-          done(null, chunk);
+      const { bytes: received } = await downloadFile(asset.url, tarball, {
+        // An injected `fetch` (tests) serves the tarball too; the server itself downloads over node:http
+        ...(this.o.fetch ? { open: fetchOpener(this.o.fetch) } : {}),
+        ...this.o.download,
+        headers: { 'user-agent': `claudio/${this.o.running}` },
+        size: total,
+        onProgress: (n) => {
+          this.progress = total > 0 ? n / total : null;
         },
       });
-      await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), count, createWriteStream(tarball, { mode: 0o600 }));
-      if (received !== total || hash.digest('hex') !== manifest.tarball.sha256) throw new Failed('bad-signature', 'the tarball does not match its signed manifest');
+      // On the whole file as it lies on disk, whatever number of attempts and resumes it took
+      if (received !== total || (await hashFile(tarball, 'sha256')) !== manifest.tarball.sha256) throw new Failed('bad-signature', 'the tarball does not match its signed manifest');
       this.set({ state: 'verifying' });
       // Signed and hashed by now, so what tar writes is what CI built; the image ships GNU tar
       await run('tar', ['-xzf', tarball, '-C', staging, '--no-same-owner', '--no-same-permissions']).catch((err: unknown) => {
@@ -537,6 +530,18 @@ export class ServerUpdates {
   close(): void {
     this.stopIdleTimer();
   }
+}
+
+function failureCode(err: unknown): ServerUpdateError {
+  if (err instanceof Failed) return err.code;
+  if (err instanceof DownloadError) {
+    if (err.kind === 'interrupted') return 'download-interrupted';
+    // Another size than the signed manifest's cannot be the signed tarball
+    if (err.kind === 'wrong-size') return 'bad-signature';
+    if (err.kind === 'disk') return err.code === 'ENOSPC' || err.code === 'EDQUOT' ? 'disk' : 'fetch-failed';
+    return 'fetch-failed';
+  }
+  return (err as NodeJS.ErrnoException | null)?.code === 'ENOSPC' ? 'disk' : 'fetch-failed';
 }
 
 // An open terminal counts: its shell ends with the server (docs/plans/unified-updates.md, D6)
