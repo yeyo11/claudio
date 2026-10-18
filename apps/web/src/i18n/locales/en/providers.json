@@ -11,6 +11,7 @@
     "checking": "Checking"
   },
   "readyReason": "Installed, signed in and answering.",
+  "readyAs": "Signed in as {{account}}",
   "reason": {
     "missing-credentials": "Installed, but not signed in.",
     "stale-token": "Its sign-in has expired. Sign in again.",

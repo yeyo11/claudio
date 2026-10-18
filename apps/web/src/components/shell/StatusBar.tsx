@@ -9,6 +9,8 @@ import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
 import { useLimitWindowName } from '../../lib/limit-words';
+import { CLAUDE_CODE_ID } from '../../lib/provider-state';
+import { useProviders } from '../../lib/providers';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
 import { resetWhen } from '../../lib/reset-when';
 import { spendResetTime, spendView } from '../../lib/spend-cap';
@@ -49,7 +51,12 @@ export function useConnection(overview: Now['overview'], feedOpen: boolean): Con
   const { t } = useTranslation('components');
   const auth = overview.data?.system.auth;
   const cli = overview.data?.system.cli;
-  const healthy = cli?.installed === true && auth?.loggedIn === true;
+  // The account new work starts on, not the CLI's own login: a login account added beside an empty
+  // default runs chats, and `auth status` alone says "signed in" for a credential that was refused
+  const inUse = auth?.inUse ?? null;
+  const claude = useProviders().data?.find((s) => s.id === CLAUDE_CODE_ID);
+  const expired = inUse?.signInState === 'expired';
+  const healthy = cli?.installed === true && inUse !== null && !expired && (claude ? claude.state === 'ready' : true);
   const feedDown = !feedOpen && overview.data !== undefined;
   const tone: DotTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
   const title = overview.isError
@@ -60,8 +67,10 @@ export function useConnection(overview: Now['overview'], feedOpen: boolean): Con
         ? t('shell.claudeCode', { version: cli?.version ?? '' })
         : !cli?.installed
           ? t('shell.cliNotDetected')
-          : t('shell.notLoggedIn');
-  const account = [auth?.subscriptionType ?? auth?.authMethod, auth?.email].filter(Boolean).join(' · ') || t('shell.loggedIn');
+          : expired
+            ? t('shell.signInExpired')
+            : t('shell.notLoggedIn');
+  const account = [auth?.subscriptionType ?? auth?.authMethod, inUse?.label].filter(Boolean).join(' · ') || t('shell.loggedIn');
   const detail = healthy
     ? feedDown
       ? t('shell.liveUpdatesPaused')
@@ -72,9 +81,11 @@ export function useConnection(overview: Now['overview'], feedOpen: boolean): Con
         ? ''
         : !cli?.installed
           ? t('shell.installCli')
-          : t('shell.addCredential');
+          : expired
+            ? t('shell.signInAgain')
+            : t('shell.addCredential');
   // Healthy, the account is what a person looks for; otherwise the problem is
-  const short = healthy ? (feedDown ? t('shell.liveUpdatesPaused') : (auth?.email ?? account)) : title;
+  const short = healthy ? (feedDown ? t('shell.liveUpdatesPaused') : (inUse?.label ?? account)) : title;
   return { tone, live: healthy && !feedDown, healthy, title, detail, short };
 }
 

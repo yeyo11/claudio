@@ -11,6 +11,7 @@
     "checking": "Comprobando"
   },
   "readyReason": "Instalado, con sesión iniciada y respondiendo.",
+  "readyAs": "Sesión iniciada como {{account}}",
   "reason": {
     "missing-credentials": "Instalado, pero sin sesión iniciada.",
     "stale-token": "Su sesión ha caducado. Inicia sesión de nuevo.",
