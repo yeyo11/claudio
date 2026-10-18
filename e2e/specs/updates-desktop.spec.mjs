@@ -200,9 +200,11 @@ export default async ({ page, api, check, releases }) => {
     });
 
     // ---- An app that cannot update itself says why and links the release ----
+    // The shell's message is English and fixed; the card says it in the person's language by reason
     const message = 'This copy of Claudio was not installed from an AppImage or a .deb, so it cannot update itself.';
+    const explanation = "This desktop app's package type is not known, so it cannot update itself.";
     await withShell({ status: 'unsupported', reason: 'unknown-package', message }, NO_SWITCH, async () => {
-      await page.waitFor(cardSays(message), { label: "the shell's own explanation" });
+      await page.waitFor(cardSays(explanation), { label: 'the explanation of why it cannot update itself' });
       const links = await page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${DESKTOP} a`)})].map((a) => a.href)`);
       check(links.includes(releases.url), `the release page is linked: ${links.join(', ')}`);
       const download = await page.eval(`return !!document.querySelector(${JSON.stringify(`${DESKTOP} button`)})`);
