@@ -35,7 +35,7 @@ export function SignIn({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <div className="signin">
+    <main className="signin">
       <form className="card signin-card" onSubmit={submit}>
         <Illustration name="signed-out" tone="warn" size="sm" className="signin-illustration" />
         <div className="signin-head">
@@ -72,9 +72,9 @@ export function SignIn({ mode }: { mode: AuthMode }) {
           {t('signIn.submit')}
         </button>
         <p id={hintId} className="signin-hint">
-          {firstRun ? t('signIn.firstRun.hint') : t('signIn.hint')}
+          {firstRun ? <Trans t={t} i18nKey="signIn.firstRun.hint" components={{ code: <code /> }} /> : t('signIn.hint')}
         </p>
       </form>
-    </div>
+    </main>
   );
 }

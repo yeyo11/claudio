@@ -1,8 +1,8 @@
-import { KeyRound } from 'lucide-react';
+import { CircleAlert, KeyRound } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { HostRefusal } from '@claudio/shared';
-import { BrandMark, ICON } from '@claudio/ui/components/icons';
+import { BrandMark, ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Illustration } from '@claudio/ui/components/illustrations';
 import { formatDuration } from '@claudio/ui/lib/format';
 import { claimHost } from '../lib/auth';
@@ -34,7 +34,7 @@ export function HostRefused({ refusal }: { refusal: HostRefusal }) {
       }
       if (outcome.status === 'rejected') setError(t('signIn.rejected'));
       else if (outcome.status === 'rate-limited') setError(t('hostRefused.tooMany', { wait: formatDuration(outcome.waitMs) }));
-      else setError(t('hostRefused.refused', { message: outcome.message }));
+      else setError(outcome.code === 'host.not-owner' ? t('hostRefused.notOwner') : outcome.code === 'host.invalid' ? t('hostRefused.invalid') : t('hostRefused.refused'));
     } catch {
       setError(t('signIn.failed'));
     } finally {
@@ -43,7 +43,7 @@ export function HostRefused({ refusal }: { refusal: HostRefusal }) {
   }
 
   return (
-    <div className="signin">
+    <main className="signin">
       <form className="card signin-card" onSubmit={submit}>
         <Illustration name="signed-out" tone="warn" size="sm" className="signin-illustration" />
         <div className="signin-head">
@@ -75,6 +75,7 @@ export function HostRefused({ refusal }: { refusal: HostRefusal }) {
             </label>
             {error && (
               <div className="alert alert-bad" role="alert">
+                <CircleAlert {...ICON_SM} className="alert-icon" aria-hidden />
                 <div className="alert-body">{error}</div>
               </div>
             )}
@@ -83,14 +84,16 @@ export function HostRefused({ refusal }: { refusal: HostRefusal }) {
             </button>
             {firstRunToken && (
               <p id={hintId} className="signin-hint">
-                {t('signIn.firstRun.hint')}
+                <Trans t={t} i18nKey="signIn.firstRun.hint" components={{ code: <code /> }} />
               </p>
             )}
           </>
         ) : (
-          <p className="signin-hint">{t('hostRefused.manual')}</p>
+          <p className="signin-hint">
+            <Trans t={t} i18nKey="hostRefused.manual" components={{ code: <code /> }} />
+          </p>
         )}
       </form>
-    </div>
+    </main>
   );
 }

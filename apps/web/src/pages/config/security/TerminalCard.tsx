@@ -39,30 +39,13 @@ export function changedNumbers(status: TerminalStatus, draft: Partial<Numbers>):
  * Why a change was refused, in the person's words and with what fixes it. The server's sentence is
  * never shown: it is English and says what the gate saw, not what to do.
  */
-function RefusalAlert({ refusal, onAllowAny, busy }: { refusal: TerminalRefusal; onAllowAny: () => void; busy: boolean }) {
+function RefusalAlert({ refusal }: { refusal: TerminalRefusal }) {
   const { t } = useTranslation('terminal');
-  const action = (item: TerminalRefusalAction) => {
-    switch (item.kind) {
-      case 'link':
-        return (
-          <Link key={item.label} className="btn btn-small" to={settingsHref('access', { section: item.section })}>
-            {t(`refusal.${item.label}`)}
-          </Link>
-        );
-      case 'allow-any':
-        return (
-          <button key="allow-any" type="button" className="btn btn-small" disabled={busy} onClick={onAllowAny}>
-            {t('refusal.allowAny')}
-          </button>
-        );
-      case 'focus-remote':
-        return (
-          <button key="focus-remote" type="button" className="btn btn-small" onClick={() => document.getElementById(REMOTE_FIELD)?.focus()}>
-            {t('refusal.chooseRemote')}
-          </button>
-        );
-    }
-  };
+  const action = (item: TerminalRefusalAction) => (
+    <Link key={item.label} className="btn btn-small" to={settingsHref('access', { section: item.section })}>
+      {t(`refusal.${item.label}`)}
+    </Link>
+  );
   return (
     <div className={refusal.tone === 'bad' ? 'alert alert-bad' : 'alert alert-warn'} role="alert" data-testid="terminal-refusal">
       <TriangleAlert {...ICON_SM} className="alert-icon" aria-hidden />
@@ -168,8 +151,10 @@ function Form({ status }: { status: TerminalStatus }) {
   const [draft, setDraft] = useState<Numbers>({ maxTerminals: settings.maxTerminals, idleMinutes: settings.idleMinutes, scrollbackLines: settings.scrollbackLines });
   const [number, setNumber] = useState<Partial<Numbers>>({});
   const [screenReader, setScreenReader] = useScreenReaderMode();
-  const [refusal, setRefusal] = useState<TerminalRefusal | null>(null);
-  const toggle = useSaveTerminal(t('settings.saved'), setRefusal);
+  // A refusal belongs to the reason the status gave when it was made: once the status says another, it is stale
+  const [refused, setRefused] = useState<{ refusal: TerminalRefusal; reason: TerminalStatus['reason'] } | null>(null);
+  const refusal = refused && refused.reason === status.reason ? refused.refusal : null;
+  const toggle = useSaveTerminal(t('settings.saved'), (next) => setRefused(next && { refusal: next, reason: status.reason }));
   const numbers = useSaveTerminal(t('settings.saved'));
   // The warning depends on the auth mode; until it is read, say nothing rather than guess
   const auth = useQuery({ queryKey: keys.securityAuth, queryFn: ({ signal }) => api.securityAuth({ signal }) });
@@ -219,11 +204,7 @@ function Form({ status }: { status: TerminalStatus }) {
       )}
       {/* A refused change wins over the status's standing reason: it is what the person just did */}
       {(refusal ?? (status.reason && status.reason !== 'off' ? terminalRefusal(status.reason) : null)) && (
-        <RefusalAlert
-          refusal={(refusal ?? (status.reason ? terminalRefusal(status.reason) : null)) as TerminalRefusal}
-          busy={toggle.isPending}
-          onAllowAny={() => toggle.mutate({ remote: 'any' })}
-        />
+        <RefusalAlert refusal={(refusal ?? (status.reason ? terminalRefusal(status.reason) : null)) as TerminalRefusal} />
       )}
 
       {/* Chosen before the switch is on: in a container it is the first thing a person may need to set */}

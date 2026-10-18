@@ -301,7 +301,7 @@
       "fetch-failed": "No se ha podido descargar Claude Code.",
       "not-newer": "Esa versión no es más reciente que la que está en uso.",
       "version-mismatch": "El binario instalado no indicó la versión esperada, así que se ha descartado.",
-      "disk": "No hay espacio suficiente en /data para Claude Code."
+      "disk": "No hay espacio suficiente en <mono>/data</mono> para Claude Code."
     },
     "useImage": "Usar la versión de la imagen ({{pinned}})",
     "newChats": "Los chats nuevos usan la {{version}}; los que están en marcha siguen con la suya."
@@ -371,7 +371,7 @@
       "bad-signature": "La descarga no tiene una firma válida y se ha descartado.",
       "bad-manifest": "El manifiesto de la descarga no es válido y se ha descartado.",
       "fetch-failed": "No se ha podido descargar la actualización.",
-      "disk": "No hay espacio suficiente en /data para la actualización.",
+      "disk": "No hay espacio suficiente en <mono>/data</mono> para la actualización.",
       "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor."
     },
     "rolledBack": "Claudio {{from}} no arrancó, así que el contenedor ha vuelto a {{to}}.",

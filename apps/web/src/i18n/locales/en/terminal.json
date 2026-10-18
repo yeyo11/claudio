@@ -31,10 +31,8 @@
   },
   "refusal": {
     "protect": "Protect with a token",
-    "allowAny": "Allow from any device with the token",
     "tunnel": "Open the tunnel",
-    "access": "Open Access & safety",
-    "chooseRemote": "Choose where it opens"
+    "access": "Open Access & safety"
   },
   "limits": {
     "off": "A terminal opens only on this machine. Other devices cannot open one.",

@@ -301,7 +301,7 @@
       "fetch-failed": "Could not download Claude Code.",
       "not-newer": "That version is not newer than the one in use.",
       "version-mismatch": "The installed binary did not report the version it was meant to be, so it was discarded.",
-      "disk": "There is not enough space in /data for Claude Code."
+      "disk": "There is not enough space in <mono>/data</mono> for Claude Code."
     },
     "useImage": "Use the image's version ({{pinned}})",
     "newChats": "New chats use {{version}}; running ones keep theirs."
@@ -371,7 +371,7 @@
       "bad-signature": "The download has no valid signature and was discarded.",
       "bad-manifest": "The download's manifest is not valid and was discarded.",
       "fetch-failed": "Could not download the update.",
-      "disk": "There is not enough space in /data for the update.",
+      "disk": "There is not enough space in <mono>/data</mono> for the update.",
       "needs-image": "This release needs a newer image than this container runs."
     },
     "rolledBack": "Claudio {{from}} did not start, so the container went back to {{to}}.",

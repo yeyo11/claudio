@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import { AlertTriangle } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { CliVersionInfo } from '@claudio/shared';
 import { api, keys } from '../../api';
+import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
@@ -88,7 +90,10 @@ export function CliCard() {
       )}
       {failed?.error && (
         <div className="alert alert-bad" role="alert" data-testid="cli-install-failed">
-          <div className="alert-body">{t(`cli.installError.${failed.error}`, { version: failed.version })}</div>
+          <AlertTriangle {...ICON_SM} className="alert-icon" aria-hidden />
+          <div className="alert-body">
+            <Trans t={t} i18nKey={`cli.installError.${failed.error}`} values={{ version: failed.version }} components={{ mono: <span className="mono" /> }} />
+          </div>
         </div>
       )}
       <ErrorBox error={install.error ?? useImage.error} />

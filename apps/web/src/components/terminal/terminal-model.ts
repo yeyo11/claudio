@@ -61,12 +61,13 @@ const REASONS: readonly TerminalUnavailableReason[] = [
 
 /** What a person can do about a refusal, when there is something */
 export type TerminalRefusalAction =
-  /** Opens a section of Settings → Access & safety */
-  | { kind: 'link'; label: 'protect' | 'tunnel' | 'access'; section: 'access' | 'remote' }
-  /** Sets `remote` to `any` right here */
-  | { kind: 'allow-any' }
-  /** Takes the person to the "Where it opens" choice */
-  | { kind: 'focus-remote' };
+  /**
+   * Opens a section of Settings → Access & safety. The only kind there is: a refusal that comes
+   * from another device is judged again on every change made from there, so a button that changed
+   * `remote` here could only be refused once more (the gate does not let a remote caller widen its
+   * own access).
+   */
+  { kind: 'link'; label: 'protect' | 'tunnel' | 'access'; section: 'access' | 'remote' };
 
 export interface TerminalRefusal {
   reason: TerminalUnavailableReason;
@@ -80,8 +81,7 @@ export interface TerminalRefusal {
 
 const ACTIONS: Partial<Record<TerminalUnavailableReason, TerminalRefusalAction[]>> = {
   'needs-auth': [{ kind: 'link', label: 'protect', section: 'access' }],
-  'needs-tunnel': [{ kind: 'allow-any' }, { kind: 'link', label: 'tunnel', section: 'remote' }],
-  'remote-off': [{ kind: 'focus-remote' }],
+  'needs-tunnel': [{ kind: 'link', label: 'tunnel', section: 'remote' }],
   'read-only': [{ kind: 'link', label: 'access', section: 'access' }],
 };
 

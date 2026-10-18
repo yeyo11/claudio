@@ -179,7 +179,7 @@ export async function signIn(credential: string): Promise<boolean> {
   }
 }
 
-export type ClaimOutcome = { status: 'claimed'; result: ClaimHostResult } | { status: 'rejected' } | { status: 'rate-limited'; waitMs: number } | { status: 'refused'; message: string };
+export type ClaimOutcome = { status: 'claimed'; result: ClaimHostResult } | { status: 'rejected' } | { status: 'rate-limited'; waitMs: number } | { status: 'refused'; code: string | null };
 
 /**
  * Proves the owner's token against the one route a refused host may still reach, which adds the host
@@ -201,6 +201,6 @@ export async function claimHost(credential: string): Promise<ClaimOutcome> {
     const seconds = Number(res.headers.get('retry-after'));
     return { status: 'rate-limited', waitMs: (Number.isFinite(seconds) && seconds > 0 ? seconds : 60) * 1000 };
   }
-  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-  return { status: 'refused', message: body?.error ?? `HTTP ${res.status}` };
+  const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+  return { status: 'refused', code: typeof body?.code === 'string' ? body.code : null };
 }

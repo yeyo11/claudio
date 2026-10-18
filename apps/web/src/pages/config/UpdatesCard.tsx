@@ -2,7 +2,7 @@ import type { ClaudioReleaseInfo, ServerUpdateApplyRequest, ServerUpdateStatus, 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ExternalLink, Info, RotateCw } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
@@ -466,7 +466,8 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
         </>
       )}
 
-      {!needsImage && (state === 'idle' || state === 'failed') && updateAvailable && (
+      {/* After a failure the alert's Try again is the way forward: a second button for the same call would be two primaries */}
+      {!needsImage && state === 'idle' && updateAvailable && (
         <div>
           <button type="button" className="btn btn-primary" disabled={pending} onClick={props.onDownload}>
             <Download {...ICON} /> {t('updates.download', { version: latest })}
@@ -522,7 +523,9 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
         <div className="alert alert-bad" role="alert" data-testid="server-update-failed">
           <AlertTriangle className="alert-icon" {...ICON_SM} />
           <div className="alert-body stack">
-            <span>{t(`updates.serverError.${status.error}`)}</span>
+            <span>
+              <Trans t={t} i18nKey={`updates.serverError.${status.error}`} components={{ mono: <span className="mono" /> }} />
+            </span>
             <div>
               <button type="button" className="btn btn-small" disabled={pending} onClick={props.onDownload}>
                 {t('updates.tryAgain')}

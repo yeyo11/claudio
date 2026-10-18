@@ -49,8 +49,9 @@ test('every reason the status carries has a sentence of its own and the fix that
     assert.ok(i18n.exists(`terminal:${found.sentence}`), found.sentence);
   }
   assert.deepEqual(terminalRefusal('needs-auth')?.actions, [{ kind: 'link', label: 'protect', section: 'access' }]);
-  assert.deepEqual(terminalRefusal('needs-tunnel')?.actions, [{ kind: 'allow-any' }, { kind: 'link', label: 'tunnel', section: 'remote' }]);
-  assert.deepEqual(terminalRefusal('remote-off')?.actions, [{ kind: 'focus-remote' }]);
+  // Only a link: a change of `remote` made from the device that was refused is refused again
+  assert.deepEqual(terminalRefusal('needs-tunnel')?.actions, [{ kind: 'link', label: 'tunnel', section: 'remote' }]);
+  assert.deepEqual(terminalRefusal('remote-off')?.actions, []);
   assert.deepEqual(terminalRefusal('chat-token')?.actions, []);
   assert.equal(terminalRefusal('host-failed')?.tone, 'bad');
   assert.equal(terminalRefusal('needs-auth')?.tone, 'warn');
@@ -166,6 +167,8 @@ test('the host is the one literal on the screen: mono', () => {
 test('Host refused says where the first-run token is while it is unused', () => {
   const html = words(renderToStaticMarkup(<HostRefused refusal={refusal({ firstRunToken: true })} />));
   assert.match(html, /\/data\/first-run-token/);
+  // The path and the command are literals the machine reads
+  assert.match(renderToStaticMarkup(<HostRefused refusal={refusal({ firstRunToken: true })} />), /<code>\/data\/first-run-token<\/code>/);
 });
 
 test('without a way to claim there is no field, and the text says where to add the host', () => {
@@ -198,8 +201,8 @@ test('the claim keeps the token only when the wrapper accepted it', async () => 
   assert.deepEqual(await claimHost('wrong'), { status: 'rate-limited', waitMs: 90_000 });
   assert.equal(getToken(), before);
 
-  globalThis.fetch = reply(403, { error: 'host.not-owner' });
-  assert.deepEqual(await claimHost('desktop'), { status: 'refused', message: 'host.not-owner' });
+  globalThis.fetch = reply(403, { error: 'only the owner may add a host', code: 'host.not-owner' });
+  assert.deepEqual(await claimHost('desktop'), { status: 'refused', code: 'host.not-owner' });
 
   globalThis.fetch = reply(200, { host: '192.168.0.30', allowedHosts: ['192.168.0.30'] });
   const claimed = await claimHost(' owner-token ');
