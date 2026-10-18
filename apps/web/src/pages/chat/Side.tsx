@@ -1,6 +1,7 @@
 import type { Chat, Execution } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
+import { agentBranch, branchElapsed } from '@claudio/chat-ui/lib/chat-branches';
 import { branchLive, effectiveBranch } from '@claudio/chat-ui/lib/liveness';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +22,7 @@ import { WorkflowCard } from '../../components/WorkflowCard';
 import { api } from '../../api';
 import { contextLevel, contextShare, formatPercent, formatTokens, roleOf } from '@claudio/chat-ui/lib/chat-model';
 import { useDetailPanel } from '../../lib/detail';
-import { durationBetween, formatCost, formatDateTime, formatHour, formatNumber, shortPath, timeAgo, toMs } from '@claudio/ui/lib/format';
+import { durationBetween, formatCost, formatDuration, formatDateTime, formatHour, formatNumber, shortPath, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { useLimitWindowName } from '../../lib/limit-words';
 import { healthReason } from '../../lib/server-strings';
 import { compactState } from './context-model';
@@ -244,7 +245,7 @@ export function BranchesCard({ chat }: { chat: Chat }) {
                   <div className="side-item-head">
                     <BranchStatus status={sub.status} />
                     <span className="muted small">
-                      {sub.kind} · {durationBetween(sub.startedAt, sub.endedAt)}
+                      {sub.kind} · {formatDuration(branchElapsed(agentBranch(chat, sub), Date.now()))}
                     </span>
                   </div>
                   <button type="button" className="link-btn detail-task-link" onClick={() => open({ kind: 'subagent', chatId: chat.id, agentId: sub.id })}>

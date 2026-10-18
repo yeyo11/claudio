@@ -1,4 +1,4 @@
-import type { ChatActivity, ChatBackgroundTask, ChatBranchStatus, ChatChildren, ChatSubagent, ChatWorkflow } from '@claudio/shared';
+import { closeRuns, runsElapsedMs, type ChatActivity, type ChatBackgroundTask, type ChatBranchRun, type ChatBranchStatus, type ChatChildren, type ChatSubagent, type ChatWorkflow } from '@claudio/shared';
 import { subagentFor } from './chat-steps';
 import { branchLive, effectiveBranch, type LivenessChat } from './liveness';
 
@@ -29,8 +29,11 @@ export interface Branch {
   description: string;
   mono: boolean;
   status: ChatBranchStatus;
+  /** When it was first launched */
   startedAt: string;
   endedAt: string | null;
+  /** An agent's stretches of work, one more per resume; empty for anything else, whose clock is `startedAt`..`endedAt` */
+  runs: ChatBranchRun[];
   /** A running subagent's own line; null for anything else */
   activity: ChatActivity | null;
   /** The shell command of a background task */
@@ -57,6 +60,8 @@ export function agentBranch(chat: LivenessChat, subagent: ChatSubagent): Branch 
     status: sub.status,
     startedAt: sub.startedAt,
     endedAt: sub.endedAt,
+    // A chat nothing holds settles its agent here, so an open run must end with it
+    runs: sub.status === 'running' || sub.endedAt === null ? sub.runs : closeRuns(sub.runs, sub.endedAt),
     activity: sub.status === 'running' ? sub.activity ?? null : null,
     command: null,
     progress: null,
@@ -79,6 +84,7 @@ export function taskBranch(chat: LivenessChat, background: ChatBackgroundTask, p
     status: task.status,
     startedAt: task.startedAt,
     endedAt: task.endedAt,
+    runs: [],
     activity: null,
     command,
     progress: null,
@@ -104,6 +110,7 @@ export function workflowBranch(chat: LivenessChat, run: ChatWorkflow): Branch {
     status: workflow.status,
     startedAt: workflow.startedAt,
     endedAt: workflow.endedAt,
+    runs: [],
     activity: null,
     command: null,
     progress: { done, total: agents.length, phase },
@@ -264,7 +271,12 @@ export function branchesOfStep(chat: BranchChat, calls: readonly BranchCall[], s
   return [...found.values()];
 }
 
-/** How long it ran, or has been running: the clock a row or a card shows. */
-export function branchElapsed(branch: Pick<Branch, 'startedAt' | 'endedAt'>, now: number): number {
+/**
+ * How long it ran, or has been running: the clock a row or a card shows. An agent that was resumed
+ * counts its current run while it works and its active time over every run once it ended, the same
+ * number the panel shows; anything else counts from its start.
+ */
+export function branchElapsed(branch: Pick<Branch, 'startedAt' | 'endedAt'> & Partial<Pick<Branch, 'runs'>>, now: number): number {
+  if (branch.runs && branch.runs.length > 0) return runsElapsedMs(branch.runs, now);
   return Math.max(0, (branch.endedAt ? at(branch.endedAt) : now) - at(branch.startedAt));
 }

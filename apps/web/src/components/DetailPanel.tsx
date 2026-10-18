@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { AgentTranscript, ChatActivity, ChatBackgroundTask, ChatDetail, ChatSubagentEntry } from '@claudio/shared';
+import { runsElapsedMs, type AgentTranscript, type ChatActivity, type ChatBackgroundTask, type ChatDetail, type ChatSubagentEntry } from '@claudio/shared';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -145,7 +145,9 @@ function TaskBody({ chatId, taskId }: { chatId: string; taskId: string }) {
 
 // ---------- subagent and workflow agent ----------
 
+/** The strip's clock: the current run while it works, the active time over every run once it ended. */
 function agentDuration(agent: AgentTranscript): string {
+  if (agent.runs.length > 0 && agent.status === 'running') return formatDuration(runsElapsedMs(agent.runs, Date.now()));
   if (agent.status === 'running') return durationBetween(agent.startedAt, null);
   if (agent.durationMs !== null) return formatDuration(agent.durationMs);
   return durationBetween(agent.startedAt, agent.endedAt);
@@ -268,6 +270,12 @@ function AgentBody({ target }: { target: AgentTarget }) {
         )}
         <dt>{t('detail.started')}</dt>
         <dd>{formatDateTime(data.startedAt)}</dd>
+        {data.runs.length > 1 && (
+          <>
+            <dt>{t('detail.runs')}</dt>
+            <dd>{t('detail.runsCount', { count: data.runs.length })}</dd>
+          </>
+        )}
         <dt>{t('detail.chat')}</dt>
         <dd className="mono break">
           <Link to={`/chats/${data.sessionId}`}>{data.sessionId}</Link>

@@ -134,7 +134,7 @@ test('a running branch row is named by what it shows, and a nested one says whos
   const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
   const sub = (over: Partial<ChatSubagent>): ChatSubagent => ({
     id: 'agent-1', sessionId: 'chat-1', kind: 'Explore', description: 'Survey the build scripts', status: 'running', startedAt: ago(42_000), endedAt: null,
-    lastActivityAt: null, cwd: null, tasks: [], activity: null, ...over,
+    runs: [], lastActivityAt: null, cwd: null, tasks: [], activity: null, ...over,
   });
   const branches: ChatChildren = {
     subagents: [

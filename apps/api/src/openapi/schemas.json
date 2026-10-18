@@ -3090,7 +3090,8 @@
         "type": [
           "string",
           "null"
-        ]
+        ],
+        "description": "When it was first launched"
       },
       "endedAt": {
         "type": [
@@ -3102,7 +3103,15 @@
         "type": [
           "number",
           "null"
-        ]
+        ],
+        "description": "Time it was active, over all its runs; the current run's elapsed time is `runs` against the clock"
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBranchRun"
+        },
+        "description": "Every stretch it worked, oldest first; empty for a workflow agent"
       },
       "lastActivityAt": {
         "type": [
@@ -3172,6 +3181,7 @@
       "startedAt",
       "endedAt",
       "durationMs",
+      "runs",
       "lastActivityAt",
       "model",
       "usage",
@@ -3184,6 +3194,25 @@
       "tasks"
     ],
     "description": "Everything one subagent or workflow agent did, from the transcript and meta the CLI keeps for it beside the session's transcript: what it was asked, how it went, and its whole conversation."
+  },
+  "ChatBranchRun": {
+    "type": "object",
+    "properties": {
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "startedAt",
+      "endedAt"
+    ],
+    "description": "One stretch an agent was working: from its launch, or from a resume by its parent, to the notification that it stopped. An agent that was resumed has several; `endedAt` is null for the one still open."
   },
   "ChatBackgroundTask": {
     "type": "object",
@@ -13832,13 +13861,21 @@
         "$ref": "#/components/schemas/ChatBranchStatus"
       },
       "startedAt": {
-        "type": "string"
+        "type": "string",
+        "description": "When it was first launched; a resume does not move it (see `runs`)"
       },
       "endedAt": {
         "type": [
           "string",
           "null"
         ]
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBranchRun"
+        },
+        "description": "Every stretch it worked, oldest first: one, or more when its parent resumed it"
       },
       "lastActivityAt": {
         "type": [
@@ -13879,6 +13916,7 @@
       "status",
       "startedAt",
       "endedAt",
+      "runs",
       "lastActivityAt",
       "cwd",
       "tasks",
@@ -14570,13 +14608,21 @@
         "$ref": "#/components/schemas/ChatBranchStatus"
       },
       "startedAt": {
-        "type": "string"
+        "type": "string",
+        "description": "When it was first launched; a resume does not move it (see `runs`)"
       },
       "endedAt": {
         "type": [
           "string",
           "null"
         ]
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBranchRun"
+        },
+        "description": "Every stretch it worked, oldest first: one, or more when its parent resumed it"
       },
       "lastActivityAt": {
         "type": [
@@ -14618,6 +14664,7 @@
       "id",
       "kind",
       "lastActivityAt",
+      "runs",
       "sessionId",
       "startedAt",
       "status",
