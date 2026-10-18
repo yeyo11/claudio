@@ -67,6 +67,8 @@ export interface LiveMonitorOptions {
   /** Sent with every request: the bearer token when the server is guarded */
   headers?: Record<string, string>;
   onSnapshot: (snapshot: LiveSnapshot) => void;
+  /** Every event's type on the feed, for what the tray shows besides live work (the payload's update) */
+  onEvent?: (type: string) => void;
   log?: (line: string) => void;
   refreshGapMs?: number;
   pollMs?: number;
@@ -194,6 +196,7 @@ export class LiveMonitor {
         for await (const chunk of res.body) {
           for (const event of parser.push(decoder.decode(chunk, { stream: true }))) {
             if (event.id) this.lastEventId = event.id;
+            this.opts.onEvent?.(event.type);
             if (RELEVANT.some((prefix) => event.type.startsWith(prefix))) this.refresh();
           }
         }
