@@ -1,6 +1,7 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import type { Core } from '@claudio/core';
-import type { AuditFilter, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@claudio/shared';
+import type { AuditFilter, ClaimHostResult, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@claudio/shared';
+import { LOOPBACK, hostNameOf, isOwnerActor } from '../security.ts';
 import { revokeTerminalAccess } from '../terminal-socket.ts';
 import { count } from './chats.ts';
 
@@ -29,6 +30,26 @@ export const securityRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     const config = await core.security.clearToken();
     revokeTerminalAccess(core);
     return config;
+  });
+
+  // Exempt from the host check (it adds the host the request came in on), so everything else is
+  // checked here: a mode that has credentials, and an owner among them
+  app.post('/security/allowed-hosts/claim', async (req, reply): Promise<ClaimHostResult | FastifyReply> => {
+    const fail = (status: number, code: string, error: string) => reply.status(status).send({ error, code });
+    if (core.security.mode === 'none') return fail(403, 'host.needs-auth', 'protect access with a token before adding a host from here');
+    if (!isOwnerActor(req.actor)) return fail(403, 'host.not-owner', "only the owner's token can add an allowed host");
+    const host = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
+    if (!host) return fail(400, 'host.invalid', 'the request names no host');
+    const { allowedHostLayers: layers } = core.appSettings.get();
+    // Loopback and a host already answered need nothing: the answer is the same list
+    if (!LOOPBACK.test(host) && !layers.file.includes(host) && !layers.env.includes(host)) {
+      try {
+        await core.appSettings.update({ allowedHosts: [...layers.file, host] });
+      } catch (error) {
+        return fail(400, 'host.invalid', error instanceof Error ? error.message : String(error));
+      }
+    }
+    return { host, allowedHosts: [...core.appSettings.allowedHosts] };
   });
 
   app.get<{ Querystring: AuditFilter & { limit?: string; from?: string } }>('/audit', (req) => {

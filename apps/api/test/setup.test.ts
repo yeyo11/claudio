@@ -155,6 +155,8 @@ test('the Tailscale the image runs signs in with an auth key that no answer or e
       CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'),
       CLAUDIO_DATA_DIR: join(dir, 'data'),
       CLAUDIO_DISTRIBUTION: 'docker',
+      // A container with no authentication variable makes an owner token; this test drives the API without one
+      CLAUDIO_AUTH_MODE: 'none',
       CLAUDIO_TAILSCALE_MANAGED: '1',
       TAILSCALE_BIN: FAKE_TAILSCALE,
     }),
