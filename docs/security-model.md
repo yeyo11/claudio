@@ -242,6 +242,11 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
   forwarding is believed, the ticket and the socket compare the `Origin` with the forwarded
   authority (the page's), not with the `Host` the proxy rewrote; otherwise with the `Host`, as in
   production, where the API serves the page itself and nothing changes;
+- **where it opens is confined.** The client sends ids, never a path, and the directory is resolved
+  through symlinks and must be inside its root: the project's directory or one of its listed
+  worktrees, or the configured workspace (`config.workspaceDir`) for a terminal with no project and
+  for a chat outside any project, whose own directory must be inside the workspace. What the person
+  does with `cd` afterwards is theirs;
 - the shell gets the vault's tool credentials but no `CLAUDIO_*` variable and none of Claude's own;
 - sessions and attachments (including refusals) are audited, never their content.
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -144,6 +144,7 @@ function setup(options: { env?: NodeJS.ProcessEnv; loader?: () => PtyBackend } =
     lookup: {
       project: async (id) => (id === 'p1' ? { path: project, worktrees: [] } : null),
       chat: async (id) => (id === 'c1' ? { cwd: project, worktree: null, projectId: 'p1' } : null),
+      workspace: () => config.workspaceDir,
     },
     emit: (event) => events.push(event),
     host: inProcessHost({ loadPty: options.loader ?? (() => backend) }),
@@ -153,7 +154,7 @@ function setup(options: { env?: NodeJS.ProcessEnv; loader?: () => PtyBackend } =
     tickMs: 0,
     ptyResolvable: () => true,
   });
-  return { service, backend, db, events, time, project, root, store: new TerminalStore(db.connection) };
+  return { service, backend, db, events, time, project, root, config, store: new TerminalStore(db.connection) };
 }
 
 /** Stops the service as the server does; the fake shells exit when the host would have ended them */
@@ -515,7 +516,7 @@ test('a node-pty that cannot be found at all reads unavailable before anything t
   const missing = new TerminalService({
     store: ctx.store,
     settings: new TerminalSettingsStore({ dataDir: join(ctx.root, 'data') }, {}),
-    lookup: { project: async () => null, chat: async () => null },
+    lookup: { project: async () => null, chat: async () => null, workspace: () => ctx.root },
     emit: () => undefined,
     tickMs: 0,
     ptyResolvable: () => false,
@@ -534,7 +535,7 @@ test('a host that fails ends its terminals as host-failed, and three failures in
   const service = new TerminalService({
     store: ctx.store,
     settings: new TerminalSettingsStore({ dataDir: join(ctx.root, 'data') }, {}),
-    lookup: { project: async () => ({ path: ctx.project, worktrees: [] }), chat: async () => null },
+    lookup: { project: async () => ({ path: ctx.project, worktrees: [] }), chat: async () => null, workspace: () => ctx.root },
     emit: () => undefined,
     host: (listener) => {
       failed = listener.failed;
@@ -598,5 +599,18 @@ test('settings are validated whole, kept in terminal.json, and the environment c
   await assert.rejects(pinned.update({ enabled: true }), (e) => e instanceof TerminalError && e.code === 'terminal.env-locked');
   const on = new TerminalSettingsStore({ dataDir: join(ctx.root, 'data') }, { CLAUDIO_TERMINAL: 'on' });
   assert.equal(on.get().enabled, true);
+  await stop(ctx);
+});
+
+test('a terminal opens in the workspace with no project, and its scope is recorded in the session row', async () => {
+  const ctx = setup();
+  await ctx.service.updateSettings({ enabled: true });
+  mkdirSync(ctx.config.workspaceDir, { recursive: true });
+  const terminal = await ctx.service.create({ workspace: true }, who);
+  assert.deepEqual(terminal.scope, { kind: 'workspace' });
+  assert.equal(terminal.cwd, realpathSync(ctx.config.workspaceDir));
+  const row = ctx.db.connection.prepare('SELECT scope, project_id, chat_id FROM terminal_sessions WHERE id = ?').get(terminal.id) as { scope: string; project_id: string | null; chat_id: string | null };
+  assert.deepEqual({ ...row }, { scope: 'workspace', project_id: null, chat_id: null });
+  assert.deepEqual(ctx.service.history().entries.find((e) => e.id === terminal.id)?.scope, { kind: 'workspace' });
   await stop(ctx);
 });

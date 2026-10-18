@@ -9,7 +9,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { useDecorativeMotion } from '@claudio/ui/lib/motion';
 import { KeyBar, type Modifiers } from './KeyBar';
-import { TerminalView, type TerminalViewHandle } from './TerminalView';
+import { TerminalView, type TerminalEndedBy, type TerminalViewHandle } from './TerminalView';
 import { TerminalStatus } from './TerminalStatus';
 import { baseName, withModifiers, type LinkState } from './terminal-model';
 import { clampFont, useScreenReaderMode, useTerminalFont } from './terminal-prefs';
@@ -43,8 +43,8 @@ export function TerminalPanel({
   onFocused?: () => void;
   /** Opens this terminal in a window of its own; only where that is offered (the panel on a desktop) */
   onDetach?: () => void;
-  /** The shell ended or the server closed it: the lists should be read again */
-  onEnded: () => void;
+  /** The shell ended or the server closed it, and why: `closed` means the id is gone for good */
+  onEnded: (reason: TerminalEndedBy) => void;
 }) {
   const { t } = useTranslation('terminal');
   const toast = useToast();
@@ -93,13 +93,19 @@ export function TerminalPanel({
     else toast.info(t('notices.nothingSelected'));
   };
 
+  // The socket goes before the request does, so it cannot reconnect to a terminal the server is forgetting
+  const close = () => {
+    view.current?.forget();
+    onClose();
+  };
+
   const entries: MenuEntry[] = [
     { id: 'copy', label: t('menu.copy'), icon: Copy, onSelect: () => void copy(), disabled: !running },
     { id: 'paste', label: t('menu.paste'), icon: ClipboardPaste, onSelect: () => void view.current?.paste(), disabled: !running },
     { id: 'search', label: t('menu.search'), icon: Search, onSelect: () => setSearching(true), shortcut: compact ? undefined : 'Ctrl+Shift+F', disabled: !running },
     { id: 'font-up', label: t('menu.fontUp', { size: clampFont(font.size + 1) }), icon: Plus, onSelect: () => font.set(font.size + 1) },
     { id: 'font-down', label: t('menu.fontDown', { size: clampFont(font.size - 1) }), icon: Minus, onSelect: () => font.set(font.size - 1) },
-    { id: 'close', label: t('menu.close'), icon: X, destructive: true, onSelect: onClose },
+    { id: 'close', label: t('menu.close'), icon: X, destructive: true, onSelect: close },
   ];
 
   const head = (

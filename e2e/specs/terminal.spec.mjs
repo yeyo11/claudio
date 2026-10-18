@@ -7,7 +7,7 @@
 //
 // Output is told from the echo of what was typed by arithmetic: `echo m$((6*7))` echoes as typed, and
 // only the shell's answer reads `m42`.
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const fakeCli = true;
@@ -225,7 +225,35 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     check(await hasPanel(), '/terminals on a desktop opens the status bar panel');
     for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`).catch(() => {});
 
-    // ---- 6. a phone: the route is a screen, the key bar sends Esc and Ctrl+C ----
+    // ---- 5d. no project chosen: a shell opens in the workspace, where a chat outside any project runs ----
+    // The panel stays open across the reload; with All projects and a project imported, "+" is a menu that lists the workspace first
+    await page.goto('/?project=all', 1500);
+    if (!(await hasPanel())) await page.click(ITEM, undefined, 800);
+    await page.waitFor(`return !!document.querySelector('.term-plus')`, { label: 'the panel\'s "+"' });
+    await page.click('.term-plus', undefined, 600);
+    const where = await page.eval(`return [...document.querySelectorAll('[role=menu] [role^=menuitem]')].map((i) => i.textContent.trim())`);
+    check(where[0] === 'Workspace' && where.includes('e2e-terminal'), `with All projects, "+" offers the workspace first and then the projects (${JSON.stringify(where)})`);
+    await page.click('[role=menu] [role^=menuitem]', 'Workspace', 800);
+    await ready('5d, a terminal in the workspace');
+    await run('echo "ws:$(pwd -P)"');
+    await page.waitFor(`return /ws:\//.test(${SCREEN})`, { label: 'pwd printed in the workspace' });
+    const wsPrinted = (await screen()).match(/ws:(\/\S*)/g)?.map((m) => m.slice(3)) ?? [];
+    const loose = (await api.get('/terminals')).body.filter((each) => each.scope.kind === 'workspace');
+    check(loose.length === 1 && loose[0].state === 'running', `the API lists one running terminal scoped to the workspace (${JSON.stringify(loose.map(({ id, scope, state }) => ({ id, scope, state })))})`);
+    check(wsPrinted.includes(loose[0]?.cwd) && realpathSync(dirs.workspaceDir) === loose[0]?.cwd, `pwd prints the workspace (${wsPrinted.join(', ')} vs ${loose[0]?.cwd} and ${dirs.workspaceDir})`);
+    check((await page.text('.term-tab.on')).includes('Workspace'), 'the tab is named after the workspace');
+    // X forgets it: the panel does not ask the server for that terminal again
+    const closedId = loose[0]?.id;
+    await page.eval(`window.__asked = []; const real = window.fetch; window.fetch = (input, init) => { window.__asked.push(String(input)); return real(input, init); }; return true`);
+    await page.click('.term-tab.on .x', undefined, 1500);
+    await page.waitFor(`return !document.querySelector('.term-tab')`, { label: 'no tab after closing the workspace terminal' });
+    await page.sleep(1500);
+    // The DELETE is the only request that names it: no GET of it and no new ticket afterwards
+    const after = (await page.eval('return window.__asked')).filter((url) => url.includes(closedId));
+    check(after.length === 1, `after X the panel asked nothing more of the closed terminal (${JSON.stringify(after)})`);
+    for (const each of (await api.get('/terminals')).body) await api.del(`/terminals/${each.id}`).catch(() => {});
+
+
     await page.viewport(420, 900);
     const phoneTerminal = await api.post('/terminals', { projectId, cols: 40, rows: 20 });
     check(phoneTerminal.status === 201, `a terminal was opened for the phone (${phoneTerminal.status})`);

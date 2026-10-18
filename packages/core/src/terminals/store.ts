@@ -63,6 +63,12 @@ const attachment = (row: AttachmentDb): TerminalAttachmentEntry => ({
   refused: row.refused,
 });
 
+const scopeOf = (s: { scope: string; project_id: string | null; chat_id: string | null }): TerminalScope => {
+  if (s.scope === 'chat') return { kind: 'chat', chatId: s.chat_id ?? '' };
+  if (s.scope === 'workspace') return { kind: 'workspace' };
+  return { kind: 'project', projectId: s.project_id ?? '', worktree: null };
+};
+
 /**
  * The rows of `terminal_sessions` and `terminal_attachments` (docs/plans/terminal.md, 3.9): who opened
  * which shell and when, how it ended, who attached and how many bytes went each way, and every
@@ -165,7 +171,7 @@ export class TerminalStore {
     }
     const entries: TerminalHistoryEntry[] = sessions.map((s) => ({
       id: s.id,
-      scope: s.scope === 'chat' ? { kind: 'chat', chatId: s.chat_id ?? '' } : { kind: 'project', projectId: s.project_id ?? '', worktree: null },
+      scope: scopeOf(s),
       cwd: s.cwd,
       shell: s.shell,
       actor: s.actor,

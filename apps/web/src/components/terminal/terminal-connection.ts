@@ -35,6 +35,7 @@ export interface ConnectionHandlers {
 }
 
 const OPEN = 1;
+const POLICY_REFUSED = 1008;
 const BASE_DELAY_MS = 500;
 const MAX_DELAY_MS = 15_000;
 
@@ -86,6 +87,15 @@ export class TerminalConnection {
     }
   }
 
+  /**
+   * The terminal is being closed, or the server said it was: the socket goes and nothing tries again.
+   * Unlike `stop`, which a remount follows with `start`, this is the end of the id.
+   */
+  forget(): void {
+    this.ended = true;
+    this.stop();
+  }
+
   /** Typed or pasted bytes; dropped while there is no open socket, as a terminal with no line does */
   input(data: string): boolean {
     if (!this.socket || this.socket.readyState !== OPEN) return false;
@@ -116,10 +126,13 @@ export class TerminalConnection {
     };
     socket.onmessage = (event) => this.message(event.data);
     socket.onerror = () => undefined;
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.socket !== socket) return;
       this.socket = null;
-      if (!this.ended) this.retry();
+      if (this.ended) return;
+      // 1008: the server would not attach this socket (the terminal is gone or ended), which another ticket cannot change
+      if ((event as { code?: unknown } | null)?.code === POLICY_REFUSED) return this.finish();
+      this.retry();
     };
   }
 

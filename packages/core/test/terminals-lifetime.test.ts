@@ -67,6 +67,7 @@ function setup() {
     lookup: {
       project: async (id) => (id === 'p1' ? { path: project, worktrees: [] } : null),
       chat: async () => null,
+      workspace: () => config.workspaceDir,
     },
     emit: () => undefined,
     host: forkedHost(),

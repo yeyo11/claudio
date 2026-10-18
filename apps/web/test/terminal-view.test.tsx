@@ -60,3 +60,10 @@ test('the new-terminal control opens in the chosen project at once, and offers a
   // With All projects the button is the menu's trigger, named for what it does
   assert.match(renderToStaticMarkup(<NewTerminal project={null} projects={[project]} icon pending={false} onOpen={() => {}} />), /aria-label="Nueva terminal"/);
 });
+
+test('with no project at all, the new-terminal control opens in the workspace at once, with no menu', () => {
+  const html = renderToStaticMarkup(<NewTerminal project={null} projects={[]} icon pending={false} onOpen={() => {}} />);
+  assert.match(html, /<button type="button" class="icon-btn term-plus" aria-label="Nueva terminal en el espacio de trabajo">/);
+  assert.equal(html.includes('aria-haspopup'), false);
+  assert.match(renderToStaticMarkup(<NewTerminal project={null} projects={[]} pending={false} onOpen={() => {}} />), /class="btn btn-primary"[^>]*>.*Nueva terminal/);
+});

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +8,7 @@ import { test, type TestContext } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { WebSocket } from 'ws';
 import { Core, loadConfig, type PeerVerdict } from '@claudio/core';
-import type { Project, Terminal, TerminalHistoryPage, TerminalServerFrame, TerminalStatus, TerminalTicket } from '@claudio/shared';
+import type { Chat, Project, Terminal, TerminalHistoryPage, TerminalServerFrame, TerminalStatus, TerminalTicket } from '@claudio/shared';
 import { buildApp, redactUrl } from '../src/app.ts';
 import { TICKET_TTL_MS, TerminalTickets } from '../src/terminal-socket.ts';
 
@@ -550,4 +550,54 @@ test('a request from a chat’s own process is refused as from-agent through the
   await new Promise((done) => child.once('close', done));
   assert.match(out, /^403 .*from-agent/);
   assert.ok(w.core.terminals.history().entries.some((entry) => entry.attachments.some((a) => a.refused === 'from-agent')));
+});
+
+// ---------- where it opens ----------
+
+test('with no project at all, the workspace scope opens a shell in the configured workspace', async (t) => {
+  const w = await wrapper(t);
+  const res = await w.app.inject({ method: 'POST', url: '/api/terminals', ...json({ workspace: true }) });
+  if (res.statusCode === 409 && /pty-missing|not available/.test(res.body)) return t.skip('node-pty cannot load here');
+  assert.equal(res.statusCode, 201, res.body);
+  const terminal = res.json<Terminal>();
+  assert.deepEqual(terminal.scope, { kind: 'workspace' });
+  assert.equal(terminal.cwd, realpathSync(w.core.config.workspaceDir));
+  assert.deepEqual(w.core.terminals.history().entries.find((e) => e.id === terminal.id)?.scope, { kind: 'workspace' });
+});
+
+test('the workspace scope still passes the gate: off is 409, no credential 401 and a chat token 403', async (t) => {
+  const off = await wrapper(t, { enabled: false });
+  assert.equal((await off.app.inject({ method: 'POST', url: '/api/terminals', ...json({ workspace: true }) })).statusCode, 409);
+  const w = await wrapper(t);
+  await withToken(w.app);
+  const chat = w.core.security.chatTokens.mint('chat-ws');
+  assert.equal((await call(w.app, 'POST', '/api/terminals', json({ workspace: true }))).statusCode, 401);
+  const asChat = await call(w.app, 'POST', '/api/terminals', { ...json({ workspace: true }), headers: { 'content-type': 'application/json', authorization: `Bearer ${chat}` } });
+  assert.equal(asChat.statusCode, 403);
+  assert.equal(asChat.json<{ reason: string }>().reason, 'chat-token');
+});
+
+test('a chat outside any project opens in its own directory inside the workspace, and is refused outside it', async (t) => {
+  const w = await wrapper(t);
+  const inside = join(w.core.config.workspaceDir, 'loose-chat');
+  mkdirSync(inside, { recursive: true });
+  const elsewhere = mkdtempSync(join(tmpdir(), 'claudio-terminals-elsewhere-'));
+  t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
+  const chats: Record<string, { cwd: string; worktree: null; project: null }> = {
+    'loose-in': { cwd: inside, worktree: null, project: null },
+    'loose-out': { cwd: elsewhere, worktree: null, project: null },
+  };
+  // A chat record without running Claude: the lookup reads only these three fields
+  t.mock.method(w.core.chats, 'get', async (id: string) => (chats[id] ?? null) as unknown as Chat | null);
+
+  const res = await w.app.inject({ method: 'POST', url: '/api/terminals', ...json({ chatId: 'loose-in' }) });
+  if (res.statusCode === 409 && /pty-missing|not available/.test(res.body)) return t.skip('node-pty cannot load here');
+  assert.equal(res.statusCode, 201, res.body);
+  const terminal = res.json<Terminal>();
+  assert.deepEqual(terminal.scope, { kind: 'chat', chatId: 'loose-in' });
+  assert.equal(terminal.cwd, realpathSync(inside));
+
+  const refused = await w.app.inject({ method: 'POST', url: '/api/terminals', ...json({ chatId: 'loose-out' }) });
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.json<{ code: string }>().code, 'terminal.bad-cwd');
 });
