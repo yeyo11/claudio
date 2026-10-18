@@ -17643,12 +17643,17 @@
       "readOnly": {
         "type": "boolean",
         "description": "Reject every mutating method with 405, except answering a permission prompt"
+      },
+      "firstRunPending": {
+        "type": "boolean",
+        "description": "The token a container made on its first start has not been used yet: the sign-in screen says where to find it"
       }
     },
     "required": [
       "mode",
       "tokenSet",
-      "readOnly"
+      "readOnly",
+      "firstRunPending"
     ],
     "description": "How the API is guarded. The token is **never** in this document: only its hash is stored, and the token itself is shown once, when it is set. `token?: never` says so in the type, so no route can leak it by echoing the configuration back."
   },
@@ -17678,6 +17683,60 @@
       "issuer",
       "audience",
       "clientId"
+    ]
+  },
+  "HostRefusal": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "host-not-allowed"
+      },
+      "host": {
+        "type": "string",
+        "description": "The name the request was dialled by, port stripped"
+      },
+      "mode": {
+        "$ref": "#/components/schemas/AuthMode"
+      },
+      "canClaim": {
+        "type": "boolean",
+        "description": "The owner's token can add the host through `POST /security/allowed-hosts/claim`"
+      },
+      "firstRunToken": {
+        "type": "boolean",
+        "description": "The first-run token is still unused, so the screen says where to find it"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "host",
+      "mode",
+      "canClaim",
+      "firstRunToken"
+    ],
+    "description": "The `421` body of a request for a host this wrapper does not answer to"
+  },
+  "ClaimHostResult": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "type": "string"
+      },
+      "allowedHosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "host",
+      "allowedHosts"
     ]
   },
   "UpdateAuthConfigRequest": {

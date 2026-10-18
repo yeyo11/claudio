@@ -4784,6 +4784,26 @@ export interface AuthConfig {
   oidc?: OidcConfig;
   /** Reject every mutating method with 405, except answering a permission prompt */
   readOnly: boolean;
+  /** The token a container made on its first start has not been used yet: the sign-in screen says where to find it */
+  firstRunPending: boolean;
+}
+
+/** The `421` body of a request for a host this wrapper does not answer to */
+export interface HostRefusal {
+  error: string;
+  code: 'host-not-allowed';
+  /** The name the request was dialled by, port stripped */
+  host: string;
+  mode: AuthMode;
+  /** The owner's token can add the host through `POST /security/allowed-hosts/claim` */
+  canClaim: boolean;
+  /** The first-run token is still unused, so the screen says where to find it */
+  firstRunToken: boolean;
+}
+
+export interface ClaimHostResult {
+  host: string;
+  allowedHosts: string[];
 }
 
 export interface UpdateAuthConfigRequest {

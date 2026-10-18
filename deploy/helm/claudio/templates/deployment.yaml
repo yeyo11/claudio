@@ -1,6 +1,6 @@
 {{- $mode := .Values.auth.mode -}}
-{{- if not (has $mode (list "none" "token" "oidc")) -}}
-{{- fail (printf "auth.mode must be none, token or oidc, not %q" $mode) -}}
+{{- if not (has $mode (list "auto" "none" "token" "oidc")) -}}
+{{- fail (printf "auth.mode must be auto, none, token or oidc, not %q" $mode) -}}
 {{- end -}}
 {{- if and (eq $mode "token") (not .Values.auth.token.existingSecret) (not .Values.auth.token.value) -}}
 {{- fail "auth.mode is token: set auth.token.existingSecret (preferred) or auth.token.value" -}}
@@ -54,8 +54,10 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.port | quote }}
+            {{- if ne $mode "auto" }}
             - name: CLAUDIO_AUTH_MODE
               value: {{ $mode | quote }}
+            {{- end }}
             - name: CLAUDIO_READ_ONLY
               value: {{ ternary "1" "0" .Values.auth.readOnly | quote }}
             # Always written, so the pod says what the release decided whatever the image defaults to

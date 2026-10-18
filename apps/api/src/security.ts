@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { DESKTOP_ACTOR, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
+import type { HostRefusal } from '@claudio/shared';
 import { ROUTE_DOCS } from './openapi/routes.ts';
 
 /**
@@ -15,6 +16,13 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** Liveness has to answer a probe that carries no credential. It says nothing about the install. */
 const OPEN = new Set([`${API_PREFIX}/health`]);
+
+/**
+ * The one route exempt from the host check: it is how the owner adds the host they are dialling.
+ * It still needs the owner's bearer token, which a DNS-rebinding page cannot hold (it lives in the
+ * real origin's storage and a browser never sends an `Authorization` header by itself).
+ */
+const HOST_CLAIM = `${API_PREFIX}/security/allowed-hosts/claim`;
 
 /**
  * The receivers a code host delivers to. The host cannot send a bearer token; a delivery is
@@ -261,6 +269,20 @@ const CHAT_FORBIDDEN_ACCOUNTS = new Set([
   `POST ${API_PREFIX}/accounts/policies`,
   `PUT ${API_PREFIX}/accounts/policies/:id`,
   `DELETE ${API_PREFIX}/accounts/policies/:id`,
+]);
+
+/**
+ * Adding a host to the allowlist, updating Claudio itself or its Claude Code CLI, and reverting
+ * either: each changes what runs here or who may reach it, so they are the person's, never a chat's.
+ */
+export const CHAT_FORBIDDEN_SYSTEM = new Set([
+  `POST ${API_PREFIX}/security/allowed-hosts/claim`,
+  `POST ${API_PREFIX}/system/server-update/download`,
+  `POST ${API_PREFIX}/system/server-update/apply`,
+  `DELETE ${API_PREFIX}/system/server-update/scheduled`,
+  `POST ${API_PREFIX}/system/server-update/revert`,
+  `POST ${API_PREFIX}/system/cli-version/install`,
+  `DELETE ${API_PREFIX}/system/cli-version/install`,
 ]);
 
 /** How Home is laid out is the person's own setting; a chat may read it. */
@@ -696,6 +718,53 @@ export function auditSummary(method: string, routeUrl: string | undefined, path:
   return doc?.summary ?? `${method} ${path}`;
 }
 
+/**
+ * Whether an actor is the owner: the holder of the owner token or an OIDC identity. Not the open
+ * install's `local`, the desktop app's own credential, a chat, a webhook or nobody.
+ */
+export function isOwnerActor(actor: string | null): actor is string {
+  if (actor === null) return false;
+  return actor !== 'local' && actor !== DESKTOP_ACTOR && actor !== 'anonymous' && actor !== 'webhook' && !actor.startsWith('chat:');
+}
+
+/** Whether `Accept` ranks `text/html` above JSON: a person typing a URL, not a script */
+function prefersHtml(accept: string | undefined): boolean {
+  if (!accept) return false;
+  const types = accept.split(',').map((part) => part.split(';')[0]?.trim().toLowerCase() ?? '');
+  const html = types.indexOf('text/html');
+  const json = types.findIndex((type) => type === 'application/json' || type === 'application/*');
+  return html !== -1 && (json === -1 || html < json);
+}
+
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+/**
+ * What a person sees when they type an unlisted host's `/api/...` or `/docs` into a browser. Plain
+ * HTML with no script and no stylesheet, English only (there is no locale before the app loads); the
+ * app's own screen at `/` is where the token form lives.
+ */
+export function hostRefusalPage(host: string): string {
+  const name = host.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>This Claudio does not answer to ${name} yet</title>
+</head>
+<body>
+<main>
+<h1>This Claudio does not answer to <code>${name}</code> yet</h1>
+<p>It answers only to the addresses it was told about, so that no other site can drive it from your browser.</p>
+<p>Add it where Claudio runs: name it in CLAUDIO_ALLOWED_HOSTS when you start the container, or open Claudio on localhost and add it in Settings &rarr; Access &amp; safety &rarr; Allowed hosts.</p>
+<p>If this Claudio is protected with a token, <a href="/">open the app on this address</a>: it offers to add the host when you paste the owner token.</p>
+</main>
+</body>
+</html>
+`;
+}
+
 /** What the terminal's routes share with the guard: the back-off a wrong ticket counts in, and the key it counts under */
 export interface Guard {
   backoff: FailureBackoff;
@@ -729,11 +798,22 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
     // or not the caller holds one: under `mode: 'none'` there is no credential to refuse it by
-    if (guarded && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts)) {
+    if (guarded && path !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts)) {
       req.actor = 'anonymous';
-      void reply.status(421).send({
+      const host = hostNameOf(req.headers.host ?? '');
+      if (req.method === 'GET' && prefersHtml(req.headers.accept)) {
+        void reply.status(421).type('text/html; charset=utf-8').send(hostRefusalPage(host));
+        return reply;
+      }
+      const refusal: HostRefusal = {
         error: 'this wrapper does not answer to that host. Reach it on localhost, or name the host in CLAUDIO_ALLOWED_HOSTS.',
-      });
+        code: 'host-not-allowed',
+        host,
+        mode,
+        canClaim: (mode === 'token' || mode === 'oidc') && !core.security.readOnly,
+        firstRunToken: core.security.firstRunPending,
+      };
+      void reply.status(421).send(refusal);
       return reply;
     }
     if (receiver) {
@@ -752,7 +832,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         return reply
           .header('WWW-Authenticate', mode === 'token' ? 'Bearer realm="Claudio"' : `Bearer realm="Claudio", error="invalid_token"`)
           .status(401)
-          .send({ error: 'authentication required', mode });
+          .send({ error: 'authentication required', mode, ...(core.security.firstRunPending ? { firstRunToken: true } : {}) });
       };
       const credential = credentialOf(req, path);
       // Nothing to check is nothing guessed: neither counted nor made to wait, so a local process
@@ -794,6 +874,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         return reply;
       }
       if (chat !== null) chatCredentials.add(req);
+      if (chat !== null && CHAT_FORBIDDEN_SYSTEM.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+        void reply.status(403).send({ error: "a chat's token cannot add an allowed host, update Claudio or install a Claude Code version: that is the person's" });
+        return reply;
+      }
       if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
         void reply.status(403).send({ error: "a chat's token cannot change what the decision engine sends" });
         return reply;
