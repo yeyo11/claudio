@@ -39,6 +39,7 @@ const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelSt
   url: state === 'active' ? URL_ : null,
   since: state === 'active' ? new Date(Date.now() - 60_000).toISOString() : null,
   reason: null,
+  checking: false,
   enabled: true,
   managed: false,
   tailscale: READY,
@@ -293,6 +294,23 @@ test('a page that closed the tunnel it came through says the address is gone, wi
   assert.match(text(html), /Tunnel closed/);
   assert.match(text(html), /its address no longer works/);
   assert.doesNotMatch(html, /tunnel-stop|tunnel-start|tunnel-address/);
+});
+
+test('an active tunnel that is slow to answer says Checking…, and warns only once nothing has answered for a while', () => {
+  const slow = wrap(<TunnelPanel status={status('active', { checking: true })} authMode="token" onStart={() => {}} onStop={() => {}} />);
+  assert.match(slow, /tunnel-checking/);
+  assert.doesNotMatch(slow, /tunnel-not-answering/);
+  assert.match(slow, /tunnel-stop/);
+  const stalled = wrap(
+    <TunnelPanel
+      status={status('active', { checking: true, reason: { code: 'tunnel.tailscaleNotAnswering', text: 'Tailscale is not answering. The tunnel keeps its rule and checks again.' } })}
+      authMode="token"
+      onStart={() => {}}
+      onStop={() => {}}
+    />,
+  );
+  assert.match(stalled, /tunnel-not-answering/);
+  assert.doesNotMatch(stalled, /tunnel-checking/);
 });
 
 test('the tunnel and the settings are written whole from their events, and a new default reaches the overview', () => {

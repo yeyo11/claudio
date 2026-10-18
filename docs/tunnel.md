@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-18T14:00:00Z
 tags:
     - tunnel
     - remote-access
@@ -102,11 +102,33 @@ Two more things are only learned when the rule is added, and fail the start with
 | `stopping` | closing | warn | The name left the allowlist; the rule is being removed |
 | `failed` | failed | bad | Gave up, with a reason |
 
+`active` with `checking: true` keeps its colour and adds the word "Checking…" (below).
+
 While active, Claudio reads Tailscale and the Serve config again every 30 s. A rule removed or
 changed in a terminal (`tailscale serve reset`) fails the tunnel with `tunnel.ruleRemoved` at once;
 Tailscale not ready in two readings in a row fails it with that reason. A node renamed in the admin
-console moves the allowed name and the address with it. There is no reconnect loop: Tailscale keeps
-its own connection, and a failed tunnel is opened again with the button.
+console moves the allowed name and the address with it.
+
+### A slow machine is not a dead Tailscale
+
+A reading the CLI did not answer (the call timed out after 10 s, or could not be spawned) is
+**unknown**, not down. On 2026-10-18 a machine at 97 % CPU made two readings in a row time out, the
+tunnel closed itself and took its Serve rule away while Tailscale was fine. Now:
+
+- **Only an answer closes the tunnel**: `BackendState` not `Running`, signed out, a daemon that
+  answers it is down, or the Serve rule gone or changed by someone else. An unknown never counts as a
+  miss and never runs `serve off` or withdraws the host.
+- **The tunnel stays `active`** and `GET /api/tunnel` says `checking: true`; the tab shows
+  "Checking…" with no change of status colour. The readings back off (30 s, 60 s, 120 s, capped at
+  5 min) and the first answer clears the flag.
+- **After 10 minutes of nothing but unknowns** the status carries the reason
+  `tunnel.tailscaleNotAnswering` while the state stays `active`: the tab shows a warning, "Tailscale
+  is not answering". The rule and the host are still kept.
+- **It comes back on its own.** A tunnel the person had opened that failed because Tailscale was
+  down, signed out or disconnected is started again when a later reading finds Tailscale ready, with
+  the audit row "Start the tunnel again: Tailscale is ready". Closing it with the button, or
+  shutting Claudio down, cancels that; a failure of any other kind (the rule removed, the port taken)
+  waits for the button.
 
 ## Only what Claudio added
 

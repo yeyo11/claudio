@@ -211,6 +211,23 @@ export function TunnelPanel({
 
       {state === 'active' && status.url && <TunnelAddress url={status.url} since={status.since} />}
 
+      {/* Slow answers are not a failure: no colour change, only the word, and a warning once nothing has answered for a while */}
+      {state === 'active' && status.checking && !status.reason && (
+        <p className="small muted" role="status" data-testid="tunnel-checking">
+          {t('remote.checking')}
+        </p>
+      )}
+
+      {state === 'active' && status.reason && (
+        <div className="alert alert-warn" role="status" data-testid="tunnel-not-answering">
+          <TriangleAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('remote.notAnsweringTitle')}</strong>
+            <div className="small">{localized(status.reason)}</div>
+          </div>
+        </div>
+      )}
+
       {(state === 'starting' || state === 'verifying' || state === 'stopping') && (
         <p className="small" role="status" data-testid="tunnel-progress">
           {t(`remote.progress.${state}`)}
