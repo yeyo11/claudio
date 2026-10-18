@@ -22,7 +22,7 @@ records what is built, what is left and why. What is built is described in
 | 3.3 | Admission by memory, not only by count | **Built**: `admit()` refuses on `MemAvailable` and memory PSI |
 | 3.4 | Stop ends the CLI's children | **Built** in `ChatManager.stop()`; no end-to-end test with a real child process |
 | 3.5 | Default time limit for tasks without one | **Built**: 180 min, `CLAUDIO_TASK_MAX_MINUTES` |
-| 4 | Fair queue with priority for interactive chats | **Not built**: refusals are polled every 3 s |
+| 4 | Fair queue with priority for interactive chats | **Partly built**: a person's refused start reserves the next place for 20 s (`InteractiveHold`); workers give way. No queue of requests: refusals are still answered at once and polled every 3 s, see the Outcome |
 | 4 | Async `git` on request paths | **Built for the review endpoints** (`Changes` service, project overview); the rest is listed in `docs/resource-control.md` |
 | 4 | Less of `/proc` read per request | **Built**: `/system/processes` reads the table through a 2 s cache (`recentProcessTable`) |
 | 4 | Random E2E port by default | **Not built**: `e2e/run.mjs` keeps 8799 |
@@ -39,9 +39,9 @@ The real guard is a systemd slice around the service: `MemoryHigh` slows the gro
 ends it. That belongs in the deployment, and the numbers come from the benchmark phases, not from
 this plan.
 
-**The fair queue.** A queue that prioritises interactive chats changes how a refused start is
-reported to the person and to the orchestrator. That is worth doing after the benchmark shows how
-often a refusal happens; until then the polling does its job.
+**The fair queue.** A queue that holds requests and prioritises interactive chats changes how a
+refused start is reported to the person and to the orchestrator. Only the reservation of a place for a
+person was built (see the Outcome); the queue itself is still open.
 
 ## The dashboard: options to choose from
 
@@ -128,3 +128,33 @@ dark and light compared against `DSTablero.html`.
 
 **Not decided here.** The implementation goes through the owner's orchestration path (design first,
 then agents on opus or sonnet, never fable), so it is a separate change after this design is merged.
+
+## Outcome
+
+Built on `feat/machine-widget` (2026-10-18), one commit per item.
+
+1. **Machine widget (option A).** `machine` is a widget type of both Homes (area top, size s). It reads
+   `GET /api/system/load` and `/api/system/processes` every 10 s and says memory (a bar in the usage
+   colours), pressure (a word and a figure, calm below 10, rising to the admission limit, high from it),
+   admission (a word, with the figure that refused) and the chats with their resident memory.
+   `SystemLoad` now carries the admission `limits` in force so the pressure verdict follows
+   `CLAUDIO_ADMIT_MEMORY_PRESSURE`. A stored layout keeps what it lists; Machine can be added from the
+   picker. Deviation from the design above: counts and figures are sans with tabular numbers, not mono,
+   because the designer's typographic voice (mono only for literals the machine reads) supersedes the
+   older line in this plan.
+2. **Less `/proc` per request.** `/system/processes` reads the process table through a 2 s cache
+   (`recentProcessTable`): 8.8 ms per call with 417 processes became 0.04 ms amortised. Stopping a chat and
+   cancelling a command still read it fresh.
+3. **Async `git`.** Converted: the review endpoints (the `Changes` service: chat, task, integration and
+   work-item changes and diffs), the flow's `workDone` hook and a project's overview commit count.
+   Left sync, because they run in a background step or are one short call: the orchestrator's worktree
+   and merge steps, verification, pull-request preparation, `review-diff.ts`, the health poll, the
+   guards (which must answer a hook call before the CLI goes on) and the evals' lanes.
+4. **Figures history (option B).** A sampler reads the machine every **60 seconds** and keeps **7 days**
+   (about 10,080 rows of `system_samples`), pruned at each sample; both are environment variables.
+   `GET /api/system/history` serves them (bucketed on request); Settings → Runs & spend → Machine draws
+   them. Why 60 s: a chat's cost is visible at that grain and a week stays small. Why 7 days: enough to
+   see a benchmark run and the days around it; the data is a convenience, not a record.
+5. **Fair queue, partly.** Priority is built as a reservation (see `docs/resource-control.md`); the queue
+   of requests is not, because holding or deferring a person's start changes how a refusal is reported
+   to them, and nothing emits an event when memory frees up, so the worker's retry would remain a poll.

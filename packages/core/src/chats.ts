@@ -66,7 +66,8 @@ import { cliProcessOf, commandRoots, processTable, terminateTree } from './proce
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { ProviderLimits } from './providers/limits.ts';
-import { admissionLimitsFrom, readSystemLoad } from './system-load.ts';
+import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
+import { admissionLimitsFrom, readSystemLoad, RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
@@ -246,6 +247,9 @@ export class ChatManager extends EventEmitter {
 
   /** What the machine must have free before a chat may start; read once, so a restart is what changes it */
   private readonly admission = admissionLimitsFrom();
+
+  /** Set while a person's start was refused a place; a worker's start gives way to it (admission-queue.ts) */
+  private readonly interactive = new InteractiveHold();
 
   constructor(
     private readonly config: CoreConfig,
@@ -699,7 +703,7 @@ export class ChatManager extends EventEmitter {
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
     if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
     const driver = this.driverFor(opts.provider);
-    this.admit(opts, driver);
+    this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }));
     const attachments = this.resolveAttachments(opts.attachments);
     return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'claudio', null, this.chatDefaults(), driver), opts.prompt, attachments);
   }
@@ -716,7 +720,7 @@ export class ChatManager extends EventEmitter {
     let chat = this.chats.get(id);
     if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
     const driver = chat?.driver ?? this.driverFor(request.provider);
-    this.admit(request, driver);
+    this.admit(request, driver, classOfStart({ purpose: request.purpose, housekeeping: request.housekeeping !== undefined, queued: request.queued }));
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
       if (!adopt) throw new ChatRefusal('chat not found', 404);
@@ -751,7 +755,7 @@ export class ChatManager extends EventEmitter {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     const known = this.chats.get(sourceId);
     const driver = known?.driver ?? this.driverFor(request.provider);
-    this.admit(request, driver);
+    this.admit(request, driver, classOfStart({ purpose: request.purpose }));
     const attachments = this.resolveAttachments(request.attachments);
     const chat = new LiveChat(
       randomUUID(),
@@ -802,7 +806,7 @@ export class ChatManager extends EventEmitter {
   }
 
   /** Refuses what cannot start, before anything is created. */
-  private admit(opts: ChatStartOptions, driver: ProviderDriver): void {
+  private admit(opts: ChatStartOptions, driver: ProviderDriver, kind: StartClass = 'other'): void {
     if (opts.account !== undefined) {
       if (!this.accounts) throw new ChatRefusal('accounts are not available here');
       try {
@@ -811,13 +815,26 @@ export class ChatManager extends EventEmitter {
         throw new ChatRefusal(`account ${opts.account} not found`);
       }
     }
-    const limit = this.defaults.maxConcurrentRuns;
-    if (this.activeCount() - this.releaseWarm(limit) >= limit) {
-      throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
+    // A person's chat goes before a worker: while one was refused a place, the places that free up are kept for its retry
+    if (kind === 'worker' && this.interactive.active()) {
+      throw new ChatRefusal(`${QUEUE_YIELD_PREFIX}: a chat a person asked for is waiting for a place`, 409);
     }
-    // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
-    const { refusal } = readSystemLoad(this.admission);
-    if (refusal) throw new ChatRefusal(refusal, 409);
+    try {
+      const limit = this.defaults.maxConcurrentRuns;
+      if (this.activeCount() - this.releaseWarm(limit) >= limit) {
+        throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
+      }
+      // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
+      const { refusal } = readSystemLoad(this.admission);
+      if (refusal) throw new ChatRefusal(refusal, 409);
+    } catch (err) {
+      // The person is told exactly what they were told before; the refusal only also reserves the next place
+      if (kind === 'interactive' && err instanceof ChatRefusal && (err.message.includes('Concurrent run limit') || err.message.startsWith(RESOURCE_REFUSAL_PREFIX))) {
+        this.interactive.hold();
+      }
+      throw err;
+    }
+    if (kind === 'interactive') this.interactive.release();
   }
 
   /** What a new chat starts from: the configured workspace, and the default mode as it stands now */
@@ -933,7 +950,7 @@ export class ChatManager extends EventEmitter {
       chat.push({ kind: 'message', entry: userEntry(message, message.text) });
       taken = 'held';
     } else if (!chat.alive) {
-      this.admit({}, chat.driver);
+      this.admit({}, chat.driver, purpose ? 'other' : classOfChat(chat.origin));
       chat.purpose = purpose ?? null;
       try {
         this.spawnProcess(chat, message);
@@ -979,7 +996,7 @@ export class ChatManager extends EventEmitter {
       return;
     }
     try {
-      this.admit({}, chat.driver);
+      this.admit({}, chat.driver, classOfChat(chat.origin));
       this.spawnProcess(chat, next, false);
     } catch (err) {
       chat.error = err instanceof Error ? err.message : String(err);

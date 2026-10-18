@@ -36,6 +36,18 @@ the memory refusal like the count refusal: the task stays pending and the schedu
 three seconds. The refusal's words start with `RESOURCE_REFUSAL_PREFIX`, and that prefix is what the
 orchestrator matches, so the two must change together.
 
+**A person's chat goes before a task's worker.** When a person's start (`purpose: 'person'`) is
+refused a place, by the count or by the memory, they are told exactly what they were told before
+(the same words and status), and `ChatManager` also notes that someone is waiting
+(`InteractiveHold`, `packages/core/src/admission-queue.ts`). For the next 20 seconds, or until a
+person's start is admitted, a task start from the orchestrator (`queued: true`, the two calls that
+keep the task pending) is refused with `QUEUE_YIELD_PREFIX` ("Waiting for a chat a person asked to
+start first"), which the orchestrator matches like the other transient refusals: the task stays
+pending and is looked at again in three seconds. So the place that frees up is there when the person
+retries, and not taken by a poll that fired first. A graph's reviewers, workflow lead and fixers are
+not made to give way (they have no pending state to give way into), and neither are housekeeping,
+flow runs or evals.
+
 **Stopping a chat ends its children too.** `ChatManager.stop()` walks the process table from the
 CLI's pid and signals the descendants first, then the CLI, and escalates to SIGKILL after five
 seconds for what is still the same process (`terminateTree` in `processes.ts`). Before this, only
@@ -84,8 +96,11 @@ the right numbers for a given server.
   CLI, and Claudio cannot cap what the CLI starts without a cgroup. The memory check is the only
   guard, and it acts before a chat starts, not while it runs. A cgroup limit per service belongs in
   the deployment (see `docs/plans/resource-control.md`).
-- **Refusals are polled, not queued.** A task waiting for memory looks again every three seconds. A
-  queue with priority for interactive chats is not built.
+- **There is no queue of requests.** A person's refused start is answered at once and is not held;
+  the priority is a reservation of the next place, not a line. A worker's refusal is still polled every
+  three seconds: nothing emits an event when memory frees up, so a wake-up would be a poll of its own.
+  Holding the person's request open until a place frees, or accepting it and starting it later, would
+  change how a refusal is reported to the person (a 409 at once today), and was left out on purpose.
 - **A stop that finds no `/proc` falls back to signalling the CLI alone**, as before.
 - **Synchronous `git` is left where it is not on a request path, or is not the cost.** The review
   endpoints (`/chats/:id/changes`, `/changes/diff`, the task, integration and work-item twins, and a

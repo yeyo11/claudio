@@ -212,9 +212,13 @@ export interface ExecutionExtras {
    * acted on. Not `purpose`, which is the spend ledger's: a compaction spends for whatever the chat is for.
    */
   housekeeping?: HousekeepingPurpose;
+  /** See `RunMeta.queued` */
+  queued?: boolean;
 }
 
 export interface RunMeta {
+  /** The start gives way to a person's chat that was refused a place: only for a caller that keeps its work pending and asks again (admission-queue.ts) */
+  queued?: boolean;
   orchestrationId?: string;
   orchestrationTaskId?: string;
   /** The eval sample this chat is: its limit is the runner's to handle, so the rotation leaves it alone */

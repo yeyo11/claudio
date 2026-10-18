@@ -63,6 +63,7 @@ import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
+import { QUEUE_YIELD_PREFIX } from './admission-queue.ts';
 import { RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
 import type { TaskContext } from './health-service.ts';
@@ -1381,7 +1382,7 @@ export class Orchestrator {
           // The CLI ends the turn itself when this is spent
           ...(limits?.maxCostUsd !== undefined ? { maxBudgetUsd: limits.maxCostUsd } : {}),
         },
-        { orchestrationId: orch.id, orchestrationTaskId: task.id },
+        { orchestrationId: orch.id, orchestrationTaskId: task.id, queued: true },
       );
       task.status = 'running';
       task.runId = run.id;
@@ -1430,7 +1431,7 @@ export class Orchestrator {
         this.relaunching.delete(key);
         if (task.status !== 'running') return; // stopped meanwhile
         try {
-          this.runs.resume(chatId, { prompt, purpose: 'orchestration', guards, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
+          this.runs.resume(chatId, { prompt, purpose: 'orchestration', queued: true, guards, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
           // The chat has answered before: only a result after this call is this attempt's
           void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
           task.error = null;
@@ -1455,8 +1456,9 @@ export class Orchestrator {
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
     const message = err instanceof Error ? err.message : String(err);
-    // A place that frees up by itself: the count of chats, the memory the machine gets back, or a guard self-test
-    if (message.includes('Concurrent run limit') || message.startsWith(RESOURCE_REFUSAL_PREFIX) || err instanceof GuardSelfTestPending) {
+    // A place that frees up by itself: the count of chats, the memory the machine gets back, a place
+    // kept for a person's chat (`QUEUE_YIELD_PREFIX`), or a guard self-test
+    if (message.includes('Concurrent run limit') || message.startsWith(RESOURCE_REFUSAL_PREFIX) || message.startsWith(QUEUE_YIELD_PREFIX) || err instanceof GuardSelfTestPending) {
       this.scheduleLater(orch, 3000);
       return false;
     }
