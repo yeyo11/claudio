@@ -1,7 +1,9 @@
 /* Overlays: dialogs, popovers, toasts and the scrim they sit on. */
 .overlay {
   position: fixed;
-  inset: 0;
+  /* Where the browser does not shrink the page for the on-screen keyboard (iOS), lib/viewport.ts
+     measures it: the dialog is laid out in what is left, not behind the keyboard */
+  inset: 0 0 var(--keyboard-inset, 0px);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -10,6 +12,11 @@
   background: var(--scrim);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+}
+
+:root[data-keyboard='open'] .overlay {
+  /* The keyboard covers the home indicator: the gutter is all the room the panel keeps */
+  padding-bottom: var(--overlay-gutter);
 }
 
 .overlay-drawer {

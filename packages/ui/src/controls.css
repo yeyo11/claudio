@@ -794,12 +794,18 @@ body:has(> .sheet-scrim) > #root {
   outline: none;
 }
 .sheet-bottom {
-  inset: auto 0 0 0;
-  max-height: min(86dvh, 720px, calc(100dvh - var(--ov-top)));
+  /* Above the on-screen keyboard where the browser does not shrink the page for it (iOS): see
+     lib/viewport.ts, which measures it into --keyboard-inset */
+  inset: auto 0 var(--keyboard-inset, 0px) 0;
+  max-height: min(86dvh, 720px, calc(100dvh - var(--ov-top) - var(--keyboard-inset, 0px)));
   padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   border-width: 1px 0 0;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   animation: sheet-up var(--dur-base) var(--ease-out);
+}
+:root[data-keyboard='open'] .sheet-bottom {
+  /* The keyboard covers the home indicator */
+  padding-bottom: 0;
 }
 .sheet-right {
   inset: var(--ov-top) var(--ov-right) var(--ov-bottom) auto;

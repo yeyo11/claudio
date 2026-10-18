@@ -1535,7 +1535,9 @@ input.newtask-title {
 
 .newtask-screen {
   position: fixed;
-  inset: 0;
+  /* Above the on-screen keyboard where the browser does not shrink the page for it (iOS): the
+     create button stays in reach while a field has the focus */
+  inset: 0 0 var(--keyboard-inset, 0px);
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -1608,6 +1610,10 @@ input.newtask-title {
   padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
   background: var(--bg-1);
+}
+
+:root[data-keyboard='open'] .newtask-screen-foot {
+  padding-bottom: 12px;
 }
 
 .newtask-create {
