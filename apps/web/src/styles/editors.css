@@ -1167,7 +1167,8 @@ button.master-item-on:hover {
 
 /* Settings → General → Updates in a container: on a phone the actions fill the column, at the touch height */
 @media (max-width: 768px) {
-  [data-testid='server-update'] .btn,
+  [data-testid='updates-card'] .btn:not(.update-command .btn),
+  [data-testid='cli-card'] .btn:not(.update-command .btn),
   .alert .form-actions > .btn {
     width: 100%;
     min-height: var(--control-h);

@@ -9,7 +9,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
-import { api, keys } from '../../../api';
+import { api, ApiRequestError, keys } from '../../../api';
 import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs';
 import { terminalRefusal, type TerminalRefusal, type TerminalRefusalAction } from '../../../components/terminal/terminal-model';
 import { useTerminalStatus } from '../../../components/terminal/use-terminals';
@@ -264,9 +264,11 @@ function Form({ status }: { status: TerminalStatus }) {
  */
 export function TerminalCard() {
   const { data, error, isLoading } = useTerminalStatus();
+  // Read-only mode closes the status route itself (405): said as the refusal it is, not as the server's English
+  const closed = error instanceof ApiRequestError && error.status === 405 ? terminalRefusal('read-only') : null;
   return (
     <Card>
-      <ErrorBox error={error} />
+      {closed ? <RefusalAlert refusal={closed} /> : <ErrorBox error={error} />}
       {isLoading && <Skeleton rows={4} />}
       {data && (
         <>
