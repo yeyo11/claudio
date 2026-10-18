@@ -2614,6 +2614,11 @@ a.attachment-chip:hover {
   color: var(--bad);
 }
 
+.chat-branch-row.is-waiting .word,
+.chat-branch-icon.is-waiting {
+  color: var(--idle);
+}
+
 .chat-branch-row.is-stopped .word,
 .chat-branch-icon.is-stopped {
   color: var(--warn);

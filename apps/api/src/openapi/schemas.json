@@ -3077,11 +3077,12 @@
         "type": "string",
         "enum": [
           "running",
+          "waiting",
           "completed",
           "failed",
           "stopped"
         ],
-        "description": "`stopped` when its session ended before the agent reported back"
+        "description": "`stopped` when its session ended before the agent reported back; `waiting` when it ended its turn with background work of its own running"
       },
       "background": {
         "type": "boolean"
@@ -14011,7 +14012,7 @@
         "type": "string"
       },
       "status": {
-        "$ref": "#/components/schemas/ChatBranchStatus"
+        "$ref": "#/components/schemas/ChatAgentStatus"
       },
       "startedAt": {
         "type": "string",
@@ -14076,6 +14077,18 @@
       "activity"
     ],
     "description": "A branch of a chat that works on its own: its messages live inside the chat's transcript."
+  },
+  "ChatAgentStatus": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/ChatBranchStatus"
+      },
+      {
+        "type": "string",
+        "const": "waiting"
+      }
+    ],
+    "description": "An agent has one more state: `waiting`, its turn ended while background work of its own still runs, so it may resume by itself. Not working (no clock, no spinner) and not done."
   },
   "ChatWorkflow": {
     "type": "object",
@@ -14758,7 +14771,7 @@
         "type": "string"
       },
       "status": {
-        "$ref": "#/components/schemas/ChatBranchStatus"
+        "$ref": "#/components/schemas/ChatAgentStatus"
       },
       "startedAt": {
         "type": "string",

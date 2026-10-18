@@ -1,6 +1,6 @@
-import { closeRuns, runsElapsedMs, type ChatActivity, type ChatBackgroundTask, type ChatBranchRun, type ChatBranchStatus, type ChatChildren, type ChatSubagent, type ChatWorkflow } from '@claudio/shared';
+import { closeRuns, runsElapsedMs, type ChatActivity, type ChatAgentStatus, type ChatBackgroundTask, type ChatBranchRun, type ChatChildren, type ChatSubagent, type ChatWorkflow } from '@claudio/shared';
 import { subagentFor } from './chat-steps';
-import { branchLive, effectiveBranch, type LivenessChat } from './liveness';
+import { branchLive, chatAlive, effectiveBranch, type LivenessChat } from './liveness';
 
 /**
  * A chat with what it delegated: the one thing every rule below reads, so that a branch is only
@@ -28,7 +28,7 @@ export interface Branch {
   /** Its description; a command without one shows the command (`mono`) */
   description: string;
   mono: boolean;
-  status: ChatBranchStatus;
+  status: ChatAgentStatus;
   /** When it was first launched */
   startedAt: string;
   endedAt: string | null;
@@ -61,6 +61,7 @@ export function agentBranch(chat: LivenessChat, subagent: ChatSubagent): Branch 
     startedAt: sub.startedAt,
     endedAt: sub.endedAt,
     // A chat nothing holds settles its agent here, so an open run must end with it
+    // A waiting agent's runs are closed already and its end is open: nothing to close
     runs: sub.status === 'running' || sub.endedAt === null ? sub.runs : closeRuns(sub.runs, sub.endedAt),
     activity: sub.status === 'running' ? sub.activity ?? null : null,
     command: null,
@@ -127,7 +128,8 @@ const at = (iso: string | null): number => {
 /** Running, or ended so recently that its final word is still on show. */
 export function isShown(chat: LivenessChat, shown: Pick<Branch, 'status' | 'endedAt'>, now: number): boolean {
   const branch = effectiveBranch(chat, shown);
-  if (branch.status === 'running') return true;
+  // A waiting agent stays listed: its background work may bring it back, and until it says it finished it is not gone
+  if (branch.status === 'running' || branch.status === 'waiting') return true;
   // An ended branch without an end time has nothing to measure its grace from: it has gone
   return branch.endedAt !== null && now - at(branch.endedAt) < BRANCH_GRACE_MS;
 }
@@ -164,7 +166,7 @@ export function liveBranches(chat: BranchChat, now: number): Branch[] {
 export function nextExpiry(branches: readonly Branch[], now: number): number | null {
   let next: number | null = null;
   for (const branch of branches) {
-    if (branch.status === 'running' || branch.endedAt === null) continue;
+    if (branch.status === 'running' || branch.status === 'waiting' || branch.endedAt === null) continue;
     const leaves = at(branch.endedAt) + BRANCH_GRACE_MS;
     if (leaves > now && (next === null || leaves < next)) next = leaves;
   }
@@ -172,15 +174,18 @@ export function nextExpiry(branches: readonly Branch[], now: number): number | n
 }
 
 export interface BranchCounts {
+  /** Agents working now; one waiting for its background work is counted in `waiting`, not here */
   agents: number;
+  waiting: number;
   tasks: number;
   workflows: number;
 }
 
 /** What is still running, by kind: the strip's count. */
 export function branchCounts(chat: LivenessChat, branches: readonly Branch[]): BranchCounts {
-  const counts: BranchCounts = { agents: 0, tasks: 0, workflows: 0 };
+  const counts: BranchCounts = { agents: 0, waiting: 0, tasks: 0, workflows: 0 };
   for (const branch of branches) {
+    if (branch.status === 'waiting' && chatAlive(chat)) counts.waiting += 1;
     if (!branchLive(chat, branch)) continue;
     if (branch.kind === 'agent') counts.agents += 1;
     else if (branch.kind === 'task') counts.tasks += 1;

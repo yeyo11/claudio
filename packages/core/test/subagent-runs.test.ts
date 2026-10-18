@@ -192,3 +192,128 @@ test('a notification that lists several tasks stops each, and skips the orphan s
   assert.equal(agent?.status, 'stopped');
   assert.equal(agent?.endedAt, at('10:09:00'));
 });
+
+// An agent that ends its turn with background work of its own running is told to its parent as
+// `completed` with a summary that says so; it is waiting, not done (docs/chat-tool-rows-and-branches.md)
+const WAITING = 'Agent "Restyle E" is waiting on its own background work';
+
+test('launch, waiting, self-resume, waiting, finished: one record that is waiting between runs and done at the end', () => {
+  mock.timers.enable({ apis: ['Date'], now: Date.parse(at('09:00:00')) });
+  try {
+    const chat = new ClaudeBranches();
+    chat.message(useCall('toolu_agent', 'Agent'));
+    chat.task('task_started', { task_id: 'agent-w', tool_use_id: 'toolu_agent', task_type: 'local_agent', is_backgrounded: true });
+    chat.message(resultFor('toolu_agent'));
+    mock.timers.setTime(Date.parse(at('09:10:00')));
+    chat.task('task_notification', { task_id: 'agent-w', tool_use_id: 'toolu_agent', status: 'completed', summary: WAITING });
+    const [waiting] = chat.subagents.values();
+    assert.equal(waiting?.status, 'waiting');
+    assert.equal(waiting?.endedAt, null);
+    assert.deepEqual(waiting?.runs, [{ startedAt: at('09:00:00'), endedAt: at('09:10:00') }]);
+    // The same notification again changes nothing
+    mock.timers.setTime(Date.parse(at('09:11:00')));
+    chat.task('task_notification', { task_id: 'agent-w', status: 'completed', summary: WAITING });
+    assert.deepEqual([...chat.subagents.values()][0]?.runs, [{ startedAt: at('09:00:00'), endedAt: at('09:10:00') }]);
+
+    // Resumes by itself: the same task id starts again, no SendMessage
+    mock.timers.setTime(Date.parse(at('09:40:00')));
+    chat.task('task_started', { task_id: 'agent-w', tool_use_id: 'toolu_agent', task_type: 'local_agent', is_backgrounded: true });
+    assert.equal(chat.subagents.size, 1);
+    assert.equal([...chat.subagents.values()][0]?.status, 'running');
+
+    mock.timers.setTime(Date.parse(at('09:45:00')));
+    chat.task('task_notification', { task_id: 'agent-w', status: 'completed', note: 'This agent stopped with background work of its own still running.' });
+    assert.equal([...chat.subagents.values()][0]?.status, 'waiting');
+
+    mock.timers.setTime(Date.parse(at('10:00:00')));
+    chat.task('task_started', { task_id: 'agent-w', tool_use_id: 'toolu_agent', task_type: 'local_agent', is_backgrounded: true });
+    mock.timers.setTime(Date.parse(at('10:02:00')));
+    chat.task('task_notification', { task_id: 'agent-w', status: 'completed', summary: 'Agent "Restyle E" finished' });
+
+    const [agent] = chat.subagents.values();
+    assert.equal(agent?.status, 'completed');
+    assert.equal(agent?.endedAt, at('10:02:00'));
+    assert.deepEqual(agent?.runs, [
+      { startedAt: at('09:00:00'), endedAt: at('09:10:00') },
+      { startedAt: at('09:40:00'), endedAt: at('09:45:00') },
+      { startedAt: at('10:00:00'), endedAt: at('10:02:00') },
+    ]);
+    assert.equal(runsElapsedMs(agent?.runs ?? [], 0), 17 * 60_000);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('a waiting agent is reported as waiting, and a chat nothing holds settles it as stopped', () => {
+  mock.timers.enable({ apis: ['Date'], now: Date.parse(at('09:00:00')) });
+  try {
+    const chat = new ClaudeBranches();
+    chat.task('task_started', { task_id: 'agent-x', tool_use_id: 'toolu_x', task_type: 'local_agent', is_backgrounded: true });
+    mock.timers.setTime(Date.parse(at('09:05:00')));
+    chat.task('task_notification', { task_id: 'agent-x', status: 'completed', summary: WAITING });
+    const facts = { subagents: [...chat.subagents.values()], tasks: [], workflows: [] };
+    assert.equal(toChildren(facts, 's').subagents[0]?.status, 'waiting');
+    const settled = toChildren(facts, 's', at('09:30:00')).subagents[0];
+    assert.equal(settled?.status, 'stopped');
+    assert.equal(runsElapsedMs(settled?.runs ?? [], Date.parse(at('12:00:00'))), 5 * 60_000);
+    chat.endAll(at('09:30:00'));
+    assert.equal([...chat.subagents.values()][0]?.status, 'stopped');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('the same replay read from disk is waiting between runs and finished at the end', async () => {
+  const config = tempConfig();
+  const project = join(config.projectsDir, '-work-waiting');
+  const sid = 'hhhh-8888';
+  const agents = join(project, sid, 'subagents');
+  mkdirSync(agents, { recursive: true });
+  const notify = (summary: string, when: string) =>
+    line({
+      type: 'user',
+      uuid: `n-${when}`,
+      timestamp: when,
+      message: { role: 'user', content: `<task-notification>\n<task-id>abc</task-id>\n<status>completed</status>\n<summary>${summary}</summary>\n</task-notification>` },
+    });
+  const launch = line({ type: 'user', uuid: 'l1', timestamp: at('09:00:00'), toolUseResult: { isAsync: true, status: 'async_launched', agentId: 'abc' } });
+  writeFileSync(join(agents, 'agent-abc.meta.json'), JSON.stringify({ agentType: 'general-purpose', description: 'Audit', toolUseId: 'toolu_agent', requestShape: 'background' }));
+  const file = join(agents, 'agent-abc.jsonl');
+  writeFileSync(file, line({ type: 'assistant', uuid: 'a', message: { role: 'assistant', content: [] } }));
+  const read = async () => (await new SessionStore(config).subagents(sid))[0];
+  const session = (...lines: string[]) => writeFileSync(join(project, `${sid}.jsonl`), [launch, ...lines].join('\n'));
+
+  // Waiting after its first run
+  utimesSync(file, new Date(at('09:09:59')), new Date(at('09:09:59')));
+  session(notify(WAITING, at('09:10:00')));
+  let agent = await read();
+  assert.equal(agent?.status, 'waiting');
+  assert.equal(agent?.endedAt, null);
+  assert.deepEqual(agent?.runs, [{ startedAt: at('09:00:00'), endedAt: at('09:10:00') }]);
+
+  // It wrote again with no resume on record: it works on a second run
+  utimesSync(file, new Date(at('09:40:00')), new Date(at('09:40:00')));
+  agent = await read();
+  assert.equal(agent?.status, 'running');
+  assert.equal(agent?.runs?.length, 2);
+
+  // Waiting a second time: the run between the two stops is kept
+  session(notify(WAITING, at('09:10:00')), notify(WAITING, at('09:45:00')));
+  utimesSync(file, new Date(at('09:44:59')), new Date(at('09:44:59')));
+  agent = await read();
+  assert.equal(agent?.status, 'waiting');
+  assert.equal(agent?.runs?.length, 2);
+  assert.equal(agent?.runs?.at(-1)?.endedAt, at('09:45:00'));
+
+  // Finished
+  session(notify(WAITING, at('09:10:00')), notify(WAITING, at('09:45:00')), notify('Agent &quot;Audit&quot; finished', at('10:02:00')));
+  utimesSync(file, new Date(at('10:01:59')), new Date(at('10:01:59')));
+  agent = await read();
+  assert.equal(agent?.status, 'completed');
+  assert.equal(agent?.endedAt, at('10:02:00'));
+  // A third run: the agent resumed again after its second wait, which no line of the session marks
+  assert.equal(agent?.runs?.length, 3);
+  assert.equal(agent?.runs?.at(-1)?.endedAt, at('10:02:00'));
+  const transcript = await new SessionStore(config).agentTranscript(sid, 'abc');
+  assert.equal(transcript?.status, 'completed');
+});

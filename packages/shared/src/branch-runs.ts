@@ -20,3 +20,13 @@ export function runsElapsedMs(runs: readonly ChatBranchRun[], now: number): numb
 export function closeRuns(runs: readonly ChatBranchRun[], at: string): ChatBranchRun[] {
   return runs.map((run) => (run.endedAt === null ? { ...run, endedAt: at } : run));
 }
+
+/**
+ * Whether a task notification says the agent only ended its turn: `completed`, but with background
+ * work of its own still running. The CLI's stream gives no field for it (a `task_notification` has
+ * `status`, `summary`, `usage`), so it is read from the words it always uses in the summary and,
+ * where it is carried, the note.
+ */
+export function isWaitingOnBackground(text: { summary?: string | null; note?: string | null }): boolean {
+  return /waiting on its own background work/i.test(text.summary ?? '') || /stopped with background work of its own still running/i.test(text.note ?? '');
+}

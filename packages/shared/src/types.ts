@@ -541,8 +541,8 @@ export interface AgentTranscript {
   workflowPhase: string | null;
   /** Its first message: the prompt it was given */
   prompt: string | null;
-  /** `stopped` when its session ended before the agent reported back */
-  status: 'running' | 'completed' | 'failed' | 'stopped';
+  /** `stopped` when its session ended before the agent reported back; `waiting` when it ended its turn with background work of its own running */
+  status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
   background: boolean;
   /** When it was first launched */
   startedAt: string | null;
@@ -1167,6 +1167,12 @@ export interface ChatOrchestration {
 /** How far a piece of work a chat delegated has got. */
 export type ChatBranchStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
+/**
+ * An agent has one more state: `waiting`, its turn ended while background work of its own still
+ * runs, so it may resume by itself. Not working (no clock, no spinner) and not done.
+ */
+export type ChatAgentStatus = ChatBranchStatus | 'waiting';
+
 /** A command or agent a chat sent off to run beside it. */
 export interface ChatBackgroundTask {
   id: string;
@@ -1205,7 +1211,7 @@ export interface ChatSubagent {
   sessionId: string;
   kind: string;
   description: string;
-  status: ChatBranchStatus;
+  status: ChatAgentStatus;
   /** When it was first launched; a resume does not move it (see `runs`) */
   startedAt: string;
   endedAt: string | null;
