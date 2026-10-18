@@ -8,8 +8,9 @@
 # from the app (docs/setup.md), and CLAUDIO_TAILSCALE_MANAGED tells the server this daemon is its own
 # to sign in and out. With CLAUDIO_TUNNEL off nothing is started and the server offers no tunnel.
 #
-# The server is exec'd, so it receives `docker stop` itself; tailscaled is left to end with the
-# container, and writes its state as it changes, so nothing waits on it.
+# The command is exec'd, so it receives `docker stop` itself. That command is the launcher
+# (/app/launcher.mjs), which forwards the signal to the server it supervises; tailscaled is left to
+# end with the container, and writes its state as it changes, so nothing waits on it.
 set -eu
 
 case "$(printf '%s' "${CLAUDIO_TUNNEL:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in

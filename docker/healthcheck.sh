@@ -4,6 +4,10 @@
 # itself, the container exits and `restart:` brings it back. A single slow probe is not a failure
 # worth a restart, hence the counter.
 #
+# The server's parent is the launcher (/app/launcher.mjs): when this script ends the server, the
+# launcher exits with its code and the container stops, unless an update asked for the restart (exit
+# 75), which the launcher handles by starting the server again inside the same container.
+#
 # Only liveness is probed. /api/health answers 200 even when Claude is logged out, on purpose: a
 # restart would not fix a missing credential.
 set -u

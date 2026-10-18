@@ -4,6 +4,9 @@
 # self-contained ESM file (apps/api/scripts/bundle.mjs), so the image that runs it carries no
 # source tree, no node_modules and no transpiler: the container used to start `tsx src/index.ts`
 # and parse the whole of TypeScript on every boot.
+# The Claude Code pin is read by two stages (image.json and the install), so it is declared once,
+# before the first FROM, and each stage re-declares it without a default.
+ARG CLAUDE_CODE_VERSION=2.1.302
 FROM node:26-bookworm-slim AS build
 # Node 25 stopped shipping corepack, so pnpm comes from npm, pinned to the root packageManager.
 RUN npm install -g pnpm@10.17.1
@@ -23,7 +26,29 @@ COPY apps apps
 RUN pnpm --filter @claudio/web build \
  && pnpm --filter @claudio/api bundle
 
-FROM node:26-bookworm-slim
+# What /app/image.json says about this image (version, imageInputs, node ABI, Claude Code pin): the
+# launcher and the server read it to decide which signed bundles this image can run (minImage).
+ARG CLAUDE_CODE_VERSION
+RUN node apps/api/scripts/server-bundle.mjs --image-json /image.json --claude-code "${CLAUDE_CODE_VERSION}"
+
+# The release's server bundle (docs/plans/container-polish.md, D4): the tarball and its manifest, not
+# yet signed. The key never enters a build: .github/workflows/server-bundle.yml signs the manifest
+# outside, then verifies it against docker/keys. Built from `build`, so it is the very code the image
+# ships. BUNDLE_PREVIOUS is the previous release's manifest (a URL or a file), which minImage inherits from.
+FROM build AS server-bundle
+ARG BUNDLE_PREVIOUS=
+ARG BUNDLE_COMMIT=
+RUN mkdir /out \
+ && node apps/api/scripts/server-bundle.mjs --out /out \
+      ${BUNDLE_PREVIOUS:+--previous "$BUNDLE_PREVIOUS"} ${BUNDLE_COMMIT:+--commit "$BUNDLE_COMMIT"}
+
+# Holds only /out, so `docker buildx build --target bundle-export --output type=local,dest=out` writes
+# the bundle and nothing else.
+FROM scratch AS bundle-export
+COPY --from=server-bundle /out /
+
+# The image proper
+FROM node:26-bookworm-slim AS runtime
 
 # Tools Claude Code relies on when working inside projects (openssh-client is git's, over ssh).
 RUN apt-get update \
@@ -46,8 +71,8 @@ RUN npm install -g pnpm@10.17.1
 # and re-record what the adapters read if the release notes touch it.
 ARG GH_VERSION=2.102.0
 ARG GH_SHA256=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386
-ARG GLAB_VERSION=1.120.0
-ARG GLAB_SHA256=4e6c59de9f7ed2f304bf93aad01ea8f8a69584f0450ce90ad696ef81f69c69aa
+ARG GLAB_VERSION=1.123.0
+ARG GLAB_SHA256=9c9ac4c2b74ec8709dec4819a4041050f3680c6aaa18f0ed30434081f4fe9bef
 RUN set -eu; cd /tmp \
  && gh_tar="gh_${GH_VERSION}_linux_amd64.tar.gz" \
  && curl -fsSL -o "$gh_tar" "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${gh_tar}" \
@@ -74,8 +99,8 @@ RUN set -eu; cd /tmp \
 #   curl -fsSL https://pkgs.tailscale.com/stable/tailscale_<v>_amd64.tgz.sha256
 # /run/tailscale holds the daemon's socket where the CLI looks by default, so neither Claudio nor
 # anyone else passes --socket; it belongs to the user tailscaled runs as (/var/run is /run here).
-ARG TAILSCALE_VERSION=1.102.4
-ARG TAILSCALE_SHA256=50748df1045e60b5b695f19f4c56b0da36c019948b440fb456b6584a50f0d8b9
+ARG TAILSCALE_VERSION=1.104.1
+ARG TAILSCALE_SHA256=108d1d96ecf410d305571e173516f27038f870919a9b89c914a167c6d33a4528
 RUN set -eu; cd /tmp \
  && ts_tar="tailscale_${TAILSCALE_VERSION}_amd64.tgz" \
  && curl -fsSL -o "$ts_tar" "https://pkgs.tailscale.com/stable/${ts_tar}" \
@@ -88,17 +113,23 @@ RUN set -eu; cd /tmp \
  && mkdir -p /run/tailscale && chown node:node /run/tailscale
 
 # Volumes are owned by the non-root user (bypassPermissions refuses to run as root)
+# /app is root's: the agents run as `node` in bypassPermissions, and they must not be able to rewrite the
+# server, the launcher or the keys that decide which update to trust (D4). Nothing writes under /app at
+# run time; the server's writable state is /data, and an update lands in /data/app, never here.
 RUN mkdir -p /app /workspace /data /home/node/.claude \
- && chown -R node:node /app /workspace /data /home/node
+ && chown -R node:node /workspace /data /home/node
 USER node
+# /data/cli/current/bin is where an in-app Claude Code install lands (a symlink the server swaps); it
+# comes first so a newer CLI wins over the image's pin, and the launcher removes it when the image's
+# pin is the newer one (docs/plans/container-polish.md, D4)
 ENV HOME=/home/node \
-    PATH=/home/node/.local/bin:$PATH
+    PATH=/data/cli/current/bin:/home/node/.local/bin:$PATH
 
 # Claude Code native build, pinned so that an image is the same tomorrow as today: the CLI moves
 # faster than this project, and a rebuild must not change behaviour by accident. Bump it on purpose
 # (the System page says when a newer one exists), or override it with
 # --build-arg CLAUDE_CODE_VERSION=<version>. `latest` and `stable` still work and count as unpinned.
-ARG CLAUDE_CODE_VERSION=2.1.278
+ARG CLAUDE_CODE_VERSION
 # One URL always serves the newest installer, so the script is pinned by content instead of by
 # version: a build that would otherwise pipe an unreviewed script into a shell stops at the
 # checksum. To rotate, run `curl -fsSL https://claude.ai/install.sh | sha256sum`, read the diff
@@ -125,24 +156,37 @@ RUN npm install -g @jetbrains/youtrack-apps-tools@${YOUTRACK_APP_VERSION} \
  && youtrack-app --version
 
 WORKDIR /app
-# The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI
-COPY --from=build --chown=node:node /app/apps/api/dist/api.mjs /app/api.mjs
-COPY --from=build --chown=node:node /app/apps/api/dist/mcp.mjs /app/mcp.mjs
-# The guard program: root-owned and read-only, so the agent's user cannot replace the hook that checks it
+# The whole of the wrapper: one JavaScript file, the assistant's MCP server beside it, and the built UI.
+# Everything under /app is root-owned and read-only (files 0444, directories 0555; `a=rX` keeps the
+# execute bit only where the source had it, which node-pty's spawn-helper needs), the guard and the
+# launcher included, so the agents' user can rewrite none of it.
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/api.mjs /app/api.mjs
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/mcp.mjs /app/mcp.mjs
+# The guard program: the agent's user cannot replace the hook that checks it
 COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/guard.mjs /app/guard.mjs
+# The launcher, the server's parent: it starts /app/api.mjs or a verified update from /data/app, and
+# it is the one part an update cannot replace. It and the keys below come only from the image.
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/launcher.mjs /app/launcher.mjs
+# The public keys an update's signature is checked against. The whole folder is copied, README
+# included, so a build without a key still works (a glob matching nothing fails the COPY): the image
+# then offers no in-app update (docs/plans/container-polish.md, "Owner actions")
+COPY --chown=root:root --chmod=a=rX docker/keys/ /app/keys/
+# What this image is, for minImage and the Node ABI check
+COPY --from=build --chown=root:root --chmod=0444 /image.json /app/image.json
 # The person's terminals: the host process the server forks, and node-pty beside it, the one native
 # module (a prebuilt binary: nothing is compiled in either stage). The folder is the only
 # node_modules in the image, with @number0 below
-COPY --from=build --chown=node:node /app/apps/api/dist/terminal-host.mjs /app/terminal-host.mjs
-COPY --from=build --chown=node:node /app/apps/api/dist/node_modules/node-pty /app/node_modules/node-pty
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/terminal-host.mjs /app/terminal-host.mjs
+COPY --from=build --chown=root:root --chmod=a=rX /app/apps/api/dist/node_modules/node-pty /app/node_modules/node-pty
 # Collaborators: the iroh host the server forks when the feature is on, and @number0/iroh with its
 # Linux binding beside it (docs/plans/collaborators.md §3.2); without them the page says the host is unavailable
-COPY --from=build --chown=node:node /app/apps/api/dist/collab-host.mjs /app/collab-host.mjs
-COPY --from=build --chown=node:node /app/apps/api/dist/node_modules/@number0 /app/node_modules/@number0
-COPY --from=build --chown=node:node /app/apps/web/dist /app/web
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/collab-host.mjs /app/collab-host.mjs
+COPY --from=build --chown=root:root --chmod=a=rX /app/apps/api/dist/node_modules/@number0 /app/node_modules/@number0
+COPY --from=build --chown=root:root --chmod=a=rX /app/apps/web/dist /app/web
 
 # Keeping .claude.json inside the config dir means one volume persists the whole account setup.
-# CLAUDIO_DISTRIBUTION tells the UI that an update here is a new image, not something it can install.
+# CLAUDIO_DISTRIBUTION tells the UI this is a container, where updates, the terminal and the first-run
+# owner token behave differently (docs/plans/container-polish.md).
 # The tunnel is on by default because the entrypoint runs a tailscaled of Claudio's own; it reaches
 # the server on 127.0.0.1, around the published port and the operator's proxy, which is why
 # CLAUDIO_TUNNEL=off turns it, and that daemon, off (docs/deploy.md, "The tunnel in Docker").
@@ -156,6 +200,9 @@ ENV NODE_ENV=production \
     CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
     CLAUDIO_WEB_DIST=/app/web \
+    # The guard and the MCP server are the image's own, never an update's: the launcher keeps this
+    # value when it starts an overlay, which carries neither
+    CLAUDIO_GUARD_ENTRY=/app/guard.mjs \
     CLAUDIO_DISTRIBUTION=docker \
     # gh and glab keep their sign-ins in their config folders, in plain text where there is no
     # keyring (no container has one): on the volume, and nowhere else
@@ -167,15 +214,17 @@ VOLUME ["/home/node/.claude", "/workspace", "/data"]
 
 # The script also ends the server after a few failed probes, which is what makes a restart policy
 # act on an unhealthy container (see docs/deploy.md)
-COPY --chown=node:node --chmod=755 docker/healthcheck.sh /app/healthcheck.sh
-COPY --chown=node:node --chmod=755 docker/entrypoint.sh /app/entrypoint.sh
+COPY --chown=root:root --chmod=755 docker/healthcheck.sh /app/healthcheck.sh
+COPY --chown=root:root --chmod=755 docker/entrypoint.sh /app/entrypoint.sh
 HEALTHCHECK --interval=30s --timeout=15s --start-period=20s --retries=3 \
   CMD ["/app/healthcheck.sh"]
 
-# Exec form with no package manager in between: `docker stop` signals the server itself, so the
-# container's exit status is the server's (0) and not a package manager's report of a killed child
-# (143). The pid file it writes is still how the healthcheck finds it, since `init: true` means the
-# server is not PID 1. The entrypoint starts tailscaled, then execs this command, so the server is
-# still what the signal reaches.
+# Exec form with no package manager in between: `docker stop` signals the launcher, which forwards it to
+# the server and exits with the server's code, so the container's exit status is the server's (0) and
+# not a package manager's report of a killed child (143). The launcher is the server's parent: it
+# starts /app/api.mjs, or a verified update from /data/app, and restarts only the node process onto a
+# new bundle, so a plain `docker run` with no restart policy updates the same way. The pid file the
+# server writes is still how the healthcheck finds it, since `init: true` means neither is PID 1. The
+# entrypoint starts tailscaled, then execs this command.
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["node", "/app/api.mjs"]
+CMD ["node", "/app/launcher.mjs"]
