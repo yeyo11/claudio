@@ -128,11 +128,14 @@ jobs:
       - name: Two signed payloads
         run: |
           base=$(node -p "require('./apps/desktop/package.json').version")
-          next=$(node -p "const [a, b, c] = '$base'.split(/[.-]/); [a, b, Number(c) + 1].join('.')")
+          # Two plain patch versions: compareVersions does not order prereleases among themselves, as no
+          # release is one, so a -smoke.2 after a -smoke.1 would not count as newer
+          v1=$(node -p "const [a, b, c] = '$base'.split(/[.-]/); [a, b, Number(c) + 1].join('.')")
+          v2=$(node -p "const [a, b, c] = '$base'.split(/[.-]/); [a, b, Number(c) + 2].join('.')")
           {
             echo "BASE=$base"
-            echo "V1=$next-smoke.1"
-            echo "V2=$next-smoke.2"
+            echo "V1=$v1"
+            echo "V2=$v2"
           } >> "$GITHUB_ENV"
           node -e "
             const shell = JSON.parse(require('fs').readFileSync('apps/desktop/dist/package/shell.json', 'utf8'));
@@ -153,9 +156,9 @@ jobs:
             node apps/api/scripts/server-bundle.mjs --version "$1" --previous "$RUNNER_TEMP/previous.json" \
               --sign-with "$RUNNER_TEMP/bundle.pem" --verify-with docker/keys/smoke.pub --out "$RUNNER_TEMP/releases"
           }
-          payload "$next-smoke.1"
+          payload "$v1"
           printf '<!doctype html><title>Never renders</title>\n' > apps/web/dist/index.html
-          payload "$next-smoke.2"
+          payload "$v2"
           ls -l "$RUNNER_TEMP/releases"
 
       - name: Update to a payload, then roll back from one whose page never renders
