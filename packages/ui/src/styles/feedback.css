@@ -584,6 +584,8 @@ a.badge:hover {
   flex-direction: column;
   gap: 6px;
   align-items: flex-end;
+  /* The box is 0 high, so the buttons overflow it: toward the start, i.e. up, or the scroller cuts them. */
+  justify-content: flex-end;
   /* Sits in the flow but must not take space from it, or it would push the content up. */
   height: 0;
   margin-left: auto;

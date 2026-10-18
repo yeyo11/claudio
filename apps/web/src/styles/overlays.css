@@ -47,8 +47,16 @@
 }
 
 .dialog-head h2 {
+  /* A flex child sizes to its longest line: without this a long title pushes the close button out */
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: var(--fs-section);
   letter-spacing: var(--tracking-title);
+}
+
+/* An inline span ignores overflow, so the ellipsis a title asks for needs a box */
+.dialog-head h2 > .ellipsis {
+  display: block;
 }
 
 .dialog-body {
