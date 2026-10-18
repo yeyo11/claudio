@@ -450,7 +450,10 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('[role=dialog] .wh-dlg')`, { label: 'the Register dialog on a phone' });
     check((await page.eval(overflow)) <= 0, 'the phone dialog does not scroll the page sideways');
     check((await gradients()).length === 1, 'the phone dialog has one gradient surface');
+    // The 44 px target is the touch rule (`pointer: coarse` raises --control-h): measure it with a finger, as a phone has
+    await page.emulateTouch(true);
     const primary = await page.eval(`const b = document.querySelector('[role=dialog] .btn-primary'); return b ? b.getBoundingClientRect().height : 0`);
+    await page.emulateTouch(false);
     check(primary >= 44, `Register is a 44 px target on a phone (${primary})`);
     await everyScreen('webhooks-phone-register-dark', 'the Register dialog on a phone, dark');
     await closeDialog();
