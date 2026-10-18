@@ -22,14 +22,28 @@ never starts `claude` in it. The design, the threat model and the decisions are 
   the switch for whoever deployed Claudio (the UI then shows it read-only).
 - **Authentication off: this machine only.** From loopback, with no forwarded or runtime host.
 - **Authentication on: the owner's token.** From another device only through the tunnel
-  (`remote: 'tunnel'`, the default), or from any device with a token (`remote: 'any'`, which the
-  card warns about). `remote: 'off'` keeps it to this machine.
+  (`remote: 'tunnel'`, the default outside a container), or from any device with a token
+  (`remote: 'any'`, which the card warns about, and the default in a container). `remote: 'off'`
+  keeps it to this machine.
+- **In a container the default is `any`.** Every request there comes from the Docker bridge, never
+  from loopback, so `'tunnel'` made the terminal unusable rather than safer (`CLAUDIO_DISTRIBUTION=docker`
+  picks the default; a value saved in `terminal.json` wins). The image makes an owner token on its
+  first start ([deploy.md](deploy.md#the-first-run-token)), which is what the terminal then needs.
+  The owner token already starts chats that run any command as `node`, so this adds no capability to
+  its holder.
 - **Never** a chat's token, the desktop secret, or a process an agent started (peer check). Read-only
   mode refuses it.
 - **Limit with authentication off.** A process that detaches from its chat's process tree (`setsid -f`,
   a double fork) is no longer found by the peer check, so an agent that has a shell can reach the
   terminal. With token or OIDC authentication it cannot: it holds no credential. The owner accepted
   this on 2026-10-15 and the card warns about it beside the switch when the mode is `none`.
+
+**Refusals are shown in words.** Settings → Access & safety → Terminal turns every reason the gate gives
+into a sentence with a link to the fix where there is one (protect access with a token; open the
+tunnel; read-only mode); it never shows the server's own English text. The switch returns to its value
+and the sentence appears under it, and *Where it opens* can be chosen before the terminal is on.
+Raising it from another device is refused by design (a remote caller must not widen its own access),
+so the card does not offer a button for that: change it on this machine, or through the tunnel.
 
 **Dev server.** `pnpm dev` proxies `/api` through Vite with `xfwd: true`. Opened at
 `http://localhost:5181` or `http://127.0.0.1:5181` on this machine, the terminal works as it does in
