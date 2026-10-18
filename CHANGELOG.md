@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/yeyo11/claudio/compare/v0.5.1...v0.6.0) (2026-10-18)
+
+
+### Features
+
+* the "Eat the code" splash on every load, desktop, web and PWA ([#42](https://github.com/yeyo11/claudio/issues/42)) ([9eb2381](https://github.com/yeyo11/claudio/commit/9eb238109f0fe19d87c9d74fdb5caadcd59d64ca))
+
+
+### Documentation
+
+* catch the docs up with 0.5.1 ([#43](https://github.com/yeyo11/claudio/issues/43)) ([c2014a2](https://github.com/yeyo11/claudio/commit/c2014a203a3b842d4b854765365ee80b5629086f))
+
 ## [0.5.1](https://github.com/yeyo11/claudio/compare/v0.5.0...v0.5.1) (2026-10-18)
 
 
