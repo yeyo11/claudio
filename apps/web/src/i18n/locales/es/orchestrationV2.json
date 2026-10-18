@@ -256,6 +256,7 @@
     "fixer_one": "agente {{duration}}, {{count}} intento",
     "fixer_other": "agente {{duration}}, {{count}} intentos",
     "pass": "pasada {{n}}",
+    "probe": "recomprobación rápida",
     "failed": "fallida",
     "noRuns": "Sus ejecuciones no se registraron.",
     "missing": "Grafo antiguo: algunas fases no se registraron.",

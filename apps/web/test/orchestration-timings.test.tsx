@@ -48,16 +48,17 @@ const TIMINGS: OrchestrationTimings = {
     items: [],
   },
   verification: {
-    checksMs: 29 * MIN,
+    checksMs: 31 * MIN,
     fixerMs: 5 * MIN,
     passes: 2,
     commands: [
       {
         command: 'pnpm e2e',
         install: false,
-        totalMs: 29 * MIN,
+        totalMs: 31 * MIN,
         runs: [
           { pass: 1, startedAt: at(61), durationMs: 15 * MIN, status: 'failed' },
+          { pass: 2, probe: true, startedAt: at(77), durationMs: 2 * MIN, status: 'passed' },
           { pass: 2, startedAt: at(81), durationMs: 14 * MIN, status: 'passed' },
         ],
       },
@@ -104,8 +105,9 @@ test('the panel words the phases, the critical path, the waits and the failed ru
   assert.ok(enText.includes(`Web work work ${d(20 * MIN)} ${d(2 * MIN)} before it started waiting on a limit · ${d(18 * MIN)}`));
   assert.ok(enText.includes(`waiting for a slot · ${d(2 * MIN)}`));
   assert.ok(enText.includes(`waiting for a retry · ${d(3 * MIN)}`));
-  assert.ok(enText.includes(`checks ${d(29 * MIN)} · fixer ${d(5 * MIN)}, 1 attempt`));
+  assert.ok(enText.includes(`checks ${d(31 * MIN)} · fixer ${d(5 * MIN)}, 1 attempt`));
   assert.ok(enText.includes(`pass 1 ${d(15 * MIN)} failed`));
+  assert.ok(enText.includes(`pass 2 quick re-check ${d(2 * MIN)}`));
   // Colour only where a wait or a failure is, each with its word
   assert.equal((en.match(/badge-warn/g) ?? []).length, 3, 'the limit on the path, and the limit and slot totals');
   assert.equal((en.match(/badge-idle/g) ?? []).length, 1);

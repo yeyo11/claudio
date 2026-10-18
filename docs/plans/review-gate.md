@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T22:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - plan
     - orchestration
@@ -874,7 +874,8 @@ left:
    held by the rotation is waited on, through the same `awaitReviewRun`.
 3. **Commit.** As `fix()` does (`:2078`), with the message
    `chore: keep what the review fixer left uncommitted`.
-4. **Re-check.** Every check is reset to `pending` and `checkAll` runs again from the first, with
+4. **Re-check.** Every check is reset to `pending` and `checkAll` runs again from the first (a failed check
+   after the check fixer runs alone first; see the 2026-10-18 update), with
    `pass += 1`. If a check fails, the check fixer runs as usual. If the checks finally fail, the
    verification fails with `gate: 'checks'` and the review status `skipped`.
 5. **Next round.** If the checks pass, a new round reviews the whole `base..head` again. It is not
@@ -1963,6 +1964,30 @@ The recordings are in [CLI facts](#recorded-facts).
   graph.
 - The first use is still the plan's rollout: one graph of this repository with `maxCostUsd: 5`,
   compared with the person's own review for three graphs.
+
+## Update 2026-10-18: failed check first
+
+The check fixer used to send every check back to `pending` and run them from the first. The
+guarantee is right (a fix for one check can break another, and the final head must pass them all
+together), but the answer came late: with `docker build` as the sixth step, a fix for it was only
+tested after install, typecheck, OpenAPI drift, design lint, the test suite and the build, about 12
+minutes, and a second failure cost another full pass.
+
+Now `checkAll` runs a **probe** after each fix, before the full pass:
+
+- The probe is the step that failed: one command, or the whole parallel group together. If the fix
+  touched a lockfile or any `package.json` (or the diff cannot be read), the install step runs first.
+- A probe that fails goes straight to the fixer. The attempt counts as any other (`maxAttempts`, the
+  cost limit, `[STOP]`, `more-errors`, the same-signature streak of `SAME_ERROR_ATTEMPTS`, and the
+  `orchestration.fixer` decision all see it), and the other checks do not run in between.
+- A probe that passes sends every check back to `pending` and runs them all again from the first,
+  skipping nothing. The probe is an extra run, never a replacement.
+- If the failed step was the first one, there is no probe: the full pass starts with it already.
+- The review fix's re-check has no failed step to probe, so it still runs everything from the first.
+- Probe runs are in `VerificationCommand.runs` with `probe: true`; see [[orchestration-timings.md]].
+
+Stop rules were not changed, only fed earlier: a probe is one more failure observation, so
+`more-errors` and the same-signature streak stop a hopeless loop after the probe, not after the pass.
 
 ## Related
 

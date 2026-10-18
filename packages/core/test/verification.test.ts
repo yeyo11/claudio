@@ -973,9 +973,11 @@ test('a check that fails, is fixed and passes keeps both runs, and the fixer att
   const v = orch.verification;
   assert.equal(v?.status, 'fixed', v?.report ?? '');
   const fixed = v?.commands[1];
-  assert.deepEqual(fixed?.runs?.map((r) => [r.pass, r.status]), [
-    [1, 'failed'],
-    [2, 'passed'],
+  // The failed check runs alone first (the probe), then with every other check in the full pass 2
+  assert.deepEqual(fixed?.runs?.map((r) => [r.pass, r.status, r.probe === true]), [
+    [1, 'failed', false],
+    [2, 'passed', true],
+    [2, 'passed', false],
   ]);
   for (const run of fixed?.runs ?? []) {
     assert.ok(!Number.isNaN(Date.parse(run.startedAt)));
@@ -994,6 +996,175 @@ test('a check that fails, is fixed and passes keeps both runs, and the fixer att
   assert.ok(inOrder(fix?.startedAt, fix?.endedAt));
   assert.ok((fix?.costUsd ?? 0) > 0);
   assert.equal(fix?.costUsd, v?.costUsd);
+  db.close();
+});
+
+// ---------- the order of the re-check after a fix ----------
+
+/** A file the checks append their name to, so a test reads the order they ran in. */
+function runLog(): { path: string; lines: () => string[] } {
+  const path = join(mkdtempSync(join(tmpdir(), 'claudio-order-')), 'order.log');
+  writeFileSync(path, '');
+  return { path, lines: () => readFileSync(path, 'utf8').split('\n').filter(Boolean) };
+}
+
+test('after a fix the check that failed runs first, alone, and only then does every check run again from the first', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  const first = `echo a >> ${log.path}`;
+  const broken = `echo b >> ${log.path}; echo 'FAKE-WRITE marker.txt repaired'; test -f marker.txt`;
+  const last = `echo c >> ${log.path}`;
+  const started = launch(orchestrator, repo, { commands: [first, broken, last], fixer: true, maxAttempts: 2 });
+  const v = (await settle(orchestrator, started.id)).verification;
+
+  assert.equal(v?.status, 'fixed', v?.report ?? '');
+  assert.equal(v?.attempts, 1);
+  // pass 1 stops at b; the probe is b alone; the full pass is a, b, c: nothing is skipped
+  assert.deepEqual(log.lines(), ['a', 'b', 'b', 'a', 'b', 'c']);
+  const shape = (i: number) => v?.commands[i]?.runs?.map((r) => [r.pass, r.status, r.probe === true]);
+  assert.deepEqual(shape(0), [[1, 'passed', false], [2, 'passed', false]]);
+  assert.deepEqual(shape(1), [[1, 'failed', false], [2, 'passed', true], [2, 'passed', false]]);
+  assert.deepEqual(shape(2), [[2, 'passed', false]]);
+  assert.deepEqual(v?.commands.map((c) => c.status), ['passed', 'fixed', 'passed']);
+  db.close();
+});
+
+test('a probe that still fails goes straight back to the fixer, without running the other checks, and counts as an attempt', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  const first = `echo a >> ${log.path}`;
+  // The first fix leaves it failing; the second mends it
+  const broken = `echo b >> ${log.path}; test -f two.txt && exit 0; if [ -f one.txt ]; then echo 'FAKE-WRITE two.txt x'; else echo 'FAKE-WRITE one.txt x'; fi; exit 1`;
+  const last = `echo c >> ${log.path}`;
+  const started = launch(orchestrator, repo, { commands: [first, broken, last], fixer: true, maxAttempts: 2 });
+  const v = (await settle(orchestrator, started.id)).verification;
+
+  assert.equal(v?.status, 'fixed', v?.report ?? '');
+  assert.equal(v?.attempts, 2);
+  assert.equal(v?.fixes?.length, 2);
+  // a b | probe b fails | probe b passes | the full pass; a and c never ran in between
+  assert.deepEqual(log.lines(), ['a', 'b', 'b', 'b', 'a', 'b', 'c']);
+  assert.deepEqual(v?.commands[1]?.runs?.map((r) => [r.pass, r.status, r.probe === true]), [
+    [1, 'failed', false],
+    [2, 'failed', true],
+    [3, 'passed', true],
+    [3, 'passed', false],
+  ]);
+  db.close();
+});
+
+test('a probe that keeps failing is held to the attempt limit, and the other checks never run again', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  const started = launch(orchestrator, repo, {
+    commands: [`echo a >> ${log.path}`, `echo b >> ${log.path}; echo 'FAKE-WRITE n.txt x'; exit 1`],
+    fixer: true,
+    maxAttempts: 2,
+  });
+  const v = (await settle(orchestrator, started.id)).verification;
+
+  assert.equal(v?.status, 'failed');
+  assert.equal(v?.attempts, 2);
+  assert.match(v?.report ?? '', /again after 2 fixer attempts/);
+  // The probes failed, so the first check ran once: the full pass was never reached
+  assert.deepEqual(log.lines(), ['a', 'b', 'b', 'b']);
+  assert.deepEqual(v?.commands[0]?.status, 'pending');
+  db.close();
+});
+
+test('the probe of a parallel group runs the failed group together, then every check runs again', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  const first = `echo a >> ${log.path}`;
+  const lint = `echo lint >> ${log.path}; echo 'FAKE-WRITE lint.txt ok'; test -f lint.txt`;
+  const unit = `echo unit >> ${log.path}; echo 'FAKE-WRITE unit.txt ok'; test -f unit.txt`;
+  const started = launch(orchestrator, repo, { commands: [first, [lint, unit]], fixer: true, maxAttempts: 1 });
+  const v = (await settle(orchestrator, started.id)).verification;
+
+  assert.equal(v?.status, 'fixed', v?.report ?? '');
+  const lines = log.lines();
+  assert.equal(lines.length, 8, lines.join(','));
+  assert.equal(lines[0], 'a');
+  assert.deepEqual(lines.slice(1, 5).sort(), ['lint', 'lint', 'unit', 'unit'].sort(), 'the group failed together and was probed together');
+  assert.equal(lines[5], 'a', 'the full pass starts from the first check after the probe');
+  for (const i of [1, 2]) assert.deepEqual(v?.commands[i]?.runs?.map((r) => [r.pass, r.probe === true]), [[1, false], [2, true], [2, false]]);
+  db.close();
+});
+
+test('a failing first step has no probe of its own: the full pass already starts with it', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const command = "echo 'FAKE-WRITE marker.txt repaired'; test -f marker.txt";
+  const started = launch(orchestrator, repo, { commands: [command, 'true'], fixer: true, maxAttempts: 2 });
+  const v = (await settle(orchestrator, started.id)).verification;
+
+  assert.equal(v?.status, 'fixed', v?.report ?? '');
+  assert.deepEqual(v?.commands[0]?.runs?.map((r) => [r.pass, r.probe === true]), [[1, false], [2, false]]);
+  db.close();
+});
+
+/** A pnpm that only logs, on the PATH while `body` runs, over a repository with a lockfile. */
+async function withLoggedInstall(log: { path: string }, repo: string, body: () => Promise<void>): Promise<void> {
+  commitFile(repo, 'pnpm-lock.yaml', 'lockfileVersion: 9.0\n');
+  const bin = mkdtempSync(join(tmpdir(), 'claudio-bin-'));
+  writeFileSync(join(bin, 'pnpm'), `#!/bin/sh\necho install >> ${log.path}\n`);
+  chmodSync(join(bin, 'pnpm'), 0o755);
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path ?? ''}`;
+  try {
+    await body();
+  } finally {
+    process.env.PATH = path;
+  }
+}
+
+test('a fix that touched package.json installs again before the probe, and one that did not does not', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  await withLoggedInstall(log, repo, async () => {
+    const touching = launch(orchestrator, repo, {
+      commands: [`echo check >> ${log.path}; echo 'FAKE-WRITE package.json {}'; test -f package.json`],
+      fixer: true,
+      maxAttempts: 1,
+    });
+    const v = (await settle(orchestrator, touching.id)).verification;
+    assert.equal(v?.status, 'fixed', v?.report ?? '');
+    // install check | install check (probe) | install check (full pass)
+    assert.deepEqual(log.lines(), ['install', 'check', 'install', 'check', 'install', 'check']);
+  });
+  db.close();
+});
+
+test('with a later check failing, the install runs again ahead of the probe when the fix changed the lockfile', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  await withLoggedInstall(log, repo, async () => {
+    const started = launch(orchestrator, repo, {
+      commands: [`echo a >> ${log.path}`, `echo b >> ${log.path}; echo 'FAKE-WRITE package.json {}'; test -f package.json`],
+      fixer: true,
+      maxAttempts: 1,
+    });
+    const v = (await settle(orchestrator, started.id)).verification;
+    assert.equal(v?.status, 'fixed', v?.report ?? '');
+    // install a b | install b (probe) | install a b (full pass)
+    assert.deepEqual(log.lines(), ['install', 'a', 'b', 'install', 'b', 'install', 'a', 'b']);
+    assert.deepEqual(v?.commands[0]?.runs?.map((r) => [r.pass, r.probe === true]), [[1, false], [2, true], [2, false]]);
+  });
+  db.close();
+});
+
+test('with a later check failing, a fix that left the dependencies alone does not install before the probe', async () => {
+  const { db, repo, orchestrator } = fixture();
+  const log = runLog();
+  await withLoggedInstall(log, repo, async () => {
+    const started = launch(orchestrator, repo, {
+      commands: [`echo a >> ${log.path}`, `echo b >> ${log.path}; echo 'FAKE-WRITE marker.txt ok'; test -f marker.txt`],
+      fixer: true,
+      maxAttempts: 1,
+    });
+    const v = (await settle(orchestrator, started.id)).verification;
+    assert.equal(v?.status, 'fixed', v?.report ?? '');
+    assert.deepEqual(log.lines(), ['install', 'a', 'b', 'b', 'install', 'a', 'b']);
+  });
   db.close();
 });
 

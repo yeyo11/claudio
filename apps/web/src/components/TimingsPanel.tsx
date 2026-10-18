@@ -130,6 +130,7 @@ export function TimingsBody({ timings, running }: { timings: OrchestrationTiming
                     {command.runs.map((run) => (
                       <span key={`${run.pass}-${run.startedAt}`} className={`orch-timings-run${run.status === 'failed' ? ' is-failed' : ''}`}>
                         <span className="tnum">{t('timings.pass', { n: run.pass })}</span>
+                        {run.probe && <span className="small muted">{t('timings.probe')}</span>}
                         <Duration ms={run.durationMs} />
                         {run.status === 'failed' && <Tag tone="bad">{t('timings.failed')}</Tag>}
                       </span>
