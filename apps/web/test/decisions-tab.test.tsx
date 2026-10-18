@@ -10,7 +10,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
-import i18n from '../src/i18n';
+import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
 import { activeBlocked, capConsequence, draftOf, examplePoint, isLimited, supervisorMeaning } from '../src/pages/config/decisions/model';
 import { PointRow } from '../src/pages/config/decisions/Points';
@@ -99,6 +99,9 @@ const engine = (saved: DecisionSettings, decisions: number | null = 0) =>
   );
 
 test.beforeEach(async () => {
+  // setLanguage, not changeLanguage alone: money and figures are Intl formats, which follow the stored
+  // language, and CI's locale is not the developer's (it read "$0.40" in a Spanish sentence there)
+  setLanguage('es');
   await i18n.changeLanguage('es');
 });
 
