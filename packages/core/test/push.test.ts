@@ -350,7 +350,7 @@ function tunnelEvent(state: TunnelState, url: string | null): ClaudioEventInput 
   return {
     type: 'tunnel.changed',
     title: `Tunnel ${state}`,
-    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, enabled: true, managed: false, tailscale: { state: 'ready', version: '1.102.4', host: 'claudio-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithClaudio: false } },
+    tunnel: { state, url, since: url ? new Date().toISOString() : null, reason: null, checking: false, enabled: true, managed: false, tailscale: { state: 'ready', version: '1.102.4', host: 'claudio-test.tail0000.ts.net', reason: null }, port: 8443, settings: { startWithClaudio: false } },
   };
 }
 

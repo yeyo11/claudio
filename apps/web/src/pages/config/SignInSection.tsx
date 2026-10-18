@@ -54,6 +54,17 @@ export function SignInSection() {
     },
     onError: (err) => toast.error(t('account.verifyFailed'), err),
   });
+  // An API key has a free check; the rest are confirmed by the first chat or by a test message
+  const check = useMutation({
+    mutationFn: (id: string) => api.checkAccount(id),
+    onSuccess: (checked) => {
+      refresh();
+      void queryClient.invalidateQueries({ queryKey: keys.accounts });
+      if (checked.signInState === 'expired') toast.error(t('account.keyRefused'));
+      else toast.success(t('account.works'));
+    },
+    onError: (err) => toast.error(t('account.verifyFailed'), err),
+  });
   const fromWrapper = auth?.tokenSource.startsWith('wrapper-') ?? false;
   const keyStored = setup.data?.providers.find((p) => p.id === CLAUDE_CODE_ID)?.keyStored ?? false;
   const methods = methodsOf(setup.data, CLAUDE_CODE_ID);
@@ -64,6 +75,9 @@ export function SignInSection() {
   const expired = inUse?.signInState === 'expired';
   const account = accounts?.find((a) => a.id === inUse?.id);
   const envSource = auth?.tokenSource === 'env-oauth-token' || auth?.tokenSource === 'env-api-key';
+  const usesKey = inUse !== null && (inUse.kind === 'api-key' || (inUse.id === 'default' && (auth?.tokenSource === 'env-api-key' || auth?.tokenSource === 'wrapper-api-key')));
+  // No free documented check proves an OAuth token from the environment: the first chat settles it
+  const unconfirmed = inUse !== null && !expired && inUse.id === 'default' && auth?.tokenSource === 'env-oauth-token' && inUse.checkedAt === null;
   // The panel is open when there is nothing to keep (no account, or its sign-in expired); otherwise a click opens it
   const [asked, setAsked] = useState(false);
   const panelOpen = asked || (auth !== undefined && (inUse === null || expired));
@@ -71,7 +85,15 @@ export function SignInSection() {
   const facts = auth && (
     <span className="account-facts">
       <span className="account-facts-line">
-        {inUse === null ? <Tag tone="warn">{t('account.notSignedIn')}</Tag> : expired ? <Tag tone="warn">{t('account.expired')}</Tag> : <Tag tone="ok">{t('account.loggedIn')}</Tag>}
+        {inUse === null ? (
+          <Tag tone="warn">{t('account.notSignedIn')}</Tag>
+        ) : expired ? (
+          <Tag tone="warn">{t('account.expired')}</Tag>
+        ) : unconfirmed ? (
+          <Tag>{t('account.notConfirmed')}</Tag>
+        ) : (
+          <Tag tone="ok">{t('account.loggedIn')}</Tag>
+        )}
         <span className="break">{inUse?.label ?? t('account.noAccount')}</span>
       </span>
       {inUse && (
@@ -81,7 +103,7 @@ export function SignInSection() {
             .join(' · ')}
         </span>
       )}
-      {inUse && <span className="account-facts-line">{inUse.checkedAt ? t('account.checked', { ago: timeAgo(inUse.checkedAt) }) : t('account.neverChecked')}</span>}
+      {inUse && <span className="account-facts-line">{inUse.checkedAt ? t('account.checked', { ago: timeAgo(inUse.checkedAt) }) : unconfirmed ? t('account.confirmsOnFirstChat') : t('account.neverChecked')}</span>}
       {inUse && inUse.id !== 'default' && (
         <span>
           <Trans t={t} i18nKey="account.runsOn" values={{ name: inUse.label }} components={{ link: <Link to="/accounts" className="c-accent" /> }} />
@@ -94,7 +116,12 @@ export function SignInSection() {
     <PrefRows>
       <PrefRow id="sign-in-account" setting="sign-in.account" title={t('account.inUse')} hint={isLoading ? <Skeleton rows={4} /> : facts}>
         <div className="pref-actions">
-          {inUse !== null && (
+          {inUse !== null && usesKey && (
+            <button className="btn" disabled={check.isPending} onClick={() => check.mutate(inUse.id)}>
+              <ReservedLabel states={[t('account.check'), t('account.checking')]} shown={check.isPending ? 1 : 0} />
+            </button>
+          )}
+          {inUse !== null && !usesKey && (
             <button className="btn" disabled={verify.isPending} onClick={() => verify.mutate()}>
               <ReservedLabel states={[t('account.testMessage'), t('account.testing')]} shown={verify.isPending ? 1 : 0} />
             </button>
@@ -111,7 +138,7 @@ export function SignInSection() {
           )}
           {signOut && <SignOutButton tool={CLAUDE_CODE_ID} label={CLAUDE_CODE_LABEL} keyOnly={methods?.signOutKeyOnly ?? false} />}
         </div>
-        {inUse !== null && <span className="small muted">{t('account.testHint')}</span>}
+        {inUse !== null && !usesKey && <span className="small muted">{t('account.testHint')}</span>}
         {/* Always rendered so a screen reader is told when the result lands */}
         <span className="small" role="status">
           {verify.data && (
