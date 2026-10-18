@@ -846,11 +846,13 @@ body:has(> .sheet-scrim) > #root {
 }
 .sheet-title {
   margin: 0;
+  overflow-wrap: anywhere;
   font-size: var(--fs-section);
   font-weight: var(--fw-strong);
 }
 .sheet-description {
   margin: 2px 0 0;
+  overflow-wrap: anywhere;
   color: var(--text-muted);
   font-size: var(--fs-small);
 }

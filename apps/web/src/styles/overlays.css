@@ -50,6 +50,9 @@
   /* A flex child sizes to its longest line: without this a long title pushes the close button out */
   flex: 1 1 auto;
   min-width: 0;
+  /* A title is often a name someone typed (a project, a group, a branch, a path): one word with no
+     break in it wraps instead of running under the close button */
+  overflow-wrap: anywhere;
   font-size: var(--fs-section);
   letter-spacing: var(--tracking-title);
 }
