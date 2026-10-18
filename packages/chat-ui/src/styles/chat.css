@@ -1385,6 +1385,11 @@
     min-height: 44px;
   }
 
+  /* The inspector's tabs are a finger's size in its sheet; the bar is 56 px, so nothing grows */
+  .insp-top .tab {
+    min-height: var(--touch);
+  }
+
   /* 16px, or iOS zooms the page in the moment the box takes focus (styles/primitives.css) */
   .composer-input {
     font-size: var(--fs-input);

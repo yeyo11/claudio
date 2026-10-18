@@ -83,10 +83,11 @@
   margin: 0;
 }
 
-/* A finger needs 44 px: the folds, the text buttons and the lone links a dialog or a sheet carries
+/* A finger needs 44 px: the folds, the text buttons and the lone links a dialog, a sheet or the
+   notification panel carries
    are 20-26 px tall on their own (a link inside a sentence is left to its line) */
 @media (pointer: coarse) {
-  :is(.dialog-body, .sheet-body) :is(.collapsible-trigger, .link-btn, .kv dd > a:only-child) {
+  :is(.dialog-body, .sheet-body, .notif-panel) :is(.collapsible-trigger, .link-btn, .kv dd > a:only-child) {
     min-height: var(--touch);
   }
 
