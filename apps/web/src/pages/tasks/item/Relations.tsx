@@ -74,7 +74,9 @@ export function RelationDialog({
                 <button type="button" className="relation-row relation-pick" onClick={() => onPick(type, item)}>
                   <WorkItemStatusIcon status={item.status} />
                   <WorkItemKey value={item.key} />
-                  <span className="relation-title">{item.title}</span>
+                  <span className="relation-title" title={item.title}>
+                    {item.title}
+                  </span>
                   <span className="relation-status muted small">{tt(columnMeta(item.status).label)}</span>
                 </button>
               </li>
@@ -96,7 +98,9 @@ export function RelationRow({ relation, onRemove, linked = true }: { relation: W
       {item.title}
     </Link>
   ) : (
-    <span className="relation-title">{item.title}</span>
+    <span className="relation-title" title={item.title}>
+                    {item.title}
+                  </span>
   );
   return (
     <div className="relation-row">

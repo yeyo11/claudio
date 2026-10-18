@@ -230,7 +230,9 @@ export function NewDocumentDialog({
                         <button type="button" className="relation-row relation-pick" onClick={() => setItem(candidate)}>
                           <WorkItemStatusIcon status={candidate.status} />
                           <WorkItemKey value={candidate.key} />
-                          <span className="relation-title">{candidate.title}</span>
+                          <span className="relation-title" title={candidate.title}>
+                            {candidate.title}
+                          </span>
                         </button>
                       </li>
                     ))}
