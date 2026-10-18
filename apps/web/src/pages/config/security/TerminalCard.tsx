@@ -113,16 +113,15 @@ function History() {
                       <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
                       <td className="small mono break">{entry.actor}</td>
                       <td className="small mono break">{entry.cwd || '—'}</td>
-                      <td className="small">
+                      <td className="small term-history-how">
                         {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
                         {refused.length > 0 && (
                           <Tag tone="warn">
                             {t('history.refused', {
                               count: refused.length,
                               // A code the copy does not know yet still reads as words, never as the server's code
-                              reasons: [...new Set(refused.map((attachment) => attachment.refused))]
-                                .map((reason) => t(`history.refusedReason.${reason}`, { defaultValue: t('history.refusedReason.unknown') }))
-                                .join(', '),
+                              // Deduplicated as words, so two codes the copy does not know read once, not twice
+                              reasons: [...new Set(refused.map((attachment) => t(`history.refusedReason.${attachment.refused}`, { defaultValue: t('history.refusedReason.unknown') })))].join(', '),
                             })}
                           </Tag>
                         )}

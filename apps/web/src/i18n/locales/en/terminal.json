@@ -150,16 +150,13 @@
     "refused_one": "{{count}} attempt refused: {{reasons}}",
     "refused_other": "{{count}} attempts refused: {{reasons}}",
     "refusedReason": {
-      "from-agent": "from an agent's process",
       "needs-auth": "no token",
       "needs-tunnel": "not through the tunnel",
       "remote-off": "other devices off",
+      "from-agent": "from an agent's process",
       "chat-token": "a chat's token",
-      "off": "terminals off",
-      "read-only": "read-only",
-      "disabled-by-env": "turned off by the deployment",
-      "host-failed": "the host failed",
-      "pty-missing": "no terminal support",
+      "bad-origin": "from another site",
+      "bad-ticket": "a wrong or reused ticket",
       "unknown": "another reason"
     },
     "ended": {

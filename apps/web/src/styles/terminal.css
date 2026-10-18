@@ -447,3 +447,9 @@
   font-size: var(--fs-small);
   color: var(--fg);
 }
+
+/* A refused-attempts tag lists its reasons in words: it wraps inside its cell rather than widening
+   the history table past its card and squeezing the actor and directory columns */
+.term-history-how .badge {
+  white-space: normal;
+}
