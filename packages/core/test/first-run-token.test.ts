@@ -40,6 +40,7 @@ test('a fresh container makes an owner token, prints it once and keeps it until 
   auth.onFirstRunUsed = (at) => used.push(at);
   assert.equal(await auth.actorFor(token), 'token:first-run');
   assert.equal(auth.firstRunPending, false);
+  assert.equal(auth.config.firstRunToken, true, 'the setup assistant still says where the token came from');
   assert.equal(existsSync(file), false, 'the file goes at first use');
   assert.equal(used.length, 1);
   assert.equal(await auth.actorFor(token), 'token:first-run');
@@ -104,8 +105,10 @@ test('rotating the token ends the first run and deletes the file', async () => {
   const rotated = dockerConfig();
   const auth = rotated.open();
   assert.equal(existsSync(rotated.file), true);
+  assert.equal(auth.config.firstRunToken, true);
   await auth.setToken({});
   assert.equal(auth.firstRunPending, false);
+  assert.equal(auth.config.firstRunToken, false, 'a rotated token is the owner\'s own');
   assert.equal(existsSync(rotated.file), false);
   assert.equal(rotated.open().firstRunGenerated, null, 'a rotation is not a reason to generate again');
 });

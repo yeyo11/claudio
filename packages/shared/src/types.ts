@@ -4839,6 +4839,8 @@ export interface AuthConfig {
   readOnly: boolean;
   /** The token a container made on its first start has not been used yet: the sign-in screen says where to find it */
   firstRunPending: boolean;
+  /** The token set is still the one a container made on its first start, used or not; a rotation ends it */
+  firstRunToken: boolean;
 }
 
 /** The `421` body of a request for a host this wrapper does not answer to */

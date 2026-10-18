@@ -17833,13 +17833,18 @@
       "firstRunPending": {
         "type": "boolean",
         "description": "The token a container made on its first start has not been used yet: the sign-in screen says where to find it"
+      },
+      "firstRunToken": {
+        "type": "boolean",
+        "description": "The token set is still the one a container made on its first start, used or not; a rotation ends it"
       }
     },
     "required": [
       "mode",
       "tokenSet",
       "readOnly",
-      "firstRunPending"
+      "firstRunPending",
+      "firstRunToken"
     ],
     "description": "How the API is guarded. The token is **never** in this document: only its hash is stored, and the token itself is shown once, when it is set. `token?: never` says so in the type, so no route can leak it by echoing the configuration back."
   },

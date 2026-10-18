@@ -240,6 +240,7 @@ export class AuthStore {
       ...(this.stored.oidc ? { oidc: this.stored.oidc } : {}),
       readOnly: this.stored.readOnly,
       firstRunPending: this.firstRunPending,
+      firstRunToken: Boolean(this.stored.tokenHash) && this.stored.tokenId === FIRST_RUN_TOKEN_ID,
     };
   }
 
