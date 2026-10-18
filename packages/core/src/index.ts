@@ -10,6 +10,7 @@ import type {
   CliVersionInfo,
   StorageReport,
   ProcessUsageReport,
+  SystemSample,
   SystemLoad,
   ProviderLimit,
   ChatProject,
@@ -165,7 +166,8 @@ import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { admissionLimitsFrom, chatProcessUsage, readSystemLoad } from './system-load.ts';
-import { processTable } from './processes.ts';
+import { samplerSettingsFrom, SystemSampler } from './system-history.ts';
+import { recentProcessTable } from './processes.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
 import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
 import { PROJECT_TEMPLATES } from './project-templates.ts';
@@ -195,7 +197,7 @@ import { OrchestrationPullRequestService } from './orchestration-pull-requests.t
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
-import { git, isGitRepo, mainCheckout } from './git.ts';
+import { git, gitAsyncText, isGitRepo, isGitRepoAsync, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
 import { LessonMiningQueue } from './lessons/queue.ts';
@@ -536,6 +538,7 @@ export class Core {
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
+  private sampler: SystemSampler | null = null;
   /** Set by `shutdown`: what was still on its way when it ran must not start anything */
   private closed = false;
   /**
@@ -731,6 +734,8 @@ export class Core {
     this.runtime.accounts = this.accounts;
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
     this.watchAccounts();
+    this.sampler = new SystemSampler(this.db, () => this.chats.livePids(), () => admissionLimitsFrom(), samplerSettingsFrom());
+    this.sampler.start();
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
@@ -1254,9 +1259,9 @@ export class Core {
         fixPrompt: (itemId) => this.pullRequests.fixPrompt(itemId),
       },
       decisions: this.decisions,
-      workDone: (item) => {
+      workDone: async (item) => {
         const path = this.projectStore.get(item.projectId)?.path;
-        const summary = path ? this.changes.itemChanges(path, item) : null;
+        const summary = path ? await this.changes.itemChanges(path, item) : null;
         return summary ? { commits: summary.commits.map((c) => c.subject), paths: summary.files.map((f) => f.path) } : null;
       },
       items: this.workItems,
@@ -1878,9 +1883,9 @@ export class Core {
     return this.cliVersionInfo();
   }
 
-  /** What each live chat's process tree uses, read from `/proc` on each call; see system-load.ts */
+  /** What each live chat's process tree uses; the process table is at most two seconds old, the per-process figures are read on each call. See system-load.ts */
   processUsage(): ProcessUsageReport {
-    const chats = chatProcessUsage(this.chats.livePids(), processTable());
+    const chats = chatProcessUsage(this.chats.livePids(), recentProcessTable());
     const rss = chats.reduce<number | null>((sum, c) => (sum === null || c.rssMb === null ? null : sum + c.rssMb), 0);
     return { chats, processes: chats.reduce((sum, c) => sum + c.processes, 0), rssMb: rss };
   }
@@ -1888,6 +1893,11 @@ export class Core {
   /** What the machine is doing now, and whether it admits a new chat; see system-load.ts. Read on each call. */
   systemLoad(): SystemLoad {
     return readSystemLoad(admissionLimitsFrom());
+  }
+
+  /** The stored readings of the machine, oldest first; see system-history.ts */
+  systemHistory(query: { since?: string; until?: string; limit?: number; bucketSeconds?: number } = {}): SystemSample[] {
+    return this.db.systemSamples(query);
   }
 
   /** Whether the folders that hold the state would survive replacing the container; see storage.ts */
@@ -2506,7 +2516,7 @@ export class Core {
     const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
     const items = await quiet(() => this.workItems.list({ projectId: project.id }), []);
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
-    const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
+    const commits = !(await isGitRepoAsync(project.path)) ? null : await quiet(async () => Number(await gitAsyncText(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
     const chats = [...sessions].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
     const instructions = await quiet(async () => {
       const file = join(project.path, 'CLAUDE.md');
@@ -3219,7 +3229,7 @@ export class Core {
     if (!scope.commit && !scope.uncommitted) {
       void this.changes.scopeDrift(path, item, { id: item.id, projectId: item.projectId, title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) });
     }
-    return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item, scope) };
+    return { worktree: item.worktree, branch: item.branch, summary: await this.changes.itemChanges(path, item, scope) };
   }
 
   async workItemDiff(itemId: string, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
@@ -3374,6 +3384,7 @@ export class Core {
     this.permissions.close();
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
+    this.sampler?.stop();
     this.rotation.close();
     // The rows that say the shells ended are written before this returns, while the database is open
     void this.terminals.shutdown();

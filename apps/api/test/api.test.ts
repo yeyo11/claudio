@@ -75,6 +75,20 @@ test('reports what the machine is doing and whether it admits a chat, from the s
   assert.deepEqual(Object.keys(load.pressure).sort(), ['cpu', 'io', 'memory']);
 });
 
+test('serves the stored readings of the machine, oldest first, bucketed on request, and refuses a bad range', async () => {
+  const at = (minute: number) => new Date(Date.UTC(2020, 0, 1, 10, minute)).toISOString();
+  const row = (minute: number, memorySome10: number) => ({ at: at(minute), load1: 1, totalMb: 8000, availableMb: 4000, cpuSome10: 0, memorySome10, ioSome10: 0, chats: 1, rssMb: 300, admitting: true });
+  for (const [minute, pressure] of [[2, 3], [1, 9], [11, 4]] as const) core.db.appendSystemSample(row(minute, pressure));
+  const range = `since=${at(0)}&until=${at(30)}`;
+  const plain = (await app.inject(`/api/system/history?${range}`)).json();
+  assert.deepEqual(plain.map((r: { at: string }) => r.at), [at(1), at(2), at(11)]);
+  const folded = (await app.inject(`/api/system/history?${range}&bucket=600`)).json();
+  assert.equal(folded.length, 2);
+  assert.equal(folded[0].memorySome10, 9, 'a bucket keeps its peak');
+  assert.equal((await app.inject('/api/system/history?since=yesterday-ish')).statusCode, 400);
+  assert.equal((await app.inject('/api/system/history?bucket=0')).statusCode, 400);
+});
+
 test('lists no chat processes when none is live, with totals that agree with the list', async () => {
   const report = (await app.inject('/api/system/processes')).json();
   assert.deepEqual(report, { chats: [], processes: 0, rssMb: 0 });

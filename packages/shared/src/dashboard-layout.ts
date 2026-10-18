@@ -20,6 +20,7 @@ export type WidgetType =
   | 'now'
   | 'orchestrations'
   | 'limits'
+  | 'machine'
   | 'pickUp'
   | 'today'
   | 'schedules'
@@ -62,6 +63,7 @@ export const ALL_PROJECTS_LAYOUT = 'all';
 export const WIDGET_RULES: readonly (WidgetRule & { type: WidgetType })[] = [
   { type: 'kpis', sizes: ['l'], defaultSize: 'l', scope: 'both' },
   { type: 'limits', sizes: ['s'], defaultSize: 's', scope: 'both' },
+  { type: 'machine', sizes: ['s'], defaultSize: 's', scope: 'both' },
   { type: 'now', sizes: ['l', 'full'], defaultSize: 'full', scope: 'both' },
   { type: 'orchestrations', sizes: ['m', 'l', 'full'], defaultSize: 'l', scope: 'both' },
   { type: 'pickUp', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'both' },

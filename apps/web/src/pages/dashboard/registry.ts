@@ -55,6 +55,7 @@ const project = <K extends keyof typeof import('./widgets/project')>(name: K) =>
 export const WIDGETS: readonly WidgetDefinition[] = [
   { type: 'kpis', titleKey: 'widgets.kpis.title', sizes: ['l'], defaultSize: 'l', scope: 'both', area: 'top', component: pulse('KpisWidget') },
   { type: 'limits', titleKey: 'widgets.limits.title', sizes: ['s'], defaultSize: 's', scope: 'both', area: 'top', component: pulse('LimitsWidget') },
+  { type: 'machine', titleKey: 'widgets.machine.title', sizes: ['s'], defaultSize: 's', scope: 'both', area: 'top', component: lazy(() => import('./widgets/machine').then((m) => ({ default: m.MachineWidget }))) },
   { type: 'now', titleKey: 'widgets.now.title', sizes: ['l', 'full'], defaultSize: 'full', scope: 'both', area: 'main', component: live('NowWidget') },
   { type: 'orchestrations', titleKey: 'widgets.orchestrations.title', sizes: ['m', 'l', 'full'], defaultSize: 'l', scope: 'both', area: 'main', component: live('OrchestrationsWidget') },
   { type: 'pickUp', titleKey: 'widgets.pickUp.title', sizes: ['m', 'l', 'full'], defaultSize: 'm', scope: 'both', area: 'main', component: live('PickUpWidget') },
@@ -84,8 +85,8 @@ export const missingModules = (definition: WidgetDefinition, project: Project | 
  * so is Quick start, since the header's New chat and the phone's FAB already start a chat here.
  */
 const DEFAULT_TYPES: Record<DashboardScope, readonly WidgetType[]> = {
-  project: ['now', 'pickUp', 'flows', 'documents', 'export', 'kpis', 'limits', 'today', 'schedules', 'memory', 'worktrees', 'resources'],
-  global: ['now', 'pickUp', 'kpis', 'limits', 'today', 'projects', 'schedules'],
+  project: ['now', 'pickUp', 'flows', 'documents', 'export', 'kpis', 'limits', 'machine', 'today', 'schedules', 'memory', 'worktrees', 'resources'],
+  global: ['now', 'pickUp', 'kpis', 'limits', 'machine', 'today', 'projects', 'schedules'],
 };
 
 /** The areas in the order the page draws them: the figures on top, then the two columns. */

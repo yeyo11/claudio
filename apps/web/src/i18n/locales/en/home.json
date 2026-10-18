@@ -135,6 +135,10 @@
       "none": "No usage limits reported yet.",
       "about": "How much of the 5 h and weekly limits is used."
     },
+    "machine": {
+      "title": "Machine",
+      "about": "Whether the machine can take another chat: memory, pressure and the chats running."
+    },
     "pickUp": {
       "title": "Pick up again",
       "none": "No chat to pick up.",
@@ -557,5 +561,30 @@
     "pickerHintAll": "It is added at the end of the Home of All projects. Then move it wherever you like.",
     "once": "Each widget appears once",
     "cancel": "Cancel"
+  },
+  "machine": {
+    "memory": "Memory",
+    "memoryFree": "{{available}} MB free",
+    "memoryOf": "of {{total}} MB",
+    "memoryUsed": "Memory in use: {{percent}}",
+    "pressure": "Memory pressure",
+    "level": {
+      "ok": "Low",
+      "warn": "Rising",
+      "bad": "High"
+    },
+    "admission": "New chats",
+    "admits": "Admits chats",
+    "refuses": "No new chats",
+    "causeMemory": "{{available}} MB free, floor {{floor}} MB",
+    "causePressure": "Pressure {{pressure}}, limit {{limit}}",
+    "chats": "Chats",
+    "chatCount_one": "{{n}} chat",
+    "chatCount_other": "{{n}} chats",
+    "chatsResident": "{{mb}} MB resident",
+    "chatsNone": "None running",
+    "notExposed": "Not reported",
+    "noFigures": "This machine does not expose its figures.",
+    "unreadable": "The machine's figures could not be read."
   }
 }

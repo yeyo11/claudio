@@ -122,6 +122,8 @@ export interface SystemLoad {
   pressure: { cpu: PressureReading | null; memory: PressureReading | null; io: PressureReading | null };
   admitting: boolean;
   refusal: string | null;
+  /** The admission limits in force, so a screen can draw the point where no chat starts */
+  limits: { memoryPressure: number; memoryFloorMb: number };
 }
 
 /**
@@ -142,6 +144,30 @@ export interface ProcessUsageReport {
   /** The processes of every chat, the CLIs included */
   processes: number;
   rssMb: number | null;
+}
+
+/**
+ * One reading of the machine as the sampler stored it, once a minute (docs/resource-control.md). A
+ * figure the kernel did not give is null, never zero. In a bucketed answer the load, pressures, chats
+ * and resident memory are the largest of the bucket and `availableMb` the smallest: a chart of a
+ * quiet hour should still show the minute that was not.
+ */
+export interface SystemSample {
+  /** When it was read, ISO 8601 */
+  at: string;
+  /** The one-minute load average */
+  load1: number | null;
+  totalMb: number | null;
+  availableMb: number | null;
+  /** PSI `some10` of each resource, in percent */
+  cpuSome10: number | null;
+  memorySome10: number | null;
+  ioSome10: number | null;
+  /** Chats alive, and the resident memory of their process trees */
+  chats: number;
+  rssMb: number | null;
+  /** Whether a new chat would have been admitted */
+  admitting: boolean;
 }
 
 export interface SystemInfo {

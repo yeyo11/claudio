@@ -1,6 +1,19 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import type { SetCredentialsRequest } from '@claudio/shared';
+import type { SetCredentialsRequest, SystemSample } from '@claudio/shared';
+
+const positive = (value: string | undefined, name: string): number | undefined => {
+  if (value === undefined || value === '') return undefined;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`${name} must be a positive integer`);
+  return n;
+};
+
+const moment = (value: string | undefined, name: string): string | undefined => {
+  if (!value) return undefined;
+  if (Number.isNaN(Date.parse(value))) throw new Error(`${name} must be a date (ISO 8601)`);
+  return new Date(value).toISOString();
+};
 
 export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   // The only route reachable with no credential: it reports the last state observed and never goes
@@ -27,6 +40,16 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   app.get('/system/load', () => core.systemLoad());
   // What each live chat's process tree uses; a rate, not a reading, is the difference between two of these
   app.get('/system/processes', () => core.processUsage());
+
+  // The sampler's stored readings, for the Machine page's charts: a stream, so rows in SQLite
+  app.get<{ Querystring: { since?: string; until?: string; limit?: string; bucket?: string } }>('/system/history', (req): SystemSample[] => {
+    const { since, until, limit, bucket } = req.query;
+    const from = moment(since, 'since');
+    const to = moment(until, 'until');
+    const max = positive(limit, 'limit');
+    const seconds = positive(bucket, 'bucket');
+    return core.systemHistory({ ...(from ? { since: from } : {}), ...(to ? { until: to } : {}), ...(max ? { limit: max } : {}), ...(seconds ? { bucketSeconds: seconds } : {}) });
+  });
 
   app.get('/overview', () => core.overview());
 

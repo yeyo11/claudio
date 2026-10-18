@@ -22,13 +22,20 @@ export function gitRaw(cwd: string, args: string[], opts: { timeout?: number; ma
       ...(opts.maxBuffer ? { maxBuffer: opts.maxBuffer } : {}),
     });
   } catch (err) {
-    const e = err as { stderr?: string; stdout?: string; message: string; code?: string };
-    // Output past `maxBuffer` is not git's failure: say so plainly, and keep the code a caller checks
-    if (e.code === 'ENOBUFS') throw Object.assign(new Error(`git ${args.find((a) => !a.startsWith('-')) ?? args[0]}: output too large`), { code: e.code });
-    const detail = `${e.stderr ?? ''}\n${e.stdout ?? ''}`.trim() || e.message;
-    // A leading global option (`--literal-pathspecs`) is not what failed
-    throw new Error(`git ${args.find((a) => !a.startsWith('-')) ?? args[0]}: ${detail.split('\n').slice(0, 6).join('\n')}`);
+    throw gitFailure(args, err);
   }
+}
+
+/** The error a failed git call becomes, whether it ran sync or async: git's own words, trimmed. */
+function gitFailure(args: string[], err: unknown): Error {
+  const e = err as { stderr?: string; stdout?: string; message: string; code?: string };
+  // Output past `maxBuffer` is not git's failure: say so plainly, and keep the code a caller checks
+  if (e.code === 'ENOBUFS' || e.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+    return Object.assign(new Error(`git ${args.find((a) => !a.startsWith('-')) ?? args[0]}: output too large`), { code: 'ENOBUFS' });
+  }
+  const detail = `${e.stderr ?? ''}\n${e.stdout ?? ''}`.trim() || e.message;
+  // A leading global option (`--literal-pathspecs`) is not what failed
+  return new Error(`git ${args.find((a) => !a.startsWith('-')) ?? args[0]}: ${detail.split('\n').slice(0, 6).join('\n')}`);
 }
 
 /**
@@ -296,7 +303,12 @@ export function aheadCount(dir: string, base: string, ref = 'HEAD'): number {
 
 /** The commits on `ref` that `base` lacks, newest first, merges included. */
 export function commitsBetween(dir: string, base: string, ref = 'HEAD', limit = COMMIT_LIMIT): Commit[] {
-  const out = gitRaw(dir, ['log', `--max-count=${limit}`, '--format=%H%x1f%s%x1f%an%x1f%aI%x1e', `${base}..${ref}`], { timeout: 30_000 });
+  return parseCommits(gitRaw(dir, logArgs(base, ref, limit), { timeout: 30_000 }));
+}
+
+const logArgs = (base: string, ref: string, limit: number): string[] => ['log', `--max-count=${limit}`, '--format=%H%x1f%s%x1f%an%x1f%aI%x1e', `${base}..${ref}`];
+
+function parseCommits(out: string): Commit[] {
   const commits: Commit[] = [];
   for (const record of out.split('\x1e')) {
     const [hash, subject, author, at] = record.trim().split('\x1f');
@@ -313,9 +325,21 @@ const NAME_STATUS: Record<string, ChangedFileStatus> = { A: 'added', D: 'deleted
  * finds odd in the plain format.
  */
 export function diffFiles(dir: string, from: string, to?: string): ChangedFile[] {
+  const [statusArgs, numstatArgs] = diffListArgs(from, to);
+  return parseDiffFiles(gitRaw(dir, statusArgs, DIFF_LIST_OPTS), gitRaw(dir, numstatArgs, DIFF_LIST_OPTS));
+}
+
+const DIFF_LIST_OPTS = { timeout: 60_000, maxBuffer: DIFF_LIMIT };
+
+function diffListArgs(from: string, to?: string): [string[], string[]] {
   const range = [from, ...(to ? [to] : []), '--'];
-  const status = gitRaw(dir, [...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '-M', '--name-status', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
-  const numstat = gitRaw(dir, [...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '-M', '--numstat', '-z', ...range], { timeout: 60_000, maxBuffer: DIFF_LIMIT }).split('\0');
+  const list = (kind: '--name-status' | '--numstat') => [...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '-M', kind, '-z', ...range];
+  return [list('--name-status'), list('--numstat')];
+}
+
+function parseDiffFiles(statusOut: string, numstatOut: string): ChangedFile[] {
+  const status = statusOut.split('\0');
+  const numstat = numstatOut.split('\0');
 
   const counts = new Map<string, { additions: number; deletions: number; binary?: boolean }>();
   for (let i = 0; i < numstat.length; i++) {
@@ -399,9 +423,12 @@ function textStats(file: string): { lines: number; binary: boolean } {
  * nobody added yet, counted by reading them.
  */
 export function workingFiles(dir: string, from: string): ChangedFile[] {
-  const tracked = diffFiles(dir, from);
+  return withCreated(dir, diffFiles(dir, from), untrackedPaths(dir));
+}
+
+function withCreated(dir: string, tracked: ChangedFile[], untracked: string[]): ChangedFile[] {
   const known = new Set(tracked.map((f) => f.path));
-  const created = untrackedPaths(dir)
+  const created = untracked
     .filter((path) => !known.has(path))
     .map((path): ChangedFile => {
       const { lines, binary } = textStats(join(dir, path));
@@ -474,6 +501,23 @@ export function pathInside(dir: string, path: string): string {
   return inside.split(sep).join('/');
 }
 
+const fileDiffArgs = (from: string, to: string | undefined, paths: string[], unified: number): string[] => [
+  '--literal-pathspecs',
+  ...DIFF_SAFE,
+  'diff',
+  '--no-textconv',
+  '--no-ext-diff',
+  '-M',
+  '--no-color',
+  `--unified=${unified}`,
+  from,
+  ...(to ? [to] : []),
+  '--',
+  ...paths,
+];
+
+const UNTRACKED_DIFF_ARGS = [...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '--no-index', '--no-color', '--', '/dev/null'];
+
 function capped(out: string): string {
   return out.length > DIFF_LIMIT ? `${out.slice(0, DIFF_LIMIT)}\n… diff truncated\n` : out;
 }
@@ -486,12 +530,7 @@ function capped(out: string): string {
  */
 export function fileDiff(dir: string, from: string, to: string | undefined, paths: string[], unified = 3): string {
   try {
-    return capped(
-      gitRaw(dir, ['--literal-pathspecs', ...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '-M', '--no-color', `--unified=${unified}`, from, ...(to ? [to] : []), '--', ...paths], {
-        timeout: 60_000,
-        maxBuffer: DIFF_LIMIT * 2,
-      }),
-    );
+    return capped(gitRaw(dir, fileDiffArgs(from, to, paths, unified), { timeout: 60_000, maxBuffer: DIFF_LIMIT * 2 }));
   } catch (err) {
     if ((err as { code?: string }).code === 'ENOBUFS') return '… diff too large to show\n';
     throw err;
@@ -501,7 +540,7 @@ export function fileDiff(dir: string, from: string, to: string | undefined, path
 /** The diff of a file git does not track yet: all of it is new. `--no-index` exits 1 when files differ. */
 export function untrackedDiff(dir: string, path: string): string {
   try {
-    return capped(execFileSync('git', ['-C', dir, ...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '--no-index', '--no-color', '--', '/dev/null', path], { stdio: 'pipe', timeout: 30_000, encoding: 'utf8', maxBuffer: DIFF_LIMIT * 2 }));
+    return capped(execFileSync('git', ['-C', dir, ...UNTRACKED_DIFF_ARGS, path], { stdio: 'pipe', timeout: 30_000, encoding: 'utf8', maxBuffer: DIFF_LIMIT * 2 }));
   } catch (err) {
     const e = err as { status?: number; stdout?: string };
     if (e.status === 1 && typeof e.stdout === 'string') return capped(e.stdout);
@@ -571,4 +610,174 @@ export function refExists(dir: string, ref: string): boolean {
 /** Whether `dir` has staged or unstaged changes to tracked files; files git does not track do not count. */
 export function hasTrackedChanges(dir: string): boolean {
   return git(dir, ['status', '--porcelain', '--untracked-files=no'], 30_000) !== '';
+}
+
+// ---------- async twins, for what an API request reaches ----------
+//
+// The functions above block the event loop for as long as git takes: a diff of a big branch held
+// every other request, the event stream included. A request handler uses the `...Async` twin of
+// each; the sync ones stay for code that runs outside a request (a worker's setup, a hook, the
+// orchestrator's own steps), where there is nothing else to hold up. Each twin builds the same
+// arguments and parses with the same function as its sync original, so the two cannot drift.
+
+/** {@link gitRaw} without blocking: the same arguments, the same errors, the same output. */
+export function gitRawAsync(cwd: string, args: string[], opts: { timeout?: number; maxBuffer?: number } = {}): Promise<string> {
+  return new Promise((resolveOut, reject) => {
+    execFile(
+      'git',
+      ['-C', cwd, ...args],
+      { timeout: opts.timeout ?? 60_000, encoding: 'utf8', maxBuffer: opts.maxBuffer ?? 1024 * 1024 },
+      (err, stdout, stderr) => (err ? reject(gitFailure(args, Object.assign(err, { stdout, stderr }))) : resolveOut(stdout)),
+    );
+  });
+}
+
+/** {@link git} without blocking. */
+export async function gitAsyncText(cwd: string, args: string[], timeout = 60_000): Promise<string> {
+  return (await gitRawAsync(cwd, args, { timeout })).trim();
+}
+
+export async function isGitRepoAsync(dir: string): Promise<boolean> {
+  try {
+    await gitAsyncText(dir, ['rev-parse', '--git-dir'], 10_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function topLevelAsync(dir: string): Promise<string> {
+  return gitAsyncText(dir, ['rev-parse', '--show-toplevel'], 10_000);
+}
+
+export async function mainTopLevelAsync(dir: string): Promise<string> {
+  return dirname(await gitAsyncText(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000));
+}
+
+export async function mainCheckoutAsync(dir: string): Promise<string> {
+  const common = await gitAsyncText(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], 10_000);
+  if (resolve(await gitAsyncText(dir, ['rev-parse', '--absolute-git-dir'], 10_000)) === resolve(common)) return topLevelAsync(dir);
+  let configured = '';
+  try {
+    configured = await gitAsyncText(dir, ['config', '--file', join(common, 'config'), 'core.worktree'], 10_000);
+  } catch {
+    /* not set: the main checkout holds its `.git` */
+  }
+  return configured ? resolve(common, configured) : dirname(common);
+}
+
+export function headCommitAsync(dir: string): Promise<string> {
+  return gitAsyncText(dir, ['rev-parse', 'HEAD']);
+}
+
+export async function branchExistsAsync(repo: string, branch: string): Promise<boolean> {
+  try {
+    await gitAsyncText(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function currentBranchAsync(dir: string): Promise<string | null> {
+  try {
+    return (await gitAsyncText(dir, ['symbolic-ref', '--short', '-q', 'HEAD'], 10_000)) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function mergeBaseAsync(dir: string, a: string, b: string): Promise<string | null> {
+  try {
+    return (await gitAsyncText(dir, ['merge-base', a, b], 10_000)) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function aheadCountAsync(dir: string, base: string, ref = 'HEAD'): Promise<number> {
+  return Number(await gitAsyncText(dir, ['rev-list', '--count', `${base}..${ref}`], 30_000)) || 0;
+}
+
+export async function commitsBetweenAsync(dir: string, base: string, ref = 'HEAD', limit = COMMIT_LIMIT): Promise<Commit[]> {
+  return parseCommits(await gitRawAsync(dir, logArgs(base, ref, limit), { timeout: 30_000 }));
+}
+
+export async function diffFilesAsync(dir: string, from: string, to?: string): Promise<ChangedFile[]> {
+  const [statusArgs, numstatArgs] = diffListArgs(from, to);
+  const [status, numstat] = await Promise.all([gitRawAsync(dir, statusArgs, DIFF_LIST_OPTS), gitRawAsync(dir, numstatArgs, DIFF_LIST_OPTS)]);
+  return parseDiffFiles(status, numstat);
+}
+
+export async function untrackedPathsAsync(dir: string): Promise<string[]> {
+  return (await gitRawAsync(dir, ['ls-files', '--others', '--exclude-standard', '-z'], { timeout: 30_000, maxBuffer: DIFF_LIMIT })).split('\0').filter(Boolean);
+}
+
+export async function workingFilesAsync(dir: string, from: string): Promise<ChangedFile[]> {
+  const [tracked, untracked] = await Promise.all([diffFilesAsync(dir, from), untrackedPathsAsync(dir)]);
+  return withCreated(dir, tracked, untracked);
+}
+
+export function uncommittedFilesAsync(dir: string): Promise<ChangedFile[]> {
+  return workingFilesAsync(dir, 'HEAD');
+}
+
+export async function lineCountAsync(dir: string, ref: string | undefined, path: string): Promise<number> {
+  // The working tree is read from disk, as the sync one does: a bounded read of one file
+  if (ref === undefined) return lineCount(dir, undefined, path);
+  try {
+    return linesIn(Buffer.from(await gitRawAsync(dir, ['cat-file', '-p', `${ref}:${path}`], { timeout: 30_000, maxBuffer: DIFF_LIMIT })));
+  } catch (err) {
+    return (err as { code?: string }).code === 'ENOBUFS' ? Infinity : 0;
+  }
+}
+
+export async function isAncestorAsync(dir: string, ancestor: string, descendant: string): Promise<boolean> {
+  try {
+    await gitAsyncText(dir, ['merge-base', '--is-ancestor', ancestor, descendant], 30_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveCommitAsync(dir: string, sha: string): Promise<string | null> {
+  if (!/^[0-9a-f]{4,64}$/i.test(sha)) return null;
+  try {
+    return (await gitAsyncText(dir, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], 10_000)) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function parentOfAsync(dir: string, commit: string): Promise<string> {
+  try {
+    return await gitAsyncText(dir, ['rev-parse', '--verify', '--quiet', `${commit}^`], 10_000);
+  } catch {
+    return gitAsyncText(dir, ['hash-object', '-t', 'tree', '/dev/null'], 10_000);
+  }
+}
+
+export async function fileDiffAsync(dir: string, from: string, to: string | undefined, paths: string[], unified = 3): Promise<string> {
+  try {
+    return capped(await gitRawAsync(dir, fileDiffArgs(from, to, paths, unified), { timeout: 60_000, maxBuffer: DIFF_LIMIT * 2 }));
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ENOBUFS') return '… diff too large to show\n';
+    throw err;
+  }
+}
+
+export function untrackedDiffAsync(dir: string, path: string): Promise<string> {
+  return new Promise((resolveOut, reject) => {
+    execFile('git', ['-C', dir, ...UNTRACKED_DIFF_ARGS, path], { timeout: 30_000, encoding: 'utf8', maxBuffer: DIFF_LIMIT * 2 }, (err, stdout) => {
+      if (!err) return resolveOut(capped(stdout));
+      // `--no-index` exits 1 when the files differ, which is the answer here
+      if ((err as { code?: unknown }).code === 1 && typeof stdout === 'string') return resolveOut(capped(stdout));
+      reject(new Error(`git diff: could not read ${path}`));
+    });
+  });
+}
+
+export async function isUntrackedAsync(dir: string, path: string): Promise<boolean> {
+  return (await untrackedPathsAsync(dir)).includes(path);
 }

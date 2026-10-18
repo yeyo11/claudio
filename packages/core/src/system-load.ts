@@ -96,7 +96,7 @@ export function readSystemLoad(limits: AdmissionLimits = DEFAULT_ADMISSION, root
   }
   const pressure = { cpu: pressureOf(root, 'cpu'), memory: pressureOf(root, 'memory'), io: pressureOf(root, 'io') };
   const refusal = memoryRefusal(memory, pressure.memory, limits);
-  return { cores, loadavg, memory, pressure, admitting: refusal === null, refusal };
+  return { cores, loadavg, memory, pressure, admitting: refusal === null, refusal, limits: { ...limits } };
 }
 
 /** Why no chat may start for lack of memory, or null when one may. Unknown memory admits: refusing on a guess would stop a machine that is fine. */

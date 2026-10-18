@@ -117,7 +117,8 @@
   flex-direction: column;
 }
 
-.widget-slot[data-widget='limits'] {
+.widget-slot[data-widget='limits'],
+.widget-slot[data-widget='machine'] {
   order: 1;
 }
 
@@ -144,7 +145,8 @@
     gap: 16px;
     min-width: 0;
   }
-  .widget-slot[data-widget='limits'] {
+  .widget-slot[data-widget='limits'],
+  .widget-slot[data-widget='machine'] {
     order: 0;
   }
   /* Four figures in a row: the strip's three share the columns of the grid through a subgrid */
@@ -164,8 +166,12 @@
   .area-top .kpi-strip {
     grid-template-columns: subgrid;
   }
-  .area-top > .widget-slot:not([data-widget='kpis']) {
+  .area-top > .widget-slot:not([data-widget='kpis']):not([data-widget='machine']) {
     grid-column: span 1;
+  }
+  /* The machine is a row of its own under the figures: four readings side by side */
+  .area-top > .widget-slot[data-widget='machine'] {
+    grid-column: 1 / -1;
   }
 }
 
@@ -452,6 +458,51 @@
   min-width: 0;
 }
 
+/* ---------- The machine ---------- */
+
+.machine-card {
+  gap: 12px;
+}
+
+.machine-title {
+  font-weight: var(--fw-strong);
+  color: var(--fg);
+}
+
+/* Four readings that wrap rather than truncate: two across on a phone, four on a wide card */
+.machine-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  min-width: 0;
+}
+
+.machine-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.machine-cell .meter-track {
+  align-self: stretch;
+}
+
+.machine-figure {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-strong);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+@container dashboard (min-width: 600px) {
+  .machine-figures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 /* On a phone: three tiles that say a figure and a word, and the account's card at the bottom */
 @container dashboard (max-width: 599px) {
   .kpi-strip {
@@ -488,6 +539,10 @@
   .limits-card .limits-text > .kpi-label,
   .limits-card .kpi-sub {
     display: none;
+  }
+  /* The machine keeps its words on a phone: a reading without its name says nothing */
+  .machine-card .kpi-label {
+    display: block;
   }
   .limits-account,
   .limits-phone {

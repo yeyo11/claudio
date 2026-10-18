@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { test } from 'node:test';
-import { claudioChildren, cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree, type ProcessEntry } from '../src/processes.ts';
+import { claudioChildren, cliProcessOf, commandRoots, descendantsOf, forgetProcessTable, processTable, recentProcessTable, terminateTree, type ProcessEntry } from '../src/processes.ts';
 
 // Cancelling a command kills a process tree, so what is under test is that it is exactly that tree:
 // found from the process table by parentage and start time, and nothing else on the machine.
@@ -127,4 +127,22 @@ test('claudioChildren finds a process by the chat id in its environment, and no 
     mine.kill();
     stranger.kill();
   }
+});
+
+test('recentProcessTable reads the table once per window, and again after it or after being forgotten', () => {
+  forgetProcessTable();
+  let reads = 0;
+  const read = (): ProcessEntry[] => {
+    reads += 1;
+    return [{ pid: reads, ppid: 1, started: 1, argv: [] }];
+  };
+  assert.equal(recentProcessTable(read, 10_000)[0]?.pid, 1);
+  assert.equal(recentProcessTable(read, 11_500)[0]?.pid, 1, 'inside the window it is the same reading');
+  assert.equal(reads, 1);
+  assert.equal(recentProcessTable(read, 12_100)[0]?.pid, 2, 'past two seconds it is read again');
+  assert.equal(recentProcessTable(read, 5_000)[0]?.pid, 3, 'a clock that went back does not serve a reading from the future');
+  forgetProcessTable();
+  recentProcessTable(read, 5_001);
+  assert.equal(reads, 4);
+  forgetProcessTable();
 });

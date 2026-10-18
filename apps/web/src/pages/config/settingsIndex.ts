@@ -152,6 +152,7 @@ for (const point of DECISION_POINTS) {
 add('runs', 'runs', { 'permission-mode': {}, concurrent: { consequence: true } });
 add('runs', 'spend-cap', { daily: { consequence: true } });
 add('runs', 'evals', { 'phase-2': {} });
+add('runs', 'machine', { history: { detail: 'machine' } });
 
 add('access', 'access', { mode: {}, token: {}, 'read-only': { consequence: true } });
 add('access', 'hosts', { allowed: { consequence: true } });
