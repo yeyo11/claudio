@@ -1,21 +1,47 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-18T20:00:00Z
+updated_at: 2026-10-19T09:00:00Z
 tags:
     - updates
     - docker
     - launcher
     - security
     - claude-code
+    - desktop
+    - apt
 ---
 # Updating Claudio and Claude Code from the app
 
-How a Claudio **in a container** updates itself, and how it installs a newer Claude Code, from
-Settings → General → Updates. The desktop app has its own updater ([desktop.md](desktop.md)), and a
-source checkout is updated with git. The decision and what was rejected:
-[decisions/container-in-app-updates.md](decisions/container-in-app-updates.md); the plan is
-[plans/container-polish.md](plans/container-polish.md). How the app learns of a release at all
+How a Claudio **in a container or in the desktop app** updates itself, and how a container installs a
+newer Claude Code, from Settings → General → Updates. A source checkout is updated with git. The
+mechanism is one: a **shell** that only a package changes and a signed **payload** that installs
+in-app on both hosts ([decisions/shell-payload-updates.md](decisions/shell-payload-updates.md)). The
+container's decision: [decisions/container-in-app-updates.md](decisions/container-in-app-updates.md);
+the plans are [plans/container-polish.md](plans/container-polish.md) and
+[plans/unified-updates.md](plans/unified-updates.md). How the app learns of a release at all
 (`release.json`, `system.release`) is in [deploy.md](deploy.md#updating-claudio).
+
+## Two hosts, one mechanism
+
+| | Container (and Helm) | Desktop app |
+| --- | --- | --- |
+| The shell (trust anchor, read-only) | the image: `/app`, the launcher, `guard.mjs`, `/app/keys` | the AppImage's mount or root-owned `/opt/Claudio`: Electron, the machine, `guard.mjs`, `<resources>/keys`, the preload |
+| The base payload | the server in the image | the server bundled in the shell (`<resources>/server`), at the shell's version |
+| Installed payloads | `/data/app/<version>/` | `~/.config/Claudio/data/app/<version>/` |
+| Who runs the state machine | `launcher.mjs`, around a `node` child | the main process, around `ServerProcess` |
+| `CLAUDIO_LAUNCHER` | `1` | `desktop` |
+| A newer shell is needed (`minImage` / `minShell`) | new image: host commands | new desktop app: the Desktop app zone ([desktop.md](desktop.md#updating)) |
+| Who may ask | an owner token or OIDC actor | the same, and the shell's per-launch desktop credential, for the four update writes only |
+
+**The same tarball serves both.** The container runs `api.mjs`; the desktop runs `server.mjs`. Both
+native modules (`node-pty`, `@number0/iroh`) are N-API prebuilds, so a bundle built in the image's
+build stage loads on Electron's Node. That is why the desktop checks `minShell`, not `nodeAbi`.
+
+The state machine is one pure module, `packages/core/src/launcher/machine.ts`, with spawning, health
+checks, the clock and file access injected. It decides which bundle to boot, runs the trial, marks it
+good, rolls back after two failures and falls back to the base. The container's launcher and the
+desktop's `payload.ts` are its two drivers. The machine imports only `node:*` and `protocol.ts`, so
+the launcher stays a single dependency-free file.
 
 ## The shape
 
@@ -31,6 +57,12 @@ names the chat supervisor. It only imports `node:*`, so it carries no dependency
   policy (or Kubernetes) brings it back on the same good bundle.
 - **No restart policy needed.** A plain `docker run` with no `--restart` still restarts the server onto
   a new bundle, because the loop lives inside the container.
+- **On the desktop** the shell does the launcher's part around the server child. A trial also waits for
+  the web to send `claudio:page-ready` (30 s after the window starts loading), so a payload whose
+  server answers `/api/health` but whose page never renders is rolled back too. A rollback is
+  recorded in the audit log and the card says "Claudio X did not start, so the app went back to Y".
+  `CLAUDIO_PAYLOAD=bundled` boots the base and ignores overlays; Help → **Use the bundled Claudio**
+  reverts without the page.
 - **The plain image with no overlay behaves as before**, except that `launcher.mjs` is the parent of
   `api.mjs`.
 - SIGTERM and SIGINT are passed to the server, so `docker stop` is as clean as before.
@@ -38,19 +70,30 @@ names the chat supervisor. It only imports `node:*`, so it carries no dependency
 ## Who may update
 
 The owner only: a `token:*` or OIDC actor. It is refused to a chat's token (`CHAT_FORBIDDEN_SYSTEM`),
-to the desktop credential, under `mode: none` (`update.needs-auth`) and in read-only mode (`405`).
+under `mode: none` (`update.needs-auth`) and in read-only mode (`405`). **The desktop credential is
+accepted for exactly the four update writes** (`download`, `apply`, `DELETE …/scheduled`, `revert`),
+and only when the shell started the server (`CLAUDIO_LAUNCHER=desktop`): the page in the desktop
+window holds no token, so it asks the shell over IPC and the shell calls the routes. Under `none` an
+anonymous local request is still refused, so an agent's `curl` to `127.0.0.1` cannot restart the
+server over live work.
 Every request writes the audit log, and a rollback the launcher did is written as a row on the next
 start. `CLAUDIO_SERVER_UPDATE=off` hides the feature (the card reports `no-launcher`).
 
 If it cannot update itself, the Updates card says why (`unsupportedReason`: `needs-auth`, `read-only`,
-`no-launcher`, `no-keys`, `not-docker`) and shows the host commands of
+`no-launcher`, `no-keys`, `not-docker` — now "no launcher host", a source install — and `development`,
+a desktop dev build) and shows the host commands of
 [deploy.md](deploy.md#updating-claudio) with one line above them.
 
 ## The flow
 
 1. **Available.** The release check ([deploy.md](deploy.md#updating-claudio)) found a newer release.
    The card shows **Download Claudio {version}**. Only the newest release is offered, and only a
-   version newer than both the image and the running one.
+   version newer than both the base and the running one. **Only when a download can succeed:**
+   after every release check the server looks for the three assets, verifies the manifest and judges
+   `minImage`/`nodeAbi` (container) or `minShell` (desktop), and the answer is `offer`
+   (`installable`, or `blocked` as `no-bundle`, `needs-image`, `needs-shell`, `unverified` or
+   `failed-before`). A blocked release shows its version, the notes link and one sentence, with no
+   download button.
 2. **Download** (`POST /system/server-update/download`). The server checks the manifest's signature,
    `minImage` and the Node ABI **before** downloading (`412 update.needs-image` if the image is too
    old), then downloads the tarball, checks its sha256 and then every file's. The card shows a
@@ -68,11 +111,13 @@ If it cannot update itself, the Updates card says why (`unsupportedReason`: `nee
 6. **The page reloads on its own** when `stream.hello` reports the new version.
 
 A download that fails comes back as `state: 'failed'` with `error` (`fetch-failed`, `bad-signature`,
-`bad-manifest`, `disk`); only preconditions are HTTP errors. A downloaded update applies at the next
+`bad-manifest`, `disk`, `needs-image`, `needs-shell`); only preconditions are HTTP errors. The card
+shows every error and refusal (`update.<code>`, including `update.needs-shell`) from its code in the
+person's language, each with its way out, never the server's English text. A downloaded update applies at the next
 restart of any kind, since the trial is set at download time.
 
 **Going back.** On an overlay, *Go back to the image's version* (`POST /system/server-update/revert`)
-restarts onto `/app`, with the same live-work question.
+restarts onto `/app` (on the desktop, the shell's bundled payload), with the same live-work question. Open terminals count as live work (`LiveWork.terminals`), because a restart ends every shell.
 
 ## How it is trusted
 
@@ -86,7 +131,17 @@ restarts onto `/app`, with the same live-work question.
   `guard.mjs` come only from the image, root-owned, never from an overlay. An overlay never carries a
   guard. Every accepted public key is in the image, so a rotation ships the new key in an image before
   it signs anything.
-- **Verified twice.** By the server before unpacking, and by the launcher at **every** boot. The
+- **Signatures carry a key id.** A `.sig` may hold several `<keyId> <base64>` lines (`keyId` is the
+  first 16 hex characters of the sha256 of the public key's DER) and verification passes when any
+  line verifies with a trusted key, so a rotation can overlap; a bare base64 line stays valid. The
+  desktop manifest (`claudio-desktop-<v>-linux-x64.json`, listing the AppImage and the `.deb`) is
+  signed the same way, and both manifests carry a GitHub build-provenance attestation.
+- **`minShell`.** The counterpart of `minImage`: CI computes `shellInputs` over the Electron version,
+  the native modules' versions, `packages/core/src/launcher/**`, `packages/core/src/guards/**`,
+  `docker/keys/*.pub`, the preload and IPC and `payload.ts`. A bundle whose `minShell` is newer than
+  the running shell is never downloaded or booted; the card says the desktop app needs a full
+  update first. Helm and the image are unchanged by it.
+- **Verified twice.** By the server before unpacking, and by the launcher (or, on the desktop, the shell) at **every** boot. The
   agents' user can write `/data`, but cannot forge a signature, and cannot point the launcher outside
   `/data/app/<v>`: paths are built from validated version strings and never read from `state.json`.
   The launcher refuses extra files and symlinks in a bundle.
@@ -126,23 +181,31 @@ The Claude Code CLI updates in-app too, into `/data/cli/<version>/`
 | --- | --- |
 | `/app/launcher.mjs`, `/app/keys/*.pub`, `/app/image.json` | the trust anchor, root-owned |
 | `/data/app/<version>/` | an unpacked bundle with its manifest and signature |
-| `/data/app/state.json` | `{ active, previous, trial, attempts, bad, lastRollback, scheduled }` |
+| `/data/app/state.json` | `{ active, previous, trial, attempts, bad, lastRollback, scheduled, rollbackAudited }` |
+| `~/.config/Claudio/data/app/<version>/`, `…/state.json` | the same, on the desktop |
+| `<resources>/keys/*.pub`, `<resources>/shell.json` | the desktop shell's keys and `{ version, shellInputs }` |
 | `/data/cli/<version>/bin/claude`, `/data/cli/current` | an installed CLI and the link to the one in use |
 
 `CLAUDIO_SERVER_UPDATE`, `CLAUDIO_BUNDLE_KEYS_DIR`, `CLAUDIO_LAUNCHER` and `CLAUDIO_APP_DIR` are in
-[configuration.md](configuration.md#environment-variables). The routes are in
+[configuration.md](configuration.md#environment-variables). The desktop shell also sets
+`CLAUDIO_LAUNCHER=desktop`, `CLAUDIO_WEB_DIST`, `CLAUDIO_GUARD_ENTRY` (always the shell's guard),
+`CLAUDIO_BUNDLE_KEYS_DIR` (`<resources>/keys`) and `CLAUDIO_SHELL_VERSION`, `CLAUDIO_SHELL_INPUTS`,
+`CLAUDIO_SHELL_PACKAGE` and `CLAUDIO_SHELL_APT`; a person may set `CLAUDIO_PAYLOAD=bundled` for one
+launch. These are for the shell, not for setting by hand. The routes are in
 [rest-api.md](rest-api.md). The bundle is built by `apps/api/scripts/server-bundle.mjs` and released by
 `.github/workflows/server-bundle.yml`.
 
 ## Limits
 
-- Linux x64 containers only; the desktop app and a source checkout have their own ways.
+- Linux x64 only. A source checkout updates with git.
+- Terminals do not survive a restart of the server, on either host. Keeping shells alive across a
+  restart needs a reattach channel of its own and is a separate plan ([[plans/terminal-persistence]]).
 - A release that changed the OS layer, Node or the native modules needs a new image.
 - Without a public key in the image the card shows host commands (`no-keys`).
 - Tests: `packages/core/test/launcher.test.ts`, `server-update.test.ts`, `cli-install.test.ts`,
-  `apps/api/test/server-update.test.ts`, and `e2e/specs/updates.spec.mjs` for the card in a container.
+  `apps/api/test/server-update.test.ts`, `apps/desktop/test/{payload,desktop-manifest,switch,updater}.test.ts`, and `e2e/specs/updates.spec.mjs` for the card in a container.
   The full flow (download, restart, rollback) is checked by the integrator on a real container, not by a spec: it needs a launcher, a key and a signed bundle that the e2e runner does not have.
 
 ## Related
 
-[[deploy.md]] · [[desktop.md]] · [[security-model.md]] · [[configuration.md]] · [[plans/container-polish.md]] · [[plans/app-updates.md]] · [[decisions/container-in-app-updates.md]]
+[[deploy.md]] · [[desktop.md]] · [[security-model.md]] · [[configuration.md]] · [[plans/container-polish.md]] · [[plans/unified-updates.md]] · [[plans/app-updates.md]] · [[decisions/container-in-app-updates.md]] · [[decisions/shell-payload-updates.md]]
