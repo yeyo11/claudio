@@ -37,7 +37,7 @@ test('without a keyring there is no key, and the server keeps its secrets plain'
 });
 
 test('the server is handed the key, and a key in the person’s environment is not passed on', () => {
-  const opts = { base: { CLAUDIO_SECRET_KEY: 'theirs' }, PATH: '/usr/bin', rememberedPort: null, webDist: '/w', dataDir: '/d', workspaceDir: '/s', version: '1', distribution: undefined, desktopSecret: 's' };
+  const opts = { base: { CLAUDIO_SECRET_KEY: 'theirs' }, PATH: '/usr/bin', rememberedPort: null, webDist: '/w', dataDir: '/d', workspaceDir: '/s', version: '1', distribution: undefined, desktopSecret: 's', appDir: '/r/server', guardEntry: '/r/server/guard.mjs', keysDir: '/r/keys', shell: { inputs: '', aptManaged: false } };
   assert.equal(serverEnv({ ...opts, secretKey: 'ours' }).CLAUDIO_SECRET_KEY, 'ours');
   assert.equal(serverEnv({ ...opts, secretKey: null }).CLAUDIO_SECRET_KEY, undefined);
 });

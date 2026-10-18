@@ -9,9 +9,16 @@ export interface MenuFolders {
 export interface MenuActions {
   quit: () => void;
   checkForUpdates: () => void;
+  /** Help → Use the bundled Claudio: back to the shell's own payload */
+  useBundled: () => void;
 }
 
-export function buildMenu(folders: MenuFolders, isDev: boolean, actions: MenuActions): Menu {
+/**
+ * `bundled` is the shell's version while an overlay runs, and undefined otherwise: the menu then
+ * offers the way back to the payload the shell bundles, which needs no page, so a payload whose
+ * web is broken can always be undone (docs/plans/unified-updates.md, Tray and menus).
+ */
+export function buildMenu(folders: MenuFolders, isDev: boolean, actions: MenuActions, bundled?: string): Menu {
   const open = (path: string) => () => void shell.openPath(path);
   const template: MenuItemConstructorOptions[] = [
     {
@@ -48,7 +55,10 @@ export function buildMenu(folders: MenuFolders, isDev: boolean, actions: MenuAct
     },
     {
       label: 'Help',
-      submenu: [{ label: 'Check for updates…', click: actions.checkForUpdates }],
+      submenu: [
+        { label: 'Check for updates…', click: actions.checkForUpdates },
+        ...(bundled ? [{ label: `Use the bundled Claudio (${bundled})`, click: actions.useBundled }] : []),
+      ],
     },
   ];
   return Menu.buildFromTemplate(template);
