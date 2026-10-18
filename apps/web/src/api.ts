@@ -16,6 +16,8 @@ import type {
   AddressReviewRequest,
   ClaudioReleaseInfo,
   StorageReport,
+  SystemLoad,
+  ProcessUsageReport,
   AgentTranscript,
   ApiError,
   ApprovalState,
@@ -557,6 +559,8 @@ export const api = {
   release: (o: ReadOptions = {}) => request<ClaudioReleaseInfo>('/system/release', o),
   checkRelease: () => request<ClaudioReleaseInfo>('/system/release/check', { method: 'POST' }),
   storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
+  systemLoad: (o: ReadOptions = {}) => request<SystemLoad>('/system/load', o),
+  systemProcesses: (o: ReadOptions = {}) => request<ProcessUsageReport>('/system/processes', o),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: (o: ReadOptions = {}) => request<Project[]>('/projects', o),
   projectCandidates: (o: ReadOptions = {}) => request<ProjectCandidate[]>('/projects/candidates', o),
@@ -1257,6 +1261,8 @@ export const keys = {
   cliVersion: ['cli-version'] as const,
   release: ['release'] as const,
   storage: ['storage'] as const,
+  systemLoad: ['system', 'load'] as const,
+  systemProcesses: ['system', 'processes'] as const,
   accounts: ['accounts'] as const,
   accountsSettings: ['accounts', 'settings'] as const,
   accountPolicies: ['accounts', 'policies'] as const,
@@ -1515,6 +1521,16 @@ export const useAccounts = (enabled = true) =>
 
 /** Today's spend against the daily cap; `capUsd` is null while no cap is set. */
 export const useSpend = () => useQuery({ queryKey: keys.spend, queryFn: ({ signal }) => api.spend({ signal }), refetchInterval: useFallbackInterval() });
+
+/**
+ * How often the machine's figures are read. Nothing pushes them, so they are polled at a human pace;
+ * react-query stops the poll in a hidden tab, and the server caches what it reads from `/proc`.
+ */
+export const MACHINE_POLL_MS = 10_000;
+export const useSystemLoad = () =>
+  useQuery({ queryKey: keys.systemLoad, queryFn: ({ signal }) => api.systemLoad({ signal }), refetchInterval: MACHINE_POLL_MS });
+export const useSystemProcesses = () =>
+  useQuery({ queryKey: keys.systemProcesses, queryFn: ({ signal }) => api.systemProcesses({ signal }), refetchInterval: MACHINE_POLL_MS });
 
 export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: useFallbackInterval() });
 

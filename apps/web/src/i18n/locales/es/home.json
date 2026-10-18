@@ -135,6 +135,10 @@
       "none": "Aún no se ha informado de límites de uso.",
       "about": "Cuánto llevas de los límites de 5 h y semanal."
     },
+    "machine": {
+      "title": "Máquina",
+      "about": "Si la máquina admite otro chat: memoria, presión y chats en marcha."
+    },
     "pickUp": {
       "title": "Retomar",
       "none": "No hay chats que retomar.",
@@ -557,5 +561,30 @@
     "pickerHintAll": "Se añade al final del inicio de Todos los proyectos. Luego lo mueves donde quieras.",
     "once": "Cada widget aparece una vez",
     "cancel": "Cancelar"
+  },
+  "machine": {
+    "memory": "Memoria",
+    "memoryFree": "{{available}} MB libres",
+    "memoryOf": "de {{total}} MB",
+    "memoryUsed": "Memoria en uso: {{percent}}",
+    "pressure": "Presión de memoria",
+    "level": {
+      "ok": "Baja",
+      "warn": "Subiendo",
+      "bad": "Alta"
+    },
+    "admission": "Chats nuevos",
+    "admits": "Admite chats",
+    "refuses": "No admite chats",
+    "causeMemory": "{{available}} MB libres, mínimo {{floor}} MB",
+    "causePressure": "Presión {{pressure}}, límite {{limit}}",
+    "chats": "Chats",
+    "chatCount_one": "{{n}} chat",
+    "chatCount_other": "{{n}} chats",
+    "chatsResident": "{{mb}} MB residentes",
+    "chatsNone": "Ninguno en marcha",
+    "notExposed": "Sin datos",
+    "noFigures": "Esta máquina no expone sus datos.",
+    "unreadable": "No se han podido leer los datos de la máquina."
   }
 }

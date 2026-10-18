@@ -28,7 +28,8 @@ records what is built, what is left and why. What is built is described in
 | 4 | Random E2E port by default | **Not built**: `e2e/run.mjs` keeps 8799 |
 | 4 | Log and artefact budget | **Not measured** |
 | 5 | Limit for heavy commands (builds, Chromium) | **Not built**: needs a cgroup or a change in how the CLI runs its tools |
-| 6 | Dashboard | **Waiting for a choice**, below |
+| 6 | Dashboard, option A | **Built**: the `machine` widget of the overview, see the Outcome |
+| 6 | Dashboard, option B | **Not built** |
 
 ## Why some items are not built
 

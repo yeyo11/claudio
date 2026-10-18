@@ -119,3 +119,8 @@ test('a chat\'s tree sums its members, and one member the kernel cannot describe
   const whole = chatProcessUsage([{ chatId: 'chat-2', pid: 100 }], table.slice(0, 2), root);
   assert.deepEqual(whole, [{ chatId: 'chat-2', pid: 100, processes: 2, rssMb: 1536, cpuSeconds: 3 }]);
 });
+
+test('the reading repeats the limits it judged by, so a screen can draw the point where no chat starts', () => {
+  const limits = { memoryPressure: 12, memoryFloorMb: 512 };
+  assert.deepEqual(readSystemLoad(limits, join(tmpdir(), 'agentry-no-proc-does-not-exist')).limits, limits);
+});

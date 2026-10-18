@@ -167,6 +167,10 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Config directory | Directorio de configuración |
 | Accounts / Account | Cuentas / Cuenta |
 | Memory | Memoria |
+| Machine (the server's resources) | Máquina |
+| Memory pressure (PSI) | Presión de memoria; Baja / Subiendo / Alta |
+| Admits chats / No new chats | Admite chats / No admite chats |
+| Resident (memory) | Residente: "1.240 MB residentes" |
 | Config | Configuración |
 | Settings | Ajustes |
 | API reference | Referencia de la API |

@@ -47,7 +47,7 @@ graph nor the task names one. `CLAUDIO_TASK_MAX_MINUTES=0` turns the default off
 time limit gets the existing warning at 80 % and a stop at 100 %.
 
 **The machine and the chats are readable over the API.** `GET /api/system/load` returns the
-reading and whether the machine admits a chat now; `GET /api/system/processes` returns each live
+reading, the admission limits in force (`limits`) and whether the machine admits a chat now; `GET /api/system/processes` returns each live
 chat's process tree: the number of processes, the resident memory in MB and the CPU seconds used
 so far. The CPU figure is cumulative, so a rate is the difference between two readings.
 
@@ -78,8 +78,9 @@ the right numbers for a given server.
 - **The process table is read in full** on each `/system/processes` call. That costs time with many
   processes on the machine; the route says so and is meant to be polled at a human pace.
 - **The E2E port is fixed** (`e2e/run.mjs`, 8799): two runs on one machine collide.
-- **No dashboard shows these figures yet.** The screen is a design decision; see
-  `docs/plans/resource-control.md`.
+- **The overview shows the figures in a Machine widget** (memory bar, pressure, admission, chats with
+  their resident memory), polled every 10 s by `useSystemLoad` and `useSystemProcesses`. The history
+  page is not built yet; see `docs/plans/resource-control.md`.
 
 ## Related
 

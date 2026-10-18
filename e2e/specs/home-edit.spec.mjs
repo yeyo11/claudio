@@ -7,7 +7,7 @@ import { join } from 'node:path';
 // The widgets drawn, in order: the figures on top, then the wide column, then the narrow one
 const widgetTypes = `return [...document.querySelectorAll('main .dashboard-grid > .dashboard-area > .widget-slot')].map((s) => s.dataset.widget).join(',')`;
 const inEdit = `return !!document.querySelector('main .home-editbar')`;
-const DEFAULT_PROJECT = 'kpis,limits,now,pickUp,flows,documents,export,today,schedules,memory,worktrees,resources';
+const DEFAULT_PROJECT = 'kpis,limits,machine,now,pickUp,flows,documents,export,today,schedules,memory,worktrees,resources';
 
 export default async ({ page, api, check, dirs }) => {
   const make = async (name) => {
@@ -41,7 +41,7 @@ export default async ({ page, api, check, dirs }) => {
     // The figures stay one row inside their frame, and Limits keeps its own height beside them
     const strip = await page.eval(`const cells = [...document.querySelectorAll('main [data-edit-widget=kpis] .kpi')].map((k) => Math.round(k.getBoundingClientRect().top)); const limits = document.querySelector('main [data-widget=limits]').getBoundingClientRect().height; const kpis = document.querySelector('main [data-widget=kpis]').getBoundingClientRect().height; return { rows: new Set(cells).size, cells: cells.length, limits: Math.round(limits), kpis: Math.round(kpis) }`);
     check(strip.cells === 3 && strip.rows === 1, `the three figures share one row in edit mode (${JSON.stringify(strip)})`);
-    check(await page.eval(`return document.querySelectorAll('main [data-edit-widget]').length === 12`), 'every widget wears an edit frame');
+    check(await page.eval(`return document.querySelectorAll('main [data-edit-widget]').length === 13`), 'every widget wears an edit frame');
     check(await page.eval(`return !!document.querySelector('main [data-edit-widget=now] .widget-handle[aria-label="Move In progress"]')`), 'a handle names its widget');
 
     // Remove, at once and without asking
@@ -106,7 +106,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto('/?project=all', 1200);
     await page.waitFor(`return !!document.querySelector('main [data-widget=projects]')`, { label: 'the All projects dashboard' });
     const allDefault = await page.eval(widgetTypes);
-    check(allDefault === 'kpis,limits,now,pickUp,today,projects,schedules', `All projects draws its default (${allDefault})`);
+    check(allDefault === 'kpis,limits,machine,now,pickUp,today,projects,schedules', `All projects draws its default (${allDefault})`);
     await page.click('main button', 'Edit Home', 600);
     await page.waitFor(inEdit, { label: 'edit mode of All projects' });
     check((await page.text('main .home-editbar')).toLowerCase().includes('home of all projects'), 'the bar says it is the Home of All projects');

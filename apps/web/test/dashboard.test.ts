@@ -112,16 +112,16 @@ test('the default layouts: what the plan asks for, each widget in its scope, and
   const global = defaultLayout('global');
   assert.deepEqual(
     project.widgets.map((w) => w.type).sort(),
-    ['documents', 'export', 'flows', 'kpis', 'limits', 'memory', 'now', 'pickUp', 'resources', 'schedules', 'today', 'worktrees'].sort(),
+    ['documents', 'export', 'flows', 'kpis', 'limits', 'machine', 'memory', 'now', 'pickUp', 'resources', 'schedules', 'today', 'worktrees'].sort(),
   );
   // Orchestrations are part of "In progress": their own widget would show them twice
-  assert.deepEqual(global.widgets.map((w) => w.type).sort(), ['kpis', 'limits', 'now', 'pickUp', 'projects', 'schedules', 'today'].sort());
+  assert.deepEqual(global.widgets.map((w) => w.type).sort(), ['kpis', 'limits', 'machine', 'now', 'pickUp', 'projects', 'schedules', 'today'].sort());
   for (const [scope, layout] of [['project', project], ['global', global]] as const) {
     assert.deepEqual(resolveLayout(layout, scope), layout, `${scope} survives its own validation`);
     const main = layout.widgets.filter((w) => widgetDefinition(w.type)?.area === 'main');
     assert.equal(main[0]?.type, 'now', 'what is live comes first in the wide column');
     const top = layout.widgets.filter((w) => widgetDefinition(w.type)?.area === 'top').map((w) => w.type);
-    assert.deepEqual(top, ['kpis', 'limits'], 'the figures, then the limit beside them');
+    assert.deepEqual(top, ['kpis', 'limits', 'machine'], 'the figures, the limit beside them, then the machine');
   }
 });
 

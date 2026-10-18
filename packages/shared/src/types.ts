@@ -122,6 +122,8 @@ export interface SystemLoad {
   pressure: { cpu: PressureReading | null; memory: PressureReading | null; io: PressureReading | null };
   admitting: boolean;
   refusal: string | null;
+  /** The admission limits in force, so a screen can draw the point where no chat starts */
+  limits: { memoryPressure: number; memoryFloorMb: number };
 }
 
 /**

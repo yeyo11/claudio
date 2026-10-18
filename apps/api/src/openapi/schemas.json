@@ -292,6 +292,22 @@
           "string",
           "null"
         ]
+      },
+      "limits": {
+        "type": "object",
+        "properties": {
+          "memoryPressure": {
+            "type": "number"
+          },
+          "memoryFloorMb": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "memoryPressure",
+          "memoryFloorMb"
+        ],
+        "description": "The admission limits in force, so a screen can draw the point where no chat starts"
       }
     },
     "required": [
@@ -300,7 +316,8 @@
       "memory",
       "pressure",
       "admitting",
-      "refusal"
+      "refusal",
+      "limits"
     ],
     "description": "What the machine is doing now, read from `/proc`. A field the kernel does not expose here is null, never zero: a zero would read as an idle machine. `admitting` is false while a new chat would be refused for lack of memory, and `refusal` says why in words."
   },
