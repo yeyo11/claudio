@@ -47,11 +47,11 @@ Types live in [`packages/shared/src/types.ts`](../packages/shared/src/types.ts).
 | POST | `/system/release/check` | Check GitHub for a newer Claudio release now (also done once a day) |
 | POST | `/system/cli-version/install` | Owner only, in the Linux x64 container: install a newer Claude Code (`{ version? }`) from the npm registry's native package, checked against its integrity, into `/data/cli`; answers 202 and `install` follows it |
 | DELETE | `/system/cli-version/install` | Owner only: go back to the image's Claude Code (removes `/data/cli/current`) |
-| GET | `/system/server-update` | In-app updates inside the container: why they are not offered, the image's and the running version, a download's state, `needsImage`, the launcher's last rollback |
-| POST | `/system/server-update/download` | Owner only: download the newest release's signed server bundle (`{ version? }`), checked before it is unpacked into `/data/app`; 202, `412 update.needs-image` |
-| POST | `/system/server-update/apply` | Owner only: restart onto the downloaded bundle (`{ force?, whenIdle? }`); `409 update.live-work` with the live counts unless `force` |
-| DELETE | `/system/server-update/scheduled` | Owner only: call off a restart that waits for idleness |
-| POST | `/system/server-update/revert` | Owner only: restart onto the image's own version (`{ force?, whenIdle? }`) |
+| GET | `/system/server-update` | In-app updates of the payload, in the container or under the desktop app (`CLAUDIO_LAUNCHER=desktop`): why they are not offered, the base (`image` or `shell`) and its version, the running version, the desktop shell's facts, a download's state, `needsImage`, `needsShell`, the newest release's `offer` (`installable`, or `blocked` by `no-bundle`, `unverified`, `needs-image`, `needs-shell`, `failed-before`), the launcher's last rollback |
+| POST | `/system/server-update/download` | Owner only, or the desktop shell's own credential under `CLAUDIO_LAUNCHER=desktop`: download the newest release's signed server bundle (`{ version? }`), checked before it is unpacked into `<dataDir>/app`; 202, `412 update.needs-image`, `412 update.needs-shell` |
+| POST | `/system/server-update/apply` | Owner only, or the desktop shell: restart onto the downloaded bundle (`{ force?, whenIdle? }`); `409 update.live-work` with the live counts (chats, orchestrations, terminals) unless `force` |
+| DELETE | `/system/server-update/scheduled` | Owner only, or the desktop shell: call off a restart that waits for idleness |
+| POST | `/system/server-update/revert` | Owner only, or the desktop shell: restart onto the base version, the image's or the desktop app's own (`{ force?, whenIdle? }`) |
 | GET | `/system/storage` | In a Docker install, whether the Claude config dir, the data dir and the workspace sit on a persistent volume or would be lost when the container is replaced (`persistent`, `anonymous`, `container`, `temporary`); `atRisk` says whether any would |
 | GET | `/system/load` | What the machine is doing now (load average, memory, PSI of CPU, memory and I/O) and whether it admits a new chat; read from `/proc`, Linux only |
 | GET | `/system/processes` | What each live chat's process tree uses: processes, resident memory (MB) and CPU seconds so far; read from `/proc`, Linux only |

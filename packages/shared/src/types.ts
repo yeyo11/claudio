@@ -51,24 +51,75 @@ export interface LiveWork {
   waiting: number;
   /** Orchestrations running */
   running: number;
+  /** Terminals whose shell is running: a restart ends every one of them */
+  terminals: number;
 }
 
 export type ServerUpdateState = 'idle' | 'downloading' | 'verifying' | 'ready' | 'scheduled' | 'restarting' | 'failed';
-export type ServerUpdateError = 'fetch-failed' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image';
-export type ServerUpdateUnsupported = 'not-docker' | 'no-launcher' | 'no-keys' | 'needs-auth' | 'read-only';
+export type ServerUpdateError = 'fetch-failed' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image' | 'needs-shell';
+/**
+ * Why this server cannot update itself. `not-docker` means no launcher host at all, a source install
+ * (the name is phase 1's); `no-launcher` a container or desktop install its launcher does not
+ * supervise, or `CLAUDIO_SERVER_UPDATE=off`; `development` a desktop app run from a checkout.
+ */
+export type ServerUpdateUnsupported = 'not-docker' | 'no-launcher' | 'no-keys' | 'needs-auth' | 'read-only' | 'development';
 
 /**
- * Claudio updating itself inside its container (docs/plans/container-polish.md, D4): a signed bundle
- * unpacked under `/data/app/<version>`, which the image's launcher boots on trial and keeps once
- * `/api/health` answers, or rolls back.
+ * Why the newest release cannot be installed in-app, known before any download: `no-bundle`, it was
+ * published without a signed server bundle; `unverified`, its manifest could not be fetched or does
+ * not verify; `needs-image`/`needs-shell`, it needs a newer image or desktop app; `failed-before`,
+ * it did not start here before.
+ */
+export type ServerUpdateBlocked = 'no-bundle' | 'needs-image' | 'needs-shell' | 'unverified' | 'failed-before';
+
+/** The newest release as the last release check judged it, from its assets and signed manifest */
+export interface ServerUpdateOffer {
+  version: string;
+  /** True only when a download can succeed: bundle, manifest and signature present, signed, made for this base */
+  installable: boolean;
+  /** Null when installable */
+  blocked: ServerUpdateBlocked | null;
+}
+
+/**
+ * Every `code` the update routes answer. A client shows each from its code, never from the `error`
+ * text beside it.
+ */
+export type ServerUpdateRefusalCode =
+  | 'update.needs-auth'
+  | 'update.not-owner'
+  | 'update.unsupported'
+  | 'update.no-release'
+  | 'update.busy'
+  | 'update.not-ready'
+  | 'update.not-overlay'
+  | 'update.live-work'
+  | 'update.needs-image'
+  | 'update.needs-shell';
+
+/** The desktop shell the server runs under, as the shell told it when it started the server */
+export interface ShellInfo {
+  version: string;
+  package: 'appimage' | 'deb';
+  /** sha256 over what only a new shell can change */
+  shellInputs: string;
+  /** The apt source is registered: apt updates the shell */
+  aptManaged: boolean;
+}
+
+/**
+ * Claudio updating itself (docs/plans/unified-updates.md): a signed bundle unpacked under
+ * `<dataDir>/app/<version>`, which the host's launcher (the container's, or the desktop shell) boots
+ * on trial and keeps once `/api/health` answers, or rolls back.
  */
 export interface ServerUpdateStatus {
-  /** Null when this container can update itself */
+  /** Null when this server can update itself */
   unsupportedReason: ServerUpdateUnsupported | null;
-  /** The version baked in the image (`/app/image.json`) */
+  /** The base payload's version: baked in the image (`/app/image.json`) or bundled in the desktop shell */
   image: string;
   /** The version running now */
   running: string;
+  /** `image` is the base payload on both hosts, `overlay` a bundle under `<dataDir>/app` */
   source: 'image' | 'overlay';
   state: ServerUpdateState;
   /** The version being downloaded, ready or scheduled */
@@ -79,6 +130,14 @@ export interface ServerUpdateStatus {
   /** The newest release needs a newer image than this one */
   needsImage: { version: string; minImage: string } | null;
   lastRollback: { from: string; to: string; at: string } | null;
+  /** What the base payload ships in: the image (`/app`) or the desktop shell (`<resources>`) */
+  base: 'image' | 'shell';
+  /** The desktop shell this server runs under; null outside the desktop */
+  shell: ShellInfo | null;
+  /** The newest release needs a newer desktop shell than this one */
+  needsShell: { version: string; minShell: string } | null;
+  /** The newest release newer than what runs, judged before a download is offered; null when there is none */
+  offer: ServerUpdateOffer | null;
 }
 
 /** `force` restarts over live work (the person was asked); `whenIdle` waits until nothing is live */

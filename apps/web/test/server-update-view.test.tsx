@@ -23,6 +23,10 @@ const status = (over: Partial<ServerUpdateStatus> = {}): ServerUpdateStatus => (
   error: null,
   needsImage: null,
   lastRollback: null,
+  base: 'image',
+  shell: null,
+  needsShell: null,
+  offer: null,
   ...over,
 });
 

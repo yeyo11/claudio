@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { AuthMode, ClaudioEvent, LiveWork } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { EMPTY_STATE, readState, writeState } from '../src/launcher/protocol.ts';
@@ -28,8 +28,16 @@ interface World {
   release: { version: string } | null;
 }
 
-function world(options: { env?: NodeJS.ProcessEnv; distribution?: string; running?: string; signWith?: SigningKey; extra?: Parameters<typeof releaseAssets>[4]; tamper?: boolean; fromOverlay?: string } = {}): World {
+const roots: string[] = [];
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
+function world(
+  options: { env?: NodeJS.ProcessEnv; distribution?: string; running?: string; signWith?: SigningKey; extra?: Parameters<typeof releaseAssets>[4]; tamper?: boolean; fromOverlay?: string; desktop?: boolean } = {},
+): World {
   const root = mkdtempSync(join(tmpdir(), 'claudio-server-update-'));
+  roots.push(root);
   const dataDir = join(root, 'data');
   const keysDir = join(root, 'keys');
   mkdirSync(keysDir, { recursive: true });
@@ -53,7 +61,7 @@ function world(options: { env?: NodeJS.ProcessEnv; distribution?: string; runnin
     serve,
     audits: [],
     restarts: 0,
-    live: { working: 0, waiting: 0, running: 0 },
+    live: { working: 0, waiting: 0, running: 0, terminals: 0 },
     security: { mode: 'token', readOnly: false },
     events: [],
     assets: [
@@ -76,10 +84,13 @@ function world(options: { env?: NodeJS.ProcessEnv; distribution?: string; runnin
   }) as typeof fetch;
   w.make = () => new ServerUpdates({
     dataDir,
-    distribution: options.distribution ?? 'docker',
+    distribution: options.distribution ?? (options.desktop ? 'deb' : 'docker'),
     running: options.running ?? '0.6.0',
     env: {
-      CLAUDIO_LAUNCHER: '1',
+      // The desktop shell 0.6.0 bundles the payload 0.6.0, as the image does
+      ...(options.desktop
+        ? { CLAUDIO_LAUNCHER: 'desktop', CLAUDIO_SHELL_VERSION: '0.6.0', CLAUDIO_SHELL_PACKAGE: 'deb', CLAUDIO_SHELL_INPUTS: 'shell-inputs', CLAUDIO_SHELL_APT: '1' }
+        : { CLAUDIO_LAUNCHER: '1' }),
       CLAUDIO_BUNDLE_KEYS_DIR: keysDir,
       ...(options.fromOverlay ? { CLAUDIO_APP_DIR: join(dataDir, 'app', options.fromOverlay) } : {}),
       ...options.env,
@@ -178,7 +189,8 @@ test('nothing newer, no bundle, or a version that was rolled back is not offered
 });
 
 test('why a container cannot update itself, in the order the card reads it', async () => {
-  assert.equal(world({ distribution: 'deb' }).updates.status().unsupportedReason, 'not-docker');
+  assert.equal(world({ distribution: 'source' }).updates.status().unsupportedReason, 'not-docker');
+  assert.equal(world({ distribution: 'deb' }).updates.status().unsupportedReason, 'no-launcher', 'a desktop install its shell does not supervise');
   assert.equal(world({ env: { CLAUDIO_LAUNCHER: '' } }).updates.status().unsupportedReason, 'no-launcher');
   assert.equal(world({ env: { CLAUDIO_SERVER_UPDATE: 'off' } }).updates.status().unsupportedReason, 'no-launcher');
   assert.equal(world({ env: { CLAUDIO_BUNDLE_KEYS_DIR: join(tmpdir(), 'no-such-keys') } }).updates.status().unsupportedReason, 'no-keys');
@@ -200,11 +212,11 @@ test('apply over live work answers 409 with the counts; with force it restarts a
   assert.equal((await refusal(w.updates.apply())).reason, 'update.not-ready');
   await w.updates.download();
   await w.updates.pending;
-  w.live = { working: 1, waiting: 2, running: 0 };
+  w.live = { working: 1, waiting: 2, running: 0, terminals: 0 };
   const busy = await refusal(w.updates.apply());
   assert.equal(busy.statusCode, 409);
   assert.equal(busy.reason, 'update.live-work');
-  assert.deepEqual(busy.live, { working: 1, waiting: 2, running: 0 });
+  assert.deepEqual(busy.live, { working: 1, waiting: 2, running: 0, terminals: 0 });
   assert.equal(w.restarts, 0);
 
   const status = await w.updates.apply({ force: true });
@@ -220,7 +232,7 @@ test('whenIdle waits until nothing is live, and a scheduled restart can be calle
   const w = world();
   await w.updates.download();
   await w.updates.pending;
-  w.live = { working: 0, waiting: 0, running: 1 };
+  w.live = { working: 0, waiting: 0, running: 1, terminals: 0 };
   assert.equal((await w.updates.apply({ whenIdle: true })).state, 'scheduled');
   assert.equal(stateOf(w).scheduled, '0.7.0');
   await sleep(100);
@@ -229,7 +241,7 @@ test('whenIdle waits until nothing is live, and a scheduled restart can be calle
   assert.equal(stateOf(w).scheduled, null);
 
   await w.updates.apply({ whenIdle: true });
-  w.live = { working: 0, waiting: 0, running: 0 };
+  w.live = { working: 0, waiting: 0, running: 0, terminals: 0 };
   await sleep(400);
   assert.equal(w.restarts, 1);
   assert.equal(w.updates.status().state, 'restarting');
@@ -245,7 +257,7 @@ test("revert forgets every overlay and restarts onto the image's /app", async ()
   mkdirSync(join(w.dataDir, 'app'), { recursive: true });
   writeState(join(w.dataDir, 'app', 'state.json'), { ...EMPTY_STATE, bad: [], active: '0.7.0', previous: '0.6.5' });
   assert.equal(w.updates.status().source, 'overlay');
-  w.live = { working: 1, waiting: 0, running: 0 };
+  w.live = { working: 1, waiting: 0, running: 0, terminals: 0 };
   assert.equal((await refusal(w.updates.revert())).reason, 'update.live-work');
   const status = await w.updates.revert({ force: true });
   assert.equal(status.state, 'restarting');
@@ -266,4 +278,153 @@ test('a rollback the launcher made is written to the audit trail once', () => {
   assert.equal(w.audits.length, 1);
   assert.match(w.audits[0]?.summary ?? '', /0\.7\.0 did not start; the launcher went back to 0\.6\.0/);
   assert.deepEqual(w.updates.status().lastRollback, { from: '0.7.0', to: '0.6.0', at: '2026-10-18T10:00:00.000Z' });
+});
+
+test('an open terminal is live work: a restart over it answers 409 with the count', async () => {
+  const w = world();
+  await w.updates.download();
+  await w.updates.pending;
+  w.live = { working: 0, waiting: 0, running: 0, terminals: 2 };
+  const busy = await refusal(w.updates.apply());
+  assert.equal(busy.reason, 'update.live-work');
+  assert.equal(busy.live?.terminals, 2);
+  assert.equal(w.restarts, 0);
+});
+
+test('the installable check offers a signed release that fits, before any download', async () => {
+  const w = world();
+  assert.equal(w.updates.status().offer, null, 'nothing judged yet');
+  await w.updates.inspect();
+  assert.deepEqual(w.updates.status().offer, { version: '0.7.0', installable: true, blocked: null });
+  assert.deepEqual(w.urls, ['https://r.test/m.json', 'https://r.test/m.json.sig'], 'only the manifest is fetched');
+  assert.equal(existsSync(join(w.dataDir, 'app')), false, 'nothing written');
+
+  // Once this server runs it, there is nothing to offer
+  const running = world({ running: '0.7.0' });
+  await running.updates.inspect();
+  assert.equal(running.updates.status().offer, null);
+});
+
+test('a release without a bundle, or whose manifest names a tarball it does not attach, is not installable', async () => {
+  const w = world();
+  w.assets = [];
+  await w.updates.inspect();
+  assert.deepEqual(w.updates.status().offer, { version: '0.7.0', installable: false, blocked: 'no-bundle' });
+  assert.deepEqual(w.urls, [], 'nothing to fetch');
+  // The download still refuses on its own
+  assert.equal((await refusal(w.updates.download())).reason, 'update.no-release');
+
+  const noTarball = world();
+  noTarball.assets = noTarball.assets.filter((a) => !a.name.endsWith('.tar.gz'));
+  await noTarball.updates.inspect();
+  assert.equal(noTarball.updates.status().offer?.blocked, 'no-bundle');
+});
+
+test('a manifest that does not verify, or cannot be fetched, is not offered', async () => {
+  const forged = world({ signWith: signingKey() });
+  await forged.updates.inspect();
+  assert.deepEqual(forged.updates.status().offer, { version: '0.7.0', installable: false, blocked: 'unverified' });
+
+  const unreachable = world();
+  unreachable.serve.clear();
+  await unreachable.updates.inspect();
+  assert.equal(unreachable.updates.status().offer?.blocked, 'unverified');
+});
+
+test('a release that failed here before is not offered again, also when it failed after it was judged', async () => {
+  const w = world();
+  mkdirSync(join(w.dataDir, 'app'), { recursive: true });
+  writeState(join(w.dataDir, 'app', 'state.json'), { ...EMPTY_STATE, bad: ['0.7.0'] });
+  await w.updates.inspect();
+  assert.deepEqual(w.updates.status().offer, { version: '0.7.0', installable: false, blocked: 'failed-before' });
+
+  const later = world();
+  await later.updates.inspect();
+  assert.equal(later.updates.status().offer?.installable, true);
+  mkdirSync(join(later.dataDir, 'app'), { recursive: true });
+  writeState(join(later.dataDir, 'app', 'state.json'), { ...EMPTY_STATE, bad: ['0.7.0'] });
+  assert.equal(later.updates.status().offer?.blocked, 'failed-before');
+});
+
+test('a release that needs a newer image is judged needs-image by the check', async () => {
+  const w = world({ extra: { minImage: '0.7.0' } });
+  await w.updates.inspect();
+  assert.deepEqual(w.updates.status().offer, { version: '0.7.0', installable: false, blocked: 'needs-image' });
+  assert.equal(w.updates.status().needsShell, null);
+});
+
+test('a host that cannot update at all is not judged and fetches nothing', async () => {
+  const w = world({ distribution: 'source' });
+  await w.updates.inspect();
+  assert.equal(w.updates.status().offer, null);
+  assert.deepEqual(w.urls, []);
+});
+
+test('on the desktop the base is the shell: its version, its facts, and keys only where the shell says', () => {
+  const w = world({ desktop: true });
+  const status = w.updates.status();
+  assert.equal(status.base, 'shell');
+  assert.equal(status.image, '0.6.0');
+  assert.equal(status.unsupportedReason, null);
+  assert.deepEqual(status.shell, { version: '0.6.0', package: 'deb', shellInputs: 'shell-inputs', aptManaged: true });
+  assert.equal(world().updates.status().base, 'image');
+  assert.equal(world().updates.status().shell, null);
+  assert.equal(world({ desktop: true, env: { CLAUDIO_BUNDLE_KEYS_DIR: '' } }).updates.status().unsupportedReason, 'no-keys', 'never /app/keys on the desktop');
+  assert.equal(world({ desktop: true, distribution: 'source' }).updates.status().unsupportedReason, 'development');
+  assert.equal(world({ desktop: true, env: { CLAUDIO_SERVER_UPDATE: 'off' } }).updates.status().unsupportedReason, 'no-launcher');
+});
+
+test('under auth none only the desktop shell itself may update its payload', async () => {
+  const w = world({ desktop: true });
+  w.security = { mode: 'none', readOnly: false };
+  assert.equal(w.updates.status().unsupportedReason, 'needs-auth');
+  assert.equal((await refusal(w.updates.download())).reason, 'update.needs-auth');
+  assert.equal(w.updates.status(true).unsupportedReason, null);
+  assert.equal((await w.updates.download(undefined, true)).state, 'downloading');
+  await w.updates.pending;
+  assert.equal(w.updates.status().state, 'ready');
+  w.security = { mode: 'none', readOnly: true };
+  assert.equal(w.updates.status(true).unsupportedReason, 'read-only', 'read-only holds for the shell too');
+
+  // A container has no shell: `fromShell` changes nothing there
+  const container = world();
+  container.security = { mode: 'none', readOnly: false };
+  assert.equal(container.updates.status(true).unsupportedReason, 'needs-auth');
+});
+
+test('on the desktop a bundle built for another Node ABI installs, and one that needs a newer shell answers 412 needs-shell', async () => {
+  const w = world({ desktop: true, extra: { nodeAbi: '1' } });
+  await w.updates.inspect();
+  assert.equal(w.updates.status().offer?.installable, true, "the ABI is not the desktop's test: both native modules are N-API");
+  await w.updates.download();
+  await w.updates.pending;
+  assert.equal(w.updates.status().state, 'ready', JSON.stringify(w.updates.status()));
+
+  const old = world({ desktop: true, extra: { minShell: '0.7.0' } });
+  await old.updates.inspect();
+  assert.deepEqual(old.updates.status().offer, { version: '0.7.0', installable: false, blocked: 'needs-shell' });
+  assert.deepEqual(old.updates.status().needsShell, { version: '0.7.0', minShell: '0.7.0' });
+  assert.equal(old.updates.status().needsImage, null);
+  const refused = await refusal(old.updates.download());
+  assert.equal(refused.statusCode, 412);
+  assert.equal(refused.reason, 'update.needs-shell');
+  assert.equal(old.updates.status().state, 'idle');
+  assert.equal(old.urls.includes('https://r.test/t.tar.gz'), false, 'the tarball is never fetched');
+
+  // In the container a bundle's minShell is not a test
+  const container = world({ extra: { minShell: '9.0.0' } });
+  await container.updates.inspect();
+  assert.equal(container.updates.status().offer?.installable, true);
+});
+
+test("on the desktop revert restarts onto the shell's bundled payload", async () => {
+  const w = world({ desktop: true, running: '0.7.0', fromOverlay: '0.7.0' });
+  mkdirSync(join(w.dataDir, 'app'), { recursive: true });
+  writeState(join(w.dataDir, 'app', 'state.json'), { ...EMPTY_STATE, bad: [], active: '0.7.0' });
+  const status = await w.updates.revert({ force: true });
+  assert.equal(status.target, '0.6.0');
+  assert.match(w.audits[0]?.summary ?? '', /the desktop app's Claudio 0\.6\.0/);
+  assert.equal(stateOf(w).active, null);
+  await sleep(400);
+  assert.equal(w.restarts, 1);
 });

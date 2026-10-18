@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./providers/path": "./src/providers/path.ts"
+    "./providers/path": "./src/providers/path.ts",
+    "./launcher/machine": "./src/launcher/machine.ts",
+    "./launcher/protocol": "./src/launcher/protocol.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

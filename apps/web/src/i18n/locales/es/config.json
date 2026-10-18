@@ -357,7 +357,8 @@
       "needs-auth": "Para actualizar desde aquí, protege el acceso con un token.",
       "read-only": "El modo de solo lectura está activado: se actualiza desde el host.",
       "no-launcher": "Este contenedor se arrancó sin el lanzador de Claudio; actualízalo desde el host.",
-      "no-keys": "Este contenedor se arrancó sin el lanzador de Claudio; actualízalo desde el host."
+      "no-keys": "Este contenedor se arrancó sin el lanzador de Claudio; actualízalo desde el host.",
+      "development": "Esta aplicación de escritorio se ejecuta desde el código fuente, así que no se actualiza sola."
     },
     "needsImage": "Claudio {{version}} necesita una imagen más reciente ({{minImage}} o posterior): ha cambiado el sistema del contenedor. Actualiza la imagen desde el host.",
     "verifying": "Comprobando la firma…",
@@ -371,7 +372,8 @@
       "bad-manifest": "El manifiesto de la descarga no es válido y se ha descartado.",
       "fetch-failed": "No se ha podido descargar la actualización.",
       "disk": "No hay espacio suficiente en <mono>/data</mono> para la actualización.",
-      "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor."
+      "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor.",
+      "needs-shell": "Esta versión necesita una aplicación de escritorio más reciente."
     },
     "rolledBack": "Claudio {{from}} no arrancó, así que el contenedor ha vuelto a {{to}}.",
     "dismiss": "Descartar",

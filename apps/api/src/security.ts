@@ -600,6 +600,20 @@ const TERMINAL_SOCKET = /^\/api\/terminals\/[^/]+\/socket$/;
  */
 const DESKTOP_METHODS = new Set(['GET', 'HEAD']);
 
+/**
+ * The exception (docs/plans/unified-updates.md, D8): where the desktop shell supervises the server
+ * (`CLAUDIO_LAUNCHER=desktop`), the page in its window holds no owner credential, so the shell makes
+ * the payload's update writes itself with its per-launch secret. Exactly these four, and only there;
+ * under auth `none` they are the only routes that read a credential at all, so an agent's `curl` to
+ * 127.0.0.1, which cannot hold the shell's secret, stays `local` and is refused by the routes.
+ */
+const DESKTOP_UPDATE_WRITES = new Set([
+  `POST ${API_PREFIX}/system/server-update/download`,
+  `POST ${API_PREFIX}/system/server-update/apply`,
+  `DELETE ${API_PREFIX}/system/server-update/scheduled`,
+  `POST ${API_PREFIX}/system/server-update/revert`,
+]);
+
 /** Failed authentications a client address gets for free before it is asked to wait. */
 const FAILURES_BEFORE_WAIT = 10;
 const FIRST_WAIT_MS = 1_000;
@@ -788,6 +802,8 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   const backoff = new FailureBackoff();
   // Requests a chat's token authenticated under a guarded mode: `preHandler` reads their bodies
   const chatCredentials = new WeakSet<FastifyRequest>();
+  const desktopUpdateWrite = (req: FastifyRequest, path: string): boolean =>
+    core.serverUpdates.desktopHost && DESKTOP_UPDATE_WRITES.has(`${req.method} ${req.routeOptions.url ?? path}`);
 
   app.addHook('onRequest', async (req, reply) => {
     // A CORS preflight carries no credential by definition, and answering it reveals nothing
@@ -861,7 +877,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       }
       backoff.succeed(client);
       req.actor = actor;
-      if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method)) {
+      if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method) && !desktopUpdateWrite(req, path)) {
         void reply.status(403).send({ error: "the desktop app's own credential only reads; sign in with the API token to change anything" });
         return reply;
       }
@@ -945,6 +961,9 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     }
     // Open mode grants everything already, so a chat's token only labels who wrote: a missing, wrong
     // or expired one leaves `local` and is never refused
+    if (mode === 'none' && req.actor === null && desktopUpdateWrite(req, path) && core.security.isDesktopCredential(credentialOf(req, path), fromLocalMachine(req))) {
+      req.actor = DESKTOP_ACTOR;
+    }
     if (mode === 'none' && req.actor === null) {
       const presented = credentialOf(req, path);
       const chatId = presented === undefined ? null : core.security.chatTokens.verify(presented);

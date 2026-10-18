@@ -357,7 +357,8 @@
       "needs-auth": "To update from here, protect access with a token.",
       "read-only": "Read-only mode is on: updates are installed from the host.",
       "no-launcher": "This container was started without Claudio's launcher; update it from the host.",
-      "no-keys": "This container was started without Claudio's launcher; update it from the host."
+      "no-keys": "This container was started without Claudio's launcher; update it from the host.",
+      "development": "This desktop app runs from a checkout, so it does not update itself."
     },
     "needsImage": "Claudio {{version}} needs a newer image ({{minImage}} or later): the container's system changed. Update the image from the host.",
     "verifying": "Checking the signature…",
@@ -371,7 +372,8 @@
       "bad-manifest": "The download's manifest is not valid and was discarded.",
       "fetch-failed": "Could not download the update.",
       "disk": "There is not enough space in <mono>/data</mono> for the update.",
-      "needs-image": "This release needs a newer image than this container runs."
+      "needs-image": "This release needs a newer image than this container runs.",
+      "needs-shell": "This release needs a newer desktop app."
     },
     "rolledBack": "Claudio {{from}} did not start, so the container went back to {{to}}.",
     "dismiss": "Dismiss",

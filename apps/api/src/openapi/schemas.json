@@ -9007,11 +9007,11 @@
             "type": "null"
           }
         ],
-        "description": "Null when this container can update itself"
+        "description": "Null when this server can update itself"
       },
       "image": {
         "type": "string",
-        "description": "The version baked in the image (`/app/image.json`)"
+        "description": "The base payload's version: baked in the image (`/app/image.json`) or bundled in the desktop shell"
       },
       "running": {
         "type": "string",
@@ -9022,7 +9022,8 @@
         "enum": [
           "image",
           "overlay"
-        ]
+        ],
+        "description": "`image` is the base payload on both hosts, `overlay` a bundle under `<dataDir>/app`"
       },
       "state": {
         "$ref": "#/components/schemas/ServerUpdateState"
@@ -9099,6 +9100,59 @@
             "type": "null"
           }
         ]
+      },
+      "base": {
+        "type": "string",
+        "enum": [
+          "image",
+          "shell"
+        ],
+        "description": "What the base payload ships in: the image (`/app`) or the desktop shell (`<resources>`)"
+      },
+      "shell": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ShellInfo"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The desktop shell this server runs under; null outside the desktop"
+      },
+      "needsShell": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "minShell": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "minShell"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest release needs a newer desktop shell than this one"
+      },
+      "offer": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateOffer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest release newer than what runs, judged before a download is offered; null when there is none"
       }
     },
     "required": [
@@ -9111,9 +9165,13 @@
       "progress",
       "error",
       "needsImage",
-      "lastRollback"
+      "lastRollback",
+      "base",
+      "shell",
+      "needsShell",
+      "offer"
     ],
-    "description": "Claudio updating itself inside its container (docs/plans/container-polish.md, D4): a signed bundle unpacked under `/data/app/<version>`, which the image's launcher boots on trial and keeps once `/api/health` answers, or rolls back."
+    "description": "Claudio updating itself (docs/plans/unified-updates.md): a signed bundle unpacked under `<dataDir>/app/<version>`, which the host's launcher (the container's, or the desktop shell) boots on trial and keeps once `/api/health` answers, or rolls back."
   },
   "ServerUpdateUnsupported": {
     "type": "string",
@@ -9122,8 +9180,10 @@
       "no-launcher",
       "no-keys",
       "needs-auth",
-      "read-only"
-    ]
+      "read-only",
+      "development"
+    ],
+    "description": "Why this server cannot update itself. `not-docker` means no launcher host at all, a source install (the name is phase 1's); `no-launcher` a container or desktop install its launcher does not supervise, or `CLAUDIO_SERVER_UPDATE=off`; `development` a desktop app run from a checkout."
   },
   "ServerUpdateState": {
     "type": "string",
@@ -9144,8 +9204,79 @@
       "bad-signature",
       "bad-manifest",
       "disk",
-      "needs-image"
+      "needs-image",
+      "needs-shell"
     ]
+  },
+  "ShellInfo": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string"
+      },
+      "package": {
+        "type": "string",
+        "enum": [
+          "appimage",
+          "deb"
+        ]
+      },
+      "shellInputs": {
+        "type": "string",
+        "description": "sha256 over what only a new shell can change"
+      },
+      "aptManaged": {
+        "type": "boolean",
+        "description": "The apt source is registered: apt updates the shell"
+      }
+    },
+    "required": [
+      "version",
+      "package",
+      "shellInputs",
+      "aptManaged"
+    ],
+    "description": "The desktop shell the server runs under, as the shell told it when it started the server"
+  },
+  "ServerUpdateOffer": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string"
+      },
+      "installable": {
+        "type": "boolean",
+        "description": "True only when a download can succeed: bundle, manifest and signature present, signed, made for this base"
+      },
+      "blocked": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateBlocked"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when installable"
+      }
+    },
+    "required": [
+      "version",
+      "installable",
+      "blocked"
+    ],
+    "description": "The newest release as the last release check judged it, from its assets and signed manifest"
+  },
+  "ServerUpdateBlocked": {
+    "type": "string",
+    "enum": [
+      "no-bundle",
+      "needs-image",
+      "needs-shell",
+      "unverified",
+      "failed-before"
+    ],
+    "description": "Why the newest release cannot be installed in-app, known before any download: `no-bundle`, it was published without a signed server bundle; `unverified`, its manifest could not be fetched or does not verify; `needs-image`/`needs-shell`, it needs a newer image or desktop app; `failed-before`, it did not start here before."
   },
   "ProvidersChangedEvent": {
     "type": "object",
@@ -19519,12 +19650,17 @@
       "running": {
         "type": "number",
         "description": "Orchestrations running"
+      },
+      "terminals": {
+        "type": "number",
+        "description": "Terminals whose shell is running: a restart ends every one of them"
       }
     },
     "required": [
       "working",
       "waiting",
-      "running"
+      "running",
+      "terminals"
     ],
     "description": "What is live on this server, counted as the overview counts it: what a restart would stop"
   },

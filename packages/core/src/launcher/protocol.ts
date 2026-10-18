@@ -1,6 +1,7 @@
-// What the image's launcher and the server agree on about in-app updates (docs/plans/container-polish.md,
-// D4). The launcher is bundled alone from this file and `main.ts` and is the one part of Claudio an
-// update cannot replace, so everything here imports `node:*` only.
+// What a payload's launcher and the server agree on about in-app updates (docs/plans/container-polish.md,
+// D4; docs/plans/unified-updates.md, D1, D2, D7). The container's launcher is bundled alone from this
+// file, `machine.ts` and `main.ts`, and the desktop shell runs the same files: both are the part of
+// Claudio an update cannot replace, so everything here imports `node:*` only.
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,6 +44,10 @@ export interface BundleManifest {
   /** The oldest image this bundle runs on */
   minImage: string;
   imageInputs: string;
+  /** The oldest desktop shell this bundle runs on */
+  minShell: string;
+  /** sha256 over what only a new desktop shell can change (Electron, the native modules, the launcher, the guard, the keys, the IPC) */
+  shellInputs: string;
   commit: string;
   builtAt: string;
   tarball: { name: string; sha256: string; size: number };
@@ -162,16 +167,41 @@ export function loadKeys(dir: string): KeyObject[] {
   return keys;
 }
 
-/** Whether one of `keys` signed exactly these bytes; `signature` is the `.sig` file's base64 */
+/** The first 16 hex characters of the sha256 of the public key's DER (SPKI): how a `.sig` line names its key */
+export function keyId(key: KeyObject): string {
+  return createHash('sha256').update(key.export({ type: 'spki', format: 'der' })).digest('hex').slice(0, 16);
+}
+
+/** More lines than a rotation ever needs is not a signature file */
+const MAX_SIGNATURE_LINES = 8;
+const KEY_ID = /^[0-9a-f]{16}$/;
+
+/**
+ * Whether one of `keys` signed exactly these bytes. The `.sig` file holds one line per signing key,
+ * `<keyId> <base64>`, so a key rotation can overlap: a bundle signed by the old and the new key
+ * verifies on a shell or an image that trusts either. A bare base64 line (phase 1's format) is tried
+ * against every key. A line that names a key is only tried against that key, so an unknown id never
+ * verifies, and one valid line is enough.
+ */
 export function verifyManifest(bytes: Buffer, signature: string, keys: readonly KeyObject[]): boolean {
-  const sig = Buffer.from(signature.trim(), 'base64');
-  if (sig.length !== 64) return false;
-  return keys.some((key) => {
-    try {
-      return verify(null, bytes, key, sig);
-    } catch {
-      return false;
-    }
+  const lines = signature.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0 || lines.length > MAX_SIGNATURE_LINES) return false;
+  const ids = new Map(keys.map((key) => [key, keyId(key)]));
+  return lines.some((line) => {
+    const fields = line.split(/\s+/);
+    if (fields.length > 2) return false;
+    const id = fields.length === 2 ? (fields[0] ?? '') : null;
+    if (id !== null && !KEY_ID.test(id)) return false;
+    const sig = Buffer.from(fields.at(-1) ?? '', 'base64');
+    if (sig.length !== 64) return false;
+    return keys.some((key) => {
+      if (id !== null && ids.get(key) !== id) return false;
+      try {
+        return verify(null, bytes, key, sig);
+      } catch {
+        return false;
+      }
+    });
   });
 }
 
@@ -189,6 +219,8 @@ export function parseManifest(bytes: Buffer): BundleManifest | string {
   if (!version(raw.version) || !version(raw.minImage)) return 'the manifest has no version';
   if (raw.platform !== 'linux-x64') return 'the bundle is for another platform';
   if (typeof raw.nodeAbi !== 'string' || typeof raw.imageInputs !== 'string') return 'the manifest has no image facts';
+  // No launcher of phase 1 ever shipped, so every manifest a launcher reads carries the shell's facts
+  if (!version(raw.minShell) || typeof raw.shellInputs !== 'string') return 'the manifest has no desktop facts';
   if (!tarball || typeof tarball.name !== 'string' || typeof tarball.sha256 !== 'string' || typeof tarball.size !== 'number') return 'the manifest names no tarball';
   if (!files || !Object.values(files).every((hash) => typeof hash === 'string')) return 'the manifest lists no files';
   return {
@@ -198,6 +230,8 @@ export function parseManifest(bytes: Buffer): BundleManifest | string {
     nodeAbi: raw.nodeAbi,
     minImage: raw.minImage as string,
     imageInputs: raw.imageInputs,
+    minShell: raw.minShell as string,
+    shellInputs: raw.shellInputs,
     commit: text(raw.commit) ?? '',
     builtAt: text(raw.builtAt) ?? '',
     tarball: { name: tarball.name, sha256: tarball.sha256, size: tarball.size },
@@ -242,22 +276,43 @@ export function verifyFiles(dir: string, manifest: BundleManifest): string | nul
   return missing ? `${missing} is missing` : null;
 }
 
+/**
+ * What an overlay is judged against: the base payload it would replace. In the container that is
+ * the image (`/app`), whose Node runs the bundle, so its native modules must match the ABI. On the
+ * desktop it is the shell (`<resources>/server`): Electron's Node never has the ABI of the Node the
+ * bundle was built on, and both native modules are N-API, so only `minShell` decides.
+ */
+export type PayloadBase =
+  | { kind: 'image'; version: string; imageInputs: string; /** The ABI of the Node that will run it */ nodeAbi: string }
+  | { kind: 'shell'; version: string; shellInputs: string };
+
+export const imageBase = (image: ImageInfo, nodeAbi: string): PayloadBase => ({ kind: 'image', version: image.version, imageInputs: image.imageInputs, nodeAbi });
+
+/** Why a bundle's manifest does not fit this base, or null when it does */
+export function baseRefusal(manifest: Pick<BundleManifest, 'version' | 'minImage' | 'minShell' | 'nodeAbi'>, base: PayloadBase): string | null {
+  if (base.kind === 'shell') {
+    return compareVersions(manifest.minShell, base.version) > 0 ? `${manifest.version} needs the desktop app ${manifest.minShell} or later` : null;
+  }
+  if (compareVersions(manifest.minImage, base.version) > 0) return `${manifest.version} needs the image ${manifest.minImage} or later`;
+  if (manifest.nodeAbi !== base.nodeAbi) return `${manifest.version} was built for Node ABI ${manifest.nodeAbi}, not ${base.nodeAbi}`;
+  return null;
+}
+
 export interface OverlayCheck {
-  /** `/data/app/<version>` */
+  /** `<dataDir>/app/<version>` */
   dir: string;
   version: string;
   keys: readonly KeyObject[];
-  image: ImageInfo;
-  /** The ABI of the Node that will run it */
-  nodeAbi: string;
+  base: PayloadBase;
 }
 
 /**
  * Why the unpacked overlay must not boot, or null when it may: signed by an accepted key, the
- * version its directory says, newer than the image, made for this image and this Node, and every
- * file as signed. The launcher runs it before every boot, the server after every download.
+ * version its directory says, newer than the base payload, made for this base, and every file as
+ * signed. A launcher runs it before every boot, the server after every download: it is what stops a
+ * bundle that an agent running as the person changed in the user-writable data dir.
  */
-export function checkOverlay({ dir, version: v, keys, image, nodeAbi }: OverlayCheck): string | null {
+export function checkOverlay({ dir, version: v, keys, base }: OverlayCheck): string | null {
   let bytes: Buffer;
   let signature: string;
   try {
@@ -270,8 +325,6 @@ export function checkOverlay({ dir, version: v, keys, image, nodeAbi }: OverlayC
   const manifest = parseManifest(bytes);
   if (typeof manifest === 'string') return manifest;
   if (manifest.version !== v) return `the manifest is for ${manifest.version}, not ${v}`;
-  if (compareVersions(v, image.version) <= 0) return `${v} is not newer than the image's ${image.version}`;
-  if (compareVersions(manifest.minImage, image.version) > 0) return `${v} needs the image ${manifest.minImage} or later`;
-  if (manifest.nodeAbi !== nodeAbi) return `${v} was built for Node ABI ${manifest.nodeAbi}, not ${nodeAbi}`;
-  return verifyFiles(dir, manifest);
+  if (compareVersions(v, base.version) <= 0) return `${v} is not newer than the ${base.kind === 'image' ? "image's" : "desktop app's"} ${base.version}`;
+  return baseRefusal(manifest, base) ?? verifyFiles(dir, manifest);
 }
