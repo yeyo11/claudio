@@ -16,6 +16,7 @@
     "dev": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && electron . --dev --no-sandbox",
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "splash:preview": "tsx scripts/splash-preview.ts",
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts",
     "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && electron-builder --linux --config electron-builder.yml --publish never"
   },
@@ -26,6 +27,7 @@
   },
   "dependencies": {
     "@claudio/core": "workspace:*",
+    "@claudio/ui": "workspace:*",
     "electron-updater": "^6.8.9"
   }
 }

@@ -91,6 +91,9 @@ importers:
       '@claudio/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@claudio/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9

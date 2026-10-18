@@ -124,6 +124,10 @@
     "title": "Claudio could not start",
     "hint": "Part of the app did not load. Reloading usually fixes it."
   },
+  "splash": {
+    "status": "Starting Claudio…",
+    "starting": "Starting…"
+  },
   "reload": {
     "updated": "Claudio was updated to {{version}}.",
     "stale": "Claudio was updated.",

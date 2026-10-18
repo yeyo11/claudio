@@ -1,3 +1,5 @@
+import { splashHtml } from '@claudio/ui/splash';
+
 /** Scheme of the links on the error page; the main process intercepts them instead of navigating */
 export const ACTION_SCHEME = 'claudio-action:';
 
@@ -110,18 +112,9 @@ const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.char
 
 const toDataUrl = (html: string) => `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 
+/** "Eat the code" (src/splash.ts): the brand's C runs through a line of code and settles into the lockup */
 export function splashUrl(): string {
-  // A ring in the brand gradient: a conic gradient masked to its outer band. Reduced motion keeps
-  // the ring and stops the turn; "Starting…" says the rest.
-  return toDataUrl(`<!doctype html><meta charset="utf-8"><title>Claudio</title><style>${BASE_STYLE}
-    .spin { width: 28px; height: 28px; border-radius: 50%;
-            background: conic-gradient(from 0deg, rgba(110, 155, 255, 0) 0deg, #6e9bff 200deg, #a78bfa 360deg);
-            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
-            mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
-            animation: s 0.8s linear infinite; }
-    @keyframes s { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-  </style><div class="spin"></div><h1>Claudio</h1><p>Starting…</p>`);
+  return toDataUrl(splashHtml());
 }
 
 export function errorUrl(title: string, detail: string, logPath: string): string {

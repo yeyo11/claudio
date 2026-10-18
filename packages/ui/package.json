@@ -33,6 +33,7 @@
     "./components/controls/Toggle": "./src/components/controls/Toggle.tsx",
     "./components/controls/Tooltip": "./src/components/controls/Tooltip.tsx",
     "./components/controls/layer": "./src/components/controls/layer.ts",
+    "./splash": "./src/splash/splash.ts",
     "./components/highlight": "./src/components/highlight.ts",
     "./components/highlight/css": "./src/components/highlight/css.ts",
     "./components/highlight/data": "./src/components/highlight/data.ts",

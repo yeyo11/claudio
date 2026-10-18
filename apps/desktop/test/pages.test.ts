@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { errorUrl, OFFLINE_ILLUSTRATION, splashUrl } from '../src/pages.ts';
+import { splashHtml } from '@claudio/ui/splash';
 
 const html = (url: string) => decodeURIComponent(url.replace(/^data:text\/html;charset=utf-8,/, ''));
 
@@ -18,6 +19,6 @@ test('the error page escapes what it shows', () => {
   assert.ok(!page.includes('<b>'));
 });
 
-test('the splash spinner stops under reduced motion', () => {
-  assert.match(html(splashUrl()), /@media \(prefers-reduced-motion: reduce\) \{ \.spin \{ animation: none; \} \}/);
+test('the splash page is the Eat the code intro', () => {
+  assert.equal(html(splashUrl()), splashHtml());
 });

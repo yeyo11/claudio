@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-10-06T12:00:00Z
+updated_at: 2026-10-18T07:40:00Z
 tags:
     - desktop
     - electron
@@ -114,8 +114,11 @@ avoids it.
 This installs to `/opt/Claudio`, links `/usr/bin/claudio` and adds a launcher entry. Start it from
 your application menu or with `claudio`.
 
-The window opens on a splash screen while the server starts. If it cannot start, the window shows
-the reason with a **Restart** button and a link to the logs.
+The window opens on a splash screen while the server starts: a 4 s brand intro in which the
+logo's C takes two bits of code from its cursor in two bites, settles, and the name is written out
+of the cursor ([plans/splash-eat-the-code.md](plans/splash-eat-the-code.md)). The intro always
+plays to its end and then fades; if the server is still starting, the finished logo stays. If it
+cannot start, the window shows the reason with a **Restart** button and a link to the logs.
 
 ## The window, the tray and the taskbar
 
@@ -389,4 +392,4 @@ release.
 
 ## Related
 
-[[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[tunnel.md]]
+[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[tunnel.md]]

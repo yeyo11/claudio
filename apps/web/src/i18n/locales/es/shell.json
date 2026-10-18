@@ -124,6 +124,10 @@
     "title": "Claudio no ha podido arrancar",
     "hint": "Una parte de la aplicación no se ha cargado. Al recargar se suele arreglar."
   },
+  "splash": {
+    "status": "Iniciando Claudio…",
+    "starting": "Iniciando…"
+  },
   "reload": {
     "updated": "Claudio se ha actualizado a la versión {{version}}.",
     "stale": "Claudio se ha actualizado.",

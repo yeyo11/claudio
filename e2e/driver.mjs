@@ -287,6 +287,10 @@ async function connectTab(wsUrl, { baseUrl, shotsDir, sockets }) {
   await send('Log.enable');
   await send('Network.enable');
   network.mainFrame = (await send('Page.getFrameTree')).result?.frameTree?.frame?.id ?? null;
+  // The web app opens on a four-second brand intro over the UI (packages/ui/src/splash): every load
+  // of every spec would wait for it, and its overlay would take the clicks. Set before the page's
+  // own scripts, on every document, for the whole run
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__claudioNoSplash = true;' });
   // E2E_CPU_THROTTLE=N runs every tab N times slower: how a flaky wait is met on a machine that is not loaded
   const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
   if (throttle > 1) await send('Emulation.setCPUThrottlingRate', { rate: throttle });

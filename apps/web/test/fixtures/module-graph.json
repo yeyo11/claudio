@@ -545,6 +545,7 @@
   "smooth-text [SmoothReveal, useSmoothText]",
   "source [LIVE_REFRESH_MS, ReviewSource]",
   "spend-cap [SPEND_OVERRIDE_HEADER, SpendCapAsk, SpendTone, SpendView, acknowledgeSpend, askSpendCap, localDay, setSpendCapAsk, spendAcknowledged, spendResetTime, spendScope, spendView, waitingForSpend]",
+  "splash [SplashHandOff]",
   "steps-model [ScrubDot, conversationHref, currentStep, entryParam, intentParts, patchSpan, plainIntent, riskySteps, sameFileWindow, scrubDots, stepBeside, stepKey, stepPaths, swipeOf]",
   "stick-to-bottom [ScrollVerdict, scrollVerdict, useStickToBottom]",
   "team [BoardTeam, BoardTeamProvider, BounceFact, ColumnRole, FlowButton, PhoneFlowRow, useBoardTeam, useBoardTeamData, useStripRuns]",

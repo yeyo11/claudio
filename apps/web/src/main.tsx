@@ -15,6 +15,7 @@ import './i18n'; // picks the language and sets <html lang> before the first ren
 import { probeAuth } from './lib/auth';
 import { AppChatUi } from './lib/chat-ui';
 import { registerServiceWorker } from './lib/pwa';
+import { SplashHandOff } from './lib/splash';
 import { watchChunkErrors } from './lib/reload';
 import './lib/theme'; // applies the stored theme before the first paint
 import '@claudio/ui/lib/motion'; // stamps the motion level before anything has a chance to animate
@@ -64,6 +65,7 @@ createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>
+    <SplashHandOff />
   </StrictMode>,
 );
 
