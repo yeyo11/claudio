@@ -66,6 +66,7 @@ test('the tag v0.18.0 is the version 0.18.0, stored with its page and date in re
     publishedAt: '2026-09-24T08:00:00Z',
     url: 'https://github.com/yeyo11/claudio/releases/tag/v0.18.0',
     checkedAt: '2026-09-25T10:00:00.000Z',
+    assets: [],
   });
   assert.equal(new ReleaseWatch(config, { current: '0.17.1', env: {} }).info().latest, '0.18.0', 'survives a restart');
 });
@@ -80,6 +81,21 @@ test('GitHub is asked for its JSON with a user-agent, and the URL can be pointed
   const fixture = github(release('v0.18.0'));
   await new ReleaseWatch(tempConfig(), { current: '0.17.1', env: { CLAUDIO_RELEASES_URL: 'http://127.0.0.1:9/latest' }, fetch: fixture.fetch }).check();
   assert.deepEqual(fixture.state.urls, ['http://127.0.0.1:9/latest']);
+});
+
+test("the release's assets are kept with their download URL, for an in-app update to find its bundle", async () => {
+  const config = tempConfig();
+  const body = {
+    ...release('v0.18.0'),
+    assets: [
+      { name: 'claudio-server-0.18.0-linux-x64.json', browser_download_url: 'https://example.test/m.json' },
+      { name: 'broken' },
+      'junk',
+    ],
+  };
+  await new ReleaseWatch(config, { current: '0.17.1', env: {}, fetch: github(body).fetch }).check();
+  const again = new ReleaseWatch(config, { current: '0.17.1', env: {} });
+  assert.deepEqual(again.latestRelease(), { version: '0.18.0', assets: [{ name: 'claudio-server-0.18.0-linux-x64.json', url: 'https://example.test/m.json' }] });
 });
 
 test('a failed check keeps the previous answer and says why', async () => {

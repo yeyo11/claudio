@@ -8,6 +8,7 @@ import type {
   ClaudioReleaseInfo,
   TrackerId,
   CliVersionInfo,
+  LiveWork,
   StorageReport,
   ProcessUsageReport,
   SystemSample,
@@ -110,6 +111,9 @@ import type { TranscriptSummary } from './cli-facts.ts';
 import { detectCli, execCli, getAuthStatus, type CliAuth } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
+import { ServerUpdates } from './updates/server-update.ts';
+import { CliInstaller } from './updates/cli-install.ts';
+import { claudeCodeManifest } from './providers/claude-code/manifest.ts';
 import { storageReport } from './storage.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
@@ -282,7 +286,10 @@ export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
-export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
+export { ReleaseWatch, type ReleaseWatchOptions, type ReleaseAsset } from './release-watch.ts';
+export { ServerUpdates, ServerUpdateRefusal, type ServerUpdatesOptions } from './updates/server-update.ts';
+export { CliInstaller, CliInstallRefusal, type CliInstallerOptions } from './updates/cli-install.ts';
+export { RESTART_EXIT_CODE } from './launcher/protocol.ts';
 export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
@@ -556,6 +563,10 @@ export class Core {
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
+  /** Claudio updating itself inside its container: signed bundles under /data/app (docs/plans/container-polish.md, D4) */
+  readonly serverUpdates: ServerUpdates;
+  /** Claude Code installed in-app inside the container, under /data/cli */
+  readonly cliInstaller: CliInstaller;
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
@@ -738,6 +749,31 @@ export class Core {
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events });
+    const securityState = () => ({ mode: this.security.mode, readOnly: this.security.readOnly });
+    this.serverUpdates = new ServerUpdates({
+      dataDir: config.dataDir,
+      distribution: config.distribution,
+      running: CLAUDIO_VERSION,
+      release: () => this.release.latestRelease(),
+      security: securityState,
+      liveWork: () => this.liveWork(),
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
+      events: this.events,
+    });
+    this.serverUpdates.auditRollback();
+    this.cliInstaller = new CliInstaller({
+      dataDir: config.dataDir,
+      distribution: config.distribution,
+      range: claudeCodeManifest.versions.range ?? '',
+      pinned: () => this.cliVersion.pinned,
+      current: () => this.systemKnown()?.cli.version ?? null,
+      latest: () => this.cliVersion.latest,
+      security: securityState,
+      changed: async () => {
+        this.forgetSystem();
+        await this.system(true);
+      },
+    });
     this.projectStore = new ProjectStore(config);
     this.projectSettingsStore = new ProjectSettingsStore(config);
     this.team = new TeamService({
@@ -1905,7 +1941,8 @@ export class Core {
   }
 
   async cliVersionInfo(): Promise<CliVersionInfo> {
-    return this.cliVersion.info((await this.system()).cli.version);
+    const { cli } = await this.system();
+    return this.cliVersion.info(cli.version, this.cliInstaller.info(cli.path));
   }
 
   /** Asks the registry now; the button on the System page, not something a page load may trigger. */
@@ -1945,7 +1982,19 @@ export class Core {
   /** Asks GitHub now, for the Check for updates button. */
   async checkRelease(): Promise<ClaudioReleaseInfo> {
     await this.release.check();
+    // Whether the new release needs a newer image is in its signed manifest, read now rather than on a page load
+    await this.serverUpdates.inspect();
     return this.release.info();
+  }
+
+  /** What a restart would stop, counted as the overview counts it */
+  async liveWork(): Promise<LiveWork> {
+    const chats = await this.chats.list({ origins: ['claudio', 'external', 'orchestration'] });
+    return {
+      working: chats.filter((c) => c.state === 'working').length,
+      waiting: chats.filter((c) => c.state === 'waiting').length,
+      running: this.orchestrator.runningCount(),
+    };
   }
 
   /** The version this server runs, as every client should expect it */
@@ -3445,6 +3494,7 @@ export class Core {
     this.lessons.stop();
     this.cliVersion.stop();
     this.release.stop();
+    this.serverUpdates.close();
     this.healthMonitor.stop();
     this.providers.close();
     this.hosts.close();

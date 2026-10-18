@@ -32,6 +32,59 @@ export interface CliVersionInfo {
   updateAvailable: boolean;
   /** Why the last check failed (registry unreachable, unexpected answer); the previous `latest` is kept */
   error?: string;
+  /** Where the CLI in use comes from: the image's pin, one installed in-app under `/data/cli`, or the PATH */
+  source: 'image' | 'data' | 'path';
+  /** Whether `POST /system/cli-version/install` may run here */
+  installable: boolean;
+  /** The in-app install, while one runs or after it failed; null where installing is not offered */
+  install: { state: 'idle' | 'installing' | 'failed'; version: string | null; error: CliInstallError | null } | null;
+}
+
+/** Why an in-app install of Claude Code failed or was refused */
+export type CliInstallError = 'fetch-failed' | 'integrity' | 'out-of-range' | 'not-newer' | 'version-mismatch' | 'disk';
+
+/** What is live on this server, counted as the overview counts it: what a restart would stop */
+export interface LiveWork {
+  /** Chats working now */
+  working: number;
+  /** Chats waiting for a person (their CLI is running) */
+  waiting: number;
+  /** Orchestrations running */
+  running: number;
+}
+
+export type ServerUpdateState = 'idle' | 'downloading' | 'verifying' | 'ready' | 'scheduled' | 'restarting' | 'failed';
+export type ServerUpdateError = 'fetch-failed' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image';
+export type ServerUpdateUnsupported = 'not-docker' | 'no-launcher' | 'no-keys' | 'needs-auth' | 'read-only';
+
+/**
+ * Claudio updating itself inside its container (docs/plans/container-polish.md, D4): a signed bundle
+ * unpacked under `/data/app/<version>`, which the image's launcher boots on trial and keeps once
+ * `/api/health` answers, or rolls back.
+ */
+export interface ServerUpdateStatus {
+  /** Null when this container can update itself */
+  unsupportedReason: ServerUpdateUnsupported | null;
+  /** The version baked in the image (`/app/image.json`) */
+  image: string;
+  /** The version running now */
+  running: string;
+  source: 'image' | 'overlay';
+  state: ServerUpdateState;
+  /** The version being downloaded, ready or scheduled */
+  target: string | null;
+  /** 0..1 while downloading */
+  progress: number | null;
+  error: ServerUpdateError | null;
+  /** The newest release needs a newer image than this one */
+  needsImage: { version: string; minImage: string } | null;
+  lastRollback: { from: string; to: string; at: string } | null;
+}
+
+/** `force` restarts over live work (the person was asked); `whenIdle` waits until nothing is live */
+export interface ServerUpdateApplyRequest {
+  force?: boolean;
+  whenIdle?: boolean;
 }
 
 /**
@@ -7768,6 +7821,12 @@ export interface SystemReleaseEvent extends ClaudioEventBase {
   release: ClaudioReleaseInfo;
 }
 
+/** The in-app update of the server moved: a download's progress, ready, scheduled, restarting, failed */
+export interface SystemServerUpdateEvent extends ClaudioEventBase {
+  type: 'system.server-update';
+  status: ServerUpdateStatus;
+}
+
 /** `rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot). */
 export type ScheduleChangeAction = 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled' | 'rescheduled';
 
@@ -9028,6 +9087,7 @@ export type ClaudioEvent =
   | HealthChangedEvent
   | SessionsChangedEvent
   | SystemReleaseEvent
+  | SystemServerUpdateEvent
   | ProvidersChangedEvent
   | HostsChangedEvent
   | OrchestrationPullRequestEvent
