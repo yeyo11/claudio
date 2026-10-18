@@ -9,7 +9,7 @@ import { TerminalError } from './errors.ts';
 /** `CLAUDIO_TERMINAL=off|on` overrides `enabled`: what whoever deployed Claudio decided wins over the UI */
 export const TERMINAL_ENV = 'CLAUDIO_TERMINAL';
 
-export const TERMINAL_DEFAULTS: Readonly<TerminalSettings> = {
+const BASE_DEFAULTS: Readonly<TerminalSettings> = {
   enabled: false,
   remote: 'tunnel',
   maxTerminals: 8,
@@ -20,6 +20,17 @@ export const TERMINAL_DEFAULTS: Readonly<TerminalSettings> = {
   loginShell: true,
 };
 
+/**
+ * In a container no request is ever "this machine" (they all come from the bridge's gateway), so
+ * `tunnel` would make the terminal unusable rather than safer. The owner token the gate requires
+ * under `any` already grants a shell in effect, through chats in `bypassPermissions`.
+ */
+export function terminalDefaults(distribution?: string): Readonly<TerminalSettings> {
+  return distribution === 'docker' ? { ...BASE_DEFAULTS, remote: 'any' } : BASE_DEFAULTS;
+}
+
+export const TERMINAL_DEFAULTS: Readonly<TerminalSettings> = terminalDefaults();
+
 export const TERMINAL_BOUNDS = {
   maxTerminals: [1, 32],
   idleMinutes: [5, 1440],
@@ -28,7 +39,7 @@ export const TERMINAL_BOUNDS = {
 } as const;
 
 const REMOTES: readonly TerminalRemote[] = ['off', 'tunnel', 'any'];
-const KEYS = Object.keys(TERMINAL_DEFAULTS) as (keyof TerminalSettings)[];
+const KEYS = Object.keys(BASE_DEFAULTS) as (keyof TerminalSettings)[];
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -101,18 +112,20 @@ function envSwitch(env: NodeJS.ProcessEnv): boolean | null {
 export class TerminalSettingsStore {
   private readonly file: string;
   private stored: Partial<TerminalSettings> = {};
+  private readonly defaults: Readonly<TerminalSettings>;
 
   constructor(
-    config: Pick<CoreConfig, 'dataDir'>,
+    config: Pick<CoreConfig, 'dataDir' | 'distribution'>,
     private readonly env: NodeJS.ProcessEnv = process.env,
   ) {
     this.file = join(config.dataDir, 'terminal.json');
+    this.defaults = terminalDefaults(config.distribution);
     mkdirSync(config.dataDir, { recursive: true });
     this.stored = this.read();
   }
 
   get(): TerminalSettings {
-    const settings: TerminalSettings = { ...TERMINAL_DEFAULTS, ...this.stored };
+    const settings: TerminalSettings = { ...this.defaults, ...this.stored };
     const pinned = envSwitch(this.env);
     if (pinned !== null) settings.enabled = pinned;
     // A replay longer than the scrollback has nothing to replay: the two bounds are one rule
@@ -143,7 +156,7 @@ export class TerminalSettingsStore {
       if (key === 'enabled' && envSwitch(this.env) !== null) throw new TerminalError('terminal.env-locked', `${TERMINAL_ENV} decides whether the terminal is on`, 409);
       (next as Record<string, unknown>)[key] = parseKey(key as keyof TerminalSettings, value);
     }
-    const merged = { ...TERMINAL_DEFAULTS, ...next };
+    const merged = { ...this.defaults, ...next };
     if (merged.replayLines > merged.scrollbackLines) throw new TerminalError('terminal.bad-settings', 'replayLines cannot exceed scrollbackLines', 400);
     await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
     this.stored = next;

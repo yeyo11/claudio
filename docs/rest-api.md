@@ -94,7 +94,8 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/security/auth` | Mode, whether a token is set, the OIDC fields and read-only. Never the token |
+| GET | `/security/auth` | Mode, whether a token is set, the OIDC fields, read-only and `firstRunPending` (the container's first-run token is still unused). Never the token |
+| POST | `/security/allowed-hosts/claim` | Adds the host the request was dialled on to the allowlist's file layer (the one Settings edits) and answers `{ host, allowedHosts }`. The one route exempt from the host check. Needs the owner's token: `403 host.needs-auth` under `none`, `403 host.not-owner` for the desktop credential or a chat's token, `400 host.invalid`, `405` in read-only mode, `401` (counted by the back-off) otherwise |
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |

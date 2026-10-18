@@ -692,6 +692,18 @@ export class Core {
         summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
+    if (this.security.firstRunGenerated) {
+      this.db.appendAudit({
+        at: this.security.firstRunGenerated.at,
+        actor: 'env',
+        method: 'POST',
+        path: '/api/security/token',
+        status: 200,
+        summary: 'Generate the first-run owner token',
+      });
+    }
+    this.security.onFirstRunUsed = (at) =>
+      this.db.appendAudit({ at, actor: 'token:first-run', method: 'POST', path: '/api/security/token', status: 200, summary: 'The first-run owner token was used for the first time' });
     this.guards = new GuardSettingsStore(config.dataDir, {
       onChange: (settings) => this.events.emit({ type: 'guards.changed', title: 'Guard settings changed', settings }),
     });

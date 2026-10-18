@@ -37,7 +37,7 @@ const ROOT_TYPES = [
   'VerificationSpec', 'VerificationState', 'ReviewGateDetail', 'AcceptReviewRequest', 'ReviewRoleInfo', 'VerifyOrchestrationRequest', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
   'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',
   // Security
-  'AuthConfig', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage', 'AuditFilter',
+  'AuthConfig', 'HostRefusal', 'ClaimHostResult', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage', 'AuditFilter',
   // Guards (docs/plans/guards.md)
   'GuardSettingsView', 'UpdateGuardSettingsRequest', 'GuardEventPage', 'GuardCheckRequest', 'GuardCheckResult',
   // Per-chat MCP servers and tool presets
