@@ -1,98 +1,22 @@
 import type { AccountLoginSession } from '@claudio/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ExternalLink, KeyRound, LogIn } from 'lucide-react';
+import { KeyRound, LogIn } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
-import { Spinner } from '@claudio/ui/components/Spinner';
+import { live, SignInSession } from '../../components/setup/SignInSession';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
-import { CopyButton, ErrorBox, Field, Segmented } from '@claudio/ui/components/ui';
+import { ErrorBox, Field, Segmented } from '@claudio/ui/components/ui';
 
-type Kind = 'login' | 'token' | 'api-key';
-const KINDS: readonly Kind[] = ['login', 'token', 'api-key'];
-
-/** A sign-in that still waits for the CLI or the person. */
-export const live = (session: AccountLoginSession | null): boolean => session !== null && session.endedAt === null;
+// The OAuth token (`claude setup-token`) is no longer offered; accounts already added keep working
+type Kind = 'login' | 'api-key';
+const KINDS: readonly Kind[] = ['login', 'api-key'];
 
 /**
- * The sign-in panel of a `login` account, in the shape of the setup flow's: where to go, the link
- * with Copy, a field for the code the page shows when the CLI's browser could not open, and the
- * braille spinner beside "Waiting for you to approve". The box carries the energy border: it is the
- * one live surface of the dialog while it waits. Only the URL the CLI printed reaches this panel.
- */
-export function SignInSession({ session, onCode, sending, error }: { session: AccountLoginSession; onCode: (code: string) => void; sending: boolean; error: unknown }) {
-  const { t } = useTranslation('accountsConfig');
-  const [code, setCode] = useState('');
-  const failed = session.state === 'failed' || session.state === 'cancelled';
-  if (failed) {
-    return (
-      <div className="signin-result" role="alert">
-        <span className="signin-result-text">{t(session.state === 'failed' ? 'signIn.failed' : 'signIn.cancelled')}</span>
-      </div>
-    );
-  }
-  const url = session.url;
-  return (
-    <div className={`signin-device live-energy${url ? ' is-link' : ''}`} role="group" aria-label={t('signIn.title')}>
-      {url ? (
-        <>
-          <ol className="signin-steps">
-            <li>
-              <span className="n">1</span>
-              <span>{t('signIn.open')}</span>
-            </li>
-            <li>
-              <span className="n">2</span>
-              <span>{t('signIn.approve')}</span>
-            </li>
-          </ol>
-          <div className="signin-code-box">
-            <Tooltip content={url}>
-              <a className="c-accent signin-link signin-url" href={url} target="_blank" rel="noopener noreferrer">
-                <span className="signin-url-text">{url.replace(/^https:\/\//, '')}</span>
-                <ExternalLink {...ICON_SM} />
-                <span className="sr-only"> ({t('signIn.opensNewTab')})</span>
-              </a>
-            </Tooltip>
-            <CopyButton text={url} label={t('signIn.copyLink')} shown />
-          </div>
-          <form
-            className="signin-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (code.trim()) {
-                onCode(code.trim());
-                setCode('');
-              }
-            }}
-          >
-            <Field label={t('signIn.codeLabel')} hint={t('signIn.codeHint')}>
-              <input className="mono" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" spellCheck={false} />
-            </Field>
-            <div className="signin-actions">
-              <button type="submit" className="btn" disabled={!code.trim() || sending}>
-                {t('signIn.sendCode')}
-              </button>
-            </div>
-          </form>
-          <ErrorBox error={error} title={t('signIn.codeFailed')} />
-        </>
-      ) : null}
-      <div className="signin-wait" role="status">
-        <Spinner />
-        {url ? t('signIn.waiting') : t('signIn.starting')}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Adds an account: a `login` one signs in through the CLI in a config dir of its own, a `token`
- * (`claude setup-token`) or an API key is pasted once and never comes back from the API. The last
- * two have no identity of their own, so they need an alias.
+ * Adds an account: a `login` one signs in through the CLI in a config dir of its own, an API key is
+ * pasted once and never comes back from the API. A key has no identity of its own, so it needs an alias.
  */
 export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const { t } = useTranslation(['accountsConfig', 'common']);
@@ -117,7 +41,7 @@ export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; on
   const session = reading.data ?? started;
   const code = useMutation({ mutationFn: (value: string) => api.accountLoginCode(session?.id ?? '', { code: value }), onSuccess: (next) => setStarted(next) });
   const token = useMutation({
-    mutationFn: () => api.addTokenAccount({ kind: kind === 'api-key' ? 'api-key' : 'token', alias: alias.trim(), secret: secret.trim() }),
+    mutationFn: () => api.addTokenAccount({ kind: 'api-key', alias: alias.trim(), secret: secret.trim() }),
     onSuccess: () => {
       toast.success(t('dialog.added'));
       onAdded();
@@ -173,7 +97,16 @@ export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; on
       }
     >
       {signingIn && session ? (
-        <SignInSession session={session} onCode={(value) => code.mutate(value)} sending={code.isPending} error={code.error} />
+        <SignInSession
+          session={session}
+          onCode={(value) => code.mutate(value)}
+          sending={code.isPending}
+          error={code.error}
+          onRetry={() => {
+            setStarted(null);
+            start.reset();
+          }}
+        />
       ) : (
         <form
           id={formId}
@@ -185,7 +118,7 @@ export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; on
             else token.mutate();
           }}
         >
-          <Segmented<Kind> label={t('dialog.kind')} value={kind} onChange={setKind} options={KINDS.map((k) => ({ value: k, label: t(`kind.${k}`) }))} />
+          <Segmented<Kind> label={t('dialog.kind')} value={kind} onChange={setKind} options={KINDS.map((k) => ({ value: k, label: t(`dialog.kinds.${k}`) }))} />
           <p className="muted small">{t(`dialog.hint.${kind}`)}</p>
           <Field label={t('dialog.alias')} hint={kind === 'login' ? t('dialog.aliasOptional') : t('dialog.aliasRequired')}>
             <input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder={t('dialog.aliasPlaceholder')} autoComplete="off" data-autofocus />
@@ -195,8 +128,8 @@ export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; on
               <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="work@example.com" autoComplete="off" />
             </Field>
           ) : (
-            <Field label={kind === 'api-key' ? t('dialog.apiKey') : t('dialog.token')} hint={t('dialog.secretHint')}>
-              <input type="password" className="mono" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={kind === 'api-key' ? 'sk-ant-api03-…' : 'sk-ant-oat01-…'} autoComplete="off" spellCheck={false} />
+            <Field label={t('dialog.apiKey')} hint={t('dialog.secretHint')}>
+              <input type="password" className="mono" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="sk-ant-api03-…" autoComplete="off" spellCheck={false} />
             </Field>
           )}
           <ErrorBox error={start.error} title={t('dialog.startFailed')} />

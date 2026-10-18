@@ -72,13 +72,13 @@
   },
   "page": {
     "title": "Cuentas",
-    "add": "Añadir cuenta",
+    "add": "Añadir una cuenta",
     "count_one": "{{count}} cuenta",
     "count_other": "{{count}} cuentas",
     "usageRead": "uso leído {{ago}}",
     "refresh": "Actualizar",
-    "none": "Sin cuentas",
-    "noneHint": "Claude Code usa su propio directorio de configuración hasta que añadas cuentas. Añade una para pasar a ella al llegar a un límite.",
+    "none": "Aún no hay ninguna cuenta",
+    "noneHint": "Inicia sesión con una cuenta de Claude para ejecutar chats.",
     "refreshing": "Leyendo el uso…"
   },
   "kind": {
@@ -146,7 +146,6 @@
     "kind": "Tipo",
     "hint": {
       "login": "Inicia sesión con Claude Code en un directorio de configuración propio. Claudio nunca lee las credenciales.",
-      "token": "Un token de claude setup-token. No tiene identidad propia, así que necesita un alias.",
       "api-key": "Una clave de API. No tiene identidad ni límites de uso que leer, así que necesita un alias."
     },
     "alias": "Alias",
@@ -155,7 +154,6 @@
     "aliasPlaceholder": "trabajo",
     "email": "Correo",
     "emailHint": "Opcional: rellena el correo que pide el inicio de sesión.",
-    "token": "Token",
     "apiKey": "Clave de API",
     "secretHint": "Solo de escritura: se guarda en un archivo privado de la cuenta y no se vuelve a mostrar.",
     "signIn": "Iniciar sesión",
@@ -165,7 +163,11 @@
     "added": "Cuenta añadida",
     "addFailed": "No se ha podido añadir la cuenta",
     "signedIn": "Sesión iniciada",
-    "startFailed": "No se ha podido iniciar el inicio de sesión"
+    "startFailed": "No se ha podido iniciar el inicio de sesión",
+    "kinds": {
+      "login": "Cuenta de Claude",
+      "api-key": "Clave de API"
+    }
   },
   "signIn": {
     "title": "Iniciar sesión en la cuenta",
@@ -179,8 +181,11 @@
     "codeFailed": "No se aceptó el código",
     "waiting": "Esperando a que apruebes",
     "starting": "Pidiendo a Claude Code la página de inicio de sesión…",
-    "failed": "Ha fallado el inicio de sesión. Cierra este diálogo e inténtalo de nuevo.",
-    "cancelled": "Se canceló el inicio de sesión."
+    "failed": "No se ha podido iniciar sesión.",
+    "expired": "El enlace para iniciar sesión ha caducado.",
+    "newLink": "Pedir otro enlace",
+    "tryAgain": "Reintentar",
+    "expiresIn": "caduca en {{left}}"
   },
   "rotation": {
     "title": "Cambio de cuenta",

@@ -24,7 +24,8 @@ export default async ({ page, api, check, dirs }) => {
   let chatId = null;
   try {
     const list = await api.get('/accounts');
-    check(list.status === 200 && list.body[0]?.id === 'default', `GET /accounts lists the default account first (${list.status})`);
+    // A fresh sandbox has no credentials file, so the implicit default account is not an account yet
+    check(list.status === 200 && !list.body.some((a) => a.id === 'default'), `GET /accounts leaves out a default account that has no credential (${list.status})`);
 
     const limited = await api.post('/accounts/token', { kind: 'token', alias: 'e2e-limited', secret: 'fake-limited-e2e' });
     check(limited.status === 201 && limited.body.alias === 'e2e-limited', `a token account is added (${limited.status})`);
@@ -36,6 +37,30 @@ export default async ({ page, api, check, dirs }) => {
 
     check((await api.post('/accounts/token', { kind: 'token', secret: 'fake-no-alias' })).status >= 400, 'a token account needs an alias');
     check((await api.del('/accounts/default')).status >= 400, 'the default account cannot be removed');
+
+    // ---------- a Claude-account sign-in, relayed (the fake `claude auth login`) ----------
+    const started = await api.post('/accounts', { alias: 'e2e-login' });
+    check(started.status === 201 && started.body.accountId, `a login account starts its sign-in (${started.status})`);
+    added.push(started.body.accountId);
+    let login = started.body;
+    for (let i = 0; i < 40 && !login.url; i++) {
+      await sleep(250);
+      login = (await api.get(`/accounts/logins/${started.body.id}`)).body;
+    }
+    check(typeof login.url === 'string' && login.url.includes('oauth/authorize'), 'the sign-in shows the link the CLI printed');
+    const sent = await api.post(`/accounts/logins/${started.body.id}/code`, { code: 'e2e-code' });
+    check(sent.status === 200 || sent.status === 201, `the pasted code is accepted (${sent.status})`);
+    for (let i = 0; i < 40 && login.state !== 'succeeded'; i++) {
+      await sleep(250);
+      login = (await api.get(`/accounts/logins/${started.body.id}`)).body;
+    }
+    check(login.state === 'succeeded', `the sign-in succeeds (${login.state})`);
+    const afterLogin = (await api.get('/accounts')).body;
+    check(afterLogin.some((a) => a.id === started.body.accountId && a.kind === 'login' && a.signedIn), 'the login account is listed, signed in');
+    check(!afterLogin.some((a) => a.id === 'default'), 'the default account stays out while it has no credential');
+    // Out again, so the rotation below runs between the token accounts alone
+    check((await api.del(`/accounts/${started.body.accountId}`)).status < 300, 'the login account is removed');
+    added.pop();
 
     const saved = await api.put('/accounts/settings', { ...settings, rotateOnLimit: true });
     check(saved.status === 200 && saved.body.rotateOnLimit === true, 'rotation on a limit is on');

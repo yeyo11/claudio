@@ -90,16 +90,247 @@
 
 /* ---- the page and its foot ---- */
 
-.setup-page .prov-first-intro p {
-  max-width: 640px;
+/* The frame (docs/plans/container-polish.md, D7): the head, the body that scrolls and the foot that
+   stays at the bottom of the viewport, so Continue is never below the fold. The page keeps the halo
+   of .prov-first-page; the first-run Providers page that shares that class is untouched. */
+.prov-first-page.setup-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* One centred track for the head, the body and the foot: 880 px, 1180 px on a wide screen */
+.setup-track {
+  width: min(880px, 100% - 48px);
+  margin: 0 auto;
+}
+
+.setup-head {
+  padding: 24px 0 16px;
+}
+
+.setup-head .setup-track {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.setup-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 0 28px;
+}
+
+.setup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.setup-foot-bar {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
 }
 
 .setup-foot {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+}
+
+.setup-page .prov-first-intro p {
+  max-width: 640px;
+}
+
+/* The foot's More is for a short screen only */
+.setup-aside-more {
+  display: none;
+  align-self: flex-start;
+}
+
+/* Wide: the title and its explanation on the left, the step's cards on the right */
+@media (min-width: 1180px) {
+  .setup-track {
+    width: min(1180px, 100% - 64px);
+  }
+
+  .setup-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    column-gap: 48px;
+    row-gap: 0;
+    align-items: start;
+  }
+
+  .setup-grid > * {
+    grid-column: 2;
+    max-inline-size: 820px;
+    margin-bottom: 22px;
+  }
+
+  .setup-grid > .setup-aside {
+    grid-column: 1;
+    grid-row: 1 / span 6;
+    position: sticky;
+    top: 0;
+    max-inline-size: none;
+    margin-bottom: 0;
+  }
+
+  .setup-page .setup-aside .prov-first-intro p,
+  .setup-page .setup-aside > p {
+    max-width: 44ch;
+  }
+}
+
+/* Short: less padding in the head, and the explanation clamps to three lines until More is pressed */
+@media (max-height: 760px) {
+  .setup-head {
+    padding: 16px 0 12px;
+  }
+
+  .setup-aside-more {
+    display: inline-flex;
+  }
+
+  .setup-aside-text:not(.is-open) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+}
+
+/* A phone: the track fills the width, and the foot clears the home indicator */
+@media (max-width: 900px) {
+  .setup-track {
+    width: calc(100% - 32px);
+  }
+
+  .setup-head {
+    padding: 16px 0 12px;
+  }
+
+  .setup-foot-bar {
+    padding: 10px 0 max(12px, env(safe-area-inset-bottom));
+  }
+
+  .setup-page .prov-first-foot {
+    position: static;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+    background: none;
+  }
+}
+
+/* ---- the provider rows: laid out by the width of their card, so the path, the state and the actions never cut each other ---- */
+
+.setup-page .prov-list {
+  container: setup-list / inline-size;
+}
+
+/* The name with its state right after it, the reason, then the version and the path; the actions
+   at the end. The id and the state dissolve into the row's grid, so each line can be placed. */
+.setup-page .prov-row.compact {
+  grid-template-columns: 50px max-content minmax(0, 1fr) auto;
+  column-gap: 0;
+  row-gap: 2px;
+  align-items: start;
+}
+
+.setup-page .prov-row.compact > :first-child {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+}
+
+.setup-page .prov-row.compact .prov-id,
+.setup-page .prov-row.compact .prov-state {
+  display: contents;
+}
+
+.setup-page .prov-row.compact .prov-name {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.setup-page .prov-row.compact .prov-state > :is(.badge, .prov-checking) {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
+  margin-left: 8px;
+}
+
+/* The reason carries the account ("Signed in as …"), so the account line would say it twice */
+.setup-page .prov-row.compact .prov-account {
+  display: none;
+}
+
+.setup-page .prov-row.compact .prov-reason {
+  grid-column: 2 / span 2;
+  grid-row: 2;
+}
+
+/* A path is a literal the person may need to read: it wraps, it is never cut */
+.setup-page .prov-row.compact .prov-meta {
+  grid-column: 2 / span 2;
+  grid-row: 3;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.setup-page .prov-row.compact .prov-actions {
+  grid-column: 4;
+  grid-row: 1 / span 3;
+  align-self: start;
+  margin-left: 14px;
+}
+
+@container setup-list (max-width: 639px) {
+  .setup-page .prov-row.compact {
+    grid-template-columns: 50px max-content minmax(0, 1fr);
+  }
+
+  .setup-page .prov-row.compact .prov-reason,
+  .setup-page .prov-row.compact .prov-meta {
+    grid-column: 2 / -1;
+  }
+
+  .setup-page .prov-row.compact .prov-actions {
+    grid-column: 2 / -1;
+    grid-row: 4;
+    justify-content: flex-start;
+    margin: 8px 0 0;
+  }
+}
+
+/* Under a row the sign-in panel starts at the name, and its content stays readable */
+.setup-page .prov-bin.signin-panel > * {
+  max-inline-size: 640px;
+}
+
+/* A fact about the sign-in the person should know before choosing (the environment sets a credential) */
+.signin-note.warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--fg);
+}
+
+.signin-note.warn > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--warn);
 }
 
 .setup-page .prov-first-brand .section-label {
