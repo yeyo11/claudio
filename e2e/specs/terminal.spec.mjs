@@ -238,7 +238,7 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     await page.click('[role=menu] [role^=menuitem]', 'Workspace', 800);
     await ready('5d, a terminal in the workspace');
     await run('echo "ws:$(pwd -P)"');
-    await page.waitFor(`return /ws:\//.test(${SCREEN})`, { label: 'pwd printed in the workspace' });
+    await page.waitFor(`return /ws:\\//.test(${SCREEN})`, { label: 'pwd printed in the workspace' });
     const wsPrinted = (await screen()).match(/ws:(\/\S*)/g)?.map((m) => m.slice(3)) ?? [];
     const loose = (await api.get('/terminals')).body.filter((each) => each.scope.kind === 'workspace');
     check(loose.length === 1 && loose[0].state === 'running', `the API lists one running terminal scoped to the workspace (${JSON.stringify(loose.map(({ id, scope, state }) => ({ id, scope, state })))})`);
