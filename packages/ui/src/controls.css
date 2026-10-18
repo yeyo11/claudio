@@ -867,10 +867,17 @@ body:has(> .sheet-scrim) > #root {
 }
 .sheet-foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 14px;
   border-top: 1px solid var(--border);
+}
+/* The actions of a footer wrap onto their own line, and a label longer than the footer wraps too */
+.sheet-foot > .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 /* The actions a phone's `⋯` opens: a column of buttons a thumb can hit */
 .sheet-actions {

@@ -89,12 +89,21 @@
 
 .dialog-foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 18px;
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   background: var(--bg-sunken);
+}
+
+/* Two or three actions do not fit side by side on a 320 px phone: they wrap onto their own line, and
+   a label longer than the footer wraps too, so no action is ever cut or pushed off screen */
+.dialog-foot > .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 
 .toasts {
