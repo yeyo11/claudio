@@ -37,6 +37,8 @@ directories:
 files:
   - dist/**/*
   - '!dist/**/*.map'
+  # Staged for the package itself by `package:stage`, shipped below as resources, never inside app.asar
+  - '!dist/package/**'
   - package.json
 
 # Paths the shell reads at runtime (src/resources.ts): <resources>/server/server.mjs, the MCP server beside it
@@ -64,6 +66,18 @@ extraResources:
   # The window's own icon (src/resources.ts); without it the running window has no _NET_WM_ICON
   - from: build/icons/512x512.png
     to: icon.png
+  # The shell's identity, { version, shellInputs }, written by `package:stage` (server-bundle.mjs
+  # --shell-json). The running app re-reads it: when apt replaces the package underneath, its version
+  # no longer matches the running one (docs/plans/unified-updates.md, D3, `shell-replaced`)
+  - from: dist/package/shell.json
+    to: shell.json
+  # The Ed25519 public keys a payload (the signed server bundle) and the desktop manifest must verify
+  # against: the same set the image carries in /app/keys. Inside the AppImage's read-only mount or
+  # root-owned /opt/Claudio, where nothing running as the person can add a key (D1, D7)
+  - from: ../../docker/keys
+    to: keys
+    filter:
+      - '*.pub'
 
 # Nothing is rebuilt: the SQLite store is node:sqlite, built into the Node that Electron ships, and the
 # one native module, node-pty, is a N-API prebuild (pinned 1.2.0-beta.15) that loads on Electron's Node
@@ -74,6 +88,12 @@ buildDependenciesFromSource: false
 
 # Text and JS compress well; the API bundle and the UI are the bulk of the payload
 compression: normal
+
+# The static-runtime AppImage toolset (beta in 26.15.3, "Runtime 20251108"): its runtime mounts with
+# fusermount3, so the AppImage no longer needs libfuse2, which current distributions no longer install
+# (docs/plans/unified-updates.md, D5; docs/decisions/apt-repository.md records the spike).
+toolsets:
+  appimage: '1.0.3'
 
 linux:
   target:
@@ -99,6 +119,10 @@ linux:
       StartupWMClass: claudio
 
 deb:
+  # electron-builder's own postinst and postrm, plus the registration of Claudio's signed apt repository
+  # and its removal (docs/plans/unified-updates.md, D4). Both are templates: see their headers.
+  afterInstall: build/linux/after-install.sh
+  afterRemove: build/linux/after-remove.sh
   # Electron's own runtime libraries only: the server runs on Electron's bundled Node, so no nodejs package.
   # The Claude Code CLI is looked up on the user's PATH at run time and is not a package dependency either.
   # Tailscale (Settings > Remote access) is not a dependency either: it is not in Debian's archive,
@@ -117,3 +141,7 @@ deb:
   # Extra fpm arguments in `source=destination` form.
   fpm:
     - build/linux/io.github.yeyo11.claudio.metainfo.xml=/usr/share/metainfo/io.github.yeyo11.claudio.metainfo.xml
+    # The apt repository's public key, binary (dearmored), named by the source's Signed-By. A file of
+    # the package, so a rotation ships in an update and dpkg removes it with the package. Staged at
+    # mode 0644 by `package:stage` (packaging/apt/claudio-archive-keyring.gpg is the committed copy)
+    - dist/package/claudio-archive-keyring.gpg=/usr/share/keyrings/claudio-archive-keyring.gpg

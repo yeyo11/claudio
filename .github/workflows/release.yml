@@ -87,12 +87,17 @@ jobs:
         type=raw,value=latest
 
   # The Linux desktop app rides the same trigger as the image: AppImage and .deb are attached to the draft
-  # release that was just created.
+  # release that was just created, with the signed desktop manifest. It also builds the signed apt
+  # repository (apt-repo.yml, called from desktop.yml once the .deb exists), so `publish` waiting on this
+  # job waits on the repository too. Its two jobs in the `release` environment, the manifest's signature
+  # and the repository's, start together and take one approval.
   desktop:
     needs: please
     if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true')
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/desktop.yml
     with:
       tag: ${{ inputs.tag || needs.please.outputs.tag }}
@@ -111,8 +116,8 @@ jobs:
       tag: ${{ inputs.tag || needs.please.outputs.tag }}
 
   # Last step of a release: the draft goes public, and immutable, only once the image is pushed and the
-  # packages are on it. A failure before this leaves a draft to fix and publish, never a public release
-  # missing its files.
+  # packages, the signed bundle, the signed desktop manifest and the signed apt repository exist. A
+  # failure before this leaves a draft to fix and publish, never a public release missing its files.
   publish:
     needs: [please, release, desktop, server-bundle]
     if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true') && needs.release.result == 'success' && needs.desktop.result == 'success' && needs.server-bundle.result == 'success'
@@ -133,3 +138,25 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag || needs.please.outputs.tag }}
+
+  # The apt repository goes live only after the release is public: apt never offers a version whose
+  # release is not. It deploys the Pages artifact desktop.yml's apt-repo built in this run
+  # (docs/plans/unified-updates.md, D4 and D7).
+  pages:
+    needs: [please, publish]
+    if: always() && (inputs.tag != '' || needs.please.outputs.released == 'true') && needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Its deployment branch policy allows `main` only
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
