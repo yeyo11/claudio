@@ -61,7 +61,7 @@ const fakeShell = (initial, switchState = NO_SWITCH) => `(() => {
         updates.calls.push({ payload: action });
         return { status: 503, code: null };
       },
-      switchState: async () => ${JSON.stringify(switchState)},
+      switchState: async () => (${JSON.stringify(switchState)}),
       switchToAppImage: async (options = {}) => {
         updates.calls.push({ switch: options });
         return { status: 'restarting', version: ${JSON.stringify(NEXT)} };
