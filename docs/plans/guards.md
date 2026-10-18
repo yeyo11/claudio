@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T22:00:00Z
-updated_at: 2026-10-15T22:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - guards
@@ -2085,7 +2085,8 @@ the e2e spec.
 - The "Allow once" action was never built: no route, no transcript action, no `allowed-once` outcome.
 - The `workflow` engine is guarded, not refused at launch (g0 showed its tool calls are hooked).
 - `core.guardStatus()` was a stub until the release task wired the launcher's preflight into it.
-- The e2e spec was written without a run; the integrator's run is in [reports/release-e2e.md](../reports/release-e2e.md).
+- The e2e spec was written without a run; `guard-hooks.spec.mjs` was made green on `main` in #5 and
+  runs in the full suite on GitHub.
 
 **Known gaps.**
 - The audit left 120 known bypasses as `todo` rows in `packages/core/test/guards-corpus.ts` (26 high,

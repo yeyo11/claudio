@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T18:00:00Z
-updated_at: 2026-10-08T18:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - chats
     - providers
@@ -51,7 +51,8 @@ followed from the guesses.
 - `held`: it arrived while the process was on its way out (stopped, its stdin closed, messages
   already held, or exited with its pipes still open). It is streamed at once, and the one process
   that replaces the old one gets every held message, in order. A send that has to start a process
-  goes through the concurrent-run limit.
+  goes through admission (`ChatManager.admit()`): the concurrent-run limit, and the memory check,
+  which refuses with 409 when the machine's memory is short ([resource-control.md](resource-control.md)).
 
 The chat lists them as `pending` (`GET /chats/:id`), with the messages lost since (`undelivered`, with
 a reason), until the person sends again. They are written with the chat's record, so a restart turns

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:51:47.97356172Z
-updated_at: 2026-09-24T14:09:56Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - knowledge-base
     - pando
@@ -150,25 +150,40 @@ when everything is fine — do not trust it. Being local, embedding costs time a
 the working tree, and the snapshot does not follow later commits. Check it before trusting it:
 
 ```
-code_get_project_stats(project_id: "home_yeyo_Escritorio_claude-wrapper")
+code_get_project_stats(project_id: "home_yeyo_Escritorio_claudio")
 ```
 
 The project id is the repo path with separators replaced; `indexing_status` must be `completed`. As
-of 2026-09-24 the index holds 508 files and 4,629 symbols — every tracked source file except the
-contents of dotdirs such as `.github/`.
+of 2026-10-18 the index holds 2,302 files and 22,151 symbols — every source file except
+the contents of dotdirs, so neither `.github/` nor the worktrees under `.claude/worktrees/`, nor
+`node_modules`, `dist` and `build`.
+
+Leave `ContextEnrichmentCodeProject` empty in `~/.pando.toml`. That file is global, so an id set
+there is applied to every directory pando starts in: this repo was once indexed as `orca`, the id
+left over from another project. Pando keeps the id a directory is already registered under, so a
+wrong one has to be removed with `code_delete_project` before re-indexing; it does not correct
+itself.
 
 Re-indexing needs an instance that outlives the request. A job started through the MCP server dies
-when the Claude Code session that spawned it exits, which is how the project was once left stuck at
-`in_progress` after two files. What works is a detached server, driven over its REST API:
+when the Claude Code session that spawned it exits, and Claudio starts a new `claude -p`, with a new
+pando, on every turn of a chat: that is how the project was left stuck at `in_progress`, once after
+two files and once after 1,632. What works is a detached server, driven over its REST API:
 
 ```bash
-cd /path/to/claude-wrapper
+cd /path/to/claudio
 setsid nohup pando serve > .pando/serve.log 2>&1 < /dev/null &   # HTTPS on 8765
 T=$(curl -sk https://localhost:8765/api/v1/token | jq -r .token) # loopback only
 curl -sk -X POST -H "X-Pando-Token: $T" -H 'Content-Type: application/json' \
-  -d '{"path":"'"$PWD"'","project_id":"home_yeyo_Escritorio_claude-wrapper"}' \
+  -d '{"path":"'"$PWD"'","project_id":"home_yeyo_Escritorio_claudio"}' \
   https://localhost:8765/api/v1/remembrances/projects/index
 ```
+
+Pando before 1.2.14 lets every instance index and watch the same tree at once, and on 2026-10-18 two
+1.2.9 instances (two chats open on this repo) corrupted `kb_documents` and `code_symbols`. From
+1.2.14 one instance is the primary and the others leave indexing and watching to it. If a search
+fails with `database disk image is malformed`, stop every pando, move `.pando/data` aside, and
+rebuild it with the detached server above plus the knowledge base re-sync: nothing in it is lost,
+because it is all derived from `docs/` and the source.
 
 A full pass over the monorepo takes about fifteen minutes. Watch it with
 `GET /api/v1/remembrances/projects`, and stop the server when it says `completed`.

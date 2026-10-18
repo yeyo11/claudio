@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - rest-api
     - api
@@ -283,7 +283,7 @@ The routes for what a provider does at its usage limit are under [Usage limits a
 
 ## Accounts
 
-The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, chosen per process: who they are, the usage each reported (from the run's stream, or the CLI's own cache when idle, stamped with its age), the sign-in of a `login` account and the settings and policies that decide when work moves to another account. A `token` or `api-key` account's secret is kept in a 0600 file of its dir and is in no response, log or event. Every write, and reading a sign-in, is refused to a chat's token with `403`.
+The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, chosen per process: who they are, the usage each reported (the CLI's own `get_usage` answer on Refresh, the run's stream while a chat runs, or the CLI's cache for an account never refreshed and idle; the newest reading wins, stamped with its age), the sign-in of a `login` account and the settings and policies that decide when work moves to another account. A `token` or `api-key` account's secret is kept in a 0600 file of its dir and is in no response, log or event. Every write, and reading a sign-in, is refused to a chat's token with `403`.
 
 | Method | Route | Description |
 | --- | --- | --- |

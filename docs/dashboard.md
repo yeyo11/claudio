@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T08:30:00Z
-updated_at: 2026-10-08T08:30:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - dashboard
     - home
@@ -84,6 +84,17 @@ Both are project widgets and both are in the project's default layout.
   `/flow/waiting` and `/flow/runs`. `/flow/waiting` returns counts, not cards, hence one row per
   column. It renders nothing unless the Team and Board modules are on. Sizes: m, l, full.
 
+## The Machine widget
+
+**Machine** (`machine`, `pages/dashboard/widgets/machine.tsx`) says whether the machine can take
+another chat: memory available over the total with a usage bar, the memory pressure as a figure and
+a word, the admission verdict (with the figure that refused), and the live chats with their resident
+memory. It reads `GET /system/load` and `/system/processes` every 10 seconds, the same routes the
+admission is built on, and carries no motion: nothing in it is a live agent. A machine without
+`/proc` says it exposes no figures. It is in the area of figures at the top, size s only, on both
+Homes and in both default layouts; its history is Settings → Runs & spend → Machine. See
+[resource-control.md](resource-control.md).
+
 Pick up again now defaults to full width in `defaultLayout`: half width would leave a gap beside it
 in the wide column.
 
@@ -111,4 +122,4 @@ registry matches the shared rules) and `e2e/specs/home-edit.spec.mjs`.
 
 ## Related
 
-[[status.md]] · [[design-system.md]] · [[plans/ui-redesign.md]] · [[team-and-flow.md]]
+[[status.md]] · [[design-system.md]] · [[plans/ui-redesign.md]] · [[team-and-flow.md]] · [[resource-control.md]]

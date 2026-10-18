@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T16:00:00Z
-updated_at: 2026-10-15T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - accounts
@@ -9,6 +9,9 @@ tags:
     - claude-code
 ---
 # Stage A2: models per account, and model fallback
+
+Status: **built** (2026-10-15): the model list per account from `initialize`, and the
+`account.model-fallback` decision point (ships `off`).
 
 Stage A ([plans/claude-only-fork.md](claude-only-fork.md)) chooses a Claude account by usage
 headroom, but not by whether the account can run the chat's model. Two gaps, both found with real
@@ -91,7 +94,7 @@ not bring back `provider.model-map`, which was between vendors.
   OpenAPI schemas.
 - **Routes:** `GET /accounts/:id/models` (the account's list), `GET`/`PUT /accounts/model-fallbacks`
   (settings, chat token refused on `PUT`), and the fallback suggestion routes mirroring the other
-  decision points. Each with a summary, a tag and a README row.
+  decision points. Each with a summary, a tag and a row in `docs/rest-api.md`.
 
 ## Orchestration
 

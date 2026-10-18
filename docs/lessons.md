@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T14:00:00Z
-updated_at: 2026-10-16T14:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - lessons
     - memory
@@ -194,7 +194,7 @@ true. The worst case of mining is 1 USD a day in total; with `lesson.mine` off i
 - **Settings → Instructions & memory → Lessons**: the global lessons, the miner settings and the three switches. Project
   settings carry the three delivery switches under Memory.
 - **Chat page**: "Look for lessons" in the "⋯" menu, with a cost confirm.
-- **Decisions tab**: `lesson.mine` in the Memory area.
+- **Settings → Decisions → Points**: `lesson.mine` in the Memory area.
 
 ## Routes
 

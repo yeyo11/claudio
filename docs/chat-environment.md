@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - chats
     - api
@@ -48,8 +48,12 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
     `Forwarded`, `X-Forwarded-For` or tunnel client-IP header: the tunnel arrives from 127.0.0.1 too.
     Anything else answers the same `401` as a wrong token and counts toward the wait.
   - It cannot administer the guard: `PUT /api/security/auth`, `POST|DELETE /api/security/token`,
-    `POST /api/tunnel/start` and `PUT /api/tunnel/settings` answer `403`. Read-only and the host
-    allowlist apply as to the owner.
+    `POST /api/tunnel/start` and `PUT /api/tunnel/settings` answer `403`, and so do the tool guards'
+    `PUT /api/settings/guards` and `POST /api/guards/check`. About twenty other groups of routes
+    are refused to it the same way (accounts, sign-ins, rotation, memory, lessons, evals, merges,
+    reviews, the terminal, collaborators and more): the reasons are in
+    [security-model.md](security-model.md), the full list in the `CHAT_FORBIDDEN*` sets of
+    `apps/api/src/security.ts`. Read-only and the host allowlist apply as to the owner.
   - Writes are audited as `chat:<chatId>`, also under `mode: none`: there the token grants nothing
     (the mode already allows everything) and only labels the request, so a wrong or missing one stays
     `local` and is never refused (CW-17, `apps/api/src/security.ts`). The work-item routes turn that

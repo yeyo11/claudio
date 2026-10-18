@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T19:45:00Z
-updated_at: 2026-10-17T19:45:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - study
@@ -8,12 +8,13 @@ tags:
     - resources
     - architecture
     - orchestration
-    - decision-pending
+    - parked
 ---
 # Process isolation: where agents and their commands run
 
-**Status: study, interrupted 2026-10-17 by a reboot and completed from its transcript the same day;
-the decisions in §7 wait for the owner.**
+**Status: study, interrupted 2026-10-17 by a reboot and completed from its transcript the same day
+(#32); parked on 2026-10-17. D1 is decided (no host limits for now), D3 is parked, D4 to D8 wait for
+the owner's review and D2 stays his (§7).**
 
 The study ran as one chat (`e40f4e8c-2fd4-4ead-8764-448d7f0975d5`, 2026-10-17 10:57–12:59 UTC, the
 owner writing in Spanish) until a reboot of the machine cut it during a measurement. Its export is

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-17T15:30:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - collaborators
@@ -8,7 +8,7 @@ tags:
     - iroh
     - sharing
     - security
-    - proposed
+    - built
 ---
 # Plan: Collaborators — teammates' Claudios share their projects, peer to peer
 
@@ -19,7 +19,9 @@ person **share a project with a group of collaborators**. Each collaborator's Cl
 artifacts, and board. The copy updates **live** while both machines are on. There is **no server of
 our own**: the Claudios connect directly over [iroh](https://iroh.computer).
 
-Status: **settled** on 2026-10-16. Proposed by the owner that morning, revised the same day after an
+Status: **built**, merged into `main` in #7 and closed on 2026-10-17, after the owner ran it between
+real machines (see [Outcome](#outcome)); agents' reads of what is shared followed in #13
+([collaborators-agent-access.md](collaborators-agent-access.md)). Planning history: **settled** on 2026-10-16. Proposed by the owner that morning, revised the same day after an
 adversarial review (§10), and **§5 validated by the owner as written** that evening, together with
 the decisions listed at the top of §8. The agent table is in §7.1. **C0 is complete** (§7.2): proved on this machine,
 in Electron and in the Docker image, between two machines on the LAN, and between this machine and
@@ -558,7 +560,7 @@ There are new events: `collaborators.changed` (settings, roster, links), `collab
 | **C1 — core** | identity and lazy loading; roster chain (genesis, verify, suffix fetch, transfer, equivocation report); invites, direct and relayed joins, one-time secrets; `shareKeyFor` with the remote preference, alias resolution, host table and subpath; `serve.ts` with read-only ports, the lint rule and the four checks; pull/watch client; SQLite tables; catalog reconcile; manual links | unit tests: chain verification against every forged variant (wrong signer, broken `prevHash`, equal version, second genesis); a peer offline across five versions converges; joiner rejects a chain whose owner is not the invite's; transfer; invite expiry and one-time use across a restart; relayed join sealed end to end; removal; `shareKeyFor` for fork, alias, case, subpath, two clones and no remote; blob refused by hash alone; the "serve imports no run service" test and lint; cursors per kind; two in-process endpoints syncing a fixture project offline |
 | **C2 — API** | routes, events, OpenAPI, README, `CHAT_FORBIDDEN_COLLABORATORS`, `ProjectSettings.sharing` and schema regeneration | `pnpm --filter @claudio/api openapi:schemas`, route tests, 403 for chat tokens on every route including reads |
 | **C3 — web** | §5 after the owner validates it, the `collaborators` illustration with its reference SVG and its design-system row, the QR encoder, the glossary rows | Night Shift check skill, `en`/`es` parity, both themes, phone, motion levels, the tokens test, at most two gradient surfaces on the Collaborators page |
-| **C4 — e2e** | a two-wrapper mode in the e2e harness (`e2e/run.mjs`), both on `presetMinimal` with loopback tickets and relays off so CI needs no network; sharing a project, seeing a live chat, linking an unmatched project, a relayed join | `pnpm e2e` |
+| **C4 — e2e** | a two-wrapper mode in the e2e harness (`e2e/run.mjs`), both on `presetMinimal` with loopback tickets and relays off so CI needs no network; sharing a project, seeing a live chat, linking an unmatched project, a relayed join | `pnpm e2e` (since 2026-10-17 the suite runs only on GitHub, through `pnpm e2e:remote`: [decisions/e2e-on-github.md](../decisions/e2e-on-github.md)) |
 | **C5 — docs** | `docs/collaborators.md` (the feature), `docs/security-model.md` (the new surface, the vault's new kind of secret, the n0 dependency), `docs/design-system.md` and `agentry-ds.css` (the new screen's variants), `docs/status.md` | knowledge-base format |
 
 ### 7.1 Orchestration
@@ -589,7 +591,7 @@ between the web tasks and `a1`; `e1` is where the two meet.
 | `a1` | **API** (§6): `routes/collaborators.ts`, the two `projects/:id/sharing` routes, `CHAT_FORBIDDEN_COLLABORATORS` with its message, every summary and the `collaborators` tag in `routes.ts`, the README REST rows, the events on `/events` | `k6` | `apps/api/src/routes/collaborators.ts` (new), `apps/api/src/security.ts` (the set and its check only), `apps/api/src/openapi/routes.ts` (the new entries), `README.md` (REST tables), `apps/api/test/collaborators.test.ts` | route tests; 403 for a chat token on every route including reads; schema drift |
 | `w1` | **Collaborators page** (§5.1, §5.4): `pages/Collaborators.tsx` and its sub-components, the `NavItem` after Projects and the phone **More** entry, the API client `lib/api/collaborators.ts` written against §6, the `collaborators` illustration with its reference SVG, the QR encoder in `packages/ui` with tests, the design-system CSS variants, i18n en/es and the glossary rows | `k1` | `apps/web/src/pages/Collaborators.tsx`, `apps/web/src/pages/collaborators/**` (new), `apps/web/src/lib/api/collaborators.ts` (new), `apps/web/src/App.tsx` (the nav item only), `apps/web/src/components/shell/**` (the More entry only), `apps/web/src/styles/collaborators.css` (new), `packages/ui/src/components/illustrations/collaborators.tsx`, `illustrations/index.ts`, `packages/ui/src/lib/qr.ts` (new) and its test, `docs/design-system/illustrations/collaborators.svg`, `docs/design-system/agentry-ds.css` (the new variants), `apps/web/src/i18n/locales/*/collaborators.json` (new), `apps/web/src/i18n/GLOSSARY.md` (the four rows), `apps/web/test/collaborators-page.test.tsx`, `apps/web/test/fixtures/class-names.json` (regenerated) | `pnpm typecheck`, ui + web tests, the tokens test, `night-shift-ui-check`, at most two gradient surfaces |
 | `w2` | **Sharing section and Shared tab** (§5.2, §5.3): the Sharing section in the project's Settings view, `shared` in `PROJECT_VIEWS` with its gate (`projectViews` takes the collaborators state), `SharedView.tsx` with the member switcher and the four read-only sub-tabs reusing the existing views, the read-only bar and the no-composer mode in `@claudio/chat-ui`, the live rail on a collaborator's running chat, i18n | `k1` | `apps/web/src/pages/dashboard/views.ts`, `apps/web/src/pages/project/SharedView.tsx` (new), `apps/web/src/pages/project/SharingSection.tsx` (new) and its mount in the Settings view (one block), `packages/chat-ui/src/components/ReadOnlyBar.tsx` (new), `packages/chat-ui/src/components/Transcript.tsx` (the read-only prop only), `packages/chat-ui/src/locales/**` (the new keys), `apps/web/src/i18n/locales/*/collaborators.json` (the `shared.*` and `sharing.*` keys, coordinated with `w1` by key prefix), `apps/web/test/shared-view.test.tsx`, `apps/web/test/fixtures/class-names.json` (regenerated) | `pnpm typecheck`, chat-ui + web tests, `night-shift-ui-check`; own chats never mixed with shared ones |
-| `e1` | **e2e** (C4): the two-wrapper mode in the harness (`presetMinimal`, loopback tickets, relays off, no network), `collaborators.spec.mjs` (turn on, create, invite and join, share, see a live chat from the fake CLI, link an unmatched project, a relayed join, remove), the `motion` and `a11y-core` additions. Run each touched spec alone with `pnpm e2e <name>` on an `E2E_PORT` of its own | `a1`, `w1`, `w2` | `e2e/run.mjs`, `e2e/processes.mjs` (the two-wrapper mode), `e2e/specs/collaborators.spec.mjs` (new), `e2e/specs/motion.spec.mjs`, `e2e/specs/a11y-core.spec.mjs`, `e2e/fake-cli/**` (only if a fixture is missing) | the harness test; each touched spec green alone |
+| `e1` | **e2e** (C4): the two-wrapper mode in the harness (`presetMinimal`, loopback tickets, relays off, no network), `collaborators.spec.mjs` (turn on, create, invite and join, share, see a live chat from the fake CLI, link an unmatched project, a relayed join, remove), the `motion` and `a11y-core` additions. Run each touched spec alone with `pnpm e2e <name>` on an `E2E_PORT` of its own (today: `pnpm e2e:remote <name>` on GitHub, see [decisions/e2e-on-github.md](../decisions/e2e-on-github.md)) | `a1`, `w1`, `w2` | `e2e/run.mjs`, `e2e/processes.mjs` (the two-wrapper mode), `e2e/specs/collaborators.spec.mjs` (new), `e2e/specs/motion.spec.mjs`, `e2e/specs/a11y-core.spec.mjs`, `e2e/fake-cli/**` (only if a fixture is missing) | the harness test; each touched spec green alone |
 | `x1` | **Docs** (sonnet, C5): `docs/collaborators.md` (what a person can do, where it shows, the roster and share-key rules in plain words, what n0 sees, what is cooperative), the additions to `docs/security-model.md` (the new surface, the vault's new kind of secret, the n0 dependency), the §4 row and the "Landed" notes in `docs/design-system.md`, this plan's **Outcome** section, the `docs/status.md` row, the README feature line; stored with `kb_add_document` | `a1`, `w1`, `w2` | `docs/collaborators.md` (new), `docs/security-model.md` (additions), `docs/design-system.md` (the row and Landed only), `docs/plans/collaborators.md` (Outcome only), `docs/status.md`, `README.md` (one line) | links resolve; `kb_add_document` answers with no unresolved link this plan did not intend |
 
 Two tasks regenerate the schemas (`k1` and `a1`) and two edit `collaborators.json` by key prefix
@@ -654,7 +656,7 @@ test process: the host wraps every binding call.
   of 1 MiB in 0.54 s once direct.
 - **Id-only ticket** (dial by key, discovery through n0): handshake **94 ms**; the first path was the
   relay, direct followed. The plan's "dial by public key" works.
-- Both runs were on one host and one LAN. **The two-NAT run is pending** (below).
+- Both runs were on one host and one LAN. The two-NAT run came after, and is reported below.
 
 **Relay configuration.** `RelayMode.customFromUrls(['https://use1-1.relay.n0.iroh.link./'])` on top
 of `presetN0`: home relay became `use1-1`, so a custom map replaces the default. Unreachable relay:
@@ -829,8 +831,8 @@ The first draft was reviewed adversarially the same day. What changed, so the re
 
 ## Outcome
 
-Built on `feat/collaborators` by the `claudio-collaborators` orchestration (2026-10-16), stages C1 to
-C5 as §7.1 defines them. The feature is described in [collaborators.md](../collaborators.md); the
+Merged into `main` in #7 on 2026-10-17. Built on `feat/collaborators` by the `claudio-collaborators`
+orchestration (2026-10-16), stages C1 to C5 as §7.1 defines them. The feature is described in [collaborators.md](../collaborators.md); the
 security additions are in [security-model.md](../security-model.md#collaborators) and the screens'
 notes in the design system's [Landed](../design-system.md#collaborators-as-built) section.
 

@@ -1,7 +1,7 @@
 # Settings patterns
 
-Settings in Claudio are hand-written tabs today (`apps/web/src/pages/config/**`, the groups in
-`settingsTabs.ts`). The fields below are the vocabulary every settings row is judged by, and the
+Settings in Claudio are eight hand-written groups today (`apps/web/src/pages/config/**`: the groups,
+their sections and details in `settingsGroups.ts`, the rows the search finds in `settingsIndex.ts`). The fields below are the vocabulary every settings row is judged by, and the
 shape a settings schema would take if `/ui-audit` and the owner decide to build one. Until then,
 apply them as rules to each row you write.
 
@@ -66,7 +66,7 @@ content.
 - An input with `type=password`, a show/hide button of 44 px on a phone, pasting allowed.
 - The button's states: "Save key" → "Saving…" → "Saved ✓", with the width of the longest reserved.
 - After saving, the field shows `••••••••` and "Saved on 17 Oct" and a "Change" button. It never shows
-  the key again. (Settings → Security's secrets line already works this way.)
+  the key again. (Settings → Access & safety → Secrets already works this way.)
 
 ## Searching settings
 

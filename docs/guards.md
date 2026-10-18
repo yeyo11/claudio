@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - guards
     - hooks
@@ -105,7 +105,10 @@ being stopped. Real isolation is the container, the user account and the worktre
 ## Troubleshooting
 
 When a guard cannot run, a run fails before any CLI starts, with `guard-unavailable (<problem>)` (a
-flow run ends `failed`, cause `not-started`), and Settings shows the same problem.
+flow run ends `failed`, cause `not-started`), and Settings shows the same problem. While the first
+self-test is still running (no pass and no failure yet), an orchestration task is not failed: it
+stays pending and the scheduler tries again every 3 s (`GuardSelfTestPending` in
+`packages/core/src/guards/preflight.ts`, handled by `Orchestrator.refuse()`).
 
 | Problem | Meaning | What to do |
 | --- | --- | --- |

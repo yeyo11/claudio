@@ -1,15 +1,21 @@
 ---
 created_at: 2026-09-28T19:00:00Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - spec
     - ci
     - e2e
     - performance
-    - in-progress
+    - superseded
 ---
 # Spec: headroom for the e2e suite in CI (CW-3)
+
+> **Superseded** by [decisions/e2e-on-github.md](../decisions/e2e-on-github.md) (#29, #30, 2026-10-17).
+> The shards now live in `.github/workflows/e2e.yml`, which `ci.yml` calls on four shards and
+> `pnpm e2e:remote` dispatches on a pushed branch; the split in `e2e/shards.mjs` balances them over
+> `e2e/timings.json`, and every fakeCli spec is a group of its own instead of one shared group. The
+> text below is kept as the history of CW-3.
 
 Story CW-3 of the epic CW-11 "Faster orchestrations", and the CI half of workstream C of
 [plans/orchestration-speed.md](orchestration-speed.md). Status: **part 3 built** on 2026-09-29 in

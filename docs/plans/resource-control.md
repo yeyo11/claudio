@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - chats
     - orchestration
@@ -25,7 +25,7 @@ records what is built, what is left and why. What is built is described in
 | 4 | Fair queue with priority for interactive chats | **Partly built**: a person's refused start reserves the next place for 20 s (`InteractiveHold`); workers give way. No queue of requests: refusals are still answered at once and polled every 3 s, see the Outcome |
 | 4 | Async `git` on request paths | **Built for the review endpoints** (`Changes` service, project overview); the rest is listed in `docs/resource-control.md` |
 | 4 | Less of `/proc` read per request | **Built**: `/system/processes` reads the table through a 2 s cache (`recentProcessTable`) |
-| 4 | Random E2E port by default | **Not built**: `e2e/run.mjs` keeps 8799 |
+| 4 | Random E2E port by default | **Not built**: `e2e/run.mjs` keeps a fixed default, now 8809; since #29 the suite runs only on GitHub (`e2e/run.mjs` refuses elsewhere), so runs no longer share this machine |
 | 4 | Log and artefact budget | **Not measured** |
 | 5 | Limit for heavy commands (builds, Chromium) | **Not built**: needs a cgroup or a change in how the CLI runs its tools |
 | 6 | Dashboard, option A | **Built**: the `machine` widget of the overview, see the Outcome |
@@ -43,7 +43,11 @@ this plan.
 refused start is reported to the person and to the orchestrator. Only the reservation of a place for a
 person was built (see the Outcome); the queue itself is still open.
 
-## The dashboard: options to choose from
+## The dashboard: the options, and the choice
+
+**Chosen and built:** A and then B, which together make C: the Machine widget and Settings → Runs &
+spend → Machine, merged in #38 and released in 0.5.0 (see the [Outcome](#outcome)). The options are
+kept as they were weighed.
 
 The memory of this project's UI work asks for the choice before any screen is built. These are the
 three options, with the recommendation.
@@ -131,7 +135,8 @@ then agents on opus or sonnet, never fable), so it is a separate change after th
 
 ## Outcome
 
-Built on `feat/machine-widget` (2026-10-18), one commit per item.
+Merged into `main` in #38 and released in 0.5.0 (2026-10-18). Built on `feat/machine-widget`, one
+commit per item.
 
 1. **Machine widget (option A).** `machine` is a widget type of both Homes (area top, size s). It reads
    `GET /api/system/load` and `/api/system/processes` every 10 s and says memory (a bar in the usage

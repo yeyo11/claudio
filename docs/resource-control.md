@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - chats
     - orchestration
@@ -113,7 +113,10 @@ the right numbers for a given server.
 - **The process table is still read in full, but at most every two seconds** for what is shown
   (`recentProcessTable`). Stopping a chat or cancelling a command reads it fresh: a stale table could
   name a pid the system has reused.
-- **The E2E port is fixed** (`e2e/run.mjs`, 8799): two runs on one machine collide.
+- **The E2E port is fixed unless set** (`E2E_PORT || 8809` in `e2e/run.mjs`; parallel shards take
+  the ports after it): two runs on one machine with the same port collide. The suite now runs only
+  on GitHub Actions, one runner per shard, and refuses to start on this machine
+  ([decisions/e2e-on-github.md](decisions/e2e-on-github.md)).
 - **The overview shows the figures in a Machine widget** (memory bar, pressure, admission, chats with
   their resident memory), polled every 10 s by `useSystemLoad` and `useSystemProcesses`; the history is
   on the Machine page. Neither shows the load per chat over time: only its resident memory and its

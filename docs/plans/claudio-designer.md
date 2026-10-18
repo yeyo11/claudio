@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T08:30:00Z
-updated_at: 2026-10-17T11:41:59Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - design-system
@@ -145,6 +145,7 @@ from Intl and never disagree on one screen (AP8). `toFixed()` is not used to sho
 | I13 | Motion stops under reduced motion | already `motion.spec.mjs` |
 | I14 | Token pairs meet contrast | already `a11y-shared.mjs` (theme tokens) |
 | I15–I18 | Tokens only, shared controls, Intl formatting, the voice of §1 | `scripts/design-lint.mjs` + guard test |
+| I19 | The open dialog, drawer or sheet fits its window (`overlayFit`, added by #40): inside the viewport and the overlay gutter (above the on-screen keyboard), a close button in its head that is on screen, uncovered and below the desktop app's window controls, a title that does not run under it, footer buttons not clipped, no sideways overflow, no control cut by an `overflow` ancestor, no scroller inside a scroller; on a phone, 44 px targets and 16 px inputs too | `e2e/ui/invariants.mjs`, `e2e/specs/ui-overlays.spec.mjs` (320, 390, desktop and the desktop app) |
 
 ## 3. The restyle (this pull request)
 

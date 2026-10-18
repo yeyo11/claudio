@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-07T16:00:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - effort
     - models
@@ -91,10 +91,13 @@ actually passed, not what was asked.
 
 - Executions (`ChatExecution.effort`), flow runs and assistant runs (a new `effort` column on
   `flow_runs` and `assistant_runs`, one migration appended last in `packages/core/src/db.ts`),
-  orchestration chain entries and fixer attempts. Null means none was passed (the CLI default, or a
-  provider without `effort`); absent means the run was written before it was kept.
-- Shown next to the model by `EffortPicker`, which sits beside `ModelPicker` in
-  `apps/web/src/components/controls`: "medium · recommended" when unset, the reason in a tooltip.
+  fixer attempts (`VerificationFix.effort`) and review runs (`ReviewRun.effort`). Null means none
+  was passed (the CLI default, or a provider without `effort`); absent means the run was written
+  before it was kept.
+- Shown next to the model by `EffortPicker` (`apps/web/src/components/EffortPicker.tsx`), beside
+  `ModelPicker`: "medium · recommended" when unset, the reason in a tooltip. It offers only the
+  levels the model takes, the CLI's `supportedEffortLevels` for it (`effortLevelsOf`), and nothing
+  for a model with `supportsEffort: false`; every level when the CLI said nothing about the model.
   The Decisions tab uses it instead of its own `Segmented`.
 - Tests: `packages/shared`, `packages/core/test/effort.test.ts` and `apps/api/test/effort.test.ts`.
 

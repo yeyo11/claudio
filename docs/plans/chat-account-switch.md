@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:50:00Z
-updated_at: 2026-10-16T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - accounts
@@ -49,11 +49,11 @@ Stage A confirmed that `--resume` works across accounts ([reports/accounts-a0.md
 ## API
 
 - `POST /chats/:id/account` with `{ accountId: string }` → `{ chat, pending: boolean }`. Errors: 404
-  unknown chat or account; 409 the account cannot be chosen (`code`: `disabled`, `signed-out`,
-  `exhausted`, `model-unavailable`, `same-account`); 403 a chat token. A body naming the chat's current
+  unknown chat or account; 409 the account cannot be chosen (`code`: `disabled`, `sign-in-expired`,
+  `signed-out`, `exhausted`, `model-unavailable`, `same-account`; `AccountSwitchRefusalCode`); 403 a chat token. A body naming the chat's current
   account while a switch is pending cancels it.
 - `GET /chats/:id` carries `chat.account` (current) and `chat.pendingAccount` (or null).
-- OpenAPI summary and tag (Chats), README REST row, regenerated schemas.
+- OpenAPI summary and tag (Chats), a row in `docs/rest-api.md`, regenerated schemas.
 
 ## Task graph
 
@@ -83,8 +83,8 @@ Every worker is `claude-sonnet-5-5`, commits with Conventional Commits (no attri
 ### s2 — API route and security
 
 - Files: `apps/api/src/routes/chats.ts`, `apps/api/src/security.ts` (chat tokens refused),
-  `apps/api/src/openapi/routes.ts`, README, schemas, `apps/api/test`.
-- The route of the API section, its OpenAPI entry, the README row, API tests for every status code.
+  `apps/api/src/openapi/routes.ts`, `docs/rest-api.md`, schemas, `apps/api/test`.
+- The route of the API section, its OpenAPI entry, the `docs/rest-api.md` row, API tests for every status code.
 
 ### s3 — Composer: the Account section
 

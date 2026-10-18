@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T00:40:00Z
-updated_at: 2026-10-17T18:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - collaborators
@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: agents read what teammates share
 
-Status: **built** on the R13 orchestration's branches on 2026-10-17, not yet in `main` (owner's choice
+Status: **built**, merged into `main` in #13 on 2026-10-17 (owner's choice
 on 2026-10-17: a hybrid of an assistant that reads the shared copies and read-only MCP tools a project
 opts into). See [Outcome](#outcome). Builds on [collaborators.md](../collaborators.md)
 and changes one of its security decisions.
@@ -49,7 +49,8 @@ commands on this machine.
   assistant (level 1), or when the chat's project has the switch on and the copy belongs to that
   project (level 2). Every other collaborators route stays closed to chat tokens, as today.
 - **Guards and audit.** Every read by an agent is a row in an audit table (chat, tool, copy, record
-  ids), shown on the shared copy ("read by 3 chats today") and in Settings → Security.
+  ids), shown on the shared copy ("read by 3 chats today") and in Settings → Security (today Settings →
+  Access & safety → Agent reads).
 - **Visible in the chat.** A chat with the tools shows a chip "Reads teammates' shares" beside its
   other capabilities, and the tool rows say whose content was read.
 
@@ -94,7 +95,8 @@ it is now is in [collaborators.md](../collaborators.md#agents-that-read-what-tea
 - **The web** (`df7e83ec6`). The Collaborators page's Agents card with the assistant's switch; the
   two switches of the Sharing section; the chat header's `Reads teammates' shares` badge from
   `chat.teammateReads`; `collab_*` tool rows that name whose share was read; "Read by N chats today"
-  or "The sharer does not let agents read this" on a copy; Settings → Security → Read by agents.
+  or "The sharer does not let agents read this" on a copy; Settings → Security → Read by agents (since
+  #34, Settings → Access & safety → Agent reads).
 - **The browser spec** (`c9eeda365`). `e2e/specs/collaborators-agents.spec.mjs` drives the switches, a
   project chat's read before and after opting in, a `bypassPermissions` chat, the audit and the
   sharer's flag turned off. The e2e fake CLI gained an `mcp:` step that calls a tool on the server
@@ -102,10 +104,9 @@ it is now is in [collaborators.md](../collaborators.md#agents-that-read-what-tea
 
 **Deviations from the plan.** Tool rows name whose share was read, as asked, through a `Teammate`
 slot the app fills from the catalog. The audit's per-copy count is a line on the copy ("Read by N
-chats today") that links to Settings → Security, and nothing shows while no chat read it today.
+chats today") that links to Settings → Access & safety → Agent reads, and nothing shows while no chat read it today.
 
-**Open.** The browser spec was written but not run by the task that wrote it; it runs on the merged
-branch. The sharer's flag is cooperative, like the rest of Collaborators: a modified reader can ignore
+**Open.** The sharer's flag is cooperative, like the rest of Collaborators: a modified reader can ignore
 it.
 
 ## Related

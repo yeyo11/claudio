@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - settings
     - configuration
@@ -10,7 +10,8 @@ tags:
 # Settings in layers: what changes without a restart
 
 These settings used to be read from the environment once, at startup. They can now change while
-Claudio runs, from Settings → Access & safety:
+Claudio runs, from Settings: the allowed hosts in **Access & safety**, the default permission mode,
+the concurrent runs, the daily spend cap and the evals in **Runs & spend**:
 
 | Setting | Variable | Default | Applies to |
 | --- | --- | --- | --- |
@@ -137,9 +138,11 @@ their owner adds and removes while Claudio runs. The only owner so far is the
   environment set (`packages/core/src/paths.ts`).
 - The guard reads the allowlist on every request and only rebuilds it when it changed
   (`apps/api/src/security.ts`).
-- The UI is two cards in Settings → Access & safety, `apps/web/src/pages/config/AppSettingsCards.tsx`. The
-  hosts card lists the environment's and the runtime hosts, each with a tag, above a field that holds
-  only the UI's hosts; `changedSettings` compares that field with `allowedHostLayers.file`.
+- The UI is in `apps/web/src/pages/config/AppSettingsCards.tsx`, one block per section, each saving
+  on its own: Runs, Daily spend cap and Evals in Settings → Runs & spend (`groups/Runs.tsx`), and
+  Allowed hosts in Settings → Access & safety (`groups/Access.tsx`). The hosts block lists the
+  environment's and the runtime hosts, each with a tag, above a field that holds only the UI's hosts;
+  `changedSettings` compares that field with `allowedHostLayers.file`.
 - The contract is `AppSettings` and `AllowedHostLayers` in `packages/shared/src/types.ts`.
 
 ## Related

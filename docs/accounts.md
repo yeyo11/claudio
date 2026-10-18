@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-17T21:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - accounts
     - rotation
@@ -140,7 +140,11 @@ Accounts page and the status bar card show "Sign-in expired" with a "Sign in aga
   and every poll: each open wait then asks the accounts again (`ChatManager.roomFor`) and goes on
   with the first one that has room, recorded as a `switch`. An account the turn already died on
   is a candidate again once a reading taken after the wait began says it is not out; without such
-  a reading it stays passed over. A reading that leaves every account out but brings a reset
+  a reading it stays passed over. Which accounts those are is read from the chat's executions
+  (`limitedTail`), so a replay writes the cause (`rate-limit` or `auth`) on the execution before it
+  stops the limited process (`keepLimitCause` in `chats.ts`): stopped without it, the execution
+  ended with no cause and a restart forgot the account it died on
+  (`orchestration-limit-account-switch.test.ts`). A reading that leaves every account out but brings a reset
   closer moves the wait's timer to it. Graph tasks and workflow leads go through the same path.
 - **Run now.** Beside "Stop waiting", a person can end a wait by sending its turn on at once
   (`POST /limits/waits/:id/run-now`, `ProviderRotation.runNow`): on an account a newer reading

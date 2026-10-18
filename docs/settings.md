@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T20:00:00Z
-updated_at: 2026-10-17T20:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - settings
     - information-architecture
@@ -25,7 +25,7 @@ long list) opens as a detail screen with a back link. The decision behind this l
 | **Instructions & memory** | Instructions (`CLAUDE.md`), Memory (which projects keep it), Lessons, Rules, Output styles |
 | **Extensions** | Plugins, Skills, Agents, Commands, Workflows, Tool presets, each a row with its count and where they come from |
 | **Decisions** | Who answers, the cap per decision, the decision points (the Supervisor among them) and a link to every decision |
-| **Runs & spend** | Default permission mode, concurrent runs, the daily spend cap, Evals |
+| **Runs & spend** | Default permission mode, concurrent runs, the daily spend cap, Evals, Machine (a detail: the machine's readings now, a week of their history and each chat's share; see [resource-control.md](resource-control.md)) |
 | **Access & safety** | Access (mode, token, read-only), Allowed hosts, Remote access, Secrets, Guards, Terminal, the Audit log, Agent reads |
 
 The sidebar has 11 entries: Connectors is no longer one, it is a section of Connections. The
@@ -99,8 +99,8 @@ where it acts. **See every decision** opens History. One save bar saves it all t
 
 ## Where the rules for the screen live
 
-How a row is drawn (label, consequence, changed dot, Reset), the group screen, the detail and the
-search are in the design system: [Settings](design-system.md#settings-groups-rows-details-and-search).
+How a row is drawn (label and consequence; a changed dot and a Reset per row are reserved in the
+plan but not built), the group screen, the detail and the search are in the design system: [Settings](design-system.md#settings-groups-rows-details-and-search).
 
 ## Related
 

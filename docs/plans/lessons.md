@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T20:30:00Z
-updated_at: 2026-10-15T20:30:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - lessons
@@ -12,7 +12,8 @@ tags:
 ---
 # Plan: lessons from corrections
 
-Status: **built** (2026-10-16), apart from the e2e spec and the fake CLI answers of l13. The feature is
+Status: **built** (2026-10-16), the e2e spec and the fake CLI answers of l13 included
+(`e2e/specs/lessons.spec.mjs`, `ccccbb2ee`; green in the full suite since #5). The feature is
 described as built in [lessons.md](../lessons.md). What changed from this plan: the preview and approve
 requests of an `instructions` proposal take an optional `section` (the diff dialog's section field
 needed it); the "Similar to" and "Brings back" badges and the Merge into / Keep both choice are not built

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - limitations
     - known-gaps
@@ -29,7 +29,8 @@ the Known gaps of its page. Until 2026-10-17 this list was the README's.
   Workers do not survive a restart either: a task caught by one is `interrupted` (not `stopped`,
   which is someone's decision), and its chat goes on in a new execution once the wrapper is back,
   while the task has attempts left. A stopped task is never continued on its own, and a workflow
-  or a graph caught while integrating waits for `resume`.
+  or a graph caught while integrating waits for `resume`, except a workflow whose lead was waiting
+  for a limit to reset: the wait outlives the restart and the workflow is followed again.
 - A background task's output lives in the CLI's temp dir, which a reboot clears. Its command,
   status and summary stay in the transcript.
 - Running the API with a file watcher (`pnpm dev`) while an orchestration edits this same repo
@@ -69,10 +70,13 @@ the Known gaps of its page. Until 2026-10-17 this list was the README's.
   make your phone wait.
 - A subscription token is meant for your own individual use; use an API key for anything
   shared or multi-user.
-- Rotation between accounts sees what the CLI ships for programs and nothing else: an idle
-  account's usage is only as fresh as the CLI's own cache of it, there are no spend amounts for extra
-  usage and no per-model windows beyond Opus and Sonnet, and a running `claude` is never moved to
-  another account: the next launch is. See [accounts.md](accounts.md) and decision 8 of
+- Rotation between accounts sees what the CLI ships for programs and nothing else. Refresh asks the
+  CLI itself (`get_usage`), which states the credits and the weekly limits scoped to one model, but
+  nothing polls it: an idle account's usage is as fresh as its last Refresh (the button, or opening
+  Accounts when the reading is over 10 minutes old), else the CLI's own cache of it, and the
+  protocol is not a contract, so a renamed key reads as no data. A running `claude` is never moved
+  to another account: the next launch is. See [accounts.md](accounts.md),
+  [decisions/get-usage-control-request.md](decisions/get-usage-control-request.md) and decision 8 of
   [plans/claude-only-fork.md](plans/claude-only-fork.md).
 
 ## What is not reachable

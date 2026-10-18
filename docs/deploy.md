@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - deploy
     - docker
@@ -205,7 +205,6 @@ kubectl create secret generic claudio-token --from-literal=token="$(openssl rand
 kubectl create secret generic claudio-secret-key --from-literal=secret-key="$(openssl rand -hex 32)"
 
 helm install claudio ./deploy/helm/claudio \
-  --set image.tag=0.36.1 \
   --set claude.existingSecret=claudio-claude \
   --set auth.mode=token --set auth.token.existingSecret=claudio-token \
   --set secretKey.existingSecret=claudio-secret-key
@@ -415,7 +414,7 @@ like the rest of the volume. A `login` account is signed in from the Accounts pa
 
 ## The daily spend cap
 
-Set `CLAUDIO_DAILY_SPEND_CAP_USD` in `.env` (or `dailySpendCapUsd` in Settings → Access & safety) to stop an
+Set `CLAUDIO_DAILY_SPEND_CAP_USD` in `.env` (or `dailySpendCapUsd` in Settings → Runs & spend) to stop an
 unattended deployment from spending without limit: over the cap new flow runs, orchestration tasks,
 schedule fires and decisions wait until the server's local midnight, and a person's new turn asks
 first. Nothing running is stopped. The figure is the sum of the `total_cost_usd` of each `result`

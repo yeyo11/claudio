@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-10-18T07:40:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - desktop
     - electron
@@ -61,8 +61,8 @@ token in Settings → Access & safety if other users share the machine.
 - The [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) installed and logged in on
   the host. The app uses that login and your `~/.claude` (sessions, settings, MCP servers); it does
   not ask for a token. Run `claude` once in a terminal to log in.
-- [Tailscale](https://tailscale.com/download), signed in, for the tunnel in Settings → Remote
-  access, with MagicDNS and HTTPS certificates on for the tailnet and your user set as the node's
+- [Tailscale](https://tailscale.com/download), signed in, for the tunnel in Settings → Access &
+  safety → Remote access, with MagicDNS and HTTPS certificates on for the tailnet and your user set as the node's
   operator once (`sudo tailscale set --operator=$USER`). It is not a dependency of the `.deb`, since
   it is not in Debian's archive. Without it, the tab says how to install it and everything else
   works.
@@ -280,7 +280,7 @@ and the accounts in `~/.local/share/claude-swap` are never touched.
 
 ## Reaching it from a phone
 
-The server listens on `127.0.0.1` only, so a phone cannot reach it directly. Settings → **Remote
+The server listens on `127.0.0.1` only, so a phone cannot reach it directly. Settings → Access & safety → **Remote
 access** serves it on your tailnet through Tailscale (`tailscale serve`): an HTTPS address on this
 machine's tailnet name, `https://<machine>.<tailnet>.ts.net:8444`, and a QR code. The phone needs
 the Tailscale app signed in to the same tailnet. Turn on a token in Settings → Access & safety first,
@@ -384,7 +384,8 @@ starts at `0.0.0`, with `initial-version` `0.1.0` (without it, a repository with
 release workflow uses a GitHub App token (`vars.RELEASE_APP_ID`, `secrets.RELEASE_APP_PRIVATE_KEY`)
 when the app is configured, so the release pull request runs CI like any other; without it the
 workflow falls back to `GITHUB_TOKEN`, releases still publish, and only that pull request's checks
-must be started by hand. Until a release exists, `scripts/install.sh` has nothing to download.
+must be started by hand. Before `v0.1.0` was published, `scripts/install.sh` had nothing to download;
+releases have been published since (`v0.1.0` to `v0.5.1`).
 
 You can also run the **Desktop** workflow by hand from the Actions tab. With no tag it only builds
 and keeps the packages as the `claudio-linux` run artifact, which is a way to try a change before a
