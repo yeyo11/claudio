@@ -8,7 +8,7 @@ import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox } from '@claudio/ui/components/ui';
 import { accountName } from '../../lib/accounts';
-import { live, SignInSession } from './AddAccountDialog';
+import { live, SignInSession } from '../../components/setup/SignInSession';
 
 /**
  * Signs an account that already exists in again, in the same panel an added account uses: the link,
@@ -73,7 +73,10 @@ export function SignInAgainDialog({ account, onClose, onDone }: { account: Accou
       }
     >
       {session ? (
-        <SignInSession session={session} onCode={(value) => code.mutate(value)} sending={code.isPending} error={code.error} />
+        <SignInSession session={session} onCode={(value) => code.mutate(value)} sending={code.isPending} error={code.error} onRetry={() => {
+            code.reset();
+            start.mutate();
+          }} />
       ) : start.error ? (
         <ErrorBox error={start.error} title={t('dialog.startFailed')} />
       ) : (

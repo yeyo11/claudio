@@ -2,7 +2,7 @@ import type { LoginMethod, LoginSession, SetupToolMethods } from '@claudio/share
 import { useQuery } from '@tanstack/react-query';
 import { Clock, ExternalLink, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { Sheet } from '@claudio/ui/components/controls';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
@@ -24,9 +24,11 @@ import {
   type LoginFailure,
   type PanelTool,
 } from '../../lib/setup';
+import { ClaudeSignIn } from './ClaudeSignIn';
+import { ExternalText, FailureNote, PanelFrame, type PanelLayout } from './SignInFrame';
 import { useLogin } from './useLogin';
 
-export type PanelLayout = 'inline' | 'sheet' | 'card';
+export type { PanelLayout };
 
 export interface SignInPanelProps {
   tool: PanelTool;
@@ -59,11 +61,13 @@ export function SignInPanel(props: SignInPanelProps) {
   const methods = methodsOf(setup.data, props.tool);
   if (!methods) {
     return (
-      <PanelFrame {...props} choice={null}>
+      <PanelFrame label={props.label} layout={props.layout} choice={null}>
         {setup.error ? <ErrorBox error={setup.error} title={t('panel.startFailed')} /> : <Skeleton rows={2} height={18} />}
       </PanelFrame>
     );
   }
+  // Claude Code signs in with its own account first (`claude auth login`), or an API key: its own panel
+  if (props.tool === 'claude-code') return <ClaudeSignIn layout={props.layout} closable={props.closable} onClose={props.onClose} sealed={setup.data?.secrets.sealed ?? false} />;
   return <Panel {...props} methods={methods} sealed={setup.data?.secrets.sealed ?? false} />;
 }
 
@@ -182,7 +186,7 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
     );
   } else {
     return (
-      <PanelFrame tool={tool} label={label} layout={layout} onClose={onClose} choice={choice}>
+      <PanelFrame label={label} layout={layout} choice={choice}>
         <KeyForm
           tool={tool}
           label={label}
@@ -209,41 +213,10 @@ function Panel({ tool, label, host = null, layout = 'inline', closable = false, 
   }
 
   return (
-    <PanelFrame tool={tool} label={label} layout={layout} onClose={onClose} choice={choice}>
+    <PanelFrame label={label} layout={layout} choice={choice}>
       {body}
       <div className={layout === 'sheet' ? 'prov-sheet-actions' : 'signin-actions'}>{actions}</div>
     </PanelFrame>
-  );
-}
-
-/** The panel's box: under the row on a desktop, the body of a Sheet on a phone, or a card's content. */
-function PanelFrame({ label, layout = 'inline', choice, children }: Pick<SignInPanelProps, 'tool' | 'label' | 'layout' | 'onClose'> & { choice: ReactNode; children: ReactNode }) {
-  const { t } = useTranslation('setup');
-  const title = t('panel.title', { label });
-  if (layout === 'sheet') {
-    return (
-      <div className="prov-sheet-body signin-sheet-body">
-        {choice}
-        {children}
-      </div>
-    );
-  }
-  if (layout === 'card') {
-    return (
-      <div className="signin-card-body" role="group" aria-label={title}>
-        {choice && <div className="signin-panel-head">{choice}</div>}
-        {children}
-      </div>
-    );
-  }
-  return (
-    <div className="prov-bin signin-panel" role="group" aria-label={title}>
-      <div className="signin-panel-head">
-        <span className="section-label grow">{title}</span>
-        {choice}
-      </div>
-      {children}
-    </div>
   );
 }
 
@@ -254,17 +227,6 @@ export function SignInSheet(props: Omit<SignInPanelProps, 'layout'>) {
     <Sheet open onOpenChange={(open) => !open && props.onClose()} title={t('panel.title', { label: props.label })} className="prov-sheet signin-sheet">
       <SignInPanel {...props} layout="sheet" />
     </Sheet>
-  );
-}
-
-function ExternalText({ href, children, className = 'c-accent signin-link' }: { href: string; children: ReactNode; className?: string }) {
-  const { t } = useTranslation('setup');
-  return (
-    <a className={className} href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-      <ExternalLink {...ICON_SM} />
-      <span className="sr-only"> ({t('panel.opensNewTab')})</span>
-    </a>
   );
 }
 
@@ -369,20 +331,6 @@ export function DeviceCode({ session, label }: { session: LoginSession; label: s
   );
 }
 
-function FailureNote({ failure, label }: { failure: LoginFailure; label: string }) {
-  const { t } = useTranslation('setup');
-  const Icon = failure.tone === 'warn' ? Clock : TriangleAlert;
-  return (
-    <div className={`signin-result${failure.tone === 'warn' ? ' warn' : ''}`} role="alert" data-code={failure.code}>
-      <Icon {...ICON} className="ico" />
-      <div className="signin-result-text">
-        <span>{t(`panel.fail.${failure.code}`, { label })}</span>
-        <span className="mono">{failure.code}</span>
-      </div>
-    </div>
-  );
-}
-
 function FailureAction({
   failure,
   tool,
@@ -460,23 +408,10 @@ function KeyForm({
   const [secret, setSecret] = useState('');
   const typed = secret.trim();
   const canSave = typed !== '' && (!methods.needsHost || host.trim() !== '') && !busy;
-  const claudeApiKey = tool === 'claude-code' && variable === 'ANTHROPIC_API_KEY';
   const link = keyLink(tool, host);
 
-  const fieldLabel =
-    tool === 'claude-code'
-      ? t(`panel.variables.${claudeApiKey ? 'apiKey' : 'oauthToken'}`)
-      : t(`panel.field.${tool}`);
-  const placeholder =
-    tool === 'claude-code'
-      ? claudeApiKey
-        ? 'sk-ant-api03-…'
-        : 'sk-ant-oat01-…'
-      : tool === 'tailscale'
-        ? 'tskey-auth-…'
-        : methods.key === 'stdin'
-          ? t('panel.pasteToken')
-          : t('panel.pasteKey');
+  const fieldLabel = t(`panel.field.${tool as 'gh' | 'glab' | 'tailscale'}`);
+  const placeholder = tool === 'tailscale' ? 'tskey-auth-…' : methods.key === 'stdin' ? t('panel.pasteToken') : t('panel.pasteKey');
   const kept = t(sealed ? 'panel.hint.envSealed' : 'panel.hint.envPlain', { label });
   const hint = methods.key === 'env' ? kept : t(`panel.hint.${tool as 'gh' | 'glab' | 'tailscale'}`);
 
@@ -506,12 +441,6 @@ function KeyForm({
           })}
         />
       )}
-      {tool === 'claude-code' && (
-        <p className="signin-note">
-          {claudeApiKey ? t('panel.claudeApiKey') : <Trans t={t} i18nKey="panel.claude" components={{ b: <strong />, code: <code /> }} />}
-        </p>
-      )}
-      {tool === 'claude-code' && link && <ExternalText href={link}>{t('panel.link.claude-code')}</ExternalText>}
       {methods.needsHost && <HostField label={label} value={host} example={methods.defaultHost} onChange={onHost} />}
       <label className={`field field-mono`}>
         <span className="field-label">{fieldLabel}</span>
@@ -526,7 +455,7 @@ function KeyForm({
           onChange={(event) => setSecret(event.target.value)}
         />
       </label>
-      {tool !== 'claude-code' && link && (
+      {link && (
         <ExternalText href={link}>{t(`panel.link.${tool as 'gh' | 'glab' | 'tailscale'}`, { host: host.trim() || methods.defaultHost || '' })}</ExternalText>
       )}
       <span className="form-hint">{hint}</span>

@@ -1778,17 +1778,33 @@ builds it (step 5). It reads the API of [setup.md](setup.md): `GET /setup`, the 
 | Screen | What it shows |
 |---|---|
 | `DesktopConfiguracionAcceso`, `MobileConfiguracionAcceso` | Step 1: the auth mode (Ninguno / Token) and the token shown once, with Copiar; on a desktop the secrets line too |
-| `DesktopConfiguracionAgentesClave`, `MobileConfiguracionAgentesClave` | Step 2: Claude Code's key panel (`claude setup-token`) |
+| `DesktopConfiguracionAgentesClave`, `MobileConfiguracionAgentesClave` | Step 2: Claude Code's sign-in panel, waiting for the person to approve a Claude account (`claude auth login`, relayed) |
 | `MobileConfiguracionAgentes` | Step 2 on a phone with no Sheet open: a Sign in button per cell |
 | `DesktopConfiguracionIntegraciones`, `MobileConfiguracionIntegraciones`, `MobileConfiguracionIntegracionesClave` | Step 3: GitHub ready, GitLab's key panel with its host, YouTrack's Conectar |
 | `DesktopConfiguracionListo`, `MobileConfiguracionListo` | Step 4: the summary, with step 3 skipped |
 | `DesktopAjustesSeguridad`, `MobileAjustesSeguridad` | Settings → Access & safety with the new Secretos card |
 
 **The assistant** replaces the first run (`DesktopPrimerArranque*`, which stays as the drawing of the Agents step's
-checking and nothing-found states) while `GET /setup` says `seen: false`. It is the first run's page (`.prov-first`, no
-shell, 760 px) with the wizard's `.steps` on top: Acceso → Agentes → Código y tareas → Listo.
+checking and nothing-found states) while `GET /setup` says `seen: false`. It is a full-height frame with no shell
+(`.setup-page`, [the container plan](plans/container-polish.md) D7) with the wizard's `.steps` on top: Acceso → Agentes →
+Código y tareas → Listo. The first-run Providers page keeps its own 760 px column (`.prov-first`).
 
-- **The foot (`.setup-foot`)**: Volver (ghost, not on step 1), the step's count ("1 de 5 listo"), Omitir (ghost), and
+- **The frame** is a grid of three rows, `100dvh` tall: the head (`.setup-head`: the brand line and the step bar), the
+  body (`.setup-body`, the only part that scrolls) and the foot (`.setup-foot-bar`, on `--bg` with the hairline above it).
+  Continue is never below the fold, and the `--glow-top` halo stays on the page. Head, body and foot share one centred
+  track (`.setup-track`): 880 px, and 1180 px from a 1180 px window.
+- **Wide** (1180 px and up): the body is two columns, `minmax(260px, 320px)` and the rest, with a 48 px gap. The left
+  one (`.setup-aside`, sticky) holds the step's title and its explanation (44 characters per line at most); the right one
+  holds the step's cards, 820 px at most. The step bar spans both. Below 1180 px the explanation sits above the cards, in
+  one column. On a short screen (760 px of height or less) the head's padding drops to 16 px and the explanation clamps
+  to three lines with a quiet **Más** to expand it.
+- **A provider's row is laid out by the width of its card** (`.setup-list`, a container query at 640 px). Wide: the mark,
+  then one column with three lines (the name with its state `Tag` right after it, the reason in `--fs-small`, and the
+  version with the binary path), and the actions at the end, top-aligned. The reason of a ready row names the account
+  ("Sesión iniciada como …"), so the row has no account line of its own. Narrow: the actions go on their own line under
+  the text. The path is a literal the person may need to read, so it wraps and is never cut with an ellipsis.
+
+- **The foot (`.setup-foot`, inside `.setup-foot-bar`)**: Volver (ghost, not on step 1), the step's count ("1 de 5 listo"), Omitir (ghost), and
   Continuar, the one primary. Listo has Volver and "Empezar a usar Claudio". A step the person skipped is `.step.skipped`:
   a dotted bar and "omitido" under its name, no status colour. On a phone the bar keeps only the bars
   (`.steps-bare`, the names stay for screen readers) and the header says "2 de 4 · Agentes"; the foot is `.m-foot` with
@@ -1796,7 +1812,7 @@ shell, 760 px) with the wizard's `.steps` on top: Acceso → Agentes → Código
 - **Gradient surfaces**: the logo and Continuar, two. Nothing else carries the gradient: no `.grad-border` on the
   cards, and every button inside a panel is neutral. On a phone the Sheet's own action may be primary (as YouTrack's access
   Sheet does), since the page's Continuar sits under the scrim.
-- **Rows** are the first run's `.prov-row.compact` on a desktop and `.prov-cell` on a phone, for agents, `gh`, `glab` and
+- **Rows** are the providers' `.prov-row.compact` on a desktop and `.prov-cell` on a phone, for agents, `gh`, `glab` and
   YouTrack alike (their monograms from `providers.py`, `hosts.py`, `trackers.py`). The badges and words are the
   providers' table. A row that is not signed in offers **Iniciar sesión** (neutral, no external-link icon: it stays in
   Claudio); a ready row offers **Cerrar sesión** (ghost). Where signing out only forgets the key Claudio keeps
@@ -1812,22 +1828,32 @@ Integrations, so nothing is assistant-only.
 
 - **Methods.** A tool with both (`device` and a key: gh, glab) heads the panel with the `Segmented`
   control of `packages/ui/src/components/ui.tsx`, "Código / Clave", code first. A tool with one shows no choice. A tool
-  whose key may go in several variables (`variables`, Claude Code's "Token de OAuth / Clave de API") chooses with a second Segmented; the field's label is the variable's name when it is a variable.
+  whose key may go in several variables (`variables`) chooses with a second Segmented; the field's label is the variable's name when it is a variable.
+  Claude Code heads its panel with its own **Cuenta de Claude | Clave de API**, the account first and no third way
+  (`ClaudeSignIn`; the OAuth token is no longer offered anywhere).
 - **Key**: a write-only field (`type="password"`, mono, never prefilled), the vendor's page to make one as a link with
   the external-link icon, a hint that says where it goes (`env`: "Se guarda cifrada y solo la reciben los procesos de
   …"; `stdin`: "… lo guarda en su configuración; Claudio no se queda con una copia"), then **Guardar y comprobar** and
   Cancelar. `gh` and `glab` add the host field (`defaultHost` prefilled); YouTrack keeps its access form.
-- **Claude Code's token.** The vendor offers no sign-in a program can drive, so the panel says so and names
-  `claude setup-token` as inline code inside the sentence, on **the person's own computer** (bold), with a link to the
-  vendor's page. See the decision below.
+- **Claude Code's account.** The CLI's own `claude auth login`, relayed as Cuentas does (open a link, approve, paste the
+  code if the page shows one), into the `default` account, so the `claude` a person runs in the terminal works too. Idle,
+  the panel is one sentence ("Inicia sesión con la cuenta de Claude que usas en Claude Code. Claudio abre el inicio de
+  sesión y lo transmite; Claude Code guarda las credenciales y Claudio nunca las lee.") and the neutral **Iniciar sesión**
+  button. Waiting is `.signin-device.is-link` (the link cut with an ellipsis and **Copiar enlace**, the code field with
+  **Enviar código**, the braille spinner beside "Esperando a que apruebes", "caduca en 14:12"). A link nobody opened is
+  `warn` with the clock ("El enlace para iniciar sesión ha caducado." **Pedir otro enlace**); a failed one is `bad`
+  ("No se ha podido iniciar sesión." **Reintentar**). When the deployment sets `CLAUDE_CODE_OAUTH_TOKEN` or
+  `ANTHROPIC_API_KEY`, a `warn` note (`.signin-note.warn`) says the CLI uses it before any sign-in made here; when
+  Claudio keeps a token from the old panel, another says that signing in replaces it. **Clave de API** is the key form
+  with `ANTHROPIC_API_KEY` only and **Guardar y comprobar**.
 - **Device code, starting**: the braille spinner next to "Pidiendo un código a …" and Cancelar. No energy yet.
 - **Device code, waiting** (`waiting-for-person`): the box `.signin-device`, two numbered lines (open the URL, a
   `.signin-url` link in mono; type the code), the code in `.signin-code` (Geist Mono, `--fs-title`, tabular: it is a literal the person types) with **Copiar**
   (`CopyButton`, 44 px on a phone), and under a hairline the braille spinner, "Esperando a que lo apruebes" and the time
   left ("caduca en 14:12", from `expiresAt`). The box carries `.energy`: it is the screen's one live surface,
   and nothing else on the screen moves. Cancelar (ghost) under it.
-- **Succeeded**: the panel closes and the row turns `ok` ("Listo"), its reason "Sesión iniciada con un código hace un
-  momento". No toast is needed; the row is the answer.
+- **Succeeded**: the panel closes and the row turns `ok` ("Listo"), its reason "Sesión iniciada como …". No toast is
+  needed in the assistant; the row is the answer (Settings shows a toast, since its row does not change place).
 - **Failed** (`.signin-result`, `role="alert"`): the sentence and the API's code under it in mono, then the action.
   `bad` for `cli-refused`, `not-signed-in`, `no-code` (its action is "Usar una clave"), `cli-missing` ("Ver instalación"
   ↗), `spawn-failed` and `timeout`; the others retry. `expired` is `warn` with the clock icon: nothing broke, the code
@@ -1864,12 +1890,9 @@ cifrar" and the callout says values are kept plain at 0600. The Access and Token
 
 **Decisions.**
 
-- **`claude setup-token` is named, not handed out.** The rule "a remedy is never a command to copy" keeps Claudio from
-  sending a person to a shell on the machine Claudio runs on. This command is different: it is the vendor's only
-  documented way to get a token for a program, and it runs on the person's own computer, where they already use Claude.
-  So the panel names it inside a sentence, as inline code, says where to run it in bold, and links to the vendor's page;
-  there is no copy button and no code block, so it reads as an explanation and not as a remedy to paste. Everything that
-  can be done in Claudio (pasting the token) is.
+- **The OAuth token leaves the UI.** Claude Code's vendor ships a sign-in a program can relay (`claude auth login`), so
+  the panel offers it first and the API key second, and never `claude setup-token` ([the decision](plans/container-polish.md)
+  D1). A token already in the environment or kept by Claudio keeps working; the panel only says which wins.
 - **Expired is warn, failed is bad.** The status colours keep one meaning each: a code that ran out needs the person
   again (warn), a CLI that refused or broke failed (bad).
 - **The panel's Save is neutral on a desktop.** With the logo and Continuar the screen already has its two gradient
@@ -1882,7 +1905,7 @@ row is `.prov-bin.signin-panel` with `.signin-panel-head`, and the step bar is `
 `.live-energy`; the token shown once in the Access step is `.token-once` (a neutral box, since nothing went wrong); the
 Copy beside a code or a token is `CopyButton` with `shown`, a neutral button that reads "Copiar". The other classes keep
 the reference's names (`.signin-device`, `.signin-steps`, `.signin-url`, `.signin-code`, `.signin-wait`, `.signin-result`,
-`.setup-foot`, `.setup-sum-row`, `.setup-where`). Quiet actions (Volver, Omitir, Cerrar sesión, Cancelar) are the providers'
+`.setup-foot`, `.setup-sum-row`, `.setup-where`). The frame is `.setup-head`, `.setup-body`, `.setup-grid`, `.setup-aside`, `.setup-track` and `.setup-foot-bar`. Quiet actions (Volver, Omitir, Cerrar sesión, Cancelar) are the providers'
 `.btn.prov-quiet`. Two additions the reference does not draw: "Omitir la configuración" in the assistant's header on a
 desktop, which finishes it at once (`POST /setup/seen`), and, under a code host's row in Settings → Connections, a quiet
 Iniciar sesión or Cerrar sesión at the end of each known host's line.
