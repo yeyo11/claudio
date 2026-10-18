@@ -459,3 +459,9 @@
 .term-history-how .badge {
   white-space: normal;
 }
+
+/* The history is paged (ten entries a page), so its table never needs a scroller of its own inside
+   the page: a page with refusals in words is taller than the shared wrapper's cap */
+.term-history .table-wrap {
+  max-height: none;
+}
