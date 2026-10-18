@@ -166,3 +166,146 @@ export async function settle(page) {
   await page.waitFor(`const m=document.querySelector('main');return m&&m.innerText.trim().length>20&&!m.querySelector('[aria-busy=true]')`, { label: 'the page content', timeout: 20000 });
   await page.eval(`await document.fonts?.ready;await new Promise((r)=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(r,150))));return true`);
 }
+
+/**
+ * Runs in the page (it is serialised by `overlayFit`, so it takes and closes over nothing): what an
+ * open dialog, drawer or sheet must hold at the width it is seen at. Every finding names the panel.
+ */
+function overlayFitInPage({ touch }) {
+  const out = [];
+  const shown = (el) => {
+    if (!el.getClientRects().length) return false;
+    const s = getComputedStyle(el);
+    return s.visibility !== 'hidden' && s.display !== 'none';
+  };
+  const describe = (el) => {
+    const c = [...el.classList].slice(0, 2).join('.');
+    const t = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    return el.tagName.toLowerCase() + (c ? '.' + c : '') + (t ? ' "' + t + '"' : '');
+  };
+  const vw = document.documentElement.clientWidth;
+  // What the on-screen keyboard leaves (lib/viewport.ts measures it where the browser does not resize the page)
+  const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--keyboard-inset')) || 0;
+  const vh = window.innerHeight - kb;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;padding:var(--ov-top) var(--ov-right) var(--ov-bottom) var(--ov-left);margin-top:var(--chrome-top)';
+  document.body.appendChild(probe);
+  const ps = getComputedStyle(probe);
+  const ov = { top: parseFloat(ps.paddingTop), right: parseFloat(ps.paddingRight), bottom: parseFloat(ps.paddingBottom), left: parseFloat(ps.paddingLeft) };
+  const chromeTop = parseFloat(ps.marginTop) || 0;
+  // The keyboard covers the home indicator, so the panel keeps only the gutter below it
+  if (kb) ov.bottom = Math.min(ov.bottom, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--overlay-gutter')) || 12);
+  probe.remove();
+  // Only the one on top is looked at: what stacks under it is covered by design
+  const panels = [...document.querySelectorAll('[role=dialog]')].filter(shown).slice(-1);
+  for (const panel of panels) {
+    const name = describe(panel);
+    const add = (msg) => out.push(`${name}: ${msg}`);
+    const r = panel.getBoundingClientRect();
+    const overlay = panel.closest('.overlay');
+    if (r.left < -0.5 || r.top < -0.5 || r.right > vw + 0.5 || r.bottom > vh + 0.5) add(`outside the viewport (${Math.round(r.left)},${Math.round(r.top)} → ${Math.round(r.right)},${Math.round(r.bottom)} of ${vw}×${vh})`);
+    if (overlay && (r.top < ov.top - 0.5 || r.bottom > vh - ov.bottom + 0.5 || r.left < ov.left - 0.5 || r.right > vw - ov.right + 0.5)) add(`leaves the overlay gutter (top ${Math.round(r.top)}/${Math.round(ov.top)}, bottom ${Math.round(vh - r.bottom)}/${Math.round(ov.bottom)})`);
+    const head = panel.querySelector('.dialog-head, .sheet-head, .newtask-screen-head, .viewer-bar');
+    const close = panel.querySelector('.dialog-head .icon-btn, .sheet-head .icon-btn, .newtask-screen-head .newtask-cancel, .viewer-bar button.icon-btn');
+    if (!close) {
+      // A popover closes with Escape or a tap outside; a dialog, a drawer, a sheet and a screen have their button
+      if (!panel.matches('.popover')) add('has no close button in its head');
+    }
+    else {
+      const c = close.getBoundingClientRect();
+      if (c.right > vw + 0.5 || c.left < -0.5 || c.top < -0.5 || c.bottom > vh + 0.5) add('the close button is off screen');
+      if (c.right > r.right + 0.5 || c.left < r.left - 0.5) add('the close button is outside its panel');
+      if (c.top < chromeTop - 0.5) add(`the close button sits in the window controls' band (top ${Math.round(c.top)} < ${Math.round(chromeTop)})`);
+      const at = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
+      if (!at || !close.contains(at)) add(`the close button is covered by ${at ? describe(at) : 'nothing'}`);
+      if (touch && (c.width < 43.5 || c.height < 43.5)) add(`the close button is ${Math.round(c.width)}×${Math.round(c.height)}`);
+      const title = head?.querySelector('h2, .sheet-title, .viewer-name');
+      if (title) {
+        const t = title.getBoundingClientRect();
+        if (t.right > c.left + 0.5 && t.left < c.right - 0.5 && t.top < c.bottom - 0.5 && t.bottom > c.top + 0.5) add('the title runs under the close button');
+      }
+    }
+    if (head) {
+      for (const el of head.querySelectorAll('h2, .sheet-title, .sheet-description')) {
+        const s = getComputedStyle(el);
+        if (el.scrollWidth > el.clientWidth + 1 && s.overflowX === 'visible') add(`the title overflows its box (${el.clientWidth}→${el.scrollWidth}px)`);
+      }
+    }
+    // The three bands of the panel stay inside it, and the body is what scrolls
+    for (const part of panel.querySelectorAll(':scope > .dialog-head, :scope > .dialog-body, :scope > .dialog-foot, :scope > .sheet-head, :scope > .sheet-body, :scope > .sheet-foot, :scope > .sheet-grab, :scope > .newtask-screen-head, :scope > .newtask-screen-body, :scope > .newtask-screen-foot')) {
+      const p = part.getBoundingClientRect();
+      if (p.height > 0 && (p.bottom > r.bottom + 1 || p.top < r.top - 1)) add(`${describe(part)} spills out of the panel`);
+    }
+    const foot = panel.querySelector('.dialog-foot, .sheet-foot, .newtask-screen-foot');
+    if (foot) {
+      const f = foot.getBoundingClientRect();
+      if (foot.scrollWidth > foot.clientWidth + 1) add(`the footer overflows sideways (${foot.clientWidth}→${foot.scrollWidth}px)`);
+      for (const b of foot.querySelectorAll('button, a[href], [role=button]')) {
+        if (!shown(b)) continue;
+        const br = b.getBoundingClientRect();
+        if (br.right > Math.min(f.right, vw) + 0.5 || br.left < Math.max(f.left, 0) - 0.5 || br.bottom > vh + 0.5) add(`footer button ${describe(b)} is clipped`);
+        const at = document.elementFromPoint(Math.min(Math.max(br.left + br.width / 2, 0), vw - 1), Math.min(br.top + br.height / 2, vh - 1));
+        if (at && !b.contains(at)) add(`footer button ${describe(b)} is covered by ${describe(at)}`);
+      }
+    }
+    const body = panel.querySelector('.dialog-body, .sheet-body, .newtask-screen-body');
+    if (body && body.scrollWidth > body.clientWidth + 1) {
+      // overflow-y: auto makes overflow-x auto as well: a body that scrolls sideways is the finding
+      add(`the body overflows sideways (${body.clientWidth}→${body.scrollWidth}px)`);
+    }
+    // Anything that sticks out of the panel's sides with no scroller or clip between
+    const scrollers = [];
+    const stuck = [];
+    for (const el of panel.querySelectorAll('*')) {
+      if (!shown(el) || el.closest('svg')) continue;
+      const s = getComputedStyle(el);
+      if (/auto|scroll/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1 && !el.matches('pre, code, textarea')) scrollers.push(el);
+      // Text the ellipsis cuts carries its whole (I3): a title is the one a phone cannot widen
+      if (s.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1 && !el.closest('[title],[aria-describedby],[data-tooltip]') && !el.getAttribute('aria-label')) add(`${describe(el)} is cut by an ellipsis and carries no full text`);
+      const er = el.getBoundingClientRect();
+      if (er.width === 0 || er.height === 0 || (er.width <= 1 && er.height <= 1)) continue;
+      // Clipped by an ancestor that scrolls or hides: the sides it sticks out of are its own business
+      let clip = null;
+      for (let a = el.parentElement; a && a !== panel.parentElement; a = a.parentElement) {
+        const as = getComputedStyle(a);
+        if (as.overflowX !== 'visible' || as.overflowY !== 'visible') {
+          if (!clip) clip = a;
+          const ar = a.getBoundingClientRect();
+          // A positioned control that the nearest clipping ancestor cuts: the scroll-jump class of bug
+          if (/absolute|fixed|sticky/.test(s.position) && a === clip && (er.bottom > ar.bottom + 1.5 || er.top < ar.top - 1.5 || er.right > ar.right + 1.5 || er.left < ar.left - 1.5) && (!/auto|scroll/.test(as.overflowY + as.overflowX) || s.position === 'sticky')) {
+            stuck.push(`${describe(el)} is cut by ${describe(a)}`);
+          }
+        }
+      }
+      if (!clip && (er.right > r.right + 1 || er.left < r.left - 1)) add(`${describe(el)} sticks out of the panel by ${Math.round(Math.max(er.right - r.right, r.left - er.left))}px`);
+    }
+    for (const msg of new Set(stuck)) add(msg);
+    const nested = scrollers.filter((a) => scrollers.some((b) => b !== a && b.contains(a)));
+    if (nested.length) add(`nested scrollers: ${nested.map(describe).slice(0, 3).join(', ')}`);
+    if (touch) {
+      const sel = 'button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=radio], [role=checkbox], [role=switch], [role=tab], [role=menuitem], [role=option]';
+      for (const el of panel.querySelectorAll(sel)) {
+        if (!shown(el) || el.closest('[aria-hidden=true],[inert]')) continue;
+        const s = getComputedStyle(el);
+        if (el.tagName === 'A' && s.display === 'inline' && el.closest('p,li,td,.md,.markdown')) continue;
+        const er = el.getBoundingClientRect();
+        if (er.width < 43.5 || er.height < 43.5) add(`target ${describe(el)} is ${Math.round(er.width)}×${Math.round(er.height)}`);
+      }
+      for (const el of panel.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), select, textarea, [contenteditable=true]')) {
+        if (shown(el) && parseFloat(getComputedStyle(el).fontSize) < 16) add(`input ${describe(el)} is ${getComputedStyle(el).fontSize}`);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Every open dialog, drawer and sheet fits the window it is in: inside the overlay gutter, with its
+ * close button on screen, reachable, under the desktop app's window controls and not under anything,
+ * a title that cannot push it out, footer buttons that are not clipped, no control cut by an
+ * `overflow` ancestor, no sideways overflow and no scroller inside a scroller. On a phone it also
+ * holds the 44 px targets and the 16 px inputs.
+ */
+export async function overlayFit(page, { touch = false } = {}) {
+  return page.eval(`return (${overlayFitInPage.toString()})(${JSON.stringify({ touch })})`);
+}
