@@ -1160,8 +1160,9 @@ function control(message) {
     return;
   }
   if (request.subtype === 'get_usage') {
-    // What the real CLI answers for a refused token or key (packages/accounts/test/fixtures/get-usage-refused-*.json): a success with no limits
-    if (env.CLAUDE_CODE_OAUTH_TOKEN === 'invalid' || env.ANTHROPIC_API_KEY === 'invalid') {
+    // What the real CLI answers for a refused token or key (packages/accounts/test/fixtures/get-usage-refused-*.json): a success with no limits.
+    // A `fake-expired` token is a refused one too (its runs fail to authenticate): answering it with limits would let the free check clear its expired mark
+    if (env.CLAUDE_CODE_OAUTH_TOKEN === 'invalid' || env.ANTHROPIC_API_KEY === 'invalid' || (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-expired')) {
       reply({ session: { total_cost_usd: 0, total_api_duration_ms: 0, total_duration_ms: 900, total_lines_added: 0, total_lines_removed: 0, model_usage: {} }, subscription_type: null, rate_limits_available: false, rate_limits: null, behaviors: null });
       return;
     }

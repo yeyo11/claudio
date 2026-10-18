@@ -415,6 +415,13 @@ test('get_usage answers the recorded refusal for an invalid token or key', async
   }
 });
 
+test('get_usage answers the recorded refusal for a fake-expired token', async () => {
+  const c = chat({ CLAUDE_CODE_OAUTH_TOKEN: 'fake-expired-x' });
+  const usage = (await control(c, 'g-exp', { subtype: 'get_usage' })).response.response;
+  assert.equal(usage.rate_limits_available, false);
+  c.done();
+});
+
 test('auth login prints the link, takes the code on stdin and writes the credentials; a bad code fails', async () => {
   const run = (code) =>
     new Promise((resolve) => {

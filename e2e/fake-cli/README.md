@@ -45,7 +45,7 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `plugin list --json`, `plugin marketplace list --json` | `[]` |
 | anything else without `-p` | exit 1, `fake claude: … is not part of the fake` on stderr |
 
-`get_usage` (a control request of a chat) answers the recorded refusal (a success with `rate_limits_available: false`, as the real CLI 2.1.302 does for a bad credential) when `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is `invalid`.
+`get_usage` (a control request of a chat) answers the recorded refusal (a success with `rate_limits_available: false`, as the real CLI 2.1.302 does for a bad credential) when `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is `invalid`, or the token starts with `fake-expired`.
 
 ## A chat: `-p --input-format stream-json --output-format stream-json`
 

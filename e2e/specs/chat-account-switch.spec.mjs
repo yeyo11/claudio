@@ -5,8 +5,11 @@
 //
 // A chat started on the account at its limit (`FAKE-LIMIT-ACCOUNT`) leaves it for another one and
 // leaves it exhausted, which is how the spec gets an exhausted row. `SW-WORK` holds a turn open until
-// its file exists. The spec removes the accounts it added and puts the settings and scripts back.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+// its file exists. A signed-in `default` account is what makes the menu list three accounts: the
+// spec writes the credentials file that makes it one (a fresh sandbox has none, and the account is
+// left out of the list until it does) and removes it again. The spec removes the accounts it added
+// and puts the settings and scripts back.
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const fakeCli = true;
@@ -17,6 +20,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const savedScripts = existsSync(fake.scripts) ? readFileSync(fake.scripts, 'utf8') : null;
   writeFileSync(fake.scripts, JSON.stringify({ 'SW-WORK': 'run: true\nhold: sw-work.hold\nsay: Done.' }));
+  const credentials = join(dirs.configDir, '.credentials.json');
+  const wroteCredentials = !existsSync(credentials);
+  if (wroteCredentials) {
+    mkdirSync(dirs.configDir, { recursive: true });
+    writeFileSync(credentials, JSON.stringify({ claudeAiOauth: { accessToken: 'fake-access', refreshToken: 'fake-refresh', expiresAt: Date.now() + 8 * 3_600_000, scopes: ['user:inference'], subscriptionType: 'max' } }), { mode: 0o600 });
+  }
   const settings = (await api.get('/accounts/settings')).body;
   const added = [];
   const chats = [];
@@ -133,5 +142,6 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     for (const id of added) await api.del(`/accounts/${id}`).catch(() => {});
     await api.put('/accounts/settings', settings).catch(() => {});
     writeFileSync(fake.scripts, savedScripts ?? '{}');
+    if (wroteCredentials) rmSync(credentials, { force: true });
   }
 };
