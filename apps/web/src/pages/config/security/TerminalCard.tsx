@@ -7,9 +7,8 @@ import type { TerminalRemote, TerminalSettings, TerminalStatus, UpdateTerminalSe
 import { NumberInput, Select, Switch, type SelectOption } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { FullText } from '@claudio/ui/components/FullText';
 import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatDateTime, formatNumber, shortPath } from '@claudio/ui/lib/format';
+import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
 import { api, ApiRequestError, keys } from '../../../api';
 import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs';
 import { terminalRefusal, type TerminalRefusal, type TerminalRefusalAction } from '../../../components/terminal/terminal-model';
@@ -114,10 +113,7 @@ function History() {
                       <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
                       {/* An actor id is short and read whole (`token:…`, `owner`, `anonymous`): it never breaks mid-word */}
                       <td className="small mono nowrap">{entry.actor}</td>
-                      <td className="small mono nowrap">
-                        {/* A path keeps its ends and loses its middle, with the whole of it on hover and focus */}
-                        {entry.cwd ? <FullText full={entry.cwd}>{shortPath(entry.cwd, 32)}</FullText> : '—'}
-                      </td>
+                      <td className="small mono break">{entry.cwd || '—'}</td>
                       <td className="small term-history-how">
                         {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
                         {refused.length > 0 && (
