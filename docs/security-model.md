@@ -272,11 +272,12 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
   machine only through the tunnel with a token (or any device with a token, if the owner allows it,
   which is the default in a container, where no request is ever from loopback: the owner token
   already starts chats that run any command, so the terminal adds nothing to it);
-- a chat's token, the desktop secret and any process a chat started are refused, the last by looking
-  up the connection's owner in `/proc`; when that cannot be told, it fails closed under `none`. Known
-  limit, accepted by the owner (2026-10-15): with authentication off, an agent that has a shell can
-  detach from its chat's process tree and reach the terminal; with token or OIDC authentication it
-  cannot. Settings warns about it beside the switch;
+- a chat's token, the desktop secret and any process a chat started are refused, the last by finding
+  the processes that hold the connection's socket in `/proc` and walking their ancestry for a chat's
+  mark; "not an agent" is said only of a holder found and walked to the end, and anything else fails
+  closed under `none`. Known limit, accepted by the owner (2026-10-15): with authentication off, an
+  agent that has a shell can detach from its chat's process tree, drop the chat's variable and reach
+  the terminal; with token or OIDC authentication it cannot. Settings warns about it beside the switch;
 - the socket opens with a one-use ticket (30 s, bound to the terminal and the `Origin`), and the
   `Origin` and `Host` are checked before the upgrade;
 - **Forwarded requests.** `X-Forwarded-*` is whatever its sender wrote, so it is believed from one

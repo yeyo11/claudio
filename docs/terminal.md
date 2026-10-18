@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T20:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - terminal
     - pty
@@ -33,10 +33,21 @@ never starts `claude` in it. The design, the threat model and the decisions are 
   its holder.
 - **Never** a chat's token, the desktop secret, or a process an agent started (peer check). Read-only
   mode refuses it.
+- **How the peer check decides.** For a loopback connection it finds the client's socket in
+  `/proc/net/tcp{,6}`, every process holding it under `/proc/*/fd`, and walks each one's ancestry up
+  to the server, looking for `CLAUDIO_CHAT_ID` or `CLAUDIO_AGENT_RUN`
+  (`packages/core/src/terminals/peer.ts`). It says "not an agent" only of a holder it found and walked
+  to the end; a socket already closed, a holder another user owns, or an ancestor that exited mid-walk
+  is `unknown`, and `unknown` is refused under `none` (`needs-auth`). It costs 20 to 55 ms, on the
+  terminal routes and the upgrade only. Until 2026-10-18 it looked only inside the chats' trees as a
+  table cached for a second, and a process an agent had just started was in no tree yet: a burst of
+  new processes from a chat got through about nine times in ten
+  ([plans/terminal.md §3.5](plans/terminal.md)).
 - **Limit with authentication off.** A process that detaches from its chat's process tree (`setsid -f`,
-  a double fork) is no longer found by the peer check, so an agent that has a shell can reach the
-  terminal. With token or OIDC authentication it cannot: it holds no credential. The owner accepted
-  this on 2026-10-15 and the card warns about it beside the switch when the mode is `none`.
+  a double fork) **and** drops `CLAUDIO_CHAT_ID` from its environment is no longer found by the peer
+  check, so an agent that has a shell can reach the terminal. With token or OIDC authentication it
+  cannot: it holds no credential. The owner accepted this on 2026-10-15 and the card warns about it
+  beside the switch when the mode is `none`.
 
 **Refusals are shown in words.** Settings → Access & safety → Terminal turns every reason the gate gives
 into a sentence with a link to the fix where there is one (protect access with a token; open the

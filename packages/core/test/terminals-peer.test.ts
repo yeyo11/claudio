@@ -3,7 +3,6 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 import test from 'node:test';
-import { processTable } from '../src/processes.ts';
 import { PeerCheck, type PeerVerdict } from '../src/terminals/peer.ts';
 
 const procReadable = PeerCheck.prototype.available.call({}) === 'on';
@@ -73,21 +72,28 @@ async function listen(host: string): Promise<{ port: number; next: () => Promise
 const CLIENT =
   "const s = require('node:net').connect(Number(process.argv[1]), process.argv[2]); s.on('error', () => process.exit(1)); s.on('close', () => process.exit(0)); setInterval(() => undefined, 1000);";
 
+/** This run's environment without the marks it may itself carry when an agent runs the tests */
+function ambient(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env.CLAUDIO_CHAT_ID;
+  delete env.CLAUDIO_AGENT_RUN;
+  return env;
+}
+
 function client(port: number, host: string, env: NodeJS.ProcessEnv): ChildProcess {
-  const child = spawn(process.execPath, ['-e', CLIENT, String(port), host], { env: { ...process.env, ...env }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['-e', CLIENT, String(port), host], { env: { ...ambient(), ...env }, stdio: 'ignore' });
   children.push(child);
   return child;
 }
 
-async function verdict(host: string, via: (port: number) => void, bind = host, chats?: () => number[]): Promise<PeerVerdict> {
+async function verdict(host: string, via: (port: number) => void, bind = host): Promise<PeerVerdict> {
   const { port, next } = await listen(bind);
   via(port);
   const socket = await next();
   assert.ok(socket.remotePort && socket.remoteAddress);
   // Let the client's connect settle, and the process table with it
   await new Promise((done) => setTimeout(done, 100));
-  const check = chats ? new PeerCheck({ table: processTable, chatPids: chats }) : new PeerCheck();
-  const found = await check.verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  const found = await new PeerCheck().verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
   socket.destroy();
   return found;
 }
@@ -101,7 +107,7 @@ test('a connection from a descendant of a chat\'s process is an agent even if it
     const parent = spawn(
       '/bin/sh',
       ['-c', `env -u CLAUDIO_CHAT_ID "${process.execPath}" -e "${CLIENT}" ${String(port)} 127.0.0.1 & wait`],
-      { env: { ...process.env, CLAUDIO_CHAT_ID: 'chat-2' }, stdio: 'ignore', detached: true },
+      { env: { ...ambient(), CLAUDIO_CHAT_ID: 'chat-2' }, stdio: 'ignore', detached: true },
     );
     groups.push(parent);
   });
@@ -114,20 +120,17 @@ test('a connection from a process Claudio started for an agent (CLAUDIO_AGENT_RU
     const parent = spawn(
       '/bin/sh',
       ['-c', `env -u CLAUDIO_AGENT_RUN "${process.execPath}" -e "${CLIENT}" ${String(port)} 127.0.0.1 & wait`],
-      { env: { ...process.env, CLAUDIO_AGENT_RUN: 'orch-2' }, stdio: 'ignore', detached: true },
+      { env: { ...ambient(), CLAUDIO_AGENT_RUN: 'orch-2' }, stdio: 'ignore', detached: true },
     );
     groups.push(parent);
   });
   assert.equal(found, 'agent');
 });
 
-test("a connection from a process outside every chat's tree is not an agent", linux, async () => {
-  // A chat of this test's own, and a client that is not below it. (Chats of other runs on this
-  // machine may have descriptors this user cannot read, which would make the answer unknown.)
-  const chat = spawn(process.execPath, ['-e', 'setInterval(() => undefined, 1000)'], { env: { ...process.env, CLAUDIO_CHAT_ID: 'chat-3' }, stdio: 'ignore' });
+test("a connection from a process outside every chat's tree is not an agent, even while a chat runs beside it", linux, async () => {
+  const chat = spawn(process.execPath, ['-e', 'setInterval(() => undefined, 1000)'], { env: { ...ambient(), CLAUDIO_CHAT_ID: 'chat-3' }, stdio: 'ignore' });
   children.push(chat);
-  const outcome = await verdict('127.0.0.1', (port) => client(port, '127.0.0.1', {}), '127.0.0.1', () => [chat.pid as number]);
-  assert.equal(outcome, 'not-agent');
+  assert.equal(await verdict('127.0.0.1', (port) => client(port, '127.0.0.1', {})), 'not-agent');
 });
 
 test('IPv6 loopback and a v4-mapped peer are found in the right table', linux, async (t) => {
@@ -151,13 +154,13 @@ test('a peer that cannot be found is unknown, never "not an agent"', linux, asyn
   assert.equal(await new PeerCheck().verdict({ address: '::1', port: 1, serverPort: 2 }), 'unknown');
 });
 
-test('a chat process that ended and waits to be reaped does not make the answer unknown', linux, async () => {
+test('a process that ended and waits to be reaped does not make the answer unknown', linux, async () => {
   const { port, next } = await listen('127.0.0.1');
   client(port, '127.0.0.1', {});
   const socket = await next();
   assert.ok(socket.remotePort && socket.remoteAddress);
   await new Promise((done) => setTimeout(done, 100));
-  const dead = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+  const dead = spawn(process.execPath, ['-e', ''], { env: { ...ambient(), CLAUDIO_CHAT_ID: 'chat-dead' }, stdio: 'ignore' });
   // Without yielding to the event loop nothing reaps the child, so it stays a zombie, whose
   // descriptor directory the kernel refuses to list
   const state = (): string => {
@@ -171,8 +174,7 @@ test('a chat process that ended and waits to be reaped does not make the answer 
     // busy wait
   }
   assert.equal(state(), 'Z');
-  const check = new PeerCheck({ table: processTable, chatPids: () => [dead.pid as number] });
-  const found = await check.verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
+  const found = await new PeerCheck().verdict({ address: socket.remoteAddress, port: socket.remotePort, serverPort: port });
   socket.destroy();
   assert.equal(found, 'not-agent');
 });

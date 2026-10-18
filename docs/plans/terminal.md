@@ -832,13 +832,21 @@ attempt is written to the audit rows.
 
 - This closes the gap no credential can: under `mode: none`, an agent on the same machine that
   calls the API **without** a token looks exactly like the person's browser.
-- It runs only on the terminal routes and the upgrade, and the table of chat pids is cached for 1 s.
-  Finding the holder of an inode by scanning every `/proc/*/fd` costs 30–40 ms on a desktop (t0), so
-  the check scans only the fds of the chat processes and their descendants: if one of them holds the
-  client's socket, refuse. That is the same answer as the ancestor walk, at a fraction of the cost.
-  A peer seen as `::ffff:127.0.0.1` is an IPv4 socket, found in `/proc/net/tcp`, not `tcp6`.
+- It runs only on the terminal routes and the upgrade. It finds every holder of the client's inode
+  over the whole `/proc/*/fd` (20–55 ms on a desktop) and walks each holder's ancestry up to the
+  server's own pid, looking for `CLAUDIO_CHAT_ID` or `CLAUDIO_AGENT_RUN` in each environment. Both
+  tables are read whatever the address says; a peer seen as `::ffff:127.0.0.1` is an IPv4 socket,
+  found in `/proc/net/tcp`.
+- **Built differently at first, and it leaked.** The first version scanned only the descriptors of
+  the chats' trees, from a table of chat pids cached for 1 s, and answered "not in a tree" as "not an
+  agent". A process an agent started after that table was read (every `curl` from a Bash tool) was in
+  no tree: a reviewer got through once in six tries on 2026-10-18, and a burst of 50 new processes got
+  through about 45 times. Finding the holder itself costs about what rebuilding that table did, and
+  `not-agent` now means a holder was found and its whole ancestry walked.
 - "Holder not found" is `unknown`, not "not a chat": a client running as another user has an `fd`
-  directory the server cannot read.
+  directory the server cannot read, and a client that closed its socket before the check has no row.
+  A walk that cannot finish (an ancestor exited mid-walk, or is a zombie, whose environment reads
+  empty) is `unknown` too.
 - Behind Vite's dev proxy the peer is Vite's Node process: if a chat started the dev server, every
   request through it reads as an agent's and is refused. Correct, and worth a line in Settings.
 - Where `/proc` cannot be read (macOS dev, a hardened container), the check reports `unknown` and
