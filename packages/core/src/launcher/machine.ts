@@ -8,6 +8,7 @@ import type { KeyObject } from 'node:crypto';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  DATA_DIR_LOCKED_EXIT_CODE,
   RESTART_EXIT_CODE,
   VERSION,
   checkOverlay,
@@ -208,6 +209,8 @@ export async function run(o: RunOptions): Promise<number> {
     const running = o.start(boot);
     const exit: Exit = boot.trial ? await trial(o, running, boot) : { code: await running.exited, healthy: true };
     if (o.stopping()) return exit.code;
+    // Another server holds the data directory: the payload is not at fault, and starting it again changes nothing
+    if (exit.code === DATA_DIR_LOCKED_EXIT_CODE) return exit.code;
     if (boot.trial && !exit.healthy) {
       failTrial(o, boot.version, facts?.base.version ?? 'unknown');
       continue;

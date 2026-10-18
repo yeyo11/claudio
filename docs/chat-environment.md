@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T20:00:00Z
 tags:
     - chats
     - api
@@ -69,6 +69,38 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
   [flow-start-and-chat-token.md](plans/flow-start-and-chat-token.md).
 - **Nothing is added to the system prompt.** The variable is there for whoever looks. This repo's
   `CLAUDE.md` tells agents to use it; other projects do not call Claudio's API.
+
+## What a child gets, and what it never gets
+
+The server is configured through its own environment, and a process that inherits it is configured
+as the server. On 2026-10-18 a chat had all of these from the desktop app: `PORT`,
+`CLAUDIO_WEB_DIST`, `CLAUDIO_DATA_DIR`, `CLAUDIO_WORKSPACE_DIR`, `CLAUDIO_VERSION`,
+`CLAUDIO_DISTRIBUTION`, `CLAUDIO_MCP_ENTRY` and `CLAUDIO_GUARD_ENTRY`. A worker ran `pnpm dev` in
+its worktree; the dev server read the desktop's data directory and port from them, opened the
+owner's live data and closed the owner's tunnel.
+
+Now every process Claudio starts for an agent or a person gets the inherited environment through
+`withoutServerEnv` (`packages/shared/src/server-env.ts`):
+
+| Variable | A chat's Claude Code (and its hooks, guards and MCP servers) | Other children |
+| --- | --- | --- |
+| `CLAUDIO_API_URL` | set by `spawnProcess` to this wrapper's API, or removed while it is not listening | passed through if the server had one |
+| `CLAUDIO_API_TOKEN` | minted for the process; an inherited one is always removed | passed through if the server had one |
+| `CLAUDIO_CHAT_ID` | the chat's id | passed through if the server had one (it was started from a chat, and so are they) |
+| `CLAUDIO_AGENT_RUN` | not set | set by a verification command of an orchestration, which the terminal refuses by it |
+| `CLAUDIO_FAKE_CLI_*` | passed through: the switches of the browser suite's fake Claude Code | passed through |
+| any other `CLAUDIO_*` | never | never |
+| `PORT`, `HOST` | never | never |
+
+"Other children" are the setup and sign-in CLIs, the accounts' probes, gh, glab and youtrack-app,
+and the project's verification and eval commands. The terminal's shell is stricter: it gets no
+`CLAUDIO_*` at all, and no `PORT` or `HOST` (`terminals/env.ts`). Claudio's own MCP server is
+handed `CLAUDIO_VERSION` and `CLAUDIO_MCP_TOOLSETS` in its config file, not through the environment.
+
+`CLAUDIO_*` is an allow-list: a variable the server adds later stays out of every child without
+anyone remembering to drop it. A child that runs a Claudio of its own (`pnpm dev` in a worktree) gets
+the checkout's own `data/` and `:8797`, and a second server on a data directory a running one holds
+stops before it touches it ([security-model.md](security-model.md#one-server-per-data-directory)).
 
 ## Guards
 

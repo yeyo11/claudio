@@ -1,5 +1,6 @@
 import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { connect } from 'node:net';
 import { join } from 'node:path';
 import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
@@ -221,6 +222,34 @@ interface ServeRecord {
   port: number;
   host: string;
   target: string;
+  /**
+   * The data directory's lock (`data-dir-lock.ts`) the server that wrote it held. A server that
+   * holds the lock now knows that one is gone. A record without it was written before the lock
+   * existed, perhaps by a Claudio that still runs.
+   */
+  lock?: string;
+}
+
+const sameRule = (a: ServeRecord, b: ServeRecord): boolean => a.port === b.port && a.host === b.host && a.target === b.target && a.lock === b.lock;
+
+/** Whether something accepts connections at `target` (`http://host:port`): a live server behind a rule */
+function targetAnswers(target: string, timeoutMs = 1_000): Promise<boolean> {
+  let url: URL;
+  try {
+    url = new URL(target);
+  } catch {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const socket = connect({ host: url.hostname.replace(/^\[|\]$/g, ''), port: Number(url.port || 80) });
+    const done = (answers: boolean) => {
+      socket.destroy();
+      resolve(answers);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
 }
 
 const DEFAULT_SETTINGS: TunnelSettings = { startWithClaudio: false };
@@ -240,7 +269,10 @@ const versionAtLeast = (version: [number, number, number], min: readonly [number
  * background Serve rule in the node's own config, beyond Claudio's life, so the rule is recorded in
  * `<dataDir>/tunnel/serve-rule.json` before it is added, removed on stop and on shutdown, and a
  * rule a crash left behind is reconciled away when Claudio starts again. Removal only ever touches
- * a port that still holds exactly the rule Claudio added.
+ * a port that still holds exactly the rule Claudio added, and only the rule this process added, or
+ * one a previous holder of the data directory's lock left: a record is not proof that its writer
+ * is gone (on 2026-10-18 a second server on the desktop's data directory took the desktop's live
+ * rule for a leftover and closed its tunnel).
  */
 export class TunnelManager {
   private readonly dir: string;
@@ -258,6 +290,10 @@ export class TunnelManager {
   private lent: string | null = null;
   private since: string | null = null;
   private target: { host: string; port: number } | null = null;
+  /** The data directory's lock this server holds, written into the record */
+  private lockId: string | null = null;
+  /** The rule this process added and has not taken away: the only one stop, give-up and shutdown remove */
+  private rule: ServeRecord | null = null;
   /** Whether the person wants the tunnel open */
   private wanted = false;
   /** Aborted whenever the tunnel stops or gives up, so a call still in flight changes nothing after it */
@@ -379,11 +415,12 @@ export class TunnelManager {
   /**
    * Where the tunnel forwards to: the port the server actually bound to, which is not always the
    * one it asked for. Takes away a rule a crash left behind, then opens the tunnel when "start with
-   * Claudio" is on.
+   * Claudio" is on. `lock` is the id of the data directory's lock the server holds.
    */
-  attach(port: number, host = '127.0.0.1'): void {
+  attach(port: number, host = '127.0.0.1', lock: string | null = null): void {
     this.target = { host, port };
-    if (existsSync(this.recordFile)) this.cleaning = this.removeRule().catch(() => undefined);
+    this.lockId = lock;
+    if (existsSync(this.recordFile)) this.cleaning = this.reconcile().catch(() => undefined);
     // A setting saved before the operator turned the tunnel off is not a reason to open it
     if (!this.settings.startWithClaudio || !this.enabled) return;
     this.start('claudio').catch((error: unknown) => {
@@ -445,7 +482,7 @@ export class TunnelManager {
       this.withdraw();
       this.set('stopping');
       await this.opening;
-      await this.removeRule();
+      await this.removeOwnRule();
       this.set('stopped');
     })().finally(() => {
       this.stopping = null;
@@ -483,7 +520,9 @@ export class TunnelManager {
     this.run.abort();
     this.stopMonitor();
     this.withdraw();
-    const record = this.readRecord();
+    // Only the rule this process added: a server that never opened the tunnel (one that failed to
+    // bind its port, say) has nothing to take away, whatever the record says
+    const record = this.rule;
     if (!record) return;
     const run = (args: string[]) => spawnSync(this.deps.tailscaleBin, args, { encoding: 'utf8', timeout: this.timing.commandTimeoutMs });
     try {
@@ -494,7 +533,8 @@ export class TunnelManager {
         const off = run(['serve', '--yes', `--https=${record.port}`, 'off']);
         if (off.status !== 0 && !/handler does not exist/i.test(off.stderr)) return;
       }
-      rmSync(this.recordFile, { force: true });
+      this.rule = null;
+      this.dropRecord(record);
     } catch {
       // The record stays: the next start takes the rule away
     }
@@ -515,7 +555,9 @@ export class TunnelManager {
   private readRecord(): ServeRecord | null {
     try {
       const raw = JSON.parse(readFileSync(this.recordFile, 'utf8')) as Partial<ServeRecord>;
-      if (typeof raw.port === 'number' && typeof raw.host === 'string' && typeof raw.target === 'string') return { port: raw.port, host: raw.host, target: raw.target };
+      if (typeof raw.port === 'number' && typeof raw.host === 'string' && typeof raw.target === 'string') {
+        return { port: raw.port, host: raw.host, target: raw.target, ...(typeof raw.lock === 'string' ? { lock: raw.lock } : {}) };
+      }
     } catch {
       // No record, or one nobody can read: nothing is known to be Claudio's
     }
@@ -525,6 +567,12 @@ export class TunnelManager {
   private writeRecord(record: ServeRecord): void {
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
     writeFileSync(this.recordFile, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  }
+
+  /** Removes the record, if it still describes `rule`: one another server wrote since is not this one's to drop */
+  private dropRecord(rule: ServeRecord): void {
+    const onDisk = this.readRecord();
+    if (!onDisk || sameRule(onDisk, rule)) rmSync(this.recordFile, { force: true });
   }
 
   private async serveConfig(): Promise<ServeConfigJson | null> {
@@ -555,7 +603,9 @@ export class TunnelManager {
     if (!live()) return;
     if (!before) return this.giveUp(REASONS.daemonDown());
     if (servePortUse(before, this.port, host, target) !== 'free') return this.giveUp(REASONS.portTaken(this.port));
-    this.writeRecord({ port: this.port, host, target });
+    const rule: ServeRecord = { port: this.port, host, target, ...(this.lockId ? { lock: this.lockId } : {}) };
+    this.rule = rule;
+    this.writeRecord(rule);
     const added = await this.cli(['serve', '--bg', '--yes', `--https=${this.port}`, target]);
     if (!added.ok) {
       const detail = firstLine(added.stderr);
@@ -583,23 +633,43 @@ export class TunnelManager {
   }
 
   /**
-   * Takes Claudio's rule away, if the port still holds exactly it. A port that is free, or that
-   * someone else took over, is not Claudio's any more: the record goes and nothing is touched. When
-   * Tailscale cannot be asked, the record stays for the next try.
+   * At start, the record a previous run left. One written under this data directory's lock is a
+   * previous holder's, and the lock this server holds says that holder is gone: its rule is taken
+   * away. One written before the lock existed may be a Claudio's that still runs on this directory:
+   * its rule is left alone while something answers at its target, which a crashed server does not.
    */
-  private async removeRule(): Promise<void> {
+  private async reconcile(): Promise<void> {
     const record = this.readRecord();
     if (!record) {
       rmSync(this.recordFile, { force: true });
       return;
     }
+    const own = this.targetUrl();
+    if (!record.lock && record.target !== own && (await targetAnswers(record.target))) return;
+    await this.removeRecorded(record);
+  }
+
+  /** Takes away the rule this process added, if any */
+  private async removeOwnRule(): Promise<void> {
+    const rule = this.rule;
+    if (!rule) return;
+    if (await this.removeRecorded(rule)) this.rule = null;
+  }
+
+  /**
+   * Takes `record`'s rule away, if the port still holds exactly it. A port that is free, or that
+   * someone else took over, is not Claudio's any more: the record goes and nothing is touched. When
+   * Tailscale cannot be asked, the record stays for the next try. True once the rule is gone.
+   */
+  private async removeRecorded(record: ServeRecord): Promise<boolean> {
     const config = await this.serveConfig();
-    if (!config) return;
+    if (!config) return false;
     if (servePortUse(config, record.port, record.host, record.target) === 'match') {
       const off = await this.cli(['serve', '--yes', `--https=${record.port}`, 'off']);
-      if (!off.ok && !/handler does not exist/i.test(off.stderr)) return;
+      if (!off.ok && !/handler does not exist/i.test(off.stderr)) return false;
     }
-    rmSync(this.recordFile, { force: true });
+    this.dropRecord(record);
+    return true;
   }
 
   /**
@@ -673,7 +743,7 @@ export class TunnelManager {
       }
       return 'answered';
     }
-    const record = this.readRecord();
+    const record = this.rule;
     const result = await this.cli(['serve', 'status', '--json']);
     if (run.signal.aborted || this.state !== 'active') return 'answered';
     if (result.unanswered) return 'unknown';
@@ -684,21 +754,26 @@ export class TunnelManager {
     } catch {
       config = null;
     }
-    if (!config || !record) {
+    if (!config) {
+      // No Serve config at all is the CLI failing to reach tailscaled, the one case that is the daemon's
       if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
       return 'answered';
     }
-    // Read under the name the node has now: a rename moves the rule's key in the Serve config with it
-    if (servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
+    // Tailscale answered: a rule that is not there, or not Claudio's, was removed or changed. What
+    // is on disk does not decide it; the record is only how a crash is reconciled
+    if (!record || servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
       this.giveUp(REASONS.ruleRemoved());
       return 'answered';
     }
     this.misses = 0;
+    // A record someone deleted while the rule stands is written again, so a crash can still be reconciled
+    if (!existsSync(this.recordFile)) this.writeRecord(record);
     if (readiness.host !== this.lent) {
       // The node was renamed: the rule follows the node, and the old name stops answering
       this.withdraw();
       this.lend(readiness.host);
-      this.writeRecord({ ...record, host: readiness.host });
+      this.rule = { ...record, host: readiness.host };
+      this.writeRecord(this.rule);
       this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${readiness.host} joined the allowlist` });
       this.changed();
     }
@@ -716,7 +791,7 @@ export class TunnelManager {
     this.stopMonitor();
     this.withdraw();
     this.fail(why);
-    this.cleaning = this.removeRule().catch(() => undefined);
+    this.cleaning = this.removeOwnRule().catch(() => undefined);
     if (recover) this.scheduleRecovery();
   }
 

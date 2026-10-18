@@ -1,4 +1,5 @@
 import { envFor, type AccountRef } from '@claudio/accounts';
+import { withoutServerEnv } from '@claudio/shared';
 import type { SecretVault } from './secret-vault.ts';
 import { exclusiveVariables } from './setup/methods.ts';
 
@@ -30,13 +31,17 @@ const TOOL_OF: Readonly<Record<string, string>> = { 'youtrack-app': 'youtrack' }
  * Every spawn of an agent, a host CLI or `youtrack-app` builds its environment here, so a secret
  * reaches only the tool it belongs to and never argv.
  *
+ * The server's own variables never reach it (`withoutServerEnv`): `PORT`, `HOST` and every
+ * `CLAUDIO_*` but the API's address, the chat's token and its id. A child that runs a Claudio of its
+ * own (`pnpm dev` in a worktree) must not find the server's data directory and port there.
+ *
  * With an `account` the process is that account's and no other's: `envFor` strips every account
  * variable of the base and sets only its own, and the vault is not consulted, so a token saved in
  * setup can never ride along with another account's config dir.
  */
 export function childEnv(tool: string, base: NodeJS.ProcessEnv = process.env, account?: AccountRef | null): NodeJS.ProcessEnv {
   if (account) return envFor(account, base);
-  const env: NodeJS.ProcessEnv = { ...base };
+  const env: NodeJS.ProcessEnv = withoutServerEnv(base);
   const name = TOOL_OF[tool] ?? tool;
   const kept = current?.get(name) ?? {};
   if (Object.keys(kept).length === 0) return env;

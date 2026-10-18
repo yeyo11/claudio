@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T20:00:00Z
 tags:
     - security
     - secrets
@@ -106,6 +106,53 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
   probe, not by reading the output.
 - **Masked where text leaves the machine.** Every vault value joins Claudio's own secrets
   (`recognizeSecrets`, `packages/core/src/decisions/redact.ts`), masked in a decision's state whatever text surrounds them.
+
+## What a child process inherits
+
+Everything Claudio starts for an agent or a person (a chat's or a worker's Claude Code, the flow,
+the assistant, a decision's `cli` run, one-shot runs, the hooks and MCP servers those start, the
+setup and sign-in CLIs, the host CLIs, a verification or eval command, the terminal's shell) gets
+none of the server's own configuration. `withoutServerEnv` (`packages/shared/src/server-env.ts`) is
+the one rule, applied by `childEnv`, by the accounts' `envFor`, by `runCommand` and by the evals'
+`commandEnv`:
+
+- `PORT` and `HOST` are dropped;
+- `CLAUDIO_*` is an **allow-list**, not a deny-list: only `CLAUDIO_API_URL`, `CLAUDIO_API_TOKEN` and
+  `CLAUDIO_CHAT_ID` pass (a chat's are set by `spawnProcess` anyway), plus the `CLAUDIO_FAKE_CLI_*`
+  switches of the browser suite's fake Claude Code. A variable the server adds tomorrow is dropped
+  without anyone remembering to;
+- the terminal is stricter: its shell gets no `CLAUDIO_*` at all (`terminals/env.ts`).
+
+Why: on 2026-10-18 a worker ran `pnpm dev` in its worktree, and the dev server read the desktop's
+`CLAUDIO_DATA_DIR` and `PORT` from the worker's environment. It opened the owner's live data
+directory, and before it failed to bind the port it took the desktop's tunnel record for a leftover,
+ran `tailscale serve --https=8444 off` and closed the owner's tunnel. The exact list a chat gets is
+in [chat-environment.md](chat-environment.md#what-a-child-gets-and-what-it-never-gets).
+
+## One server per data directory
+
+A server takes an exclusive lock on its data directory before anything reads or writes it: before
+the stores open, the migrations run or the tunnel reconciles (`acquireDataDirLock`,
+`packages/core/src/data-dir-lock.ts`, called first in `startServer`, which the dev server, the
+container's API and the desktop's server child all go through). A second server on the same
+directory prints which directory and which pid hold it, and exits with code 73 having touched
+nothing. The launcher (the container's, the desktop's) reads that code as "not the payload's fault":
+a trial that ends with it is neither failed nor restarted.
+
+- **How.** Node 22 has no advisory file lock without a native module, so the lock is
+  `<data>/server.lock`, created with O_EXCL (`wx`), naming its holder: a random id, the pid, the
+  hostname, the process's start time from `/proc/<pid>/stat` and the boot id. It is removed on
+  every way out but a crash.
+- **Stale locks.** A crash leaves the file behind; it is stale when that pid is gone, when the pid now
+  belongs to a process that started later (a reused pid), when it was written before the last boot,
+  or when it was written on another host (a container recreated on the same volume gets a new
+  hostname, and refusing would keep it from ever starting again). A stale lock is removed under a
+  second O_EXCL file (`server.lock.takeover`), and only if it is still the one judged stale, so two
+  servers starting at once on a crashed one's directory cannot both win.
+- **The tunnel trusts it.** The tunnel's record carries the lock's id. At start only a record written
+  under a previous holder's lock is reconciled; one from before the lock existed is left alone while
+  something answers at its target. And a server only ever takes away the rule it added itself
+  ([tunnel.md](tunnel.md#only-what-claudio-added)).
 
 ## What the vendors' CLIs keep in plain text
 
@@ -242,7 +289,8 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
   forwarding is believed, the ticket and the socket compare the `Origin` with the forwarded
   authority (the page's), not with the `Host` the proxy rewrote; otherwise with the `Host`, as in
   production, where the API serves the page itself and nothing changes;
-- the shell gets the vault's tool credentials but no `CLAUDIO_*` variable and none of Claude's own;
+- the shell gets the vault's tool credentials but no `CLAUDIO_*` variable, no `PORT` or `HOST`, and
+  none of Claude's own;
 - sessions and attachments (including refusals) are audited, never their content.
 
 See [terminal.md](terminal.md).

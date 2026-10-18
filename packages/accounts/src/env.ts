@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { AccountKind } from '@claudio/shared';
+import { withoutServerEnv, type AccountKind } from '@claudio/shared';
 
 /** The account that is the CLI's own config, as the person set it up outside Claudio. */
 export const DEFAULT_ID = 'default';
@@ -29,7 +29,8 @@ export function readSecret(account: AccountRef): string {
 /**
  * The environment a `claude` process of this account needs: the base one with every account
  * variable removed, then this account's own set: `CLAUDE_CONFIG_DIR` pointing at the account's dir,
- * plus the token or key for the kinds that have one.
+ * plus the token or key for the kinds that have one. The server's own variables (`PORT`, `HOST`,
+ * `CLAUDIO_*` outside the allow-list of `withoutServerEnv`) never reach it.
  *
  * The default account keeps whatever `CLAUDE_CONFIG_DIR` the base had. Without one, it sets it only
  * when the account's dir is not the CLI's own default (`~/.claude`): set to that, the variable moves
@@ -38,7 +39,7 @@ export function readSecret(account: AccountRef): string {
  * of 13). A default dir configured elsewhere (a test, a custom setup) still needs the variable.
  */
 export function envFor(account: AccountRef, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...base };
+  const env: NodeJS.ProcessEnv = withoutServerEnv(base);
   for (const name of ACCOUNT_VARS) delete env[name];
   if (account.id !== DEFAULT_ID) env.CLAUDE_CONFIG_DIR = account.dir;
   else if (base.CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = base.CLAUDE_CONFIG_DIR;

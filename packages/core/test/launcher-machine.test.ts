@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { KILL_AFTER_MS, NODE_FILES, run, type Boot, type Running, type RunOptions } from '../src/launcher/machine.ts';
-import { EMPTY_STATE, checkOverlay, keyId, loadKeys, parseManifest, readState, writeState, type LauncherState, type PayloadBase } from '../src/launcher/protocol.ts';
+import { DATA_DIR_LOCKED_EXIT_CODE, EMPTY_STATE, checkOverlay, keyId, loadKeys, parseManifest, readState, writeState, type LauncherState, type PayloadBase } from '../src/launcher/protocol.ts';
 import { signedManifest, signingKey, writeOverlay, writeTree, type SigningKey } from './bundle-helpers.ts';
 
 // The launcher's machine as the desktop shell drives it (docs/plans/unified-updates.md, D1): no
@@ -51,7 +51,7 @@ const stateOf = (d: Desk) => readState(join(d.dataDir, 'app', 'state.json'));
 
 interface Script {
   /** What each boot does, in order: its exit code, and whether its trial proves itself */
-  boots: { code: number; proves?: boolean }[];
+  boots: { code: number; proves?: boolean; exitsAtOnce?: boolean }[];
   ignoreOverlays?: boolean;
 }
 
@@ -78,7 +78,8 @@ async function drive(d: Desk, script: Script) {
         end = resolve;
       });
       // A boot that proves itself exits on its own once the check passed; one that does not waits to be stopped
-      if (!boot.trial || step.proves) setTimeout(() => end(step.code), 5);
+      if (step.exitsAtOnce) end(step.code);
+      else if (!boot.trial || step.proves) setTimeout(() => end(step.code), 5);
       return {
         exited,
         stop: () => {
@@ -132,6 +133,18 @@ test('a trial whose page never renders is stopped, retried once, then rolled bac
   const after = stateOf(d);
   assert.deepEqual(after.bad, ['0.7.0']);
   assert.deepEqual(after.lastRollback, { from: '0.7.0', to: '0.6.0', at: '2026-10-18T12:00:00.000Z' });
+});
+
+test('a trial that exits because another server holds the data directory is not failed, and is not started again', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  const result = await drive(d, { boots: [{ code: DATA_DIR_LOCKED_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(result.code, DATA_DIR_LOCKED_EXIT_CODE);
+  assert.equal(result.booted.length, 1);
+  const after = stateOf(d);
+  assert.deepEqual(after.bad, [], 'the payload is not at fault');
+  assert.equal(after.trial, '0.7.0', 'it is tried again on the next launch');
 });
 
 test('exit 75 boots again onto what state.json says now', async () => {

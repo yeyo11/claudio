@@ -78,8 +78,8 @@ before(async () => {
   chmodSync(join(bin, 'gh'), 0o755);
   // The bare origin has no host, and a project with none is not ready: the shim has `origin` say github.com
   symlinkSync(GIT_SHIM, join(bin, 'git'));
-  process.env.CLAUDIO_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
-  process.env.CLAUDIO_ORIGIN_URL = 'https://github.com/acme/shop.git';
+  process.env.FAKE_REAL_GIT = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+  process.env.FAKE_ORIGIN_URL = 'https://github.com/acme/shop.git';
   // Read by core whenever it runs gh: this test file runs in its own process
   process.env.PATH = `${bin}:${process.env.PATH ?? ''}`;
   process.env.FAKE_GH_STATE = state;

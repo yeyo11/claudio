@@ -1,3 +1,4 @@
+import { SERVER_VARIABLES } from '@claudio/shared';
 import type { SecretVault } from '../secret-vault.ts';
 
 /**
@@ -13,9 +14,12 @@ export const TERMINAL_VAULT_TOOLS = ['gh', 'glab', 'youtrack'] as const;
  * What the server's environment holds that a shell must not inherit: the server's own switches
  * (`ELECTRON_RUN_AS_NODE` would make a `node` started from the shell behave as Electron), the
  * development runner's noise, the `production` the image sets (the person's `pnpm install` would
- * skip dev dependencies) and the AppImage runtime's own variables.
+ * skip dev dependencies), the AppImage runtime's own variables, and where the server listens
+ * (`PORT`, `HOST`: a `pnpm dev` typed here would take the server's port). Every `CLAUDIO_*` goes,
+ * stricter than the allow-list a chat gets (`withoutServerEnv`): a shell is the person's, not a chat's,
+ * and holds neither a chat's id nor a chat's token.
  */
-const DROPPED = new Set(['ELECTRON_RUN_AS_NODE', 'NODE_ENV', 'INIT_CWD', 'APPIMAGE', 'APPDIR', 'ARGV0', 'OWD', ...CLAUDE_CREDENTIALS]);
+const DROPPED = new Set(['ELECTRON_RUN_AS_NODE', 'NODE_ENV', 'INIT_CWD', 'APPIMAGE', 'APPDIR', 'ARGV0', 'OWD', ...SERVER_VARIABLES, ...CLAUDE_CREDENTIALS]);
 const DROPPED_PREFIXES = ['CLAUDIO_', 'npm_', 'PNPM_', 'pnpm_'];
 /** Variables that hold search paths, which may point into the AppImage's mount */
 const PATH_LISTS = ['PATH', 'LD_LIBRARY_PATH'] as const;

@@ -19,7 +19,7 @@ rec="$(dirname "$0")/recordings/glab/1.120.0"
 echo "$*" >> "$state/calls"
 # The golden tests also keep the order of every call, with what the execution layer set around it
 # and the body it was given on stdin (only `mr create` reads one), as fake-gh does.
-if [ -n "$CLAUDIO_CALL_LOG" ]; then
+if [ -n "$FAKE_CALL_LOG" ]; then
   {
     echo "glab $*"
     echo "  cwd: $PWD"
@@ -27,7 +27,7 @@ if [ -n "$CLAUDIO_CALL_LOG" ]; then
       eval "set_=\${$v+set}"
       if [ -n "$set_" ]; then eval "echo \"  env: $v=\$$v\""; else echo "  env: $v=<unset>"; fi
     done
-  } >> "$CLAUDIO_CALL_LOG"
+  } >> "$FAKE_CALL_LOG"
 fi
 
 # What a recorded run printed, on each stream, and its exit code
@@ -53,7 +53,7 @@ case "$1 $2" in
     if [ -f "$state/dup" ]; then replay mr_dup; fi
     iid=$(cat "$state/next" 2>/dev/null || echo 4)
     cat > "$state/body-$iid"
-    if [ -n "$CLAUDIO_CALL_LOG" ]; then { echo "  stdin:"; sed 's/^/    | /' "$state/body-$iid"; echo; } >> "$CLAUDIO_CALL_LOG"; fi
+    if [ -n "$FAKE_CALL_LOG" ]; then { echo "  stdin:"; sed 's/^/    | /' "$state/body-$iid"; echo; } >> "$FAKE_CALL_LOG"; fi
     url=$(flag -R "$@")
     head=$(flag --source-branch "$@")
     printf '\nCreating merge request for %s into %s in %s\n\n' "$head" "$(flag --target-branch "$@")" "${url#https://*/}" >&2

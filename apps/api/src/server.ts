@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { Core, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
+import { acquireDataDirLock, Core, dataDirFrom, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
@@ -48,7 +48,16 @@ export async function listenOn(app: FastifyInstance, port: number, host: string,
 /** Creates the core, builds the app and listens. Shared by the CLI entrypoint and the desktop bundle. */
 export async function startServer(opts: StartServerOptions = {}): Promise<RunningServer> {
   const host = opts.host ?? '127.0.0.1';
-  const core = new Core();
+  // Before anything reads or writes the data directory: a second server on it (one an agent started
+  // with this one's CLAUDIO_DATA_DIR in its environment) stops here, with DataDirLockedError
+  const lock = acquireDataDirLock(dataDirFrom());
+  let core: Core;
+  try {
+    core = new Core(loadConfig());
+  } catch (err) {
+    lock.release();
+    throw err;
+  }
   // Read into the guard by now. Every chat, command and check the server starts inherits
   // `process.env`, and the desktop app's secret is not theirs to hold, nor to write to a transcript
   delete process.env.CLAUDIO_DESKTOP_TOKEN;
@@ -56,7 +65,13 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   // The owner's token too: a deployment that seeds it here (Docker, Compose, Helm) would otherwise
   // hand it to every chat, which could then do anything the owner can. `config.authEnv` has it now
   delete process.env.CLAUDIO_AUTH_TOKEN;
-  const app = await buildApp(core, { webDist: opts.webDist });
+  let app: Awaited<ReturnType<typeof buildApp>>;
+  try {
+    app = await buildApp(core, { webDist: opts.webDist });
+  } catch (err) {
+    lock.release();
+    throw err;
+  }
   for (const stray of core.runtime.strays()) {
     app.log.warn(
       `chat ${stray.chatId}: CLI process ${stray.pid} from a previous wrapper is still working on it; ` +
@@ -81,6 +96,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     const ended = core.shutdown();
     await app.close();
     await ended;
+    lock.release();
     throw err;
   }
 
@@ -107,7 +123,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   if (!process.env.CLAUDIO_GUARD_ENTRY && existsSync(bundledGuard)) process.env.CLAUDIO_GUARD_ENTRY = bundledGuard;
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
   // when "start with Claudio" is on
-  core.tunnel.attach(port, urlHost);
+  core.tunnel.attach(port, urlHost, lock.id);
   let closing: Promise<void> | undefined;
   const close = () => {
     closing ??= (async () => {
@@ -116,6 +132,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
       // The process exits next, and a probe still running would outlive it and keep writing the
       // config home it was started with
       await ended;
+      lock.release();
     })();
     return closing;
   };
