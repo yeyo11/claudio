@@ -6870,6 +6870,9 @@
         "$ref": "#/components/schemas/SystemReleaseEvent"
       },
       {
+        "$ref": "#/components/schemas/SystemServerUpdateEvent"
+      },
+      {
         "$ref": "#/components/schemas/ProvidersChangedEvent"
       },
       {
@@ -8897,6 +8900,189 @@
       "source"
     ],
     "description": "How this Claudio was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name."
+  },
+  "SystemServerUpdateEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "system.server-update"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ServerUpdateStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "The in-app update of the server moved: a download's progress, ready, scheduled, restarting, failed"
+  },
+  "ServerUpdateStatus": {
+    "type": "object",
+    "properties": {
+      "unsupportedReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateUnsupported"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when this container can update itself"
+      },
+      "image": {
+        "type": "string",
+        "description": "The version baked in the image (`/app/image.json`)"
+      },
+      "running": {
+        "type": "string",
+        "description": "The version running now"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "image",
+          "overlay"
+        ]
+      },
+      "state": {
+        "$ref": "#/components/schemas/ServerUpdateState"
+      },
+      "target": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The version being downloaded, ready or scheduled"
+      },
+      "progress": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "0..1 while downloading"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateError"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "needsImage": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "minImage": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "minImage"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest release needs a newer image than this one"
+      },
+      "lastRollback": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "at"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "unsupportedReason",
+      "image",
+      "running",
+      "source",
+      "state",
+      "target",
+      "progress",
+      "error",
+      "needsImage",
+      "lastRollback"
+    ],
+    "description": "Claudio updating itself inside its container (docs/plans/container-polish.md, D4): a signed bundle unpacked under `/data/app/<version>`, which the image's launcher boots on trial and keeps once `/api/health` answers, or rolls back."
+  },
+  "ServerUpdateUnsupported": {
+    "type": "string",
+    "enum": [
+      "not-docker",
+      "no-launcher",
+      "no-keys",
+      "needs-auth",
+      "read-only"
+    ]
+  },
+  "ServerUpdateState": {
+    "type": "string",
+    "enum": [
+      "idle",
+      "downloading",
+      "verifying",
+      "ready",
+      "scheduled",
+      "restarting",
+      "failed"
+    ]
+  },
+  "ServerUpdateError": {
+    "type": "string",
+    "enum": [
+      "fetch-failed",
+      "bad-signature",
+      "bad-manifest",
+      "disk",
+      "needs-image"
+    ]
   },
   "ProvidersChangedEvent": {
     "type": "object",
@@ -19035,6 +19221,61 @@
       "error": {
         "type": "string",
         "description": "Why the last check failed (registry unreachable, unexpected answer); the previous `latest` is kept"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "image",
+          "data",
+          "path"
+        ],
+        "description": "Where the CLI in use comes from: the image's pin, one installed in-app under `/data/cli`, or the PATH"
+      },
+      "installable": {
+        "type": "boolean",
+        "description": "Whether `POST /system/cli-version/install` may run here"
+      },
+      "install": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "installing",
+                  "failed"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CliInstallError"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "state",
+              "version",
+              "error"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The in-app install, while one runs or after it failed; null where installing is not offered"
       }
     },
     "required": [
@@ -19042,9 +19283,24 @@
       "pinned",
       "latest",
       "checkedAt",
-      "updateAvailable"
+      "updateAvailable",
+      "source",
+      "installable",
+      "install"
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
+  },
+  "CliInstallError": {
+    "type": "string",
+    "enum": [
+      "fetch-failed",
+      "integrity",
+      "out-of-range",
+      "not-newer",
+      "version-mismatch",
+      "disk"
+    ],
+    "description": "Why an in-app install of Claude Code failed or was refused"
   },
   "StorageReport": {
     "type": "object",
@@ -19109,6 +19365,41 @@
       "unknown"
     ],
     "description": "What a folder of the server sits on, read from the mounts the process sees. `persistent` is a named volume, a bind mount or an orchestrator's claim: it outlives the container. The other three do not: `anonymous` is a volume Docker made on its own (the image declares `VOLUME`, the command did not name one), which the next `docker run` replaces with an empty one; `container` is the container's own layer; `temporary` is memory or an emptyDir. `unknown` is a mount table that could not be read or told apart."
+  },
+  "ServerUpdateApplyRequest": {
+    "type": "object",
+    "properties": {
+      "force": {
+        "type": "boolean"
+      },
+      "whenIdle": {
+        "type": "boolean"
+      }
+    },
+    "description": "`force` restarts over live work (the person was asked); `whenIdle` waits until nothing is live"
+  },
+  "LiveWork": {
+    "type": "object",
+    "properties": {
+      "working": {
+        "type": "number",
+        "description": "Chats working now"
+      },
+      "waiting": {
+        "type": "number",
+        "description": "Chats waiting for a person (their CLI is running)"
+      },
+      "running": {
+        "type": "number",
+        "description": "Orchestrations running"
+      }
+    },
+    "required": [
+      "working",
+      "waiting",
+      "running"
+    ],
+    "description": "What is live on this server, counted as the overview counts it: what a restart would stop"
   },
   "ProjectSettings": {
     "type": "object",

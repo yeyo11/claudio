@@ -41,6 +41,7 @@ import { hostRoutes } from './routes/hosts.ts';
 import { setupRoutes } from './routes/setup.ts';
 import { trackerRoutes } from './routes/trackers.ts';
 import { systemRoutes } from './routes/system.ts';
+import { serverUpdateRoutes } from './routes/server-update.ts';
 import { teamRoutes } from './routes/team.ts';
 import { evalRoutes } from './routes/evals.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
@@ -216,6 +217,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
         return payload;
       });
       await api.register(systemRoutes, { core });
+      await api.register(serverUpdateRoutes, { core });
       await api.register(securityRoutes, { core });
       await api.register(guardRoutes, { core });
       await api.register(projectRoutes, { core });

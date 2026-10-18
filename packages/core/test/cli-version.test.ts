@@ -24,7 +24,7 @@ test('reading the answer never touches the registry', () => {
       return new Response('{}');
     }) as typeof fetch,
   });
-  assert.deepEqual(watch.info('2.1.278'), { current: '2.1.278', pinned: null, latest: null, checkedAt: null, updateAvailable: false });
+  assert.deepEqual(watch.info('2.1.278'), { current: '2.1.278', pinned: null, latest: null, checkedAt: null, updateAvailable: false, source: 'path', installable: false, install: null });
   assert.equal(calls, 0);
 });
 
