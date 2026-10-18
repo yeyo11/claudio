@@ -1,7 +1,7 @@
 import './lib/boot'; // first of all: the boot guard in index.html waits for this module to run
 import './lib/legacy-storage-init'; // before the modules below, which read their stored keys as they load
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
@@ -19,7 +19,7 @@ import { SplashHandOff } from './lib/splash';
 import { watchChunkErrors } from './lib/reload';
 import './lib/theme'; // applies the stored theme before the first paint
 import '@claudio/ui/lib/motion'; // stamps the motion level before anything has a chance to animate
-import './lib/desktop'; // marks the desktop app's window before the first paint, so the title bar never jumps
+import { notifyPageReady } from './lib/desktop'; // marks the desktop app's window before the first paint, so the title bar never jumps
 import './styles.css';
 import '@claudio/ui/controls.css';
 import './observe.css';
@@ -57,6 +57,15 @@ const router = createBrowserRouter([
   },
 ]);
 
+/** After the first commit has painted: a payload's trial in the desktop shell counts the page as rendered */
+function PageReady(): null {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => requestAnimationFrame(notifyPageReady));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return null;
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('#root element not found');
 
@@ -66,6 +75,7 @@ createRoot(root).render(
       <RouterProvider router={router} />
     </QueryClientProvider>
     <SplashHandOff />
+    <PageReady />
   </StrictMode>,
 );
 
