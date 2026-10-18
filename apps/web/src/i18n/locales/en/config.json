@@ -348,7 +348,9 @@
       "waiting_one": "{{count}} chat is waiting for an answer",
       "waiting_other": "{{count}} chats are waiting for an answer",
       "running_one": "{{count}} orchestration is running",
-      "running_other": "{{count}} orchestrations are running"
+      "running_other": "{{count}} orchestrations are running",
+      "terminals_one": "{{count}} terminal is open",
+      "terminals_other": "{{count}} terminals are open"
     },
     "availableTag": "Update available",
     "upToDateTag": "Up to date",
@@ -367,14 +369,6 @@
     "scheduledServer": "Claudio {{version}} will restart onto the update when nothing is running.",
     "restarting": "Restarting… this page reloads on its own.",
     "tryAgain": "Try again",
-    "serverError": {
-      "bad-signature": "The download has no valid signature and was discarded.",
-      "bad-manifest": "The download's manifest is not valid and was discarded.",
-      "fetch-failed": "Could not download the update.",
-      "disk": "There is not enough space in <mono>/data</mono> for the update.",
-      "needs-image": "This release needs a newer image than this container runs.",
-      "needs-shell": "This release needs a newer desktop app."
-    },
     "rolledBack": "Claudio {{from}} did not start, so the container went back to {{to}}.",
     "dismiss": "Dismiss",
     "revert": "Go back to the image's version ({{image}})",
@@ -391,7 +385,59 @@
       },
       "fix": "Start it with all three volumes named, as in this command:",
       "move": "Do not remove the current container before copying what is in it: docs/deploy.md, Moving to named volumes, has the commands."
-    }
+    },
+    "shellVersion": "desktop app {{shell}}",
+    "desktopTitle": "Desktop app",
+    "desktopAvailable": "Desktop app {{version}} is available.",
+    "downloadDesktop": "Download desktop app {{version}}",
+    "installedTag": "Installed",
+    "aptManaged": "Your system updates the desktop app through apt, with its other updates.",
+    "aptLatest": "Desktop app {{version}} is out; it arrives with the system's next update.",
+    "copyIntro": "Install it from a terminal. It asks for your password, and apt shows what it will change before it does.",
+    "copyAfter": "After this, apt keeps it up to date.",
+    "shellReplaced": "The system installed desktop app {{version}}. Restart Claudio to use it.",
+    "restartClaudio": "Restart Claudio",
+    "desktopRemote": "The desktop app is updated on the computer that runs it.",
+    "needsShell": "Claudio {{version}} needs a newer desktop app ({{minShell}} or later). Update the desktop app first; Claudio follows on its own.",
+    "blocked": {
+      "no-bundle": "Claudio {{version}} cannot be installed from here: it was published without an in-app update.",
+      "unverified": "Claudio {{version}} could not be checked, so it is not offered. Check again later.",
+      "failed-before": "Claudio {{version}} did not start here before, so it is not offered again."
+    },
+    "errors": {
+      "bad-signature": "The download has no valid signature and was discarded.",
+      "bad-manifest": "The download's manifest is not valid and was discarded.",
+      "fetch-failed": "Could not download the update.",
+      "disk": "There is not enough space in <mono>/data</mono> for the update.",
+      "needs-image": "This release needs a newer image than this container runs.",
+      "needs-shell": "This release needs a newer desktop app.",
+      "needs-auth": "To update from here, protect access with a token.",
+      "not-owner": "Only the owner can update Claudio. Sign in with the owner's token.",
+      "unsupported": "This install cannot update itself. Update it from the host.",
+      "no-release": "There is no installable release to download. Check for updates again.",
+      "busy": "Another step of the update is running. Wait a moment and try again.",
+      "not-ready": "The update is not ready to install yet. Download it first.",
+      "not-overlay": "Claudio is already running the version it came with.",
+      "live-work": "Work is running, so Claudio did not restart."
+    },
+    "restartingShell": "Restarting Claudio… the window reloads on its own.",
+    "rolledBackShell": "Claudio {{from}} did not start, so the app went back to {{to}}.",
+    "revertShell": "Go back to the desktop app's version ({{shell}})",
+    "unsupportedDesktop": {
+      "no-launcher": "Updating Claudio from here is turned off.",
+      "no-keys": "Updating Claudio from here is turned off."
+    },
+    "shellUnsupported": {
+      "read-only": "The desktop app's folder is read-only, so it cannot update itself.",
+      "unknown-package": "This desktop app's package type is not known, so it cannot update itself.",
+      "other": "This desktop app cannot update itself."
+    },
+    "switchLink": "Use the AppImage instead",
+    "switchTitle": "Switch to the AppImage?",
+    "switchBody": "Claudio installs the AppImage in your user folder and restarts from it. It then updates without a password. Your chats, settings and projects stay as they are. The .deb stays installed until you remove it.",
+    "switchConfirm": "Switch and restart",
+    "switchBusyBody": "{{live}}, and switching restarts Claudio, which stops them. Switch now?",
+    "debStillInstalled": "The .deb is still installed. Remove it from a terminal:"
   },
   "account": {
     "removed": "Stored credential removed",
