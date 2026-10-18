@@ -69,16 +69,18 @@ The long version, with the screens, is [docs/features.md](docs/features.md).
 ## Install
 
 **Desktop app (Linux x86_64).** Every [release](https://github.com/yeyo11/claudio/releases/latest)
-carries a `.deb` and an AppImage. The installer takes the `.deb` through apt on Debian and Ubuntu and
-the AppImage under `~/.local` everywhere else:
+carries a `.deb` and an AppImage. The installer takes the AppImage under `~/.local` where Chromium's
+sandbox runs without root (no password), and the `.deb` through a signed apt repository on the
+Debian and Ubuntu hosts that restrict it, such as Ubuntu 24.04 and later:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash
 ```
 
 It runs on your machine with your own `claude` and `~/.claude` login, so nothing is sandboxed and
-chats start in `acceptEdits`. It updates itself from Help → **Check for updates…**. See
-[docs/desktop.md](docs/desktop.md).
+chats start in `acceptEdits`. Most releases update Claudio itself without a password and without
+replacing the app (Settings → General → Updates, or Help → **Check for updates…**); on the `.deb`,
+apt updates the app. See [docs/desktop.md](docs/desktop.md).
 
 **Docker.** The image is `ghcr.io/yeyo11/claudio` (amd64; `latest`, a tag per release, and `edge`
 from `main`):
