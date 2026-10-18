@@ -348,7 +348,9 @@
       "waiting_one": "{{count}} chat espera una respuesta",
       "waiting_other": "{{count}} chats esperan una respuesta",
       "running_one": "{{count}} orquestación está en marcha",
-      "running_other": "{{count}} orquestaciones están en marcha"
+      "running_other": "{{count}} orquestaciones están en marcha",
+      "terminals_one": "{{count}} terminal está abierta",
+      "terminals_other": "{{count}} terminales están abiertas"
     },
     "availableTag": "Actualización disponible",
     "upToDateTag": "Al día",
@@ -367,14 +369,6 @@
     "scheduledServer": "Claudio {{version}} se reiniciará con la actualización cuando no haya nada en marcha.",
     "restarting": "Reiniciando… esta página se recarga sola.",
     "tryAgain": "Reintentar",
-    "serverError": {
-      "bad-signature": "La descarga no tiene una firma válida y se ha descartado.",
-      "bad-manifest": "El manifiesto de la descarga no es válido y se ha descartado.",
-      "fetch-failed": "No se ha podido descargar la actualización.",
-      "disk": "No hay espacio suficiente en <mono>/data</mono> para la actualización.",
-      "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor.",
-      "needs-shell": "Esta versión necesita una aplicación de escritorio más reciente."
-    },
     "rolledBack": "Claudio {{from}} no arrancó, así que el contenedor ha vuelto a {{to}}.",
     "dismiss": "Descartar",
     "revert": "Volver a la versión de la imagen ({{image}})",
@@ -391,7 +385,59 @@
       },
       "fix": "Arráncalo con los tres volúmenes con nombre, como en este comando:",
       "move": "No elimines el contenedor actual antes de copiar lo que tiene dentro: docs/deploy.md, «Moving to named volumes», trae los comandos."
-    }
+    },
+    "shellVersion": "aplicación de escritorio {{shell}}",
+    "desktopTitle": "Aplicación de escritorio",
+    "desktopAvailable": "La aplicación de escritorio {{version}} está disponible.",
+    "downloadDesktop": "Descargar la aplicación de escritorio {{version}}",
+    "installedTag": "Instalada",
+    "aptManaged": "El sistema actualiza la aplicación de escritorio con apt, junto con sus otras actualizaciones.",
+    "aptLatest": "Ya ha salido la aplicación de escritorio {{version}}; llegará con la próxima actualización del sistema.",
+    "copyIntro": "Instálala desde una terminal. Te pedirá la contraseña, y apt mostrará lo que va a cambiar antes de hacerlo.",
+    "copyAfter": "Después, apt la mantendrá al día.",
+    "shellReplaced": "El sistema ha instalado la aplicación de escritorio {{version}}. Reinicia Claudio para usarla.",
+    "restartClaudio": "Reiniciar Claudio",
+    "desktopRemote": "La aplicación de escritorio se actualiza en el ordenador donde se ejecuta.",
+    "needsShell": "Claudio {{version}} necesita una aplicación de escritorio más reciente ({{minShell}} o posterior). Actualiza primero la aplicación de escritorio; Claudio se actualizará después.",
+    "blocked": {
+      "no-bundle": "Claudio {{version}} no se puede instalar desde aquí: se publicó sin actualización integrada.",
+      "unverified": "No se ha podido comprobar Claudio {{version}}, así que no se ofrece. Vuelve a comprobarlo más tarde.",
+      "failed-before": "Claudio {{version}} no arrancó aquí antes, así que no se vuelve a ofrecer."
+    },
+    "errors": {
+      "bad-signature": "La descarga no tiene una firma válida y se ha descartado.",
+      "bad-manifest": "El manifiesto de la descarga no es válido y se ha descartado.",
+      "fetch-failed": "No se ha podido descargar la actualización.",
+      "disk": "No hay espacio suficiente en <mono>/data</mono> para la actualización.",
+      "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor.",
+      "needs-shell": "Esta versión necesita una aplicación de escritorio más reciente.",
+      "needs-auth": "Para actualizar desde aquí, protege el acceso con un token.",
+      "not-owner": "Solo el propietario puede actualizar Claudio. Inicia sesión con su token.",
+      "unsupported": "Esta instalación no puede actualizarse sola. Actualízala desde el host.",
+      "no-release": "No hay ninguna versión instalable para descargar. Vuelve a buscar actualizaciones.",
+      "busy": "Hay otro paso de la actualización en marcha. Espera un momento y vuelve a intentarlo.",
+      "not-ready": "La actualización aún no está lista para instalarse. Descárgala primero.",
+      "not-overlay": "Claudio ya funciona con la versión con la que se instaló.",
+      "live-work": "Hay trabajo en marcha, así que Claudio no se ha reiniciado."
+    },
+    "restartingShell": "Reiniciando Claudio… la ventana se recarga sola.",
+    "rolledBackShell": "Claudio {{from}} no arrancó, así que la aplicación ha vuelto a {{to}}.",
+    "revertShell": "Volver a la versión de la aplicación de escritorio ({{shell}})",
+    "unsupportedDesktop": {
+      "no-launcher": "La actualización de Claudio desde aquí está desactivada.",
+      "no-keys": "La actualización de Claudio desde aquí está desactivada."
+    },
+    "shellUnsupported": {
+      "read-only": "La carpeta de la aplicación de escritorio es de solo lectura, así que no puede actualizarse sola.",
+      "unknown-package": "No se reconoce el tipo de paquete de esta aplicación de escritorio, así que no puede actualizarse sola.",
+      "other": "Esta aplicación de escritorio no puede actualizarse sola."
+    },
+    "switchLink": "Usar la AppImage",
+    "switchTitle": "¿Cambiar a la AppImage?",
+    "switchBody": "Claudio instala la AppImage en tu carpeta de usuario y se reinicia desde ella. Así se actualiza sin contraseña. Tus chats, ajustes y proyectos se quedan como están. El .deb sigue instalado hasta que lo quites.",
+    "switchConfirm": "Cambiar y reiniciar",
+    "switchBusyBody": "{{live}}, y cambiar reinicia Claudio, lo que los detiene. ¿Cambiar ahora?",
+    "debStillInstalled": "El .deb sigue instalado. Quítalo desde una terminal:"
   },
   "account": {
     "removed": "Credencial guardada eliminada",
