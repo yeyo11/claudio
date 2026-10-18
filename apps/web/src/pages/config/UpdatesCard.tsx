@@ -11,6 +11,7 @@ import { CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import type { DesktopUpdatesBridge } from '../../lib/desktop';
 import { formatDate, formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import {
+  canRetryUpdate,
   DOCKER_REPLACE_COMMAND,
   DOCKER_RUN_COMMAND,
   DOCKER_UPDATE_WAYS,
@@ -18,19 +19,35 @@ import {
   dismissRollback,
   liveWorkOf,
   parseInstallAnswer,
+  parseSwitchState,
   parseUpdateState,
+  payloadActionsVia,
+  payloadHasPrimary,
+  REMOVE_DEB_COMMAND,
   serverUpdateRefetchMs,
   SOURCE_UPDATE_COMMAND,
+  updateErrorCode,
   updateRoute,
   type DesktopUpdateState,
   type LiveWork,
+  type PayloadActions,
+  type SwitchState,
   type UpdateHow,
 } from '../../lib/updates';
 import { PrefRow, ReservedLabel } from './PrefRow';
 
+const apiActions: PayloadActions = {
+  download: () => api.downloadServerUpdate(),
+  apply: (body) => api.applyServerUpdate(body),
+  revert: (body) => api.revertServerUpdate(body),
+  cancel: () => api.cancelServerUpdate(),
+};
+
 /**
  * Which Claudio this is and whether a newer release is out, with the way to take it that fits this
- * install. Reading is free: GitHub is only asked by the button and once a day by the server.
+ * install. Two zones in the desktop app: Claudio (the payload, which most releases change and which
+ * installs without a password) and the Desktop app (the shell). Reading is free: GitHub is only
+ * asked by the button and once a day by the server.
  */
 export function UpdatesCard() {
   const { t } = useTranslation('config');
@@ -43,23 +60,27 @@ export function UpdatesCard() {
   });
   const bridge = typeof window !== 'undefined' ? window.claudioDesktop?.updates : undefined;
   const route = info && updateRoute({ distribution: info.distribution, desktopUpdates: Boolean(bridge), hostname: window.location.hostname });
-  // In a container Claudio may update itself; where it cannot, the status says why and the steps stay
-  const inContainer = info?.distribution === 'docker' && !bridge;
+  // Claudio may update itself in a container and under a desktop server, whether this page is the
+  // desktop window or a browser or phone reaching it; where it cannot, the status says why and the steps stay
+  const desktopServer = info?.distribution === 'appimage' || info?.distribution === 'deb';
+  const asksServer = Boolean(bridge) || info?.distribution === 'docker' || desktopServer;
   const server = useQuery({
     queryKey: keys.serverUpdate,
     queryFn: ({ signal }) => api.serverUpdate({ signal }),
-    enabled: inContainer,
+    enabled: asksServer,
     refetchInterval: (query) => serverUpdateRefetchMs(query.state.data),
     // Mid-restart the API is down for a moment: keep what was shown instead of an error
     retry: false,
   });
-  const status = inContainer ? server.data : undefined;
+  const status = asksServer ? server.data : undefined;
 
   const facts = info && (
     <span className="update-facts">
       <span>
         {t('updates.version')} <span className="tnum">{status?.running ?? info.current}</span>
-        {status && status.image !== status.running && <> · {t('updates.imageVersion', { image: status.image })}</>}
+        {status && status.image !== status.running && (
+          <> · {status.base === 'shell' ? t('updates.shellVersion', { shell: status.shell?.version ?? status.image }) : t('updates.imageVersion', { image: status.image })}</>
+        )}
       </span>
       <span>
         {t('updates.latest')} <span className="tnum">{info.latest ?? t('updates.never')}</span>
@@ -74,6 +95,9 @@ export function UpdatesCard() {
       )}
     </span>
   );
+
+  // A shell that cannot act for the page (an older one) leaves the Claudio zone to read-only facts
+  const desktopActions = bridge?.payload ? payloadActionsVia(bridge.payload) : null;
 
   return (
     <div className="stack update-zone" data-testid="updates-card">
@@ -92,13 +116,26 @@ export function UpdatesCard() {
       <ErrorBox title={t('updates.checkFailed')} error={check.error ?? (info?.error ? new Error(info.error) : null)} />
 
       {info?.distribution === 'docker' && <StorageWarning />}
-      {info && route?.kind === 'desktop' && bridge && <DesktopUpdate bridge={bridge} info={info} />}
+      {info && route?.kind === 'desktop' && bridge && (
+        <>
+          {status && desktopActions && <ServerUpdate status={status} info={info} actions={desktopActions} steps={null} />}
+          <DesktopUpdate bridge={bridge} info={info} primary={!payloadHasPrimary(desktopActions ? status : undefined, info.updateAvailable)} />
+        </>
+      )}
       {info && route?.kind === 'steps' && status && (
-        <ServerUpdate
-          status={status}
-          info={info}
-          steps={info.updateAvailable || status.needsImage ? <UpdateSteps how={route.how} remote={route.remote} /> : null}
-        />
+        <>
+          <ServerUpdate
+            status={status}
+            info={info}
+            actions={apiActions}
+            steps={desktopServer ? null : info.updateAvailable || status.needsImage ? <UpdateSteps how={route.how} remote={route.remote} /> : null}
+          />
+          {desktopServer && (
+            <p className="small muted" data-testid="update-desktop-remote">
+              {t('updates.desktopRemote')}
+            </p>
+          )}
+        </>
       )}
       {info?.updateAvailable && route?.kind === 'steps' && !status && <UpdateSteps how={route.how} remote={route.remote} />}
     </div>
@@ -207,6 +244,24 @@ function useDesktopUpdateState(bridge: DesktopUpdatesBridge): DesktopUpdateState
   return state;
 }
 
+/** Whether the `.deb` can become the AppImage here; null until the shell answers, or from a shell with no switch */
+function useSwitchState(bridge: DesktopUpdatesBridge): SwitchState | null {
+  const [state, setState] = useState<SwitchState | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void bridge
+      .switchState?.()
+      .then((raw) => {
+        if (alive) setState(parseSwitchState(raw));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [bridge]);
+  return state;
+}
+
 /** "2 chats are working, 1 orchestration is running": what a restart now would stop */
 function useLiveSentence(): (live: LiveWork) => string {
   const { t } = useTranslation('config');
@@ -215,26 +270,36 @@ function useLiveSentence(): (live: LiveWork) => string {
       live.working ? t('updates.live.working', { count: live.working }) : null,
       live.waiting ? t('updates.live.waiting', { count: live.waiting }) : null,
       live.running ? t('updates.live.running', { count: live.running }) : null,
+      live.terminals ? t('updates.live.terminals', { count: live.terminals }) : null,
     ]
       .filter(Boolean)
       .join(', ');
 }
 
-/** The desktop window: download with its progress, then a restart that asks first when work is live */
-function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: ClaudioReleaseInfo }) {
+
+/**
+ * The Desktop app zone: the shell's own update. Download with its progress and a restart that asks
+ * first when work is live (AppImage); a line for the system's updates (`.deb` with the apt source); the
+ * command to copy (a `.deb` without it); the restart that finishes what apt installed. It never
+ * installs anything that needs a password.
+ */
+function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge; info: ClaudioReleaseInfo; primary: boolean }) {
   const { t } = useTranslation('config');
   const state = useDesktopUpdateState(bridge);
+  const switchState = useSwitchState(bridge);
   const liveSentence = useLiveSentence();
-  const [busy, setBusy] = useState<{ version: string; live: LiveWork } | null>(null);
+  const [busy, setBusy] = useState<{ version: string; live: LiveWork; switching: boolean } | null>(null);
   const [scheduled, setScheduled] = useState<string | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
+  const [switching, setSwitching] = useState(false);
+  const shellVersion = window.claudioDesktop?.version ?? info.current;
 
   const download = useMutation({ mutationFn: () => bridge.download(), onError: setFailure });
   const install = useMutation({
     mutationFn: async (options: { whenIdle?: boolean; force?: boolean }) => parseInstallAnswer(await bridge.install(options)),
     onSuccess: (answer) => {
       setBusy(null);
-      if (answer?.status === 'busy') setBusy({ version: answer.version, live: answer.live });
+      if (answer?.status === 'busy') setBusy({ version: answer.version, live: answer.live, switching: false });
       else if (answer?.status === 'scheduled') setScheduled(answer.version);
     },
     onError: (err) => {
@@ -242,19 +307,61 @@ function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: C
       setFailure(err);
     },
   });
+  const switchToAppImage = useMutation({
+    mutationFn: async (options: { force?: boolean }) => parseInstallAnswer(await bridge.switchToAppImage?.(options)),
+    onSuccess: (answer) => {
+      setBusy(null);
+      if (answer?.status === 'busy') {
+        setSwitching(false);
+        setBusy({ version: answer.version, live: answer.live, switching: true });
+      }
+    },
+    onError: (err) => {
+      setBusy(null);
+      setSwitching(false);
+      setFailure(err);
+    },
+  });
 
   if (!state) return null;
-  // Nothing to say while there is nothing newer and the shell is not in the middle of something
-  const inFlight = state.status === 'downloading' || state.status === 'ready' || state.status === 'available';
-  if (!info.updateAvailable && !inFlight) return null;
+
+  const action = (label: ReactNode, icon: ReactNode, onClick: () => void, pending: boolean) => (
+    <div>
+      <button type="button" className={primary ? 'btn btn-primary' : 'btn'} disabled={pending} onClick={onClick}>
+        {icon} {label}
+      </button>
+    </div>
+  );
+  const tag =
+    state.status === 'idle' ? (
+      <Tag tone="ok">{t('updates.upToDateTag')}</Tag>
+    ) : state.status === 'available' || state.status === 'downloading' || state.status === 'verifying' || state.status === 'ready' ? (
+      <Tag tone="warn">{t('updates.availableTag')}</Tag>
+    ) : state.status === 'shell-replaced' ? (
+      <Tag tone="idle">{t('updates.installedTag')}</Tag>
+    ) : null;
 
   return (
-    <div className="stack" data-testid="update-desktop">
+    <div className="stack" data-testid="update-desktop" data-state={state.status}>
+      <div className="update-facts">
+        <span className="pref-row-title">{t('updates.desktopTitle')}</span>
+        <span>
+          {t('updates.version')} <span className="tnum">{shellVersion}</span>
+        </span>
+        {tag}
+      </div>
+
       {state.status === 'unsupported' && (
         <p className="alert alert-warn small" role="status">
           <Info className="alert-icon" {...ICON_SM} />
           <span className="alert-body">
-            {state.message}{' '}
+            {state.reason === 'development'
+              ? t('updates.unsupported.development')
+              : state.reason === 'read-only'
+                ? t('updates.shellUnsupported.read-only')
+                : state.reason === 'unknown-package'
+                  ? t('updates.shellUnsupported.unknown-package')
+                  : t('updates.shellUnsupported.other')}{' '}
             {info.url && (
               <a href={info.url} target="_blank" rel="noopener noreferrer">
                 {t('updates.desktopManual')}
@@ -264,14 +371,26 @@ function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: C
         </p>
       )}
 
-      {(state.status === 'idle' || state.status === 'available' || state.status === 'error') && (
-        <div>
-          <button type="button" className="btn btn-primary" disabled={download.isPending} onClick={() => download.mutate()}>
-            <Download {...ICON} /> {t('updates.download', { version: state.status === 'available' ? state.version : info.latest })}
-          </button>
+      {state.status === 'available' && (
+        <>
+          <p className="small">{t('updates.desktopAvailable', { version: state.version })}</p>
+          {action(t('updates.downloadDesktop', { version: state.version }), <Download {...ICON} />, () => download.mutate(), download.isPending)}
+        </>
+      )}
+
+      {state.status === 'error' && (
+        <div className="alert alert-bad" role="alert" data-testid="update-desktop-failed">
+          <AlertTriangle className="alert-icon" {...ICON_SM} />
+          <div className="alert-body stack">
+            <span>{state.code === 'bad-signature' ? t('updates.errors.bad-signature') : t('updates.desktopFailed')}</span>
+            <div>
+              <button type="button" className="btn btn-small" disabled={download.isPending} onClick={() => download.mutate()}>
+                {t('updates.tryAgain')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
-      {state.status === 'error' && <ErrorBox title={t('updates.desktopFailed')} error={new Error(state.message || t('updates.desktopFailed'))} />}
 
       {state.status === 'checking' && (
         <p className="small muted" role="status">
@@ -297,23 +416,84 @@ function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: C
         </div>
       )}
 
+      {state.status === 'verifying' && (
+        <p className="small" role="status">
+          <Spinner /> {t('updates.verifying')}
+        </p>
+      )}
+
       {state.status === 'ready' &&
         (scheduled === state.version ? (
           <p className="small" role="status">
             {t('updates.scheduled', { version: state.version })}
           </p>
         ) : (
-          <div>
-            <button type="button" className="btn btn-primary" disabled={install.isPending} onClick={() => install.mutate({})}>
-              <RotateCw {...ICON} /> {t('updates.restart', { version: state.version })}
-            </button>
-          </div>
+          action(t('updates.restart', { version: state.version }), <RotateCw {...ICON} />, () => install.mutate({}), install.isPending)
         ))}
-      <ErrorBox title={t('updates.desktopFailed')} error={failure} />
+
+      {state.status === 'apt-managed' && (
+        <div className="stack">
+          <p className="small">{t('updates.aptManaged')}</p>
+          {state.latest && <p className="small muted">{t('updates.aptLatest', { version: state.latest })}</p>}
+        </div>
+      )}
+
+      {state.status === 'copy-command' && (
+        <div className="stack" data-testid="update-copy-command">
+          <p className="small">{t('updates.copyIntro')}</p>
+          <Command command={state.command} />
+          <p className="small muted">{t('updates.copyAfter')}</p>
+        </div>
+      )}
+
+      {state.status === 'shell-replaced' && (
+        <div className="stack">
+          <p className="small" role="status">
+            {t('updates.shellReplaced', { version: state.version })}
+          </p>
+          {action(t('updates.restartClaudio'), <RotateCw {...ICON} />, () => install.mutate({}), install.isPending)}
+        </div>
+      )}
+
+      {failure !== null && failure !== undefined && <UpdateFailure code={updateErrorCode(failure)} retry={null} pending={false} testId="update-desktop-refused" />}
+
+      {switchState?.available && (
+        <div>
+          <button type="button" className="btn btn-small" onClick={() => setSwitching(true)}>
+            {t('updates.switchLink')}
+          </button>
+        </div>
+      )}
+      {switchState?.debStillInstalled && (
+        <div className="stack" data-testid="update-deb-still">
+          <p className="small">{t('updates.debStillInstalled')}</p>
+          <Command command={REMOVE_DEB_COMMAND} />
+        </div>
+      )}
+
+      {switching && (
+        <Dialog
+          title={t('updates.switchTitle')}
+          onClose={() => setSwitching(false)}
+          width={460}
+          footer={
+            <>
+              <button type="button" className="btn" onClick={() => setSwitching(false)}>
+                {t('updates.cancel')}
+              </button>
+              <button type="button" className="btn btn-primary" data-autofocus disabled={switchToAppImage.isPending} onClick={() => switchToAppImage.mutate({})}>
+                {t('updates.switchConfirm')}
+              </button>
+            </>
+          }
+        >
+          <p>{t('updates.switchBody')}</p>
+        </Dialog>
+      )}
 
       {busy && (
         <Dialog
-          title={t('updates.busyTitle', { version: busy.version })}
+          title={busy.switching ? t('updates.switchTitle') : t('updates.busyTitle', { version: busy.version })}
           onClose={() => setBusy(null)}
           width={460}
           footer={
@@ -321,24 +501,31 @@ function DesktopUpdate({ bridge, info }: { bridge: DesktopUpdatesBridge; info: C
               <button type="button" className="btn" onClick={() => setBusy(null)}>
                 {t('updates.cancel')}
               </button>
-              <button type="button" className="btn" data-autofocus disabled={install.isPending} onClick={() => install.mutate({ whenIdle: true })}>
-                {t('updates.whenQuit')}
-              </button>
-              <button type="button" className="btn btn-danger-solid" disabled={install.isPending} onClick={() => install.mutate({ force: true })}>
-                {t('updates.restartNow')}
+              {!busy.switching && (
+                <button type="button" className="btn" data-autofocus disabled={install.isPending} onClick={() => install.mutate({ whenIdle: true })}>
+                  {t('updates.whenQuit')}
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-danger-solid"
+                disabled={install.isPending || switchToAppImage.isPending}
+                onClick={() => (busy.switching ? switchToAppImage.mutate({ force: true }) : install.mutate({ force: true }))}
+              >
+                {busy.switching ? t('updates.switchConfirm') : t('updates.restartNow')}
               </button>
             </>
           }
         >
-          <p>{t('updates.busyBody', { live: liveSentence(busy.live) })}</p>
+          <p>{busy.switching ? t('updates.switchBusyBody', { live: liveSentence(busy.live) }) : t('updates.busyBody', { live: liveSentence(busy.live) })}</p>
         </Dialog>
       )}
     </div>
   );
 }
 
-/** Claudio's own update inside its container: the server's state, and the calls that move it on */
-function ServerUpdate({ status, info, steps }: { status: ServerUpdateStatus; info: ClaudioReleaseInfo; steps: ReactNode }) {
+/** Claudio's own update (the payload): the server's state, and the calls that move it on */
+function ServerUpdate({ status, info, steps, actions }: { status: ServerUpdateStatus; info: ClaudioReleaseInfo; steps: ReactNode; actions: PayloadActions }) {
   const queryClient = useQueryClient();
   const liveSentence = useLiveSentence();
   const [busy, setBusy] = useState<{ revert: boolean; live: LiveWork } | null>(null);
@@ -348,11 +535,16 @@ function ServerUpdate({ status, info, steps }: { status: ServerUpdateStatus; inf
   const [before, setBefore] = useState<string | null>(null);
 
   const take = (next: ServerUpdateStatus) => queryClient.setQueryData(keys.serverUpdate, next);
-  const download = useMutation({ mutationFn: () => api.downloadServerUpdate(), onSuccess: take, onError: setFailure });
-  const cancel = useMutation({ mutationFn: api.cancelServerUpdate, onSuccess: take, onError: setFailure });
+  // A refusal says the offer the card judged from has changed (a 412 after a newer check): ask again
+  const refused = (error: unknown) => {
+    setFailure(error);
+    void queryClient.invalidateQueries({ queryKey: keys.serverUpdate });
+  };
+  const download = useMutation({ mutationFn: () => actions.download(), onSuccess: take, onError: refused });
+  const cancel = useMutation({ mutationFn: () => actions.cancel(), onSuccess: take, onError: refused });
   // Applying and going back ask the same question of a person when work is live
   const restart = useMutation({
-    mutationFn: ({ revert, ...body }: ServerUpdateApplyRequest & { revert?: boolean }) => (revert ? api.revertServerUpdate(body) : api.applyServerUpdate(body)),
+    mutationFn: ({ revert, ...body }: ServerUpdateApplyRequest & { revert?: boolean }) => (revert ? actions.revert(body) : actions.apply(body)),
     onMutate: () => setFailure(null),
     onSuccess: (next) => {
       setBusy(null);
@@ -362,7 +554,7 @@ function ServerUpdate({ status, info, steps }: { status: ServerUpdateStatus; inf
     onError: (error, vars) => {
       const live = liveWorkOf(error);
       setBusy(live ? { revert: Boolean(vars.revert), live } : null);
-      if (!live) setFailure(error);
+      if (!live) refused(error);
     },
   });
 
@@ -404,7 +596,7 @@ export interface ServerUpdateViewProps {
   status: ServerUpdateStatus;
   latest: string | null;
   updateAvailable: boolean;
-  /** The host commands, for where the container cannot update itself */
+  /** The host commands, for where Claudio cannot update itself (a container) */
   steps: ReactNode;
   pending: boolean;
   failure: unknown;
@@ -419,22 +611,45 @@ export interface ServerUpdateViewProps {
   onCloseBusy: () => void;
 }
 
-/** The container's own update, state by state; one `btn-primary` at most (docs/plans/container-polish.md, Design) */
+/** A failure of the update in words, from its code and never from the server's text; the way out is a button or the sentence itself */
+function UpdateFailure({ code, retry, pending, testId }: { code: string | null; retry: (() => void) | null; pending: boolean; testId: string }) {
+  const { t } = useTranslation('config');
+  const known = updateErrorCode(code);
+  return (
+    <div className="alert alert-bad" role="alert" data-testid={testId}>
+      <AlertTriangle className="alert-icon" {...ICON_SM} />
+      <div className="alert-body stack">
+        <span>{known ? <Trans t={t} i18nKey={`updates.errors.${known}`} components={{ mono: <span className="mono" /> }} /> : t('updates.desktopFailed')}</span>
+        {retry && canRetryUpdate(known) && (
+          <div>
+            <button type="button" className="btn btn-small" disabled={pending} onClick={retry}>
+              {t('updates.tryAgain')}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The Claudio zone, state by state; one `btn-primary` at most (docs/plans/container-polish.md and unified-updates.md, Design) */
 export function ServerUpdateView(props: ServerUpdateViewProps) {
   const { t } = useTranslation('config');
   const { status, latest, updateAvailable, steps, pending, failure, busy, liveSentence } = props;
   const { state } = status;
   const version = status.target ?? latest ?? '';
+  const onShell = status.base === 'shell';
 
   if (status.unsupportedReason) {
-    // `not-docker` cannot reach here (the card asked because it is a container); the steps stand alone
+    // `not-docker` cannot reach here (the card asked because it is a container or a desktop app); the steps stand alone
     const reason = status.unsupportedReason;
+    const ownWords = onShell && (reason === 'no-launcher' || reason === 'no-keys');
     return (
       <div className="stack" data-testid="server-update-unsupported">
         {reason !== 'not-docker' && (
           <p className="alert alert-warn small" role="status">
             <Info className="alert-icon" {...ICON_SM} />
-            <span className="alert-body">{t(`updates.unsupported.${reason}`)}</span>
+            <span className="alert-body">{ownWords ? t(`updates.unsupportedDesktop.${reason}`) : t(`updates.unsupported.${reason}`)}</span>
           </p>
         )}
         {steps}
@@ -443,9 +658,17 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
   }
 
   const percent = Math.round((status.progress ?? 0) * 100);
-  const failed = state === 'failed' && status.error !== null && status.error !== 'needs-image';
-  const needsImage = status.needsImage;
+  const { needsImage, needsShell } = status;
   const rolledBack = status.lastRollback;
+  const offer = status.offer;
+  // The newest release cannot be installed here, known before any download: no button for what would fail
+  const blocked = updateAvailable && offer && !offer.installable ? offer.blocked : null;
+  const otherBlock = blocked === 'no-bundle' || blocked === 'unverified' || blocked === 'failed-before' ? blocked : null;
+  const notInstallable = needsImage !== null || needsShell !== null || blocked !== null;
+  const errorCode = status.error;
+  // The alerts above already say a release needs a newer image or desktop app
+  const failed = state === 'failed' && errorCode !== null && !(errorCode === 'needs-image' && needsImage) && !(errorCode === 'needs-shell' && needsShell);
+  const idleOrFailed = state === 'idle' || state === 'failed';
 
   return (
     <div className="stack" data-testid="server-update" data-state={state}>
@@ -453,7 +676,7 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
         <div className="alert alert-warn" role="status" data-testid="server-update-rollback">
           <AlertTriangle className="alert-icon" {...ICON_SM} />
           <div className="alert-body stack">
-            <span>{t('updates.rolledBack', { from: rolledBack.from, to: rolledBack.to })}</span>
+            <span>{t(onShell ? 'updates.rolledBackShell' : 'updates.rolledBack', { from: rolledBack.from, to: rolledBack.to })}</span>
             <div>
               <button type="button" className="btn btn-small" onClick={props.onDismissRollback}>
                 {t('updates.dismiss')}
@@ -463,7 +686,7 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
         </div>
       )}
 
-      {needsImage && (state === 'idle' || state === 'failed') && (
+      {needsImage && idleOrFailed && (
         <>
           <div className="alert alert-warn" role="status" data-testid="server-update-needs-image">
             <AlertTriangle className="alert-icon" {...ICON_SM} />
@@ -473,8 +696,26 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
         </>
       )}
 
+      {/* The Desktop app zone under it carries the action */}
+      {needsShell && idleOrFailed && (
+        <div className="alert alert-warn" role="status" data-testid="server-update-needs-shell">
+          <AlertTriangle className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">{t('updates.needsShell', needsShell)}</span>
+        </div>
+      )}
+
+      {otherBlock && idleOrFailed && !needsImage && !needsShell && (
+        <>
+          <div className="alert alert-warn" role="status" data-testid="server-update-blocked" data-blocked={otherBlock}>
+            <AlertTriangle className="alert-icon" {...ICON_SM} />
+            <span className="alert-body">{t(`updates.blocked.${otherBlock}`, { version: offer?.version ?? latest ?? '' })}</span>
+          </div>
+          {otherBlock === 'no-bundle' && steps}
+        </>
+      )}
+
       {/* After a failure the alert's Try again is the way forward: a second button for the same call would be two primaries */}
-      {!needsImage && state === 'idle' && updateAvailable && (
+      {!notInstallable && state === 'idle' && updateAvailable && (
         <div>
           <button type="button" className="btn btn-primary" disabled={pending} onClick={props.onDownload}>
             <Download {...ICON} /> {t('updates.download', { version: latest })}
@@ -522,38 +763,26 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
 
       {state === 'restarting' && (
         <p className="small" role="status">
-          <Spinner /> {t('updates.restarting')}
+          <Spinner /> {t(onShell ? 'updates.restartingShell' : 'updates.restarting')}
         </p>
       )}
 
-      {failed && status.error && (
-        <div className="alert alert-bad" role="alert" data-testid="server-update-failed">
-          <AlertTriangle className="alert-icon" {...ICON_SM} />
-          <div className="alert-body stack">
-            <span>
-              <Trans t={t} i18nKey={`updates.serverError.${status.error}`} components={{ mono: <span className="mono" /> }} />
-            </span>
-            <div>
-              <button type="button" className="btn btn-small" disabled={pending} onClick={props.onDownload}>
-                {t('updates.tryAgain')}
-              </button>
-            </div>
-          </div>
-        </div>
+      {failed && <UpdateFailure code={errorCode} retry={props.onDownload} pending={pending} testId="server-update-failed" />}
+      {failure !== null && failure !== undefined && (
+        <UpdateFailure code={updateErrorCode(failure)} retry={null} pending={pending} testId="server-update-refused" />
       )}
-      <ErrorBox title={t('updates.desktopFailed')} error={failure} />
 
       {status.source === 'overlay' && (state === 'idle' || state === 'failed' || state === 'ready') && (
         <div>
           <button type="button" className="btn btn-small" disabled={pending} onClick={() => props.onRevert({})}>
-            {t('updates.revert', { image: status.image })}
+            {onShell ? t('updates.revertShell', { shell: status.shell?.version ?? status.image }) : t('updates.revert', { image: status.image })}
           </button>
         </div>
       )}
 
       {busy && (
         <Dialog
-          title={busy.revert ? t('updates.revert', { image: status.image }) : t('updates.busyTitle', { version })}
+          title={busy.revert ? (onShell ? t('updates.revertShell', { shell: status.shell?.version ?? status.image }) : t('updates.revert', { image: status.image })) : t('updates.busyTitle', { version })}
           onClose={props.onCloseBusy}
           width={460}
           footer={

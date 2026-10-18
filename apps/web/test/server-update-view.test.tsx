@@ -175,3 +175,109 @@ test('the card asks again soon only while the server is doing something', () => 
   assert.equal(serverUpdateRefetchMs({ state: 'ready' }), false);
   for (const state of ['downloading', 'verifying', 'restarting'] as const) assert.equal(serverUpdateRefetchMs({ state }), 2000);
 });
+
+// ---- Unified updates (docs/plans/unified-updates.md): not installable, errors by code, the shell as base ----
+
+const shell = { version: '0.6.0', package: 'appimage' as const, shellInputs: 'x', aptManaged: false };
+
+test('a release published without a bundle offers no download, says so, and keeps the host commands', async () => {
+  const offer = { version: '0.7.0', installable: false, blocked: 'no-bundle' as const };
+  const html = await render({ status: status({ offer }) });
+  assert.doesNotMatch(html, /Download Claudio/);
+  assert.match(words(html), /Claudio 0\.7\.0 cannot be installed from here: it was published without an in-app update/);
+  assert.match(html, /host-steps/);
+  assert.equal(primaries(html), 0);
+  assert.match(words(await render({ status: status({ offer }) }, 'es')), /Claudio 0\.7\.0 no se puede instalar desde aquí/);
+});
+
+test('a release that could not be checked, or that failed to start here before, says so and offers nothing', async () => {
+  const unverified = await render({ status: status({ offer: { version: '0.7.0', installable: false, blocked: 'unverified' } }) });
+  assert.match(words(unverified), /Claudio 0\.7\.0 could not be checked, so it is not offered\. Check again later/);
+  assert.doesNotMatch(unverified, /host-steps/);
+  const before = await render({ status: status({ offer: { version: '0.7.0', installable: false, blocked: 'failed-before' } }) });
+  assert.match(words(before), /did not start here before, so it is not offered again/);
+  for (const html of [unverified, before]) {
+    assert.doesNotMatch(html, /<button/);
+    assert.equal(primaries(html), 0);
+  }
+});
+
+test('an installable offer keeps the download button', async () => {
+  const html = await render({ status: status({ offer: { version: '0.7.0', installable: true, blocked: null } }) });
+  assert.match(words(html), /Download Claudio 0\.7\.0/);
+  assert.equal(primaries(html), 1);
+});
+
+test('a release that needs a newer desktop app warns, names it, and drops the zone’s own primary', async () => {
+  const needsShell = { version: '0.8.0', minShell: '0.7.5' };
+  const html = await render({ status: status({ base: 'shell', shell, needsShell, offer: { version: '0.8.0', installable: false, blocked: 'needs-shell' } }), steps: null });
+  assert.match(words(html), /Claudio 0\.8\.0 needs a newer desktop app \(0\.7\.5 or later\)\. Update the desktop app first; Claudio follows on its own/);
+  assert.match(html, /alert-warn/);
+  assert.equal(primaries(html), 0);
+  assert.doesNotMatch(html, /Try again/);
+  assert.match(words(await render({ status: status({ base: 'shell', shell, needsShell }), steps: null }, 'es')), /necesita una aplicación de escritorio más reciente \(0\.7\.5 o posterior\)/);
+});
+
+test('a needs-shell failure has a way out in the desktop app, and no Try again', async () => {
+  const html = await render({ status: status({ state: 'failed', error: 'needs-shell', needsShell: { version: '0.8.0', minShell: '0.7.5' } }) });
+  assert.match(html, /server-update-needs-shell/);
+  assert.doesNotMatch(html, /Try again/);
+  assert.doesNotMatch(html, /server-update-failed/);
+});
+
+test('a refusal is worded from its code, never from the server’s text', async () => {
+  const cases: Array<[string, RegExp]> = [
+    ['update.needs-auth', /protect access with a token/],
+    ['update.not-owner', /Only the owner can update Claudio/],
+    ['update.unsupported', /cannot update itself/],
+    ['update.no-release', /no installable release/],
+    ['update.busy', /Another step of the update is running/],
+    ['update.not-ready', /not ready to install yet/],
+    ['update.not-overlay', /already running the version it came with/],
+  ];
+  for (const [code, pattern] of cases) {
+    const html = await render({ failure: Object.assign(new Error('the release 0.6.1 has no server bundle'), { code }) });
+    assert.match(words(html), pattern, code);
+    assert.doesNotMatch(words(html), /has no server bundle/, code);
+  }
+  // The owner saw the server's English text in a Spanish page
+  const es = await render({ failure: Object.assign(new Error('the release 0.6.1 has no server bundle'), { code: 'update.no-release' }) }, 'es');
+  assert.match(words(es), /No hay ninguna versión instalable/);
+  assert.doesNotMatch(words(es), /has no server bundle/);
+});
+
+test('a refusal this build does not know shows the generic sentence, never the server’s text', async () => {
+  const html = await render({ failure: Object.assign(new Error('something odd happened'), { code: 'update.invented' }) });
+  assert.match(words(html), /The update did not go through/);
+  assert.doesNotMatch(words(html), /something odd/);
+});
+
+test('a refusal that another try cannot change offers no Try again', async () => {
+  const html = await render({ failure: Object.assign(new Error('x'), { code: 'update.not-owner' }) });
+  assert.doesNotMatch(html, /Try again/);
+});
+
+test('under the desktop app the zone speaks of the app: restarting, rollback and the way back', async () => {
+  const restarting = await render({ status: status({ base: 'shell', shell, state: 'restarting', target: '0.7.0' }) });
+  assert.match(words(restarting), /Restarting Claudio… the window reloads on its own/);
+  const rolled = await render({ status: status({ base: 'shell', shell, lastRollback: { from: '0.7.0', to: '0.6.0', at: 'x' } }) });
+  assert.match(words(rolled), /Claudio 0\.7\.0 did not start, so the app went back to 0\.6\.0/);
+  const overlay = await render({ status: status({ base: 'shell', shell, source: 'overlay', running: '0.7.0' }), updateAvailable: false });
+  assert.match(words(overlay), /Go back to the desktop app's version \(0\.6\.0\)/);
+});
+
+test('a desktop app that cannot update itself says so in its own words, not the container’s', async () => {
+  const off = await render({ status: status({ base: 'shell', shell, unsupportedReason: 'no-launcher' }), steps: null });
+  assert.match(words(off), /Updating Claudio from here is turned off/);
+  assert.doesNotMatch(words(off), /container/);
+  assert.match(words(await render({ status: status({ base: 'shell', shell, unsupportedReason: 'development' }), steps: null })), /runs from a checkout/);
+});
+
+test('the busy dialog counts the open terminals, and the Spanish plural agrees', async () => {
+  await i18n.changeLanguage('en');
+  assert.equal(i18n.t('updates.live.terminals', { ns: 'config', count: 1 }), '1 terminal is open');
+  assert.equal(i18n.t('updates.live.terminals', { ns: 'config', count: 3 }), '3 terminals are open');
+  await i18n.changeLanguage('es');
+  assert.equal(i18n.t('updates.live.terminals', { ns: 'config', count: 1 }), '1 terminal está abierta');
+  assert.equal(i18n.t('updates.live.terminals', { ns: 'config', count: 2 }), '2 terminales están abiertas');
+});

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { PayloadAction } from './updates';
 
 /**
  * The desktop shell (apps/desktop) loads this same UI in an Electron window whose title bar is
@@ -29,6 +30,8 @@ export interface DesktopBridge {
   onNavigate?: (listener: (path: string) => void) => () => void;
   /** The app's own updates, through electron-updater; see lib/updates.ts for the shapes it answers with */
   updates?: DesktopUpdatesBridge;
+  /** Tells the shell the web rendered (`notifyPageReady`); the shell may expose it under `updates` instead */
+  pageReady?: () => void;
 }
 
 /**
@@ -41,6 +44,18 @@ export interface DesktopUpdatesBridge {
   onState: (listener: (state: unknown) => void) => () => void;
   download: () => Promise<unknown>;
   install: (options?: { whenIdle?: boolean; force?: boolean }) => Promise<unknown>;
+  /**
+   * The payload's writes, made by the shell with its own credential: the window holds none
+   * (docs/plans/unified-updates.md, D8). Optional like every method here, so an older shell shows
+   * the server's state without actions.
+   */
+  payload?: (action: PayloadAction) => Promise<unknown>;
+  /** Whether the `.deb` can become the AppImage here (`parseSwitchState` reads the answer) */
+  switchState?: () => Promise<unknown>;
+  /** Installs the AppImage and restarts from it; answers like `install` */
+  switchToAppImage?: (options?: { force?: boolean }) => Promise<unknown>;
+  /** Tells the shell the web rendered, which ends a payload trial's window check (also read from the bridge itself) */
+  pageReady?: () => void;
 }
 
 declare global {
@@ -84,6 +99,21 @@ export function syncDesktopTitleBar(): void {
     const theme = titleBarTheme(getComputedStyle(document.documentElement));
     if (theme) bridge.setTitleBarTheme?.(theme);
   });
+}
+
+/**
+ * Tells the shell this page rendered. A new payload's trial boot waits for it (30 s after the window
+ * loads) before it counts as good, so a web that answers /api/health and never paints is rolled back.
+ * Once per page load; nothing in a browser or under an older shell.
+ */
+let pageReadySent = false;
+export function notifyPageReady(): void {
+  if (pageReadySent || typeof window === 'undefined') return;
+  const bridge = window.claudioDesktop;
+  const send = bridge?.pageReady ?? bridge?.updates?.pageReady;
+  if (!send) return;
+  pageReadySent = true;
+  send();
 }
 
 /** Opens what the tray picks (a live chat, New chat…) with the app's router, keeping its state. */
