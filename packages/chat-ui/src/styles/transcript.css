@@ -458,10 +458,15 @@
   opacity: 1;
 }
 
-/* No hover on touch: the copy button would be there but unseen */
+/* No hover on touch: the copy button would be there but unseen. Its target is a finger's, so a
+   one-line block is as tall as the bar, or the block's overflow cuts the button */
 @media (hover: none) {
   .code-block-bar {
     opacity: 1;
+  }
+
+  .code-block:not(.has-header) {
+    min-height: calc(var(--touch) + 10px);
   }
 }
 

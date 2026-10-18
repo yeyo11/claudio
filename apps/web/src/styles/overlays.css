@@ -1,7 +1,9 @@
 /* Overlays: dialogs, popovers, toasts and the scrim they sit on. */
 .overlay {
   position: fixed;
-  inset: 0;
+  /* Where the browser does not shrink the page for the on-screen keyboard (iOS), lib/viewport.ts
+     measures it: the dialog is laid out in what is left, not behind the keyboard */
+  inset: 0 0 var(--keyboard-inset, 0px);
   z-index: 100;
   display: flex;
   align-items: center;
@@ -10,6 +12,11 @@
   background: var(--scrim);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+}
+
+:root[data-keyboard='open'] .overlay {
+  /* The keyboard covers the home indicator: the gutter is all the room the panel keeps */
+  padding-bottom: var(--overlay-gutter);
 }
 
 .overlay-drawer {
@@ -47,8 +54,19 @@
 }
 
 .dialog-head h2 {
+  /* A flex child sizes to its longest line: without this a long title pushes the close button out */
+  flex: 1 1 auto;
+  min-width: 0;
+  /* A title is often a name someone typed (a project, a group, a branch, a path): one word with no
+     break in it wraps instead of running under the close button */
+  overflow-wrap: anywhere;
   font-size: var(--fs-section);
   letter-spacing: var(--tracking-title);
+}
+
+/* An inline span ignores overflow, so the ellipsis a title asks for needs a box */
+.dialog-head h2 > .ellipsis {
+  display: block;
 }
 
 .dialog-body {
@@ -58,6 +76,9 @@
   flex-direction: column;
   gap: 14px;
   color: var(--text-muted);
+  /* What a dialog shows is what someone typed or a tool printed (ids, paths, URLs): a word with no
+     break in it wraps rather than make the body scroll sideways */
+  overflow-wrap: anywhere;
 }
 
 .dialog-body .field,
@@ -69,6 +90,20 @@
   margin: 0;
 }
 
+/* A finger needs 44 px: the folds, the text buttons and the lone links a dialog, a sheet or the
+   notification panel carries
+   are 20-26 px tall on their own (a link inside a sentence is left to its line) */
+@media (pointer: coarse) {
+  :is(.dialog-body, .sheet-body, .notif-panel) :is(.collapsible-trigger, .link-btn, .kv dd > a:only-child) {
+    min-height: var(--touch);
+  }
+
+  :is(.dialog-body, .sheet-body) .kv dd > a:only-child {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
 .dialog-section {
   margin: 4px 0 0;
   font-size: var(--fs-small);
@@ -78,12 +113,21 @@
 
 .dialog-foot {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 18px;
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   background: var(--bg-sunken);
+}
+
+/* Two or three actions do not fit side by side on a 320 px phone: they wrap onto their own line, and
+   a label longer than the footer wraps too, so no action is ever cut or pushed off screen */
+.dialog-foot > .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 
 .toasts {
@@ -192,7 +236,8 @@
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   animation: fade-in var(--dur-base) var(--ease-out);
-  padding-top: env(safe-area-inset-top);
+  /* Below the desktop app's window controls, which the page paints under (--chrome-top, shell.css) */
+  padding-top: max(env(safe-area-inset-top, 0px), var(--chrome-top));
   padding-bottom: env(safe-area-inset-bottom);
 }
 

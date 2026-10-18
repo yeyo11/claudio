@@ -101,7 +101,9 @@ function TieDialog({ item, tied, onClose }: { item: WorkItemDetail; tied: Readon
             {shown.map((file) => (
               <li key={file.path}>
                 <button type="button" className="relation-row relation-pick" disabled={tie.isPending} onClick={() => tie.mutate(file.path)}>
-                  <span className="relation-title">{file.title ?? file.name}</span>
+                  <span className="relation-title" title={file.title ?? file.name}>
+                    {file.title ?? file.name}
+                  </span>
                   <span className="mono small muted ellipsis">{file.path}</span>
                 </button>
               </li>
