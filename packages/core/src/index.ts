@@ -3316,7 +3316,7 @@ export class Core {
   private accountsSnapshot(): AccountsSnapshot {
     const list = this.accounts.listed();
     const ready = list.filter((a) => a.enabled && a.signedIn);
-    return { total: list.length, ready: ready.length, current: this.accounts.pick({ current: null }).account };
+    return { total: list.length, ready: ready.length, current: this.accountInUse()?.id ?? null };
   }
 
   /** A signed-in account other than the CLI's own login, when there is one: Claude can run on it though the CLI itself is signed out. */

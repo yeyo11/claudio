@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -269,6 +269,10 @@ test('the overview counts the accounts and names the one new work starts on', as
   const config = tempConfig();
   const core = new Core({ ...config, claudeBin: FAKE_CLAUDE });
   try {
+    // The CLI's own login has no credential at all here, so it is not counted
+    assert.deepEqual((await core.overview()).accounts, { total: 0, ready: 0, current: null });
+    mkdirSync(config.configDir, { recursive: true });
+    writeFileSync(join(config.configDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
     const before = (await core.overview()).accounts;
     assert.deepEqual(before, { total: 1, ready: 1, current: DEFAULT_ID });
     await core.accounts.add({ kind: 'token', alias: 'alpha', secret: 'tok' });
