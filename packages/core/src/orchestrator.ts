@@ -73,6 +73,7 @@ import {
   reviewFixerPrompt,
   REVIEW_DEFAULTS,
   installStep,
+  LOCKFILES,
   errorCount,
   failureSignature,
   parseFixerReport,
@@ -220,6 +221,33 @@ const commandsInOrder = (rows: readonly VerificationCommand[]): Array<string | s
     const commands = step.map((i) => (rows[i] as VerificationCommand).command);
     return commands.length === 1 ? (commands[0] as string) : commands;
   });
+
+/** The head of a worktree, or null when it cannot be read. */
+function headOrNull(root: string): string | null {
+  try {
+    return headCommit(root);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether a fix changed what an install reads: a lockfile or a package.json anywhere in the tree.
+ * When the diff cannot be read the answer is yes, since installing again is the safe side.
+ */
+function touchedDependencies(root: string, before: string | null, after: string | null): boolean {
+  if (!before || !after) return true;
+  if (before === after) return false;
+  try {
+    const names = new Set<string>(['package.json', ...LOCKFILES.map(([file]) => file)]);
+    return git(root, ['diff', '--name-only', '-z', before, after])
+      .split('\0')
+      .some((path) => names.has(path.split('/').at(-1) ?? ''));
+  } catch {
+    return true;
+  }
+}
+
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
 /** What a stop reaches while a graph's checks are running. */
@@ -2089,8 +2117,9 @@ ${quoted}
 
   /**
    * The verification phase: the graph's checks, in order, on the integration branch, once every
-   * task is merged. A failing check goes to a fixer agent if the graph asked for one, and every
-   * check runs again from the first after a fix, because a fix for one can break another. What comes
+   * task is merged. A failing check goes to a fixer agent if the graph asked for one. After a fix
+   * the check that failed runs alone first, so a fix that did not work is known at once; once it
+   * passes every check runs again from the first, because a fix for one can break another. What comes
    * out is recorded on `orch.verification` whatever happens; this never throws.
    */
   private async runChecks(orch: Orchestration): Promise<void> {
@@ -2238,11 +2267,17 @@ ${quoted}
       state.report = [headline, left.length ? `Not run: ${left.map((c) => `\`${c}\``).join(', ')}.` : ''].filter(Boolean).join(' ');
     };
 
-    let s = 0;
+    const everyStep = steps.map((_, k) => k);
+    // The steps this stretch runs, in order: all of them, or after a fix the probe (the step that
+    // failed, and the install when the fix touched what it reads) ahead of the full pass
+    let queue = everyStep;
+    let probing = false;
+    let q = 0;
     // Goes up each time a fix sends every check back to pending, so each run says which pass it was
     // A run after a review fix continues the numbering, so the history says which pass each run was
     let pass = Math.max(0, ...state.commands.flatMap((c) => (c.runs ?? []).map((r) => r.pass))) + 1;
-    while (s < steps.length) {
+    while (q < queue.length) {
+      const s = queue[q] as number;
       const step = steps[s] as number[];
       for (const i of step) (state.commands[i] as VerificationCommand).status = 'running';
       this.persist();
@@ -2264,6 +2299,7 @@ ${quoted}
           // History, not a replacement: a failing run a fix mended is what the timings are after
           (entry.runs ??= []).push({
             pass,
+            ...(probing ? { probe: true as const } : {}),
             startedAt,
             durationMs: outcome.durationMs,
             status: outcome.ok && !control.cancelled ? 'passed' : 'failed',
@@ -2287,7 +2323,14 @@ ${quoted}
           why: outcome.timedOut ? `timed out after ${String(minutes)} min and was killed` : `exited with code ${String(outcome.exitCode ?? 'unknown')}`,
         }));
       if (failed.length === 0) {
-        s += 1;
+        q += 1;
+        if (probing && q >= queue.length) {
+          // What failed passes now; the head still has to pass every check together, from the first
+          probing = false;
+          queue = everyStep;
+          q = 0;
+          for (const c of state.commands) c.status = 'pending';
+        }
         continue;
       }
 
@@ -2367,6 +2410,7 @@ ${quoted}
       this.persist();
       const covers = new Set(failed.map((f) => f.i));
       const earlier = notes.filter((n) => [...covers].some((i) => n.covers.has(i))).map((n) => n.note);
+      const headBeforeFix = headOrNull(root);
       const attempt = await this.fix(
         orch,
         spec,
@@ -2393,9 +2437,16 @@ ${quoted}
         );
       }
       for (const f of failed) mended.add(f.i);
-      // A fix for one check can break another: they all run again, from the first
+      // A fix for one check can break another, so every check runs again from the first. Before that
+      // the step that failed runs alone: if the fix did not mend it, the fixer hears so now and not
+      // after a whole pass. Nothing is skipped; the probe is an extra run.
       for (const c of state.commands) c.status = 'pending';
-      s = 0;
+      const reinstall = s !== 0 && state.commands[0]?.install === true && touchedDependencies(root, headBeforeFix, headOrNull(root));
+      const probe = reinstall ? [0, s] : [s];
+      // A probe of the first step is the first step of the full pass already
+      probing = !(probe.length === 1 && s === 0);
+      queue = probing ? probe : everyStep;
+      q = 0;
       pass += 1;
     }
 

@@ -219,7 +219,7 @@ export function reviewFixerPrompt(ctx: ReviewFixerContext): string {
 }
 
 /** Lockfiles Claudio knows, in the order they are looked for, with the install that keeps to each. */
-const LOCKFILES: ReadonlyArray<readonly [file: string, command: string]> = [
+export const LOCKFILES: ReadonlyArray<readonly [file: string, command: string]> = [
   ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
   ['package-lock.json', 'npm ci'],
   ['yarn.lock', 'yarn install --frozen-lockfile'],

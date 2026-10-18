@@ -160,6 +160,7 @@ test('the phases after the tasks come from the recorded times, and the verificat
       commands: [
         { command: 'pnpm e2e', status: 'fixed', output: '', durationMs: 14 * MIN, runs: [
           { pass: 1, startedAt: t(21), durationMs: 15 * MIN, status: 'failed' },
+          { pass: 2, probe: true, startedAt: t(52), durationMs: 2 * MIN, status: 'passed' },
           { pass: 2, startedAt: t(56), durationMs: 14 * MIN, status: 'passed' },
         ] },
       ],
@@ -172,10 +173,11 @@ test('the phases after the tasks come from the recorded times, and the verificat
   const timings = orchestrationTimings(orch, [chat('a', [exec(0, 20)])], new Date(t(90)));
   assert.deepEqual(timings.phases.map((p) => [p.phase, p.durationMs / MIN]), [['tasks', 20], ['integration', 1], ['verification', 49], ['synthesis', 10]]);
   assert.equal(timings.afterTasksMs, 60 * MIN);
-  assert.equal(timings.verification?.checksMs, 29 * MIN);
+  assert.equal(timings.verification?.checksMs, 31 * MIN);
   assert.equal(timings.verification?.fixerMs, 20 * MIN);
+  // The quick re-check belongs to pass 2 and adds its time, but is no pass of its own
   assert.equal(timings.verification?.passes, 2);
-  assert.equal(timings.verification?.commands[0]?.totalMs, 29 * MIN);
+  assert.equal(timings.verification?.commands[0]?.totalMs, 31 * MIN);
   assert.equal(timings.verification?.fixes[0]?.runId, 'fixer-1');
   assert.deepEqual(timings.missing, []);
 });

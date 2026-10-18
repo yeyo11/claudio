@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - orchestration
     - planner
@@ -147,6 +147,10 @@ that leaves it out. The full design is in [plans/review-gate.md](plans/review-ga
   high finding goes to a separate verifier whose default answer is `refuted`.
 - **What blocks.** A finding of high severity or more that is `confirmed` or `uncertain`, and the
   deterministic ones. The rest is advisory.
+- **Checks after a fix.** The check fixer's fix is tested by running the check that failed first, on
+  its own (with the install step ahead of it if the fix touched a lockfile or a `package.json`). A
+  fix that did not mend it goes back to the fixer at once; one that did sends every check through
+  again from the first. Those quick re-checks show in the timings ([[orchestration-timings.md]]).
 - **The fixer loop.** A blocking review goes to a fixer, every check runs again from the first, and
   the review runs again, up to `maxFixRounds` fixer rounds (so at most `maxFixRounds + 1` reviews).
   The loop stops early when a fix makes the review worse, when the gate's budget is spent, or when

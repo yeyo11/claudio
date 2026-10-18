@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:57:10.191855215Z
-updated_at: 2026-10-07T12:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - plan
     - orchestration
@@ -48,7 +48,8 @@ types → core → web → web-review → docs
 
 ### 2. Verification runs the e2e suite twice, and the suite keeps growing
 
-After a fix, every check runs again from the first (`checkAll` in `orchestrator.ts`, on purpose,
+After a fix, every check runs again from the first, once the check that failed has passed alone
+(2026-10-18, [[plans/review-gate.md]]) (`checkAll` in `orchestrator.ts`, on purpose,
 because one fix can break another check). Meanwhile the e2e suite on the merged branch went from
 5.8 min (`post-roadmap`) to 18.3 min (`ecosystem-gaps`). It failed on 6 of 9 verifications, mostly
 because specs no longer matched a UI that had changed. The usual sequence was a failing e2e run

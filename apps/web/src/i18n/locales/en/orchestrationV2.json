@@ -256,6 +256,7 @@
     "fixer_one": "fixer {{duration}}, {{count}} attempt",
     "fixer_other": "fixer {{duration}}, {{count}} attempts",
     "pass": "pass {{n}}",
+    "probe": "quick re-check",
     "failed": "failed",
     "noRuns": "Its runs were not recorded.",
     "missing": "Older graph: some phases were not recorded.",

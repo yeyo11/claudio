@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T18:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - plan
     - spec
@@ -26,7 +26,8 @@ The plan measured where the time goes after the last task (section 2):
 
 - Verification runs the whole e2e suite on the merged branch. That suite grew from 5.8 min to
   18.3 min, and it runs in series on one server, one Chrome and the fixed port 8799.
-- After a fix, every check runs again from the first. `checkAll` in
+- After a fix, every check runs again from the first (since 2026-10-18 after a quick run of the
+  failed check alone, see [[plans/review-gate.md]]). `checkAll` in
   `packages/core/src/orchestrator.ts` does this on purpose, because one fix can break another
   check. So whenever the fixer works, the suite runs twice.
 - `pnpm typecheck` and `pnpm test` do not depend on each other, yet they run one after the other.
