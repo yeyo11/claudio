@@ -3,7 +3,7 @@ import { get } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import { REDACTED } from '@claudio/shared';
@@ -19,7 +19,13 @@ interface Wrapper {
   core: Core;
 }
 
+const roots = new Set<string>();
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'claudio-security-'))): Promise<Wrapper> {
+  roots.add(root);
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',

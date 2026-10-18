@@ -314,6 +314,15 @@ export class AuthStore {
   }
 
   /**
+   * Whether `credential` is the desktop app's per-launch secret, sent from this machine, whatever the
+   * mode. Under `none` `actorFor` answers `local` for anything, so the four update writes the desktop
+   * shell makes ask this instead (docs/plans/unified-updates.md, D8).
+   */
+  isDesktopCredential(credential: string | undefined, fromLocalMachine: boolean): boolean {
+    return fromLocalMachine && credential !== undefined && this.desktopHash !== null && sameSecret(credential, this.desktopHash);
+  }
+
+  /**
    * Who is knocking, from the credential they presented: a token id, an OIDC subject, `desktop`
    * for the desktop app's own secret, or `local` when nothing guards the API. `null` means the
    * credential is not good, and the caller answers 401 without saying which part of it was wrong.

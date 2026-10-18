@@ -748,7 +748,8 @@ export class Core {
     };
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
-    this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events });
+    // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
+    this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events, onChecked: () => void this.serverUpdates.inspect() });
     const securityState = () => ({ mode: this.security.mode, readOnly: this.security.readOnly });
     this.serverUpdates = new ServerUpdates({
       dataDir: config.dataDir,
@@ -761,6 +762,8 @@ export class Core {
       events: this.events,
     });
     this.serverUpdates.auditRollback();
+    // At start too, from the release the last check left: the card never offers what cannot install
+    void this.serverUpdates.inspect();
     this.cliInstaller = new CliInstaller({
       dataDir: config.dataDir,
       distribution: config.distribution,
@@ -1982,7 +1985,8 @@ export class Core {
   /** Asks GitHub now, for the Check for updates button. */
   async checkRelease(): Promise<ClaudioReleaseInfo> {
     await this.release.check();
-    // Whether the new release needs a newer image is in its signed manifest, read now rather than on a page load
+    // Whether the new release installs here (a bundle, a valid signature, a base it fits) is in its
+    // assets and signed manifest, judged now rather than on a page load
     await this.serverUpdates.inspect();
     return this.release.info();
   }
@@ -1994,6 +1998,8 @@ export class Core {
       working: chats.filter((c) => c.state === 'working').length,
       waiting: chats.filter((c) => c.state === 'waiting').length,
       running: this.orchestrator.runningCount(),
+      // Every shell ends with the server (docs/terminal.md, Lifetime)
+      terminals: this.terminals.running(),
     };
   }
 

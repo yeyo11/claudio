@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, symlinkSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync, appendFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { readState, writeState, EMPTY_STATE, type LauncherState } from '../src/launcher/protocol.ts';
 import { signingKey, writeOverlay, writeTree, type SigningKey } from './bundle-helpers.ts';
 
@@ -45,8 +45,14 @@ interface Setup {
   key: SigningKey;
 }
 
+const roots: string[] = [];
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 function setup(base: string, { image = true }: { image?: boolean } = {}): Setup {
   const root = mkdtempSync(join(tmpdir(), 'claudio-launcher-'));
+  roots.push(root);
   const appDir = join(root, 'app');
   const dataDir = join(root, 'data');
   mkdirSync(dataDir, { recursive: true });

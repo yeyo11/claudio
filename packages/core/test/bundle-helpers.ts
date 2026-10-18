@@ -44,6 +44,8 @@ export function signedManifest(
     nodeAbi: process.versions.modules,
     minImage: '0.1.0',
     imageInputs: 'test',
+    minShell: '0.1.0',
+    shellInputs: 'test',
     commit: 'test',
     builtAt: '2026-10-18T00:00:00.000Z',
     tarball: { name: `claudio-server-${version}-linux-x64.tar.gz`, sha256: '', size: 0 },

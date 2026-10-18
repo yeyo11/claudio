@@ -39,6 +39,8 @@ export interface ReleaseWatchOptions extends VersionCheckOptions {
   current: string;
   /** Where `system.release` goes when a check finds a newer release */
   events?: EventBus;
+  /** After every successful check, the daily one included: the in-app update judges the release it found */
+  onChecked?: () => void;
 }
 
 /**
@@ -49,6 +51,7 @@ export interface ReleaseWatchOptions extends VersionCheckOptions {
 export class ReleaseWatch extends VersionCheck<Stored> {
   private readonly current: string;
   private readonly events: EventBus | undefined;
+  private readonly onChecked: (() => void) | undefined;
   /** Seeded with what the file holds, so a restart does not announce the same release again */
   private announced: string | null;
 
@@ -71,6 +74,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
     );
     this.current = options.current;
     this.events = options.events;
+    this.onChecked = options.onChecked;
     this.announced = this.stored.latest;
   }
 
@@ -119,6 +123,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
   }
 
   protected afterCheck(): void {
+    this.onChecked?.();
     const release = this.info();
     const { latest } = release;
     if (latest === null || !release.updateAvailable) return;
