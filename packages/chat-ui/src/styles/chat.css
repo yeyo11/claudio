@@ -2438,9 +2438,11 @@ a.attachment-chip:hover {
   }
 }
 
-/* On a phone the context panel is a sheet: every control in it, its own close included, is a 44 px target */
+/* On a phone the context panel is a sheet: every control in it, its own close included, is a 44 px target.
+   A switch is left out: its 44 px hit box is its own (packages/ui controls.css), around a 34 × 20 track,
+   and a 44 × 44 minimum on the button itself turned the pill into a round blob with the thumb in it */
 @media (max-width: 900px) {
-  .ctx-sheet button:not([disabled]),
+  .ctx-sheet button:not([disabled], .switch),
   .ctx-sheet label.check {
     min-height: var(--touch);
     min-width: var(--touch);

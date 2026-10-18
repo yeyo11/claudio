@@ -168,6 +168,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- phone width: sheets and 44 px targets ----------
     await page.viewport(420, 900);
+    // A phone is a touch screen: targets are sized by the pointer, not by the window's width
+    await page.emulateTouch(true);
     await open(id);
     await page.click('main .chat-head button[aria-label="Chat details"]', undefined, 800);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .insp-context-actions')`, { label: 'the details sheet' });
@@ -178,6 +180,17 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const bad = [...sheet.querySelectorAll('button:not([disabled]), label.check')].filter((b) => b.getClientRects().length).map((b) => { const r = b.getBoundingClientRect(); return { text: b.textContent.trim().slice(0, 30), h: Math.round(r.height), w: Math.round(r.width) }; }).filter((r) => r.h < 44 || r.w < 44);
       return { bad };`);
     check(small.bad.length === 0, `the panel’s targets are 44 px on a phone (${JSON.stringify(small.bad)})`);
+    // The 44 px is a switch's invisible hit box: the track drawn inside stays a 34 × 20 pill, never a
+    // round blob. The sandbox's chat may have no server to switch, so one is placed in the sheet to measure
+    const track = await page.eval(`
+      const sheet = [...document.querySelectorAll('[role=dialog]')].pop();
+      const s = document.createElement('button'); s.type = 'button'; s.className = 'switch'; s.setAttribute('role', 'switch');
+      sheet.appendChild(s);
+      const t = getComputedStyle(s, '::before'); const r = s.getBoundingClientRect();
+      const out = { w: Math.round(r.width - parseFloat(t.left) - parseFloat(t.right)), h: Math.round(r.height - parseFloat(t.top) - parseFloat(t.bottom)) };
+      s.remove();
+      return out;`);
+    check(track.w >= 30 && track.w <= 40 && track.h >= 16 && track.h <= 24, `a switch in the sheet keeps its 34 × 20 track (${JSON.stringify(track)})`);
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('.ctx-breakdown')`, { label: 'the panel closed' });
     await page.key('Escape');
@@ -192,6 +205,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await closeDialog();
   } finally {
     await page.viewport(1440, 900).catch(() => {});
+    await page.emulateTouch(false).catch(() => {});
     await page.key('Escape').catch(() => {});
     writeFileSync(join(dirs.workspaceDir, 'ctx-work.hold'), '');
     for (const chat of started) {
