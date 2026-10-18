@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.1](https://github.com/yeyo11/claudio/compare/v0.6.0...v0.6.1) (2026-10-18)
+
+
+### Documentation
+
+* status.md and desktop.md name pull requests, not release numbers, so a release never leaves them behind ([3c91a10](https://github.com/yeyo11/claudio/commit/3c91a10424ce92f89304b53afb1d9a78d842dbdb))
+* **status:** 0.6.0 is out, with the "Eat the code" splash ([#42](https://github.com/yeyo11/claudio/issues/42)) ([20edc51](https://github.com/yeyo11/claudio/commit/20edc51bc6a9f4cfa298c67df8f7e444a498138a))
+
 ## [0.6.0](https://github.com/yeyo11/claudio/compare/v0.5.1...v0.6.0) (2026-10-18)
 
 
