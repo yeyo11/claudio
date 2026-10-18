@@ -161,7 +161,10 @@ jobs:
       - name: Update to a payload, then roll back from one whose page never renders
         run: |
           export RELEASES="$RUNNER_TEMP/releases"
-          python3 -m http.server 8765 --bind 127.0.0.1 --directory "$RELEASES" > "$RUNNER_TEMP/releases.log" 2>&1 &
+          # HTTP/1.1, as GitHub serves release assets: the default HTTP/1.0 closes the socket right after
+          # the body, and the shell's Node (24.22) then trips undici's assert(!this.paused) while the
+          # download is paused for the disk, which kills the server mid-update
+          python3 -m http.server 8765 --bind 127.0.0.1 --protocol HTTP/1.1 --directory "$RELEASES" > "$RUNNER_TEMP/releases.log" 2>&1 &
           export XDG_CONFIG_HOME="$RUNNER_TEMP/config"
           # --no-sandbox only here: the runner restricts unprivileged user namespaces and its sandbox is not
           # what this tests. The shell never passes it on its own (apps/desktop/test/packaging.test.ts).
