@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-18T23:00:00Z
+updated_at: 2026-10-19T09:00:00Z
 tags:
     - plan
     - updates
@@ -13,7 +13,7 @@ tags:
 ---
 # Plan: one update mechanism for the desktop, the container and Helm
 
-Status: **ready to launch** (2026-10-18). This is **phase 2 of the container-polish pull request**
+Status: **built on its branches, awaiting the integrator's checks and CI** (2026-10-19; see [Outcome](#outcome)). Was: ready to launch (2026-10-18). This is **phase 2 of the container-polish pull request**
 ([plans/container-polish.md](container-polish.md), PR #46): it starts on top of phase 1's merged
 result on PR #46's branch `fix/container-polish-review` (the launcher, the signed server bundle, the
 `/system/server-update` routes), checked against that code in
@@ -1162,6 +1162,134 @@ already in the sections above.
     the new public field is unambiguous.
 16. **Tmp.** `scripts/test-tmp.mjs` already isolates `TMPDIR` per run; the leaks come from direct
     `tsx --test` runs ([Carried over](#carried-over-from-phase-1)).
+
+## Outcome
+
+Written by the `docs` task on 2026-10-19, from the results of the seven implementation tasks. All
+seven are built on their branches and merged into one; **nothing is pushed, and nothing below was run
+against a real deployment or a real browser** except where it says so. The checks that remain are the
+integrator's ([Before the merge](#before-the-merge-what-is-left)).
+
+### What was built
+
+- **D1, D2, D7, D8 in core and api (`payload-core`).** The launcher's state machine is a pure module,
+  `packages/core/src/launcher/machine.ts`, with the container's `launcher.mjs` as one driver. Bundle
+  manifests carry `minShell` and `shellInputs`; `.sig` files may hold several `<keyId> <base64>`
+  lines, a bare base64 line stays valid; the desktop manifest
+  (`claudio-desktop-<v>-linux-x64.json`) is built and signed by `server-bundle.mjs`. The server
+  judges every release after a check (`offer`, with `blocked` as `no-bundle`, `needs-image`,
+  `needs-shell`, `unverified` or `failed-before`) and answers `base`, `shell`, `needsShell`. The
+  `desktop` actor is accepted for the four update writes only under `CLAUDIO_LAUNCHER=desktop`
+  ([updates.md](../updates.md), [decisions/shell-payload-updates.md](../decisions/shell-payload-updates.md)).
+  Its UI review passed (the two new strings, `development` and `needs-shell`).
+- **D3, D4, D5, D7 in packaging and CI (`release-apt`).** The `.deb` ships a keyring and registers
+  `claudio.sources` once through `after-install.sh` (with `/etc/default/claudio` and
+  `CLAUDIO_APT_REPO=off`); `after-remove.sh` removes the source on `remove` and the defaults on
+  `purge`. `packaging/apt/build-repo.sh` builds and signs the repository (`Valid-Until` 90 days),
+  `apt-repo.yml` runs it in a release, monthly and by hand, `desktop.yml` builds, signs and attests
+  the desktop manifest, `server-bundle.yml` attests its manifest, `release.yml` deploys Pages only
+  after `publish`, and `desktop-smoke.yml` holds the deb round trip and the AppImage check.
+  `install.sh` defaults to the AppImage only where the sandbox starts without root and FUSE works,
+  verifies it against the signed manifest, and keeps an existing `.deb` a `.deb`. The AppImage
+  moved to the static runtime. Record: [decisions/apt-repository.md](../decisions/apt-repository.md).
+  The apt round trip passed in `debian:trixie` and `ubuntu:26.04`.
+- **Credentials (`credential-check`).** An API key is checked for free with the SDK's `models.list`
+  (`refused` on a 401 marks the account expired); an environment OAuth token reads **Not confirmed**
+  until a chat succeeds or fails at authentication; **Check** replaces **Send a test message** for a
+  key. Documented in [accounts.md](../accounts.md) and [cli-surfaces.md](../cli-surfaces.md).
+- **Tests leave nothing in tmp (`test-tmp-hygiene`).** See the first difference below.
+- **The shell (`desktop-shell`).** `payload.ts` drives the machine around the server child with the
+  page-ready check; `updater.ts` has no `pkexec` and the new states (`apt-managed`, `copy-command`,
+  `shell-replaced`, `verifying`); `desktop-manifest.ts` checks downloads; `switch.ts` switches to the
+  AppImage; four IPC channels, the tray line and the Help menu items. A real packaged AppImage ran
+  under `xvfb-run` and, since the web of that commit did not yet call `pageReady` (the card's task adds it), rolled the overlay back twice to
+  the bundled version and wrote the audit row: the rollback path works end to end. Documented in
+  [desktop.md](../desktop.md#updating).
+- **The tunnel (`tunnel-resilience`).** A CLI that cannot answer is `unknown`, not `down`: the tunnel
+  stays up, shows **Checking…**, backs off (30 s to 5 min), warns after 10 minutes and never runs
+  `serve off` on a reading it could not take. It reopens on its own when Tailscale is ready again,
+  for a tunnel the person started. [tunnel.md](../tunnel.md).
+- **The card (`web-updates`).** Two zones, every state of the Design section, not-installable
+  sentences, errors shown from their code, the switch dialog, the terminals line, `pageReady()` after
+  the first render.
+
+### Where it differs from the plan
+
+- **`test-tmp-hygiene` fixed the leak centrally.** One core run left 2,298 `claudio-*` directories, so
+  instead of editing ~170 test files it added `scripts/test-tmp-preload.mjs`, loaded into every test
+  process by `scripts/test-tmp.mjs`, which removes every `mkdtemp` directory (and the sibling git
+  worktrees) when the process exits. The wrapper also lists any `claudio-*` directory left and
+  warns locally and fails under `CI`. A bare `tsx --test <file>` outside the wrapper still leaves
+  directories; run it as `pnpm exec node scripts/test-tmp.mjs tsx --test <file>`. The `e2e/fake-cli`
+  tests are not wrapped by any package script.
+- **Decision 3 (pool behind a redirect): no form works on Pages**, so the pool holds the newest four
+  `.deb` files (about 480 MB). apt follows a 302 and refuses a meta-refresh page; Pages sends only the
+  second. Whether a Pages deployment takes a 120 MB file is unverified until the first
+  `workflow_dispatch` of `apt-repo.yml` on `main`.
+- **The static AppImage runtime builds and starts** (`toolsets.appimage: '1.0.3'`), so `install.sh`
+  checks for FUSE, not `libfuse2`. The setuid `fusermount3` path was tested as root only: the worker
+  could not mount as a non-root user.
+- **`tunnel-resilience` named its private flag `monitoring`**, not `probing` (taken by the in-flight
+  probe promise); `checking` is the getter behind the public field. Recovery covers only a failure the
+  monitor found: a tunnel that fails while opening because Tailscale is down, "start with Claudio"
+  at boot included, is not retried.
+- **`install.sh` keeps an existing `.deb` install a `.deb`**, so a re-run does not install a second
+  copy. The plan did not ask for it.
+- **The approval clicks.** `desktop.yml`'s `sign` job and the nested apt-repo job start together, so
+  one approval covers both; the server bundle's signing job waits for its own.
+- **The switch installs the newest version a check found**, or the running one if no check found a
+  newer one. The menus open `/settings/general#updates`.
+
+### Before the merge: what is left
+
+Not done, because it needs CI, a deployment, a desktop or the owner:
+
+1. **The e2e suite has not run.** `updates-desktop.spec.mjs` was rewritten (apt-managed,
+   copy-command, shell-replaced, a bad signature, the switch dialog, the leftover `.deb`, the
+   terminals line, `pageReady` once) and assumes the plan's English copy. `e2e-specs` lines it up with
+   the card as built. `updates.spec.mjs` is the web task's. `pnpm e2e:remote updates updates-desktop`.
+2. **The AppImage update-then-rollback job in `desktop-smoke.yml`** is only written; it depends on the
+   shell's code and on the window calling `pageReady`. It expects `status.base === 'shell'`, `offer`,
+   `lastRollback`, `state.json` under `$XDG_CONFIG_HOME/Claudio/data/app/` and an audit row.
+3. **The release workflows' signing and deploy steps** (`apt-repo.yml`, the `sign` job, the `pages`
+   job) have run nowhere. `actions/upload-pages-artifact@v4` and `actions/deploy-pages@v4` are not
+   confirmed as the latest majors. `review` checks `release-apt`'s calls to `server-bundle.mjs
+   --shell-json` and `--desktop-manifest` against the real flags.
+4. **No browser check of the new UI.** `web-updates` ran no dev server and no `/ui-review`, and
+   `credential-check` and `tunnel-resilience` only render-tested their strings. The reviewer checked
+   only the two `payload-core` strings, in a rendered fragment. Needed: `/ui-review /settings/updates`
+   with a fake desktop bridge (the Desktop app zone and the switch dialog), the Sign-in section's two
+   new states, and the Remote access tab's two, in both themes at 1280 × 720 and 390 × 844.
+5. **Open: `GET /system/server-update` from the desktop window under auth `none`** answers
+   `unsupportedReason: 'needs-auth'`, because only the four writes accept the shell's credential and
+   the page has no `status` action on the bridge. Either the web ignores `needs-auth` when the bridge
+   has `payload` and reads the status through the shell, or `apps/api/src/security.ts` also accepts
+   the shell's credential for this read. Seen in the real run; the card's payload zone depends on it.
+6. **The D5 sandbox result is not recorded.** The expected result on this machine (Ubuntu 26.04,
+   `kernel.apparmor_restrict_unprivileged_userns = 1`) is that the AppImage refuses to start
+   sandboxed; the shell worker overwrote the log before noting it.
+7. **Not run anywhere:** the `.deb` installed in a VM with a desktop and upgraded through a Pages test
+   deployment; the apt key's first signing with the real secret; the container rollback run of
+   phase 1 repeated against the extracted machine.
+8. **One flaky test.** `packages/core/test/launcher.test.ts:157` ("a trial that never answers is
+   stopped and counted as a failed boot", expected 3, got 2) failed once on a loaded machine.
+
+### Notes for the integrator
+
+- A review dev server briefly opened the host app's data directory (`~/.config/Claudio/data`, 3 s,
+  port clash, exited) because the host's `CLAUDIO_DATA_DIR` and `PORT` were in its environment.
+  The `tunnel/` folder's modification time falls in that window, though the running app writes there
+  too. Nothing else was touched.
+- The api test run lists a leak of `claudio-guard-selftest-*` and `claudio-security-*` directories
+  that nobody investigated.
+- `shellInputs` changed with the desktop-shell commit, since `payload.ts` is hashed into it.
+- When the desktop app is started from inside another Claudio's chat, its server still inherits that
+  parent's `CLAUDIO_*` variables (for example `CLAUDIO_MCP_ENTRY` and `PORT`). Only the guard, the
+  keys and the payload folders are forced.
+- Not changed by this task: `docs/configuration.md`'s variable table still describes
+  `CLAUDIO_LAUNCHER` as `1` only. The new desktop values (`desktop`, `CLAUDIO_SHELL_*`,
+  `CLAUDIO_PAYLOAD`) are documented in [updates.md](../updates.md#files-and-variables). The table is
+  not in this task's file list.
 
 ## Related
 

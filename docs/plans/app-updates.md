@@ -426,7 +426,29 @@ releases" non-goal above is also settled for the container (Ed25519, not GitHub 
 See [updates.md](../updates.md), [plans/container-polish.md](container-polish.md) and
 [decisions/container-in-app-updates.md](../decisions/container-in-app-updates.md).
 
+## Note, 2026-10-19: the `.deb` no longer asks for a password
+
+This plan accepted `pkexec` for the `.deb` and rejected an apt repository ("a GPG key, signing in CI
+and a hosted repository to keep alive"). Both are reversed by
+[plans/unified-updates.md](unified-updates.md) and
+[decisions/shell-payload-updates.md](../decisions/shell-payload-updates.md):
+
+- `DebUpdater.install()`, `pkexec` and the `no-elevation` reason are gone. The app never escalates.
+- A release is split into a **payload** (the server and the web, a signed bundle that installs
+  in-app with no password and restarts only the server) and the **shell** (Electron and what only a
+  package can change).
+- The `.deb` registers a signed apt repository on GitHub Pages
+  ([decisions/apt-repository.md](../decisions/apt-repository.md)), so apt updates the shell; a `.deb`
+  installed before the repository gets one command to copy, checked against the signed desktop
+  manifest.
+- "Signing releases" is no longer a non-goal: the payload and a desktop manifest carry Ed25519
+  signatures, the repository a GPG one, and every artifact an attestation.
+- `install.sh` takes the AppImage where Chromium's sandbox runs without root, and the `.deb` through
+  the repository elsewhere.
+
+The release check, the reload offer and the Updates card described below still stand; the card now has
+two zones. See [desktop.md](../desktop.md#updating) and [updates.md](../updates.md).
 
 ## Related
 
-[[desktop.md]] · [[deploy.md]] · [[plans/mobile.md]] · [[status.md]]
+[[desktop.md]] · [[deploy.md]] · [[plans/mobile.md]] · [[status.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]]

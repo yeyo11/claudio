@@ -19,6 +19,20 @@ Status: **built, awaiting verification** (2026-10-18; see [Outcome](#outcome)). 
 `claude-opus-5-5` and the prose task on `claude-sonnet-5-5`, never fable. One owner action is needed
 before the merge: [the bundle signing key](#owner-actions-before-the-merge).
 
+**Note, 2026-10-19: phase 2 of this pull request.** [plans/unified-updates.md](unified-updates.md)
+builds on this plan's launcher and signed bundle and changes four things recorded here:
+- D4's state machine moved out of `launcher/main.ts` into a pure module, `launcher/machine.ts`, driven
+  by the container's launcher and by the desktop shell; `minShell`, key ids in `.sig` files and a
+  desktop manifest were added beside `minImage`
+  ([decisions/shell-payload-updates.md](../decisions/shell-payload-updates.md)).
+- The Updates card shows only what can install (`offer`), says why otherwise, and shows every refusal
+  from its code; the desktop has a second zone for the shell. The `update.needs-shell` refusal and
+  the `development` reason were added to the contract.
+- The credential check below gained a free check for an API key (`models.list`) and a **Not
+  confirmed** state for an environment OAuth token; **Send a test message** stays the paid check.
+- The leaking test directories and the tunnel closing on a slow machine were fixed
+  ([tunnel.md](../tunnel.md)).
+
 This plan is the source of truth for that orchestration, together with CLAUDE.md and
 CONTRIBUTING.md. Where a task prompt and this plan disagree, the plan wins. Every worker starts in a
 fresh worktree with none of the context of the session that wrote this, so each section below says
@@ -1499,3 +1513,5 @@ The orchestration's review, applied on `fix/container-polish-review`:
 - [[decisions/container-owner-token]]
 - [[decisions/container-in-app-updates]]
 - [[decisions/e2e-on-github]]
+- [[plans/unified-updates]]
+- [[decisions/shell-payload-updates]]
