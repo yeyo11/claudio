@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T18:00:00Z
-updated_at: 2026-10-18T18:00:00Z
+updated_at: 2026-10-18T21:00:00Z
 tags:
     - plan
     - docker
@@ -14,7 +14,7 @@ tags:
 ---
 # Plan: Claudio in a container, polished
 
-Status: **planned** (2026-10-18). The owner's decisions are settled; the work is one pull request on
+Status: **built, awaiting verification** (2026-10-18; see [Outcome](#outcome)). The owner's decisions are settled; the work is one pull request on
 `fix/container-polish`, built by the orchestration in [Tasks](#tasks). Workers run code tasks on
 `claude-opus-5-5` and the prose task on `claude-sonnet-5-5`, never fable. One owner action is needed
 before the merge: [the bundle signing key](#owner-actions-before-the-merge).
@@ -582,7 +582,7 @@ Files: `apps/web/src/pages/config/security/TerminalCard.tsx` and
 | Reason | Colour | Sentence (en / es) | Action |
 | --- | --- | --- | --- |
 | `needs-auth` | warn | "The terminal needs access protected by a token." / "La terminal necesita que el acceso esté protegido con un token." | link **Protect with a token** · **Proteger con un token** → `/settings/access#token` |
-| `needs-tunnel` | warn | "From another device the terminal opens only through the tunnel." / "Desde otro dispositivo, la terminal solo se abre por el túnel." | **Allow from any device with the token** · **Permitir desde cualquier dispositivo con el token** (sets `remote: 'any'`), or link **Open the tunnel** · **Abrir el túnel** → `/settings/access#remote` |
+| `needs-tunnel` | warn | "From another device the terminal opens only through the tunnel." / "Desde otro dispositivo, la terminal solo se abre por el túnel." | link **Open the tunnel** · **Abrir el túnel** → `/settings/access#remote`. *(The plan also had a button "Allow from any device with the token"; it was dropped while building, see [Outcome](#outcome): a change made from the refused device goes through the same gate and is refused again.)* |
 | `remote-off` | warn | "The terminal is set to open on this machine only." / "La terminal está configurada para abrirse solo en esta máquina." | focus the "Where it opens" `Select` |
 | `read-only` | warn | the existing `unavailable.read-only` | link → `/settings/access` |
 | `chat-token`, `from-agent` | warn | the existing sentences | none |
@@ -1357,6 +1357,100 @@ The owner tested the 0.6.0 image on 2026-10-18 over the LAN (`http://192.168.0.3
 None for the owner: the signing key is in place and the migration confirmed
 ([owner actions](#owner-actions-before-the-merge)). The spike in `signin-core` settles D1's branch.
 
+## Outcome
+
+Written by the `docs` task on 2026-10-18, from the results of the eight tasks before it. The seven
+rough edges are built on their branches and merged into one; **the container run that proves them is
+the integrator's** and had not happened when this was written. Nothing is pushed.
+
+### What was built
+
+- **D1, D2 (`signin-core`, `web-signin`).** The paste-code `claude auth login` is the first method
+  everywhere one signs in, with an API key second and no OAuth token (`ClaudeSignIn`, one panel for
+  the assistant, Settings and Add account). The assistant and Settings sign in to `default`
+  (`POST /accounts/default/login`); a success clears a vault token. `default` is hidden while it has
+  no credential; `GET /auth` carries `inUse`, which Settings, the status bar and the More sheet read.
+  An unfinished login ends as `expired` after 15 minutes. The old token routes still answer, deprecated.
+- **D3, D5 (`access-core`, `web-access-updates`).** A docker start with no auth variable makes an owner
+  token, prints it once and keeps `/data/first-run-token` until first use; a 0.6.x `none` install is
+  migrated once. The terminal's `remote` defaults to `any` in a container. The `421` carries a code, the
+  host and `canClaim`, a browser gets an HTML page, the app shows Host refused, and
+  `POST /security/allowed-hosts/claim` adds the host for an owner. Helm's `auth.mode: auto` is the
+  default. `CHAT_FORBIDDEN_SYSTEM` lists every new owner-only route.
+- **D4 (`update-core`, `image-release`, `web-access-updates`).** The launcher
+  (`packages/core/src/launcher`), the overlay manager and the CLI installer, the server-update and
+  CLI-install routes, `server-bundle.mjs`, a root-owned `/app`, the `server-bundle` release job that
+  signs with the `release` environment's key, and the Updates card in a container. Feature:
+  [updates.md](../updates.md); decision: [container-in-app-updates.md](../decisions/container-in-app-updates.md).
+- **D6.** Claude Code 2.1.302, glab 1.123.0, Tailscale 1.104.1; gh stays 2.102.0. The image built with
+  those checksums.
+- **D7 (`web-signin`).** The assistant is a full-height frame with a pinned foot, two columns from
+  1180 px and rows laid out by container queries; `design-system.md` §Setup, `claudio-ds.css` and the
+  seven reference screens were regenerated.
+- **Docs.** The stale claims listed in Context are corrected in `README.md`, `.env.example`,
+  `deploy.md`, `setup.md`, `providers.md`, `configuration.md`, `terminal.md`, `accounts.md`,
+  `cli-surfaces.md` and `security-model.md`; `updates.md` and three decisions are new
+  ([claude-sign-in-paste-code](../decisions/claude-sign-in-paste-code.md),
+  [container-owner-token](../decisions/container-owner-token.md),
+  [container-in-app-updates](../decisions/container-in-app-updates.md)); `in-app-setup.md` and
+  `app-updates.md` carry a dated note. The start-up warning in `apps/api/src/server.ts` and the
+  comments in `deploy/helm/claudio/values.yaml` were changed by the code tasks.
+
+### Where it differs from the plan
+
+- **The spike answered "if not".** On CLI 2.1.302 `get_usage` answers the same for a bad OAuth token, a
+  bad API key, no credential and a down network, so it only **confirms** a credential (`checkedAt`,
+  clears `expired`) and never refuses one. `checkCredential` returns `valid` or `unknown`. **Check** in
+  Settings is **Send a test message** and calls the paid `POST /auth/verify`; the free
+  `POST /accounts/:id/refresh` is the confirm-only check and answers `502 accounts.check-failed` when
+  the CLI could not run. Fixtures: `packages/accounts/test/fixtures/get-usage-refused-*.json`.
+- **The terminal refusal has no "Allow from any device" button.** A change of `remote` made from the
+  refused device is judged by the same gate and refused again, so the button could never work. Only the
+  **Open the tunnel** link remains for `needs-tunnel`. The plan's table above is corrected.
+- **`CLAUDIO_SERVER_UPDATE=off` reports `unsupportedReason: 'no-launcher'`**, as the contract's list has
+  no `off` value.
+- **A downloaded update applies at the next restart of any kind**, because the plan sets the trial at
+  download time. Only the newest release can be downloaded. An update with extra files or symlinks is
+  refused.
+- **`/app`'s root-owned list also covers `entrypoint.sh` and `healthcheck.sh`**, which an agent could
+  otherwise rewrite to change what runs at start.
+- **`exclusiveVariables('claude-code')` is hard-coded** to the OAuth/API-key pair, so a token Claudio
+  keeps in the vault still hides the container's key and the reverse.
+- **New error code `cli.no-version`** (400) when no newer CLI version is known.
+- **The assistant's breakpoint stays at the app's 900 px**, not 720, so the medium layout runs from
+  900 to 1179 px.
+- **Outside the owners' file lists:** `e2e/run.mjs` and `apps/api/test/setup.test.ts` set
+  `CLAUDIO_AUTH_MODE=none` (the docker distribution would otherwise hit the first-run token);
+  `packages/core/src/index.ts` got the two first-run audit wirings; four web and chat-ui test fixtures
+  got `checkedAt: null` / `accountLogin: false`; `shell.css` and `editors.css` got phone rules for the
+  Updates card, selected by `data-testid` so the class-inventory test stays green.
+
+### Not done, or not checked
+
+- **Not run anywhere yet:** `helm template` (`helm` was not installed on the workers' machine, so the
+  `auto` and `none` renderings and `NOTES.txt` were never rendered), `actionlint`, the `server-bundle`
+  workflow, the first-run block in a real container, a launcher rollback, and the e2e suite (CI runs it).
+- **glab 1.121–1.123 release notes** were not read, so whether they change what the adapters parse is
+  unknown; nothing was re-recorded. gh was not re-checked for a newer version on the day.
+- **The Access step's sentence** "Claudio made this token the first time it started…" is not shown:
+  `AuthConfig` only has `firstRunPending`, which goes false at first use, so the web cannot tell the
+  current token was the first-run one afterwards. It needs a field from the server.
+- **Flows with no e2e:** the Claude step signing in through the assistant (the fake CLI already reads as
+  signed in, so the row has no Sign in button), the Host refused screen (a browser cannot dial another
+  name), and the whole update flow (download, verifying, ready, busy dialog, rollback), which needs a
+  launcher, a key and a signed bundle in `e2e/run.mjs`. `updates.spec` only checks the card says the
+  container has no launcher.
+- **Review leftovers, not blocking:** the Copy button reads "Copy" and widens to "Copied"
+  (`packages/ui/src/components/ui.tsx`); the row's Sign in stays visible beside the panel's own and has
+  no `aria-expanded`; the phone sheet's idle Sign in is a gradient button where the plan asks for a
+  neutral one; the reviewer saw only the signed-out Settings state (no screenshots of account in use,
+  expired or sign-in success); axe reports `region` on the Radix tooltip wrappers app-wide; the setup
+  screen overflows by 16 px on a fresh data dir; the inline terminal refusal shifts layout (CLS 0.02).
+- **Flaky under load:** `orchestrator.test.ts`, a device sign-in expiry test and "a chat process that
+  stays caught exiting…" failed once in full runs and pass alone.
+- **Integrator:** regenerate the OpenAPI schemas once after merging (three tasks touch them), and the
+  web fixtures (`strings.json`, `module-graph.json`, `class-names.json`) if later merges change them.
+
 ## Related
 
 - [[plans/in-app-setup]]
@@ -1374,5 +1468,9 @@ None for the owner: the signing key is in place and the migration confirmed
 - [[accounts]]
 - [[security-model]]
 - [[design-system]]
+- [[updates]]
 - [[decisions/get-usage-control-request]]
+- [[decisions/claude-sign-in-paste-code]]
+- [[decisions/container-owner-token]]
+- [[decisions/container-in-app-updates]]
 - [[decisions/e2e-on-github]]

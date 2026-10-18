@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T21:00:00Z
 tags:
     - status
     - project-state
@@ -179,6 +179,7 @@ the desktop app since #40. Every full load, on the desktop, the web and the PWA,
 | [`plans/chat-experience.md`](plans/chat-experience.md) | Built (2026-10-15); CHAT-19 (reading typography) closed by the owner on 2026-10-16, kept at 14px / 1.65 |
 | [`plans/claude-only-fork.md`](plans/claude-only-fork.md) | Built (2026-10-15): stages S (strip), A (`@claudio/accounts`) and R (rename) |
 | [`plans/models-per-account.md`](plans/models-per-account.md) | Built (2026-10-15): the model list per account from `initialize`, and the `account.model-fallback` point (ships off) |
+| [`plans/container-polish.md`](plans/container-polish.md) | Built on its branches (2026-10-18), awaiting the integrator's container run and CI: in-app Claude sign-in (paste-code `auth login`, no OAuth token; `get_usage` only confirms, **Send a test message** checks), the `default` account only when it exists, a first-run owner token and the terminal default `any` in a container, the 421 page and claim, in-app updates inside the container (launcher, signed overlay, CLI install), the setup assistant's layout and the image's pins. See [Outcome](plans/container-polish.md#outcome), [updates.md](updates.md) and the decisions [claude-sign-in-paste-code](decisions/claude-sign-in-paste-code.md), [container-owner-token](decisions/container-owner-token.md), [container-in-app-updates](decisions/container-in-app-updates.md) |
 | [`plans/sdk-driver-improvements.md`](plans/sdk-driver-improvements.md) | Built (2026-10-15): D1–D3 and point 9, connectors parts A and B (`POST /connectors/:id/authorise`) |
 | [`plans/project-docs.md`](plans/project-docs.md) | Built (2026-10-15) |
 | [`plans/context-control.md`](plans/context-control.md) | Built (2026-10-16): the context breakdown panel, **Compact now**, compactions as dividers, session notes and the `context.compact` point (ships `off`). See [context-control.md](context-control.md) and the plan's [Outcome](plans/context-control.md#outcome) |

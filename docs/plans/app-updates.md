@@ -416,6 +416,17 @@ Found while building or reviewing this work, and fixed in the same pull request:
   the server gave it: `ELECTRON_RUN_AS_NODE` was absent, though the server itself was started with
   it.
 
+## Note, 2026-10-18: the Docker image now updates from the UI
+
+"Updating the Docker image from the UI" was out of scope here because the container cannot replace
+its own image. It still cannot; what changed is that a container now replaces the *server* inside
+itself: a signed bundle in `/data/app` started by a root-owned launcher, and Claude Code installed
+into `/data/cli`. A release that needs a newer image still shows the host commands. The "Signing
+releases" non-goal above is also settled for the container (Ed25519, not GitHub as the trust root).
+See [updates.md](../updates.md), [plans/container-polish.md](container-polish.md) and
+[decisions/container-in-app-updates.md](../decisions/container-in-app-updates.md).
+
+
 ## Related
 
 [[desktop.md]] · [[deploy.md]] · [[plans/mobile.md]] · [[status.md]]
