@@ -934,7 +934,10 @@ Done on 2026-10-18 by the owner's session, at the owner's request:
     CI, where the runner's sandbox is not the subject; the test asserts the shell never passes it on
     its own), serve two signed payloads through `CLAUDIO_RELEASES_URL`, update to the first
     (promoted after page-ready), then to the second, whose web never renders (rolled back, audit row,
-    `lastRollback`).
+    `lastRollback`). Each payload is rebuilt with `packages/core` and `apps/api` bumped to its
+    version: `server-bundle.mjs --version` only names the bundle, and the server inside reports the
+    version its packages carry, so a payload built from the base's packages answers `running` as the
+    base and the promotion check never holds.
 - **e2e** (CI only, `pnpm e2e:remote updates updates-desktop`): `updates-desktop.spec.mjs` with a
   fake bridge walks the payload states, `needsShell`, `apt-managed`, `copy-command` (the command is
   copyable and wraps), `shell-replaced` and the switch dialog; `updates.spec.mjs` with

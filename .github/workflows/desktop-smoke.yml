@@ -139,11 +139,23 @@ jobs:
             require('fs').writeFileSync(process.argv[1], JSON.stringify({ minShell: shell.version, shellInputs: shell.shellInputs }));
           " "$RUNNER_TEMP/previous.json"
           mkdir -p "$RUNNER_TEMP/releases"
-          node apps/api/scripts/server-bundle.mjs --version "$next-smoke.1" --previous "$RUNNER_TEMP/previous.json" \
-            --sign-with "$RUNNER_TEMP/bundle.pem" --verify-with docker/keys/smoke.pub --out "$RUNNER_TEMP/releases"
+          # --version only names the bundle: the server inside reports the version its packages carry,
+          # so each payload is rebuilt with them bumped, as release-please bumps them for a release
+          payload() {
+            node -e "
+              const fs = require('fs');
+              for (const file of ['packages/core/package.json', 'apps/api/package.json']) {
+                const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+                fs.writeFileSync(file, JSON.stringify({ ...pkg, version: process.argv[1] }, null, 2) + '\n');
+              }
+            " "$1"
+            pnpm --filter @claudio/api bundle
+            node apps/api/scripts/server-bundle.mjs --version "$1" --previous "$RUNNER_TEMP/previous.json" \
+              --sign-with "$RUNNER_TEMP/bundle.pem" --verify-with docker/keys/smoke.pub --out "$RUNNER_TEMP/releases"
+          }
+          payload "$next-smoke.1"
           printf '<!doctype html><title>Never renders</title>\n' > apps/web/dist/index.html
-          node apps/api/scripts/server-bundle.mjs --version "$next-smoke.2" --previous "$RUNNER_TEMP/previous.json" \
-            --sign-with "$RUNNER_TEMP/bundle.pem" --verify-with docker/keys/smoke.pub --out "$RUNNER_TEMP/releases"
+          payload "$next-smoke.2"
           ls -l "$RUNNER_TEMP/releases"
 
       - name: Update to a payload, then roll back from one whose page never renders
