@@ -18,16 +18,54 @@ export const DATA_DIR_LOCKED_EXIT_CODE = 73;
 /** `2.1.278` and nothing looser: `latest` or `stable` mean the image does not pin */
 export const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
-const parts = (v: string) => v.split('-')[0]!.split('.').map(Number);
+/** The version without its build metadata (`+…`), which SemVer says never takes part in precedence */
+const core = (v: string) => {
+  const plus = v.indexOf('+');
+  return plus < 0 ? v : v.slice(0, plus);
+};
 
-/** Positive when `a` is newer than `b`; a pre-release sorts below its release. */
+const parts = (v: string) => core(v).split('-')[0]!.split('.').map(Number);
+
+/** The dot-separated identifiers after the first `-`, or null for a release */
+const prerelease = (v: string): string[] | null => {
+  const c = core(v);
+  const dash = c.indexOf('-');
+  return dash < 0 ? null : c.slice(dash + 1).split('.');
+};
+
+const NUMERIC = /^\d+$/;
+
+/** SemVer 2.0 §11.4: numeric identifiers numerically, alphanumeric ones in ASCII order, numeric below alphanumeric */
+function compareIdentifiers(a: string, b: string): number {
+  const [na, nb] = [NUMERIC.test(a), NUMERIC.test(b)];
+  if (na && nb) {
+    // Compared as digit strings, so an identifier beyond 2^53 still orders right
+    const [ta, tb] = [a.replace(/^0+(?=\d)/, ''), b.replace(/^0+(?=\d)/, '')];
+    return ta.length !== tb.length ? ta.length - tb.length : ta < tb ? -1 : ta > tb ? 1 : 0;
+  }
+  if (na !== nb) return na ? -1 : 1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Positive when `a` is newer than `b`, negative when older, 0 when they rank the same. SemVer 2.0
+ * precedence: `major.minor.patch` numerically (a missing part counts as 0), then any pre-release
+ * below its release, and two pre-releases of the same version by their identifiers (`beta.2` <
+ * `beta.10` < `rc.1`; fewer identifiers first when the rest are equal). Build metadata is ignored.
+ */
 export function compareVersions(a: string, b: string): number {
   const [pa, pb] = [parts(a), parts(b)];
   for (let i = 0; i < 3; i += 1) {
     const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
     if (diff !== 0) return diff;
   }
-  return Number(!a.includes('-')) - Number(!b.includes('-'));
+  const [ra, rb] = [prerelease(a), prerelease(b)];
+  if (ra === null || rb === null) return Number(ra === null) - Number(rb === null);
+  for (let i = 0; i < Math.min(ra.length, rb.length); i += 1) {
+    const diff = compareIdentifiers(ra[i] ?? '', rb[i] ?? '');
+    if (diff !== 0) return diff;
+  }
+  return ra.length - rb.length;
 }
 
 /** `/app/image.json`: what the image was built with, root-owned like the launcher that reads it */
