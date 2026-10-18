@@ -99,6 +99,7 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     url: null,
     since: null,
     reason: null,
+    checking: false,
     enabled: true,
     // A source install's Tailscale is the machine's, never signed in by Claudio
     managed: false,
