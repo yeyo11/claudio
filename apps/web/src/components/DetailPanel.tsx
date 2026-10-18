@@ -413,22 +413,34 @@ function ChatBody({ chatId }: { chatId: string }) {
 function ChatTitle({ chatId }: { chatId: string }) {
   const { t } = useTranslation('components');
   const { chat } = useChatTranscript(chatId);
-  return <span className="ellipsis">{(chat && displayTitle(chat)) || t('detail.chat')}</span>;
+  const title = (chat && displayTitle(chat)) || t('detail.chat');
+  return (
+    <span className="ellipsis" title={title}>
+      {title}
+    </span>
+  );
 }
 
 function TaskTitle({ chatId, taskId }: { chatId: string; taskId: string }) {
   const { t } = useTranslation('components');
   const { task } = useTask(chatId, taskId);
-  return <span className="ellipsis">{task?.description || t('detail.backgroundTask')}</span>;
+  const title = task?.description || t('detail.backgroundTask');
+  return (
+    <span className="ellipsis" title={title}>
+      {title}
+    </span>
+  );
 }
 
 function AgentTitle({ target }: { target: AgentTarget }) {
   const { t } = useTranslation('components');
   const { data } = useAgentDetail(agentRef(target), false);
+  const title = `${target.kind === 'subagent' ? t('detail.subagent') : t('detail.workflowAgent')}${data?.description ? ` · ${data.description}` : ''}`;
+  // The panel is narrow on a phone and the description can be a paragraph: the title ends in an
+  // ellipsis, and carries the whole of it
   return (
-    <span className="ellipsis">
-      {target.kind === 'subagent' ? t('detail.subagent') : t('detail.workflowAgent')}
-      {data?.description ? ` · ${data.description}` : ''}
+    <span className="ellipsis" title={title}>
+      {title}
     </span>
   );
 }
