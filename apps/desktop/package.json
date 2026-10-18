@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "splash:preview": "tsx scripts/splash-preview.ts",
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts",
-    "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && electron-builder --linux --config electron-builder.yml --publish never"
+    "package:stage": "mkdir -p dist/package && node ../api/scripts/server-bundle.mjs --shell-json dist/package/shell.json && install -m 0644 ../../packaging/apt/claudio-archive-keyring.gpg dist/package/claudio-archive-keyring.gpg",
+    "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && pnpm run package:stage && electron-builder --linux --config electron-builder.yml --publish never"
   },
   "devDependencies": {
     "electron": "^44.7.2",

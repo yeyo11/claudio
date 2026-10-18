@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claudio apt repository</title>
+<style>
+  body { max-width: 46rem; margin: 3rem auto; padding: 0 1rem; font: 15px/1.6 system-ui, sans-serif; }
+  pre { padding: .75rem 1rem; overflow-x: auto; border: 1px solid #8884; border-radius: 6px; }
+  code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>Claudio apt repository</h1>
+<p>The signed apt repository of the <a href="https://github.com/yeyo11/claudio">Claudio</a> desktop app
+for Debian and Ubuntu (amd64). Installing the <code>.deb</code> registers it on its own; these are the
+steps to add it by hand.</p>
+
+<h2>1. The key</h2>
+<p>Fingerprint <code>33DC 4ECF D406 1211 2D06  4758 43E6 487D 3DF5 098F</code>
+(Ed25519, <code>Claudio apt repository &lt;yeyochico@gmail.com&gt;</code>).</p>
+<pre><code>sudo curl -fsSLo /usr/share/keyrings/claudio-archive-keyring.gpg \
+  https://yeyo11.github.io/claudio/apt/claudio-archive-keyring.gpg
+gpg --show-keys --with-fingerprint /usr/share/keyrings/claudio-archive-keyring.gpg</code></pre>
+<p>Check that the fingerprint printed is the one above. The armored key is
+<a href="claudio-archive-keyring.asc">claudio-archive-keyring.asc</a>.</p>
+
+<h2>2. The source</h2>
+<p>Save this as <code>/etc/apt/sources.list.d/claudio.sources</code>:</p>
+<pre><code>Types: deb
+URIs: https://yeyo11.github.io/claudio/apt
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/claudio-archive-keyring.gpg</code></pre>
+
+<h2>3. Install</h2>
+<pre><code>sudo apt update
+sudo apt install claudio</code></pre>
+<p>From then on the system's updater installs new versions of the desktop app with its other updates.
+<code>sudo apt remove claudio</code> removes the source too.</p>
+</body>
+</html>
