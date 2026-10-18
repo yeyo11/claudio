@@ -583,7 +583,7 @@ Files: `apps/web/src/pages/config/security/TerminalCard.tsx` and
 | --- | --- | --- | --- |
 | `needs-auth` | warn | "The terminal needs access protected by a token." / "La terminal necesita que el acceso esté protegido con un token." | link **Protect with a token** · **Proteger con un token** → `/settings/access#token` |
 | `needs-tunnel` | warn | "From another device the terminal opens only through the tunnel." / "Desde otro dispositivo, la terminal solo se abre por el túnel." | link **Open the tunnel** · **Abrir el túnel** → `/settings/access#remote`. *(The plan also had a button "Allow from any device with the token"; it was dropped while building, see [Outcome](#outcome): a change made from the refused device goes through the same gate and is refused again.)* |
-| `remote-off` | warn | "The terminal is set to open on this machine only." / "La terminal está configurada para abrirse solo en esta máquina." | focus the "Where it opens" `Select` |
+| `remote-off` | warn | "The terminal is set to open on this machine only." / "La terminal está configurada para abrirse solo en esta máquina." | none. *(The plan had "focus the Where it opens `Select`"; the gate only ever answers `remote-off` to another device, and a change of `remote` made from there is refused the same way, so the action is left out for the reason the needs-tunnel button was.)* |
 | `read-only` | warn | the existing `unavailable.read-only` | link → `/settings/access` |
 | `chat-token`, `from-agent` | warn | the existing sentences | none |
 | `disabled-by-env`, `pty-missing`, `host-failed` | bad for the last two, warn for the first | the existing `unavailable.*` | none |
@@ -1429,27 +1429,52 @@ the integrator's** and had not happened when this was written. Nothing is pushed
 
 - **Not run anywhere yet:** `helm template` (`helm` was not installed on the workers' machine, so the
   `auto` and `none` renderings and `NOTES.txt` were never rendered), `actionlint`, the `server-bundle`
-  workflow, the first-run block in a real container, a launcher rollback, and the e2e suite (CI runs it).
+  workflow, a launcher rollback in a real container, and the e2e suite (CI runs it). The first-run block
+  was seen in a real container on 2026-10-18 (see Review fixes).
 - **glab 1.121–1.123 release notes** were not read, so whether they change what the adapters parse is
   unknown; nothing was re-recorded. gh was not re-checked for a newer version on the day.
-- **The Access step's sentence** "Claudio made this token the first time it started…" is not shown:
-  `AuthConfig` only has `firstRunPending`, which goes false at first use, so the web cannot tell the
-  current token was the first-run one afterwards. It needs a field from the server.
 - **Flows with no e2e:** the Claude step signing in through the assistant (the fake CLI already reads as
   signed in, so the row has no Sign in button), the Host refused screen (a browser cannot dial another
   name), and the whole update flow (download, verifying, ready, busy dialog, rollback), which needs a
   launcher, a key and a signed bundle in `e2e/run.mjs`. `updates.spec` only checks the card says the
   container has no launcher.
-- **Review leftovers, not blocking:** the Copy button reads "Copy" and widens to "Copied"
-  (`packages/ui/src/components/ui.tsx`); the row's Sign in stays visible beside the panel's own and has
-  no `aria-expanded`; the phone sheet's idle Sign in is a gradient button where the plan asks for a
-  neutral one; the reviewer saw only the signed-out Settings state (no screenshots of account in use,
+- **Review leftovers, not blocking:** the Copy link button widens to "Copied"; the row's Sign in stays
+  visible beside the panel's own and has no `aria-expanded`; the reviewer saw only the signed-out Settings state (no screenshots of account in use,
   expired or sign-in success); axe reports `region` on the Radix tooltip wrappers app-wide; the setup
   screen overflows by 16 px on a fresh data dir; the inline terminal refusal shifts layout (CLS 0.02).
 - **Flaky under load:** `orchestrator.test.ts`, a device sign-in expiry test and "a chat process that
   stays caught exiting…" failed once in full runs and pass alone.
 - **Integrator:** regenerate the OpenAPI schemas once after merging (three tasks touch them), and the
   web fixtures (`strings.json`, `module-graph.json`, `class-names.json`) if later merges change them.
+
+### Review fixes (2026-10-18)
+
+The orchestration's review, applied on `fix/container-polish-review`:
+
+- **The image did not build.** `server-bundle.mjs` rejected `--claude-code` and `--commit`, and the build
+  stage had no `docker/` for `imageInputs`. Both are fixed; the commit reaches a Docker build as
+  `--build-arg CLAUDIO_COMMIT=…` (the context has no `.git`). The image was then built and run: healthy,
+  the first-run block in `docker logs`, `/api/health` answering, the token accepted and its file gone.
+- **The free check** (`get_usage`) of the account in use ran on every provider refresh for a credential
+  it cannot confirm (an API key, a variable), because the 30 minutes were measured from `checkedAt`. The
+  last attempt is now kept in memory per account; a credential change resets it.
+- **A Claude-account sign-in on `default` also removes a saved API key** (owner decision), which would
+  otherwise keep precedence over the new login; the panel warns before it starts.
+- **`AuthConfig.firstRunToken`** says the token set is still the first-run one, so the assistant's Access
+  step shows "Claudio made this token the first time it started…".
+- **The launcher refuses a trial that is not newer than the active overlay.**
+- The `remote-off` refusal has no action, for the reason the table above gives.
+
+### Known limits
+
+- **The agents' user can edit `/data/app/state.json`.** It can point `trial`, `active` or `previous` at
+  any overlay already in `/data/app`, or clear them. What boots is still an overlay whose manifest is
+  signed by a key in `/app/keys`, whose files match it, and which is newer than the image (and a trial
+  newer than the active one), so the worst it can do is pick between signed releases newer than the
+  image, or fall back to the image.
+- **Between the check and the boot.** The launcher verifies an overlay's files, then starts `node` on
+  them. The agents' user owns `/data`, so it could replace a file in that window; the check is not a
+  lock. Closing it needs the overlay copied somewhere the agents cannot write, which `/data` is not.
 
 ## Related
 
