@@ -96,6 +96,43 @@ test('signing the CLI\'s own login in clears a token Claudio kept, which would b
   assert.ok(core.accounts.get('default').checkedAt);
 });
 
+test('signing the CLI\'s own login in clears an API key Claudio kept, which would keep precedence over the new login', async () => {
+  await core.setCredentials({ apiKey: 'sk-ant-api03-kept' });
+  assert.equal((await core.system(true)).auth.tokenSource, 'wrapper-api-key');
+  const session = (await app.inject({ method: 'POST', url: '/api/accounts/default/login' })).json<AccountLoginSession>();
+  await untilUrl(session.id);
+  await app.inject({ method: 'POST', url: `/api/accounts/logins/${session.id}/code`, ...json({ code: 'good-code' }) });
+  assert.equal((await untilEnded(session.id)).state, 'succeeded');
+  assert.notEqual((await core.system(true)).auth.tokenSource, 'wrapper-api-key');
+});
+
+test('the free check of the account in use runs once per 30 minutes even when it cannot confirm the credential', async () => {
+  const original = core.accounts.check.bind(core.accounts);
+  let checks = 0;
+  // An API key is never confirmed by get_usage, so checkedAt stays as it was
+  core.accounts.check = (async () => {
+    checks += 1;
+    return 'unknown';
+  }) as typeof core.accounts.check;
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+  try {
+    await core.setCredentials({ apiKey: 'sk-ant-api03-unconfirmable' });
+    await core.accounts.markChecked('default', Date.now() - 31 * 60_000);
+    await core.providers.refresh({ only: ['claude-code'] });
+    await settle();
+    await core.providers.refresh({ only: ['claude-code'] });
+    await settle();
+    assert.equal(checks, 1, 'a second refresh inside the window does not check again');
+    await core.setCredentials({ apiKey: 'sk-ant-api03-replaced' });
+    await core.providers.refresh({ only: ['claude-code'] });
+    await settle();
+    assert.equal(checks, 2, 'a changed credential is checked again at once');
+  } finally {
+    core.accounts.check = original;
+    await core.clearCredentials();
+  }
+});
+
 test('a token account needs an alias and a secret, keeps the secret in a 0600 file and never answers it back', async () => {
   const bad = await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'token', secret: 's' }) });
   assert.equal(bad.statusCode, 400);

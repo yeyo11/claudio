@@ -2057,22 +2057,25 @@ export class Core {
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
     await this.credentials.set(credentials);
+    this.inUseCheckedAt.delete(DEFAULT_ID);
     return this.system(true);
   }
 
   /**
-   * `claude auth login` on the CLI's own login succeeded. A token Claudio kept in the vault would
-   * keep winning over the new credentials file (the variable beats it), so it is dropped.
+   * `claude auth login` on the CLI's own login succeeded. A token or an API key Claudio kept in the
+   * vault would keep winning over the new credentials file (the variables beat it), so it is dropped.
    */
   async defaultSignedIn(): Promise<void> {
     const { auth } = await this.system(true);
-    if (auth.tokenSource === 'wrapper-oauth-token') await this.credentials.clear();
+    if (auth.tokenSource === 'wrapper-oauth-token' || auth.tokenSource === 'wrapper-api-key') await this.credentials.clear();
+    this.inUseCheckedAt.delete(DEFAULT_ID);
     await this.accounts.confirm(DEFAULT_ID).catch(() => undefined);
     await this.system(true);
   }
 
   async clearCredentials(): Promise<SystemInfo> {
     await this.credentials.clear();
+    this.inUseCheckedAt.delete(DEFAULT_ID);
     return this.system(true);
   }
 
@@ -2169,7 +2172,7 @@ export class Core {
     const result = await this.runtime.waitForResult(run.id);
     this.runtime.remove(run.id);
     // The turn ran on the account new work starts on: a finished one is a check of it, a 401 marked it
-    if (inUse && result.result) await this.accounts.markChecked(inUse).catch(() => undefined);
+    if (inUse && !result.isError) await this.accounts.markChecked(inUse).catch(() => undefined);
     const { auth } = await this.system(true);
     return { ok: !result.isError, detail: result.result.slice(0, 500), auth };
   }
@@ -3421,6 +3424,12 @@ export class Core {
   }
 
   private checkingInUse = false;
+  /**
+   * When each account was last checked, whatever the answer. `checkedAt` is set only by a `valid`
+   * answer, so an API key, a variable or a credential `get_usage` cannot confirm would otherwise be
+   * checked on every provider refresh. In memory: a restart may check once more, which is free.
+   */
+  private readonly inUseCheckedAt = new Map<string, number>();
 
   /**
    * The free check (`get_usage`) of the account in use, when it was never checked or not in the last
@@ -3430,6 +3439,9 @@ export class Core {
     const inUse = this.accountInUse();
     if (!inUse || this.checkingInUse) return;
     if (inUse.checkedAt !== null && Date.now() - Date.parse(inUse.checkedAt) < ACCOUNT_CHECK_MS) return;
+    const attempted = this.inUseCheckedAt.get(inUse.id);
+    if (attempted !== undefined && Date.now() - attempted < ACCOUNT_CHECK_MS) return;
+    this.inUseCheckedAt.set(inUse.id, Date.now());
     this.checkingInUse = true;
     void this.accounts
       .check(inUse.id)
