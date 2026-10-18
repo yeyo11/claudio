@@ -9,7 +9,7 @@ import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
-import { usageOf } from './cli-usage.ts';
+import { checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
 import { ModelCache, offers } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
@@ -30,12 +30,14 @@ interface StoredAccount {
   identity: Identity;
   /** ISO time a run on it failed because the CLI could not authenticate; absent while it can */
   authFailedAt?: string;
+  /** ISO time the credential was last checked; absent until it was */
+  checkedAt?: string;
 }
 
 interface Stored {
   settings: AccountsSettings;
   /** The CLI's own dir is not stored as an account, only what a person changed about it */
-  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string };
+  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string; checkedAt?: string };
   accounts: StoredAccount[];
   policies: RotationPolicy[];
 }
@@ -53,6 +55,11 @@ export interface AccountStoreOptions {
   claude?: string;
   /** The environment the `claude` subprocesses start from; `process.env` when absent */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Whether the CLI's own login has a key or token in its environment (the container's, or the one
+   * Claudio keeps sealed): such a login has no credentials file and is still an account
+   */
+  defaultEnvCredential?: () => boolean;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -88,6 +95,7 @@ function parse(doc: Record<string, unknown>): Stored {
         links: Array.isArray(a.links) ? a.links.filter((l): l is string => typeof l === 'string') : [],
         identity: parseIdentity(a.identity),
         ...(typeof a.authFailedAt === 'string' && a.authFailedAt ? { authFailedAt: a.authFailedAt } : {}),
+        ...(typeof a.checkedAt === 'string' && a.checkedAt ? { checkedAt: a.checkedAt } : {}),
       });
     }
   }
@@ -101,6 +109,7 @@ function parse(doc: Record<string, unknown>): Stored {
     settings: parseSettings(doc.settings),
     default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY },
       ...(typeof def.authFailedAt === 'string' && def.authFailedAt ? { authFailedAt: def.authFailedAt } : {}),
+      ...(typeof def.checkedAt === 'string' && def.checkedAt ? { checkedAt: def.checkedAt } : {}),
     },
     accounts,
     policies,
@@ -191,7 +200,7 @@ export class AccountStore {
 
   list(now: number = Date.now()): Account[] {
     const d = this.stored.default;
-    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined): Account => {
+    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined, checkedAt: string | undefined): Account => {
       const authFailedAt = failedAt !== undefined && !this.signedInSince(id, kind, failedAt) ? failedAt : undefined;
       const signInState = this.signInState(id, kind, identity, authFailedAt);
       // An identity never read from the CLI (the default account starts out assumed signed in) is
@@ -216,13 +225,32 @@ export class AccountStore {
         signedIn: identity.signedIn && (signInState === 'ok' || signInState === 'unknown'),
         signInState,
         ...(authFailedAt ? { authFailedAt } : {}),
+        checkedAt: checkedAt ?? null,
         limits,
       };
     };
     return [
-      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt),
-      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt)),
+      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt, d.checkedAt),
+      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt, a.checkedAt)),
     ];
+  }
+
+  /**
+   * Whether the account has any credential at all. A login account or a token or key one always
+   * does; the CLI's own login only when it has a credentials file, a key or token in its
+   * environment, or a credential that failed (an expired login is a real account with a problem).
+   * An empty default dir is a ghost, which `listed` leaves out.
+   */
+  hasCredential(id: string): boolean {
+    if (id !== DEFAULT_ID) return true;
+    if (this.stored.default.authFailedAt !== undefined) return true;
+    if (existsSync(join(this.defaultDir, CREDENTIALS_FILE))) return true;
+    return this.opts.defaultEnvCredential?.() ?? Boolean(this.env.CLAUDE_CODE_OAUTH_TOKEN || this.env.ANTHROPIC_API_KEY);
+  }
+
+  /** `list` without the CLI's own login while it has no credential at all */
+  listed(now: number = Date.now()): Account[] {
+    return this.list(now).filter((a) => a.id !== DEFAULT_ID || this.hasCredential(a.id));
   }
 
   private signInState(id: string, kind: AccountKind, identity: Identity, authFailedAt: string | undefined): AccountSignInState {
@@ -315,6 +343,32 @@ export class AccountStore {
     if (entry.authFailedAt !== undefined && this.signedInSince(id, ref.kind, entry.authFailedAt)) delete entry.authFailedAt;
     await this.save();
     return this.get(id);
+  }
+
+  /**
+   * Asks the CLI whether the credential works (`get_usage`; no turn, no tokens) and records when.
+   * `valid` clears a failed-sign-in mark, since the credential just proved itself; `unknown` changes
+   * nothing, as the request cannot tell a refused credential from an unreachable network
+   * (test/fixtures/get-usage-refused-*.json). A refusal is learned from a failed run.
+   */
+  async check(id: string, opts: { timeoutMs?: number } = {}): Promise<CredentialCheck> {
+    const result = await checkCredential(this.ref(id), { claude: this.claude, env: this.env, ...opts });
+    if (result === 'valid') await this.confirm(id);
+    return result;
+  }
+
+  /** The credential just proved itself (a `get_usage` that came back with the plan's limits): not expired, checked now. */
+  async confirm(id: string, at: number = Date.now()): Promise<void> {
+    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    delete entry.authFailedAt;
+    await this.markChecked(id, at);
+  }
+
+  /** Records that the credential was checked now (a `get_usage` that confirmed it, or a test message). */
+  async markChecked(id: string, at: number = Date.now()): Promise<void> {
+    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    entry.checkedAt = new Date(at).toISOString();
+    await this.save();
   }
 
   /**

@@ -15,6 +15,7 @@ const limit = (state: AccountLimit['state'], utilization: number | null): Accoun
 
 const account = (id: string, over: Partial<Account> = {}): Account => ({
   id,
+  checkedAt: null,
   kind: 'login',
   alias: null,
   email: `${id}@example.com`,

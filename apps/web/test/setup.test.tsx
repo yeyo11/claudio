@@ -40,6 +40,7 @@ const row = (tool: SetupToolMethods['tool'], methods: Partial<Omit<SetupToolMeth
   variables: [],
   exclusive: false,
   device: false,
+  accountLogin: false,
   deviceVia: null,
   needsHost: false,
   defaultHost: null,

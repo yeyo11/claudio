@@ -72,7 +72,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   void core.providers.refresh().then(() => core.providers.startWatching()).catch(() => undefined);
   void core.hosts.refresh().then(() => core.hosts.startWatching()).catch(() => undefined);
   if (!system.cli.installed) app.log.error(`Claude Code CLI not detected: ${system.cli.error}`);
-  else if (!system.auth.loggedIn) app.log.warn('Claude Code CLI detected but not logged in. Set CLAUDE_CODE_OAUTH_TOKEN (see `claude setup-token`) or configure it in the UI.');
+  else if (!system.auth.loggedIn) app.log.warn('Claude Code is installed but no account is signed in: open Claudio and sign in under Settings → Claude Code, or set ANTHROPIC_API_KEY.');
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
   try {

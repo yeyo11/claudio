@@ -2,6 +2,9 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AuthStatus, CliInfo, TokenSource } from '@claudio/shared';
+
+/** What `claude auth status` says of the CLI's own login; the account in use is added where accounts are known */
+export type CliAuth = Omit<AuthStatus, 'inUse'>;
 import type { CliSession } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { childEnv } from './child-env.ts';
@@ -56,7 +59,7 @@ function tokenSource(config: CoreConfig): TokenSource {
   return 'none';
 }
 
-export async function getAuthStatus(config: CoreConfig): Promise<AuthStatus> {
+export async function getAuthStatus(config: CoreConfig): Promise<CliAuth> {
   const source = tokenSource(config);
   const res = await execCli(config, ['auth', 'status', '--json']);
   try {

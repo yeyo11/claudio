@@ -76,6 +76,34 @@ function subcommand() {
   return null;
 }
 
+/**
+ * `auth login`, as the CLI runs it in a terminal: prints the authorize link, waits for the code the
+ * page shows on one line of stdin, and writes the OAuth credentials into the config dir. A code
+ * `bad` is refused; anything else signs in. Exits only when the code came (or stdin closed).
+ */
+function authLogin() {
+  const dir = env.CLAUDE_CONFIG_DIR || join(env.HOME || '.', '.claude');
+  process.stdout.write('Opening browser to sign in…\nIf the browser did not open, visit: https://claude.ai/oauth/authorize?fake=1\n');
+  createInterface({ input: process.stdin }).once('line', (code) => {
+    if (code.trim() === 'bad') {
+      process.stderr.write('Login failed: invalid code\n');
+      process.exit(1);
+    }
+    mkdirSync(dir, { recursive: true });
+    const oauth = { accessToken: 'fake-access', refreshToken: 'fake-refresh', expiresAt: Date.now() + 8 * 3_600_000, scopes: ['user:inference'], subscriptionType: 'max' };
+    writeFileSync(join(dir, '.credentials.json'), JSON.stringify({ claudeAiOauth: oauth }), { mode: 0o600 });
+    process.stdout.write('Login successful.\n');
+    process.exit(0);
+  });
+  process.stdin.on('end', () => process.exit(1));
+}
+
+const [firstWord, secondWord] = argv.filter((a) => !a.startsWith('-'));
+if (firstWord === 'auth' && secondWord === 'login') {
+  authLogin();
+  // The login ends the process itself, on the code or on a closed stdin; nothing of a chat starts beside it
+  await new Promise(() => undefined);
+}
 if (!argv.includes('-p') && !argv.includes('--print')) {
   const out = subcommand();
   if (out === null) {
@@ -1132,6 +1160,11 @@ function control(message) {
     return;
   }
   if (request.subtype === 'get_usage') {
+    // What the real CLI answers for a refused token or key (packages/accounts/test/fixtures/get-usage-refused-*.json): a success with no limits
+    if (env.CLAUDE_CODE_OAUTH_TOKEN === 'invalid' || env.ANTHROPIC_API_KEY === 'invalid') {
+      reply({ session: { total_cost_usd: 0, total_api_duration_ms: 0, total_duration_ms: 900, total_lines_added: 0, total_lines_removed: 0, model_usage: {} }, subscription_type: null, rate_limits_available: false, rate_limits: null, behaviors: null });
+      return;
+    }
     // The shape of the recorded answer (packages/accounts/test/fixtures/get-usage-max.json), small and a day from its resets
     const reset = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString();
     reply({

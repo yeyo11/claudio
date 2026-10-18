@@ -25,6 +25,7 @@ const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>):
   variables: [],
   exclusive: false,
   device: false,
+  accountLogin: false,
   deviceVia: null,
   needsHost: false,
   defaultHost: null,
@@ -34,10 +35,11 @@ const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>):
 });
 
 export const TOOL_LOGINS: Readonly<Record<SetupTool, ToolLogin>> = {
-  // `claude setup-token` makes the OAuth token on the person's own machine; `auth login` needs a
-  // terminal, so there is no device row. Either variable signs the CLI in, never both at once.
+  // The way in is the CLI's own `claude auth login`, which Claudio relays (open a link, paste the
+  // code; `accountLogin`), into the CLI's own config dir. The other is an API key. The OAuth token
+  // of `claude setup-token` is not offered; one already in the environment keeps working.
   'claude-code': {
-    methods: row('claude-code', { key: 'env', variables: ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'], exclusive: true }),
+    methods: row('claude-code', { key: 'env', variables: ['ANTHROPIC_API_KEY'], exclusive: false, accountLogin: true }),
     keyCommand: null,
     deviceCommand: null,
     signOutCommand: () => ['auth', 'logout'],
