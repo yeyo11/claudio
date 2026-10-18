@@ -864,6 +864,9 @@ body:has(> .sheet-scrim) > #root {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* A sheet's content is what someone typed or a tool printed (ids, paths, URLs): a word with no
+     break in it wraps rather than make the body scroll sideways */
+  overflow-wrap: anywhere;
 }
 .sheet-foot {
   display: flex;

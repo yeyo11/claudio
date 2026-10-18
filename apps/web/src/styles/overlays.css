@@ -69,6 +69,9 @@
   flex-direction: column;
   gap: 14px;
   color: var(--text-muted);
+  /* What a dialog shows is what someone typed or a tool printed (ids, paths, URLs): a word with no
+     break in it wraps rather than make the body scroll sideways */
+  overflow-wrap: anywhere;
 }
 
 .dialog-body .field,
