@@ -410,6 +410,7 @@
 
 .relation-status {
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .relation-remove {
@@ -461,6 +462,13 @@
   font-size: var(--fs-small);
   text-align: left;
   cursor: pointer;
+}
+
+/* A finger's target; the rows of the picker are the whole list a phone has to choose from */
+@media (pointer: coarse) {
+  .relation-pick {
+    min-height: var(--touch);
+  }
 }
 
 .relation-results li:last-child .relation-pick {

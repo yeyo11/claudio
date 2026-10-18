@@ -75,7 +75,7 @@ export function RelationDialog({
                   <WorkItemStatusIcon status={item.status} />
                   <WorkItemKey value={item.key} />
                   <span className="relation-title">{item.title}</span>
-                  <span className="muted small">{tt(columnMeta(item.status).label)}</span>
+                  <span className="relation-status muted small">{tt(columnMeta(item.status).label)}</span>
                 </button>
               </li>
             ))}
