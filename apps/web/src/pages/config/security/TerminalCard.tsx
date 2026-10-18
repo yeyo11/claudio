@@ -111,7 +111,8 @@ function History() {
                   return (
                     <tr key={`${entry.id}-${index}`}>
                       <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
-                      <td className="small mono break">{entry.actor}</td>
+                      {/* An actor id is short and read whole (`token:…`, `owner`, `anonymous`): it never breaks mid-word */}
+                      <td className="small mono nowrap">{entry.actor}</td>
                       <td className="small mono break">{entry.cwd || '—'}</td>
                       <td className="small term-history-how">
                         {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}

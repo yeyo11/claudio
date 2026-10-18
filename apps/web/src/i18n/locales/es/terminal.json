@@ -156,7 +156,7 @@
       "from-agent": "desde un proceso de un agente",
       "chat-token": "el token de un chat",
       "bad-origin": "desde otro sitio",
-      "bad-ticket": "un ticket incorrecto o reutilizado",
+      "bad-ticket": "un enlace de conexión caducado o reutilizado",
       "unknown": "otro motivo"
     },
     "ended": {
