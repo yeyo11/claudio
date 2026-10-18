@@ -774,6 +774,30 @@ Phase 1's [rules](container-polish.md#rules-for-every-task) apply unchanged. And
    or a 404 page redirect, and record which works) and falls back to keeping the newest `.deb`
    on Pages only if no redirect form works.
 
+## Carried over from phase 1
+
+**An environment credential is checked once with a test message** (owner, 2026-10-18). Phase 1's
+spike (`signin-core`, fixtures `packages/accounts/test/fixtures/get-usage-refused-*.json`) found that
+`get_usage` on CLI 2.1.302 answers success with `rate_limits_available: false` for an invalid OAuth
+token, an invalid API key, no credential and a dead network alike, so it can only confirm a good
+login, never refuse a bad one. A credential set in the environment (`CLAUDE_CODE_OAUTH_TOKEN`,
+`ANTHROPIC_API_KEY`) is the case the owner hit: shown signed in while invalid.
+
+- When the server starts and the environment credential is new or changed (compare a sha256 of the
+  value, stored in the data dir; never the value), Claudio runs the existing paid check
+  (`POST /auth/verify`'s code path, one minimal message on the cheapest model) once, in the
+  background, after start-up.
+- A refusal (an authentication error, `api_error_status` 401/403) marks the account as a failed run
+  does (`authFailedAt`, `signInState: 'expired'`), so readiness, the status bar and Settings show it
+  signed out with **Sign in again**; a check that could not run changes nothing and is retried at
+  the next start.
+- This is the one automatic check that spends; `docs/providers.md`'s "probes spend nothing" rule
+  gains this exception, with the reason. Never on a timer, never for a login made in the app.
+- Owned by `payload-core`'s neighbour task with the least load, or a small task of its own
+  (`env-credential-check`, sonnet, stage 1): `packages/core/src/index.ts` (start-up hook),
+  `packages/core/src/cli.ts`, `packages/accounts/src/store.ts`, tests with the fake CLI answering
+  `invalid` with a 401.
+
 ## Re-check after phase 1
 
 The integrator verifies each against the merged phase-1 code before launching, and corrects this
