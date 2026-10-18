@@ -143,7 +143,8 @@ test('the healthcheck ends the server only after the configured run of failed pr
 // The image ships one JavaScript file. These two tests are the contract between the bundle script,
 // the Dockerfile and the healthcheck: each is useless if one of the others moves.
 test('the image starts the compiled API instead of transpiling the source on every boot', () => {
-  assert.match(dockerfile, /^CMD \["node", "\/app\/api\.mjs"\]$/m);
+  // The launcher is the server's parent: it starts /app/api.mjs, or a verified update that replaces it
+  assert.match(dockerfile, /^CMD \["node", "\/app\/launcher\.mjs"\]$/m);
   // The entrypoint starts tailscaled and then becomes that command, so the server still gets the signal
   assert.match(dockerfile, /^ENTRYPOINT \["\/app\/entrypoint\.sh"\]$/m);
   assert.match(dockerfile, /^COPY --from=build .*\/app\/apps\/api\/dist\/api\.mjs \/app\/api\.mjs$/m);
