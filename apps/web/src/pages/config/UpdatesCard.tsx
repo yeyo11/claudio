@@ -98,6 +98,8 @@ export function UpdatesCard() {
 
   // A shell that cannot act for the page (an older one) leaves the Claudio zone to read-only facts
   const desktopActions = bridge?.payload ? payloadActionsVia(bridge.payload) : null;
+  // Under auth `none` the page's own read says `needs-auth`, but the shell's requests are accepted (D8), as its menu reads it
+  const shellStatus = status?.unsupportedReason === 'needs-auth' && desktopActions ? { ...status, unsupportedReason: null } : status;
 
   return (
     <div className="stack update-zone" data-testid="updates-card">
@@ -118,8 +120,8 @@ export function UpdatesCard() {
       {info?.distribution === 'docker' && <StorageWarning />}
       {info && route?.kind === 'desktop' && bridge && (
         <>
-          {status && desktopActions && <ServerUpdate status={status} info={info} actions={desktopActions} steps={null} />}
-          <DesktopUpdate bridge={bridge} info={info} primary={!payloadHasPrimary(desktopActions ? status : undefined, info.updateAvailable)} />
+          {shellStatus && desktopActions && <ServerUpdate status={shellStatus} info={info} actions={desktopActions} steps={null} />}
+          <DesktopUpdate bridge={bridge} info={info} primary={!payloadHasPrimary(desktopActions ? shellStatus : undefined, info.updateAvailable)} />
         </>
       )}
       {info && route?.kind === 'steps' && status && (
