@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-18T08:40:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - design-system
     - web
@@ -930,7 +930,7 @@ the classes are the last section of `claudio-ds.css`.
 ### Integrations: the code hosts' CLIs
 
 Drawn for [code hosts](plans/code-hosts.md) (task `p1` of P0) and waiting for the owner's validation
-before P2 builds it. Settings → Connections is a tab of the Claudio group, after Providers, and it
+before P2 builds it. Connections is a settings group of its own (its Code hosts section), and it
 reuses the provider pieces: `.prov-row.compact`, `.prov-cell`, `.prov-bin`, the badges and the
 `Empty`. The only new rule is `.host-known`.
 
@@ -1526,7 +1526,7 @@ improvements".
 - **Daily cap in the status bar (`.statusbar .spend`).** The limit dots' grammar. See
   [the daily spend cap](#the-daily-spend-cap): neutral below 60 %, `warn` with "cerca del tope" from
   60 %, `bad` from 75 % and once reached ("tope alcanzado · vuelve a las 00:00"). It is a link to
-  Settings → Access & safety, and nothing is drawn without a cap.
+  Settings → Runs & spend (`/settings/runs#spend-cap`), and nothing is drawn without a cap.
 - **Spend wait copy (`.wait-line`).** The existing warn strip with the clock, with these lines: on a
   queued card "Esperando al tope diario · vuelve a las 00:00"; on the orchestration page "N tareas
   esperan al tope diario · vuelven a las 00:00" with a quiet "Seguir hoy de todos modos"
@@ -1895,8 +1895,8 @@ step, "Omitido" on a summary line. The `en` source follows the same structure ("
 
 ### Guards: the Settings card and its locked rule
 
-Settings → Access & safety → Guards (`GuardsCard`, `?tab=security#guards`) sits after the app-settings cards and before the audit
-log. A `Card` with the status `Tag` (shield icon and a word: ok "activas", warn "observando", bad "no disponibles") and,
+Settings → Access & safety → Guards (`GuardsCard`, `/settings/access#guards`) is the Guards section, after Secrets and before
+Terminal. A `Card` with the status `Tag` (shield icon and a word: ok "activas", warn "observando", bad "no disponibles") and,
 under the intro, one `.guard-status` line in the same colour. Then, in this order: the `Switch` of the automated runs, the
 rule list, the `Switch` of "Solo observar" with a warn hint, the protected-files textarea (only while `protect-configs` is
 on, with "Restaurar valores predeterminados"), "Probar un comando" and "Bloqueos recientes". There is no illustration: the
@@ -2403,8 +2403,8 @@ is in [settings.md](settings.md).
   Sections are 32 px apart and rows 12 px apart: space, not cards with borders (AP11). Each section
   saves on its own; Decisions has one save bar.
 - **A row** is [the setting row](#the-setting-row-settings): tier, a consequence line of at most 60
-  characters, label and control on one baseline, and the changed dot and Reset reserved so nothing
-  moves. Every row carries `data-setting`, the id the search registry names.
+  characters, label and control on one baseline. A changed dot and a Reset per row are not built
+  (`PrefRow` draws neither; the plan's Outcome leaves them open for the owner). Every row carries `data-setting`, the id the search registry names.
 - **A detail** is a screen of its own, reached from a row whose control is a chevron and a count
   ("Skills · 12 · 3 from plugins"; 44 px tall on a phone). It starts with a back link to its group
   (`← Extensions`, sans, `--fg-2`) and its title; on a desktop the nav stays beside it. An editor or
@@ -2684,6 +2684,56 @@ Variants the app drew where the reference had no class, mirrored in §19 of
     (in "Guards: the row, the rules sheet, the header tag…" and "Tool rows and live branches, as
     built").
 
+### The machine: the Home widget and the Machine page, as built
+
+> **Landed** with the machine widget and its history (#38, 2026-10-18). The feature is described in
+> [resource-control.md](resource-control.md), the design in
+> [plans/resource-control.md](plans/resource-control.md#design-of-the-machine-widget-option-a). Its
+> rules are in `claudio-ds.css`, in the section "The machine". Where the app differs from the plan:
+> counts and figures are sans with tabular numbers, not mono, because the typographic voice above
+> (mono only for literals) supersedes the older line of the plan.
+
+- **The widget** (`machine`, `MachineWidget` in `pages/dashboard/widgets/machine.tsx`) answers
+  whether the machine can take another chat. It is a `card kpi` (`.machine-card`) in the top area of
+  both Homes, size s only; from 600 px of the dashboard's container it is a row of its own under the
+  figures, and on a phone it keeps its labels where the other tiles drop theirs.
+- **Four readings** (`MachineFigures`, the same component on the widget and the page):
+  `.machine-figures` is two cells across, four from 600 px, and they wrap rather than truncate. Each
+  `.machine-cell` is a `kpi-label`, a `.machine-figure` (`--fs-section`, `--fw-strong`, tabular) and
+  a line under it:
+  - **Memory**: the available MB, a `.meter-track` in the usage colours (neutral below 60 %, warn from
+    60 %, bad from 75 % used) and "of N MB".
+  - **Pressure**: the memory PSI figure and a `Tag` with its word: ok "Low" below 10, warn "Rising"
+    up to the admission limit, bad "High" from it.
+  - **New chats**: a `Tag`, ok "Admits chats" or bad "No new chats", with the figure that refused
+    under it.
+  - **Chats**: their count and their resident memory.
+- **States.** Loading is the card's `Skeleton`; a machine without `/proc` says it exposes no figures,
+  in `--fg-2`, with no bar, colour or word; a figure the kernel does not give reads as a dash.
+- **Nothing moves.** The machine is not a live agent: no `--live`, no spinner, no live rail, no
+  energy border, and no gradient surface is added.
+- **The page** (`MachinePage`, Settings → Runs & spend → Machine, `/settings/runs/machine`) is a
+  detail of its group: "Now" with the same four readings; "History" with a `Segmented` of 1 hour,
+  6 hours, 24 hours and 7 days over three charts (`.machine-charts`, each a `.machine-chart-block` headed by a
+  `.machine-chart-title` in sentence case); and the live chats as a `.table.machine-table`, the first
+  prompt over its id in muted mono (`.machine-chat`) and the figures right-aligned and tabular. With
+  no stored reading, the history is the compact `Empty` with an icon, no illustration (it sits
+  beside other content).
+- **The charts** (`MachineChart`) reuse the usage-history chart: SVG with no library, `.usage-chart`,
+  `.usage-chart-grid`, `.usage-chart-axis` and `.usage-series-*`, never a status colour. Memory in
+  use; the three pressures (memory, CPU, I/O), told apart by dash as well as colour, with a legend;
+  the load. The admission limit and the core count are a neutral `.usage-chart-threshold` with its
+  label. Each chart's `<desc>` gives the latest and the peak, and a note says each point is the worst
+  of its span.
+
+| Class | Where | Rule |
+|---|---|---|
+| `.machine-card`, `.machine-title` | the widget | a `card kpi`, title in `--fw-strong` |
+| `.machine-figures`, `.machine-cell`, `.machine-figure` | `MachineFigures` | 2 then 4 columns by container; figures wrap, never truncate |
+| `.machine-cell .meter-track` | Memory | the shared meter, stretched to the cell, in the usage colours |
+| `.machine-charts`, `.machine-chart-block`, `.machine-chart-title` | `MachinePage` | charts 20 px apart; heading `--fs-small`, `--fw-strong`, `--fg-2` |
+| `.machine-table`, `.machine-chat` | `MachinePage` | numbers right-aligned without wrapping; the chat's title at most 36ch |
+
 ## Related
 
-[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[plans/claudio-designer]] · [[plans/settings-ia.md]] · [[settings.md]] · [[desktop.md]] · [[collaborators.md]]
+[[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] · [[plans/ui-redesign.md]] · [[plans/mobile.md]] · [[plans/terminal.md]] · [[plans/claudio-designer]] · [[plans/settings-ia.md]] · [[settings.md]] · [[desktop.md]] · [[collaborators.md]] · [[resource-control.md]]

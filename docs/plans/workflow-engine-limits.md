@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T22:56:49.813601305Z
-updated_at: 2026-10-16T22:57:30.850065206Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - orchestration
@@ -9,7 +9,7 @@ tags:
 ---
 # Plan: the workflow engine follows its journal, holds or rotates at a limit, and never runs unwatched
 
-Status: built (2026-10-17), see [Outcome](#outcome). Answers R15 of [requests.md](../requests.md). Tasks b1, b2, b3, w1 and x1 carry it out; each section names the files its task owns. Full text: docs/plans/workflow-engine-limits.md.
+Status: built (2026-10-17), see [Outcome](#outcome). Answers R15 of [requests.md](../requests.md). Tasks b1, b2, b3, w1 and x1 carry it out; each section names the files its task owns.
 
 The one rule holds: everything is read from what the Claude Code CLI ships (the workflow journal, each subagent's transcript, the run's record, stream-json `result` and `rate_limit_event`, the Workflow tool's `resumeFromRunId`). A limit is recognised from structured fields (`api_error_status` / `apiErrorStatus` 429, `rate_limit_info`), never from wording.
 

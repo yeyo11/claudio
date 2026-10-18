@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-17T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - status
     - project-state
@@ -18,13 +18,13 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.2.1** on `main`, the same across all ten `package.json` files |
-| Released | **v0.2.1** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`); the owner's machine runs v0.2.0. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
+| Version | **0.5.1** on `main`, the same across all ten `package.json` files |
+| Released | **v0.5.1** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), after 0.3.0, 0.4.0, 0.4.1 and 0.5.0. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 1,620 tracked `.ts`/`.tsx` files at Agentry 0.37.0, before the fork; the API contract is 7,056 lines of `packages/shared/src/types.ts` |
-| REST | 31 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 378 unit and integration test files, plus 74 browser specs under `e2e/specs/` |
-| CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build; four `e2e (k/4)` shards, skipped on docs-only pull requests; the `test` gate; the image smoke test), `desktop.yml`, `image.yml`, `release.yml` |
+| Source | 1,578 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 9,606 lines of `packages/shared/src/types.ts` |
+| REST | 39 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 557 unit and integration test files, plus 90 browser specs under `e2e/specs/` |
+| CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards, also dispatched by `pnpm e2e:remote`), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
 `packages/core` drives the agent CLIs and owns the store, `packages/mcp` is Claudio's own MCP
@@ -102,13 +102,28 @@ probes (#20). The tests that failed only on a loaded machine were fixed at their
 #18, #20, #22–#25 ([plans/e2e-flakes-under-load.md](plans/e2e-flakes-under-load.md) for the browser
 ones; each pull request records what its flake was).
 
+Since then, on 2026-10-17 and 18: the browser suite moved to GitHub and never runs on this machine
+again (#29, `pnpm e2e:remote`; [decisions/e2e-on-github.md](decisions/e2e-on-github.md)), on shards
+balanced by their timings (#30). The **Claudio designer** came in with #26 (0.3.0;
+[plans/claudio-designer.md](plans/claudio-designer.md)). Refresh reads an account's real quota from
+the CLI's `get_usage` (#31, [accounts.md](accounts.md)). The process isolation study was written up
+and parked (#32, [plans/process-isolation.md](plans/process-isolation.md)). Settings were reorganised
+into eight groups with search, Decisions became a screen of evidence and the Supervisor a decision
+point (#34, 0.4.0; [settings.md](settings.md)). An execution that died at a usage limit keeps its
+cause when a replay stops it (#36, 0.4.1). The **Machine widget** and its page, async `git` on
+request paths, the figures history and priority for people's chats landed in #38 (0.5.0;
+[resource-control.md](resource-control.md)), and dialogs, sheets and drawers hold up on a phone and in
+the desktop app since #40 (0.5.1). Every full load, on the desktop, the web and the PWA, opens on the
+"Eat the code" splash since #42, merged after 0.5.1 and not yet released
+([plans/splash-eat-the-code.md](plans/splash-eat-the-code.md)).
+
 ## What is open
 
 - **Collaborators, waiting on iroh.** The owner ran it between real machines on 2026-10-17 (three
   installs, and two machines on different networks) and it works. Both binding defects were already
   reported upstream (#276, open; #277, fixed but not released); `@number0/iroh` stays pinned at 1.1.0
   until a release answers them ([reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md)).
-- **Releases.** v0.2.1 is published; release-please keeps the next release pull request open for the
+- **Releases.** v0.5.1 is published; release-please keeps the next release pull request open for the
   owner. The open items of each built plan are in its Outcome section.
 - **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were
   dropped on 2026-10-17, and everything else is built and closed in [requests.md](requests.md).
@@ -142,8 +157,8 @@ ones; each pull request records what its flake was).
 | [`plans/roadmap-completion.md`](plans/roadmap-completion.md) | Verified — see [Verification](plans/roadmap-completion.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
 | [`plans/post-roadmap.md`](plans/post-roadmap.md) | Verified — see [Verification](plans/post-roadmap.md#verification-2026-10-07) (2026-10-07, 0.33.1, with the full `pnpm e2e` run; `paging.spec.mjs` open as CW-32) |
 | [`plans/terminal.md`](plans/terminal.md) | Built and verified (2026-10-16): core, API, web, packaging, the t8 security audit (T8-1 accepted by the owner with a warning in Settings, T8-2 and T8-3 fixed), `docker build`, `pnpm desktop:dist` and the full `pnpm e2e` run. The terminal lives in the status bar only (owner, 2026-10-15), detaches into its own window and goes full screen. Feature: [terminal.md](terminal.md) |
-| [`plans/collaborators.md`](plans/collaborators.md) | Built on `feat/collaborators` (2026-10-16), stages C1 to C5, see [Outcome](plans/collaborators.md#outcome). The browser specs and a run between two real machines were not run by the workers. Feature: [collaborators.md](collaborators.md) |
-| [`plans/resource-control.md`](plans/resource-control.md) | Built on `feat/machine-widget` (2026-10-18): the Machine widget on the overview, less `/proc` per request, async `git` on request paths, figures history, and the fair queue; see its [Outcome](plans/resource-control.md#outcome). Feature: [resource-control.md](resource-control.md) |
+| [`plans/collaborators.md`](plans/collaborators.md) | Merged in #7 (stages C1 to C5) and #13 (agents read what teammates share), 2026-10-17; run by the owner between real machines the same day. The iroh binding defects are upstream (#276, #277). See [Outcome](plans/collaborators.md#outcome). Feature: [collaborators.md](collaborators.md) |
+| [`plans/resource-control.md`](plans/resource-control.md) | Merged in #38, released in 0.5.0 (2026-10-18): the Machine widget on the overview and its page, less `/proc` per request, async `git` on request paths, figures history, and the fair queue; see its [Outcome](plans/resource-control.md#outcome). Feature: [resource-control.md](resource-control.md) |
 | [`plans/spanish-copy.md`](plans/spanish-copy.md) | Landed (#94) — see [Outcome](plans/spanish-copy.md#outcome) |
 | [`plans/app-updates.md`](plans/app-updates.md) | Landed (#95) — see [Outcome](plans/app-updates.md#outcome) |
 | [`plans/redesign-night-shift.md`](plans/redesign-night-shift.md) | Landed (#101) — see [Outcome](plans/redesign-night-shift.md#outcome) |
@@ -170,7 +185,10 @@ ones; each pull request records what its flake was).
 | [`plans/tool-rows-and-live-branches.md`](plans/tool-rows-and-live-branches.md) | Built (2026-10-16): opened tool calls read as what happened (lenses fed by the CLI's `tool_use_result`), a folded strip above the composer with every running subagent, background command and workflow and a line per subagent, and branch cards under the launching step. See [chat-tool-rows-and-branches.md](chat-tool-rows-and-branches.md) and the plan's [Outcome](plans/tool-rows-and-live-branches.md#outcome) |
 | [`plans/review-gate.md`](plans/review-gate.md) | Built (2026-10-16): the opt-in review gate inside verification (`verification.review`): reviewers per dimension under `--restricted`, a verifier, a fixer loop, the deterministic scans, the person-only **Accept anyway**, five routes, the card, the findings in the integration diff and the `review.depth` point (ships `off`). See [orchestrations.md](orchestrations.md#the-review-gate) and the plan's [Outcome](plans/review-gate.md#outcome) |
 | [`plans/guards.md`](plans/guards.md) | Built (2026-10-16): deterministic `PreToolUse` guards through `--settings` for orchestration workers, the flow and opted-in chats, the bundled read-only `guard.mjs`, the events store, health signals, Settings → Access & safety → Guards and the transcript notice. Known: 120 bypasses recorded as `todo` rows by the audit. See [guards.md](guards.md), [reports/guards-audit.md](reports/guards-audit.md) and the plan's [Outcome](plans/guards.md#outcome) |
-| [`plans/settings-ia.md`](plans/settings-ia.md) | Built (2026-10-17), verification on GitHub pending: Settings in eight groups with search at `/settings/<group>/<detail>` (the `?tab=` addresses redirect), Connectors folded into Connections, Decisions as evidence without chips, and the Supervisor folded into the `supervisor.intervene` point (`GET/PUT /settings/supervisor` deprecated). See [Outcome](plans/settings-ia.md#outcome) and [settings.md](settings.md) |
+| [`plans/settings-ia.md`](plans/settings-ia.md) | Merged in #34, released in 0.4.0 (2026-10-18), verified on GitHub: Settings in eight groups with search at `/settings/<group>/<detail>` (the `?tab=` addresses redirect), Connectors folded into Connections, Decisions as evidence without chips, and the Supervisor folded into the `supervisor.intervene` point (`GET/PUT /settings/supervisor` deprecated). See [Outcome](plans/settings-ia.md#outcome) and [settings.md](settings.md) |
+| [`plans/claudio-designer.md`](plans/claudio-designer.md) | Merged in #26, released in 0.3.0 (2026-10-17): the `claudio-ui` skill, its review, audit and exploration agents, the machine-checked invariants and the hooks that lint every UI edit, and the typographic voice it brings to Night Shift. See [§4](plans/claudio-designer.md#4-as-built) |
+| [`plans/workflow-engine-limits.md`](plans/workflow-engine-limits.md) | Merged in #10 (2026-10-17): the workflow engine follows its journal live, holds or rotates at a usage limit, and never stays running unwatched. See its [Outcome](plans/workflow-engine-limits.md#outcome) |
+| [`plans/splash-eat-the-code.md`](plans/splash-eat-the-code.md) | Merged in #42 (2026-10-18), not yet released: the four-second brand intro on every full load of the desktop window, the web page and the installed PWA. Design: [design-system.md](design-system.md) and [desktop.md](desktop.md) |
 | [`plans/lessons.md`](plans/lessons.md) | Built (2026-10-16): lessons mined from corrections, approved by a person with their evidence, delivered to chats and workers, decayed and promoted to `CLAUDE.md` through the diff dialog; the `lesson.mine` decision point. See [lessons.md](lessons.md) and the plan's [Outcome](plans/lessons.md#outcome) |
 | [`plans/instruction-evals.md`](plans/instruction-evals.md) | Built (2026-10-16), phases 1 and 2: eval files for agent files, skills, rules and `CLAUDE.md`, runs of `current` against `proposed`, pressure levels, pass@k and intervals, the judged expectation and the promotion gate behind `evalsPhase2`. See [evals.md](evals.md) and the plan's [Outcome](plans/instruction-evals.md#outcome) |
 | [`plans/rotation-auth-fixes.md`](plans/rotation-auth-fixes.md) | Built (2026-10-16): an expired sign-in (`api_error_status: 401`) marks the account's `signInState` with `authFailedAt`, rotates the chat with reason `auth`, and a retry chooses the account again; the Accounts page and the status bar say Sign-in expired. See the plan's [Outcome](plans/rotation-auth-fixes.md#outcome) |

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T18:00:00Z
-updated_at: 2026-10-07T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - spec
@@ -26,9 +26,16 @@ Phase 4 (rotation between providers) solved the same problem in a wider form, an
   `packages/core/src/orchestrator.ts` hands a `rate-limit` result to the rotation when
   `limitHeld(task.runId)` is true.
 - The rotation either waits for the reset in the same chat (the replayed turn is picked up by
-  `waitEnded`), or moves the task to a new chat on another account or provider; the move is kept on
-  the task as `task.chain`, and the task's cost sums every chat of the chain.
-- The board shows the waiting task and the chain, as drawn in `DesktopOrquestacion.html`.
+  `waitEnded`), or replays the turn in the **same chat on another account** with room
+  (`replayLastTurn`); a wait goes on with the first account that gets room. See
+  [accounts.md](../accounts.md#choosing-and-switching) and
+  [orchestrations.md](../orchestrations.md#a-task-held-at-a-usage-limit).
+- The task's foot shows the wait, with "Stop waiting" and "Run now".
+
+Until the Claude-only fork, phase 4 moved the task to a new chat on another account or provider and
+kept the move on the task as `task.chain`, drawn on the board as in `DesktopOrquestacion.html`. The
+chain and the move to another provider were dropped with the other vendors (`08c66f82d`,
+[claude-only-fork.md](claude-only-fork.md)).
 
 So the owner's answer to open question 2 (wait and resume by itself) is what runs today. The
 `limited` status, `exhaustedUntil` and the 15 min fallback below were never built; the rest of this

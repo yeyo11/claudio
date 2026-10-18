@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T18:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - orchestration
     - verification
@@ -60,10 +60,12 @@ nothing is cached. What is still running counts up to `at`.
 - **Slot wait**: from when the task was ready (the latest end of its dependencies, or the graph's
   creation) to its first execution, when that is over a second. A ready task of a running graph
   that has not started is still waiting.
-- **Limit wait**: from the end of an execution whose error is the account's limit
-  (`isRateLimitError` in `chats.ts`, the classification behind a result's `cause: 'rate-limit'`) to
-  the task's next execution, or to now or the graph's end if none followed.
-- **Retry wait**: the same gap after any other failed or interrupted execution. A task that
+- **Limit wait**: from the end of an execution whose recorded cause is the account's limit
+  (`cause: 'rate-limit'` on the execution) to the task's next execution, or to now or the graph's
+  end if none followed. A replay writes the cause before it stops the limited process, so it holds
+  after a restart too.
+- **Retry wait**: the same gap after any other failed or interrupted execution, an expired sign-in
+  (`cause: 'auth'`) included. A task that
   completed after all has no trailing wait.
 - **Critical path**: from the task that ended last (or, running, the one still going), step to the
   dependency that ended last, until a task has none. `waitBeforeMs` is the gap from the previous

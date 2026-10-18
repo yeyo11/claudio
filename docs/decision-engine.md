@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-16T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -78,7 +78,9 @@ Each point has a mode, set globally and overridable per project for the points o
   and works with either provider. An **act** point changes what happens only when `confidence >=
   threshold` (default 0.85, 0.5 to 0.99). A `null` confidence never clears it, so the UI does not
   offer `active` on an act point whose provider is `cli`; if the provider turns to `cli` later, the
-  point behaves as shadow.
+  point behaves as shadow. The one exception is `supervisor.intervene`: under `cli` it may be
+  `active`, and then the Supervisor sends every hint itself
+  ([Settings](settings.md#the-supervisor-is-a-decision-point)).
 
 Effective settings resolve as project override, then global, then the point's default. Consent is
 always global.
@@ -310,17 +312,22 @@ The signals are two columns of the history row (`opened_at`, `palette_action`), 
 point's state, so no `stateVersion` changes and consent is not asked again. Recording either signal
 schedules the same debounced sweep as the events do. Both routes are refused to a chat's token.
 
-The tab shows, per point: count, share acted, mean confidence (a dash for `cli`), agreement with
-the outcome with its n, useful and not useful, unavailable, cost and Claude runs saved. Nothing
-switches a point to `active` by itself.
+`GET /decisions/stats` returns, per point: count, acted, mean confidence (null for `cli`), resolved
+and agreed, useful and not useful, unavailable, cost and Claude runs saved. Settings shows each point
+as one row of evidence: its mode, how many decisions, how often it agrees with you, and how many
+disagreements (a link to History filtered by the point). Nothing switches a point to `active` by
+itself.
 
 ## Where it shows
 
-- **Settings → Decisions** (`apps/web/src/pages/config/DecisionsTab.tsx`, with
-  `decisions/`): Engine (provider, CLI model, effort and cost cap, the Jev key with a connection test,
-  history days), Decision points (mode, threshold, consent and metrics per row, grouped by area),
-  Supervisor (the former tab, `supervisor.json` unchanged) and History (filter, open a row, useful /
-  not useful, delete, clear). `?tab=supervisor` still lands on the Supervisor section.
+- **Settings → Decisions** (`apps/web/src/pages/config/groups/Decisions.tsx`, with
+  `pages/config/decisions/Engine.tsx`, `Points.tsx` and `DecisionHistory.tsx`): two sections,
+  `engine` (who answers, the Jev key with a connection test, the cap per decision, and under Advanced
+  the CLI model, effort and history days) and `points` (mode, threshold under Jev, consent and evidence
+  per row, grouped by area; the Supervisor is the `supervisor.intervene` row). History (filter, open a
+  row, useful / not useful, delete, clear) is a screen of its own at `/settings/decisions/history`.
+  The old `?tab=supervisor` lands on `/settings/decisions#point-supervisor-intervene`
+  ([Settings](settings.md#the-decisions-screen)).
 - **Project settings → Decisions**: the provider (inherit, CLI, Jev when a global key exists) and
   mode and threshold per project point, with a "Use global" reset.
 - **The "decided · 0.93" mark** (`components/DecisionMark.tsx`): only on a row where an act point
@@ -337,7 +344,8 @@ switches a point to `active` by itself.
 
 - **`decisions.json`** in the data directory: the provider, the `cli` model, effort and cost cap,
   the mode, threshold and consent per point, and `historyDays` (30, from 1 to 365). Validated whole on
-  `PUT`, written atomically.
+  `PUT`, written atomically. It also carries `supervisorMigrated: true` once `supervisor.json` has been
+  folded into `supervisor.intervene`, so the fold runs only once; the API does not serve the mark.
 - **`decision-credentials.json`**, mode 0600: the Jev key. The API returns only `keySet` and
   `keyHint` (its last four characters).
 - **Per-project override**: `ProjectSettings.decisions` in the project's settings, points of project

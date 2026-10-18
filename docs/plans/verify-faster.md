@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T18:00:00Z
-updated_at: 2026-09-29T18:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - spec
@@ -65,7 +65,7 @@ This card does **not** touch `.github/workflows/ci.yml`. That file belongs to CW
   `pnpm e2e config` with one spec runs a single shard.
 - **One shard behaves exactly as today.** With `E2E_SHARDS=1`, or a count capped down to 1, there
   are no children: the current code path runs in the current process, including `E2E_PORT`
-  (default 8799) and `E2E_CDP_PORT`.
+  (default 8799; 8809 since the Claudio fork) and `E2E_CDP_PORT`.
 - **Isolation per shard.** Each child has its own `mkdtemp` sandbox (claude, workspace, data), its
   own release fixture, its own API server and its own Chrome. The parent picks a free port for each
   child (listen on port 0, read the port, close it) and passes it as `E2E_PORT`. When `N > 1`, an

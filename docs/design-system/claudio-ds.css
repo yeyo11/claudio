@@ -2782,3 +2782,28 @@ a.cont-from:hover { color: var(--fg); }
 .btn-states > span { grid-area: 1 / 1; }
 [data-state='idle'] > .btn-states > .btn-state-loading, [data-state='loading'] > .btn-states > .btn-state-idle { visibility: hidden; }
 /* ---------- end of Settings: a section's parts ---------- */
+
+/* ---------- The machine: the Home widget and the Machine page (docs/plans/resource-control.md) ----------
+   Nothing here is a live agent, so nothing moves: no --live, no loop, no energy border. The widget is a
+   `card kpi` in the top area of the Home, a row of its own under the figures from 600 px of the
+   dashboard's container. Its four readings wrap, they never truncate. Every verdict is a word in a Tag
+   beside its colour; the memory bar takes the usage colours (neutral, warn from 60, bad from 75).
+   The page's charts reuse the usage-history chart (`.usage-chart`, `.usage-series-*`, a dash per line
+   as well as a colour, the admission limit and the core count as a neutral `.usage-chart-threshold`). */
+.machine-card { gap: 12px; }
+.machine-title { font-weight: var(--fw-strong); color: var(--fg); }
+.machine-figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; min-width: 0; }
+.machine-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.machine-cell .meter-track { align-self: stretch; }
+.machine-figure { font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-strong); color: var(--fg); overflow-wrap: anywhere; }
+@container dashboard (min-width: 600px) { .machine-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* On a phone the other figure tiles drop their labels; the machine keeps them: a reading without its name says nothing */
+@container dashboard (max-width: 599px) { .machine-card .kpi-label { display: block; } }
+/* The page: three charts one above the other, each headed in sentence case (not uppercase, not mono) */
+.machine-charts { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.machine-chart-block { min-width: 0; }
+.machine-chart-title { margin: 0; font-size: var(--fs-small); line-height: var(--lh-small); font-weight: var(--fw-strong); color: var(--fg-2); }
+/* The chats table: the first prompt over the id in muted mono; figures right-aligned and tabular */
+.machine-chat { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 36ch; }
+.machine-table .num { text-align: right; white-space: nowrap; }
+/* ---------- end of The machine ---------- */

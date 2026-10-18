@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - configuration
     - environment
@@ -27,8 +27,8 @@ README's.
 | `CLAUDIO_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
 | `CLAUDIO_DATA_DIR` | `./data` | Wrapper state |
 | `CLAUDIO_SECRET_KEY` | – | 32 bytes as hex: the key the secret vault (`secrets.json`) seals the keys and tokens Claudio hands a CLI with. The desktop app passes its own. Without it the Docker image makes one beside the data on the first write (`secret.key`, mode 600), which protects a copy of the files but not the volume, so passing it here is the recommended setup; a source install without it keeps the values plain at 0600. The server drops it from its environment once read |
-| `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Access & safety and applies to the next run; set, it is shown read-only there. Empty counts as unset |
-| `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Access & safety unless set here, like the mode above. Empty counts as unset |
+| `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Runs & spend and applies to the next run; set, it is shown read-only there. Empty counts as unset |
+| `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Runs & spend unless set here, like the mode above. Empty counts as unset |
 | `CLAUDIO_SETUP_SEEN` | off | `on` records that the setup assistant was finished or skipped. Without the variable the assistant writes it to `app-settings.json` (`POST /api/setup/seen`). The older `CLAUDIO_PROVIDERS_STEP_SEEN`, and a `providersStepSeen` already stored, still count. Empty counts as unset |
 | `CLAUDIO_PUSH_SUBJECT` | `https://github.com/yeyo11/claudio` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:claudio@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
 | `CLAUDIO_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [securing.md](securing.md) |

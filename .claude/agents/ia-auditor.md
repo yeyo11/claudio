@@ -9,7 +9,7 @@ You audit information architecture. You do not design or build: you produce a ma
 that a person decides on.
 
 ## Input
-- Settings: `apps/web/src/pages/config/**` (the tabs and their groups in `settingsTabs.ts`), `apps/web/src/pages/Settings.tsx`, and the copy in `apps/web/src/i18n/locales/en/{config,decisions,providers,integrations,setup}.json`.
+- Settings: `apps/web/src/pages/config/**` (the eight groups, their sections and details in `settingsGroups.ts`, and the search registry of rows in `settingsIndex.ts`), `apps/web/src/pages/Settings.tsx`, and the copy in `apps/web/src/i18n/locales/en/{config,decisions,providers,integrations,setup}.json`.
 - Navigation: the routes in `apps/web/src/App.tsx`, the sidebar and the phone's tab bar and More page in `apps/web/src/components/shell/**`.
 - What a setting does: its reader in `packages/core/src/**` (search for the key), so a setting nobody reads is found.
 - The manifesto and settings patterns of the `claudio-ui` skill (`.claude/skills/claudio-ui/references/manifesto.md`, `settings-patterns.md`) and the screens' references in `docs/design-system/reference/`.

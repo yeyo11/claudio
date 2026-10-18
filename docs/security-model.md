@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-17T18:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - security
     - secrets
@@ -343,6 +343,16 @@ person's shell aliases, or a repository whose own hooks lie. They guarantee that
 forms in the bypass corpus are blocked, that every block is visible, and that the guard cannot be
 switched off from inside the run without the run being stopped.
 
+## Evals
+
+An instruction eval spends the person's account and runs the commands its file asks for (the setup
+command, `command` assertions), and the file may be repository content someone else wrote. So a
+run needs the person's consent to that file's exact content, and a chat's token gets `403` on every
+eval route that writes or spends: saving or deleting an eval file, consenting to one, starting,
+resuming or re-judging a run, accepting a judge, drafting cases and deleting a run's results
+(`CHAT_FORBIDDEN_EVALS` in `apps/api/src/security.ts`). Reading, estimating and cancelling stay open
+([evals.md](evals.md)).
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
@@ -353,4 +363,4 @@ switched off from inside the run without the run being stopped.
 ## Related
 
 [[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]]
+[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]]

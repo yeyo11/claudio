@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T11:30:00Z
-updated_at: 2026-09-27T11:30:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - accounts
     - rotation
@@ -11,7 +11,7 @@ tags:
 ---
 # A pinned chat that hits its limit leaves its account
 
-> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02): Claudio no longer switches Claude accounts, so a chat pinned to a claude-swap account no longer exists. Kept as the record of why it was built.
+> **Superseded** by phase 4 of [[plans/multi-provider.md]] (2026-10-02), which retired claude-swap, and then by [[accounts.md]]: Claudio switches Claude accounts again through `@claudio/accounts` (a `CLAUDE_CONFIG_DIR` per account, no claude-swap), and a chat pinned to an account rotates within its policy ("Choosing and switching"). A chat pinned to a claude-swap account no longer exists. Kept as the record of why it was built.
 
 A chat can be pinned to one claude-swap account (`account` on a new chat, a resume or a fork). A
 pinned chat runs through `cswap run <account> --share-history -- claude …`, or plain `claude` when
@@ -45,4 +45,4 @@ the chat gets the usual "switched to … and resuming" notice.
 
 To remove a pin by hand, resume or fork the chat with `account: null`.
 
-Related: [[managed-claude-swap]], [[post-roadmap]] (rotation policies and loose chats).
+Related: [[plans/managed-claude-swap.md]], [[plans/post-roadmap.md]] (rotation policies and loose chats), [[accounts.md]].

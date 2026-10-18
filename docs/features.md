@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - features
     - overview
@@ -41,6 +41,11 @@ Claudio drives it through the CLI and nothing else.
   account (a chat pinned to an account rotates only within its policy). Every rotation is
   recorded, so "why did my account change" has an answer that survives a restart. See
   [accounts.md](accounts.md).
+- **Switch a chat's account from the composer** — the composer's "+" menu lists the accounts with
+  their usage and state; picking one resumes the same session under it (`--resume`). An idle chat
+  switches at once; a working one switches when its turn ends, and the choice can be undone until
+  then. An account that is exhausted, disabled, signed out or does not offer the chat's model is shown
+  with the reason and cannot be picked. See [plans/chat-account-switch.md](plans/chat-account-switch.md).
 - **See what an agent really did, and step in** — for every orchestration task and every chat: the
   branch and its commits, the files changed with `+/−`, what is uncommitted, the worker's own checklist, and what it is running right now. A health badge notices
   a hung or repeated command, a chat busy without progress, a loop, a test bent to pass, silence and
@@ -113,6 +118,19 @@ Claudio drives it through the CLI and nothing else.
   reports, over any range you pick from a calendar; any transcript, or a whole project's chats,
   exported as Markdown or JSON.
 - **Spending limits** — cap any run with a budget the CLI enforces from inside.
+- **No chat starts on a machine short of memory** — before a chat starts, Claudio reads the machine
+  from `/proc` and refuses it when available memory or memory pressure crosses a limit; an
+  orchestration task waits for the memory instead of failing. Stopping a chat ends the processes it
+  started too, and a task with no time limit gets the server's default. See
+  [resource-control.md](resource-control.md).
+- **A person's chat goes first** — when a person's start is refused a place, the orchestrator's
+  pending tasks give way for the next 20 seconds, so the place that frees up is there when the person
+  retries. It is a reservation, not a queue: the person is still answered at once.
+- **What the machine is doing, and since when** — the **Machine** widget of the Home says whether
+  the machine can take another chat: memory, its pressure, the admission verdict and what the chats
+  hold. Settings → Runs & spend → Machine keeps a week of readings, drawn as memory, pressure and load
+  over an hour to seven days, with each live chat's memory and CPU. See
+  [resource-control.md](resource-control.md).
 - **Guards on tool calls** — deterministic hooks that hold even in `bypassPermissions`: no `--no-verify`, no
   push from a worker, no `rm -rf` outside the worktree, no secrets in a command. On for orchestration
   workers and the flow, opt-in for chats. Defence in depth, not a sandbox: see [docs/guards.md](guards.md).

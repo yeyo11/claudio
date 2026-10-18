@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T16:00:00Z
-updated_at: 2026-10-17T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - decision
     - e2e
@@ -59,6 +59,8 @@ A rule in `CLAUDE.md` alone was not enough: agents forget prose. The runner enfo
   the `developer` and `qa` agents, the `night-shift-ui-check` skill and
   [development.md](../development.md) now say to push and use `pnpm e2e:remote`. The new repo skill
   `e2e-on-github` (`.claude/skills/e2e-on-github/SKILL.md`) is what an agent loads to do it.
+  (Since #26 the `night-shift-ui-check` skill no longer exists: it was folded into
+  `.claude/skills/claudio-ui/references/night-shift.md`, which carries the same rule.)
 
 ## Balanced shards (2026-10-17, #30)
 

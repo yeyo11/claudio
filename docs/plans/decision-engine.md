@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T12:00:00Z
-updated_at: 2026-09-30T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - decisions
@@ -318,6 +318,9 @@ interface DecisionEngine {
 - **`supervisor.json` stays as it is** (D7). Its parser, defaults and routes do not change; only its
   card moves into the Decisions tab. The `supervisor.intervene` point is set in `decisions.json`
   like every other point.
+  *Amended 2026-10-17 (#34): the Supervisor's card and tab were folded into the Decisions screen as
+  the `supervisor.intervene` point; see the D3 and D7 amendments in
+  [decisions/decision-engine.md](../decisions/decision-engine.md#amendments).*
 
 **History is an accumulating record, so it goes in SQLite rows** (D9). There is one new migration
 in `packages/core/src/db.ts` `MIGRATIONS`, in the style of `supervisor_proposals` and
@@ -452,6 +455,9 @@ Reference: `DesktopAjustes.html` and `MobileAjustes.html`, plus new prototypes
   - `?tab=supervisor` still lands there. Today `isTab` would send an unknown id to Appearance, so
     `SettingsInner` gets a small alias map, `{ supervisor: 'decisions' }`, and scrolls to the
     Supervisor section. The e2e spec that opens `?tab=supervisor` keeps passing.
+    *Amended 2026-10-17 (#34): the Supervisor's card and tab were folded into the Decisions screen as
+    the `supervisor.intervene` point; see the D3 and D7 amendments in
+    [decisions/decision-engine.md](../decisions/decision-engine.md#amendments).*
 - **Engine** section:
   - the provider (`Segmented`: Claude Code CLI / Jev);
   - the CLI model and the cost cap per request;
@@ -487,6 +493,9 @@ Reference: `DesktopAjustes.html` and `MobileAjustes.html`, plus new prototypes
   numbers are tabular and in mono.
 - **Supervisor** section: today's `SupervisorTab` card unchanged, since `supervisor.json` stays
   (D7).
+  *Amended 2026-10-17 (#34): the Supervisor's card and tab were folded into the Decisions screen as
+  the `supervisor.intervene` point; see the D3 and D7 amendments in
+  [decisions/decision-engine.md](../decisions/decision-engine.md#amendments).*
 - **History** section:
   - the decisions list, filterable by point, project, provider, mode and status;
   - each row opens its answer (question, probabilities, provider, outcome) and offers useful / not
@@ -835,7 +844,7 @@ CW-5's pull request):
 > decision point declares, after the owner has consented to that point having seen a preview of it;
 > and Claudio works in full with the `cli` provider alone, which asks the same questions through the
 > Claude Code CLI (`--json-schema`). See
-> [docs/decisions/decision-engine.md](docs/decisions/decision-engine.md).
+> [docs/decisions/decision-engine.md](../decisions/decision-engine.md).
 
 ## Risks
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T15:30:00Z
-updated_at: 2026-10-16T16:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - chat
     - composer
@@ -103,8 +103,8 @@ announces a menu (`aria-haspopup`). Three groups, told apart by space and a head
 - **Servers.** One item, "Servers and connectors · 3 of 5 on", that opens the list in a panel
   (`ServersPanel.tsx`): live switches do not belong inside a menu. For a chat with a live process,
   its MCP servers as the process reports them now, claude.ai connectors included, each with its
-  status, tool count, switch and, for a connector waiting for authorisation, a link to the Connectors
-  page. For a resume or a fork, a button opens the run options, where the servers are chosen for the
+  status, tool count, switch and, for a connector waiting for authorisation, a link to Settings →
+  Connections → Connectors (`/settings/connections#connectors`). For a resume or a fork, a button opens the run options, where the servers are chosen for the
   execution that starts (`ChatToolsPicker`, unchanged). The list is read when the menu opens.
 
 On a phone the sheet keeps the group headings, rows are 44 px, and Account and Servers are a second

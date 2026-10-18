@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - orchestration
     - planner
@@ -200,7 +200,11 @@ wait (`LimitWait`) on it ([accounts.md](accounts.md#choosing-and-switching)).
   task it waits on goes on, in its chat, as for a stopped graph. It is refused while one of those
   tasks' chats is still working (a person went on in it by hand).
 - **Tests.** `packages/core/test/orchestration-limit-way-back.test.ts` (the R11 cases, and a turn
-  replayed while the limited process was still exiting), `accounts-rotation.test.ts`, and
+  replayed while the limited process was still exiting),
+  `orchestration-limit-account-switch.test.ts` (a task moved to another account at its limit goes on
+  in one attempt, and the execution that hit the limit keeps its cause, which a replay writes before
+  it stops the process so `limitedTail` still knows the account after a restart),
+  `accounts-rotation.test.ts`, and
   `apps/web/test/orchestration-board.test.ts`.
 
 ## The workflow engine

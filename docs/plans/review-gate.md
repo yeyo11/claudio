@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T22:00:00Z
-updated_at: 2026-10-16T18:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - orchestration
@@ -1921,9 +1921,9 @@ the answer wins, and the task that builds the affected part follows it.
 ## Outcome
 
 Built on 2026-10-16 by one orchestration of tasks v0–v9. The gate is documented as built in
-[orchestrations.md](orchestrations.md#the-review-gate), [security-model.md](security-model.md#the-review-gate),
-[decision-engine.md](decision-engine.md#reviewdepth), [prompts.md](prompts.md) and
-[orchestration-timings.md](orchestration-timings.md).
+[orchestrations.md](../orchestrations.md#the-review-gate), [security-model.md](../security-model.md#the-review-gate),
+[decision-engine.md](../decision-engine.md#reviewdepth), [prompts.md](../prompts.md) and
+[orchestration-timings.md](../orchestration-timings.md).
 
 **What shipped.** `verification.review` (off by default), the review diff, the four reviewers and the
 verifier with their role files, the deterministic scans, the fixer loop, `retryReview` and
@@ -1969,5 +1969,5 @@ The recordings are in [CLI facts](#recorded-facts).
 [[reports/ecc.md]] · [[orchestrations.md]] · [[orchestration-timings.md]] · [[plans/worker-checks.md]] ·
 [[plans/verify-faster.md]] · [[plans/changes-review.md]] · [[plans/models-per-account.md]] ·
 [[plans/claude-only-fork.md]] · [[decision-engine.md]] · [[prompts.md]] · [[security-model.md]] ·
-[[code-hosts.md]] · [[design-system.md]] · [[team-and-flow.md]] · [[guard-hooks]] ·
-[[lessons-from-corrections]]
+[[code-hosts.md]] · [[design-system.md]] · [[team-and-flow.md]] · [[plans/guards.md]] ·
+[[plans/lessons.md]]
