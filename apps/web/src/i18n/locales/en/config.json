@@ -1694,6 +1694,8 @@
     "retry": "Try again",
     "caveat": "Claudio adds one Serve rule on port {{port}} of this machine's tailnet name, and removes only that rule when it closes. Traffic is encrypted end to end by Tailscale.",
     "failedTitle": "The tunnel failed",
+    "checking": "Checking…",
+    "notAnsweringTitle": "Tailscale is not answering",
     "authRequired": {
       "title": "Turn on authentication first",
       "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Access, above.",

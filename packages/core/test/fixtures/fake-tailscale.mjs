@@ -21,8 +21,11 @@
 // CLI was asked to do:
 //
 //   FAKE_TAILSCALE_STATE=<file>  { version, daemon, backendState, dnsName, magicDNS, certDomains,
-//                                  operator, serve }; any key left out takes the default below
+//                                  operator, serve, delayMs }; any key left out takes the default below
 //   FAKE_TAILSCALE_LOG=<file>    appends one JSON line per call: { argv }
+//
+// `delayMs` holds every call that long before it answers, the way a machine at 97 % CPU does: a
+// caller with a shorter timeout kills the call and gets no answer at all.
 //
 // `operator: false` answers a Serve change the way tailscaled does for a user that is not the
 // node's operator. `daemon: false` answers every call that needs tailscaled the way the CLI does
@@ -56,6 +59,8 @@ const noDaemon = (path) =>
   fail(`failed to connect to local tailscaled; it doesn't appear to be running. Got error: Failed to connect to local Tailscale daemon for /localapi/v0/${path}; not running?`);
 
 const [command, ...rest] = argv;
+
+if (typeof state.delayMs === 'number' && state.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, state.delayMs));
 
 if (command === 'up') {
   if (!state.daemon) noDaemon('status');
