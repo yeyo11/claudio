@@ -75,8 +75,9 @@ the right numbers for a given server.
 - **A stop that finds no `/proc` falls back to signalling the CLI alone**, as before.
 - **Synchronous `git` on request paths** (`packages/core/src/git.ts`, `execFileSync`) still blocks the
   event loop for as long as a git call takes. Not changed here.
-- **The process table is read in full** on each `/system/processes` call. That costs time with many
-  processes on the machine; the route says so and is meant to be polled at a human pace.
+- **The process table is still read in full, but at most every two seconds** for what is shown
+  (`recentProcessTable`). Stopping a chat or cancelling a command reads it fresh: a stale table could
+  name a pid the system has reused.
 - **The E2E port is fixed** (`e2e/run.mjs`, 8799): two runs on one machine collide.
 - **The overview shows the figures in a Machine widget** (memory bar, pressure, admission, chats with
   their resident memory), polled every 10 s by `useSystemLoad` and `useSystemProcesses`. The history

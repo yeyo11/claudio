@@ -171,6 +171,28 @@ export function processTable(): ProcessEntry[] {
   return table;
 }
 
+/** How long {@link recentProcessTable} serves one reading. Short: a chat's tree changes by the second. */
+const PROCESS_TABLE_TTL_MS = 2_000;
+let recentTable: { at: number; value: ProcessEntry[] } | null = null;
+
+/**
+ * {@link processTable}, read at most once every two seconds, for what is only shown (the usage of
+ * each chat). It is a stat and a cmdline file per process on the machine, about 12 ms with 400 of
+ * them, and several tabs polling it each paid that on the event loop. Never for a decision that
+ * signals a process: stopping a tree and the escalation to SIGKILL read the table fresh, since a
+ * stale one could name a pid that has since been reused.
+ * `read` and `now` are the seams a test uses.
+ */
+export function recentProcessTable(read: () => ProcessEntry[] = processTable, now: number = Date.now()): ProcessEntry[] {
+  if (!recentTable || now - recentTable.at > PROCESS_TABLE_TTL_MS || now < recentTable.at) recentTable = { at: now, value: read() };
+  return recentTable.value;
+}
+
+/** Drops the cached table: the next {@link recentProcessTable} reads it again. */
+export function forgetProcessTable(): void {
+  recentTable = null;
+}
+
 /** One process from the table, or null when it is gone: for a caller that already knows the pid and must not scan them all. */
 export function processEntry(pid: number): ProcessEntry | null {
   try {

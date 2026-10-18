@@ -24,7 +24,7 @@ records what is built, what is left and why. What is built is described in
 | 3.5 | Default time limit for tasks without one | **Built**: 180 min, `CLAUDIO_TASK_MAX_MINUTES` |
 | 4 | Fair queue with priority for interactive chats | **Not built**: refusals are polled every 3 s |
 | 4 | Async `git` on request paths | **Not built**: `git.ts` still uses `execFileSync` |
-| 4 | Less of `/proc` read per request | **Not built**: `processTable()` reads everything on each call |
+| 4 | Less of `/proc` read per request | **Built**: `/system/processes` reads the table through a 2 s cache (`recentProcessTable`) |
 | 4 | Random E2E port by default | **Not built**: `e2e/run.mjs` keeps 8799 |
 | 4 | Log and artefact budget | **Not measured** |
 | 5 | Limit for heavy commands (builds, Chromium) | **Not built**: needs a cgroup or a change in how the CLI runs its tools |
