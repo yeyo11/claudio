@@ -1,7 +1,7 @@
 import type { AuthConfig, AuthMode, CodeHostId, CodeHostStatus, SetupState, TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, ExternalLink, RefreshCw, Shield } from 'lucide-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
@@ -224,13 +224,29 @@ function Foot({
 function Intro({ title, text }: { title: string; text: string }) {
   const { t } = useTranslation('setup');
   const [open, setOpen] = useState(false);
+  // More is offered only when the clamp really cuts the text: a three-line text has nothing to expand
+  const paragraph = useRef<HTMLParagraphElement>(null);
+  const [cut, setCut] = useState(false);
+  useEffect(() => {
+    const measure = () => {
+      const el = paragraph.current;
+      if (el && !open) setCut(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open, text]);
   return (
     <div className="prov-first-intro setup-aside">
       <h1 className="text-display">{title}</h1>
-      <p className={open ? 'setup-aside-text is-open' : 'setup-aside-text'}>{text}</p>
-      <button type="button" className="btn prov-quiet btn-small setup-aside-more" aria-expanded={open} onClick={() => setOpen((now) => !now)}>
-        {open ? t('intro.less') : t('intro.more')}
-      </button>
+      <p ref={paragraph} className={open ? 'setup-aside-text is-open' : 'setup-aside-text'}>
+        {text}
+      </p>
+      {(cut || open) && (
+        <button type="button" className="btn prov-quiet btn-small setup-aside-more" aria-expanded={open} onClick={() => setOpen((now) => !now)}>
+          {open ? t('intro.less') : t('intro.more')}
+        </button>
+      )}
     </div>
   );
 }
