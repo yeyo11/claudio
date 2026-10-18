@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { AuthMode } from '@claudio/shared';
+import type { AuthMode, ClaimHostResult, HostRefusal } from '@claudio/shared';
 
 /*
  * The credential this browser sends, and what happens when the API refuses it.
@@ -54,6 +54,10 @@ export function withToken(url: string): string {
 // ---------- the 401 state ----------
 
 let challenge: AuthMode | null = null;
+// The 401 says the owner token a container made on its first start has not been used yet
+let firstRunToken = false;
+// The 421 says this host is not one the wrapper answers to: the app shows that instead of a shell
+let hostRefusal: HostRefusal | null = null;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -61,9 +65,29 @@ function emit(): void {
 }
 
 /** A route answered 401: the whole UI is replaced by the sign-in screen until one succeeds. */
-export function setChallenge(mode: AuthMode | null): void {
-  if (challenge === mode) return;
+export function setChallenge(mode: AuthMode | null, firstRun = false): void {
+  const pending = mode !== null && firstRun;
+  if (challenge === mode && firstRunToken === pending) return;
   challenge = mode;
+  firstRunToken = pending;
+  emit();
+}
+
+/** The 401's body, as far as the sign-in screen reads it */
+export function challengeOf(body: unknown): { mode: AuthMode; firstRunToken: boolean } {
+  const { mode, firstRunToken: first } = (body ?? {}) as { mode?: AuthMode; firstRunToken?: unknown };
+  return { mode: mode ?? 'token', firstRunToken: first === true };
+}
+
+/** A 421 body this wrapper wrote, or null for any other answer (a proxy's page) */
+export function hostRefusalOf(body: unknown): HostRefusal | null {
+  const refusal = body as Partial<HostRefusal> | null;
+  return refusal?.code === 'host-not-allowed' && typeof refusal.host === 'string' ? (refusal as HostRefusal) : null;
+}
+
+export function setHostRefusal(refusal: HostRefusal | null): void {
+  if (hostRefusal === refusal) return;
+  hostRefusal = refusal;
   emit();
 }
 
@@ -74,6 +98,17 @@ const subscribe = (onChange: () => void) => {
 
 export function useAuthChallenge(): AuthMode | null {
   const read = () => challenge;
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+/** The challenge is for the token a container printed on its first start */
+export function useFirstRunToken(): boolean {
+  const read = () => firstRunToken;
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+export function useHostRefusal(): HostRefusal | null {
+  const read = () => hostRefusal;
   return useSyncExternalStore(subscribe, read, read);
 }
 
@@ -104,8 +139,10 @@ export async function probeAuth(fetcher: typeof fetch = fetch, waitMs = PROBE_WA
   try {
     const res = await fetcher(PROBE_PATH, { headers: authHeaders() });
     if (res.status === 401) {
-      const body = (await res.json().catch(() => null)) as { mode?: AuthMode } | null;
-      setChallenge(body?.mode ?? 'token');
+      const { mode, firstRunToken: first } = challengeOf(await res.json().catch(() => null));
+      setChallenge(mode, first);
+    } else if (res.status === 421) {
+      setHostRefusal(hostRefusalOf(await res.json().catch(() => null)));
     }
   } catch {
     // Unreachable is not refused: the shell has its own way of saying the API is down
@@ -140,4 +177,30 @@ export async function signIn(credential: string): Promise<boolean> {
     setToken(previous);
     throw error;
   }
+}
+
+export type ClaimOutcome = { status: 'claimed'; result: ClaimHostResult } | { status: 'rejected' } | { status: 'rate-limited'; waitMs: number } | { status: 'refused'; code: string | null };
+
+/**
+ * Proves the owner's token against the one route a refused host may still reach, which adds the host
+ * to the allowlist. The token is kept only when it was accepted, so a wrong one leaves the browser as
+ * it was.
+ */
+export async function claimHost(credential: string): Promise<ClaimOutcome> {
+  const res = await fetch('/api/security/allowed-hosts/claim', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${credential.trim()}` },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (res.ok) {
+    setToken(credential);
+    return { status: 'claimed', result: (await res.json()) as ClaimHostResult };
+  }
+  if (res.status === 401) return { status: 'rejected' };
+  if (res.status === 429) {
+    const seconds = Number(res.headers.get('retry-after'));
+    return { status: 'rate-limited', waitMs: (Number.isFinite(seconds) && seconds > 0 ? seconds : 60) * 1000 };
+  }
+  const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+  return { status: 'refused', code: typeof body?.code === 'string' ? body.code : null };
 }

@@ -1,4 +1,4 @@
-import type { ClaudioDistribution } from '@claudio/shared';
+import type { ClaudioDistribution, ServerUpdateStatus } from '@claudio/shared';
 
 /**
  * What the Updates card offers, decided from what kind of install the server is and from where the
@@ -124,3 +124,17 @@ export const DOCKER_RUN_COMMAND =
 /** What follows `docker pull`: the old container goes, the volumes stay */
 export const DOCKER_REPLACE_COMMAND = `docker stop claudio && docker rm claudio && ${DOCKER_RUN_COMMAND}`;
 export const SOURCE_UPDATE_COMMAND = 'git pull && pnpm install && pnpm build';
+
+// ---------- Claudio updating itself in a container (docs/plans/container-polish.md, D4) ----------
+
+/** The states in which the server is doing something on its own, so the card asks again soon */
+export function serverUpdateRefetchMs(status: Pick<ServerUpdateStatus, 'state'> | undefined): number | false {
+  return status && (status.state === 'downloading' || status.state === 'verifying' || status.state === 'restarting') ? 2000 : false;
+}
+
+/** The counts a `409 update.live-work` carries, or null for any other failure */
+export function liveWorkOf(error: unknown): LiveWork | null {
+  if (!isRecord(error) || error.code !== 'update.live-work' || !isRecord(error.live)) return null;
+  const { working, waiting, running } = error.live;
+  return { working: count(working), waiting: count(waiting), running: count(running) };
+}
