@@ -192,9 +192,22 @@ export function usePageTitle(title: string | undefined): void {
 /**
  * Copies `text`. An icon button by default; with `text` shown (`shown`), a neutral button that reads
  * "Copy" beside the icon, for the one thing on a panel the person has to carry elsewhere (a
- * device code, a token shown once).
+ * device code, a token shown once). `named` makes it read its `label` instead ("Copy link"), where
+ * a bare "Copy" would not say which of two things it takes.
  */
-export function CopyButton({ text, label, shown = false, className = '' }: { text: string; label?: string; shown?: boolean; className?: string }) {
+export function CopyButton({
+  text,
+  label,
+  shown = false,
+  named = false,
+  className = '',
+}: {
+  text: string;
+  label?: string;
+  shown?: boolean;
+  named?: boolean;
+  className?: string;
+}) {
   const { t } = useTranslation(['primitives', 'common']);
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -229,7 +242,7 @@ export function CopyButton({ text, label, shown = false, className = '' }: { tex
             {copied ? <Check {...ICON_SM} /> : <Copy {...ICON_SM} />}
           </motion.span>
         </AnimatePresence>
-        {shown && <span aria-hidden>{copied ? t('ui.copied') : t('ui.copy')}</span>}
+        {shown && <span aria-hidden>{copied ? t('ui.copied') : named ? name : t('ui.copy')}</span>}
       </button>
     </Tooltip>
   );

@@ -322,23 +322,6 @@
   max-inline-size: 640px;
 }
 
-/* A fact about the sign-in the person should know before choosing (the environment sets a credential) */
-.signin-note.warn {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--warn-soft);
-  color: var(--fg);
-}
-
-.signin-note.warn > svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: var(--warn);
-}
-
 .setup-page .prov-first-brand .section-label {
   white-space: nowrap;
 }

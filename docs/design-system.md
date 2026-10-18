@@ -1811,7 +1811,9 @@ Código y tareas → Listo. The first-run Providers page keeps its own 760 px co
   Continuar full width and Volver and Omitir under it.
 - **Gradient surfaces**: the logo and Continuar, two. Nothing else carries the gradient: no `.grad-border` on the
   cards, and every button inside a panel is neutral. On a phone the Sheet's own action may be primary (as YouTrack's access
-  Sheet does), since the page's Continuar sits under the scrim.
+  Sheet does), since the page's Continuar sits under the scrim. Claude Code's sign-in Sheet is the exception: its
+  **Iniciar sesión** and **Guardar y comprobar** stay neutral, as on a desktop: it is one panel wherever it opens
+  ([the container-polish plan](plans/container-polish.md), "The Claude sign-in panel").
 - **Rows** are the providers' `.prov-row.compact` on a desktop and `.prov-cell` on a phone, for agents, `gh`, `glab` and
   YouTrack alike (their monograms from `providers.py`, `hosts.py`, `trackers.py`). The badges and words are the
   providers' table. A row that is not signed in offers **Iniciar sesión** (neutral, no external-link icon: it stays in
@@ -1843,8 +1845,9 @@ Integrations, so nothing is assistant-only.
   **Enviar código**, the braille spinner beside "Esperando a que apruebes", "caduca en 14:12"). A link nobody opened is
   `warn` with the clock ("El enlace para iniciar sesión ha caducado." **Pedir otro enlace**); a failed one is `bad`
   ("No se ha podido iniciar sesión." **Reintentar**). When the deployment sets `CLAUDE_CODE_OAUTH_TOKEN` or
-  `ANTHROPIC_API_KEY`, a `warn` note (`.signin-note.warn`) says the CLI uses it before any sign-in made here; when
-  Claudio keeps a token from the old panel, another says that signing in replaces it. **Clave de API** is the key form
+  `ANTHROPIC_API_KEY`, a `warn` note (`.alert.alert-warn`) says the CLI uses it before any sign-in made here; when
+  Claudio keeps a token from the old panel, another says that signing in replaces it, and when it keeps an API key,
+  one says that signing in removes it ("Al iniciar sesión se quita la clave de API guardada en Claudio."). **Clave de API** is the key form
   with `ANTHROPIC_API_KEY` only and **Guardar y comprobar**.
 - **Device code, starting**: the braille spinner next to "Pidiendo un código a …" and Cancelar. No energy yet.
 - **Device code, waiting** (`waiting-for-person`): the box `.signin-device`, two numbered lines (open the URL, a

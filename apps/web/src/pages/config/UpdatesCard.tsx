@@ -14,6 +14,8 @@ import {
   DOCKER_REPLACE_COMMAND,
   DOCKER_RUN_COMMAND,
   DOCKER_UPDATE_WAYS,
+  dismissedRollback,
+  dismissRollback,
   liveWorkOf,
   parseInstallAnswer,
   parseUpdateState,
@@ -56,7 +58,7 @@ export function UpdatesCard() {
   const facts = info && (
     <span className="update-facts">
       <span>
-        {t('updates.version')} <span className="tnum">{info.current}</span>
+        {t('updates.version')} <span className="tnum">{status?.running ?? info.current}</span>
         {status && status.image !== status.running && <> · {t('updates.imageVersion', { image: status.image })}</>}
       </span>
       <span>
@@ -74,7 +76,7 @@ export function UpdatesCard() {
   );
 
   return (
-    <div className="stack" data-testid="updates-card">
+    <div className="stack update-zone" data-testid="updates-card">
       <PrefRow id="updates-claudio" setting="updates.claudio" title={t('updates.title')} hint={isLoading ? <Skeleton rows={1} /> : facts}>
         <div className="pref-actions">
           <button className="btn" disabled={check.isPending} onClick={() => check.mutate()}>
@@ -341,7 +343,7 @@ function ServerUpdate({ status, info, steps }: { status: ServerUpdateStatus; inf
   const liveSentence = useLiveSentence();
   const [busy, setBusy] = useState<{ revert: boolean; live: LiveWork } | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<string | null>(dismissedRollback);
   // The version running when the restart began: the page reloads once the server reports another
   const [before, setBefore] = useState<string | null>(null);
 
@@ -380,7 +382,12 @@ function ServerUpdate({ status, info, steps }: { status: ServerUpdateStatus; inf
       busy={busy}
       liveSentence={liveSentence}
       rollbackDismissed={dismissed === status.lastRollback?.at}
-      onDismissRollback={() => setDismissed(status.lastRollback?.at ?? null)}
+      onDismissRollback={() => {
+        const at = status.lastRollback?.at;
+        if (!at) return;
+        dismissRollback(at);
+        setDismissed(at);
+      }}
       onDownload={() => {
         setFailure(null);
         download.mutate();

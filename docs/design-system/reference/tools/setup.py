@@ -104,7 +104,7 @@ def claude_choice(big=False):
 
 
 def claude_note(text):
-  return f'<p class="signin-note warn" role="note">{ico("warn", "ico ico-sm")}<span>{text}</span></p>'
+  return f'<div class="callout callout-warn" role="note">{ico("warn", "ico ico-sm")}<span>{text}</span></div>'
 
 
 def claude_account_body(big=False):

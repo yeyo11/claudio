@@ -35,6 +35,7 @@
     "oidc": "OIDC está activado. Se cambia en Ajustes → Acceso y seguridad.",
     "more": "OIDC y el modo solo lectura están en Ajustes → Acceso y seguridad.",
     "shownOnceBody": "Solo se muestra esta vez. Este navegador ya lo usa; cualquier otra cosa que llame a la API lo necesitará.",
+    "firstRun": "Claudio creó este token la primera vez que arrancó. Rótalo para elegir uno propio.",
     "generateAnother": "Generar otro",
     "readOnly": "Claudio está en modo solo lectura: el acceso no se puede cambiar desde aquí."
   },
@@ -163,6 +164,7 @@
     },
     "envNote": "Este despliegue define {{variable}} en su entorno, y Claude Code lo usa antes que cualquier sesión iniciada aquí. Quítalo del despliegue para usar la cuenta con la que inicies sesión.",
     "wrapperNote": "Al iniciar sesión se sustituye el token guardado antes.",
+    "wrapperKeyNote": "Al iniciar sesión se quita la clave de API guardada en Claudio.",
     "claudeSignedIn": "Sesión iniciada en Claude Code"
   },
   "row": {

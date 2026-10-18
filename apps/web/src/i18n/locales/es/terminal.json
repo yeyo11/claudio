@@ -25,7 +25,7 @@
     "read-only": "Claudio está en modo de solo lectura, que no permite un shell.",
     "needs-auth": "La terminal necesita que el acceso esté protegido con un token.",
     "remote-off": "La terminal está configurada para abrirse solo en esta máquina.",
-    "needs-tunnel": "Desde otro dispositivo, la terminal solo se abre por el túnel. Para permitir cualquier dispositivo, cámbialo en este equipo o a través del túnel.",
+    "needs-tunnel": "Desde otro dispositivo, la terminal solo se abre por el túnel. Para permitir cualquier dispositivo, cámbialo en esta máquina o a través del túnel.",
     "from-agent": "No se puede abrir una terminal desde un proceso que ha iniciado un agente.",
     "chat-token": "El token de un chat no puede abrir una terminal."
   },

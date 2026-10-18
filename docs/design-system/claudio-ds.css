@@ -2339,8 +2339,6 @@ a.cont-from:hover { color: var(--fg); }
 }
 .setup-page .prov-bin.signin > * { max-inline-size: 640px; }
 /* A fact about the sign-in the person should know before choosing (the environment sets a credential) */
-.signin-note.warn { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: var(--r); background: var(--warn-soft); color: var(--fg); }
-.signin-note.warn > svg { flex-shrink: 0; margin-top: 2px; color: var(--warn); }
 .prov-bin.signin { gap: 12px; padding-left: 68px; }
 .signin-head { display: flex; align-items: center; gap: 10px; min-height: 30px; }
 .signin-note { margin: 0; font-size: var(--fs-small); line-height: 1.55; color: var(--fg-2); max-width: 640px; }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { isLoopback, parseInstallAnswer, parseUpdateState, updateRoute } from '../src/lib/updates.ts';
+import { dismissRollback, dismissedRollback, isLoopback, parseInstallAnswer, parseUpdateState, updateRoute } from '../src/lib/updates.ts';
 
 // The Updates card offers one way to take a release, chosen from the kind of install the server is
 // and from where the page runs; the desktop shell's answers arrive as `unknown` and are checked.
@@ -64,4 +64,18 @@ test('a busy answer carries what a restart would stop, so the page can ask first
   assert.deepEqual(parseInstallAnswer({ status: 'not-ready', state: { status: 'idle' } }), { status: 'not-ready', state: { status: 'idle' } });
   assert.equal(parseInstallAnswer({ status: 'busy', version: '0.19.0' }), null);
   assert.equal(parseInstallAnswer(undefined), null);
+});
+
+test('a rollback notice put away is remembered by its time, in this browser', () => {
+  const store = new Map<string, string>();
+  const g = globalThis as { localStorage?: Pick<Storage, 'getItem' | 'setItem'> };
+  const before = g.localStorage;
+  g.localStorage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => void store.set(key, value) };
+  try {
+    assert.equal(dismissedRollback(), null);
+    dismissRollback('2026-10-18T10:00:00.000Z');
+    assert.equal(dismissedRollback(), '2026-10-18T10:00:00.000Z');
+  } finally {
+    g.localStorage = before;
+  }
 });

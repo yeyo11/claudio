@@ -331,6 +331,7 @@ function AccessCard({ auth }: { auth: AuthConfig }) {
             options={SETUP_MODES.map((value) => ({ value, label: t(`config:security.access.modes.${value}.label`) }))}
           />
           <p className="small muted">{t('setup:access.body')}</p>
+          {auth.mode === 'token' && auth.firstRunToken && <p className="small muted">{t('setup:access.firstRun')}</p>}
           {auth.readOnly && <p className="small muted">{t('setup:access.readOnly')}</p>}
           <RevealedToken boxed body={t('setup:access.shownOnceBody')} />
           {!auth.readOnly && (

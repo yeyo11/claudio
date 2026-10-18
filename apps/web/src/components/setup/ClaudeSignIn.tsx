@@ -41,6 +41,7 @@ export interface ClaudeSignInProps {
  */
 export function ClaudeSignIn({ layout = 'inline', closable = false, sealed, onClose }: ClaudeSignInProps) {
   const { t } = useTranslation('setup');
+  const { t: tAccounts } = useTranslation('accountsConfig');
   const toast = useToast();
   const queryClient = useQueryClient();
   const [way, setWay] = useState<Way>('account');
@@ -108,20 +109,18 @@ export function ClaudeSignIn({ layout = 'inline', closable = false, sealed, onCl
 
   const source = auth.data?.tokenSource;
   const fromEnvironment = source === 'env-oauth-token' || source === 'env-api-key';
+  const note = (text: string) => (
+    <div className="alert alert-warn" role="note">
+      <TriangleAlert className="alert-icon" {...ICON_SM} />
+      <div className="alert-body">{text}</div>
+    </div>
+  );
+  // A token or a key Claudio keeps would beat the new login, so a sign-in removes it (Core.defaultSignedIn)
   const notes = (
     <>
-      {fromEnvironment && (
-        <p className="signin-note warn" role="note">
-          <TriangleAlert {...ICON_SM} />
-          <span>{t('panel.envNote', { variable: source === 'env-api-key' ? API_KEY_VARIABLE : 'CLAUDE_CODE_OAUTH_TOKEN' })}</span>
-        </p>
-      )}
-      {source === 'wrapper-oauth-token' && way === 'account' && (
-        <p className="signin-note warn" role="note">
-          <TriangleAlert {...ICON_SM} />
-          <span>{t('panel.wrapperNote')}</span>
-        </p>
-      )}
+      {fromEnvironment && note(t('panel.envNote', { variable: source === 'env-api-key' ? API_KEY_VARIABLE : 'CLAUDE_CODE_OAUTH_TOKEN' }))}
+      {source === 'wrapper-oauth-token' && way === 'account' && note(t('panel.wrapperNote'))}
+      {source === 'wrapper-api-key' && way === 'account' && note(t('panel.wrapperKeyNote'))}
     </>
   );
 
@@ -152,14 +151,14 @@ export function ClaudeSignIn({ layout = 'inline', closable = false, sealed, onCl
         ) : start.isPending ? (
           <div className="signin-wait signin-starting" role="status">
             <Spinner />
-            {t('panel.starting', { label: LABEL })}
+            {tAccounts('signIn.starting')}
           </div>
         ) : (
           <>
             <p className="signin-note">{t('panel.account.intro')}</p>
             <ErrorBox error={start.error} title={t('panel.startFailed')} />
             <div className={layout === 'sheet' ? 'prov-sheet-actions' : 'signin-actions'}>
-              <button type="button" className={layout === 'sheet' ? 'btn btn-primary' : 'btn'} onClick={() => start.mutate()}>
+              <button type="button" className="btn" onClick={() => start.mutate()}>
                 {t('panel.account.signIn')}
               </button>
               {cancelButton}
@@ -211,7 +210,7 @@ function ApiKeyForm({ layout, sealed, onSucceeded, cancel }: { layout: PanelLayo
       <ErrorBox error={login.startError} title={t('panel.startFailed')} />
       {failure && <FailureNote failure={failure} label={LABEL} />}
       <div className={layout === 'sheet' ? 'prov-sheet-actions' : 'signin-actions'}>
-        <button type="submit" className={layout === 'sheet' ? 'btn btn-primary' : 'btn'} disabled={!typed || busy}>
+        <button type="submit" className="btn" disabled={!typed || busy}>
           {busy && <Spinner />}
           {busy ? t('panel.saving') : t('panel.save')}
         </button>

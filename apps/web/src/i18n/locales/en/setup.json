@@ -35,6 +35,7 @@
     "oidc": "OIDC is on. You change it in Settings → Access & safety.",
     "more": "OIDC and the read-only mode are in Settings → Access & safety.",
     "shownOnceBody": "It is shown only this once. This browser already uses it; anything else that calls the API will need it.",
+    "firstRun": "Claudio made this token the first time it started. Rotate it to choose one of your own.",
     "generateAnother": "Generate another",
     "readOnly": "Claudio is in read-only mode: the access cannot be changed from here."
   },
@@ -163,6 +164,7 @@
     },
     "envNote": "This deployment sets {{variable}} in its environment, and Claude Code uses it before any sign-in made here. Remove it from the deployment to use the account you sign in with.",
     "wrapperNote": "Signing in replaces the token saved earlier.",
+    "wrapperKeyNote": "Signing in removes the API key saved in Claudio.",
     "claudeSignedIn": "Signed in to Claude Code"
   },
   "row": {

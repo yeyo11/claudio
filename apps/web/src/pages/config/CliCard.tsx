@@ -45,12 +45,8 @@ export function CliCard() {
     <span className="update-facts">
       <span>
         {t('cli.version')} <span className="tnum">{shown.current ?? t('cli.notInstalled')}</span>
+        {shown.pinned && <> · {t('updates.imageVersion', { image: shown.pinned })}</>}
       </span>
-      {shown.pinned && (
-        <span>
-          {t('cli.pinned')} <span className="tnum">{shown.pinned}</span>
-        </span>
-      )}
       <span>
         {t('cli.latest')} <span className="tnum">{shown.latest ?? t('cli.never')}</span>
       </span>
@@ -60,7 +56,7 @@ export function CliCard() {
   );
 
   return (
-    <div className="stack" data-testid="cli-card">
+    <div className="stack update-zone" data-testid="cli-card">
       <PrefRow id="updates-cli" setting="updates.cli" title={t('cli.title')} hint={isLoading ? <Skeleton rows={1} /> : facts}>
         <div className="pref-actions">
           <button className="btn" disabled={check.isPending} onClick={() => check.mutate()}>

@@ -138,3 +138,26 @@ export function liveWorkOf(error: unknown): LiveWork | null {
   const { working, waiting, running } = error.live;
   return { working: count(working), waiting: count(waiting), running: count(running) };
 }
+
+const ROLLBACK_KEY = 'cw:rollback-dismissed';
+
+/**
+ * The rollback notice a person put away in this browser, by its `lastRollback.at`: the launcher keeps
+ * the last rollback in its state for good, so without this the notice would come back on every visit.
+ * A later rollback has another `at` and shows again.
+ */
+export function dismissedRollback(): string | null {
+  try {
+    return localStorage.getItem(ROLLBACK_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function dismissRollback(at: string): void {
+  try {
+    localStorage.setItem(ROLLBACK_KEY, at);
+  } catch {
+    // private mode: the notice comes back next visit, which is all it costs
+  }
+}

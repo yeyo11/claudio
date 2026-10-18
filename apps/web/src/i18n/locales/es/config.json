@@ -285,7 +285,6 @@
     "title": "Claude Code",
     "version": "En uso",
     "notInstalled": "no instalado",
-    "pinned": "Fijada por la imagen",
     "latest": "Última publicada",
     "never": "aún sin comprobar",
     "checked": "Última comprobación {{when}}",

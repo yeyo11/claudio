@@ -96,7 +96,7 @@ export function SignInSession({
                 <span className="sr-only"> ({t('signIn.opensNewTab')})</span>
               </a>
             </Tooltip>
-            <CopyButton text={url} label={t('signIn.copyLink')} shown />
+            <CopyButton text={url} label={t('signIn.copyLink')} shown named />
           </div>
           <form
             className="signin-form"
