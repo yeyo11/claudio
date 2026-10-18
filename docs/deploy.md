@@ -16,22 +16,22 @@ of a new release, and what to know about restarts.
 
 ## Running the published image
 
-On a machine where you are already logged in to Claude Code, mint a long-lived token:
-
-```bash
-claude setup-token
-```
-
-Then run the published image, pasting that token in:
+Run the published image with no Claude variable at all:
 
 ```bash
 docker run -d --init --name claudio --restart unless-stopped -p 127.0.0.1:8797:8797 \
-  -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
   -v claudio-config:/home/node/.claude \
   -v claudio-data:/data \
   -v claudio-workspace:/workspace \
   ghcr.io/yeyo11/claudio
 ```
+
+Then open Claudio, sign in with the owner token from the container's log
+([the first-run token](#the-first-run-token)), and sign in to Claude in the setup assistant: **Claude
+account** opens a link, you approve it and paste the code the page shows, the same
+`claude auth login` you would run on a machine of your own. A pay-per-use API key is the other
+choice there. A token made with `claude setup-token` still works as a headless option, for a
+deployment that cannot open a browser: [configuration.md](configuration.md#claude-code-credentials).
 
 The workspace is a named volume too. A folder of your own (`-v "$HOME/projects:/workspace"`) works
 as well, as an absolute path: a relative one such as `$PWD/workspace` is a different folder from
@@ -46,9 +46,11 @@ The UI and the API reference are on <http://localhost:8797> — the panel at `/`
 OpenAPI docs at `/docs`, the API under `/api` ([rest-api.md](rest-api.md)). Everything else is
 configured from the UI, or from the environment ([configuration.md](configuration.md)).
 
-The port is published on `127.0.0.1` only: authentication is off by default (see
-[securing.md](securing.md) and [SECURITY.md](../SECURITY.md)), so do not drop that prefix unless you
-turn it on and put TLS in front.
+The port is published on `127.0.0.1` only here. A container that is not told how to authenticate
+makes an owner token on its first start, so publishing the port beyond this machine (`-p 8797:8797`)
+is not open to the LAN: see [the first-run token](#the-first-run-token). Put TLS in front before
+you do, though: the token travels in a header ([securing.md](securing.md) and
+[SECURITY.md](../SECURITY.md)).
 
 Name all three volumes: the image declares each as a volume, so a command that names fewer still
 starts, with the others on volumes Docker made on its own, and replacing the container to update
@@ -60,12 +62,12 @@ says how, and Settings → General → Updates warns when a container was starte
 ```bash
 git clone https://github.com/yeyo11/claudio
 cd claudio
-cp .env.example .env        # paste the token into CLAUDE_CODE_OAUTH_TOKEN
+cp .env.example .env        # nothing to fill in to start; sign in from the app
 docker compose up --build
 ```
 
 The image pins the Claude Code it installs (`CLAUDE_CODE_VERSION`, defaulting to the version in
-`docker/Dockerfile`), so an image is the same tomorrow as today; set it in `.env` to move. Compose
+`docker/Dockerfile`), so an image is the same tomorrow as today; set it in `.env` to move, or install a newer one from the app ([updates.md](updates.md)). Compose
 publishes the port on `127.0.0.1` like the command above, and adds a `tls` profile:
 
 ```bash
@@ -95,10 +97,13 @@ What the sections below say, in brief:
 
 - **Docker Compose**: `docker compose up -d` publishes Claudio on `127.0.0.1:8797`;
   `--profile tls` adds the Caddy proxy on `:80` and `:443` (`CLAUDIO_DOMAIN` picks the name).
+- **The first start**: a container with no auth variable makes an owner token and prints it once; see
+  [the first-run token](#the-first-run-token). The setup assistant signs in to Claude with the
+  paste-code `claude auth login`, so no Claude variable is needed.
 - **Kubernetes**: the Helm chart in `deploy/helm/claudio` is a Deployment (one replica, `Recreate`),
   a Service and one PersistentVolumeClaim that outlives `helm uninstall`. Its values cover the image
   tag (pinned to a release rather than `latest`), the port, resources, the pod and container
-  security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
+  security contexts, `auth.mode` (`auto`, the default, `none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
   template; bring your own — and if it gives the pod a host name, put that name in
   `CLAUDIO_ALLOWED_HOSTS` through the chart's `env`.
 - **The tunnel** (Settings → Access & safety → Remote access): the image runs a Tailscale of its own in userspace
@@ -113,6 +118,38 @@ What the sections below say, in brief:
   itself after three failed probes and Compose's `restart: unless-stopped` starts it again; the chart
   uses ordinary liveness and readiness probes. `SIGTERM` is a clean stop: the chats' transcripts are
   on disk and resume afterwards.
+
+## The first-run token
+
+A container started with none of `CLAUDIO_AUTH_MODE`, `CLAUDIO_AUTH_TOKEN` and `CLAUDIO_OIDC_ISSUER`
+makes an owner token the first time it starts and turns on token authentication with it. It is the
+same kind of token `POST /security/token` makes (32 random bytes, base64url) and only its hash goes
+into `auth.json`, as `tokenId: 'first-run'`.
+
+- **Where to read it.** The server prints it once to the container's standard output, in a framed
+  block that calls it the owner token: `docker logs claudio` (`kubectl logs` in a cluster). It is
+  also kept in `/data/first-run-token` (mode 0600) until the first request it authenticates, which
+  deletes the file; rotating or removing the token deletes it too. The file exists because a log is
+  easy to lose (`--rm`, a log driver), and anyone who can read `/data` already owns the install.
+  Log shippers that keep the first lines of a container's output keep the token: that is the
+  operator's to weigh.
+- **The sign-in screen says so.** Until the token is first used, the `401` carries
+  `firstRunToken: true` and the sign-in screen says where to find the token, with the command named.
+- **A restart before first use** prints a pointer to the file, not a second token.
+- **Recovery.** `CLAUDIO_AUTH_TOKEN_RESET` works as before ([securing.md](securing.md)).
+- **Opting out.** `CLAUDIO_AUTH_MODE=none` is always respected; the server logs one line saying the
+  terminal and in-app updates need a token. A person who chooses **None** in Settings → Access &
+  safety is not overridden on a later start either (`noneChosenAt`).
+- **Upgrading from 0.6.x.** A container whose `auth.json` says `none`, started without any of the
+  three variables, gets a first-run token **once**, on the first start of the new image, recorded
+  with `generatedAt` so it never happens again. A LAN device that opened Claudio with no credential
+  will see the sign-in screen: read the token from the log. Under `none`, the terminal and in-app
+  updates cannot work, and every device on the LAN could start chats in `bypassPermissions`; that is
+  why the migration is not optional by default.
+- **Helm.** `auth.mode: auto` is the default and writes no `CLAUDIO_AUTH_MODE`. `none`, `token` and
+  `oidc` keep their meaning.
+
+The decision: [decisions/container-owner-token.md](decisions/container-owner-token.md).
 
 ## Docker Compose
 
@@ -188,10 +225,27 @@ longer `localhost`:
   original name instead, or add whatever the proxy sends to `CLAUDIO_ALLOWED_HOSTS`. In the Helm
   chart that goes in `env`.
 
-Get it wrong and **every page and every call answers `421`** with `this wrapper does not answer to
-that host`, which looks like a broken deployment rather than a setting. `GET /api/health` is exempt,
-so the container healthcheck and the chart's probes keep passing while everything else is refused —
-a healthy container serving 421 is this, nearly every time.
+Get it wrong and **every call answers `421`**: the page's files still load, but the app has nothing
+to show. `GET /api/health` is exempt, so the container healthcheck and the chart's probes keep
+passing while everything else is refused: a healthy container serving 421 is this, nearly every time.
+
+**What a person sees.** The `421` body says `code: 'host-not-allowed'`, the `host` (port stripped),
+the auth `mode`, and whether the host can be claimed (`canClaim`) and whether the first-run token is
+pending. A `GET` that prefers `text/html` (typing `/api/...` or `/docs` in a browser) gets a small
+plain page with the same message, in English, with a link to `/`. The app, on that `421`, replaces
+itself with a **Host refused** screen:
+
+- With a token or OIDC and read-only off, it has a field for the owner token and a button, **Add
+  {{host}} and sign in**. That calls `POST /api/security/allowed-hosts/claim`, the one route the host
+  check lets through. It adds the name the request used to the same allowlist layer Settings edits
+  (no restart), and needs an owner credential: it is refused under `none` (`host.needs-auth`), to the
+  desktop and to a chat's token (`host.not-owner`), in read-only (`405`) and for a name the allowlist
+  refuses (`host.invalid`). A wrong token counts in the same back-off as any sign-in. A page that
+  rebinds a name to your server cannot hold the owner's bearer token, so a request that carries it
+  comes from the person.
+- Under `none` or read-only, there is no field. The screen says to name the host in
+  `CLAUDIO_ALLOWED_HOSTS` when the container starts, or to open Claudio on localhost and add it in
+  Settings → Access & safety → Allowed hosts.
 
 One thing the allowlist does not do: it only stops a browser, which cannot choose the header it
 sends. Anything scripted sets its own `Host` and walks past it. It closes DNS rebinding; it is not
@@ -200,15 +254,19 @@ access control, and it is no substitute for turning the guard on.
 ## Kubernetes (Helm)
 
 ```bash
-kubectl create secret generic claudio-claude --from-literal=CLAUDE_CODE_OAUTH_TOKEN=…
-kubectl create secret generic claudio-token --from-literal=token="$(openssl rand -hex 32)"
 kubectl create secret generic claudio-secret-key --from-literal=secret-key="$(openssl rand -hex 32)"
 
 helm install claudio ./deploy/helm/claudio \
-  --set claude.existingSecret=claudio-claude \
-  --set auth.mode=token --set auth.token.existingSecret=claudio-token \
   --set secretKey.existingSecret=claudio-secret-key
+kubectl logs deploy/claudio     # the owner token, printed once on the first start
 ```
+
+`auth.mode` defaults to `auto`: the chart writes no `CLAUDIO_AUTH_MODE`, so the image makes an owner
+token on its first start ([the first-run token](#the-first-run-token)) and `NOTES.txt` shows the
+`kubectl logs` command. To choose the token yourself, make a Secret and pass
+`--set auth.mode=token --set auth.token.existingSecret=claudio-token`. Sign in to Claude from the
+setup assistant; a headless cluster that cannot open a browser sets `claude.existingSecret` to a
+Secret holding `CLAUDE_CODE_OAUTH_TOKEN` ([configuration.md](configuration.md#claude-code-credentials)).
 
 The chart is a Deployment (one replica, `Recreate`), a Service, and one PersistentVolumeClaim that
 holds everything worth keeping through subPaths: `/data`, `~/.claude`
@@ -216,7 +274,7 @@ and `/workspace`. The claim carries `helm.sh/resource-policy: keep`, so `helm un
 account setup and the transcripts alone. Values worth knowing: `image.tag` (a release, not `latest`, so
 `IfNotPresent` means something), `port`, `resources`, `securityContext` and
 `containerSecurityContext`, `env` (where `CLAUDIO_ALLOWED_HOSTS` goes when an Ingress gives the pod
-a host name), `persistence.*`, `auth.mode` (`none`, `token`, `oidc`), `auth.readOnly`, and
+a host name), `persistence.*`, `auth.mode` (`auto`, `none`, `token`, `oidc`), `auth.readOnly`, and
 `secretKey.*`, the vault's key (below). `helm lint` and `helm template` are clean for every auth mode;
 rendering fails on purpose when `token` or `oidc` is chosen without what it needs.
 
@@ -243,15 +301,25 @@ and `NOTES.txt` warns when it is on.
 ## The terminal
 
 Settings → Access & safety → Terminal opens the person's own shell in the browser. It is off until someone turns it on,
-and in a container it has two conditions:
+and in a container it has one condition and one default:
 
-- **Authentication.** The image listens on `0.0.0.0`, so with `CLAUDIO_AUTH_MODE=none` every request
-  reaches the server from the Docker bridge, not from loopback, and the terminal reports
-  `needs-auth`. With a token (or `oidc`) it works, as user `node`, in `/workspace/...`.
-- **Where from.** A device other than the container itself gets a terminal only through the
-  [tunnel](tunnel.md), with a token. A reverse proxy such as Caddy counts as the plain address, not as
-  the tunnel, because Claudio does not trust the headers it sends: reach the terminal through the
-  tunnel, or from a shell on the host.
+- **Authentication.** With `CLAUDIO_AUTH_MODE=none` the terminal reports `needs-auth` and the card
+  says to protect access with a token. The first-run token ([above](#the-first-run-token)) means a
+  new container is not in that state; with a token or `oidc` it works, as user `node`, in
+  `/workspace/...`.
+- **Where from.** In a container every request reaches the server from the Docker bridge, never from
+  loopback, so no request is ever "this machine". Claudio therefore defaults **Where it opens** to
+  *any device that has the token* when `CLAUDIO_DISTRIBUTION=docker`; outside a container the
+  default stays the tunnel, and a value saved in `terminal.json` wins everywhere. The owner token
+  already starts chats in `bypassPermissions`, which run any command as `node`, so the terminal gives
+  its holder nothing new. A chat's token and the desktop credential are still refused, the Origin check
+  and the one-time socket tickets are unchanged, read-only closes it, and the card keeps its warning.
+  A reverse proxy such as Caddy no longer matters here: under *any device* the owner token is what
+  counts, not the address.
+- **A refusal is shown in words.** Each reason the terminal can be unavailable is a sentence with its
+  fix, under the switch; none is a raw server message. Outside a container, raising *Where it opens*
+  from another device stays refused on purpose: a remote caller must not widen its own access, so the
+  sentence says to change it on this machine or through the tunnel.
 
 The shell is the login shell of `node` plus the credentials the app keeps for `gh`, `glab` and the
 tracker CLIs; never a `CLAUDIO_*` variable and never Claude's credentials. Shells outlive a closed
@@ -273,7 +341,7 @@ Settings → Access & safety → Remote access serves Claudio on the person's ta
 shell on the machine.
 
 - **What is in the image.** Tailscale's static linux amd64 build (`tailscale` and `tailscaled`,
-  `TAILSCALE_VERSION`, 1.102.4), from pkgs.tailscale.com, checked against the digest published beside
+  `TAILSCALE_VERSION`, 1.104.1), from pkgs.tailscale.com, checked against the digest published beside
   it like gh and glab.
 - **How it runs.** `docker/entrypoint.sh` starts `tailscaled --tun=userspace-networking` as the
   image's user before the server, then `exec`s the server, which still receives `docker stop`.
@@ -363,7 +431,7 @@ cannot change it, and `CLAUDIO_GUARD_ENTRY` points at it. The Helm chart needs n
 
 **The code hosts' and YouTrack's CLIs.** `gh` and `glab`, the only way Claudio reaches GitHub and
 GitLab ([[code-hosts.md]]), are in `/usr/local/bin`, taken from the vendors' linux amd64 release
-tarballs: `GH_VERSION` (2.102.0) and `GLAB_VERSION` (1.120.0), the versions the host recordings were
+tarballs: `GH_VERSION` (2.102.0) and `GLAB_VERSION` (1.123.0), the versions the host recordings were
 made with. Each tarball is checked against a pinned SHA-256 (`GH_SHA256`, `GLAB_SHA256`), and that
 digest must also be the one in the vendor's published checksums file, so a bump is the version and
 the digest together; `docker/Dockerfile` carries the two commands that print it. JetBrains'
@@ -473,9 +541,11 @@ day while the wrapper runs, never when a page loads. Turn the daily check off wi
 `CLAUDIO_CLI_UPDATE_CHECK=off` (the button keeps working); point it at a mirror with
 `CLAUDIO_CLI_REGISTRY_URL`.
 
-To move to a newer version, rebuild with `CLAUDE_CODE_VERSION=<version>` (set it in `.env` for
-Compose) or use a newer Claudio image. The CLI's own autoupdater is disabled in the image so a
-restart cannot change the version.
+To move to a newer version, **install it from the app** (Settings → General → Updates, **Install**,
+owner only: [updates.md](updates.md#claude-code)), rebuild with `CLAUDE_CODE_VERSION=<version>` (set
+it in `.env` for Compose) or use a newer Claudio image. The CLI's own autoupdater is disabled in the
+image so a restart cannot change the version; an install from the app goes under `/data/cli`, and a
+newer image's pin wins over it.
 
 ## Updating Claudio
 
@@ -499,8 +569,28 @@ bell or out as a push, and a restart does not announce the same release again.
 - The image sets `CLAUDIO_DISTRIBUTION=docker`, which is how the Updates card knows to show Docker
   steps rather than a source checkout's or the desktop app's.
 
-**What to run.** The container cannot replace its own image, and it cannot tell how it was started,
-so the card lists the command for each way below, each under the setup it is for:
+**Updating from the app.** In a container the Updates card downloads a signed server bundle and
+restarts onto it, with no `docker pull`. The full description, with the states, the owner-only rule
+and the rollback, is in [updates.md](updates.md); in short:
+
+- **What it needs.** A token or OIDC (`update.needs-auth` under `none`, `405` in read-only), the
+  image's launcher as the container's `CMD` (an image from this release on), and a public key in the
+  image. Without one the card says why and shows the host commands below.
+- **How.** The release carries `claudio-server-<version>-linux-x64.tar.gz`, its manifest and an
+  Ed25519 signature. The server checks the signature before it downloads, unpacks into
+  `/data/app/<version>/`, and the root-owned launcher checks it again at every boot. If the chats
+  are working it asks first, like the desktop.
+- **Limits.** A release that changed the OS layer, Node or the native modules says it needs a newer
+  image (`minImage`); then the host commands are the way. Only the newest release is offered.
+- **Rollback.** A new bundle must answer `/api/health` within 60 s, twice at most; otherwise the
+  launcher goes back to the previous one, or to the image's own `/app`, and the card says so. With
+  Helm the 60 s trial fits inside the liveness probe's 30 s × 3 tolerance: keep it so.
+- **The image still wins.** A `docker pull` or `helm upgrade` to a newer image beats an older
+  overlay.
+- **Opting out.** `CLAUDIO_SERVER_UPDATE=off` hides it.
+
+**What to run from the host.** Where the app cannot update itself, or a release needs a newer image: the
+container cannot replace its own image and cannot tell how it was started, so the card lists the command for each way below, each under the setup it is for:
 
 - **A compose file whose service uses the published image** (`image: ghcr.io/yeyo11/claudio`), from
   the folder that holds it: `docker compose pull && docker compose up -d`.
@@ -623,4 +713,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[security-model.md]] · [[securing.md]] · [[configuration.md]] · [[rest-api.md]]
+[[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[updates.md]] · [[decisions/container-owner-token.md]] · [[decisions/container-in-app-updates.md]] · [[security-model.md]] · [[securing.md]] · [[configuration.md]] · [[rest-api.md]]

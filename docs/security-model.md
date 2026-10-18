@@ -22,6 +22,21 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
   none yet). See [securing.md](securing.md). The setup assistant's Access
   step sets the same thing, and turning Token on makes a token first when the browser holds none, so
   it cannot lock the person out ([setup.md](setup.md#the-web)).
+- **The first-run owner token.** A container started with no auth variable makes an owner token on
+  its first start and turns token authentication on; it is printed once and kept in
+  `/data/first-run-token` (0600) until first used, and the audit log records its generation and first
+  use. A 0.6.x container saved as `none` is migrated once; `CLAUDIO_AUTH_MODE=none` or choosing None
+  in Settings is respected ([deploy.md](deploy.md#the-first-run-token),
+  [decisions/container-owner-token.md](decisions/container-owner-token.md)).
+- **The host claim.** `POST /security/allowed-hosts/claim` is the one route the host check lets
+  through. It needs an owner credential (refused under `none`, to the desktop and to a chat), its
+  wrong tokens count in the sign-in back-off, and a DNS-rebinding page cannot hold the bearer token.
+- **Owner-only routes.** `isOwnerActor` (a `token:*` or OIDC actor) guards the claim, the in-app
+  server update and the CLI install. `CHAT_FORBIDDEN_SYSTEM` lists them for a chat's token; read-only
+  refuses them with `405` ([updates.md](updates.md#who-may-update)).
+- **`/app` is root-owned in the image**, so an agent running as `node` in `bypassPermissions` can no
+  longer rewrite the server it runs under. Updates live in `/data/app` and are re-verified at every
+  boot by a root-owned launcher against root-owned public keys ([updates.md](updates.md#how-it-is-trusted)).
 - **Read-only mode** (`CLAUDIO_READ_ONLY`) refuses every write, the setup's included (405).
 - **A chat's own token.** A chat Claudio starts gets its own `CLAUDIO_API_TOKEN`
   ([chat-environment.md](chat-environment.md)); it may not change the security settings, open the
@@ -207,7 +222,9 @@ The terminal is a shell on the machine that runs Claudio, so it is the most priv
 server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-security); the rules:
 
 - off until the owner turns it on; with authentication off it opens only from loopback, and off this
-  machine only through the tunnel with a token (or any device with a token, if the owner allows it);
+  machine only through the tunnel with a token (or any device with a token, if the owner allows it,
+  which is the default in a container, where no request is ever from loopback: the owner token
+  already starts chats that run any command, so the terminal adds nothing to it);
 - a chat's token, the desktop secret and any process a chat started are refused, the last by looking
   up the connection's owner in `/proc`; when that cannot be told, it fails closed under `none`. Known
   limit, accepted by the owner (2026-10-15): with authentication off, an agent that has a shell can
@@ -358,9 +375,11 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 - A key beside the data does not protect the volume; only a key passed in the environment does.
 - Nothing about a copy is enforced on a teammate's machine: a removed member keeps what they already
   received ([Collaborators](#collaborators)).
-- A kept token is not validated for free, so a revoked one reads `ready` until a run fails on it.
+- A credential is not refused for free: the CLI's `get_usage` answers the same for a bad token, a bad
+  key and a network that is down, so a revoked one reads `ready` until a run fails on it or the
+  person presses **Send a test message** ([accounts.md](accounts.md#checking-a-credential)).
 
 ## Related
 
-[[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
 [[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]]
