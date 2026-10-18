@@ -18,8 +18,8 @@ change gets in.
 
 | | |
 | --- | --- |
-| Version | **0.5.1** on `main`, the same across all ten `package.json` files |
-| Released | **v0.5.1** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), after 0.3.0, 0.4.0, 0.4.1 and 0.5.0. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
+| Version | **0.6.0** on `main`, the same across all ten `package.json` files |
+| Released | **v0.6.0** on GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), after 0.3.0, 0.4.0, 0.4.1, 0.5.0 and 0.5.1. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 1,578 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 9,606 lines of `packages/shared/src/types.ts` |
 | REST | 39 route files, documented as OpenAPI 3.1 and served at `/docs` |
@@ -114,7 +114,7 @@ cause when a replay stops it (#36, 0.4.1). The **Machine widget** and its page, 
 request paths, the figures history and priority for people's chats landed in #38 (0.5.0;
 [resource-control.md](resource-control.md)), and dialogs, sheets and drawers hold up on a phone and in
 the desktop app since #40 (0.5.1). Every full load, on the desktop, the web and the PWA, opens on the
-"Eat the code" splash since #42, merged after 0.5.1 and not yet released
+"Eat the code" splash since #42 (0.6.0)
 ([plans/splash-eat-the-code.md](plans/splash-eat-the-code.md)).
 
 ## What is open
@@ -123,7 +123,7 @@ the desktop app since #40 (0.5.1). Every full load, on the desktop, the web and 
   installs, and two machines on different networks) and it works. Both binding defects were already
   reported upstream (#276, open; #277, fixed but not released); `@number0/iroh` stays pinned at 1.1.0
   until a release answers them ([reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md)).
-- **Releases.** v0.5.1 is published; release-please keeps the next release pull request open for the
+- **Releases.** v0.6.0 is published; release-please keeps the next release pull request open for the
   owner. The open items of each built plan are in its Outcome section.
 - **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were
   dropped on 2026-10-17, and everything else is built and closed in [requests.md](requests.md).
@@ -188,7 +188,7 @@ the desktop app since #40 (0.5.1). Every full load, on the desktop, the web and 
 | [`plans/settings-ia.md`](plans/settings-ia.md) | Merged in #34, released in 0.4.0 (2026-10-18), verified on GitHub: Settings in eight groups with search at `/settings/<group>/<detail>` (the `?tab=` addresses redirect), Connectors folded into Connections, Decisions as evidence without chips, and the Supervisor folded into the `supervisor.intervene` point (`GET/PUT /settings/supervisor` deprecated). See [Outcome](plans/settings-ia.md#outcome) and [settings.md](settings.md) |
 | [`plans/claudio-designer.md`](plans/claudio-designer.md) | Merged in #26, released in 0.3.0 (2026-10-17): the `claudio-ui` skill, its review, audit and exploration agents, the machine-checked invariants and the hooks that lint every UI edit, and the typographic voice it brings to Night Shift. See [§4](plans/claudio-designer.md#4-as-built) |
 | [`plans/workflow-engine-limits.md`](plans/workflow-engine-limits.md) | Merged in #10 (2026-10-17): the workflow engine follows its journal live, holds or rotates at a usage limit, and never stays running unwatched. See its [Outcome](plans/workflow-engine-limits.md#outcome) |
-| [`plans/splash-eat-the-code.md`](plans/splash-eat-the-code.md) | Merged in #42 (2026-10-18), not yet released: the four-second brand intro on every full load of the desktop window, the web page and the installed PWA. Design: [design-system.md](design-system.md) and [desktop.md](desktop.md) |
+| [`plans/splash-eat-the-code.md`](plans/splash-eat-the-code.md) | Merged in #42, released in 0.6.0 (2026-10-18): the four-second brand intro on every full load of the desktop window, the web page and the installed PWA. Design: [design-system.md](design-system.md) and [desktop.md](desktop.md) |
 | [`plans/lessons.md`](plans/lessons.md) | Built (2026-10-16): lessons mined from corrections, approved by a person with their evidence, delivered to chats and workers, decayed and promoted to `CLAUDE.md` through the diff dialog; the `lesson.mine` decision point. See [lessons.md](lessons.md) and the plan's [Outcome](plans/lessons.md#outcome) |
 | [`plans/instruction-evals.md`](plans/instruction-evals.md) | Built (2026-10-16), phases 1 and 2: eval files for agent files, skills, rules and `CLAUDE.md`, runs of `current` against `proposed`, pressure levels, pass@k and intervals, the judged expectation and the promotion gate behind `evalsPhase2`. See [evals.md](evals.md) and the plan's [Outcome](plans/instruction-evals.md#outcome) |
 | [`plans/rotation-auth-fixes.md`](plans/rotation-auth-fixes.md) | Built (2026-10-16): an expired sign-in (`api_error_status: 401`) marks the account's `signInState` with `authFailedAt`, rotates the chat with reason `auth`, and a retry chooses the account again; the Accounts page and the status bar say Sign-in expired. See the plan's [Outcome](plans/rotation-auth-fixes.md#outcome) |
