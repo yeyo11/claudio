@@ -87,10 +87,11 @@ function History() {
   return (
     <div className="term-history">
       <h3 className="small strong">{t('history.title')}</h3>
-      <ErrorBox error={error} />
+      {/* A refusal is said in words, as the card does; only a failure that is not one keeps the box */}
+      {terminalRefusal(error) ? <RefusalAlert refusal={terminalRefusal(error) as TerminalRefusal} /> : <ErrorBox error={error} />}
       {isLoading ? (
         <Skeleton rows={3} />
-      ) : entries.length === 0 ? (
+      ) : error ? null : entries.length === 0 ? (
         <Empty title={t('history.none')}>{t('history.noneHint')}</Empty>
       ) : (
         <>
