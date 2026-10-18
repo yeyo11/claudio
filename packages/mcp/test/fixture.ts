@@ -35,6 +35,9 @@ export function injectFetch(app: FastifyInstance, seen: Array<{ url: string; hea
 /** A wrapper on a temporary data dir with project Shop (AGN), item AGN-1, an orchestration and a flow run */
 export async function seed(): Promise<Seeded> {
   const root = mkdtempSync(join(tmpdir(), 'claudio-mcp-test-'));
+  // The default account is listed only once it has a credential (signin-core), so the sandbox gets a signed-in one
+  mkdirSync(join(root, 'claude'), { recursive: true });
+  writeFileSync(join(root, 'claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
