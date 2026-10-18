@@ -259,6 +259,12 @@
   display: contents;
 }
 
+/* The state dissolves into the grid, so its known hosts (gh, glab) need a place of their own: under
+   the name, across every column after the icon, never in the icon's 50 px */
+.setup-page .prov-row.compact .host-known {
+  grid-column: 2 / -1;
+}
+
 .setup-page .prov-row.compact .prov-name {
   grid-column: 2;
   grid-row: 1;

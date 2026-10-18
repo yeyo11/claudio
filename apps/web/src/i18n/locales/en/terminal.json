@@ -147,7 +147,21 @@
     "where": "Directory",
     "how": "How it went",
     "running": "Running",
-    "refused": "{{count}} refused: {{reasons}}",
+    "refused_one": "{{count}} attempt refused: {{reasons}}",
+    "refused_other": "{{count}} attempts refused: {{reasons}}",
+    "refusedReason": {
+      "from-agent": "from an agent's process",
+      "needs-auth": "no token",
+      "needs-tunnel": "not through the tunnel",
+      "remote-off": "other devices off",
+      "chat-token": "a chat's token",
+      "off": "terminals off",
+      "read-only": "read-only",
+      "disabled-by-env": "turned off by the deployment",
+      "host-failed": "the host failed",
+      "pty-missing": "no terminal support",
+      "unknown": "another reason"
+    },
     "ended": {
       "exit": "The shell exited",
       "closed": "Closed by you",

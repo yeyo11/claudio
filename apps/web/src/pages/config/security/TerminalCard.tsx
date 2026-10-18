@@ -117,7 +117,13 @@ function History() {
                         {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
                         {refused.length > 0 && (
                           <Tag tone="warn">
-                            {t('history.refused', { count: refused.length, reasons: [...new Set(refused.map((attachment) => attachment.refused))].join(', ') })}
+                            {t('history.refused', {
+                              count: refused.length,
+                              // A code the copy does not know yet still reads as words, never as the server's code
+                              reasons: [...new Set(refused.map((attachment) => attachment.refused))]
+                                .map((reason) => t(`history.refusedReason.${reason}`, { defaultValue: t('history.refusedReason.unknown') }))
+                                .join(', '),
+                            })}
                           </Tag>
                         )}
                       </td>

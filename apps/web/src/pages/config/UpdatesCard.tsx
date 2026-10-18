@@ -403,12 +403,12 @@ function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge
       {state.status === 'downloading' && (
         <div className="stack">
           <p className="small" role="status">
-            {t('updates.downloading', { version: state.version, percent: formatPercent(state.percent) })}
+            {t('updates.downloadingShell', { version: state.version, percent: formatPercent(state.percent) })}
           </p>
           <span
             className="progress"
             role="progressbar"
-            aria-label={t('updates.downloadProgress', { version: state.version })}
+            aria-label={t('updates.downloadShellProgress', { version: state.version })}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={state.percent}

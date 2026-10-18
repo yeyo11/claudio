@@ -170,6 +170,8 @@
   "row": {
     "signIn": "Iniciar sesión",
     "signInAria": "Iniciar sesión en {{label}}",
+    "closeSignIn": "Cerrar",
+    "closeSignInAria": "Cerrar el inicio de sesión en {{label}}",
     "addHost": "Añadir otro host"
   },
   "signOut": {

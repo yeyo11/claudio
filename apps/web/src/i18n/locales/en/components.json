@@ -146,7 +146,7 @@
     "duration": "Duration",
     "runs": "Runs",
     "runsCount_one": "{{count}} run",
-    "runsCount_other": "{{count}} runs, resumed by its parent",
+    "runsCount_other": "{{count}} runs",
     "started": "Started",
     "startedBy": "Started by",
     "fromSubagent": "a subagent",

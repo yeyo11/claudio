@@ -170,6 +170,8 @@
   "row": {
     "signIn": "Sign in",
     "signInAria": "Sign in to {{label}}",
+    "closeSignIn": "Close",
+    "closeSignInAria": "Close the sign-in to {{label}}",
     "addHost": "Add another host"
   },
   "signOut": {

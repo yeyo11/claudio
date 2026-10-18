@@ -335,6 +335,8 @@
     "looking": "Looking for the download…",
     "downloading": "Downloading Claudio {{version}}: {{percent}}",
     "downloadProgress": "Downloading Claudio {{version}}",
+    "downloadingShell": "Downloading the desktop app {{version}}: {{percent}}",
+    "downloadShellProgress": "Downloading the desktop app {{version}}",
     "restart": "Restart to update to {{version}}",
     "scheduled": "Claudio {{version}} will be installed the next time you quit.",
     "desktopFailed": "The update did not go through",

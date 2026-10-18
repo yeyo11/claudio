@@ -116,12 +116,12 @@ export function SignInSection() {
     <PrefRows>
       <PrefRow id="sign-in-account" setting="sign-in.account" title={t('account.inUse')} hint={isLoading ? <Skeleton rows={4} /> : facts}>
         <div className="pref-actions">
-          {inUse !== null && usesKey && (
+          {inUse !== null && !expired && usesKey && (
             <button className="btn" disabled={check.isPending} onClick={() => check.mutate(inUse.id)}>
               <ReservedLabel states={[t('account.check'), t('account.checking')]} shown={check.isPending ? 1 : 0} />
             </button>
           )}
-          {inUse !== null && !usesKey && (
+          {inUse !== null && !expired && !usesKey && (
             <button className="btn" disabled={verify.isPending} onClick={() => verify.mutate()}>
               <ReservedLabel states={[t('account.testMessage'), t('account.testing')]} shown={verify.isPending ? 1 : 0} />
             </button>
@@ -138,7 +138,7 @@ export function SignInSection() {
           )}
           {signOut && <SignOutButton tool={CLAUDE_CODE_ID} label={CLAUDE_CODE_LABEL} keyOnly={methods?.signOutKeyOnly ?? false} />}
         </div>
-        {inUse !== null && !usesKey && <span className="small muted">{t('account.testHint')}</span>}
+        {inUse !== null && !expired && !usesKey && <span className="small muted">{t('account.testHint')}</span>}
         {/* Always rendered so a screen reader is told when the result lands */}
         <span className="small" role="status">
           {verify.data && (

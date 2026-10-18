@@ -35,9 +35,9 @@
     "access": "Abrir Acceso y seguridad"
   },
   "limits": {
-    "off": "Una terminal se abre solo en este equipo. Los demás dispositivos no pueden abrir ninguna.",
-    "tunnel": "Una terminal se abre en este equipo, y desde otros dispositivos solo a través del túnel y con un token.",
-    "any": "Cualquier dispositivo que llegue a esta dirección con un token puede abrir un shell en este equipo."
+    "off": "Una terminal se abre solo en esta máquina. Los demás dispositivos no pueden abrir ninguna.",
+    "tunnel": "Una terminal se abre en esta máquina, y desde otros dispositivos solo a través del túnel y con un token.",
+    "any": "Cualquier dispositivo que llegue a esta dirección con un token puede abrir un shell en esta máquina."
   },
   "notices": {
     "pasteBlocked": "El navegador no ha permitido leer el portapapeles. Pega con Ctrl+Shift+V.",
@@ -108,7 +108,7 @@
     "enabled": "Permitir terminales",
     "fromEnv": "Lo fija el entorno; cámbialo allí.",
     "remoteLabel": "Desde otros dispositivos",
-    "remoteHint": "Este equipo siempre puede abrir una terminal. Los demás dispositivos necesitan un token.",
+    "remoteHint": "Esta máquina siempre puede abrir una terminal. Los demás dispositivos necesitan un token.",
     "remote": {
       "off": "No permitido",
       "tunnel": "Solo a través del túnel",
@@ -126,7 +126,7 @@
     "loginShell": "Tu shell de inicio de sesión",
     "agentReach": "Aviso: sin autenticación, un agente que tenga un shell puede llegar a la terminal, porque un proceso desacoplado sale del árbol de procesos de su chat. Con autenticación por token o por OIDC no puede.",
     "peerOn": "Se comprueba el proceso que se conecta: un proceso que ha iniciado un agente no puede abrir una terminal.",
-    "peerUnknown": "Aquí no se puede comprobar el proceso que se conecta, así que sin autenticación una terminal se abre solo desde este equipo.",
+    "peerUnknown": "Aquí no se puede comprobar el proceso que se conecta, así que sin autenticación una terminal se abre solo desde esta máquina.",
     "screenReader": "Modo de lector de pantalla",
     "screenReaderHint": "Hace la terminal legible para un lector de pantalla, a costa de algo de velocidad. Se guarda en este navegador.",
     "consequence": {
@@ -147,7 +147,21 @@
     "where": "Directorio",
     "how": "Cómo acabó",
     "running": "En marcha",
-    "refused": "{{count}} rechazados: {{reasons}}",
+    "refused_one": "{{count}} intento rechazado: {{reasons}}",
+    "refused_other": "{{count}} intentos rechazados: {{reasons}}",
+    "refusedReason": {
+      "from-agent": "desde un proceso de un agente",
+      "needs-auth": "sin token",
+      "needs-tunnel": "sin pasar por el túnel",
+      "remote-off": "otros dispositivos desactivados",
+      "chat-token": "el token de un chat",
+      "off": "terminales desactivadas",
+      "read-only": "solo lectura",
+      "disabled-by-env": "desactivadas por el despliegue",
+      "host-failed": "falló el host",
+      "pty-missing": "sin soporte de terminal",
+      "unknown": "otro motivo"
+    },
     "ended": {
       "exit": "El shell terminó",
       "closed": "La cerraste tú",

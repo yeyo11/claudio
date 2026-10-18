@@ -94,8 +94,8 @@ export default async ({ page, api, check, dirs }) => {
     state('gh', { signedIn: false });
     await checkAgain();
     await page.waitFor(stateIs('github', 'signed-out'), { label: 'gh signed out after Check again' });
-    const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { tag: a.tagName, pressed: a.getAttribute('aria-pressed') } : null`);
-    check(signIn?.tag === 'BUTTON' && signIn.pressed === 'false', `signed out offers Sign in, a button that stays in Claudio (${JSON.stringify(signIn)})`);
+    const signIn = await page.eval(`const a = document.querySelector('.prov-row[data-host="github"] [data-action="sign-in"]'); return a ? { tag: a.tagName, expanded: a.getAttribute('aria-expanded') } : null`);
+    check(signIn?.tag === 'BUTTON' && signIn.expanded === 'false', `signed out offers Sign in, a button that stays in Claudio (${JSON.stringify(signIn)})`);
     await page.click('.prov-row[data-host="github"] [data-action="sign-in"]', undefined, 300);
     await page.waitFor(`return !!document.querySelector('.prov-bin.signin-panel')`, { label: 'the sign-in panel under the row' });
     // The panel opens at once with a skeleton and offers its methods once GET /setup has answered,

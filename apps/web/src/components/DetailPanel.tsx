@@ -215,7 +215,8 @@ function AgentBody({ target }: { target: AgentTarget }) {
           {running && target.kind === 'subagent' && (
             <>
               {' '}
-              <SubagentNow chatId={target.chatId} agentId={target.agentId} startedAt={data.startedAt} />
+              {/* The open run's start, not the first launch: the gaps between runs never count (one clock with the strip) */}
+              <SubagentNow chatId={target.chatId} agentId={target.agentId} startedAt={data.runs.at(-1)?.startedAt ?? data.startedAt} />
             </>
           )}
           {data.background && (

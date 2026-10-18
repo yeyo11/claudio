@@ -196,11 +196,12 @@ function ActionButton({
             type="button"
             className={cls(action)}
             data-action="sign-in"
-            aria-pressed={open}
-            aria-label={tSetup('row.signInAria', { label: status.label })}
+            aria-expanded={open}
+            aria-label={open ? tSetup('row.closeSignInAria', { label: status.label }) : tSetup('row.signInAria', { label: status.label })}
             onClick={onSignIn}
           >
-            {t('row.signIn')}
+            {/* Open, the panel below carries its own Sign in: this one only closes it, and says so */}
+            {open ? tSetup('row.closeSignIn') : t('row.signIn')}
           </button>
         );
       }

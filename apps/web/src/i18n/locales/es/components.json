@@ -146,7 +146,7 @@
     "duration": "Duración",
     "runs": "Ejecuciones",
     "runsCount_one": "{{count}} ejecución",
-    "runsCount_other": "{{count}} ejecuciones, reanudado por quien lo lanzó",
+    "runsCount_other": "{{count}} ejecuciones",
     "started": "Inicio",
     "startedBy": "Iniciada por",
     "fromSubagent": "un subagente",
