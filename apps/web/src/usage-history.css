@@ -80,3 +80,38 @@
   gap: 6px;
   color: var(--fg-2);
 }
+
+/* ---------- The Machine page (Settings → Runs & spend → Machine) ---------- */
+
+.machine-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.machine-chart-block {
+  min-width: 0;
+}
+
+/* A section label in sentence case, as the voice has it: not uppercase, not mono */
+.machine-chart-title {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  font-weight: var(--fw-strong);
+  color: var(--fg-2);
+}
+
+.machine-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 36ch;
+}
+
+.machine-table .num {
+  text-align: right;
+  white-space: nowrap;
+}

@@ -18,7 +18,7 @@ const GROUPS = {
     details: ['plugins', 'skills', 'agents', 'commands', 'workflows', 'tool-presets'],
   },
   decisions: { sections: ['engine', 'points'], details: ['history'] },
-  runs: { sections: ['runs', 'spend-cap', 'evals'], details: [] },
+  runs: { sections: ['runs', 'spend-cap', 'evals', 'machine'], details: ['machine'] },
   access: {
     sections: ['access', 'hosts', 'remote', 'secrets', 'guards', 'terminal', 'audit', 'agent-reads'],
     details: ['audit', 'agent-reads'],

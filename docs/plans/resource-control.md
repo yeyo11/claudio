@@ -29,7 +29,7 @@ records what is built, what is left and why. What is built is described in
 | 4 | Log and artefact budget | **Not measured** |
 | 5 | Limit for heavy commands (builds, Chromium) | **Not built**: needs a cgroup or a change in how the CLI runs its tools |
 | 6 | Dashboard, option A | **Built**: the `machine` widget of the overview, see the Outcome |
-| 6 | Dashboard, option B | **Not built** |
+| 6 | Dashboard, option B | **Built**: Settings → Runs & spend → Machine, with a week of stored readings (`GET /api/system/history`) |
 
 ## Why some items are not built
 

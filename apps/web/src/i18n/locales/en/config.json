@@ -492,7 +492,8 @@
       "guards": "Guards",
       "terminal": "Terminal",
       "audit": "Audit log",
-      "agent-reads": "Agent reads"
+      "agent-reads": "Agent reads",
+      "machine": "Machine"
     },
     "details": {
       "behaviour": "Behaviour (settings.json)",
@@ -511,7 +512,8 @@
       "tool-presets": "Tool presets",
       "history": "Every decision",
       "audit": "Audit log",
-      "agent-reads": "Agent reads"
+      "agent-reads": "Agent reads",
+      "machine": "Machine"
     },
     "rows": {
       "appearance": {
@@ -651,6 +653,9 @@
       },
       "agent-reads": {
         "log": "What agents read"
+      },
+      "machine": {
+        "history": "Memory, pressure and chats over time"
       }
     },
     "keywords": {
@@ -831,6 +836,10 @@
       "agent-reads": {
         "section": "collaborators shared",
         "log": "collaborators shared"
+      },
+      "machine": {
+        "section": "memory pressure load cpu chats rss resources server",
+        "history": "memory pressure load cpu chats history charts"
       }
     },
     "consequences": {
@@ -1800,5 +1809,39 @@
       "field": "{{field}} goes from {{min}} to {{max}}."
     },
     "globalRow": "Lessons every project that allows them gets"
+  },
+  "machine": {
+    "now": "Now",
+    "history": "History",
+    "historyHint": "The server reads the machine once a minute and keeps a week. A point shows the worst minute of its span.",
+    "range": "Range",
+    "ranges": {
+      "1h": "1 hour",
+      "6h": "6 hours",
+      "24h": "24 hours",
+      "7d": "7 days"
+    },
+    "none": "No readings yet",
+    "noneHint": "The server reads the machine once a minute: the first points appear within a minute. A machine without /proc keeps none.",
+    "memoryUsed": "Memory in use",
+    "pressure": "Pressure",
+    "pressureMemory": "Memory",
+    "pressureCpu": "CPU",
+    "pressureIo": "Disk",
+    "load": "Load, 1 minute",
+    "admitLimit": "No chat starts from {{limit}}",
+    "cores_one": "{{n}} core",
+    "cores_other": "{{n}} cores",
+    "describe": "{{name}}: now {{latest}}, peak {{peak}}.",
+    "describeNone": "{{name}}: no readings.",
+    "worst": "Each point is the worst of {{minutes}} min.",
+    "chats": "Chats by memory",
+    "chatsCaption": "Live chats with their processes, resident memory and CPU time",
+    "colChat": "Chat",
+    "colProcesses": "Processes",
+    "colMemory": "Memory",
+    "colCpu": "CPU time",
+    "untitled": "Untitled chat",
+    "mb": "{{mb}} MB"
   }
 }

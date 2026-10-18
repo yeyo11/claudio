@@ -47,6 +47,7 @@ import type {
   SupervisorProposal,
   SupervisorProposalStatus,
   UsageHistoryPoint,
+  SystemSample,
 } from '@claudio/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { CoreConfig } from './paths.ts';
@@ -1366,6 +1367,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    );
    CREATE INDEX collab_agent_reads_copy ON collab_agent_reads (owner_id, share_id, id);
    CREATE INDEX collab_agent_reads_chat ON collab_agent_reads (chat_id, id);`,
+  // The machine's figures once a minute, a week of them (docs/resource-control.md, figures history).
+  // Rows, because they accumulate; the instant is the key, so a second reading of the same instant
+  // replaces the first, and the pruning is a range delete on the key. A figure the kernel did not
+  // give is NULL, never 0.
+  `CREATE TABLE system_samples (
+     at            TEXT PRIMARY KEY,
+     load1         REAL,
+     total_mb      INTEGER,
+     available_mb  INTEGER,
+     cpu_some10    REAL,
+     memory_some10 REAL,
+     io_some10     REAL,
+     chats         INTEGER NOT NULL,
+     rss_mb        INTEGER,
+     admitting     INTEGER NOT NULL
+   );`,
 ];
 
 /**
@@ -1925,6 +1942,68 @@ export class Db {
   /** Drops readings older than `before`. Returns how many went. */
   pruneUsageHistory(before: string): number {
     return Number(this.db.prepare('DELETE FROM usage_history WHERE at < ?').run(before).changes);
+  }
+
+  // ---------- system samples ----------
+
+  /** Stores a reading of the machine; one at the same instant is replaced. */
+  appendSystemSample(sample: SystemSample): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO system_samples (at, load1, total_mb, available_mb, cpu_some10, memory_some10, io_some10, chats, rss_mb, admitting) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(sample.at, sample.load1, sample.totalMb, sample.availableMb, sample.cpuSome10, sample.memorySome10, sample.ioSome10, sample.chats, sample.rssMb, sample.admitting ? 1 : 0);
+  }
+
+  /**
+   * Readings oldest first. With `bucketSeconds` the rows of each bucket are folded into one at the
+   * bucket's start (the largest load, pressure, chats and resident memory, the smallest available
+   * memory), so a week fits a chart in a few hundred points. `limit` keeps the newest rows.
+   */
+  systemSamples(opts: { since?: string; until?: string; limit?: number; bucketSeconds?: number } = {}): SystemSample[] {
+    const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 2_000), 1), 20_000);
+    const where: string[] = [];
+    const params: SQLInputValue[] = [];
+    if (opts.since) {
+      where.push('at >= ?');
+      params.push(opts.since);
+    }
+    if (opts.until) {
+      where.push('at <= ?');
+      params.push(opts.until);
+    }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const bucket = opts.bucketSeconds !== undefined ? Math.max(1, Math.trunc(opts.bucketSeconds)) : 0;
+    const rows = (
+      bucket > 0
+        ? this.db
+            .prepare(
+              `SELECT strftime('%Y-%m-%dT%H:%M:%SZ', (CAST(strftime('%s', at) AS INTEGER) / CAST(? AS INTEGER)) * CAST(? AS INTEGER), 'unixepoch') AS bucket_at,
+                      MAX(load1) AS load1, MAX(total_mb) AS total_mb, MIN(available_mb) AS available_mb,
+                      MAX(cpu_some10) AS cpu_some10, MAX(memory_some10) AS memory_some10, MAX(io_some10) AS io_some10,
+                      MAX(chats) AS chats, MAX(rss_mb) AS rss_mb, MIN(admitting) AS admitting
+                 FROM system_samples ${clause} GROUP BY CAST(strftime('%s', at) AS INTEGER) / CAST(? AS INTEGER) ORDER BY bucket_at DESC LIMIT ?`,
+            )
+            .all(bucket, bucket, ...params, bucket, limit)
+        : this.db.prepare(`SELECT * FROM system_samples ${clause} ORDER BY at DESC LIMIT ?`).all(...params, limit)
+    ) as unknown as Array<Record<string, string | number | null>>;
+    return rows
+      .map((r): SystemSample => ({
+        at: String(r.bucket_at ?? r.at),
+        load1: r.load1 as number | null,
+        totalMb: r.total_mb as number | null,
+        availableMb: r.available_mb as number | null,
+        cpuSome10: r.cpu_some10 as number | null,
+        memorySome10: r.memory_some10 as number | null,
+        ioSome10: r.io_some10 as number | null,
+        chats: Number(r.chats),
+        rssMb: r.rss_mb as number | null,
+        admitting: r.admitting === 1,
+      }))
+      .reverse();
+  }
+
+  /** Drops readings older than `before`. Returns how many went. */
+  pruneSystemSamples(before: string): number {
+    return Number(this.db.prepare('DELETE FROM system_samples WHERE at < ?').run(before).changes);
   }
 
   // ---------- audit log ----------

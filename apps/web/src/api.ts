@@ -17,6 +17,7 @@ import type {
   ClaudioReleaseInfo,
   StorageReport,
   SystemLoad,
+  SystemSample,
   ProcessUsageReport,
   AgentTranscript,
   ApiError,
@@ -561,6 +562,7 @@ export const api = {
   storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
   systemLoad: (o: ReadOptions = {}) => request<SystemLoad>('/system/load', o),
   systemProcesses: (o: ReadOptions = {}) => request<ProcessUsageReport>('/system/processes', o),
+  systemHistory: (q: { since: string; bucket: number }, o: ReadOptions = {}) => request<SystemSample[]>(`/system/history${qs({ since: q.since, bucket: String(q.bucket) })}`, o),
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: (o: ReadOptions = {}) => request<Project[]>('/projects', o),
   projectCandidates: (o: ReadOptions = {}) => request<ProjectCandidate[]>('/projects/candidates', o),
@@ -1263,6 +1265,7 @@ export const keys = {
   storage: ['storage'] as const,
   systemLoad: ['system', 'load'] as const,
   systemProcesses: ['system', 'processes'] as const,
+  systemHistory: (range: string, since: string) => ['system', 'history', range, since] as const,
   accounts: ['accounts'] as const,
   accountsSettings: ['accounts', 'settings'] as const,
   accountPolicies: ['accounts', 'policies'] as const,
@@ -1531,6 +1534,10 @@ export const useSystemLoad = () =>
   useQuery({ queryKey: keys.systemLoad, queryFn: ({ signal }) => api.systemLoad({ signal }), refetchInterval: MACHINE_POLL_MS });
 export const useSystemProcesses = () =>
   useQuery({ queryKey: keys.systemProcesses, queryFn: ({ signal }) => api.systemProcesses({ signal }), refetchInterval: MACHINE_POLL_MS });
+
+/** The stored readings behind the Machine page's charts; the server stores one a minute, so a minute is the poll. */
+export const useSystemHistory = (range: string, q: { since: string; bucket: number }) =>
+  useQuery({ queryKey: keys.systemHistory(range, q.since), queryFn: ({ signal }) => api.systemHistory(q, { signal }), refetchInterval: 60_000, placeholderData: keepPreviousData });
 
 export const useOverview = () => useQuery({ queryKey: keys.overview, queryFn: api.overview, refetchInterval: useFallbackInterval() });
 

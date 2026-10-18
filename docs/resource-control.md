@@ -51,6 +51,18 @@ reading, the admission limits in force (`limits`) and whether the machine admits
 chat's process tree: the number of processes, the resident memory in MB and the CPU seconds used
 so far. The CPU figure is cumulative, so a rate is the difference between two readings.
 
+**The figures are kept, a week of them.** `SystemSampler` (`packages/core/src/system-history.ts`)
+reads the same figures once a minute and stores one row in `system_samples` (SQLite, in the style of
+`usage_history`): the one-minute load, memory total and available, the PSI `some10` of CPU, memory
+and I/O, the count of chats and their resident memory, and whether a chat would have been admitted.
+A reading older than 7 days is deleted at each sample, so the table holds about 10,080 rows. A machine
+with no `/proc` stores nothing. `GET /api/system/history?since=&until=&limit=&bucket=` returns the rows
+oldest first; `bucket` (seconds) folds a long range into a few hundred points, each the worst of its
+span (the largest load, pressure, chats and resident memory, the smallest available memory). The
+**Machine** page, Settings → Runs & spend → Machine, draws memory in use, the three pressures with the
+admission limit and the load with the core count over 1 hour, 6 hours, 24 hours or 7 days, and lists
+the live chats by resident memory and CPU time.
+
 ## The limits, and where they come from
 
 | Variable | Default | What it sets |
@@ -59,8 +71,10 @@ so far. The CPU figure is cumulative, so a rate is the difference between two re
 | `CLAUDIO_ADMIT_MEMORY_PRESSURE` | 20 | Memory PSI `some10` (percent) at which no chat starts |
 | `CLAUDIO_TASK_MAX_MINUTES` | 180 | Time a task may run without its own limit; 0 disables it |
 | `CLAUDIO_MAX_CONCURRENT_RUNS` | 8 | Count of chats (unchanged) |
+| `CLAUDIO_MACHINE_SAMPLE_SECONDS` | 60 | Seconds between stored readings of the machine; 0 turns the history off |
+| `CLAUDIO_MACHINE_RETENTION_DAYS` | 7 | Days a stored reading is kept |
 
-The two admission values are read when the server starts; a restart applies a change. The defaults
+The admission values and the sampler's two are read when the server starts; a restart applies a change. The defaults
 are a starting point, not a measurement: they are to be set from the benchmark phases, not taken as
 the right numbers for a given server.
 
@@ -86,8 +100,9 @@ the right numbers for a given server.
   name a pid the system has reused.
 - **The E2E port is fixed** (`e2e/run.mjs`, 8799): two runs on one machine collide.
 - **The overview shows the figures in a Machine widget** (memory bar, pressure, admission, chats with
-  their resident memory), polled every 10 s by `useSystemLoad` and `useSystemProcesses`. The history
-  page is not built yet; see `docs/plans/resource-control.md`.
+  their resident memory), polled every 10 s by `useSystemLoad` and `useSystemProcesses`; the history is
+  on the Machine page. Neither shows the load per chat over time: only its resident memory and its
+  cumulative CPU time now.
 
 ## Related
 

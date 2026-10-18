@@ -22,6 +22,7 @@ import './lib/desktop'; // marks the desktop app's window before the first paint
 import './styles.css';
 import '@claudio/ui/controls.css';
 import './observe.css';
+import './usage-history.css';
 
 // Before anything lazy is asked for: the first chunk a stale page misses may be the first it loads
 watchChunkErrors();

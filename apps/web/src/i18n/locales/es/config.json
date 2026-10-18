@@ -492,7 +492,8 @@
       "guards": "Guardas",
       "terminal": "Terminal",
       "audit": "Registro de auditoría",
-      "agent-reads": "Lecturas de agentes"
+      "agent-reads": "Lecturas de agentes",
+      "machine": "Máquina"
     },
     "details": {
       "behaviour": "Comportamiento (settings.json)",
@@ -511,7 +512,8 @@
       "tool-presets": "Presets de herramientas",
       "history": "Todas las decisiones",
       "audit": "Registro de auditoría",
-      "agent-reads": "Lecturas de agentes"
+      "agent-reads": "Lecturas de agentes",
+      "machine": "Máquina"
     },
     "rows": {
       "appearance": {
@@ -651,6 +653,9 @@
       },
       "agent-reads": {
         "log": "Lo que han leído los agentes"
+      },
+      "machine": {
+        "history": "Memoria, presión y chats a lo largo del tiempo"
       }
     },
     "keywords": {
@@ -831,6 +836,10 @@
       "agent-reads": {
         "section": "colaboradores compartido",
         "log": "colaboradores compartido"
+      },
+      "machine": {
+        "section": "memoria presión carga cpu chats rss recursos servidor máquina",
+        "history": "memoria presión carga cpu chats historial gráficas"
       }
     },
     "consequences": {
@@ -1800,5 +1809,39 @@
       "field": "{{field}} va de {{min}} a {{max}}."
     },
     "globalRow": "Lecciones para cada proyecto que las permita"
+  },
+  "machine": {
+    "now": "Ahora",
+    "history": "Historial",
+    "historyHint": "El servidor lee la máquina una vez por minuto y guarda una semana. Cada punto muestra el peor minuto de su tramo.",
+    "range": "Periodo",
+    "ranges": {
+      "1h": "1 hora",
+      "6h": "6 horas",
+      "24h": "24 horas",
+      "7d": "7 días"
+    },
+    "none": "Aún no hay lecturas",
+    "noneHint": "El servidor lee la máquina una vez por minuto: los primeros puntos aparecen en un minuto. Una máquina sin /proc no guarda ninguna.",
+    "memoryUsed": "Memoria en uso",
+    "pressure": "Presión",
+    "pressureMemory": "Memoria",
+    "pressureCpu": "CPU",
+    "pressureIo": "Disco",
+    "load": "Carga, 1 minuto",
+    "admitLimit": "Desde {{limit}} no se inicia ningún chat",
+    "cores_one": "{{n}} núcleo",
+    "cores_other": "{{n}} núcleos",
+    "describe": "{{name}}: ahora {{latest}}, máximo {{peak}}.",
+    "describeNone": "{{name}}: sin lecturas.",
+    "worst": "Cada punto es lo peor de {{minutes}} min.",
+    "chats": "Chats por memoria",
+    "chatsCaption": "Chats en marcha con sus procesos, memoria residente y tiempo de CPU",
+    "colChat": "Chat",
+    "colProcesses": "Procesos",
+    "colMemory": "Memoria",
+    "colCpu": "Tiempo de CPU",
+    "untitled": "Chat sin título",
+    "mb": "{{mb}} MB"
   }
 }

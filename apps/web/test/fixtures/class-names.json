@@ -1755,8 +1755,13 @@
   "lucide",
   "machine-card",
   "machine-cell",
+  "machine-chart-block",
+  "machine-chart-title",
+  "machine-charts",
+  "machine-chat",
   "machine-figure",
   "machine-figures",
+  "machine-table",
   "machine-title",
   "main",
   "mark",
@@ -5354,8 +5359,14 @@
   "lrows",
   "machine-card",
   "machine-cell",
+  "machine-chart",
+  "machine-chart-block",
+  "machine-chart-title",
+  "machine-charts",
+  "machine-chat",
   "machine-figure",
   "machine-figures",
+  "machine-table",
   "machine-title",
   "main",
   "mark",
@@ -7292,6 +7303,7 @@
   "motion.css",
   "styles.css",
   "controls.css",
-  "observe.css"
+  "observe.css",
+  "usage-history.css"
  ]
 }

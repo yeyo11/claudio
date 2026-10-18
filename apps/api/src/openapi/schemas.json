@@ -337,6 +337,80 @@
     ],
     "description": "A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent."
   },
+  "SystemSample": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string",
+        "description": "When it was read, ISO 8601"
+      },
+      "load1": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The one-minute load average"
+      },
+      "totalMb": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "availableMb": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "cpuSome10": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "PSI `some10` of each resource, in percent"
+      },
+      "memorySome10": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "ioSome10": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "chats": {
+        "type": "number",
+        "description": "Chats alive, and the resident memory of their process trees"
+      },
+      "rssMb": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "admitting": {
+        "type": "boolean",
+        "description": "Whether a new chat would have been admitted"
+      }
+    },
+    "required": [
+      "at",
+      "load1",
+      "totalMb",
+      "availableMb",
+      "cpuSome10",
+      "memorySome10",
+      "ioSome10",
+      "chats",
+      "rssMb",
+      "admitting"
+    ],
+    "description": "One reading of the machine as the sampler stored it, once a minute (docs/resource-control.md). A figure the kernel did not give is null, never zero. In a bucketed answer the load, pressures, chats and resident memory are the largest of the bucket and `availableMb` the smallest: a chart of a quiet hour should still show the minute that was not."
+  },
   "ProcessUsageReport": {
     "type": "object",
     "properties": {

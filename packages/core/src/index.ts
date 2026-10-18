@@ -10,6 +10,7 @@ import type {
   CliVersionInfo,
   StorageReport,
   ProcessUsageReport,
+  SystemSample,
   SystemLoad,
   ProviderLimit,
   ChatProject,
@@ -165,6 +166,7 @@ import { Orchestrator, PUSH_DENIED, validateEffort } from './orchestrator.ts';
 import { orchestrationTimings } from './orchestration-timings.ts';
 import { loadConfig, type CoreConfig } from './paths.ts';
 import { admissionLimitsFrom, chatProcessUsage, readSystemLoad } from './system-load.ts';
+import { samplerSettingsFrom, SystemSampler } from './system-history.ts';
 import { recentProcessTable } from './processes.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
 import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
@@ -536,6 +538,7 @@ export class Core {
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
+  private sampler: SystemSampler | null = null;
   /** Set by `shutdown`: what was still on its way when it ran must not start anything */
   private closed = false;
   /**
@@ -731,6 +734,8 @@ export class Core {
     this.runtime.accounts = this.accounts;
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
     this.watchAccounts();
+    this.sampler = new SystemSampler(this.db, () => this.chats.livePids(), () => admissionLimitsFrom(), samplerSettingsFrom());
+    this.sampler.start();
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
@@ -1888,6 +1893,11 @@ export class Core {
   /** What the machine is doing now, and whether it admits a new chat; see system-load.ts. Read on each call. */
   systemLoad(): SystemLoad {
     return readSystemLoad(admissionLimitsFrom());
+  }
+
+  /** The stored readings of the machine, oldest first; see system-history.ts */
+  systemHistory(query: { since?: string; until?: string; limit?: number; bucketSeconds?: number } = {}): SystemSample[] {
+    return this.db.systemSamples(query);
   }
 
   /** Whether the folders that hold the state would survive replacing the container; see storage.ts */
@@ -3374,6 +3384,7 @@ export class Core {
     this.permissions.close();
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
+    this.sampler?.stop();
     this.rotation.close();
     // The rows that say the shells ended are written before this returns, while the database is open
     void this.terminals.shutdown();

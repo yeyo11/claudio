@@ -69,7 +69,10 @@ test.after(async () => {
 });
 
 test('both screens draw their sections in the order of §3', () => {
-  assert.deepEqual(sectionIds(render(<Runs />, '/settings/runs')), [...sectionsOf('runs')]);
+  // Machine is a row that opens its own screen: it has no heading, so it is not one of the headed sections
+  const runs = render(<Runs />, '/settings/runs');
+  assert.deepEqual(sectionIds(runs), sectionsOf('runs').filter((id) => id !== 'machine'));
+  assert.match(runs, /<section id="machine" class="settings-row-section"/);
   assert.deepEqual(sectionIds(render(<Access />)), [...sectionsOf('access')]);
 });
 
@@ -80,7 +83,8 @@ test('every row the search registry names is marked on its screen or its detail'
     if (entry.group !== 'runs' && entry.group !== 'access') continue;
     // A section's own entry is its anchor; the shell scrolls to it
     if (entry.id === entry.section) continue;
-    const html = entry.detail ? details[entry.detail as keyof typeof details] : screens[entry.group];
+    // The Machine detail is a lazy chunk the static render cannot draw: its row on the group's screen stands for it
+    const html = entry.detail && entry.detail !== 'machine' ? details[entry.detail as keyof typeof details] : screens[entry.group];
     assert.ok(settingIds(html).has(entry.id), `${entry.id} is marked`);
   }
 });
