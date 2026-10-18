@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/yeyo11/claudio/compare/v0.4.1...v0.5.0) (2026-10-18)
+
+
+### Features
+
+* Machine widget and page, async git, figures history, priority for people's chats ([#38](https://github.com/yeyo11/claudio/issues/38)) ([b81a471](https://github.com/yeyo11/claudio/commit/b81a4710562681f24d5dd738b6fd848ea87ce449))
+
 ## [0.4.1](https://github.com/yeyo11/claudio/compare/v0.4.0...v0.4.1) (2026-10-18)
 
 
