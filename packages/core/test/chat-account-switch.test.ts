@@ -289,3 +289,15 @@ test('an account whose sign-in expired, or whose credentials have no refresh tok
     r.close();
   }
 });
+
+test('a turn that succeeds confirms an account that was never checked, such as an OAuth token from the environment', async () => {
+  const r = await rig();
+  try {
+    assert.equal(r.store.get(r.ids.a).checkedAt, null);
+    const chat = r.chats.start({ prompt: 'hello', name: 'confirm', keepAlive: false, account: r.ids.a });
+    await r.chats.waitForResult(chat.id);
+    await waitFor(() => r.store.get(r.ids.a).checkedAt !== null);
+  } finally {
+    r.close();
+  }
+});
