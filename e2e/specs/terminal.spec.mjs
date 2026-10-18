@@ -229,8 +229,10 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     // The panel stays open across the reload; with All projects and a project imported, "+" is a menu that lists the workspace first
     await page.goto('/?project=all', 1500);
     if (!(await hasPanel())) await page.click(ITEM, undefined, 800);
-    await page.waitFor(`return !!document.querySelector('.term-plus')`, { label: 'the panel\'s "+"' });
-    await page.click('.term-plus', undefined, 600);
+    // With the projects loaded "+" is a menu's trigger; the menu opens on a real pointer press, which a synthetic click() is not
+    await page.waitFor(`return !!document.querySelector('.term-plus[aria-haspopup]')`, { label: 'the panel\'s "+" as a menu' });
+    await page.realClick('.term-plus[aria-haspopup]', 600);
+    await page.waitFor(`return !!document.querySelector('[role=menu] [role^=menuitem]')`, { label: 'the "+" menu' });
     const where = await page.eval(`return [...document.querySelectorAll('[role=menu] [role^=menuitem]')].map((i) => i.textContent.trim())`);
     check(where[0] === 'Workspace' && where.includes('e2e-terminal'), `with All projects, "+" offers the workspace first and then the projects (${JSON.stringify(where)})`);
     await page.click('[role=menu] [role^=menuitem]', 'Workspace', 800);

@@ -105,13 +105,20 @@ export function TerminalWorkspace({
   // The dock opens a shell on first use; once, so a slow answer does not open two
   const asked = useRef(false);
   const idle = !isLoading && !error && !terminals.some((terminal) => terminal.state === 'running');
+  const answered = !isLoading && !error;
   useEffect(() => {
-    if (!autoOpen || !idle || asked.current || open.isPending || !request) return;
+    if (!autoOpen || asked.current || open.isPending || !request || !answered) return;
+    // A shell is already running, so the panel shows it: the wish is spent here, not kept for when the
+    // last shell is closed, which would open one nobody asked for
+    if (!idle) {
+      onAutoOpened?.();
+      return;
+    }
     asked.current = true;
     onAutoOpened?.();
     open.mutate(request());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpen, idle]);
+  }, [autoOpen, idle, answered]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.terminalList(scopeKey(scope)) });
