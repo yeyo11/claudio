@@ -5,10 +5,19 @@ Reach it from your machine:
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "claudio.fullname" . }} {{ .Values.port }}:{{ .Values.port }}
 
 then open http://localhost:{{ .Values.port }}.
+{{- if eq .Values.auth.mode "auto" }}
+
+auth.mode is "auto": on its first start the pod made an owner token and printed it once in its log.
+Read it with:
+
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "claudio.fullname" . }} | grep -A8 "owner token"
+
+Paste it on the sign-in screen. Until it is first used it is also in /data/first-run-token in the pod.
+{{- end }}
 {{- if eq .Values.auth.mode "none" }}
 
 WARNING: auth.mode is "none". Anyone who can reach the Service can run Claude on your account.
-Keep it a ClusterIP behind port-forward, or set auth.mode to token or oidc before adding an Ingress.
+Keep it a ClusterIP behind port-forward, or set auth.mode to auto, token or oidc before adding an Ingress.
 {{- end }}
 {{- if .Values.tunnel.enabled }}
 

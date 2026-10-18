@@ -57,10 +57,15 @@ secretKey:
   # history, so prefer existingSecret outside a test cluster.
   value: ""
 
-# Authentication for the API. `none` is only for a cluster you fully trust: whoever reaches the
-# Service can run Claude on the account. Behind an Ingress, use `token` or `oidc`.
+# Authentication for the API.
+# - `auto` (the default) writes no CLAUDIO_AUTH_MODE, so the image makes an owner token on the first
+#   start of a fresh volume and prints it once in the pod's log (`kubectl logs`); the terminal and
+#   in-app updates need it. A volume that already holds an auth.json keeps what it says.
+# - `none` is only for a cluster you fully trust: whoever reaches the Service can run Claude on the
+#   account, and the terminal and in-app updates stay unavailable.
+# - `token` and `oidc` take their credentials from below. Behind an Ingress, use one of them.
 auth:
-  mode: none # none | token | oidc
+  mode: auto # auto | none | token | oidc
   # Refuse every write except answering a permission prompt
   readOnly: false
   token:

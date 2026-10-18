@@ -223,6 +223,8 @@ const env = {
   CLAUDIO_UPDATE_CHECK: 'off',
   // The Updates card offers the Docker commands, the one distribution a browser run can stand for
   CLAUDIO_DISTRIBUTION: 'docker',
+  // ...and, with no authentication variable, makes an owner token on first start: the specs drive an open server
+  CLAUDIO_AUTH_MODE: 'none',
   // ...which turns the tunnel off by default; the Remote access specs need it offered. No spec can
   // open a real one: the suite runs with authentication off, and the tunnel refuses to start then
   CLAUDIO_TUNNEL: 'on',

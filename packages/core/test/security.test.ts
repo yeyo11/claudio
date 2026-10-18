@@ -56,7 +56,7 @@ test('a document with no env or headers passes through untouched', () => {
 
 test('a fresh install is unguarded, which is what it has always been', async () => {
   const store = new AuthStore(tempConfig(), {});
-  assert.deepEqual(store.config, { mode: 'none', tokenSet: false, readOnly: false });
+  assert.deepEqual(store.config, { mode: 'none', tokenSet: false, readOnly: false, firstRunPending: false });
   assert.equal(store.mode, 'none');
   // With no mode, anything (including nothing) is the local caller
   assert.equal(await store.actorFor(undefined), 'local');
@@ -69,7 +69,7 @@ test('the token is returned once, stored as a hash and accepted afterwards', asy
   assert.ok(token.length >= 32);
   await store.update({ mode: 'token' });
 
-  assert.deepEqual(store.config, { mode: 'token', tokenSet: true, readOnly: false });
+  assert.deepEqual(store.config, { mode: 'token', tokenSet: true, readOnly: false, firstRunPending: false });
   assert.equal(JSON.stringify(store.config).includes(token), false);
   const onDisk = readFileSync(join(config.dataDir, 'auth.json'), 'utf8');
   assert.equal(onDisk.includes(token), false, 'the token itself must never reach the disk');
