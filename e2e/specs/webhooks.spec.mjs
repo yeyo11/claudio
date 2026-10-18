@@ -614,7 +614,7 @@ export default async ({ page, api, check, dirs }) => {
     // ---- The fake gh answers the create call as the host does: the secret is on stdin, and masked in the answer ----
     const probe = spawnSync(join(fakes, 'gh'), ['api', '--hostname', 'github.com', '-X', 'POST', 'repos/acme/shop/hooks', '--input', '-'], {
       input: JSON.stringify({ name: 'web', active: true, events: EVENTS, config: { url: `${ADDRESS}/api/webhooks/github/probe`, content_type: 'json', secret: SECRET, insecure_ssl: '0' } }),
-      env: { ...process.env, CLAUDIO_DATA_DIR: dirs.dataDir },
+      env: { ...process.env, FAKE_STATE_DIR: dirs.dataDir },
       encoding: 'utf8',
     });
     const created = JSON.parse(probe.stdout);
