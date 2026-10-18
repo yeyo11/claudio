@@ -1,28 +1,45 @@
-import { accessSync, constants, readFileSync } from 'node:fs';
-import { delimiter, dirname, join } from 'node:path';
+import { accessSync, constants, existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { debInstallCommand, type ShellUpdateError, type Verified } from './desktop-manifest.ts';
 import type { LiveSnapshot } from './live.ts';
 
 /**
- * The desktop app's own updates, through electron-updater: `AppImageUpdater` replaces the AppImage in
- * place, `DebUpdater` installs the downloaded .deb through pkexec. Nothing happens unasked: the server's
- * release check says a release exists, and this only checks, downloads and installs when the person
- * says so. Free of Electron and of electron-updater itself (both are injected), so the state machine
- * is tested with a fake of the updater's events.
+ * The desktop app's own updates: the shell's (docs/plans/unified-updates.md, D3). Most releases change
+ * only the payload, which the server downloads and the shell boots (payload.ts); this is for the
+ * rest, and it never escalates:
+ * - an AppImage replaces itself through electron-updater's `AppImageUpdater`, then restarts;
+ * - a `.deb` with Claudio's apt source is the system updater's to update (`apt-managed`);
+ * - a `.deb` without it downloads the package through `DebUpdater.downloadUpdate()`, never its
+ *   `install()`, and shows the command that installs it from a terminal (`copy-command`).
+ * Every download is checked against the signed desktop manifest before anything else happens to it.
+ * When apt replaced the package under the running app, the state is `shell-replaced` and the way
+ * out is a restart. Nothing happens unasked. Free of Electron and of electron-updater itself (both
+ * are injected), so the state machine is tested with a fake of the updater's events.
  */
 
 /** The kind of package this app runs from; also CLAUDIO_DISTRIBUTION for the server child */
 export type Distribution = 'appimage' | 'deb';
 
-export type UnsupportedReason = 'development' | 'read-only' | 'unknown-package' | 'no-elevation';
+export type UnsupportedReason = 'development' | 'read-only' | 'unknown-package';
+
+export type { ShellUpdateError };
 
 export type UpdateState =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'available'; version: string }
   | { status: 'downloading'; version: string; percent: number }
+  | { status: 'verifying'; version: string }
+  /** AppImage only: downloaded and verified, installed by a restart */
   | { status: 'ready'; version: string }
+  /** The system's updater installs the shell; `latest` is a newer release it has not installed yet */
+  | { status: 'apt-managed'; latest: string | null }
+  /** A verified `.deb`, and the command that installs it */
+  | { status: 'copy-command'; version: string; command: string }
+  /** apt installed this version under the running app: a restart starts it */
+  | { status: 'shell-replaced'; version: string }
   | { status: 'unsupported'; reason: UnsupportedReason; message: string }
-  | { status: 'error'; message: string };
+  | { status: 'error'; code: ShellUpdateError; message: string };
 
 export interface PackageFacts {
   /** process.env.APPIMAGE: the AppImage's own path, set by its runtime */
@@ -58,33 +75,18 @@ export function appImageWritable(path: string): boolean {
   }
 }
 
-/** The graphical sudo tools electron-updater tries for a .deb, in its order (LinuxUpdater.determineSudoCommand) */
-const GRAPHICAL_SUDO = ['gksudo', 'kdesudo', 'pkexec', 'beesu'];
+/** What the `.deb`'s postinst writes (D4) */
+export const APT_SOURCE = '/etc/apt/sources.list.d/claudio.sources';
+export const APT_KEYRING = '/usr/share/keyrings/claudio-archive-keyring.gpg';
 
-/**
- * Whether installing a .deb can ask for a password on screen. Without one of these tools
- * electron-updater falls back to plain `sudo`, which has no terminal to ask on and fails after the
- * download, with the server already stopped. Looked up on this process's PATH, as electron-updater does.
- */
-export function debCanElevate(env: NodeJS.ProcessEnv = process.env, uid = process.getuid?.()): boolean {
-  if (uid === 0) return true;
-  const dirs = (env.PATH ?? '').split(delimiter).filter(Boolean);
-  return GRAPHICAL_SUDO.some((tool) =>
-    dirs.some((dir) => {
-      try {
-        accessSync(join(dir, tool), constants.X_OK);
-        return true;
-      } catch {
-        return false;
-      }
-    }),
-  );
+/** The apt source is registered. A source without its keyring only breaks `apt update`, so both must be there. */
+export function aptManaged(exists: (path: string) => boolean = existsSync): boolean {
+  return exists(APT_SOURCE) && exists(APT_KEYRING);
 }
 
 export interface SupportFacts extends PackageFacts {
   dev: boolean;
   appImageWritable: (path: string) => boolean;
-  debCanElevate: () => boolean;
 }
 
 export type Support = { supported: true; distribution: Distribution } | Extract<UpdateState, { status: 'unsupported' }>;
@@ -109,21 +111,13 @@ export function updateSupport(facts: SupportFacts): Support {
       message: `The AppImage at ${facts.appImage} cannot be replaced: the file or its folder is not writable.`,
     };
   }
-  if (distribution === 'deb' && !facts.debCanElevate()) {
-    return {
-      status: 'unsupported',
-      reason: 'no-elevation',
-      message:
-        'Installing the .deb needs a password prompt (pkexec), and none was found. Install policykit-1, or download the .deb and install it with apt.',
-    };
-  }
   return { supported: true, distribution };
 }
 
 /**
  * The part of electron-updater's `AppUpdater`/`BaseUpdater` this module drives, declared
  * structurally so a test can hand in a fake. Listeners take `unknown`: what the events carry is
- * checked here rather than trusted.
+ * checked here rather than trusted. `install` is only ever called on the AppImage's engine.
  */
 export interface UpdaterEngine {
   autoDownload: boolean;
@@ -131,6 +125,7 @@ export interface UpdaterEngine {
   logger: { info(message?: unknown): void; warn(message?: unknown): void; error(message?: unknown): void } | null;
   on(event: string, listener: (...args: unknown[]) => void): unknown;
   checkForUpdates(): Promise<{ isUpdateAvailable: boolean; updateInfo: { version: string } } | null>;
+  /** Resolves with the downloaded files' paths */
   downloadUpdate(): Promise<unknown>;
   /** Replaces the installed app with the downloaded one, synchronously; false when it could not */
   install(isSilent?: boolean, isForceRunAfter?: boolean): boolean;
@@ -140,6 +135,10 @@ export interface DesktopUpdaterOptions {
   support: Support;
   /** Called at most once, and only when this copy can update: nothing loads electron-updater otherwise */
   engine: () => UpdaterEngine;
+  /** Asked at every check on a `.deb`: whether the apt source is registered */
+  aptManaged?: () => boolean;
+  /** Checks a downloaded package against the release's signed desktop manifest */
+  verify: (version: string, file: string, kind: Distribution) => Promise<Verified>;
   log: (line: string) => void;
 }
 
@@ -148,6 +147,13 @@ const versionOf = (info: unknown): string | undefined => {
   const version = (info as { version?: unknown } | null)?.version;
   return typeof version === 'string' ? version : undefined;
 };
+const fileOf = (value: unknown): string | undefined => {
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  const file = (value as { downloadedFile?: unknown } | null)?.downloadedFile;
+  return typeof file === 'string' ? file : undefined;
+};
+/** electron-updater's own sha512 check failing is a bad download, not a network problem */
+const codeOf = (err: unknown): ShellUpdateError => (/sha512|checksum/i.test(messageOf(err)) ? 'bad-signature' : 'fetch-failed');
 
 export class DesktopUpdater {
   private current: UpdateState;
@@ -157,9 +163,16 @@ export class DesktopUpdater {
   private installOnQuitRequested = false;
   /** Where the AppImage ended up: a hand-downloaded, versioned file name is replaced by the new version's */
   private appImagePath: string | undefined;
+  /** The verified AppImage, checked again right before it is installed */
+  private downloaded: { version: string; file: string } | undefined;
+  /** The newest release a check found, whatever the state shows now */
+  private latestFound: string | undefined;
+  private replaced = false;
+  /** What the engine's `update-downloaded` event said, for an engine whose promise does not */
+  private downloadedFile: string | undefined;
 
   constructor(private readonly opts: DesktopUpdaterOptions) {
-    this.current = 'supported' in opts.support ? { status: 'idle' } : opts.support;
+    this.current = 'supported' in opts.support ? this.restingState() : opts.support;
   }
 
   get state(): UpdateState {
@@ -170,9 +183,19 @@ export class DesktopUpdater {
     return 'supported' in this.opts.support ? this.opts.support.distribution : undefined;
   }
 
-  /** The version downloaded and waiting to be installed, if any */
+  /** Whether the system's updater installs this app; read again at every check */
+  get aptManaged(): boolean {
+    return this.distribution === 'deb' && (this.opts.aptManaged?.() ?? false);
+  }
+
+  /** The version a restart installs or starts: a verified AppImage, or the one apt put in place */
   get readyVersion(): string | undefined {
-    return this.current.status === 'ready' ? this.current.version : undefined;
+    return this.current.status === 'ready' || this.current.status === 'shell-replaced' ? this.current.version : undefined;
+  }
+
+  /** The newest release the last check found, null when none was newer or none ran */
+  get latest(): string | undefined {
+    return this.latestFound;
   }
 
   get installOnQuit(): boolean {
@@ -190,10 +213,22 @@ export class DesktopUpdater {
   }
 
   private set(state: UpdateState): void {
+    // Once apt replaced the app, a restart is the only thing left to do with this process
+    if (this.replaced && state.status !== 'shell-replaced') return;
     // The engine's events and this module's own steps often say the same thing; say it once
     if (JSON.stringify(state) === JSON.stringify(this.current)) return;
     this.current = state;
     for (const listener of this.listeners) listener(state);
+  }
+
+  /** What a supported copy shows when nothing is under way */
+  private restingState(): UpdateState {
+    return this.aptManaged ? { status: 'apt-managed', latest: this.latestFound ?? null } : { status: 'idle' };
+  }
+
+  private get busy(): boolean {
+    const s = this.current.status;
+    return s === 'downloading' || s === 'verifying' || s === 'ready' || s === 'copy-command' || s === 'shell-replaced';
   }
 
   private get engine(): UpdaterEngine | undefined {
@@ -207,70 +242,101 @@ export class DesktopUpdater {
       warn: (m) => this.opts.log(`updater warning: ${String(m)}`),
       error: (m) => this.opts.log(`updater error: ${String(m)}`),
     };
-    engine.on('checking-for-update', () => this.set({ status: 'checking' }));
-    engine.on('update-available', (info) => {
-      const version = versionOf(info);
-      if (version) this.set({ status: 'available', version });
-    });
-    engine.on('update-not-available', () => this.set({ status: 'idle' }));
     engine.on('download-progress', (progress) => {
       const percent = (progress as { percent?: unknown } | null)?.percent;
-      const version = this.versionInFlight();
-      if (typeof percent === 'number' && Number.isFinite(percent) && version) {
-        this.set({ status: 'downloading', version, percent: Math.max(0, Math.min(100, Math.round(percent))) });
+      const s = this.current;
+      if (typeof percent === 'number' && Number.isFinite(percent) && s.status === 'downloading') {
+        this.set({ status: 'downloading', version: s.version, percent: Math.max(0, Math.min(100, Math.round(percent))) });
       }
     });
     engine.on('update-downloaded', (info) => {
-      const version = versionOf(info) ?? this.versionInFlight();
-      if (version) this.set({ status: 'ready', version });
+      this.downloadedFile = fileOf(info) ?? this.downloadedFile;
     });
-    engine.on('update-cancelled', () => this.set({ status: 'idle' }));
     engine.on('appimage-filename-updated', (path) => {
       if (typeof path === 'string') this.appImagePath = path;
     });
-    engine.on('error', (err) => this.set({ status: 'error', message: messageOf(err) }));
+    // The calls below reject with the same error; an emitter with no listener would throw it again
+    engine.on('error', (err) => this.opts.log(`updater error: ${messageOf(err)}`));
     this.engineInstance = engine;
     return engine;
   }
 
-  private versionInFlight(): string | undefined {
-    const s = this.current;
-    return s.status === 'available' || s.status === 'downloading' || s.status === 'ready' ? s.version : undefined;
-  }
-
-  /** Asks GitHub's latest-linux.yml whether there is a newer version; the state says what it found */
+  /**
+   * Asks GitHub's latest-linux.yml whether there is a newer version; the state says what it found.
+   * A `.deb` under apt only learns the version: the system's updater installs it.
+   */
   async check(): Promise<UpdateState> {
     const engine = this.engine;
-    if (!engine) return this.current;
-    if (this.current.status === 'downloading' || this.current.status === 'ready') return this.current;
-    this.set({ status: 'checking' });
+    if (!engine || this.busy) return this.current;
+    const apt = this.aptManaged;
+    if (!apt) this.set({ status: 'checking' });
     try {
       const result = await engine.checkForUpdates();
-      // The events usually said it already; this covers an engine that answered without them
-      if (this.current.status === 'checking') {
-        const version = result?.isUpdateAvailable ? result.updateInfo.version : undefined;
-        this.set(version ? { status: 'available', version } : { status: 'idle' });
-      }
+      this.latestFound = result?.isUpdateAvailable ? versionOf(result.updateInfo) : undefined;
+      if (apt) this.set({ status: 'apt-managed', latest: this.latestFound ?? null });
+      else this.set(this.latestFound ? { status: 'available', version: this.latestFound } : { status: 'idle' });
     } catch (err) {
-      this.set({ status: 'error', message: messageOf(err) });
+      this.set(apt ? { status: 'apt-managed', latest: null } : { status: 'error', code: codeOf(err), message: messageOf(err) });
     }
     return this.current;
   }
 
-  /** Downloads the newest release, checking first when nothing is known about it yet */
+  /**
+   * Downloads the newest release, checking first when nothing is known about it yet, then checks it
+   * against the signed desktop manifest: an AppImage is then `ready`; a `.deb` is `copy-command`.
+   * A file that fails the check is never offered.
+   */
   async download(): Promise<UpdateState> {
     const engine = this.engine;
-    if (!engine) return this.current;
-    if (this.current.status === 'downloading' || this.current.status === 'ready') return this.current;
+    if (!engine || this.busy || this.aptManaged) return this.current;
     const found = this.current.status === 'available' ? this.current : await this.check();
     if (found.status !== 'available') return found;
-    this.set({ status: 'downloading', version: found.version, percent: 0 });
+    const { version } = found;
+    this.set({ status: 'downloading', version, percent: 0 });
+    this.downloadedFile = undefined;
+    let file: string | undefined;
     try {
-      await engine.downloadUpdate();
+      file = fileOf(await engine.downloadUpdate()) ?? this.downloadedFile;
     } catch (err) {
-      this.set({ status: 'error', message: messageOf(err) });
+      this.set({ status: 'error', code: codeOf(err), message: messageOf(err) });
+      return this.current;
+    }
+    if (!file) {
+      this.set({ status: 'error', code: 'other', message: 'the updater did not say where it put the download' });
+      return this.current;
+    }
+    return this.verify(version, file);
+  }
+
+  private async verify(version: string, file: string): Promise<UpdateState> {
+    const kind = this.distribution;
+    if (!kind) return this.current;
+    this.set({ status: 'verifying', version });
+    const checked = await this.opts.verify(version, file, kind);
+    if (!checked.ok) {
+      this.opts.log(`update ${version} refused: ${checked.message}`);
+      this.set({ status: 'error', code: checked.code, message: checked.message });
+      return this.current;
+    }
+    if (kind === 'appimage') {
+      this.downloaded = { version, file };
+      this.set({ status: 'ready', version });
+      return this.current;
+    }
+    try {
+      this.set({ status: 'copy-command', version, command: debInstallCommand(file, version, checked.sha256) });
+    } catch (err) {
+      this.set({ status: 'error', code: 'other', message: messageOf(err) });
     }
     return this.current;
+  }
+
+  /** apt installed `version` under the running app (`<resources>/shell.json` changed): only a restart is left */
+  markReplaced(version: string): void {
+    if (this.replaced) return;
+    this.replaced = true;
+    this.installOnQuitRequested = false;
+    this.set({ status: 'shell-replaced', version });
   }
 
   /**
@@ -285,16 +351,28 @@ export class DesktopUpdater {
     return true;
   }
 
-  /** Replaces the installed app with the downloaded update; the caller has stopped the server and quits after */
-  install(): boolean {
+  /**
+   * Replaces the AppImage with the downloaded update; the caller has stopped the server and quits
+   * after. The file is checked against the signed manifest again first: it sat in the person's
+   * cache since the download.
+   */
+  async install(): Promise<boolean> {
     const engine = this.engine;
-    if (!engine || this.current.status !== 'ready') return false;
+    const downloaded = this.downloaded;
+    if (!engine || this.current.status !== 'ready' || this.distribution !== 'appimage' || !downloaded) return false;
+    const checked = await this.opts.verify(downloaded.version, downloaded.file, 'appimage');
+    if (!checked.ok) {
+      this.opts.log(`update ${downloaded.version} refused before installing: ${checked.message}`);
+      this.downloaded = undefined;
+      this.set({ status: 'error', code: checked.code, message: checked.message });
+      return false;
+    }
     try {
       // Silent, and no run after: the caller relaunches once this process has exited, so the new
       // instance does not lose the single-instance lock to the one still shutting down
       return engine.install(true, false);
     } catch (err) {
-      this.set({ status: 'error', message: messageOf(err) });
+      this.set({ status: 'error', code: 'other', message: messageOf(err) });
       return false;
     }
   }
@@ -322,11 +400,31 @@ export function appImageRelaunch(pid: number, appImage: string, args: readonly s
   return { command: '/bin/bash', args: ['-c', script, 'claudio-relaunch', String(pid), appImage, ...args] };
 }
 
-/** What is live that a restart would stop */
+/** What is live that a restart would stop: the tray's counts, and the open terminals (D6) */
 export interface LiveWork {
   working: number;
   waiting: number;
   running: number;
+  terminals: number;
+}
+
+export const liveWorkOf = (snapshot: LiveSnapshot, terminals: number): LiveWork => ({
+  working: snapshot.working,
+  waiting: snapshot.waiting,
+  running: snapshot.running,
+  terminals,
+});
+
+const isBusy = (w: LiveWork) => w.working > 0 || w.waiting > 0 || w.running > 0 || w.terminals > 0;
+
+/** "2 working · 1 orchestration · 1 terminal", or null when nothing is live */
+export function workWords(w: LiveWork): string | null {
+  const parts: string[] = [];
+  if (w.working) parts.push(`${w.working} working`);
+  if (w.waiting) parts.push(`${w.waiting} waiting`);
+  if (w.running) parts.push(`${w.running} ${w.running === 1 ? 'orchestration' : 'orchestrations'}`);
+  if (w.terminals) parts.push(`${w.terminals} ${w.terminals === 1 ? 'terminal' : 'terminals'}`);
+  return parts.length ? parts.join(' · ') : null;
 }
 
 export type InstallAnswer =
@@ -343,17 +441,16 @@ export interface InstallRequest {
 }
 
 /**
- * What `install` does with the update, given what the tray knows is live. A restart stops the server,
- * and with it every chat and orchestration in flight, so it never happens over live work unless the
+ * What `install` does with the update, given what is live. A restart stops the server, and with it
+ * every chat, orchestration and terminal in flight, so it never happens over live work unless the
  * person was asked (`force`); a chat waiting for a permission answer counts too, its CLI is running.
+ * A downloaded AppImage installs on restart or on quit; a shell apt replaced is already installed,
+ * so the next start, now or after a quit, is the new version.
  */
-export function installDecision(state: UpdateState, live: LiveSnapshot, request: InstallRequest): InstallAnswer {
-  if (state.status !== 'ready') return { status: 'not-ready', state };
+export function installDecision(state: UpdateState, live: LiveWork, request: InstallRequest): InstallAnswer {
+  if (state.status !== 'ready' && state.status !== 'shell-replaced') return { status: 'not-ready', state };
   if (request.whenIdle) return { status: 'scheduled', version: state.version };
-  const work = { working: live.working, waiting: live.waiting, running: live.running };
-  if (!request.force && (work.working || work.waiting || work.running)) {
-    return { status: 'busy', version: state.version, live: work };
-  }
+  if (!request.force && isBusy(live)) return { status: 'busy', version: state.version, live };
   return { status: 'restarting', version: state.version };
 }
 
