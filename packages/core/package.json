@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./providers/path": "./src/providers/path.ts",
     "./launcher/machine": "./src/launcher/machine.ts",
-    "./launcher/protocol": "./src/launcher/protocol.ts"
+    "./launcher/protocol": "./src/launcher/protocol.ts",
+    "./updates/download": "./src/updates/download.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

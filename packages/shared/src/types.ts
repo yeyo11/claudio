@@ -40,8 +40,11 @@ export interface CliVersionInfo {
   install: { state: 'idle' | 'installing' | 'failed'; version: string | null; error: CliInstallError | null } | null;
 }
 
-/** Why an in-app install of Claude Code failed or was refused */
-export type CliInstallError = 'fetch-failed' | 'integrity' | 'out-of-range' | 'not-newer' | 'version-mismatch' | 'disk';
+/**
+ * Why an in-app install of Claude Code failed or was refused. `download-interrupted`: the connection
+ * kept dropping or stalling mid-download after every retry; `fetch-failed`: no usable answer at all.
+ */
+export type CliInstallError = 'fetch-failed' | 'download-interrupted' | 'integrity' | 'out-of-range' | 'not-newer' | 'version-mismatch' | 'disk';
 
 /** What is live on this server, counted as the overview counts it: what a restart would stop */
 export interface LiveWork {
@@ -56,7 +59,8 @@ export interface LiveWork {
 }
 
 export type ServerUpdateState = 'idle' | 'downloading' | 'verifying' | 'ready' | 'scheduled' | 'restarting' | 'failed';
-export type ServerUpdateError = 'fetch-failed' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image' | 'needs-shell';
+/** `download-interrupted`: the bundle's connection kept dropping or stalling after every retry (docs/updates.md) */
+export type ServerUpdateError = 'fetch-failed' | 'download-interrupted' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image' | 'needs-shell';
 /**
  * Why this server cannot update itself. `not-docker` means no launcher host at all, a source install
  * (the name is phase 1's); `no-launcher` a container or desktop install its launcher does not

@@ -9236,12 +9236,14 @@
     "type": "string",
     "enum": [
       "fetch-failed",
+      "download-interrupted",
       "bad-signature",
       "bad-manifest",
       "disk",
       "needs-image",
       "needs-shell"
-    ]
+    ],
+    "description": "`download-interrupted`: the bundle's connection kept dropping or stalling after every retry (docs/updates.md)"
   },
   "ShellInfo": {
     "type": "object",
@@ -19634,13 +19636,14 @@
     "type": "string",
     "enum": [
       "fetch-failed",
+      "download-interrupted",
       "integrity",
       "out-of-range",
       "not-newer",
       "version-mismatch",
       "disk"
     ],
-    "description": "Why an in-app install of Claude Code failed or was refused"
+    "description": "Why an in-app install of Claude Code failed or was refused. `download-interrupted`: the connection kept dropping or stalling mid-download after every retry; `fetch-failed`: no usable answer at all."
   },
   "StorageReport": {
     "type": "object",

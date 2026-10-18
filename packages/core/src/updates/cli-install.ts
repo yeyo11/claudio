@@ -1,13 +1,11 @@
 import { execFile } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { chmodSync, createWriteStream, lstatSync, mkdirSync, renameSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, renameSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { Readable, Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import type { AuthMode, CliInstallError, CliVersionInfo } from '@claudio/shared';
 import { VERSION, compareVersions } from '../launcher/protocol.ts';
 import { satisfiesRange } from '../providers/detector.ts';
+import { DownloadError, downloadFile, fetchOpener, hashFile, type DownloadTuning } from './download.ts';
 
 const run = promisify(execFile);
 
@@ -46,7 +44,10 @@ export interface CliInstallerOptions {
   dataDir: string;
   distribution: string | undefined;
   env?: NodeJS.ProcessEnv;
+  /** For the registry document, and for the tarball too when `download.open` is not given (tests) */
   fetch?: typeof fetch;
+  /** How the tarball is downloaded: `node:http` with three retries unless a test says otherwise */
+  download?: DownloadTuning;
   /** The driver's range (`>=2.1 <3`): a version outside it is never installed */
   range: string;
   /** The version the image pins, and the one in use: an install must be newer than both */
@@ -162,17 +163,9 @@ export class CliInstaller {
       if (doc.version !== v || typeof doc.dist?.tarball !== 'string' || !integrity.startsWith('sha512-')) throw new Failed('fetch-failed', 'the registry sent no tarball for that version');
       rmSync(staging, { recursive: true, force: true });
       mkdirSync(join(staging, 'bin'), { recursive: true });
-      const res = await this.get(doc.dist.tarball);
-      if (!res.body) throw new Failed('fetch-failed', 'the tarball came empty');
-      const hash = createHash('sha512');
-      const tap = new Transform({
-        transform: (chunk: Buffer, _encoding, done) => {
-          hash.update(chunk);
-          done(null, chunk);
-        },
-      });
-      await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), tap, createWriteStream(tarball, { mode: 0o600 }));
-      if (`sha512-${hash.digest('base64')}` !== integrity) throw new Failed('integrity', "the tarball does not match the registry's integrity");
+      await downloadFile(doc.dist.tarball, tarball, { ...(this.o.fetch ? { open: fetchOpener(this.o.fetch) } : {}), ...this.o.download });
+      // On the whole file as it lies on disk, whatever number of attempts and resumes it took
+      if (`sha512-${await hashFile(tarball, 'sha512', 'base64')}` !== integrity) throw new Failed('integrity', "the tarball does not match the registry's integrity");
       // The binary only: nothing else of the package is written, and no script of it runs
       await run('tar', ['-xzf', tarball, '-C', staging, '--no-same-owner', BINARY_IN_TARBALL]).catch(() => {
         throw new Failed('fetch-failed', `the tarball has no ${BINARY_IN_TARBALL}`);
@@ -197,7 +190,7 @@ export class CliInstaller {
     } catch (err) {
       rmSync(staging, { recursive: true, force: true });
       this.state = 'failed';
-      this.error = err instanceof Failed ? err.code : (err as NodeJS.ErrnoException | null)?.code === 'ENOSPC' ? 'disk' : 'fetch-failed';
+      this.error = failureCode(err);
     } finally {
       rmSync(tarball, { force: true });
     }
@@ -219,4 +212,14 @@ export class CliInstaller {
     this.error = null;
     await this.o.changed().catch(() => undefined);
   }
+}
+
+function failureCode(err: unknown): CliInstallError {
+  if (err instanceof Failed) return err.code;
+  if (err instanceof DownloadError) {
+    if (err.kind === 'interrupted') return 'download-interrupted';
+    if (err.kind === 'disk') return err.code === 'ENOSPC' || err.code === 'EDQUOT' ? 'disk' : 'fetch-failed';
+    return 'fetch-failed';
+  }
+  return (err as NodeJS.ErrnoException | null)?.code === 'ENOSPC' ? 'disk' : 'fetch-failed';
 }

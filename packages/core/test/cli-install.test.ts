@@ -4,10 +4,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readlinkSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { AuthMode } from '@claudio/shared';
 import { CliInstallRefusal, CliInstaller } from '../src/updates/cli-install.ts';
+import type { DownloadTuning } from '../src/updates/download.ts';
 import { writeTree } from './bundle-helpers.ts';
+import { head, rawServer, writeInPieces } from './raw-http-server.ts';
 
 // The installer runs only in the Linux x64 container, which is what the package it installs is for
 const skip = process.platform !== 'linux' || process.arch !== 'x64';
@@ -28,7 +30,7 @@ function packageTarball(root: string, reports: string): Buffer {
 
 const integrityOf = (bytes: Buffer) => `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
 
-function installer(options: { reports?: string; integrity?: string; env?: NodeJS.ProcessEnv; mode?: AuthMode } = {}) {
+function installer(options: { reports?: string; integrity?: string; env?: NodeJS.ProcessEnv; mode?: AuthMode; overHttp?: boolean; download?: DownloadTuning } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'claudio-cli-install-'));
   const dataDir = join(root, 'data');
   const tarball = packageTarball(root, options.reports ?? '2.1.300');
@@ -46,7 +48,8 @@ function installer(options: { reports?: string; integrity?: string; env?: NodeJS
     dataDir,
     distribution: 'docker',
     env: options.env ?? {},
-    fetch: fetchFn,
+    ...(options.overHttp ? {} : { fetch: fetchFn }),
+    ...(options.download ? { download: options.download } : {}),
     range: '>=2.1 <3',
     pinned: () => '2.1.278',
     current: () => '2.1.278',
@@ -56,7 +59,7 @@ function installer(options: { reports?: string; integrity?: string; env?: NodeJS
       changed += 1;
     },
   });
-  return { cli, dataDir, urls, changed: () => changed };
+  return { cli, dataDir, urls, tarball, changed: () => changed };
 }
 
 function refusal(run: () => unknown): CliInstallRefusal {
@@ -137,4 +140,45 @@ test("the registry comes from CLAUDIO_CLI_REGISTRY_URL, and going back to the im
   assert.equal(existsSync(join(dataDir, 'cli', 'current')), false);
   assert.equal(changed(), 2);
   await assert.rejects(cli.uninstall(), (err: unknown) => err instanceof CliInstallRefusal && err.reason === 'cli.not-installed');
+});
+
+test('a tarball whose connection drops is downloaded again and checked whole; one that keeps dropping fails as download-interrupted', { skip }, async () => {
+  let tarball: Buffer = Buffer.alloc(0);
+  let integrity = '';
+  let dropAlways = false;
+  let tarballRequests = 0;
+  const server = await rawServer(async (req, socket) => {
+    if (req.path === `/${PKG}/2.1.300`) {
+      const doc = Buffer.from(JSON.stringify({ name: PKG, version: '2.1.300', dist: { tarball: server.url('/claude.tgz'), integrity } }));
+      return void socket.end(Buffer.concat([Buffer.from(head('200 OK', { 'content-type': 'application/json', 'content-length': doc.length })), doc]));
+    }
+    tarballRequests += 1;
+    socket.write(head('200 OK', { 'content-length': tarball.length, connection: 'close' }));
+    if (dropAlways || tarballRequests === 1) {
+      await writeInPieces(socket, tarball.subarray(0, Math.floor(tarball.length / 2)), 128);
+      return void socket.destroy();
+    }
+    await writeInPieces(socket, tarball, 128);
+    socket.end();
+  });
+  after(() => server.close());
+  const waits: number[] = [];
+  const env = { CLAUDIO_CLI_REGISTRY_URL: server.url('/@anthropic-ai/claude-code/latest') };
+  const first = installer({ env, overHttp: true, download: { wait: async (ms) => void waits.push(ms) } });
+  tarball = first.tarball;
+  integrity = integrityOf(tarball);
+  first.cli.install('2.1.300');
+  await first.cli.pending;
+  assert.deepEqual(first.cli.info(null).install, { state: 'idle', version: '2.1.300', error: null });
+  assert.deepEqual(waits, [2_000]);
+  assert.equal(readlinkSync(join(first.dataDir, 'cli', 'current')), '2.1.300');
+
+  dropAlways = true;
+  const second = installer({ env, overHttp: true, download: { wait: async () => undefined } });
+  tarball = second.tarball;
+  integrity = integrityOf(tarball);
+  second.cli.install('2.1.300');
+  await second.cli.pending;
+  assert.deepEqual(second.cli.info(null).install, { state: 'failed', version: '2.1.300', error: 'download-interrupted' });
+  assert.equal(existsSync(join(second.dataDir, 'cli', 'current')), false);
 });

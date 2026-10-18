@@ -1323,6 +1323,15 @@ Not done, because it needs CI, a deployment, a desktop or the owner:
   [orchestrations.md](../orchestrations.md)), and fix branches for the terminal in the workspace with
   no project ([terminal.md](../terminal.md)) and for a resumed subagent keeping one record with
   several runs ([chat-tool-rows-and-branches.md](../chat-tool-rows-and-branches.md)).
+- **2026-10-18: a dropped connection took the server down mid-download.** In the AppImage smoke run
+  (shell Node 24.22) undici asserted `!this.paused` in `Parser.finish` when Python's HTTP/1.0 server
+  closed the socket right after the tarball while the pipeline to disk had paused the body; the
+  assertion is thrown from a socket listener, so it was uncaught and the server exited 1. The bundle,
+  the Claude Code tarball and the shell's AppImage switch now download over `node:http` with three
+  retries (2/8/30 s), resume by `Range` when the server allows it, and fail as
+  `download-interrupted` ([updates.md](../updates.md)). `compareVersions` also orders two
+  pre-releases of one version by SemVer 2.0 (`-smoke.1` < `-smoke.2`, `-beta.2` < `-beta.10`), which
+  the smoke's payloads needed and the launcher's "newer than active" rule relies on.
 
 ## Related
 

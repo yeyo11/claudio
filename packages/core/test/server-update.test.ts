@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import type { Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import type { AuthMode, ClaudioEvent, LiveWork } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { EMPTY_STATE, readState, writeState } from '../src/launcher/protocol.ts';
+import type { DownloadTuning } from '../src/updates/download.ts';
 import { ServerUpdateRefusal, ServerUpdates } from '../src/updates/server-update.ts';
 import { releaseAssets, signingKey, type SigningKey } from './bundle-helpers.ts';
+import { head, rawServer, writeInPieces, type RawServer } from './raw-http-server.ts';
 
 const FILES = { 'api.mjs': 'export {};\n', 'mcp.mjs': '', 'web/index.html': '<!doctype html>', 'node_modules/node-pty/package.json': '{}' };
 
@@ -34,7 +37,19 @@ after(() => {
 });
 
 function world(
-  options: { env?: NodeJS.ProcessEnv; distribution?: string; running?: string; signWith?: SigningKey; extra?: Parameters<typeof releaseAssets>[4]; tamper?: boolean; fromOverlay?: string; desktop?: boolean } = {},
+  options: {
+    env?: NodeJS.ProcessEnv;
+    distribution?: string;
+    running?: string;
+    signWith?: SigningKey;
+    extra?: Parameters<typeof releaseAssets>[4];
+    tamper?: boolean;
+    fromOverlay?: string;
+    desktop?: boolean;
+    /** Serve the release from this origin over real HTTP instead of an injected `fetch` */
+    origin?: string;
+    download?: DownloadTuning;
+  } = {},
 ): World {
   const root = mkdtempSync(join(tmpdir(), 'claudio-server-update-'));
   roots.push(root);
@@ -49,10 +64,11 @@ function world(
   writeFileSync(join(imageDir, 'image.json'), JSON.stringify({ version: '0.6.0', imageInputs: 'x', nodeAbi: process.versions.modules, claudeCode: null }));
 
   const assets = releaseAssets(root, '0.7.0', FILES, options.signWith ?? key, options.extra);
+  const origin = options.origin ?? 'https://r.test';
   const serve = new Map<string, Buffer | string>([
-    ['https://r.test/m.json', assets.bytes],
-    ['https://r.test/m.json.sig', assets.signature],
-    ['https://r.test/t.tar.gz', options.tamper ? Buffer.concat([assets.tarball.subarray(0, -1), Buffer.from([(assets.tarball.at(-1) ?? 0) ^ 0xff])]) : assets.tarball],
+    [`${origin}/m.json`, assets.bytes],
+    [`${origin}/m.json.sig`, assets.signature],
+    [`${origin}/t.tar.gz`, options.tamper ? Buffer.concat([assets.tarball.subarray(0, -1), Buffer.from([(assets.tarball.at(-1) ?? 0) ^ 0xff])]) : assets.tarball],
   ]);
   const w: World = {
     dataDir,
@@ -65,9 +81,9 @@ function world(
     security: { mode: 'token', readOnly: false },
     events: [],
     assets: [
-      { name: 'claudio-server-0.7.0-linux-x64.json', url: 'https://r.test/m.json' },
-      { name: 'claudio-server-0.7.0-linux-x64.json.sig', url: 'https://r.test/m.json.sig' },
-      { name: 'claudio-server-0.7.0-linux-x64.tar.gz', url: 'https://r.test/t.tar.gz' },
+      { name: 'claudio-server-0.7.0-linux-x64.json', url: `${origin}/m.json` },
+      { name: 'claudio-server-0.7.0-linux-x64.json.sig', url: `${origin}/m.json.sig` },
+      { name: 'claudio-server-0.7.0-linux-x64.tar.gz', url: `${origin}/t.tar.gz` },
     ],
     release: { version: '0.7.0' },
     updates: undefined as unknown as ServerUpdates,
@@ -95,7 +111,8 @@ function world(
       ...(options.fromOverlay ? { CLAUDIO_APP_DIR: join(dataDir, 'app', options.fromOverlay) } : {}),
       ...options.env,
     },
-    fetch: fetchFn,
+    ...(options.origin ? {} : { fetch: fetchFn }),
+    ...(options.download ? { download: options.download } : {}),
     release: () => (w.release ? { version: w.release.version, assets: w.assets } : null),
     security: () => w.security,
     liveWork: async () => w.live,
@@ -427,4 +444,72 @@ test("on the desktop revert restarts onto the shell's bundled payload", async ()
   assert.equal(stateOf(w).active, null);
   await sleep(400);
   assert.equal(w.restarts, 1);
+});
+
+/**
+ * The release served over real HTTP by a raw server whose tarball answers come from `tarball`;
+ * the manifest and its signature are served whole.
+ */
+async function overHttp(tarball: (index: number, body: Buffer, socket: Socket, range: string | undefined) => Promise<void>, download: DownloadTuning) {
+  let w: World | null = null;
+  let tarballRequests = 0;
+  const server: RawServer = await rawServer(async (req, socket) => {
+    const body = w?.serve.get(server.url(req.path));
+    if (body === undefined) return void socket.end(head('404 Not Found', { 'content-length': 0 }));
+    const bytes = typeof body === 'string' ? Buffer.from(body) : body;
+    if (req.path !== '/t.tar.gz') return void socket.end(Buffer.concat([Buffer.from(head('200 OK', { 'content-length': bytes.length })), bytes]));
+    await tarball(tarballRequests++, bytes, socket, req.headers.range);
+  });
+  after(() => server.close());
+  w = world({ origin: server.url(''), download });
+  return { w, server };
+}
+
+test('a bundle download that loses its connection is resumed with Range, verified whole and staged', async () => {
+  const waits: number[] = [];
+  const { w, server } = await overHttp(
+    async (index, body, socket, range) => {
+      if (index === 0) {
+        socket.write(head('200 OK', { 'content-length': body.length, 'accept-ranges': 'bytes', etag: '"b1"' }));
+        await writeInPieces(socket, body.subarray(0, Math.floor(body.length / 2)), 256);
+        setTimeout(() => socket.destroy(), 50);
+        return;
+      }
+      const from = Number(/^bytes=(\d+)-$/.exec(range ?? '')?.[1] ?? 0);
+      socket.write(head('206 Partial Content', { 'content-length': body.length - from, 'content-range': `bytes ${String(from)}-${String(body.length - 1)}/${String(body.length)}` }));
+      await writeInPieces(socket, body.subarray(from), 256);
+      socket.end();
+    },
+    { wait: async (ms) => void waits.push(ms) },
+  );
+  await w.updates.download();
+  await w.updates.pending;
+  const status = w.updates.status();
+  assert.equal(status.state, 'ready', JSON.stringify(status));
+  assert.equal(stateOf(w).trial, '0.7.0');
+  assert.deepEqual(waits, [2_000]);
+  const ranged = server.requests.filter((r) => r.path === '/t.tar.gz').map((r) => r.headers.range ?? null);
+  assert.equal(ranged.length, 2);
+  assert.equal(ranged[0], null);
+  assert.match(ranged[1] ?? '', /^bytes=\d+-$/);
+  assert.equal(readFileSync(join(w.dataDir, 'app', '0.7.0', 'api.mjs'), 'utf8'), FILES['api.mjs']);
+});
+
+test('a bundle download whose connection keeps dropping fails as download-interrupted and leaves nothing behind', async () => {
+  const { w } = await overHttp(
+    async (_index, body, socket) => {
+      socket.write(head('200 OK', { 'content-length': body.length, connection: 'close' }));
+      await writeInPieces(socket, body.subarray(0, Math.floor(body.length / 3)), 256);
+      socket.end();
+    },
+    { wait: async () => undefined },
+  );
+  await w.updates.download();
+  await w.updates.pending;
+  const status = w.updates.status();
+  assert.equal(status.state, 'failed');
+  assert.equal(status.error, 'download-interrupted');
+  assert.equal(stateOf(w).trial, null);
+  const left = existsSync(join(w.dataDir, 'app')) ? readdirSync(join(w.dataDir, 'app')).filter((name) => name !== 'state.json') : [];
+  assert.deepEqual(left, [], 'no partial tarball and no staging directory');
 });
