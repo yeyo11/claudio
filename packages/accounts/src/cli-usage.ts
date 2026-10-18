@@ -108,3 +108,22 @@ export async function usageOf(account: AccountRef, opts: ControlOptions = {}): P
   // Measured at 11-15 s with four accounts read in a loaded machine: 20 s was too close
   return parseUsage(await controlRequest(account, 'get_usage', { timeoutMs: 30_000, ...opts }));
 }
+
+/** What a `get_usage` says of a credential: it works, or nothing certain */
+export type CredentialCheck = 'valid' | 'unknown';
+
+/**
+ * Whether the account's credential works, from the same free `get_usage`. The CLI answers success
+ * with `rate_limits_available: false` for a refused token, a refused key, no credential and an
+ * unreachable network alike (test/fixtures/get-usage-refused-*.json, CLI 2.1.302), so a refusal
+ * cannot be told from that answer: only the plan's limits coming back prove an OAuth credential
+ * (`valid`). Everything else, a failed request included, is `unknown` and changes nothing.
+ */
+export async function checkCredential(account: AccountRef, opts: ControlOptions = {}): Promise<CredentialCheck> {
+  try {
+    const response = await controlRequest(account, 'get_usage', { timeoutMs: 30_000, ...opts });
+    return isRecord(response) && response.rate_limits_available === true ? 'valid' : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}

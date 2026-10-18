@@ -26,6 +26,7 @@ const limit = (over: Partial<NonNullable<AccountLimit['cli']>> = {}): AccountLim
 const unreadable = (): AccountLimit => ({ ...limit({ available: false, plan: null, scoped: [], credits: null }), state: 'unknown', window: null, utilization: null, resetsAt: null, windows: {} });
 const account = (over: Partial<Account> = {}): Account => ({
   id: 'default',
+  checkedAt: null,
   kind: 'login',
   alias: null,
   email: 'me@example.com',

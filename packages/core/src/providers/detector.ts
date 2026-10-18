@@ -3,7 +3,6 @@ import { readFileSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import type {
-  AuthStatus,
   CliInfo,
   ModelOption,
   PermissionMode,
@@ -15,7 +14,7 @@ import type {
   ProvidersSettings,
 } from '@claudio/shared';
 import type { ChildProcesses } from '../child-processes.ts';
-import { detectCli, getAuthStatus } from '../cli.ts';
+import { detectCli, getAuthStatus, type CliAuth } from '../cli.ts';
 import type { ClaudioEventInput } from '../events.ts';
 import type { CoreConfig } from '../paths.ts';
 import { compareVersions } from '../version-check.ts';
@@ -39,7 +38,7 @@ export const WATCH_MIN_GAP_MS = 10_000;
 /** What Claude Code's two probes read: the shape `detectCli` and `getAuthStatus` return */
 export interface ClaudeReading {
   cli: CliInfo;
-  auth: AuthStatus;
+  auth: CliAuth;
 }
 
 export interface ProviderDetectorDeps {
@@ -55,6 +54,8 @@ export interface ProviderDetectorDeps {
    * Ignored when the person pointed at a binary of their own, which that read knows nothing of.
    */
   readClaude?: () => Promise<ClaudeReading>;
+  /** Whether the CLI's own login was found refused by a run (an expired session, a revoked token) */
+  defaultExpired?: () => boolean;
   /**
    * Where each provider's usage limit is read from and kept. A provider that has reached or neared
    * its limit is `degraded` while it lasts, and a handshake that read the limits records them here.
@@ -609,7 +610,9 @@ export class ProviderDetector {
     const account = reading.auth.email ?? reading.auth.orgName ?? null;
     return [
       { kind: 'ok', version: reading.cli.version },
-      reading.auth.loggedIn ? { kind: 'ok', account } : { kind: 'signed-out' },
+      // `auth status` says logged in for any credential, valid or not: a login that a run found
+      // refused is signed out here, and readiness falls back to another account when there is one
+      reading.auth.loggedIn && !this.deps.defaultExpired?.() ? { kind: 'ok', account } : { kind: 'signed-out' },
     ];
   }
 

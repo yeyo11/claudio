@@ -60,10 +60,10 @@ environment and to no other, and never returned by any endpoint.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/auth` | Fresh auth status, including where the credential comes from |
-| PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one) |
+| GET | `/auth` | Fresh auth status, including where the credential comes from and `inUse`: the account new work would start on (`id`, `label`, `kind`, `signInState`, `checkedAt`), null when none can take work |
+| PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one). `oauthToken` is deprecated: the UI signs in with `POST /accounts/default/login` instead, but a script that sends it keeps working |
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
-| POST | `/auth/verify` | Sends a minimal real request. `claude auth status` only reports what is configured, it does not validate the token |
+| POST | `/auth/verify` | Sends a minimal real request (one short message, which counts against the plan) on the account in use and records `checkedAt`. `claude auth status` only reports what is configured, and `get_usage` cannot refuse a credential, so this is the one check that proves it |
 
 ## Setup
 
@@ -287,12 +287,12 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/accounts` | The CLI's own login (`default`) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading (windows, `limits.cli`: plan, per-model limits, credits) |
+| GET | `/accounts` | The CLI's own login (`default`, left out while it has no credential at all: no credentials file and no key or token in the environment, unless it expired) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading (windows, `limits.cli`: plan, per-model limits, credits) |
 | POST | `/accounts` | Add a `login` account and start `claude auth login` in its dir; `201` with the sign-in (`url` for the person to open). `{ alias?, email? }` |
 | POST | `/accounts/refresh` | Read the real usage of every enabled account from the CLI (`get_usage`, no tokens), one at a time with a 30 s timeout each: `{ accounts, failed }`; a failing account keeps its last reading and is named in `failed` |
-| POST | `/accounts/:id/refresh` | The same for one account; answers the account; `404` for an unknown one, `400` when the CLI could not read it |
-| POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir; `201` with the sign-in, followed like `POST /accounts`'s. The account is kept whatever the outcome; `400` for a token or api-key account |
-| POST | `/accounts/token` | Add a `token` or `api-key` account: `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
+| POST | `/accounts/:id/refresh` | The same for one account; answers the account; `404` for an unknown one, `502 accounts.check-failed` when the CLI could not answer. A `get_usage` that comes back with the plan's limits confirms the credential and records `checkedAt` |
+| POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir (`default` is the CLI's own config dir, and a successful sign-in there drops a token Claudio kept); `201` with the sign-in, followed like `POST /accounts`'s, which ends `expired` when nobody finishes it in 15 minutes. The account is kept whatever the outcome; `400` for a token or api-key account |
+| POST | `/accounts/token` | Add a `token` or `api-key` account (`kind: 'token'` is deprecated, kept for scripts): `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
 | GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `cancelled`); `404` for an unknown one |
 | POST | `/accounts/logins/:id/code` | Hand the CLI the code the page showed, when its browser could not open: `{ code }`; `409` when the sign-in is over |
 | DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |

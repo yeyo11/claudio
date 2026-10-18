@@ -12,6 +12,8 @@ interface Entry {
   cli: CliLogin;
   /** The sign-in ended because it was cancelled, not because the CLI failed */
   cancelled: boolean;
+  /** The 15 minutes passed before the person finished */
+  expired: boolean;
   /** A sign-in again of an account that already existed: it stays whatever the outcome */
   existing: boolean;
   timers: NodeJS.Timeout[];
@@ -30,6 +32,9 @@ export class AccountLogins {
   constructor(
     private readonly store: AccountStore,
     private readonly claude: string,
+    /** Called once a sign-in succeeded, before it is announced (the default account's clears a saved token) */
+    private readonly onSignedIn: (accountId: string) => Promise<void> = () => Promise.resolve(),
+    private readonly opts: { expiresMs?: number } = {},
   ) {}
 
   /** Adds the account and starts its sign-in. */
@@ -60,9 +65,9 @@ export class AccountLogins {
       endedAt: null,
       account: null,
     };
-    const entry: Entry = { session, cli, cancelled: false, existing, timers: [] };
+    const entry: Entry = { session, cli, cancelled: false, expired: false, existing, timers: [] };
     this.entries.set(session.id, entry);
-    entry.timers.push(setTimeout(() => this.cancel(session.id), EXPIRES_MS));
+    entry.timers.push(setTimeout(() => this.expire(session.id), this.opts.expiresMs ?? EXPIRES_MS));
     void cli.url.then((url) => {
       if (url && session.state === 'starting') {
         session.url = url;
@@ -75,14 +80,20 @@ export class AccountLogins {
 
   private async finish(entry: Entry, code: number): Promise<void> {
     const { session } = entry;
-    let state: AccountLoginState = entry.cancelled ? 'cancelled' : 'failed';
+    let state: AccountLoginState = entry.expired ? 'expired' : entry.cancelled ? 'cancelled' : 'failed';
     let account = null;
-    if (!entry.cancelled && code === 0) {
+    if (!entry.cancelled && !entry.expired && code === 0) {
       try {
         account = await this.store.refresh(session.accountId);
         if (entry.existing) await this.store.clearAuthFailed(session.accountId);
         account = this.store.get(session.accountId);
-        if (account.signedIn) state = 'succeeded';
+        if (account.signedIn) {
+          // A sign-in just proved itself: not expired, checked now
+          await this.store.confirm(session.accountId);
+          await this.onSignedIn(session.accountId).catch(() => undefined);
+          account = this.store.get(session.accountId);
+          state = 'succeeded';
+        }
       } catch {
         // The account is gone (removed while the CLI ran) or the CLI cannot say: it did not sign in
       }
@@ -117,6 +128,14 @@ export class AccountLogins {
     if (entry.session.endedAt) throw fail(409, 'this sign-in is already over');
     entry.cli.submitCode(code);
     return { ...entry.session };
+  }
+
+  /** The CLI waited for a code that never came: the sign-in ends as `expired`, not as the person's cancel */
+  private expire(id: string): void {
+    const entry = this.entries.get(id);
+    if (!entry || entry.session.endedAt) return;
+    entry.expired = true;
+    entry.cli.cancel();
   }
 
   cancel(id: string): AccountLoginSession {

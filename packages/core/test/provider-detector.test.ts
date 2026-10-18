@@ -39,7 +39,7 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => boolean; settings?: ProvidersSettings | null; events?: ClaudioEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry } = {}) {
+function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => boolean; settings?: ProvidersSettings | null; events?: ClaudioEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry; defaultExpired?: () => boolean; otherAccount?: () => string | null } = {}) {
   const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDIO_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
@@ -51,6 +51,8 @@ function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => bo
     emit: (event) => options.events?.push(event),
     limits: options.limits,
     accountsAtLimit: options.accountsAtLimit,
+    defaultExpired: options.defaultExpired,
+    otherAccount: options.otherAccount,
     registry: options.registry,
     probeTimeoutMs: options.probeTimeoutMs ?? 5_000,
     debounceMs: 50,
@@ -100,6 +102,18 @@ describe('ProviderDetector', () => {
     assert.deepEqual([claude.state, claude.reason, claude.version, claude.account], ['ready', null, '2.1.285', 'me@example.com']);
     assert.equal(claude.binaryPath, join(bin, 'claude'));
     assert.equal(claude.capabilities.length, 17);
+  });
+
+  it('is signed-out when auth status says logged in but a run found the sign-in refused', async () => {
+    await fake('claude', CLAUDE('2.1.285', true));
+    const claude = await statusOf(detector({ defaultExpired: () => true }), 'claude-code');
+    assert.deepEqual([claude.state, claude.reason], ['signed-out', 'missing-credentials']);
+  });
+
+  it('is ready on another signed-in account when the CLI\'s own login is expired', async () => {
+    await fake('claude', CLAUDE('2.1.285', true));
+    const claude = await statusOf(detector({ defaultExpired: () => true, otherAccount: () => 'work' }), 'claude-code');
+    assert.deepEqual([claude.state, claude.account], ['ready', 'work']);
   });
 
   it('is signed-out when the login probe says so', async () => {

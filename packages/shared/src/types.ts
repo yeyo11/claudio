@@ -102,6 +102,11 @@ export interface AuthStatus {
   subscriptionType?: string;
   tokenSource: TokenSource;
   error?: string;
+  /**
+   * The account new work would start on, which is not always the CLI's own login: a signed-out
+   * default with a signed-in login account beside it still runs chats. Null when no account can take work
+   */
+  inUse: AccountInUse | null;
 }
 
 /** A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent. */
@@ -5954,8 +5959,20 @@ export interface Account {
    * signs in again. Absent while it can authenticate
    */
   authFailedAt?: string;
+  /** When the credential was last checked with `get_usage` (no turn) or a test message; null when never */
+  checkedAt: string | null;
   /** Null until something was read */
   limits: AccountLimit | null;
+}
+
+/** The account new work would start on, as Settings and the status bar name it */
+export interface AccountInUse {
+  id: string;
+  /** The alias, else the email, else the id */
+  label: string;
+  kind: AccountKind;
+  signInState: AccountSignInState;
+  checkedAt: string | null;
 }
 
 /** The answer of refreshing accounts' usage: every account as it lists now, and those the CLI could not read. */
@@ -6071,7 +6088,8 @@ export interface UpdateAccountRequest {
   enabled?: boolean;
 }
 
-export type AccountLoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'cancelled';
+/** `expired`: the CLI waited for a code the person never pasted and the sign-in was stopped */
+export type AccountLoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'expired' | 'cancelled';
 
 /**
  * The sign-in of a `login` account, as `POST /accounts` started it. Carries the URL the CLI printed
@@ -8264,6 +8282,8 @@ export interface SetupToolMethods {
   exclusive: boolean;
   /** Whether the vendor documents a device-code sign-in Claudio runs */
   device: boolean;
+  /** The CLI's own `claude auth login`, relayed (open a link, paste a code): offered first. Only Claude Code */
+  accountLogin: boolean;
   /**
    * The device sign-in is another tool's; `POST /setup/logins` with the tool's `device` starts that
    * tool's session, and the session names it. Null for every tool now: none of the remaining ones

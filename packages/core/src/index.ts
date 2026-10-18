@@ -30,6 +30,7 @@ import type {
   MemoryProjectSummary,
   Overview,
   Account,
+  AccountInUse,
   AccountsRefreshResult,
   AccountsSnapshot,
   PermissionDecision,
@@ -106,7 +107,7 @@ import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } f
 import { Connectors } from './connectors.ts';
 import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
-import { detectCli, execCli, getAuthStatus } from './cli.ts';
+import { detectCli, execCli, getAuthStatus, type CliAuth } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
 import { storageReport } from './storage.ts';
@@ -115,7 +116,7 @@ import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
 import { Changes, type ChangeScope, type DiffOptions } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
-import { useVaultForChildren } from './child-env.ts';
+import { childEnv, useVaultForChildren } from './child-env.ts';
 import { SecretVault } from './secret-vault.ts';
 import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
@@ -423,6 +424,11 @@ const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
+/** How long a check of the account in use is good for */
+const ACCOUNT_CHECK_MS = 30 * 60_000;
+
+/** A system read before the account in use is added to it, which is done on every answer */
+type SystemRead = Omit<SystemInfo, 'uptimeSec' | 'models' | 'auth'> & { auth: CliAuth };
 
 /** A session's directory: the worktree the CLI recorded when it ran in one, else where it started. */
 const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ?? s.projectPath, updatedAt: s.updatedAt });
@@ -610,8 +616,8 @@ export class Core {
   private language: ClaudioLanguage = 'en';
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
-  private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
-  private systemPending: { gen: number; promise: Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> } | null = null;
+  private systemCache: { at: number; gen: number; value: SystemRead } | null = null;
+  private systemPending: { gen: number; promise: Promise<SystemRead> } | null = null;
   private systemGen = 0;
 
   constructor(config: CoreConfig = loadConfig()) {
@@ -623,11 +629,21 @@ export class Core {
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
     const drivers = this.sessionDrivers(config);
-    this.accounts = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: config.claudeBin });
+    this.accounts = new AccountStore({
+      dataDir: config.dataDir,
+      defaultDir: config.configDir,
+      claude: config.claudeBin,
+      // What the CLI will see, the vault's credential included: a login with no file is still one
+      defaultEnvCredential: () => {
+        const env = childEnv('claude-code');
+        return Boolean(env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY);
+      },
+    });
     this.providers = new ProviderDetector({
       processes: this.children,
       config,
       otherAccount: () => this.readyAccountLabel(),
+      defaultExpired: () => this.accounts.list().find((a) => a.id === DEFAULT_ID)?.signInState === 'expired',
       accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
@@ -635,6 +651,8 @@ export class Core {
       commandAliases: { 'claude-code': [config.claudeBin] },
       readClaude: async () => {
         const { cli, auth } = await this.system();
+        // Beside the reading, never inside `/health`: a free check of the account in use, at most every 30 minutes
+        this.checkAccountInUse();
         return { cli, auth };
       },
     });
@@ -1623,18 +1641,19 @@ export class Core {
     return (id ? providers.driverFor(id)?.models() : null) ?? [];
   }
 
-  private withUptime(value: Omit<SystemInfo, 'uptimeSec' | 'models'>): SystemInfo {
+  private withUptime(value: SystemRead): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while this is a file the CLI writes, cached by its own mtime
-    return { ...value, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    // The account in use moves with rotation and sign-ins, faster than the system read is redone
+    return { ...value, auth: { ...value.auth, inUse: this.accountInUse() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
-  private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> {
+  private readSystem(join = true): Promise<SystemRead> {
     const pending = this.systemPending;
     if (join && pending && pending.gen === this.systemGen) return pending.promise;
     const gen = this.systemGen;
     const at = Date.now();
-    const promise: Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> = (async () => {
+    const promise: Promise<SystemRead> = (async () => {
       const cli = await detectCli(this.config);
       const auth = cli.installed
         ? await getAuthStatus(this.config)
@@ -1980,6 +1999,17 @@ export class Core {
     return this.system(true);
   }
 
+  /**
+   * `claude auth login` on the CLI's own login succeeded. A token Claudio kept in the vault would
+   * keep winning over the new credentials file (the variable beats it), so it is dropped.
+   */
+  async defaultSignedIn(): Promise<void> {
+    const { auth } = await this.system(true);
+    if (auth.tokenSource === 'wrapper-oauth-token') await this.credentials.clear();
+    await this.accounts.confirm(DEFAULT_ID).catch(() => undefined);
+    await this.system(true);
+  }
+
   async clearCredentials(): Promise<SystemInfo> {
     await this.credentials.clear();
     return this.system(true);
@@ -2065,6 +2095,7 @@ export class Core {
   }
 
   async verifyAuth(): Promise<AuthVerification> {
+    const inUse = this.accountInUse()?.id ?? null;
     const run = this.runtime.start({
       prompt: 'Reply with exactly: ok',
       model: 'haiku',
@@ -2076,6 +2107,8 @@ export class Core {
     });
     const result = await this.runtime.waitForResult(run.id);
     this.runtime.remove(run.id);
+    // The turn ran on the account new work starts on: a finished one is a check of it, a 401 marked it
+    if (inUse && result.result) await this.accounts.markChecked(inUse).catch(() => undefined);
     const { auth } = await this.system(true);
     return { ok: !result.isError, detail: result.result.slice(0, 500), auth };
   }
@@ -3281,9 +3314,9 @@ export class Core {
 
   /** What the dashboard shows of the accounts: how many can take work, and the one new work would start on. */
   private accountsSnapshot(): AccountsSnapshot {
-    const list = this.accounts.list();
+    const list = this.accounts.listed();
     const ready = list.filter((a) => a.enabled && a.signedIn);
-    return { total: list.length, ready: ready.length, current: this.accounts.pick({ current: null }).account };
+    return { total: list.length, ready: ready.length, current: this.accountInUse()?.id ?? null };
   }
 
   /** A signed-in account other than the CLI's own login, when there is one: Claude can run on it though the CLI itself is signed out. */
@@ -3306,12 +3339,43 @@ export class Core {
     for (const id of targets) {
       try {
         if (this.accounts.ref(id).kind === 'login') await this.accounts.refresh(id).catch(() => undefined);
-        await this.runtime.noteAccountReading(id, await this.accounts.fetchUsage(id));
+        const reading = await this.accounts.fetchUsage(id);
+        await this.runtime.noteAccountReading(id, reading);
+        if (reading.cli?.available) await this.accounts.confirm(id);
       } catch (e) {
         failed.push({ id, error: e instanceof Error ? e.message : String(e) });
       }
     }
-    return { accounts: this.accounts.list(), failed };
+    return { accounts: this.accounts.listed(), failed };
+  }
+
+  /** The account new work would start on, as Settings and the status bar name it; null when none can take work */
+  private accountInUse(): AccountInUse | null {
+    // The CLI's own login is assumed signed in until read: with no credential at all it is a ghost, not an account
+    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
+    const id = this.accounts.pick({ current: null, ...(ghost ? { failedOn: [DEFAULT_ID] } : {}) }).account;
+    const account = id ? this.accounts.list().find((a) => a.id === id) : undefined;
+    if (!account) return null;
+    return { id: account.id, label: account.alias ?? account.email ?? account.id, kind: account.kind, signInState: account.signInState, checkedAt: account.checkedAt };
+  }
+
+  private checkingInUse = false;
+
+  /**
+   * The free check (`get_usage`) of the account in use, when it was never checked or not in the last
+   * 30 minutes. It confirms a working credential; it cannot refuse one (see `checkCredential`).
+   */
+  private checkAccountInUse(): void {
+    const inUse = this.accountInUse();
+    if (!inUse || this.checkingInUse) return;
+    if (inUse.checkedAt !== null && Date.now() - Date.parse(inUse.checkedAt) < ACCOUNT_CHECK_MS) return;
+    this.checkingInUse = true;
+    void this.accounts
+      .check(inUse.id)
+      .catch(() => undefined)
+      .finally(() => {
+        this.checkingInUse = false;
+      });
   }
 
   /**
