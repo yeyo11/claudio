@@ -40,8 +40,10 @@ persistence:
   # Use a claim you created yourself instead of letting the chart create one
   existingClaim: ""
 
-# The Claude account. Either name a Secret holding CLAUDE_CODE_OAUTH_TOKEN and/or ANTHROPIC_API_KEY
-# (`claude setup-token` makes the first), or leave it empty and set the credential from the UI.
+# The Claude account. Leave it empty and sign in from the app (Claude account, through the CLI's own
+# sign-in, or an API key): the credentials stay on the data volume. Or name a Secret holding
+# ANTHROPIC_API_KEY, which suits a deployment nobody can open a browser on. CLAUDE_CODE_OAUTH_TOKEN in
+# that Secret is still read, for headless use only; it takes precedence over a sign-in made in the app.
 claude:
   existingSecret: ""
 
@@ -110,6 +112,10 @@ probes:
   # Liveness restarts the container when the API stops answering; readiness takes the pod out of
   # the Service meanwhile. Neither depends on the Claude login: /api/health answers 200 while logged
   # out, because a restart would not fix that.
+  # An in-app update (docs/plans/container-polish.md) boots the new bundle on trial for up to 60 s
+  # before the launcher inside the container promotes it or rolls back, and /api/health answers late
+  # during it. Liveness tolerates 30 s x 3 = 90 s, which fits that trial: keep periodSeconds x
+  # failureThreshold above 60 s, or a slow trial gets the pod killed mid-update.
   liveness:
     periodSeconds: 30
     failureThreshold: 3
