@@ -301,7 +301,7 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | POST | `/accounts/:id/refresh` | The same for one account; answers the account; `404` for an unknown one, `502 accounts.check-failed` when the CLI could not answer. A `get_usage` that comes back with the plan's limits confirms the credential and records `checkedAt` |
 | POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir (`default` is the CLI's own config dir, and a successful sign-in there drops a token Claudio kept); `201` with the sign-in, followed like `POST /accounts`'s, which ends `expired` when nobody finishes it in 15 minutes. The account is kept whatever the outcome; `400` for a token or api-key account |
 | POST | `/accounts/token` | Add a `token` or `api-key` account (`kind: 'token'` is deprecated, kept for scripts): `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
-| GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `cancelled`); `404` for an unknown one |
+| GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `expired`, `cancelled`); `404` for an unknown one |
 | POST | `/accounts/logins/:id/code` | Hand the CLI the code the page showed, when its browser could not open: `{ code }`; `409` when the sign-in is over |
 | DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |
 | PATCH | `/accounts/:id` | `{ alias?, enabled? }`; a disabled account is never chosen for new work |

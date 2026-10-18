@@ -10,6 +10,10 @@
     "done": "Listo",
     "skipped": "omitido"
   },
+  "intro": {
+    "more": "Más",
+    "less": "Menos"
+  },
   "foot": {
     "back": "Volver",
     "skip": "Omitir",
@@ -89,7 +93,6 @@
     "variable": "Qué vas a pegar",
     "variableProvider": "Proveedor de la clave",
     "variables": {
-      "oauthToken": "Token de OAuth",
       "apiKey": "Clave de API"
     },
     "host": "Host",
@@ -102,10 +105,10 @@
       "tailscale": "Clave de autenticación de Tailscale"
     },
     "link": {
-      "claude-code": "Cómo se crea el token",
       "gh": "Crear un token en {{host}}",
       "glab": "Crear un token en {{host}}",
-      "tailscale": "Crear una clave de autenticación en la consola de Tailscale"
+      "tailscale": "Crear una clave de autenticación en la consola de Tailscale",
+      "apiKey": "Crear una clave de API en la consola de Anthropic"
     },
     "hint": {
       "envSealed": "Se guarda cifrada y solo la reciben los procesos de {{label}}. No se vuelve a mostrar.",
@@ -114,7 +117,6 @@
       "glab": "Con los permisos api y write_repository. glab lo guarda en su propia configuración; Claudio no se queda con una copia.",
       "tailscale": "Basta con usarla una vez: Tailscale mantiene la sesión de esta máquina con una clave propia y Claudio no se queda con una copia. Llega a Tailscale por un archivo que solo él puede leer y que se borra justo después."
     },
-    "claude": "Claude Code no tiene un inicio de sesión que Claudio pueda hacer por ti. En <b>tu propio ordenador</b>, donde ya usas Claude, ejecuta <code>claude setup-token</code> en una terminal: abre el navegador, entras con tu suscripción y te muestra un token que dura un año. Pégalo aquí.",
     "claudeApiKey": "Una clave de API de Anthropic se cobra a la cuenta de la API a la que pertenece, no a tu suscripción.",
     "save": "Guardar y comprobar",
     "saving": "Comprobando…",
@@ -150,7 +152,18 @@
       "new-code": "Pedir otro código"
     },
     "signedIn": "Sesión iniciada en {{label}}",
-    "startFailed": "No se ha podido empezar el inicio de sesión"
+    "startFailed": "No se ha podido empezar el inicio de sesión",
+    "account": {
+      "intro": "Inicia sesión con la cuenta de Claude que usas en Claude Code. Claudio abre el inicio de sesión y lo transmite; Claude Code guarda las credenciales y Claudio nunca las lee.",
+      "signIn": "Iniciar sesión"
+    },
+    "way": {
+      "account": "Cuenta de Claude",
+      "key": "Clave de API"
+    },
+    "envNote": "Este despliegue define {{variable}} en su entorno, y Claude Code lo usa antes que cualquier sesión iniciada aquí. Quítalo del despliegue para usar la cuenta con la que inicies sesión.",
+    "wrapperNote": "Al iniciar sesión se sustituye el token guardado antes.",
+    "claudeSignedIn": "Sesión iniciada en Claude Code"
   },
   "row": {
     "signIn": "Iniciar sesión",

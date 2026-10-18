@@ -41,6 +41,18 @@ export default async ({ page, api, check }) => {
     check((await api.get('/providers/claude-code')).body.state === 'ready', 'the server reads claude-code as signed in');
     check((await page.text('.setup-foot')).includes('ready'), 'the foot counts what is ready');
 
+    // The frame fills the viewport: the foot is pinned to its bottom, and Continue is never below the fold
+    await page.viewport(1280, 720);
+    const frame = await page.eval(`
+      const foot = document.querySelector('.setup-foot-bar').getBoundingClientRect();
+      const go = document.querySelector('[data-action="continue"]').getBoundingClientRect();
+      return { footBottom: Math.round(foot.bottom), height: window.innerHeight, continueVisible: go.top >= 0 && go.bottom <= window.innerHeight, scrolls: document.documentElement.scrollHeight > window.innerHeight };
+    `);
+    check(frame.footBottom === frame.height && frame.continueVisible, `the foot sits at the bottom of a 1280x720 screen with Continue in view (${JSON.stringify(frame)})`);
+    check(frame.scrolls === false, 'the page itself does not scroll: only the body does');
+    check((await page.eval(`return document.querySelectorAll('.setup-grid > .setup-aside').length`)) === 1, 'the wide screen has the title column on the left');
+    await page.viewport(1440, 900);
+
     // ---- Code and work items: skipped ----
     await page.click('[data-action="continue"]', undefined, 600);
     await page.waitFor(onStep('code'), { label: 'the Code and work items step' });

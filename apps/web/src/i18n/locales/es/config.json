@@ -393,32 +393,36 @@
     }
   },
   "account": {
-    "tokenSource": {
-      "wrapperOauthToken": "token OAuth configurado aquí",
-      "wrapperApiKey": "clave de API configurada aquí",
-      "envOauthToken": "CLAUDE_CODE_OAUTH_TOKEN del entorno del contenedor",
-      "envApiKey": "ANTHROPIC_API_KEY del entorno del contenedor",
-      "credentialsFile": "archivo de credenciales de un inicio de sesión interactivo",
-      "none": "ninguna"
-    },
     "removed": "Credencial guardada eliminada",
     "removeFailed": "No se ha podido quitar la credencial",
     "works": "La cuenta funciona",
     "worksDetail": "Una petición real se ha completado correctamente.",
-    "verifyFailed": "La comprobación ha fallado",
+    "verifyFailed": "El mensaje de prueba ha fallado",
     "inUse": "Cuenta en uso",
-    "loggedIn": "Con sesión",
-    "loggedOut": "Sin sesión",
+    "loggedIn": "Sesión iniciada",
     "noAccount": "Sin cuenta",
-    "verifying": "Comprobando…",
-    "verify": "Comprobar con una petición real",
     "remove": "Quitar la credencial guardada",
     "working": "Funciona",
     "failed": "Error: {{detail}}",
-    "loggedInNote": "«Sesión iniciada» solo indica que hay una credencial.",
     "accounts": "Cuentas",
     "rotationOn": "rotación activada",
-    "rotationOff": "rotación desactivada"
+    "rotationOff": "rotación desactivada",
+    "expired": "Sesión caducada",
+    "notSignedIn": "Sin sesión",
+    "kindWord": {
+      "login": "Cuenta de Claude",
+      "token": "Token",
+      "api-key": "Clave de API"
+    },
+    "fromEnvironment": "del entorno",
+    "checked": "Comprobada {{ago}}",
+    "neverChecked": "Sin comprobar",
+    "runsOn": "Claude Code no tiene sesión propia; Claudio usa {{name}}, de <link>Cuentas</link>.",
+    "signInAgain": "Volver a iniciar sesión",
+    "signInOther": "Iniciar sesión con otra cuenta",
+    "testMessage": "Enviar un mensaje de prueba",
+    "testing": "Enviando…",
+    "testHint": "Envía un mensaje corto, que cuenta en tu plan."
   },
   "instructions": {
     "variants": {

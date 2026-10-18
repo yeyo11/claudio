@@ -71,7 +71,7 @@ def srow(tool, state, account, meta, reason, actions='', open_=False):
   label = TOOL[tool][0]
   cls = 'prov-row compact' + (' open' if open_ else '')
   return (f'<div class="{cls}" data-tool="{tool}">{mono(tool)}'
-          f'<div class="prov-id"><span class="prov-name">{label}</span><span class="t-sm fg-2">{account}</span><span class="prov-meta ellipsis">{meta}</span></div>'
+          f'<div class="prov-id"><span class="prov-name">{label}</span><span class="t-sm fg-2 prov-account">{account}</span><span class="prov-meta">{meta}</span></div>'
           f'<div class="prov-state">{badge(state)}<p class="prov-reason">{reason}</p></div>'
           f'<div class="prov-actions">{actions}</div></div>')
 
@@ -98,13 +98,34 @@ def vendor_link(text, big=False):
 
 
 # The panel's pieces, shared by the desktop panel and the phone Sheet ------------------------------
-def claude_key_body(big=False):
-  hint = 'Se guarda cifrado y solo lo reciben los procesos de Claude Code. No se vuelve a mostrar.'
-  return (f'{seg("Qué vas a pegar", ("Token de OAuth", "Clave de API"), "Token de OAuth", big)}'
-          f'<p class="signin-note">Claude Code no tiene un inicio de sesión que Claudio pueda hacer por ti. En <b>tu propio ordenador</b>, donde ya usas Claude, '
-          f'ejecuta <code>claude setup-token</code> en una terminal: abre el navegador, entras con tu suscripción y te muestra un token que dura un año. Pégalo aquí.</p>'
-          f'{vendor_link("Cómo se crea el token", big)}'
-          f'{key_field("Token de OAuth", "sk-ant-oat01-…", big)}<span class="form-hint">{hint}</span>')
+def claude_choice(big=False):
+  """Claude Code's panel heads with Cuenta de Claude | Clave de API, the account first. No third way."""
+  return seg("Cómo iniciar sesión", ("Cuenta de Claude", "Clave de API"), "Cuenta de Claude", big)
+
+
+def claude_note(text):
+  return f'<p class="signin-note warn" role="note">{ico("warn", "ico ico-sm")}<span>{text}</span></p>'
+
+
+def claude_account_body(big=False):
+  """Claude account, idle: one sentence and the neutral Iniciar sesión button (the screen's two gradients are the logo and Continuar)."""
+  return (f'<p class="signin-note">Inicia sesión con la cuenta de Claude que usas en Claude Code. Claudio abre el inicio de sesión y lo transmite; '
+          f'Claude Code guarda las credenciales y Claudio nunca las lee.</p>')
+
+
+def claude_waiting_body(big=False):
+  """Claude account, waiting: the one live surface, with the authorize link cut with an ellipsis, Copiar, the code field and the time left."""
+  copy = f'<button type="button" class="btn{" btn-lg" if big else ""}" aria-label="Copiar el enlace">{ico("copy", "ico")}Copiar enlace</button>'
+  send = f'<button type="button" class="btn{" btn-lg" if big else ""}">Enviar código</button>'
+  size = ' style="font-size: var(--fs-input)"' if big else ''
+  return (f'<div class="signin-device is-link energy" role="group" aria-label="Iniciar sesión en la cuenta">'
+          f'<ol class="signin-steps"><li><span class="n">1</span><span>Abre esta página e inicia sesión</span></li>'
+          f'<li><span class="n">2</span><span>Aprueba el acceso para Claude Code</span></li></ol>'
+          f'<div class="signin-code-box"><a href="#" class="signin-url"><span class="signin-url-text">claude.ai/oauth/authorize?code=true&amp;client_id=…</span>{ext()}</a>{copy}</div>'
+          f'<label class="col" style="gap: 6px"><span class="t-label">Código</span><span class="field field-mono{" field-lg" if big else ""}"><input class="mono" autocomplete="off" aria-label="Código"{size}></span>'
+          f'<span class="form-hint">Solo si la página muestra un código porque el navegador no se pudo abrir solo.</span></label>'
+          f'<div class="row">{send}</div>'
+          f'<div class="signin-wait" role="status"><span class="spin-braille" aria-hidden="true"></span>Esperando a que apruebes<span class="left">caduca en 14:12</span></div></div>')
 
 
 def stdin_key_body(tool, what, link, hint, big=False):
@@ -133,10 +154,10 @@ def result(code, tool, big=False):
           f'<div class="col" style="gap: 2px"><span>{text.format(t=TOOL[tool][0])}</span><span class="mono">{code}</span></div></div>'), action
 
 
-def panel(tool, body, buttons, methods=None):
+def panel(tool, body, buttons, methods=None, choice=None):
   """The desktop panel under the row: .prov-bin.signin. `methods` is the Código / Clave choice of a tool with both."""
   label = TOOL[tool][0]
-  choice = seg('Cómo iniciar sesión', ('Código', 'Clave'), methods) if methods else ''
+  choice = choice if choice is not None else (seg('Cómo iniciar sesión', ('Código', 'Clave'), methods) if methods else '')
   head = f'<div class="signin-head"><span class="t-label grow">Iniciar sesión en {label}</span>{choice}</div>'
   return f'<div class="prov-bin signin" role="group" aria-label="Iniciar sesión en {label}">{head}{body}<div class="row" style="gap: 8px">{buttons}</div></div>'
 
@@ -150,8 +171,8 @@ def foot(back=True, note='', skip=True, primary='Continuar'):
 
 
 def head(title, text):
-  return (f'<div class="col" style="gap: 10px"><h1 class="t-display" style="margin: 0">{title}</h1>'
-          f'<p class="fg-2" style="margin: 0; max-width: 640px; line-height: 1.55">{text}</p></div>')
+  """The step's title and explanation: the left column on a wide screen (.setup-aside)."""
+  return f'<div class="setup-aside"><h1 class="t-display">{title}</h1><p class="setup-aside-text">{text}</p></div>'
 
 
 def brand(step):
@@ -159,9 +180,12 @@ def brand(step):
           f'<span class="grow"></span><span class="t-label">Configuración · paso {step} de 4</span></div>')
 
 
-def dpage(name, title, step, body, skipped=(), h=1024):
-  inner = f'<div class="prov-first" style="padding: 32px 0 40px">{brand(step)}{setup_steps(step, skipped)}{body}</div>'
-  write(name, page(title + ' (desktop)', f'<div class="app glow-top" data-theme="dark" style="width: 1440px; height: {h}px; overflow: hidden">{inner}</div>'))
+def dpage(name, title, step, intro, cards, foot_, skipped=(), h=900):
+  """The assistant's frame: head, a body of two columns (title left, cards right) and a foot pinned to the bottom."""
+  inner = (f'<header class="setup-head"><div class="setup-track">{brand(step)}{setup_steps(step, skipped)}</div></header>'
+           f'<main class="setup-body"><div class="setup-track setup-grid">{intro}{cards}</div></main>'
+           f'<footer class="setup-foot-bar"><div class="setup-track">{foot_}</div></footer>')
+  write(name, page(title + ' (desktop)', f'<div class="app glow-top setup-page" data-theme="dark" style="width: 1440px; height: {h}px">{inner}</div>'))
 
 
 TOKEN = 'agt_7Qm2vX9kLp4RzT8wNc3HbY6sJd1FgE5u'
@@ -190,25 +214,24 @@ def secrets_callout(big=False):
 
 
 def d_access():
-  body = (head('Quién puede abrir Claudio', 'Ahora mismo cualquiera que llegue a este puerto puede usarlo. Si Claudio corre en un servidor o en una red, pide un token.')
-          + access_card() + secrets_callout()
-          + foot(back=False, note='Lo cambias cuando quieras en Ajustes → Seguridad.'))
-  dpage('DesktopConfiguracionAcceso.html', 'Configuración, acceso', 1, body)
+  dpage('DesktopConfiguracionAcceso.html', 'Configuración, acceso', 1,
+        head('Quién puede abrir Claudio', 'Ahora mismo cualquiera que llegue a este puerto puede usarlo. Si Claudio corre en un servidor o en una red, pide un token.'),
+        access_card() + secrets_callout(), foot(back=False, note='Lo cambias cuando quieras en Ajustes → Seguridad.'), h=1000)
 
 
 AGENTS_HEAD = head('Inicia sesión en tus agentes', 'Cada agente usa su propia cuenta. Inicia sesión aquí, con un código o con una clave: no hace falta abrir una terminal en el servidor.')
 
 
 def agents_card(rows):
-  return f'<section class="card" style="overflow: hidden" aria-label="Agentes">{"".join(rows)}</section>'
+  return f'<section class="card setup-list" style="overflow: hidden" aria-label="Agentes">{"".join(rows)}</section>'
 
 
 def claude_ready():
-  return srow('claude-code', 'ready', 'yeyo@inmoseo.net', 'v2.1.282 · token de OAuth', 'Con sesión iniciada y respondiendo.', signout_btn('claude-code'))
+  return srow('claude-code', 'ready', 'yeyo@inmoseo.net', 'v2.1.302 · /home/node/.local/bin/claude', 'Sesión iniciada como yeyo@inmoseo.net', signout_btn('claude-code'))
 
 
 def codex_ok():
-  return srow('codex', 'ready', 'yeyo@inmoseo.net', 'v0.46.0 · ~/.local/bin/codex', 'Sesión iniciada con un código hace un momento.', signout_btn('codex'))
+  return srow('codex', 'ready', 'yeyo@inmoseo.net', 'v0.46.0 · ~/.local/bin/codex', 'Sesión iniciada como yeyo@inmoseo.net', signout_btn('codex'))
 
 
 def gemini_out():
@@ -227,22 +250,22 @@ def d_agents_device():
   codex = srow('codex', 'signed-out', 'Sin cuenta', 'v0.46.0 · ~/.local/bin/codex', 'Instalado, pero sin sesión iniciada.', signin_btn('codex', True), True)
   p = panel('codex', codex_note() + device_box('codex', 'auth.openai.com/codex/device', 'K7QM-4XPD'),
             '<button type="button" class="btn btn-ghost">Cancelar</button>', methods='Código')
-  body = AGENTS_HEAD + agents_card([claude_ready(), codex, p, gemini_out(), copilot_out(), opencode_missing()]) + foot(note='1 de 5 listo')
-  dpage('DesktopConfiguracionAgentes.html', 'Configuración, agentes: Codex esperando el código', 2, body, h=1100)
+  dpage('DesktopConfiguracionAgentes.html', 'Configuración, agentes: Codex esperando el código', 2, AGENTS_HEAD,
+        agents_card([claude_ready(), codex, p, gemini_out(), copilot_out(), opencode_missing()]), foot(note='1 de 5 listo'), h=1100)
 
 
 def d_agents_key():
-  claude = srow('claude-code', 'signed-out', 'Sin cuenta', 'v2.1.282 · ~/.local/bin/claude', 'Instalado, pero sin sesión iniciada.', signin_btn('claude-code', True), True)
-  p = panel('claude-code', claude_key_body(), '<button type="button" class="btn">Guardar y comprobar</button><button type="button" class="btn btn-ghost">Cancelar</button>')
-  body = AGENTS_HEAD + agents_card([claude, p, codex_ok(), gemini_out(), copilot_out(), opencode_missing()]) + foot(note='1 de 5 listo')
-  dpage('DesktopConfiguracionAgentesClave.html', 'Configuración, agentes: el token de Claude Code', 2, body, h=1100)
+  claude = srow('claude-code', 'signed-out', 'Sin cuenta', 'v2.1.302 · /home/node/.local/bin/claude', 'Instalado, pero sin sesión iniciada.', signin_btn('claude-code', True), True)
+  p = panel('claude-code', claude_waiting_body(), '<button type="button" class="btn btn-ghost">Cancelar</button>', choice=claude_choice())
+  dpage('DesktopConfiguracionAgentesClave.html', 'Configuración, agentes: iniciar sesión en Claude Code', 2, AGENTS_HEAD,
+        agents_card([claude, p, codex_ok(), gemini_out(), copilot_out(), opencode_missing()]), foot(note='1 de 5 listo'))
 
 
 def d_agents_failed():
   msg, action = result('expired', 'copilot')
   p = panel('copilot', msg, f'<button type="button" class="btn">{ico("retry", "ico ico-sm")}{action}</button><button type="button" class="btn btn-ghost">Cancelar</button>', methods='Código')
-  body = AGENTS_HEAD + agents_card([claude_ready(), codex_ok(), gemini_out(), copilot_out(True), p, opencode_missing()]) + foot(note='2 de 5 listos')
-  dpage('DesktopConfiguracionAgentesFallo.html', 'Configuración, agentes: Codex listo y el código de Copilot caducado', 2, body)
+  dpage('DesktopConfiguracionAgentesFallo.html', 'Configuración, agentes: Codex listo y el código de Copilot caducado', 2, AGENTS_HEAD,
+        agents_card([claude_ready(), codex_ok(), gemini_out(), copilot_out(True), p, opencode_missing()]), foot(note='2 de 5 listos'))
 
 
 def gh_ready():
@@ -263,10 +286,10 @@ def youtrack_out():
 def d_hosts():
   glab = srow('glab', 'signed-out', 'Sin cuenta', 'glab 1.120.0 · ~/.local/bin/glab', 'Instalado, pero sin sesión en ningún host.', signin_btn('glab', True), True)
   p = panel('glab', glab_body(), '<button type="button" class="btn">Guardar y comprobar</button><button type="button" class="btn btn-ghost">Cancelar</button>', methods='Clave')
-  card = f'<section class="card" style="overflow: hidden" aria-label="Código y tareas">{gh_ready()}{glab}{p}{youtrack_out()}</section>'
-  body = (head('Conecta tu código y tus tareas', 'GitHub y GitLab para las PR y las MR de tus proyectos; YouTrack para traer sus tareas. Todo es opcional.')
-          + card + foot(note='1 de 3 listo'))
-  dpage('DesktopConfiguracionIntegraciones.html', 'Configuración, código y tareas', 3, body)
+  card = f'<section class="card setup-list" style="overflow: hidden" aria-label="Código y tareas">{gh_ready()}{glab}{p}{youtrack_out()}</section>'
+  dpage('DesktopConfiguracionIntegraciones.html', 'Configuración, código y tareas', 3,
+        head('Conecta tu código y tus tareas', 'GitHub y GitLab para las PR y las MR de tus proyectos; YouTrack para traer sus tareas. Todo es opcional.'),
+        card, foot(note='1 de 3 listo'))
 
 
 # The summary of the last step: (icon or tool, name, detail, badge state or 'skipped', where it is in Settings, link)
@@ -295,12 +318,12 @@ def sum_rows(big=False):
 
 def d_done():
   il = _il('', WELCOME_BODY)
-  top = (f'<div class="row" style="gap: 24px; align-items: center"><div style="flex-shrink: 0">{il}</div>'
-         f'<div class="col" style="gap: 10px"><h1 class="t-display" style="margin: 0">Claudio está listo</h1>'
-         f'<p class="fg-2" style="margin: 0; line-height: 1.55">Esto es lo que ha quedado hecho. Lo que has omitido sigue en Ajustes, en el mismo panel que has visto aquí, y no vuelve a salir este asistente.</p></div></div>')
+  top = (f'<div class="setup-aside"><div style="flex-shrink: 0">{il}</div>'
+         f'<h1 class="t-display">Claudio está listo</h1>'
+         f'<p class="setup-aside-text">Esto es lo que ha quedado hecho. Lo que has omitido sigue en Ajustes, en el mismo panel que has visto aquí, y no vuelve a salir este asistente.</p></div>')
   card = f'<section class="card" style="overflow: hidden" aria-label="Resumen">{sum_rows()}</section>'
-  body = top + card + f'<div class="setup-foot"><button type="button" class="btn btn-ghost">{ico("left", "ico")}Volver</button><span class="grow"></span><button type="button" class="btn btn-primary">Empezar a usar Claudio</button></div>'
-  dpage('DesktopConfiguracionListo.html', 'Configuración, listo', 4, body, skipped=(3,))
+  foot_ = f'<div class="setup-foot"><button type="button" class="btn btn-ghost">{ico("left", "ico")}Volver</button><span class="grow"></span><button type="button" class="btn btn-primary">Empezar a usar Claudio</button></div>'
+  dpage('DesktopConfiguracionListo.html', 'Configuración, listo', 4, top, card, foot_, skipped=(3,))
 
 
 # The set's `welcome` illustration, as it is in illustrations/welcome.svg
@@ -405,7 +428,7 @@ def m_agents_cells(codex_state='signed-out', copilot_reason='Instalado, pero sin
   codex = (mcell('codex', 'ready', 'v0.46.0 · yeyo@inmoseo.net', 'Sesión iniciada con un código hace un momento.') if codex_state == 'ready'
            else mcell('codex', 'signed-out', 'v0.46.0', 'Instalado, pero sin sesión iniciada.', m_signin('codex')))
   return ('<section class="card" style="overflow: hidden" aria-label="Agentes">'
-          + mcell('claude-code', 'ready', 'v2.1.282 · yeyo@inmoseo.net', 'Con sesión iniciada y respondiendo.')
+          + mcell('claude-code', 'ready', 'v2.1.302 · /home/node/.local/bin/claude', 'Sesión iniciada como yeyo@inmoseo.net')
           + codex
           + mcell('gemini', 'signed-out', 'v0.9.1', 'Instalado, pero sin una clave.', m_signin('gemini'))
           + mcell('copilot', 'signed-out', 'v1.0.4', copilot_reason, m_signin('copilot'))
@@ -416,9 +439,9 @@ def m_agents_cells(codex_state='signed-out', copilot_reason='Instalado, pero sin
 M_AGENTS_HEAD = mhead_('Inicia sesión en tus agentes', 'Con un código o con una clave, sin abrir una terminal en el servidor.')
 
 
-def sheet(tool, state, body, buttons, methods=None):
+def sheet(tool, state, body, buttons, methods=None, choice=None):
   label = TOOL[tool][0]
-  choice = seg('Cómo iniciar sesión', ('Código', 'Clave'), methods, True) if methods else ''
+  choice = choice if choice is not None else (seg('Cómo iniciar sesión', ('Código', 'Clave'), methods, True) if methods else '')
   return f'''{scrim()}
 <div class="sheet" role="dialog" aria-label="Iniciar sesión en {label}" style="z-index: 11; padding-bottom: 28px; display: flex; flex-direction: column; gap: 12px; max-height: 92%; overflow: hidden">
 <div class="grab" style="margin-bottom: 0"></div>
@@ -444,9 +467,9 @@ def m_agents_device():
 
 
 def m_agents_key():
-  s = sheet('claude-code', 'signed-out', claude_key_body(True),
-            '<button type="button" class="btn btn-lg btn-primary">Guardar y comprobar</button><button type="button" class="btn btn-lg btn-ghost" style="justify-content: center">Cancelar</button>')
-  mpage('MobileConfiguracionAgentesClave.html', 'Configuración, agentes: el token de Claude Code', 2, M_AGENTS_HEAD + m_agents_cells(), mfoot(), sheet=s)
+  s = sheet('claude-code', 'signed-out', claude_waiting_body(True),
+            '<button type="button" class="btn btn-lg" style="justify-content: center">Cancelar</button>', choice=claude_choice(True))
+  mpage('MobileConfiguracionAgentesClave.html', 'Configuración, agentes: iniciar sesión en Claude Code', 2, M_AGENTS_HEAD + m_agents_cells(), mfoot(), sheet=s)
 
 
 def m_agents_failed():
@@ -538,17 +561,17 @@ def ds():
 # ---------------------------------------------------------------- manifest and index
 SCREENS = [
   ('DSConfiguracion.html', 'Design system · Configuración: el panel de inicio de sesión', 1440, 1980),
-  ('DesktopConfiguracionAcceso.html', 'Desktop · Configuración, acceso', 1440, 1024),
+  ('DesktopConfiguracionAcceso.html', 'Desktop · Configuración, acceso', 1440, 1000),
   ('DesktopConfiguracionAgentes.html', 'Desktop · Configuración, agentes: Codex esperando el código', 1440, 1100),
-  ('DesktopConfiguracionAgentesClave.html', 'Desktop · Configuración, agentes: el token de Claude Code', 1440, 1100),
+  ('DesktopConfiguracionAgentesClave.html', 'Desktop · Configuración, agentes: iniciar sesión en Claude Code', 1440, 900),
   ('DesktopConfiguracionAgentesFallo.html', 'Desktop · Configuración, agentes: código caducado', 1440, 1024),
-  ('DesktopConfiguracionIntegraciones.html', 'Desktop · Configuración, código y tareas', 1440, 1024),
-  ('DesktopConfiguracionListo.html', 'Desktop · Configuración, listo', 1440, 1024),
+  ('DesktopConfiguracionIntegraciones.html', 'Desktop · Configuración, código y tareas', 1440, 900),
+  ('DesktopConfiguracionListo.html', 'Desktop · Configuración, listo', 1440, 900),
   ('DesktopAjustesSeguridad.html', 'Desktop · Ajustes, seguridad y secretos', 1440, 1024),
   ('MobileConfiguracionAcceso.html', 'Móvil · Configuración, acceso', 390, 844),
   ('MobileConfiguracionAgentes.html', 'Móvil · Configuración, agentes', 390, 844),
   ('MobileConfiguracionAgentesCodigo.html', 'Móvil · Configuración, Codex esperando el código', 390, 844),
-  ('MobileConfiguracionAgentesClave.html', 'Móvil · Configuración, el token de Claude Code', 390, 844),
+  ('MobileConfiguracionAgentesClave.html', 'Móvil · Configuración, iniciar sesión en Claude Code', 390, 844),
   ('MobileConfiguracionAgentesFallo.html', 'Móvil · Configuración, código caducado', 390, 844),
   ('MobileConfiguracionIntegraciones.html', 'Móvil · Configuración, código y tareas', 390, 844),
   ('MobileConfiguracionIntegracionesClave.html', 'Móvil · Configuración, el token de GitLab', 390, 844),
