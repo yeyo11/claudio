@@ -104,11 +104,14 @@ jobs:
             exit 1
           fi
 
-      # For people: nothing in the container reads it
+      # For people and auditors: nothing in the container reads them. The manifest too, which is what
+      # the signature covers (docs/plans/unified-updates.md, D7)
       - uses: actions/attest-build-provenance@v4
         if: inputs.tag != ''
         with:
-          subject-path: out/claudio-server-*-linux-x64.tar.gz
+          subject-path: |
+            out/claudio-server-*-linux-x64.tar.gz
+            out/claudio-server-*-linux-x64.json
 
       - uses: actions/upload-artifact@v7
         with:
