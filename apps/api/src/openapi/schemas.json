@@ -11764,7 +11764,11 @@
             "type": "null"
           }
         ],
-        "description": "Why the tunnel failed, with a code a client translates; null unless `state` is `failed`"
+        "description": "Why the tunnel failed, with a code a client translates; null unless `state` is `failed`, or `active` after ten minutes of readings that Tailscale did not answer (`tunnel.tailscaleNotAnswering`)"
+      },
+      "checking": {
+        "type": "boolean",
+        "description": "The last readings of Tailscale got no answer (a timeout or a spawn failure on a busy machine): the tunnel stays `active` with its rule and host, and the UI says \"Checking…\""
       },
       "enabled": {
         "type": "boolean",
@@ -11791,6 +11795,7 @@
       "url",
       "since",
       "reason",
+      "checking",
       "enabled",
       "managed",
       "tailscale",

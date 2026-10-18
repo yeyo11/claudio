@@ -5129,8 +5129,16 @@ export interface TunnelStatus {
   url: string | null;
   /** When the tunnel last became active; null unless `state` is `active` */
   since: string | null;
-  /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
+  /**
+   * Why the tunnel failed, with a code a client translates; null unless `state` is `failed`, or
+   * `active` after ten minutes of readings that Tailscale did not answer (`tunnel.tailscaleNotAnswering`)
+   */
   reason: Localized | null;
+  /**
+   * The last readings of Tailscale got no answer (a timeout or a spawn failure on a busy machine):
+   * the tunnel stays `active` with its rule and host, and the UI says "Checking…"
+   */
+  checking: boolean;
   /**
    * Whether this deploy offers the tunnel at all (`CLAUDIO_TUNNEL`, on by default). While false,
    * `start` is refused and the UI says who can turn it on instead of offering a button

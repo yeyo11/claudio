@@ -41,6 +41,10 @@ export interface TunnelTiming {
   probeTtlMs: number;
   /** Readings in a row that find Tailscale down or the rule gone before an active tunnel gives up */
   maxMisses: number;
+  /** The longest wait between two readings while the CLI does not answer (the wait doubles from `monitorMs`) */
+  maxBackoffMs: number;
+  /** How long an active tunnel may go on getting no answer before the status says Tailscale is not answering */
+  stalledAfterMs: number;
 }
 
 const DEFAULT_TIMING: TunnelTiming = {
@@ -48,6 +52,8 @@ const DEFAULT_TIMING: TunnelTiming = {
   commandTimeoutMs: 10_000,
   probeTtlMs: 2_000,
   maxMisses: 2,
+  maxBackoffMs: 300_000,
+  stalledAfterMs: 600_000,
 };
 
 export interface TunnelDeps {
@@ -99,6 +105,8 @@ const REASONS = {
   loggedOut: () => reason('tunnel.tailscaleLoggedOut', 'This machine is not signed in to a tailnet. Run tailscale up in a terminal, then try again.'),
   notConnected: (state: string) =>
     reason('tunnel.tailscaleNotConnected', `Tailscale is not connected on this machine (${state}). Run tailscale up in a terminal, then try again.`, { state }),
+  // Shown on an active tunnel whose rule is still in place: only the answers are missing
+  notAnswering: () => reason('tunnel.tailscaleNotAnswering', 'Tailscale is not answering. The tunnel keeps its rule and checks again.'),
   magicDnsOff: () => reason('tunnel.magicDnsOff', 'MagicDNS is off for this tailnet. Turn it on in the DNS page of the Tailscale admin console, then try again.'),
   httpsOff: () => reason('tunnel.httpsOff', 'HTTPS certificates are off for this tailnet. Turn them on in the DNS page of the Tailscale admin console, then try again.'),
   permission: () =>
@@ -121,6 +129,8 @@ interface CliResult {
   ok: boolean;
   /** The CLI could not be run at all */
   missing: boolean;
+  /** The call timed out or could not be spawned: no answer, which says nothing about Tailscale itself */
+  unanswered: boolean;
   stdout: string;
   stderr: string;
 }
@@ -129,11 +139,14 @@ function runCli(bin: string, args: string[], timeoutMs: number): Promise<CliResu
   return new Promise((resolve) => {
     execFile(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
       if (!error) {
-        resolve({ ok: true, missing: false, stdout, stderr });
+        resolve({ ok: true, missing: false, unanswered: false, stdout, stderr });
         return;
       }
       const code = (error as NodeJS.ErrnoException).code;
-      resolve({ ok: false, missing: code === 'ENOENT' || code === 'EACCES', stdout, stderr: stderr || error.message });
+      const missing = code === 'ENOENT' || code === 'EACCES';
+      // `execFile` kills a call that outlives its timeout; a string code is a spawn failure, a number is the CLI's own exit status
+      const unanswered = !missing && (error.killed === true || typeof code === 'string');
+      resolve({ ok: false, missing, unanswered, stdout, stderr: stderr || error.message });
     });
   });
 }
@@ -240,7 +253,7 @@ export class TunnelManager {
   private reason: Localized | null = null;
   private tailscale: TailscaleReadiness = UNPROBED;
   private probedAt = 0;
-  private probing: Promise<TailscaleReadiness> | null = null;
+  private probing: Promise<TailscaleReadiness | null> | null = null;
   /** The host lent to the guard: set only while `active` */
   private lent: string | null = null;
   private since: string | null = null;
@@ -254,8 +267,16 @@ export class TunnelManager {
   /** A leftover rule being taken away; a start waits for it, so it never removes the new one */
   private cleaning: Promise<void> = Promise.resolve();
   private monitor: NodeJS.Timeout | null = null;
-  private checking = false;
+  /** A monitor reading is in flight */
+  private monitoring = false;
   private misses = 0;
+  /** Since when the monitor has had no answer from the CLI; null while it answers */
+  private unknownSince: number | null = null;
+  /** Readings in a row without an answer, for the back-off */
+  private unknowns = 0;
+  /** The tunnel failed because Tailscale was down or signed out after the person opened it: it opens again when Tailscale is ready */
+  private recovering = false;
+  private recoveryTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly deps: TunnelDeps) {
     this.dir = join(deps.dataDir, 'tunnel');
@@ -272,13 +293,24 @@ export class TunnelManager {
       state: this.state,
       url: active && this.lent ? this.urlOf(this.lent) : null,
       since: active ? this.since : null,
-      reason: this.state === 'failed' ? this.reason : null,
+      reason: this.state === 'failed' ? this.reason : this.stalled ? REASONS.notAnswering() : null,
+      checking: this.checking,
       enabled: this.enabled,
       managed: this.deps.managed ?? false,
       tailscale: { ...this.tailscale },
       port: this.port,
       settings: { ...this.settings },
     };
+  }
+
+  /** An active tunnel whose last readings got no answer: its rule and host stay, the tab says "Checking…" */
+  private get checking(): boolean {
+    return this.state === 'active' && this.unknownSince !== null;
+  }
+
+  /** Nothing but unknowns for longer than `stalledAfterMs` */
+  private get stalled(): boolean {
+    return this.checking && this.unknownSince !== null && Date.now() - this.unknownSince >= this.timing.stalledAfterMs;
   }
 
   private get enabled(): boolean {
@@ -304,9 +336,11 @@ export class TunnelManager {
     return this.status();
   }
 
-  private probe(): Promise<TailscaleReadiness> {
+  /** Null when the CLI gave no answer (a timeout or a spawn failure): the last reading stands. */
+  private probe(): Promise<TailscaleReadiness | null> {
     this.probing ??= this.readReadiness()
       .then((readiness) => {
+        if (!readiness) return null;
         this.tailscale = readiness;
         this.probedAt = Date.now();
         return readiness;
@@ -317,14 +351,16 @@ export class TunnelManager {
     return this.probing;
   }
 
-  private async readReadiness(): Promise<TailscaleReadiness> {
+  private async readReadiness(): Promise<TailscaleReadiness | null> {
     const version = await this.cli(['version']);
+    if (version.unanswered) return null;
     if (version.missing || !version.ok) return { state: 'missing', version: null, host: null, reason: REASONS.missing() };
     const text = firstLine(version.stdout);
     const parsed = parseTailscaleVersion(text);
     if (!parsed || !versionAtLeast(parsed, MIN_TAILSCALE_VERSION)) return { state: 'unsupported', version: text || null, host: null, reason: REASONS.unsupported(text || 'unknown') };
     const shown = parsed.join('.');
     const status = await this.cli(['status', '--json']);
+    if (status.unanswered) return null;
     // `--json` prints the state even when the node is stopped; only a daemon that does not answer leaves no JSON
     let json: StatusJson | null = null;
     try {
@@ -361,7 +397,7 @@ export class TunnelManager {
    * owns the machine" into "whoever on the tailnet has the URL does". Refused as well where the
    * deploy does not offer it. A Tailscale that is not ready is a state, not an error.
    */
-  async start(actor: 'request' | 'claudio' = 'request'): Promise<TunnelStatus> {
+  async start(actor: 'request' | 'claudio' | 'recovery' = 'request'): Promise<TunnelStatus> {
     if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());
@@ -369,14 +405,22 @@ export class TunnelManager {
     await this.cleaning;
     if (this.wanted) return this.status();
     const readiness = await this.probe();
+    if (!readiness) {
+      this.fail(REASONS.notAnswering());
+      return this.status();
+    }
     if (readiness.state !== 'ready' || !readiness.host) {
       this.fail(readiness.reason ?? REASONS.missing());
       return this.status();
     }
+    this.cancelRecovery();
     this.wanted = true;
     this.misses = 0;
     this.run = new AbortController();
-    if (actor !== 'request') this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary: 'Start the tunnel with Claudio' });
+    if (actor !== 'request') {
+      const summary = actor === 'recovery' ? 'Start the tunnel again: Tailscale is ready' : 'Start the tunnel with Claudio';
+      this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary });
+    }
     this.set('starting');
     const run = this.run;
     this.opening = this.open(readiness.host, run).finally(() => {
@@ -387,6 +431,8 @@ export class TunnelManager {
 
   /** Closes the tunnel: its host leaves the allowlist first, then Claudio's Serve rule goes. */
   async stop(why: 'request' | 'unguarded' = 'request'): Promise<TunnelStatus> {
+    // A tunnel the person stopped never restarts
+    this.cancelRecovery();
     if (!this.wanted && !this.opening && !this.stopping) {
       if (this.state === 'failed') this.set('stopped');
       return this.status();
@@ -433,6 +479,7 @@ export class TunnelManager {
    */
   shutdown(): void {
     this.wanted = false;
+    this.cancelRecovery();
     this.run.abort();
     this.stopMonitor();
     this.withdraw();
@@ -562,58 +609,145 @@ export class TunnelManager {
    */
   private startMonitor(run: AbortController): void {
     this.stopMonitor();
-    this.monitor = setInterval(() => void this.check(run), this.timing.monitorMs);
+    this.scheduleCheck(run, this.timing.monitorMs);
+  }
+
+  private scheduleCheck(run: AbortController, delayMs: number): void {
+    this.monitor = setTimeout(() => void this.check(run), delayMs);
     this.monitor.unref();
   }
 
   private stopMonitor(): void {
-    if (this.monitor) clearInterval(this.monitor);
+    if (this.monitor) clearTimeout(this.monitor);
     this.monitor = null;
+    this.unknownSince = null;
+    this.unknowns = 0;
   }
 
+  /**
+   * One reading. A reading the CLI did not answer (a busy machine, a spawn failure) is unknown, not
+   * down: the tunnel stays active, says it is checking, and tries again later and later. Only an
+   * answer closes it.
+   */
   private async check(run: AbortController): Promise<void> {
-    if (this.checking) return;
-    this.checking = true;
+    if (this.monitoring || run.signal.aborted || this.state !== 'active') return;
+    this.monitoring = true;
     try {
-      const readiness = await this.probe();
+      const outcome = await this.reading(run);
       if (run.signal.aborted || this.state !== 'active') return;
-      if (readiness.state !== 'ready' || !readiness.host) {
-        if (++this.misses >= this.timing.maxMisses) this.giveUp(readiness.reason ?? REASONS.daemonDown());
-        return;
-      }
-      const record = this.readRecord();
-      const config = await this.serveConfig();
-      if (run.signal.aborted || this.state !== 'active') return;
-      if (!config || !record) {
-        if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
-        return;
-      }
-      // Read under the name the node has now: a rename moves the rule's key in the Serve config with it
-      if (servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
-        this.giveUp(REASONS.ruleRemoved());
-        return;
-      }
-      this.misses = 0;
-      if (readiness.host !== this.lent) {
-        // The node was renamed: the rule follows the node, and the old name stops answering
-        this.withdraw();
-        this.lend(readiness.host);
-        this.writeRecord({ ...record, host: readiness.host });
-        this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${readiness.host} joined the allowlist` });
-        this.changed();
-      }
+      if (outcome === 'unknown') this.noAnswer();
+      else this.answered();
     } finally {
-      this.checking = false;
+      this.monitoring = false;
     }
+    if (!run.signal.aborted && this.state === 'active') this.scheduleCheck(run, this.nextDelay());
   }
 
-  private giveUp(why: Localized): void {
+  private nextDelay(): number {
+    return Math.min(this.timing.monitorMs * 2 ** this.unknowns, Math.max(this.timing.maxBackoffMs, this.timing.monitorMs));
+  }
+
+  private noAnswer(): void {
+    const before = JSON.stringify([this.checking, this.stalled]);
+    this.unknownSince ??= Date.now();
+    this.unknowns++;
+    if (JSON.stringify([this.checking, this.stalled]) !== before) this.changed();
+  }
+
+  private answered(): void {
+    if (this.unknownSince === null) return;
+    this.unknownSince = null;
+    this.unknowns = 0;
+    this.changed();
+  }
+
+  /** Reads Tailscale and the rule once; `unknown` when either call got no answer, and nothing was changed then. */
+  private async reading(run: AbortController): Promise<'answered' | 'unknown'> {
+    const readiness = await this.probe();
+    if (run.signal.aborted || this.state !== 'active') return 'answered';
+    if (!readiness) return 'unknown';
+    if (readiness.state !== 'ready' || !readiness.host) {
+      // Down, signed out or disconnected is an answer. It counts twice in a row before the tunnel closes, and it opens again when Tailscale is back
+      if (++this.misses >= this.timing.maxMisses) {
+        this.giveUp(readiness.reason ?? REASONS.daemonDown(), readiness.state === 'daemonDown' || readiness.state === 'loggedOut' || readiness.state === 'stopped');
+      }
+      return 'answered';
+    }
+    const record = this.readRecord();
+    const result = await this.cli(['serve', 'status', '--json']);
+    if (run.signal.aborted || this.state !== 'active') return 'answered';
+    if (result.unanswered) return 'unknown';
+    let config: ServeConfigJson | null = null;
+    try {
+      const json = result.ok ? (JSON.parse(result.stdout) as unknown) : null;
+      config = json && typeof json === 'object' ? (json as ServeConfigJson) : null;
+    } catch {
+      config = null;
+    }
+    if (!config || !record) {
+      if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
+      return 'answered';
+    }
+    // Read under the name the node has now: a rename moves the rule's key in the Serve config with it
+    if (servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
+      this.giveUp(REASONS.ruleRemoved());
+      return 'answered';
+    }
+    this.misses = 0;
+    if (readiness.host !== this.lent) {
+      // The node was renamed: the rule follows the node, and the old name stops answering
+      this.withdraw();
+      this.lend(readiness.host);
+      this.writeRecord({ ...record, host: readiness.host });
+      this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${readiness.host} joined the allowlist` });
+      this.changed();
+    }
+    return 'answered';
+  }
+
+  /**
+   * Closes the tunnel on an answer that says it cannot hold. With `recover`, a tunnel the person
+   * opened is opened again once a later reading finds Tailscale ready. The rule is only taken away
+   * if it still is Claudio's, and never because of an unknown.
+   */
+  private giveUp(why: Localized, recover = false): void {
     this.wanted = false;
     this.run.abort();
     this.stopMonitor();
     this.withdraw();
     this.fail(why);
     this.cleaning = this.removeRule().catch(() => undefined);
+    if (recover) this.scheduleRecovery();
+  }
+
+  private scheduleRecovery(): void {
+    this.recovering = true;
+    this.recoveryTimer = setTimeout(() => void this.tryRecovery(), this.timing.monitorMs);
+    this.recoveryTimer.unref();
+  }
+
+  private cancelRecovery(): void {
+    this.recovering = false;
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = null;
+  }
+
+  private async tryRecovery(): Promise<void> {
+    this.recoveryTimer = null;
+    if (!this.recovering) return;
+    const readiness = await this.probe().catch(() => null);
+    if (!this.recovering) return;
+    if (readiness?.state === 'ready') {
+      this.cancelRecovery();
+      try {
+        await this.start('recovery');
+      } catch {
+        // Refused (authentication off, no port): it stays failed with its reason
+      }
+      return;
+    }
+    // An unknown or a Tailscale still down: wait for the next reading
+    this.scheduleRecovery();
   }
 
   /** Takes the lent host back from the guard, and writes down that it left. */

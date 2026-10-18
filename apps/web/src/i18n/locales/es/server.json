@@ -94,6 +94,7 @@
     "portTaken": "El puerto {{port}} del nombre de esta máquina en la tailnet ya sirve otra cosa, y Claudio no lo toca. Libéralo o elige otro puerto con CLAUDIO_TUNNEL_PORT.",
     "serveFailed": "tailscale serve no ha aceptado la regla: {{detail}}",
     "unverified": "La regla de Serve se ha enviado, pero la configuración de Serve de esta máquina no muestra que apunte a Claudio.",
+    "tailscaleNotAnswering": "Tailscale no responde. El túnel conserva su regla y vuelve a comprobar.",
     "ruleRemoved": "La regla de Serve de Claudio se ha quitado o cambiado fuera de Claudio, así que el túnel está cerrado.",
     "managedDaemonDown": "El servicio de Tailscale que este contenedor arranca para Claudio no responde. Reinicia el contenedor; su registro es tailscaled.log, en la carpeta tailscale del volumen de datos.",
     "managedLoggedOut": "El Tailscale de este Claudio no tiene la sesión iniciada en ninguna tailnet. Inicia sesión desde Ajustes → Acceso y seguridad → Acceso remoto.",
