@@ -236,7 +236,8 @@
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   animation: fade-in var(--dur-base) var(--ease-out);
-  padding-top: env(safe-area-inset-top);
+  /* Below the desktop app's window controls, which the page paints under (--chrome-top, shell.css) */
+  padding-top: max(env(safe-area-inset-top, 0px), var(--chrome-top));
   padding-bottom: env(safe-area-inset-bottom);
 }
 
