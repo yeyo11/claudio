@@ -2,6 +2,8 @@
 // and a 401 is a sign-in screen. The suite shares one wrapper, so whatever this turns on it turns
 // back off, even when an assertion fails half way. The audit log's filters live on its detail,
 // /settings/access/audit; the group's screen shows its latest rows only.
+import { request as httpRequest } from 'node:http';
+
 const TOKEN_KEY = 'claudio.token';
 
 export default async ({ page, api, check }) => {
@@ -134,6 +136,35 @@ export default async ({ page, api, check }) => {
     await page.fill('.signin input[type=password]', token);
     await page.click('.signin button[type=submit]', undefined, 1500);
     await page.waitFor(`return !document.querySelector('.signin')`, { label: 'the app after signing in' });
+
+    // ---- A name the wrapper does not answer to: a 421 that says what to do, and the owner's token adds it ----
+    // The browser cannot dial another name here, so the request is made by hand with the Host it would send
+    const port = new URL(api.baseUrl).port;
+    const host = 'claudio-lan.test';
+    const dialled = (method, path, headers = {}) =>
+      new Promise((resolve, reject) => {
+        const req = httpRequest({ host: '127.0.0.1', port, method, path, headers: { host: `${host}:${port}`, ...headers } }, (res) => {
+          let text = '';
+          res.on('data', (chunk) => (text += chunk));
+          res.on('end', () => resolve({ status: res.statusCode, type: String(res.headers['content-type'] ?? ''), text }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+    const refused = await dialled('GET', '/api/security/auth', { accept: 'application/json' });
+    const body = JSON.parse(refused.text);
+    check(refused.status === 421 && body.code === 'host-not-allowed' && body.host === host && body.canClaim === true, `an unlisted host is refused with the screen's data: ${refused.text}`);
+    const page421 = await dialled('GET', '/api/security/auth', { accept: 'text/html' });
+    check(page421.status === 421 && page421.type.includes('text/html') && page421.text.includes(host), 'a person typing the address gets a page, not JSON');
+    const wrong = await dialled('POST', '/api/security/allowed-hosts/claim', { authorization: 'Bearer not-the-token-not-the-token' });
+    check(wrong.status === 401, `a wrong token does not claim the host (${wrong.status})`);
+    const claimed = await dialled('POST', '/api/security/allowed-hosts/claim', { authorization: `Bearer ${token}` });
+    check(claimed.status === 200 && JSON.parse(claimed.text).allowedHosts.includes(host), `the owner's token adds the host: ${claimed.text}`);
+    const answered = await dialled('GET', '/api/security/auth', { authorization: `Bearer ${token}` });
+    check(answered.status === 200, `the wrapper answers to the host once it is claimed (${answered.status})`);
+    // The allowlist is left as it was found, for the specs after this one
+    const reset = await authed(token)('PUT', '/settings/app', { allowedHosts: [] });
+    check(reset.status === 200, `the claimed host was taken off the list again (${reset.status})`);
   } finally {
     // The rest of the suite runs against this wrapper with no credential
     const guarded = authed(token);

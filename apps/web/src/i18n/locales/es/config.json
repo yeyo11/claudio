@@ -292,7 +292,19 @@
     "check": "Buscar actualizaciones",
     "checking": "Comprobando…",
     "updateHow": "Claudio no actualiza el CLI dentro de un contenedor en marcha, así que un reinicio siempre da la misma versión. Reconstruye la imagen con CLAUDE_CODE_VERSION={{latest}} (Docker Compose: defínela en .env y ejecuta docker compose build) o descarga una imagen más reciente de Claudio. En una instalación normal, ejecuta claude update.",
-    "checkFailed": "No se ha podido buscar actualizaciones"
+    "checkFailed": "No se ha podido buscar actualizaciones",
+    "install": "Instalar {{version}}",
+    "installing": "Instalando Claude Code {{version}}…",
+    "installError": {
+      "integrity": "La descarga no coincide con la suma de comprobación del registro y se ha descartado.",
+      "out-of-range": "Claudio aún no admite Claude Code {{version}}.",
+      "fetch-failed": "No se ha podido descargar Claude Code.",
+      "not-newer": "Esa versión no es más reciente que la que está en uso.",
+      "version-mismatch": "El binario instalado no indicó la versión esperada, así que se ha descartado.",
+      "disk": "No hay espacio suficiente en <mono>/data</mono> para Claude Code."
+    },
+    "useImage": "Usar la versión de la imagen ({{pinned}})",
+    "newChats": "Los chats nuevos usan la {{version}}; los que están en marcha siguen con la suya."
   },
   "updates": {
     "title": "Claudio",
@@ -341,6 +353,30 @@
     },
     "availableTag": "Actualización disponible",
     "upToDateTag": "Al día",
+    "imageVersion": "imagen {{image}}",
+    "unsupported": {
+      "needs-auth": "Para actualizar desde aquí, protege el acceso con un token.",
+      "read-only": "El modo de solo lectura está activado: se actualiza desde el host.",
+      "no-launcher": "Este contenedor se arrancó sin el lanzador de Claudio; actualízalo desde el host.",
+      "no-keys": "Este contenedor se arrancó sin el lanzador de Claudio; actualízalo desde el host."
+    },
+    "needsImage": "Claudio {{version}} necesita una imagen más reciente ({{minImage}} o posterior): ha cambiado el sistema del contenedor. Actualiza la imagen desde el host.",
+    "verifying": "Comprobando la firma…",
+    "whenIdle": "Reiniciar cuando no haya nada en marcha",
+    "busyBodyServer": "{{live}}, y un reinicio los detiene. ¿Reiniciar ahora, o cuando no haya nada en marcha?",
+    "scheduledServer": "Claudio {{version}} se reiniciará con la actualización cuando no haya nada en marcha.",
+    "restarting": "Reiniciando… esta página se recarga sola.",
+    "tryAgain": "Reintentar",
+    "serverError": {
+      "bad-signature": "La descarga no tiene una firma válida y se ha descartado.",
+      "bad-manifest": "El manifiesto de la descarga no es válido y se ha descartado.",
+      "fetch-failed": "No se ha podido descargar la actualización.",
+      "disk": "No hay espacio suficiente en <mono>/data</mono> para la actualización.",
+      "needs-image": "Esta versión necesita una imagen más reciente que la de este contenedor."
+    },
+    "rolledBack": "Claudio {{from}} no arrancó, así que el contenedor ha vuelto a {{to}}.",
+    "dismiss": "Descartar",
+    "revert": "Volver a la versión de la imagen ({{image}})",
     "storage": {
       "title": "Este contenedor perdería sus datos al actualizarlo",
       "body": "Actualizar sustituye el contenedor, y lo que no está en un volumen con nombre se va con él: el inicio de sesión, todas las transcripciones y los proyectos. Estas carpetas no están en uno:",

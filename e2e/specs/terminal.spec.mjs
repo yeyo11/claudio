@@ -84,6 +84,12 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     await page.goto(home, 1500);
     check(!(await page.eval(`return !!document.querySelector('${ITEM}')`)), 'with the feature off, the status bar has no Terminal item');
 
+    // A container (the harness says it is one) opens the terminal to the local network by default, and the choice is there before the switch is on
+    check(before.body.settings.remote === 'any', `a container defaults to opening the terminal over the local network (${before.body.settings.remote})`);
+    await page.goto('/settings/access', 1500);
+    await page.waitFor(`return document.querySelector('#terminal-remote')?.textContent.includes('Also over the local network')`, { label: 'the "From other devices" choice, with the terminal still off', timeout: 30_000 });
+    check(!(await page.eval(`return !!document.querySelector('[role=tabpanel] .alert-warn[data-testid=terminal-refusal]')`)), 'no refusal is shown for a terminal that is only off');
+
     const on = await api.put('/terminal/settings', { enabled: true });
     check(on.status === 200, `the feature was turned on (${on.status} ${JSON.stringify(on.body)})`);
     check((await api.get('/terminal')).body.available === true, 'the terminal is available from loopback with authentication off');

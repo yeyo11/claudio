@@ -1,8 +1,8 @@
 import { KeyRound } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import type { AuthMode } from '@claudio/shared';
-import { signIn } from '../lib/auth';
+import { signIn, useFirstRunToken } from '../lib/auth';
 import { BrandMark, ICON } from '@claudio/ui/components/icons';
 import { Illustration } from '@claudio/ui/components/illustrations';
 
@@ -17,6 +17,8 @@ export function SignIn({ mode }: { mode: AuthMode }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const hintId = useId();
+  // A container made this token on its first start: say where it was printed, not where it was given
+  const firstRun = useFirstRunToken();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -33,7 +35,7 @@ export function SignIn({ mode }: { mode: AuthMode }) {
   }
 
   return (
-    <div className="signin">
+    <main className="signin">
       <form className="card signin-card" onSubmit={submit}>
         <Illustration name="signed-out" tone="warn" size="sm" className="signin-illustration" />
         <div className="signin-head">
@@ -41,8 +43,10 @@ export function SignIn({ mode }: { mode: AuthMode }) {
             <BrandMark size={22} />
             Claudio
           </span>
-          <h1>{t('signIn.title')}</h1>
-          <p className="muted">{mode === 'oidc' ? t('signIn.oidcBody') : t('signIn.tokenBody')}</p>
+          <h1>{firstRun ? t('signIn.firstRun.title') : t('signIn.title')}</h1>
+          <p className="muted">
+            {firstRun ? <Trans t={t} i18nKey="signIn.firstRun.body" components={{ code: <code /> }} /> : mode === 'oidc' ? t('signIn.oidcBody') : t('signIn.tokenBody')}
+          </p>
         </div>
         <label className="field">
           <span className="section-label">{t('signIn.label')}</span>
@@ -68,9 +72,9 @@ export function SignIn({ mode }: { mode: AuthMode }) {
           {t('signIn.submit')}
         </button>
         <p id={hintId} className="signin-hint">
-          {t('signIn.hint')}
+          {firstRun ? <Trans t={t} i18nKey="signIn.firstRun.hint" components={{ code: <code /> }} /> : t('signIn.hint')}
         </p>
       </form>
-    </div>
+    </main>
   );
 }

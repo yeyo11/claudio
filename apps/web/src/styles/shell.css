@@ -1558,6 +1558,19 @@ a.link-more {
 .signin-card .btn-primary {
   width: 100%;
   min-height: 44px;
+  /* "Add {host} and sign in" names a host that can be long: the label wraps instead of leaving the card */
+  white-space: normal;
+}
+
+/* A host is one unbroken literal: let it break where the card ends */
+.signin-head h1 .mono {
+  overflow-wrap: anywhere;
+}
+
+.signin-head,
+.signin-head h1 {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .signin-hint {
