@@ -112,6 +112,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'health.changed': true,
   'sessions.changed': true,
   'system.release': true,
+  'system.server-update': true,
   'providers.changed': true,
   'hosts.changed': true,
   'orchestration.pull-request': true,
@@ -353,6 +354,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'system.release':
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
       return [[keys.release, NOW]];
+    case 'system.server-update':
+      // The in-app update's state, read from memory on the server; the release it is for may have moved too
+      return [[['server-update'], NOW], [keys.release, NOW]];
     case 'providers.changed':
       // The statuses and the settings share the ['providers'] prefix; a status change is what the event carries
       return [[keys.providers, NOW]];

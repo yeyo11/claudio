@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type { SetCredentialsRequest, SystemSample } from '@claudio/shared';
+import { refuseNonOwner, sendRefusal } from './server-update.ts';
 
 const positive = (value: string | undefined, name: string): number | undefined => {
   if (value === undefined || value === '') return undefined;
@@ -32,6 +33,27 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   // The same for Claudio itself, against its GitHub releases
   app.get('/system/release', () => core.releaseInfo());
   app.post('/system/release/check', () => core.checkRelease());
+  // Claude Code installed in-app inside the container, under /data/cli (docs/plans/container-polish.md, D4): the owner's alone
+  app.post<{ Body: { version?: string } }>('/system/cli-version/install', async (req, reply) => {
+    if (refuseNonOwner(core, req, reply, 'cli')) return reply;
+    const version = (req.body as { version?: unknown } | undefined)?.version;
+    if (version !== undefined && typeof version !== 'string') throw new Error('version must be a string');
+    try {
+      core.cliInstaller.install(version);
+    } catch (err) {
+      return sendRefusal(reply, err);
+    }
+    return reply.status(202).send(await core.cliVersionInfo());
+  });
+  app.delete('/system/cli-version/install', async (req, reply) => {
+    if (refuseNonOwner(core, req, reply, 'cli')) return reply;
+    try {
+      await core.cliInstaller.uninstall();
+    } catch (err) {
+      return sendRefusal(reply, err);
+    }
+    return core.cliVersionInfo();
+  });
 
   // Whether the folders that hold the state would survive replacing the container (Docker only)
   app.get('/system/storage', () => core.storageInfo());
