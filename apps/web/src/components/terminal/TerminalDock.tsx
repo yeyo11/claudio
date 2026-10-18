@@ -14,8 +14,8 @@ const KEY_STEP = 24;
 
 /**
  * The terminal panel above the status bar, on every page: the tabs of every terminal, the open one
- * in its frame and a "+" that opens a new one in the project chosen in the top bar (a menu of the
- * projects when it is All projects). Its height is dragged by the handle, or moved with the arrow
+ * in its frame and a "+" that opens a new one in the project chosen in the top bar (with All
+ * projects, in the workspace, or a menu of the workspace and the projects). Its height is dragged by the handle, or moved with the arrow
  * keys, and remembered in this browser. Esc hides it unless focus is in a terminal or a field.
  */
 export function TerminalDock() {
@@ -44,7 +44,7 @@ export function TerminalDock() {
     event.preventDefault();
     bar.setHeight(bar.height + (event.key === 'ArrowUp' ? KEY_STEP : -KEY_STEP));
   };
-  const labels = (terminals: readonly Terminal[]) => tabLabels(terminals, (id) => projects.find((each) => each.id === id)?.name);
+  const labels = (terminals: readonly Terminal[]) => tabLabels(terminals, (id) => projects.find((each) => each.id === id)?.name, t('new.workspace'));
 
   return (
     <section id="terminal-bar" className="term-dock term-bar-panel" style={{ height: bar.height }} aria-label={t('dock.label')}>
@@ -69,12 +69,12 @@ export function TerminalDock() {
       <TerminalWorkspace
         scope={{ all: true }}
         labels={labels}
-        autoOpen={bar.wantsShell && project !== null}
+        autoOpen={bar.wantsShell}
         onAutoOpened={bar.shellOpened}
         focusFront={bar.wantsFocus}
         onFocused={bar.focused}
-        request={project ? () => ({ projectId: project.id }) : undefined}
-        emptyText={project ? undefined : t('bar.empty')}
+        // With All projects, or none at all, the first shell opens in the workspace, as a chat outside any project does
+        request={() => (project ? { projectId: project.id } : { workspace: true })}
         selectedId={bar.selectedId}
         onSelect={bar.select}
         onToggle={bar.toggle}

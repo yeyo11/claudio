@@ -106,21 +106,25 @@ export function baseName(path: string): string {
 /** The request that opens a terminal like this one: what "Open again" sends. */
 export function requestFor(terminal: Pick<Terminal, 'scope'>): CreateTerminalRequest {
   const { scope } = terminal;
-  return scope.kind === 'chat' ? { chatId: scope.chatId } : { projectId: scope.projectId, ...(scope.worktree ? { worktree: scope.worktree } : {}) };
+  if (scope.kind === 'chat') return { chatId: scope.chatId };
+  if (scope.kind === 'workspace') return { workspace: true };
+  return { projectId: scope.projectId, ...(scope.worktree ? { worktree: scope.worktree } : {}) };
 }
 
 /**
  * What a tab of the status bar's panel is called: the project's name for a terminal in its checkout,
- * the project and the folder for one in a worktree, the folder alone for a chat's or a project that
- * is no longer in the list. Two with the same label are numbered, so a tab is never ambiguous.
+ * the project and the folder for one in a worktree, the workspace's name for one opened there, and the
+ * folder alone for a chat's or a project that is no longer in the list. Two with the same label are
+ * numbered, so a tab is never ambiguous.
  */
-export function tabLabels(terminals: readonly Terminal[], projectName: (id: string) => string | undefined): Map<string, string> {
+export function tabLabels(terminals: readonly Terminal[], projectName: (id: string) => string | undefined, workspaceName?: string): Map<string, string> {
   const seen = new Map<string, number>();
   const labels = new Map<string, string>();
   for (const terminal of terminals) {
     const folder = baseName(terminal.cwd);
-    const project = terminal.scope.kind === 'project' ? projectName(terminal.scope.projectId) : undefined;
-    const base = !project ? folder : terminal.scope.kind === 'project' && terminal.scope.worktree ? `${project} · ${folder}` : project;
+    const { scope } = terminal;
+    const project = scope.kind === 'project' ? projectName(scope.projectId) : undefined;
+    const base = scope.kind === 'workspace' ? (workspaceName ?? folder) : !project ? folder : scope.kind === 'project' && scope.worktree ? `${project} · ${folder}` : project;
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     labels.set(terminal.id, n === 1 ? base : `${base} ${String(n)}`);

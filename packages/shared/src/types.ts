@@ -8199,8 +8199,8 @@ export interface TunnelChangedEvent extends ClaudioEventBase {
 
 // ---------- Terminal: the person's own shell ----------
 
-/** What a terminal is opened in: a project's directory or worktree, or a chat's working directory. */
-export type TerminalScope = { kind: 'project'; projectId: string; worktree: string | null } | { kind: 'chat'; chatId: string };
+/** What a terminal is opened in: a project's directory or worktree, a chat's working directory, or the workspace where chats outside any project run. */
+export type TerminalScope = { kind: 'project'; projectId: string; worktree: string | null } | { kind: 'chat'; chatId: string } | { kind: 'workspace' };
 export type TerminalState = 'running' | 'exited' | 'closed';
 export type TerminalEndReason = 'exit' | 'closed' | 'idle' | 'server-stopping' | 'server-crashed' | 'host-failed' | 'disabled' | 'read-only';
 /** Why the terminal cannot be opened from here and now; `null` in the status when it can. */
@@ -8249,7 +8249,8 @@ export interface Terminal {
   exitCode: number | null;
 }
 
-export type CreateTerminalRequest = ({ projectId: string; worktree?: string } | { chatId: string }) & { cols?: number; rows?: number };
+/** Ids in, directory out: a project (and one of its listed worktrees), a chat, or the workspace (`config.workspaceDir`). Never a path. */
+export type CreateTerminalRequest = ({ projectId: string; worktree?: string } | { chatId: string } | { workspace: true }) & { cols?: number; rows?: number };
 export type UpdateTerminalSettingsRequest = Partial<TerminalSettings>;
 
 /** A ticket opens the terminal's socket once, within seconds. */

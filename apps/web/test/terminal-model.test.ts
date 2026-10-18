@@ -148,16 +148,24 @@ test('a tab is named after its project, the folder when it is a worktree or a ch
   assert.deepEqual([...labels.values()], ['Shop', 'Shop 2', 'Shop · fix-cart', 'Docs', 'chat-9', 'gone']);
 });
 
+test('a terminal in the workspace is named after the workspace, numbered when there are two', () => {
+  const ws = { kind: 'workspace' } as const;
+  const labels = tabLabels([term('a', '/workspace', ws), term('b', '/workspace', ws)], () => undefined, 'Espacio de trabajo');
+  assert.deepEqual([...labels.values()], ['Espacio de trabajo', 'Espacio de trabajo 2']);
+  assert.deepEqual([...tabLabels([term('a', '/srv/claudio-ws', ws)], () => undefined).values()], ['claudio-ws']);
+});
+
 test('the status bar counts only the terminals that are running', () => {
   const scope = { kind: 'chat', chatId: 'c' } as const;
   assert.equal(runningCount([term('a', '/x', scope), term('b', '/y', scope, 'exited'), term('c', '/z', scope, 'closed')]), 1);
   assert.equal(runningCount([]), 0);
 });
 
-test('opening again repeats where the terminal was: the chat, or the project and its worktree', () => {
+test('opening again repeats where the terminal was: the chat, the project and its worktree, or the workspace', () => {
   assert.deepEqual(requestFor({ scope: { kind: 'chat', chatId: 'c1' } }), { chatId: 'c1' });
   assert.deepEqual(requestFor({ scope: { kind: 'project', projectId: 'p1', worktree: null } }), { projectId: 'p1' });
   assert.deepEqual(requestFor({ scope: { kind: 'project', projectId: 'p1', worktree: '/wt' } }), { projectId: 'p1', worktree: '/wt' });
+  assert.deepEqual(requestFor({ scope: { kind: 'workspace' } }), { workspace: true });
 });
 
 test('Esc hides the panel only when nobody else wanted it: not in xterm, a field of the panel, a menu or a dialog', () => {

@@ -1579,6 +1579,7 @@ export class Core {
           const chat = await this.chats.get(id);
           return chat ? { cwd: chat.cwd, worktree: chat.worktree?.path ?? null, projectId: chat.project?.id ?? null } : null;
         },
+        workspace: () => this.config.workspaceDir,
       },
     });
     // Shells a previous server left running (it was killed hard) end before any new one opens

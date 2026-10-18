@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T20:00:00Z
-updated_at: 2026-10-15T20:00:00Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - terminal
     - pty
@@ -10,8 +10,8 @@ tags:
 ---
 # The terminal
 
-A real interactive shell per project and per chat, opened in the project's directory or in the
-chat's worktree, in a panel of the web app (desktop and phone) and of the Electron app. It is **the
+A real interactive shell per project, per chat and in the workspace, opened in the project's
+directory, the chat's worktree or the configured workspace, in a panel of the web app (desktop and phone) and of the Electron app. It is **the
 person's own shell**: Claudio never writes into it, never reads what it prints to decide anything and
 never starts `claude` in it. The design, the threat model and the decisions are in
 [the plan](plans/terminal.md); this page says what exists and how to use and check it.
@@ -56,6 +56,25 @@ and refuses, so use the built app (`pnpm build && pnpm start`) for that. The rul
 
 The gate's reasons (`GET /terminal` → `reason`) are listed in the [REST API tables](rest-api.md#terminal).
 
+## Where a shell opens
+
+The client never sends a path: `POST /terminals` takes a project (and one of its listed worktrees), a
+chat, or `{ workspace: true }`, and the server derives the directory, resolved through symlinks and
+confined to its root (`packages/core/src/terminals/cwd.ts`):
+
+- **A project** opens in its directory or one of the worktrees Claudio lists for it.
+- **A chat in a project** opens in its worktree, else its own directory, inside that project.
+- **The workspace** (`config.workspaceDir`, `/workspace` in the image) needs no project at all: it is
+  where a chat outside any project runs, so it is where a terminal opens when there is no project
+  (owner, 2026-10-18; before, nothing could be opened until a project existed).
+- **A chat outside any project** opens in its own directory, which must be inside the workspace; a
+  loose chat started somewhere else, or a symlink in the workspace that leads out of it, is refused
+  (`400 terminal.bad-cwd`).
+
+Every gate is the same for the three (owner token, chat tokens refused, tickets, `Origin`, peer
+check, read-only, limits), and the session rows record the scope (`project`, `chat` or `workspace`).
+`cd` afterwards is the person's: this confines where Claudio opens a shell, not what it may reach.
+
 ## What a shell gets
 
 The person's login shell, in a clean environment: no `CLAUDIO_*` variable and none of Claude's
@@ -74,9 +93,10 @@ rows, shown in the card's history table.
 
 - **The status bar.** A Terminal item (icon and the number of running shells) next to the usage and the
   account toggles a panel docked above the status bar, on every page. The panel holds all the terminals:
-  one tab per terminal (named after its project or folder, with its status), switch, X to close and "+"
-  to open another. "+" opens in the project chosen in the top bar; with All projects it is a menu of the
-  projects. It is resizable by its handle, remembers open or closed and its height in the browser, and Esc
+  one tab per terminal (named after its project, the workspace or its folder, with its status), switch, X
+  to close and "+" to open another. "+" opens in the project chosen in the top bar. With All projects it
+  opens in the workspace: at once when there is no project, else from a menu that lists the workspace
+  first and then the projects. Opening the panel with no shell running opens one there too. It is resizable by its handle, remembers open or closed and its height in the browser, and Esc
   hides it unless focus is inside a terminal. `Ctrl+\`` toggles it from anywhere.
 - **That is the only desktop entry point** (owner, 2026-10-15). There is no Terminals page, no "Open
   terminal" button on a project, no palette command and no button in the chat header. An old `/terminals`
@@ -91,15 +111,25 @@ rows, shown in the card's history table.
   app the window is native (see [desktop.md](desktop.md#the-terminal)). A menu opened in full screen
   does not show (it is outside the element); leave full screen first.
 - On a phone there is no status bar: More → Terminals lists the open terminals and offers "New terminal"
-  (in the project chosen, or a menu of projects with All projects); a row opens `/terminals/:id`, a full
+  (in the project chosen; with All projects in the workspace, or a menu of the workspace and the
+  projects); a row opens `/terminals/:id`, a full
   screen with a key bar (Esc, Tab, arrows, sticky Ctrl and Alt).
 
 **Closing.** X (`DELETE /terminals/:id`) ends the shell and removes the terminal from the list at once,
-and forgets one that already ended. A terminal that ended by itself (the shell exited, idle, a server
+and forgets one that already ended. The view forgets the id before the request goes: its socket closes
+and is not reconnected, and nothing asks for that terminal again (a `GET` or a ticket for it would be a
+404). A terminal closed elsewhere (`closed` frame with reason `closed`, or gone from a
+`terminal.changed`) is forgotten the same way; a socket the server will not attach (close code 1008)
+is not retried. A terminal that ended by itself (the shell exited, idle, a server
 restart) stays listed as "Cerrado" with "Abrir de nuevo" until X dismisses it, or an hour passes. The
 history table keeps every session either way.
 
-Every entry stays hidden unless `GET /terminal` says `available`. Colours come from the `--term-*`
+Every entry stays hidden unless `GET /terminal` says `available`, and nothing reads `GET /terminals` or a
+terminal until then: those routes sit behind the same gate as the rest and would answer 409 while the
+feature is off. The gate stays as it is rather than answering an empty list, so an API caller is told
+the feature is off instead of that there is nothing open. A `terminal.changed` event carries the
+server's status, not this client's, so the web writes an unavailable one at once and reads an
+available one again through `GET /terminal` (the gate may still refuse this device). Colours come from the `--term-*`
 tokens, in both themes; the cursor blinks only at motion level `full`.
 
 ## Checks

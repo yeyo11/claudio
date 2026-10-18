@@ -11,19 +11,30 @@ const project = join(scratch, 'project');
 const worktree = join(project, '.claude', 'worktrees', 'feature');
 const sibling = join(scratch, 'sibling-worktree');
 const outside = join(scratch, 'outside');
-for (const dir of [worktree, sibling, outside]) mkdirSync(dir, { recursive: true });
+const workspace = join(scratch, 'workspace');
+const looseDir = join(workspace, 'notes');
+for (const dir of [worktree, sibling, outside, looseDir]) mkdirSync(dir, { recursive: true });
 const linked = join(project, '.claude', 'worktrees', 'linked');
 symlinkSync(outside, linked);
+// A directory of the workspace that is a symlink to somewhere else
+const escape = join(workspace, 'escape');
+symlinkSync(outside, escape);
+let workspaceDir = workspace;
 
 const lookup: CwdLookup = {
   project: async (id) => (id === 'p1' ? { path: project, worktrees: [worktree, sibling, linked, join(project, 'gone')] } : null),
   chat: async (id) => {
     if (id === 'c-plain') return { cwd: project, worktree: null, projectId: 'p1' };
     if (id === 'c-tree') return { cwd: project, worktree: worktree, projectId: 'p1' };
-    if (id === 'c-loose') return { cwd: outside, worktree: null, projectId: null };
+    if (id === 'c-loose') return { cwd: looseDir, worktree: null, projectId: null };
+    if (id === 'c-loose-root') return { cwd: workspace, worktree: null, projectId: null };
+    if (id === 'c-loose-outside') return { cwd: outside, worktree: null, projectId: null };
+    if (id === 'c-loose-linked') return { cwd: escape, worktree: null, projectId: null };
+    if (id === 'c-orphan') return { cwd: project, worktree: null, projectId: 'gone' };
     if (id === 'c-escaped') return { cwd: outside, worktree: null, projectId: 'p1' };
     return null;
   },
+  workspace: () => workspaceDir,
 };
 
 const refused = (code: string) => (error: unknown) => error instanceof TerminalError && error.code === code;
@@ -61,8 +72,53 @@ test('a deleted directory is refused', async () => {
   await assert.rejects(resolveTerminalCwd({ projectId: 'p1', worktree: sibling }, lookup), refused('terminal.bad-cwd'));
 });
 
-test('a chat outside any project gets no terminal, and an unknown id is not found', async () => {
-  await assert.rejects(resolveTerminalCwd({ chatId: 'c-loose' }, lookup), refused('terminal.no-project'));
+test('an unknown id is not found, and a chat whose project is gone gets no terminal', async () => {
   await assert.rejects(resolveTerminalCwd({ chatId: 'nope' }, lookup), refused('terminal.not-found'));
   await assert.rejects(resolveTerminalCwd({ projectId: 'nope' }, lookup), refused('terminal.not-found'));
+  await assert.rejects(resolveTerminalCwd({ chatId: 'c-orphan' }, lookup), refused('terminal.no-project'));
+});
+
+test('the workspace scope opens in the configured workspace, with no project at all', async () => {
+  assert.deepEqual(await resolveTerminalCwd({ workspace: true }, lookup), { scope: { kind: 'workspace' }, cwd: workspace });
+});
+
+test('a workspace that is a symlink to elsewhere is still the workspace, resolved', async () => {
+  // The owner may point CLAUDIO_WORKSPACE_DIR at a link; the root itself is what was configured
+  const link = join(scratch, 'workspace-link');
+  symlinkSync(workspace, link);
+  workspaceDir = link;
+  try {
+    assert.equal((await resolveTerminalCwd({ workspace: true }, lookup)).cwd, workspace);
+    assert.equal((await resolveTerminalCwd({ chatId: 'c-loose' }, lookup)).cwd, looseDir);
+  } finally {
+    workspaceDir = workspace;
+  }
+});
+
+test('the workspace scope takes no path and no other value than true', async () => {
+  await assert.rejects(resolveTerminalCwd({ workspace: false } as unknown as { workspace: true }, lookup), refused('terminal.bad-cwd'));
+  await assert.rejects(resolveTerminalCwd({ workspace: outside } as unknown as { workspace: true }, lookup), refused('terminal.bad-cwd'));
+});
+
+test('a chat outside any project gets its own directory inside the workspace', async () => {
+  const loose = await resolveTerminalCwd({ chatId: 'c-loose' }, lookup);
+  assert.deepEqual(loose, { scope: { kind: 'chat', chatId: 'c-loose' }, cwd: looseDir });
+  assert.equal((await resolveTerminalCwd({ chatId: 'c-loose-root' }, lookup)).cwd, workspace);
+});
+
+test('a chat outside any project whose directory is outside the workspace is refused', async () => {
+  await assert.rejects(resolveTerminalCwd({ chatId: 'c-loose-outside' }, lookup), refused('terminal.bad-cwd'));
+});
+
+test('a symlink inside the workspace that escapes it is refused for a loose chat', async () => {
+  await assert.rejects(resolveTerminalCwd({ chatId: 'c-loose-linked' }, lookup), refused('terminal.bad-cwd'));
+});
+
+test('a workspace that no longer exists is refused', async () => {
+  workspaceDir = join(scratch, 'no-workspace');
+  try {
+    await assert.rejects(resolveTerminalCwd({ workspace: true }, lookup), refused('terminal.bad-cwd'));
+  } finally {
+    workspaceDir = workspace;
+  }
 });

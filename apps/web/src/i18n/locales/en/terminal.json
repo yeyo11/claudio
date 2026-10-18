@@ -80,7 +80,9 @@
   "new": {
     "button": "New terminal",
     "choose": "Choose where to open the terminal",
-    "checkout": "The project's checkout"
+    "checkout": "The project's checkout",
+    "workspace": "Workspace",
+    "inWorkspace": "New terminal in the workspace"
   },
   "tabs": {
     "label": "Open terminals",
@@ -164,8 +166,6 @@
     "item": "Terminal: {{count}} running",
     "hide": "Hide the terminal panel",
     "newIn": "Open a terminal in…",
-    "noProjects": "There is no project to open a terminal in.",
-    "empty": "No terminal is open. Use + to open one in a project.",
     "running": "running",
     "label": "Terminal"
   },

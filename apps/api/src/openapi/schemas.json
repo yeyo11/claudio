@@ -12049,9 +12049,21 @@
           "kind",
           "chatId"
         ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "workspace"
+          }
+        },
+        "required": [
+          "kind"
+        ]
       }
     ],
-    "description": "What a terminal is opened in: a project's directory or worktree, or a chat's working directory."
+    "description": "What a terminal is opened in: a project's directory or worktree, a chat's working directory, or the workspace where chats outside any project run."
   },
   "TerminalState": {
     "type": "string",
@@ -27031,8 +27043,27 @@
         "required": [
           "chatId"
         ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          },
+          "workspace": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "workspace"
+        ]
       }
-    ]
+    ],
+    "description": "Ids in, directory out: a project (and one of its listed worktrees), a chat, or the workspace (`config.workspaceDir`). Never a path."
   },
   "UpdateTerminalSettingsRequest": {
     "type": "object",

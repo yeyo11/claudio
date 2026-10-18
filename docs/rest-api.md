@@ -476,7 +476,7 @@ The person's own shell, in a project's directory or a chat's worktree. Off until
 | PUT | `/terminal/settings` | `{ enabled?, remote?, maxTerminals?, idleMinutes?, scrollbackLines?, replayLines?, shell?, loginShell? }`; turning it off closes every terminal. Emits `terminal.changed` |
 | GET | `/terminal/history?limit=&offset=` | Sessions and the attempts that were refused, newest first: who, from where, when and how many bytes, never content |
 | GET | `/terminals?project=&chat=` | The open terminals and those that ended in the last hour |
-| POST | `/terminals` | `{ projectId, worktree? }` or `{ chatId }`, optional `cols` and `rows`: ids in, directory out. `409 terminal.limit`, `400 terminal.no-project`. Emits `terminal.changed` |
+| POST | `/terminals` | `{ projectId, worktree? }`, `{ chatId }` or `{ workspace: true }` (the configured workspace, with no project), optional `cols` and `rows`: ids in, directory out. A chat outside any project opens in its own directory, confined to the workspace. `409 terminal.limit`, `400 terminal.no-project` (the chat's project is gone), `400 terminal.bad-cwd` (outside its project or the workspace). Emits `terminal.changed` |
 | GET | `/terminals/:id` | One terminal |
 | POST | `/terminals/:id/ticket` | `{ ticket, expiresAt }`: valid 30 seconds, one use, bound to the terminal and the `Origin` that asked |
 | GET | `/terminals/:id/socket?ticket=` | The stream, as a WebSocket: binary frames carry the bytes, text frames the JSON control messages (`TerminalClientFrame`, `TerminalServerFrame`). The `Origin` must be the page's own |

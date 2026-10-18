@@ -80,7 +80,9 @@
   "new": {
     "button": "Nueva terminal",
     "choose": "Elegir dónde abrir la terminal",
-    "checkout": "La copia de trabajo del proyecto"
+    "checkout": "La copia de trabajo del proyecto",
+    "workspace": "Espacio de trabajo",
+    "inWorkspace": "Nueva terminal en el espacio de trabajo"
   },
   "tabs": {
     "label": "Terminales abiertas",
@@ -164,8 +166,6 @@
     "item": "Terminal: {{count}} en marcha",
     "hide": "Ocultar el panel de la terminal",
     "newIn": "Abrir una terminal en…",
-    "noProjects": "No hay ningún proyecto en el que abrir una terminal.",
-    "empty": "No hay ninguna terminal abierta. Usa + para abrir una en un proyecto.",
     "running": "en marcha",
     "label": "Terminal"
   },

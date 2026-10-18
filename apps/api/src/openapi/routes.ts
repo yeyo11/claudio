@@ -718,7 +718,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
   'POST /terminals': d('Terminal', 'Open a terminal', {
     description:
-      'A shell in the project\'s directory (`projectId`, and optionally one of its `worktree` paths as `GET /projects/:id/worktrees` lists it) or in the chat\'s worktree (`chatId`): ids go in and the path comes out, never the other way. `cols` and `rows` default to 80 × 24. `409 terminal.limit` past `maxTerminals`, `400 terminal.no-project` for a chat outside any project, `400 terminal.bad-cwd` for a directory that is not one of those. Emits `terminal.changed`.',
+      'A shell in the project\'s directory (`projectId`, and optionally one of its `worktree` paths as `GET /projects/:id/worktrees` lists it), in the chat\'s worktree or directory (`chatId`), or in the configured workspace (`workspace: true`, where chats outside any project run): ids go in and the path comes out, never the other way. A chat outside any project opens in its own directory, which must be inside the workspace. `cols` and `rows` default to 80 × 24. `409 terminal.limit` past `maxTerminals`, `400 terminal.no-project` for a chat whose project is gone, `400 terminal.bad-cwd` for a directory outside its project or the workspace. Emits `terminal.changed`.',
     body: obj({ projectId: str(), worktree: str(), chatId: str(), cols: { type: 'integer' }, rows: { type: 'integer' } }),
     ok: ref('Terminal'),
     created: true,
