@@ -23,11 +23,18 @@
     "pty-missing": "Esta instalación no admite pseudoterminales, así que no se puede iniciar un shell.",
     "host-failed": "El host de terminales ha fallado varias veces. Reinicia Claudio, o desactiva y vuelve a activar la terminal.",
     "read-only": "Claudio está en modo de solo lectura, que no permite un shell.",
-    "needs-auth": "Desde otro dispositivo la terminal necesita autenticación con token. Actívala en Ajustes → Acceso y seguridad.",
-    "remote-off": "Los demás dispositivos no pueden abrir una terminal. Permite el túnel en Ajustes → Acceso y seguridad.",
-    "needs-tunnel": "Desde otro dispositivo la terminal solo se abre a través del túnel.",
+    "needs-auth": "La terminal necesita que el acceso esté protegido con un token.",
+    "remote-off": "La terminal está configurada para abrirse solo en esta máquina.",
+    "needs-tunnel": "Desde otro dispositivo, la terminal solo se abre por el túnel. Para permitir cualquier dispositivo, cámbialo en este equipo o a través del túnel.",
     "from-agent": "No se puede abrir una terminal desde un proceso que ha iniciado un agente.",
     "chat-token": "El token de un chat no puede abrir una terminal."
+  },
+  "refusal": {
+    "protect": "Proteger con un token",
+    "allowAny": "Permitir desde cualquier dispositivo con el token",
+    "tunnel": "Abrir el túnel",
+    "access": "Abrir Acceso y seguridad",
+    "chooseRemote": "Elegir dónde se abre"
   },
   "limits": {
     "off": "Una terminal se abre solo en este equipo. Los demás dispositivos no pueden abrir ninguna.",

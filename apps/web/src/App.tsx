@@ -36,11 +36,12 @@ import { AccountCard, StatusBar, useConnection } from './components/shell/Status
 import { useRailCollapsed } from './components/shell/rail';
 import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
+import { HostRefused } from './components/HostRefused';
 import { SignIn } from './components/SignIn';
 import { useSetupGate } from './lib/first-run';
 import { Empty, Skeleton } from '@claudio/ui/components/ui';
 import { useUsageNow } from './lib/usage-now';
-import { useAuthChallenge, useAuthSettled } from './lib/auth';
+import { useAuthChallenge, useAuthSettled, useHostRefusal } from './lib/auth';
 import { listRequest } from '@claudio/chat-ui/lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
@@ -107,7 +108,10 @@ export function App() {
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
   // mounted at all: one screen that asks, instead of every page failing on its own
   const challenge = useAuthChallenge();
+  const refusal = useHostRefusal();
   const settled = useAuthSettled();
+  // A host the wrapper does not answer to is told first: signing in could not get past it
+  if (refusal) return <HostRefused refusal={refusal} />;
   if (challenge) return <SignIn mode={challenge} />;
   if (!settled) return null;
   // A terminal in a window of its own is the terminal and nothing else: no shell, no first-run gate

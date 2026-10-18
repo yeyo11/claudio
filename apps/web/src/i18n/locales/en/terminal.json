@@ -23,11 +23,18 @@
     "pty-missing": "This install has no pseudo-terminal support, so no shell can be started.",
     "host-failed": "The terminal host failed repeatedly. Restart Claudio, or turn the terminal off and on again.",
     "read-only": "Claudio is in read-only mode, which does not allow a shell.",
-    "needs-auth": "From another device the terminal needs token authentication. Turn it on in Settings → Access & safety.",
-    "remote-off": "Other devices cannot open a terminal. Allow the tunnel in Settings → Access & safety.",
-    "needs-tunnel": "From another device the terminal opens only through the tunnel.",
+    "needs-auth": "The terminal needs access protected by a token.",
+    "remote-off": "The terminal is set to open on this machine only.",
+    "needs-tunnel": "From another device the terminal opens only through the tunnel. To allow any device, change it on this machine or through the tunnel.",
     "from-agent": "A terminal cannot be opened from a process an agent started.",
     "chat-token": "A chat's token cannot open a terminal."
+  },
+  "refusal": {
+    "protect": "Protect with a token",
+    "allowAny": "Allow from any device with the token",
+    "tunnel": "Open the tunnel",
+    "access": "Open Access & safety",
+    "chooseRemote": "Choose where it opens"
   },
   "limits": {
     "off": "A terminal opens only on this machine. Other devices cannot open one.",

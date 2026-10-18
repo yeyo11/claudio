@@ -292,7 +292,19 @@
     "check": "Check for updates",
     "checking": "Checking…",
     "updateHow": "Claudio does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Claudio image. On a plain install, run claude update.",
-    "checkFailed": "Could not check for updates"
+    "checkFailed": "Could not check for updates",
+    "install": "Install {{version}}",
+    "installing": "Installing Claude Code {{version}}…",
+    "installError": {
+      "integrity": "The download did not match the registry's checksum and was discarded.",
+      "out-of-range": "Claudio does not support Claude Code {{version}} yet.",
+      "fetch-failed": "Could not download Claude Code.",
+      "not-newer": "That version is not newer than the one in use.",
+      "version-mismatch": "The installed binary did not report the version it was meant to be, so it was discarded.",
+      "disk": "There is not enough space in /data for Claude Code."
+    },
+    "useImage": "Use the image's version ({{pinned}})",
+    "newChats": "New chats use {{version}}; running ones keep theirs."
   },
   "updates": {
     "title": "Claudio",
@@ -341,6 +353,30 @@
     },
     "availableTag": "Update available",
     "upToDateTag": "Up to date",
+    "imageVersion": "image {{image}}",
+    "unsupported": {
+      "needs-auth": "To update from here, protect access with a token.",
+      "read-only": "Read-only mode is on: updates are installed from the host.",
+      "no-launcher": "This container was started without Claudio's launcher; update it from the host.",
+      "no-keys": "This container was started without Claudio's launcher; update it from the host."
+    },
+    "needsImage": "Claudio {{version}} needs a newer image ({{minImage}} or later): the container's system changed. Update the image from the host.",
+    "verifying": "Checking the signature…",
+    "whenIdle": "Restart when nothing is running",
+    "busyBodyServer": "{{live}}, and a restart stops them. Restart now, or when nothing is running?",
+    "scheduledServer": "Claudio {{version}} will restart onto the update when nothing is running.",
+    "restarting": "Restarting… this page reloads on its own.",
+    "tryAgain": "Try again",
+    "serverError": {
+      "bad-signature": "The download has no valid signature and was discarded.",
+      "bad-manifest": "The download's manifest is not valid and was discarded.",
+      "fetch-failed": "Could not download the update.",
+      "disk": "There is not enough space in /data for the update.",
+      "needs-image": "This release needs a newer image than this container runs."
+    },
+    "rolledBack": "Claudio {{from}} did not start, so the container went back to {{to}}.",
+    "dismiss": "Dismiss",
+    "revert": "Go back to the image's version ({{image}})",
     "storage": {
       "title": "This container would lose its data when it is updated",
       "body": "Updating replaces the container, and what is not on a volume with a name goes with it: the sign-in, every transcript, the projects. These folders are not on one:",

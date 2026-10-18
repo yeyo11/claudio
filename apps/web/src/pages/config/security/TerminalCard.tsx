@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TerminalRemote, TerminalSettings, TerminalStatus, UpdateTerminalSettingsRequest } from '@claudio/shared';
@@ -10,9 +11,12 @@ import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/compone
 import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
 import { api, keys } from '../../../api';
 import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs';
-import { unavailableKey } from '../../../components/terminal/terminal-model';
+import { terminalRefusal, type TerminalRefusal, type TerminalRefusalAction } from '../../../components/terminal/terminal-model';
 import { useTerminalStatus } from '../../../components/terminal/use-terminals';
 import { SaveButton, SettingsReveal } from '../groups/Block';
+import { settingsHref } from '../settingsGroups';
+
+const REMOTE_FIELD = 'terminal-remote';
 
 const REMOTE: TerminalRemote[] = ['off', 'tunnel', 'any'];
 // The server's own bounds (core's terminal settings); a value outside them is refused with a 400
@@ -31,17 +35,62 @@ export function changedNumbers(status: TerminalStatus, draft: Partial<Numbers>):
   return out;
 }
 
-function useSaveTerminal(saved: string) {
+/**
+ * Why a change was refused, in the person's words and with what fixes it. The server's sentence is
+ * never shown: it is English and says what the gate saw, not what to do.
+ */
+function RefusalAlert({ refusal, onAllowAny, busy }: { refusal: TerminalRefusal; onAllowAny: () => void; busy: boolean }) {
+  const { t } = useTranslation('terminal');
+  const action = (item: TerminalRefusalAction) => {
+    switch (item.kind) {
+      case 'link':
+        return (
+          <Link key={item.label} className="btn btn-small" to={settingsHref('access', { section: item.section })}>
+            {t(`refusal.${item.label}`)}
+          </Link>
+        );
+      case 'allow-any':
+        return (
+          <button key="allow-any" type="button" className="btn btn-small" disabled={busy} onClick={onAllowAny}>
+            {t('refusal.allowAny')}
+          </button>
+        );
+      case 'focus-remote':
+        return (
+          <button key="focus-remote" type="button" className="btn btn-small" onClick={() => document.getElementById(REMOTE_FIELD)?.focus()}>
+            {t('refusal.chooseRemote')}
+          </button>
+        );
+    }
+  };
+  return (
+    <div className={refusal.tone === 'bad' ? 'alert alert-bad' : 'alert alert-warn'} role="alert" data-testid="terminal-refusal">
+      <TriangleAlert {...ICON_SM} className="alert-icon" aria-hidden />
+      <div className="alert-body stack">
+        <span>{t(refusal.sentence)}</span>
+        {refusal.actions.length > 0 && <div className="form-actions">{refusal.actions.map(action)}</div>}
+      </div>
+    </div>
+  );
+}
+
+function useSaveTerminal(saved: string, onRefused?: (refusal: TerminalRefusal | null) => void) {
   const { t } = useTranslation('terminal');
   const queryClient = useQueryClient();
   const toast = useToast();
   return useMutation({
     mutationFn: (body: UpdateTerminalSettingsRequest) => api.updateTerminalSettings(body),
+    onMutate: () => onRefused?.(null),
     onSuccess: (next) => {
       queryClient.setQueryData(keys.terminalStatus, next);
       toast.success(saved);
     },
-    onError: (error) => toast.error(t('settings.saveFailed'), error),
+    onError: (error) => {
+      // A refusal is the gate working: it is said where the control is, and the control stays as it was
+      const refusal = onRefused ? terminalRefusal(error) : null;
+      if (refusal) onRefused?.(refusal);
+      else toast.error(t('settings.saveFailed'), error);
+    },
   });
 }
 
@@ -119,7 +168,8 @@ function Form({ status }: { status: TerminalStatus }) {
   const [draft, setDraft] = useState<Numbers>({ maxTerminals: settings.maxTerminals, idleMinutes: settings.idleMinutes, scrollbackLines: settings.scrollbackLines });
   const [number, setNumber] = useState<Partial<Numbers>>({});
   const [screenReader, setScreenReader] = useScreenReaderMode();
-  const toggle = useSaveTerminal(t('settings.saved'));
+  const [refusal, setRefusal] = useState<TerminalRefusal | null>(null);
+  const toggle = useSaveTerminal(t('settings.saved'), setRefusal);
   const numbers = useSaveTerminal(t('settings.saved'));
   // The warning depends on the auth mode; until it is read, say nothing rather than guess
   const auth = useQuery({ queryKey: keys.securityAuth, queryFn: ({ signal }) => api.securityAuth({ signal }) });
@@ -167,31 +217,35 @@ function Form({ status }: { status: TerminalStatus }) {
           {t('settings.agentReach')}
         </p>
       )}
-      {!status.available && status.reason && status.reason !== 'off' && (
+      {/* A refused change wins over the status's standing reason: it is what the person just did */}
+      {(refusal ?? (status.reason && status.reason !== 'off' ? terminalRefusal(status.reason) : null)) && (
+        <RefusalAlert
+          refusal={(refusal ?? (status.reason ? terminalRefusal(status.reason) : null)) as TerminalRefusal}
+          busy={toggle.isPending}
+          onAllowAny={() => toggle.mutate({ remote: 'any' })}
+        />
+      )}
+
+      {/* Chosen before the switch is on: in a container it is the first thing a person may need to set */}
+      <Field label={t('settings.remoteLabel')} hint={fromEnv('remote') ? t('settings.fromEnv') : t('settings.remoteHint')}>
+        <Select<TerminalRemote>
+          id={REMOTE_FIELD}
+          aria-label={t('settings.remoteLabel')}
+          value={settings.remote}
+          options={options}
+          disabled={fromEnv('remote') || toggle.isPending}
+          onChange={(remote) => toggle.mutate({ remote })}
+        />
+      </Field>
+      {settings.remote === 'any' && (
         <p className="term-note">
           <TriangleAlert {...ICON_SM} aria-hidden />
-          {t(unavailableKey(status.reason))}
+          {t('limits.any')}
         </p>
       )}
 
       {/* Off, nothing below applies: it waits, revealed, for the switch */}
       <SettingsReveal open={settings.enabled}>
-        <Field label={t('settings.remoteLabel')} hint={fromEnv('remote') ? t('settings.fromEnv') : t('settings.remoteHint')}>
-          <Select<TerminalRemote>
-            aria-label={t('settings.remoteLabel')}
-            value={settings.remote}
-            options={options}
-            disabled={fromEnv('remote') || toggle.isPending}
-            onChange={(remote) => toggle.mutate({ remote })}
-          />
-        </Field>
-        {settings.remote === 'any' && (
-          <p className="term-note">
-            <TriangleAlert {...ICON_SM} aria-hidden />
-            {t('limits.any')}
-          </p>
-        )}
-
         <div className="form-grid">
           {field('maxTerminals')}
           {field('idleMinutes')}

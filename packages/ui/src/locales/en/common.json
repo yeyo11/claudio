@@ -50,6 +50,21 @@
     "submit": "Sign in",
     "rejected": "That credential was not accepted. Check it has not expired and that it is the one this wrapper knows.",
     "failed": "The wrapper could not be reached to check the credential.",
-    "hint": "A token is shown once, when it is created. Lost it? Rotate it from the machine that runs Claudio."
+    "hint": "A token is shown once, when it is created. Lost it? Rotate it from the machine that runs Claudio.",
+    "firstRun": {
+      "title": "Sign in with the owner token",
+      "body": "This Claudio made an owner token the first time it started and printed it once in the container's log. On the machine that runs the container, read it with <code>docker logs</code> and the container's name, then paste it here.",
+      "hint": "Until you first sign in, it is also in /data/first-run-token inside the container. On Kubernetes, kubectl logs shows it."
+    }
+  },
+  "hostRefused": {
+    "title": "This Claudio does not answer to <mono>{{host}}</mono> yet",
+    "body": "It answers only to the addresses it was told about, so that no other site can drive it from your browser.",
+    "label": "Owner token",
+    "submit": "Add {{host}} and sign in",
+    "adding": "Adding…",
+    "tooMany": "Too many attempts. Wait {{wait}} and try again.",
+    "refused": "The host was not added: {{message}}",
+    "manual": "Add it where Claudio runs: name it in CLAUDIO_ALLOWED_HOSTS when you start the container, or open Claudio on localhost and add it in Settings → Access & safety → Allowed hosts."
   }
 }
