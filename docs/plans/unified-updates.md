@@ -807,6 +807,33 @@ false` for all of them. The owner rejected an automatic paid test message, so:
   confirmed" in `apps/web/src/i18n/locales/{en,es}/accountsConfig.json` and `config.json`, tests
   with a fake SDK transport (401, 200, network error).
 
+**The tunnel survives a slow machine** (owner, 2026-10-18). On 2026-10-18 at 11:55 UTC the desktop's
+tunnel closed itself with an error while Tailscale was fine: the machine was at 97 % CPU (two
+`llama-server` processes and phase 1's workers, load average 20 on 12 cores), two consecutive
+monitor probes (`monitorMs` 30 s, `commandTimeoutMs` 10 s, `maxMisses` 2,
+`packages/core/src/tunnel.ts:47-50`) timed out, `check()` (`:576-593`) counted them as
+`daemonDown`, and `giveUp()` (`:610-617`) failed the tunnel, withdrew its host from the allowlist
+(audit row at 11:56:19) and ran `tailscale serve --https=8444 off` (tailscaled's journal:
+"closing listener …:8444" at 11:55:42). tailscaled itself never stopped.
+
+- **A probe that could not answer is `unknown`, not `down`.** `runCli` reports a timeout or a spawn
+  failure apart from an answer; `check()` keeps the tunnel `active`, sets a `checking` flag the UI
+  shows as "Checking…" (no status colour change), and retries with back-off (30 s, 60 s, 120 s,
+  capped at 5 min). Only a definitive answer closes it: `BackendState` not `Running`, signed out,
+  or the Serve rule gone or changed by someone else (`ruleRemoved`).
+- **No destructive action on an inconclusive probe.** `giveUp()` after unknowns never runs `serve
+  off` and never withdraws the host: Tailscale keeps serving the rule regardless of how slow the
+  CLI is. After 10 minutes of nothing but unknowns the tunnel shows a warn state ("Tailscale is
+  not answering") but keeps its rule and host.
+- **It comes back on its own.** A tunnel that failed because Tailscale was down or signed out, and
+  that the person had started (`wanted` was true), is started again when a later probe finds
+  Tailscale ready, with an audit row; a tunnel the person stopped never restarts.
+- Owned by a small stage-1 task `tunnel-resilience` (sonnet): `packages/core/src/tunnel.ts`, its
+  types (`TunnelStatus.checking`), `packages/core/test/tunnel.test.ts` with
+  `packages/core/test/fixtures/fake-tailscale.mjs` gaining a delay knob (slow answers keep the
+  tunnel; a signed-out answer closes it; recovery restarts it), the Remote access card's copy in
+  `apps/web/src/i18n/locales/{en,es}/config.json`, and `docs/tunnel.md`.
+
 ## Re-check after phase 1
 
 The integrator verifies each against the merged phase-1 code before launching, and corrects this
