@@ -265,6 +265,11 @@ export function ensureProviderHomes(env: NodeJS.ProcessEnv, dataDir: string): st
   return homes;
 }
 
+/** The data directory `loadConfig` uses, computed without creating or reading anything: the server locks it first */
+export function dataDirFrom(env: NodeJS.ProcessEnv = process.env): string {
+  return resolve(env.CLAUDIO_DATA_DIR ?? join(baseDir(), 'data'));
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   const configDir = resolve(env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'));
   // With CLAUDE_CONFIG_DIR the CLI keeps .claude.json inside that directory; otherwise in $HOME.
@@ -272,7 +277,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     ? join(configDir, '.claude.json')
     : join(homedir(), '.claude.json');
   const workspaceDir = resolve(env.CLAUDIO_WORKSPACE_DIR ?? join(baseDir(), 'workspace'));
-  const dataDir = resolve(env.CLAUDIO_DATA_DIR ?? join(baseDir(), 'data'));
+  const dataDir = dataDirFrom(env);
   for (const dir of [workspaceDir, dataDir]) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }

@@ -1,5 +1,6 @@
 // Entrypoint of the single-file bundle (`node dist/server.mjs`) that the desktop app runs as a child process.
-import { resolveUserPath } from '@claudio/core';
+import { DataDirLockedError, resolveUserPath } from '@claudio/core';
+import { DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
 import { startServer } from './server.ts';
 
 // The desktop app starts this bundle on Electron's binary with ELECTRON_RUN_AS_NODE=1. Electron reads
@@ -15,6 +16,11 @@ const server = await startServer({
   port: Number(process.env.PORT ?? 0),
   host: process.env.HOST ?? '127.0.0.1',
   webDist: process.env.CLAUDIO_WEB_DIST,
+}).catch((err: unknown) => {
+  // The launcher (the container's, the desktop's) reads the code: not the payload's fault, nothing to restart
+  if (!(err instanceof DataDirLockedError)) throw err;
+  console.error(err.message);
+  process.exit(DATA_DIR_LOCKED_EXIT_CODE);
 });
 
 // The parent parses this single line to learn where the API is listening

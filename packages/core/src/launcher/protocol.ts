@@ -9,6 +9,12 @@ import { join } from 'node:path';
 /** The server exits with it to be started again by the launcher, onto whatever `state.json` says now */
 export const RESTART_EXIT_CODE = 75;
 
+/**
+ * The server exits with it when another server holds its data directory (EX_CANTCREAT). It says
+ * nothing about the payload: a trial that ends with it is not a failed one, and it is not restarted.
+ */
+export const DATA_DIR_LOCKED_EXIT_CODE = 73;
+
 /** `2.1.278` and nothing looser: `latest` or `stable` mean the image does not pin */
 export const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 

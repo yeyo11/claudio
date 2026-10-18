@@ -1,5 +1,6 @@
 import { rmSync, writeFileSync } from 'node:fs';
-import { resolveUserPath } from '@claudio/core';
+import { DataDirLockedError, resolveUserPath } from '@claudio/core';
+import { DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
 import { startServer } from './server.ts';
 
 // The terminal's PATH, also when this was started from a service or a desktop session
@@ -14,6 +15,10 @@ const host = process.env.HOST ?? '127.0.0.1';
 // published port. Moving to a free port would leave it pointing at whatever holds this one, which
 // once was an older Claudio from another worktree, silently answering a newer UI.
 const server = await startServer({ port, host, portFallback: false }).catch((err: NodeJS.ErrnoException) => {
+  if (err instanceof DataDirLockedError) {
+    console.error(err.message);
+    process.exit(DATA_DIR_LOCKED_EXIT_CODE);
+  }
   if (err.code !== 'EADDRINUSE') throw err;
   console.error(
     `port ${String(port)} on ${host} is taken. Stop what holds it (ss -ltnp 'sport = :${String(port)}'), ` +
