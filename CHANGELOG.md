@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/yeyo11/claudio/compare/v0.5.0...v0.5.1) (2026-10-18)
+
+
+### Bug fixes
+
+* **ui:** dialogs, sheets and drawers hold up on a phone and in the desktop app ([#40](https://github.com/yeyo11/claudio/issues/40)) ([0d0af80](https://github.com/yeyo11/claudio/commit/0d0af80179f2bde75c78fa3c77a87e85136c0fa6))
+
 ## [0.5.0](https://github.com/yeyo11/claudio/compare/v0.4.1...v0.5.0) (2026-10-18)
 
 
