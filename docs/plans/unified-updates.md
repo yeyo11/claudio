@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-18T20:00:00Z
+updated_at: 2026-10-18T23:00:00Z
 tags:
     - plan
     - updates
@@ -13,18 +13,18 @@ tags:
 ---
 # Plan: one update mechanism for the desktop, the container and Helm
 
-Status: **planned** (2026-10-18). This is **phase 2 of the container-polish pull request**
-([plans/container-polish.md](container-polish.md)) and **waits on phase 1**: it starts on top of
-the merged result of phase 1's orchestration (the launcher, the signed server bundle, the
-`/system/server-update` routes). The owner's decisions are settled except the three items in
-[Open questions](#open-questions). Workers run security-sensitive tasks on `claude-opus-5-5` and the
-rest on `claude-sonnet-5-5`, never fable. Two owner actions are needed before the merge:
-[the apt signing key and GitHub Pages](#owner-actions-before-the-merge).
+Status: **ready to launch** (2026-10-18). This is **phase 2 of the container-polish pull request**
+([plans/container-polish.md](container-polish.md), PR #46): it starts on top of phase 1's merged
+result on PR #46's branch `fix/container-polish-review` (the launcher, the signed server bundle, the
+`/system/server-update` routes), checked against that code in
+[Checked against phase 1](#checked-against-phase-1-2026-10-18). The owner's decisions are settled
+([Decisions taken by the owner](#decisions-taken-by-the-owner-2026-10-18)) and the owner actions
+are done ([Owner actions](#owner-actions-before-the-merge)). Workers run security-sensitive tasks
+and the review on `claude-opus-5-5` and the rest on `claude-sonnet-5-5`, never fable.
 
 This plan is the source of truth for that orchestration, together with CLAUDE.md, CONTRIBUTING.md
 and phase 1's plan, whose contracts it extends. Where a task prompt and this plan disagree, the plan
 wins. Workers never run the e2e suite: CI runs it (`pnpm e2e:remote`, the `e2e-on-github` skill).
-Before launching, the integrator works through [Re-check after phase 1](#re-check-after-phase-1).
 
 ## Context
 
@@ -115,9 +115,11 @@ code, so splitting it lets nearly every release install with no password and no 
      silently downgrade; and it is outside the guard's protection), `~/.local/share/claudio` (the
      AppImage's install dir, where `--uninstall` removes it, and outside the guard), inside the
      AppImage or `/opt` (read-only or root-owned).
-- **The same state machine runs both hosts.** Phase 1's launcher logic is (or becomes, see
-  [Re-check](#re-check-after-phase-1)) a pure module, `packages/core/src/launcher/machine.ts`, with
-  spawning, health checks, clock and file access injected. The container's `launcher.mjs` drives it
+- **The same state machine runs both hosts.** Phase 1 left it inside
+  `packages/core/src/launcher/main.ts` (`pick`, `trial`, `failedTrial`, `launch`, calling `spawn`,
+  `fetch`, `node:fs` and `Date` directly); `payload-core` extracts it into a pure module,
+  `packages/core/src/launcher/machine.ts`, with spawning, health checks, clock and file access
+  injected, importing `node:*` and `./protocol.ts` only (the launcher is bundled alone). The container's `launcher.mjs` drives it
   around a `node` child; the desktop's main process drives it around `ServerProcess`. Rejected:
   running `launcher.mjs` as a middle process under Electron. The main process already owns the
   child's lifecycle, the `READY` line, the splash and error pages and crash handling; a middle process
@@ -190,6 +192,10 @@ code, so splitting it lets nearly every release install with no password and no 
 
 ### D4. A signed apt repository on GitHub Pages
 
+- **Amended by the owner's decision 3** ([below](#decisions-taken-by-the-owner-2026-10-18)): Pages
+  holds the signed indexes, and the `.deb` files stay release assets, reached through a pool path
+  on Pages that redirects. Where this section and the apt layout below put the newest `.deb` files
+  on Pages, that is the fallback `release-apt` uses only if no redirect form works.
 - **Where**: GitHub Pages of `yeyo11/claudio`, deployed by Actions (`actions/upload-pages-artifact`
   and `actions/deploy-pages`), at `https://yeyo11.github.io/claudio/apt/`. Why:
   1. One repository, one set of secrets and environments; the release workflow builds it in the
@@ -235,7 +241,7 @@ code, so splitting it lets nearly every release install with no password and no 
 ### D5. `install.sh` defaults to the AppImage where it runs sandboxed without root
 
 The owner asked for the AppImage as the default on every distribution. One fact found while
-writing this plan narrows it, and is the first [open question](#open-questions):
+writing this plan narrows it, and was the owner's first decision ([decision 1](#decisions-taken-by-the-owner-2026-10-18)):
 
 - On hosts that restrict unprivileged user namespaces (Ubuntu 24.04 and later, this machine
   included: `kernel.apparmor_restrict_unprivileged_userns = 1`), Chromium's sandbox cannot start
@@ -340,6 +346,19 @@ So:
   per-launch desktop credential** (`CLAUDIO_DESKTOP_TOKEN`, the one the tray already uses). The
   routes accept the `desktop` actor **only when `CLAUDIO_LAUNCHER=desktop`**, which only the shell
   sets. An owner token or OIDC actor (a phone or browser on this server) is accepted as in phase 1.
+- Phase 1's code refuses this in three places, all widened for exactly the four update writes
+  (`POST …/download`, `POST …/apply`, `DELETE …/scheduled`, `POST …/revert`) and only under
+  `CLAUDIO_LAUNCHER=desktop`:
+  1. Under `none` the auth hook never reads a credential (`apps/api/src/security.ts:826`,
+     `guarded && mode !== 'none'`), so every request is `local`. For these routes it reads one if
+     sent, through `core.security.actorFor(credential, fromLocalMachine(req))`, and sets `desktop`
+     when it matches; anything else stays `local`.
+  2. The desktop credential only reads (`DESKTOP_METHODS`, `security.ts:601`, enforced at `:864`).
+     These four routes are the exception.
+  3. `refuseNonOwner` (`apps/api/src/routes/server-update.ts:7`) answers `update.needs-auth` under
+     `none` before it looks at the actor, and `ServerUpdates.unsupportedReason()`
+     (`packages/core/src/updates/server-update.ts:132`) says `needs-auth` under `none`. Both let the
+     `desktop` actor through first; everyone else gets phase 1's answer.
 - Still refused: chat tokens (`CHAT_FORBIDDEN_SYSTEM`), read-only, and the anonymous `local` actor
   under `none` (an agent's `curl` to 127.0.0.1 must not be able to restart the server over live
   work).
@@ -382,6 +401,25 @@ The card keeps its two zones in this order: **Claudio** (the payload, what most 
     app first; Claudio follows on its own."
   - es: "Claudio {{version}} necesita una aplicación de escritorio más reciente ({{minShell}} o
     posterior). Actualiza primero la aplicación de escritorio; Claudio se actualizará después."
+- **Not installable here** (`offer.installable === false`, container and desktop alike): the facts
+  line keeps the version, the `warn` "Update available" tag and the notes link; **no download
+  button**. One sentence by `offer.blocked` (`updates.blocked.<code>`), then the host's way:
+  - `no-bundle`: en "Claudio {{version}} cannot be installed from here: it was published without
+    an in-app update." · es "Claudio {{version}} no se puede instalar desde aquí: se publicó sin
+    actualización integrada." Then the image steps (container) or the Desktop app zone (desktop).
+  - `needs-image` / `needs-shell`: the existing alerts (phase 1's `needs-image`, the `needsShell`
+    above).
+  - `unverified`: en "Claudio {{version}} could not be checked, so it is not offered. Check again
+    later." · es "No se ha podido comprobar Claudio {{version}}, así que no se ofrece. Vuelve a
+    comprobarlo más tarde."
+  - `failed-before`: en "Claudio {{version}} did not start here before, so it is not
+    offered again." · es "Claudio {{version}} no arrancó aquí antes, así que no se vuelve a
+    ofrecer."
+- **Errors by code, never the server's text.** Every refusal of the update routes and every
+  `status.error` is shown from its code (`updates.errors.<code>`, en/es), each with its way out
+  (Try again, the image steps, sign in, the busy dialog); an unknown code shows
+  `updates.desktopFailed`'s generic sentence. Today `ErrorBox` prints the raw message
+  (`UpdatesCard.tsx:544`): the owner saw "the release 0.6.1 has no server bundle" in a Spanish UI.
 - The busy dialog adds the terminals line to `updates.live`: en "{{count}} terminal is open" /
   "{{count}} terminals are open" · es "{{count}} terminal está abierta" / "{{count}} terminales están
   abiertas".
@@ -448,20 +486,51 @@ phone over the tunnel, or a browser on the LAN). Such a page has no bridge:
 
 ### Shared types (`packages/shared/src/types.ts`)
 
-Additive to phase 1's `[update-core]` block. After a change, run
-`pnpm --filter @claudio/api openapi:schemas`.
+Additive to phase 1's block (`packages/shared/src/types.ts:47-88`: `LiveWork`, `ServerUpdateState`,
+`ServerUpdateError`, `ServerUpdateUnsupported`, `ServerUpdateStatus`, `ServerUpdateApplyRequest`).
+Phase 1 never shipped (PR #46 carries both phases), so renaming would be free; the names are kept
+anyway, to keep the web card, its tests and the e2e specs untouched where nothing changes:
+`image` and `source: 'image' | 'overlay'` mean the base payload on both hosts. `payload-core` owns
+every change below and runs `pnpm --filter @claudio/api openapi:schemas`; `tunnel-resilience` adds
+its one field after it.
 
 ```ts
 // [payload-core]
-/** Phase 1's, plus the open terminals a restart ends */
+/** Phase 1's, plus the open terminals a restart ends (`TerminalService.running()`) */
 export interface LiveWork { working: number; waiting: number; running: number; terminals: number }
 
 /** Phase 1's, plus 'development' (a desktop dev build) */
 export type ServerUpdateUnsupported = 'not-docker' | 'no-launcher' | 'no-keys' | 'needs-auth' | 'read-only' | 'development';
-// 'not-docker' now means "no launcher host": a source install. Its name is kept for compatibility.
+// 'not-docker' now means "no launcher host": a source install. Its name is kept.
 
 /** Phase 1's, plus 'needs-shell' */
 export type ServerUpdateError = 'fetch-failed' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image' | 'needs-shell';
+
+/**
+ * Why the newest release cannot be installed in-app, known before any download (owner's test,
+ * 2026-10-18: 0.6.1 has no bundle, and the card offered a download that could only fail).
+ * 'no-bundle': published before signed bundles, or without one; 'unverified': its manifest could
+ * not be fetched or does not verify (the card says so; nothing is offered).
+ */
+export type ServerUpdateBlocked = 'no-bundle' | 'needs-image' | 'needs-shell' | 'unverified' | 'failed-before';
+
+/** The newest release as the last release check judged it, from its assets and signed manifest */
+export interface ServerUpdateOffer {
+  version: string;
+  /** True only when a download can succeed: bundle, manifest and signature present, signed, fits this base */
+  installable: boolean;
+  /** Null when installable */
+  blocked: ServerUpdateBlocked | null;
+}
+
+/**
+ * Every `code` the update routes answer, `update.<code>`. The web maps each to translated copy with
+ * its way out (`updates.errors.<code>`); the server's `error` text is never shown, as with phase 1's
+ * terminal refusals.
+ */
+export type ServerUpdateRefusalCode =
+  | 'update.needs-auth' | 'update.not-owner' | 'update.unsupported' | 'update.no-release' | 'update.busy'
+  | 'update.not-ready' | 'update.not-overlay' | 'update.live-work' | 'update.needs-image' | 'update.needs-shell';
 
 /** The desktop shell the server runs under, as the shell told it at spawn */
 export interface ShellInfo {
@@ -480,13 +549,40 @@ export interface ServerUpdateStatus {
   shell: ShellInfo | null;
   /** The newest release needs a newer desktop shell than this one */
   needsShell: { version: string; minShell: string } | null;
+  /** The newest release newer than what runs, judged before a download is offered; null when none */
+  offer: ServerUpdateOffer | null;
+}
+
+// [tunnel-resilience], after payload-core
+export interface TunnelStatus {
+  // … today's fields …
+  /** The last probes could not answer (a timeout or a spawn failure): the tunnel stays up, the UI says "Checking…" */
+  checking: boolean;
 }
 ```
 
-**The bundle manifest** (phase 1's `claudio-server-<v>-linux-x64.json`) gains `minShell` and
-`shellInputs`. `schema` stays `1` because the fields are additive, provided phase 1's parser ignores
-unknown fields ([Re-check](#re-check-after-phase-1)); otherwise `schema: 2` and both parsers accept 1
-and 2.
+**The installable check** (owner's test, 2026-10-18): `ServerUpdates.inspect()`
+(`packages/core/src/updates/server-update.ts:227`) runs after every release check, the daily one
+included, and at start. It looks for the three assets (`offered`, `:194`), fetches and verifies the
+manifest, and judges `minImage`/`nodeAbi` (container) or `minShell` (desktop), filling `offer`.
+`offer.installable === false` means no download is offered: the card shows the version and notes,
+one translated sentence per `blocked` code, and the host's way (container: the image steps; desktop:
+the Desktop app zone). `download` still refuses on its own (`update.no-release`, `412`), but the
+card never offers a primary action known to fail.
+
+**The bundle manifest** (phase 1's `claudio-server-<v>-linux-x64.json`, `BundleManifest` in
+`packages/core/src/launcher/protocol.ts:38`) gains `minShell` and `shellInputs`; `schema` stays `1`.
+Phase 1's `parseManifest` (`:179`) rejects `schema !== 1` and rebuilds the object from known fields,
+so it ignores unknown ones; no phase-1 launcher ever shipped, so `parseManifest` may require both
+fields. On the desktop the check is `minShell` against the shell's version and **not** `nodeAbi`:
+the tarball is built in the image's build stage (`docker/Dockerfile:43`, Node 26), Electron's
+`process.versions.modules` differs, and both native modules are N-API. `checkOverlay` (`:260`) and
+`ServerUpdates.imageFits` (`server-update.ts:218`) take a host-neutral base (`{ kind: 'image', … }`
+or `{ kind: 'shell', version, shellInputs }`) for this.
+
+**Signature files**: phase 1's `verifyManifest` (`protocol.ts:166`) base64-decodes the whole file
+and wants 64 bytes, so a `<keyId> <base64>` line fails today. It is changed to read lines (D7); a
+bare base64 line stays valid, and `server-bundle.yml` keeps writing one until a rotation.
 
 ### The desktop IPC (`apps/desktop/src/ipc.ts`, `preload.ts`, `updater.ts`)
 
@@ -529,14 +625,16 @@ as `apps/web/src/lib/updates.ts` already does, so an older shell cannot break th
 
 | Route | Change |
 | --- | --- |
-| `GET /system/server-update` | answers the new `base`, `shell`, `needsShell`; supported on `appimage`/`deb` when `CLAUDIO_LAUNCHER=desktop` |
+| `GET /system/server-update` | answers the new `base`, `shell`, `needsShell`, `offer`; supported on `appimage`/`deb` when `CLAUDIO_LAUNCHER=desktop` (phase 1 ties it to `distribution === 'docker'` and `CLAUDIO_LAUNCHER === '1'`, `server-update.ts:133-135`) |
 | `POST /system/server-update/download` | refuses `412 update.needs-shell` (beside `412 update.needs-image`); accepts the `desktop` actor under `CLAUDIO_LAUNCHER=desktop` (D8) |
 | `POST /system/server-update/apply` | `409 update.live-work` carries `LiveWork` with `terminals`; the `desktop` actor as above |
 | `DELETE /system/server-update/scheduled`, `POST /system/server-update/revert` | the `desktop` actor as above; `revert` restarts onto the shell's bundled payload |
 | `POST /system/cli-version/install`, `DELETE …` | unchanged: docker only (the desktop uses the person's own `claude`) |
 
-The `CHAT_FORBIDDEN_SYSTEM` set (phase 1) already lists every one of these. Rows in
-`docs/rest-api.md` get the new error codes.
+The `CHAT_FORBIDDEN_SYSTEM` set (`apps/api/src/security.ts:278`) already lists every one of these.
+Rows in `docs/rest-api.md` and the summaries in `apps/api/src/openapi/routes.ts:174` get the new
+fields and error codes. Every refusal keeps phase 1's shape, `{ error, code }` (`sendRefusal`,
+`routes/server-update.ts:18`), and the web reads only `code`.
 
 ### Environment variables
 
@@ -558,7 +656,7 @@ The `CHAT_FORBIDDEN_SYSTEM` set (phase 1) already lists every one of these. Rows
 | `<resources>/shell.json` | AppImage mount / root 0444 | package | `{ version, shellInputs }`; dpkg replacing it is the `shell-replaced` marker |
 | `<resources>/server/guard.mjs` | AppImage mount / root | package | the guard (unchanged place) |
 | `~/.config/Claudio/data/app/<v>/` | the person, 0755 | server (download), shell (GC) | the unpacked payload, `manifest.json`, `manifest.json.sig` |
-| `~/.config/Claudio/data/app/state.json` | the person, 0600 | shell and server, atomic | phase 1's `{ active, previous, trial, attempts, bad, lastRollback, scheduled }` |
+| `~/.config/Claudio/data/app/state.json` | the person, 0600 | shell and server, atomic | phase 1's `LauncherState` (`protocol.ts:54`): `{ active, previous, trial, attempts, bad, lastRollback, scheduled, rollbackAudited }` |
 | `~/.cache/claudio-updater/pending/` | the person | electron-updater | downloaded shell packages (its own cache) |
 | `/var/cache/claudio/claudio_<v>_amd64.deb` | root 0644 | the copied command | the root-owned copy apt installs |
 | `/usr/share/keyrings/claudio-archive-keyring.gpg` | root 0644 | `.deb` | the apt key |
@@ -629,7 +727,7 @@ https://yeyo11.github.io/claudio/apt/
 | **A tampered payload in a user-writable dir** (an agent running as the person rewrites `~/.config/Claudio/data/app/<v>/server.mjs` or `mcp.mjs`) | Under guards, `integrity.own-state` already refuses the write (the path is in the data dir). Without guards: the shell verifies the signature and every file's sha256 **at every boot** with keys in its read-only resources, and refuses and marks bad anything that fails. Residual: a same-user process can change a file after the boot check (for example `mcp.mjs`, which each chat's CLI starts later). That gives it nothing it lacks: the same user can already edit `~/.claude/settings.json` hooks or `~/.bashrc`, which the guard protects in the same way and no more. The guard itself stays in the shell (`CLAUDIO_GUARD_ENTRY`), and its rules format is in `shellInputs` |
 | An agent edits `state.json` to point somewhere else | Phase 1's rule: paths are built from validated version strings under `<dataDir>/app`, never read from `state.json` |
 | **Ed25519 key compromise** | The key is in the protected `release` environment, `main` only. Rotation: ship the new public key in a shell (desktop) and an image (container) first, then sign with both (multi-line `.sig`), then drop the old key in the next shell. An attacker also needs to serve the release JSON (GitHub over TLS, or the person's own mirror) |
-| **apt key compromise** (the highest-impact secret: a root install on every apt user) | Same environment protection; key used only by the `apt-repo` job; revocation certificate kept offline by the owner; rotation by shipping the new key in the keyring file of a `.deb` signed by the old one, and an overlap period where `InRelease` carries both signatures. Recommended to the owner: a required reviewer on the `release` environment ([Open questions](#open-questions)) |
+| **apt key compromise** (the highest-impact secret: a root install on every apt user) | Same environment protection; key used only by the `apt-repo` job; revocation certificate kept offline by the owner; rotation by shipping the new key in the keyring file of a `.deb` signed by the old one, and an overlap period where `InRelease` carries both signatures. A required reviewer (`yeyo11`) on the `release` environment ([decision 2](#decisions-taken-by-the-owner-2026-10-18)) |
 | A freeze or replay of the apt repository | `Valid-Until` 90 days, re-signed monthly |
 | **Downgrade attacks** | Payload: only newer than the base and the running version, `bad` never retried (phase 1). AppImage: electron-updater's `allowDowngrade` stays false, and the shell refuses a desktop manifest older than itself. apt: version ordering, and `Valid-Until` |
 | A swapped `.deb` between download and `sudo` | The copied command installs a root-owned copy checked against the signed sha256 (D3) |
@@ -642,45 +740,160 @@ https://yeyo11.github.io/claudio/apt/
 
 ## Tasks
 
-The integrator launches this graph on `fix/container-polish` after phase 1 is merged and the
-[re-check](#re-check-after-phase-1) is done. **Three stages in series**:
-`payload-core · release-apt → desktop-shell · web-updates → review · docs`.
+The integrator launches this graph on PR #46's branch, `fix/container-polish-review`, where phase 1
+is merged. **Four stages in series**:
+`payload-core · release-apt · credential-check · test-tmp-hygiene → desktop-shell · tunnel-resilience → web-updates → review · docs`.
+Verification adds its own `e2e-specs` task at the end ([orchestrations.md](../orchestrations.md)).
 
-| Id | Model | Task | dependsOn | Owns | Checks |
+| Id | Task | dependsOn | Owns | Checks | Model |
 | --- | --- | --- | --- | --- | --- |
-| `payload-core` | `claude-opus-5-5` | D1, D2, D7, D8 in core and api: extract `machine.ts` if phase 1 left it inside `main.ts`; multi-key `.sig`; `minShell`/`shellInputs` in the manifest and its checks; desktop support in the overlay manager (`base`, `shell`, `needsShell`, data-dir path); the `desktop` actor rule; `LiveWork.terminals` (`core.liveWork()` counts open shells); types; the bundle script's `--shell-json` and desktop manifest | – | `packages/core/src/launcher/**`, `packages/core/src/updates/**`, the `liveWork` lines in `packages/core/src/index.ts`, `apps/api/src/routes/server-update.ts`, `apps/api/scripts/server-bundle.mjs`, the update part of `packages/shared/src/types.ts`, the generated schemas, `docs/rest-api.md` rows, their tests | `pnpm typecheck`, `pnpm test`, `openapi:schemas`; `node apps/api/scripts/server-bundle.mjs --sign-with <test key>` then a verify round trip with two keys |
-| `release-apt` | `claude-opus-5-5` | D3 packaging, D4, D5, D7 in CI: the deb scripts, `shell.json` and keys in resources, the static AppImage toolset spike, `apt-repo.yml`, `desktop.yml` signing and attestations, `release.yml` wiring and the `pages` job, `desktop-smoke.yml`, `install.sh` | – | `apps/desktop/electron-builder.yml`, `apps/desktop/build/linux/**` (new `after-install.sh`, `after-remove.sh`), the `scripts` of `apps/desktop/package.json`, `packaging/apt/**` (new: build script, `index.html`, public keyring), `.github/workflows/{desktop,release,apt-repo,desktop-smoke}.yml`, `scripts/install.sh` | `actionlint` if installed; `shellcheck scripts/install.sh packaging/apt/*.sh apps/desktop/build/linux/*.sh`; build the repo locally with a throwaway GPG key, then in `docker run debian:trixie` and `ubuntu:26.04`: add it, `apt update`, install a dummy `claudio` package, check the source and keyring, `apt purge` removes them |
-| `desktop-shell` | `claude-opus-5-5` | D1, D3, D5 switch, D6, D8 in the shell: `payload.ts` (the machine around `ServerProcess`, trial with `/api/health` and `page-ready`, exit 75, window reload, GC); `resources.ts` (keys, guard, `shell.json`); `serverEnv` additions; the updater rewrite (no pkexec, `apt-managed`, `copy-command`, `shell-replaced`, the desktop-manifest check); the switch; IPC, preload, tray, menu | `payload-core` | `apps/desktop/src/**`, `apps/desktop/test/**`, `apps/desktop/scripts/build.mjs` (only if the bundle needs it), `e2e/specs/updates-desktop.spec.mjs` | `pnpm typecheck`, `pnpm test` (desktop), `pnpm desktop:dist`, then the AppImage under `xvfb-run` with a separate config dir: a signed local payload served through `CLAUDIO_RELEASES_URL` → download → restart → page-ready → promoted; a payload whose web never renders → rolled back |
-| `web-updates` | `claude-sonnet-5-5` | the [Design](#design): the two zones, every state, the switch dialog, the remote card, copy en/es, `pageReady()` | `payload-core` | `apps/web/src/pages/config/UpdatesCard.tsx`, `apps/web/src/lib/updates.ts`, `apps/web/src/lib/desktop.ts`, the update functions in `apps/web/src/api.ts`, `locales/{en,es}/config.json` keys under `updates`, the `pageReady` call in `apps/web/src/main.tsx` | `pnpm typecheck`, `pnpm test` (web), design lint on edited files, `/ui-review /settings/updates` with a fake bridge in both themes at 1280 × 720 and 390 × 844 |
-| `review` | `claude-opus-5-5` | design, conventions, security (D3's command, D7, D8, the deb scripts), copy against the glossary; at most one test run | all four above | none (findings, or one-line fixes in owned-by-nobody places) | reads |
-| `docs` | `claude-sonnet-5-5` | `docs/desktop.md` (Installing, Updating, Where things live), `docs/updates.md` (phase 1's, extended to the desktop), `README.md` install lines, two decision records (`docs/decisions/shell-payload-updates.md`, `docs/decisions/apt-repository.md`), notes in `docs/plans/app-updates.md` and `docs/plans/container-polish.md`, `docs/status.md`, this plan's Outcome | the four implementation tasks | those files | `pnpm test` (docs tests) |
+| `payload-core` | D1, D2, D7, D8 in core and api; the installable check and the refusal codes | – | `packages/core/src/launcher/**`, `packages/core/src/updates/server-update.ts`, `packages/core/src/index.ts`, `apps/api/src/routes/server-update.ts`, `apps/api/src/security.ts`, `apps/api/scripts/server-bundle.mjs`, `packages/shared/src/types.ts`, `apps/api/src/openapi/{routes.ts,schemas.json}`, `docs/rest-api.md`, `packages/core/test/{launcher,server-update}.test.ts`, `apps/api/test/{server-update,security}.test.ts` | `pnpm typecheck`, `pnpm test`, `openapi:schemas`; `server-bundle.mjs --sign-with <test key>` then a verify round trip with two keys | `claude-opus-5-5` |
+| `release-apt` | D3 packaging, D4, D5, D7 in CI | – | `apps/desktop/electron-builder.yml`, `apps/desktop/build/linux/**`, the `scripts` of `apps/desktop/package.json`, `apps/desktop/test/packaging.test.ts`, `packaging/apt/**`, `.github/workflows/{desktop,release,server-bundle,apt-repo,desktop-smoke}.yml`, `scripts/install.sh`, `docs/decisions/apt-repository.md` | `actionlint` if installed; `shellcheck`; the apt round trip in `docker run debian:trixie` and `ubuntu:26.04` | `claude-opus-5-5` |
+| `credential-check` | the free key check, "Not confirmed" ([Carried over](#carried-over-from-phase-1)) | – | `packages/accounts/src/{cli-usage,store}.ts`, `packages/accounts/test/**`, `packages/accounts/package.json`, `pnpm-lock.yaml`, `observeSignIn` in `packages/core/src/chats.ts`, `apps/api/src/routes/accounts.ts`, `apps/web/src/pages/config/SignInSection.tsx`, `account.*` in `apps/web/src/i18n/locales/{en,es}/config.json`, `docs/accounts.md` (Checking a credential), the accounts row of `docs/cli-surfaces.md` | `pnpm typecheck`, `pnpm test` (accounts, core, api, web) | `claude-sonnet-5-5` |
+| `test-tmp-hygiene` | tests leave nothing in tmp ([Carried over](#carried-over-from-phase-1)) | – | `scripts/test-tmp.mjs`, and the leaking test files except those another stage-1 task owns (above) | `pnpm test` with the guard on | `claude-sonnet-5-5` |
+| `desktop-shell` | D1, D3, D5 switch, D6, D8 in the shell | `payload-core`, `release-apt`, `test-tmp-hygiene` | `apps/desktop/src/**`, `apps/desktop/test/**` except `packaging.test.ts`, `apps/desktop/scripts/build.mjs`, `e2e/specs/updates-desktop.spec.mjs` | `pnpm typecheck`, `pnpm test` (desktop), `pnpm desktop:dist`, the AppImage run under `xvfb-run` below | `claude-opus-5-5` |
+| `tunnel-resilience` | the tunnel survives a slow machine ([Carried over](#carried-over-from-phase-1)) | `payload-core`, `credential-check`, `test-tmp-hygiene` | `packages/core/src/tunnel.ts`, `TunnelStatus` in `packages/shared/src/types.ts` and the regenerated `schemas.json`, `packages/core/test/tunnel.test.ts`, `packages/core/test/fixtures/fake-tailscale.mjs`, `apps/web/src/pages/config/RemoteAccessTab.tsx`, `remote.*` in `locales/{en,es}/config.json`, `docs/tunnel.md` | `pnpm typecheck`, `pnpm test` (core, api, web), `openapi:schemas` | `claude-sonnet-5-5` |
+| `web-updates` | the [Design](#design): both zones, every state, not-installable, errors by code, the switch dialog, the remote card, `pageReady()` | `payload-core`, `tunnel-resilience` | `apps/web/src/pages/config/UpdatesCard.tsx`, `apps/web/src/lib/{updates,desktop}.ts`, the update functions in `apps/web/src/api.ts`, `updates.*` in `locales/{en,es}/config.json`, the `pageReady` call in `apps/web/src/main.tsx`, `apps/web/test/{updates.test.ts,server-update-view.test.tsx}`, `e2e/specs/updates.spec.mjs` | `pnpm typecheck`, `pnpm test` (web), design lint, `/ui-review /settings/updates` with a fake bridge, both themes, 1280 × 720 and 390 × 844 | `claude-sonnet-5-5` |
+| `review` | design, conventions, security (D3's command, D7, D8, the deb scripts, the key check), copy against the glossary; at most one test run | all eight above | none (findings, or one-line fixes nobody owns) | reads | `claude-opus-5-5` |
+| `docs` | `docs/desktop.md`, `docs/updates.md`, `README.md` install lines, `docs/decisions/shell-payload-updates.md`, notes in `docs/plans/{app-updates,container-polish}.md`, `docs/status.md`, this plan's Outcome | the seven implementation tasks | those files | `pnpm test` (docs tests) | `claude-sonnet-5-5` |
 
-`desktop-shell` and `web-updates` share only the IPC contract written above; the web parses it
-defensively and tests against a fake bridge. `release-apt` calls `server-bundle.mjs --shell-json`
-and the desktop-manifest flags by the contract; the integrator checks the call after the merge.
+**Who owns a shared file, in order.** `packages/shared/src/types.ts` and `schemas.json`:
+`payload-core`, then `tunnel-resilience`. `locales/{en,es}/config.json`: `credential-check`
+(`account.*`), then `tunnel-resilience` (`remote.*`), then `web-updates` (`updates.*`). Test files
+that leak: `test-tmp-hygiene`, except `packages/accounts/test/**` (`credential-check`) and
+`apps/api/test/{server-update,security}.test.ts`, `packages/core/test/{launcher,server-update}.test.ts`
+(`payload-core`), whose owners remove every directory their tests create with the pattern below,
+because `test-tmp-hygiene`'s guard fails CI on a leak. `release-apt` adds no npm dependency, so
+`pnpm-lock.yaml` is `credential-check`'s alone. `release-apt` calls `server-bundle.mjs
+--shell-json` and the desktop-manifest flags by the contract below; `review` checks the call.
+
+### Task prompts
+
+Each task's worker reads this plan, phase 1's D4 and Contracts, and the code named here first. The
+`path:line` pointers were opened on `faedba829`; the worker finds the pattern by name.
+
+**`payload-core`** (opus).
+- Extract `packages/core/src/launcher/machine.ts` from `main.ts` (`pick` `:90`, `trial` `:202`,
+  `failedTrial` `:231`, `launch` `:165`) with spawn, health, clock and files injected; `main.ts`
+  drives it around `node`. `packages/core/test/launcher.test.ts` passes unchanged.
+- In `protocol.ts`: multi-key `.sig` lines in `verifyManifest` (`:166`); `minShell`, `shellInputs`
+  in `BundleManifest` (`:38`) and `parseManifest` (`:179`); a host-neutral base in `checkOverlay`
+  (`:260`), with no `nodeAbi` check on the desktop.
+- In `ServerUpdates` (`packages/core/src/updates/server-update.ts`): desktop support in
+  `unsupportedReason` (`:132`), `keysDir` (`:127`), `image()` (`:123`); `base`, `shell`,
+  `needsShell`, `offer` in `status()` (`:150`); the installable check in `inspect()` (`:227`), also
+  at start; `412 update.needs-shell`.
+- `liveWork()` (`packages/core/src/index.ts:1991`) adds `terminals: this.terminals.running()`
+  (`packages/core/src/terminals/service.ts:257`).
+- D8 in `apps/api/src/security.ts` (`:826`, `:601`, `:864`) and `refuseNonOwner`
+  (`apps/api/src/routes/server-update.ts:7`).
+- `server-bundle.mjs`: `shellInputs()` beside `imageInputs()` (`:68`), `minShell` inherited as
+  `minImage` is (`:107`), `--shell-json <file>` and `--desktop-manifest <dir>` (the desktop
+  manifest for an AppImage and a `.deb`).
+- Routes: `GET /system/server-update`, `POST /system/server-update/{download,apply,revert}`,
+  `DELETE /system/server-update/scheduled`.
+- Patterns:
+  - a refusal with a status and a code: `ServerUpdateRefusal`, `server-update.ts:36`;
+  - pure verification importing `node:*` only: `protocol.ts:1-6`;
+  - a route's owner check: `routes/server-update.ts:7`;
+  - a test of the refusal path: `packages/core/test/server-update.test.ts:134`.
+
+**`release-apt`** (opus).
+- `apps/desktop/build/linux/after-{install,remove}.sh` from electron-builder's templates, plus the
+  source and keyring (D4). `shell.json` and `docker/keys/*.pub` into `<resources>` via
+  `electron-builder.yml`. The static AppImage toolset spike.
+- `apt-repo.yml` (Pages artifact, decision 3's redirect, recording which form works), the desktop
+  manifest signed in `desktop.yml` with `CLAUDIO_BUNDLE_SIGNING_KEY` in environment `release`,
+  attestations (also the server manifest in `server-bundle.yml`), `release.yml`'s `publish` needs
+  and the `pages` job, `desktop-smoke.yml`, `scripts/install.sh` (`sandboxRootless()`, the pinned
+  apt fingerprint `33DC4ECFD40612112D06475843E6487D3DF5098F` and the pinned Ed25519 key).
+- Every job in `release` now waits for the owner's approval (decision 2): keep the signing jobs
+  parallel so one review approves them together.
+- Patterns:
+  - signing in environment `release`, refusing to publish unsigned:
+    `.github/workflows/server-bundle.yml:74-87`;
+  - verifying against the shipped keys: `server-bundle.yml:91-105`;
+  - an attestation: `server-bundle.yml:108-111`;
+  - a draft-only upload: `.github/workflows/desktop.yml:63-79`;
+  - a reusable call and the publish gate: `.github/workflows/release.yml:102-118`;
+  - a packaging test: `apps/desktop/test/packaging.test.ts:17`.
+
+**`credential-check`** (sonnet). Files and behaviour in [Carried over](#carried-over-from-phase-1).
+- Route: `POST /accounts/:id/refresh` (`apps/api/src/routes/accounts.ts:100`), same answer shape.
+- Patterns:
+  - the free check and its two-valued answer: `checkCredential`,
+    `packages/accounts/src/cli-usage.ts:122`;
+  - recording it: `AccountStore.check`, `store.ts:354`, `confirm` `:361`, `markAuthFailed` `:380`;
+  - a run's sign-in outcome: `observeSignIn`, `packages/core/src/chats.ts:1441`;
+  - the sign-in facts and the paid button: `SignInSection.tsx:74`, `:84`, `:99`;
+  - a test that removes its tmp root: `packages/accounts/test/sign-in-state.test.ts:19`.
+
+**`test-tmp-hygiene`** (sonnet).
+- Every `mkdtemp`/`mkdtempSync` in `packages/*/test`, `apps/*/test`, `e2e/fake-cli` whose directory
+  outlives its test, except the files other stage-1 tasks own. Known leakers: prefixes
+  `claudio-test-`, `claudio-security-`, `claudio-graph-`, `claudio-fake-cli-`, `claudio-fake-login-`,
+  `claudio-restart-`, `claudio-plain-`, `claudio-push-`.
+- `scripts/test-tmp.mjs` already points `TMPDIR` at a run dir and removes it (`:23-41`), so the
+  leaks come from runs outside it (a worker's direct `tsx --test`). The guard: before removing the
+  run dir, list any `claudio-*` directory left in it, print it, and exit non-zero under `CI`
+  (locally a warning).
+- Patterns:
+  - a suite-level cleanup: `packages/accounts/test/sign-in-state.test.ts:19`
+    (`after(() => rmSync(root, …))`);
+  - the wrapper's cleanup: `scripts/test-tmp.mjs:36-41`.
+
+**`desktop-shell`** (opus).
+- `apps/desktop/src/payload.ts` (new): the machine around `ServerProcess`, trial with
+  `/api/health` (open under every auth mode, `apps/api/src/security.ts:18`) and
+  `claudio:page-ready`, exit 75, reload, GC.
+- `resources.ts` (`:22`): keys, guard, `shell.json`. `serverEnv` (`server-process.ts:42`):
+  `CLAUDIO_LAUNCHER=desktop` and the [environment](#environment-variables).
+- `updater.ts`: no pkexec; `apt-managed`, `copy-command`, `shell-replaced`; the desktop-manifest
+  check. The switch; `ipc.ts`, `preload.ts`, `tray.ts`, `menu.ts`.
+- Patterns:
+  - an injected engine with its fake: `DesktopUpdater`, `apps/desktop/src/updater.ts:152`;
+  - the live-work decision: `installDecision`, `updater.ts:350`;
+  - the server child and its `READY` line: `server-process.ts:76`, crash at `:129`;
+  - IPC only from the local page: `main.ts:212`, `:499-502`;
+  - a test of a refused case: `apps/desktop/test/updater.test.ts:103`.
+
+**`tunnel-resilience`** (sonnet). Files and behaviour in [Carried over](#carried-over-from-phase-1).
+- `TunnelStatus.checking` (types, after `payload-core`). The private in-flight flag already called
+  `checking` (`tunnel.ts:257`) is renamed (`probing`) so the two do not read alike.
+- Patterns:
+  - the timing knobs: `tunnel.ts:45-50`;
+  - the CLI call: `runCli`, `:128`;
+  - the monitor: `check`, `:574`;
+  - the destructive end: `giveUp`, `:610`;
+  - a localized reason: `REASONS`, `:98`;
+  - a test against the fake CLI: `packages/core/test/tunnel.test.ts:124`;
+  - the tab's reason rendering: `RemoteAccessTab.tsx:225`.
+
+**`web-updates`** (sonnet). Load `claudio-ui`.
+- One renderer, two sources: `ServerUpdateView` (`UpdatesCard.tsx:423`) stays the state renderer;
+  `ServerUpdate` (`:341`) wires it to `api.*`, and a desktop wiring sends the same callbacks through
+  `bridge.payload(action)`. The status query, today only `inContainer` (`:47`), also runs when
+  `distribution` is `appimage`/`deb`.
+- `LiveWork` in `apps/web/src/lib/updates.ts:20` (a copy of shared's) gains `terminals`.
+- Patterns:
+  - defensive parsing of the bridge: `parseUpdateState`, `lib/updates.ts:38`;
+  - the optional bridge: `DesktopUpdatesBridge`, `lib/desktop.ts:38`;
+  - a state test from fixtures: `apps/web/test/server-update-view.test.tsx:69`.
+- New tests: a release without a bundle (`offer.blocked: 'no-bundle'`) shows no download button
+  and the sentence; an `update.*` refusal shows its translated text, never `error`.
+
+**`review`** (opus) and **`docs`** (sonnet): as in the table; `docs` leaves `docs/accounts.md`,
+`docs/cli-surfaces.md`, `docs/tunnel.md` and `docs/decisions/apt-repository.md` to their tasks.
 
 ### Rules for every task
 
 Phase 1's [rules](container-polish.md#rules-for-every-task) apply unchanged. And:
 
 1. Read phase 1's plan, D4 and Contracts, and the code it produced, before changing it.
-2. Security-sensitive code (`launcher/**`, verification, the deb scripts, signing steps) gets a
+2. Security-sensitive code (`launcher/**`, verification, the deb scripts, signing steps, D8) gets a
    comment saying what it defends against, and a test for the refusal path, not only the happy path.
 3. Never run `sudo` on the worker's host; the `.deb` and apt checks run inside `docker run`.
-
-### Patterns to follow
-
-- A state machine with an injected engine and its fake: `DesktopUpdater` at
-  `apps/desktop/src/updater.ts:152-305`, tested against a fake engine.
-- The live-work decision: `apps/desktop/src/updater.ts:350-358`.
-- The server child and its `READY` line: `apps/desktop/src/server-process.ts:76-150`.
-- IPC accepted only from the local page: `apps/desktop/src/main.ts:211-215,497-503`.
-- A draft-only upload: `.github/workflows/desktop.yml:57-75`; a reusable workflow call:
-  `.github/workflows/release.yml:89-97`.
-- The card's defensive parsing and route choice: `apps/web/src/lib/updates.ts` (`parseUpdateState`,
-  `updateRoute`).
-- electron-builder's deb scripts to extend: `app-builder-lib/templates/linux/after-install.tpl`,
-  `after-remove.tpl`.
+4. Remove every directory your tests create.
 
 ## Owner actions before the merge
 
@@ -696,7 +909,7 @@ Done on 2026-10-18 by the owner's session, at the owner's request:
    task records the fingerprint in `docs/decisions/apt-repository.md` and pins it in `install.sh`.
 2. **GitHub Pages**: enabled with source **GitHub Actions** (`https://yeyo11.github.io/claudio/`);
    the `github-pages` environment's deployment branch policy allows `main` only.
-3. **Decide the [open questions](#open-questions)**.
+3. **The open questions**: decided ([Decisions taken by the owner](#decisions-taken-by-the-owner-2026-10-18)).
 4. **Migrating this machine**: the installed 0.6.x takes the first phase-2 release through its
    existing updater (one last `pkexec` password) or `sudo apt install ./Claudio-<v>-amd64.deb`; the
    new postinst registers the repository, and from then on apt handles the shell and the app the
@@ -738,7 +951,7 @@ Done on 2026-10-18 by the owner's session, at the owner's request:
   bandwidth (≈ 750 `.deb` downloads). If either bites, move the pool to a hosted service and
   rewrite the source's `URIs:` in the next postinst. Whether an artifact deployment takes a 129 MB
   file is unverified: `release-apt` checks it first with a `workflow_dispatch` deployment; if
-  refused, the owner chooses the fallback ([Open questions](#open-questions)).
+  refused, the fallback is the one in [decision 3](#decisions-taken-by-the-owner-2026-10-18).
 - **A broken monthly re-sign** expires the repository after 90 days and `apt update` warns for
   every user. The workflow fails loudly; the window is long.
 - **The static AppImage runtime is beta** in electron-builder 26.15.3. Fallback: the legacy toolset
@@ -780,30 +993,74 @@ same day found that no free CLI surface tells a bad credential from a good one: 
 says `loggedIn: true` whenever the variable exists; `initialize` answers the same `account`
 (`tokenSource` and `apiProvider` only) and the same model list for an invalid OAuth token, an
 invalid API key, no credential and a valid login; `get_usage` answers `rate_limits_available:
-false` for all of them. The owner rejected an automatic paid test message, so:
+false` for all of them.
 
-- **An API key** (in the environment or saved in Claudio) is checked with the vendor's official SDK,
-  `@anthropic-ai/sdk` `models.list()` (documented, free, answers 401 for a bad key), when the key
-  is new or changed (a sha256 of the value stored in the data dir, never the value) and on
-  **Check** in Settings. This is "the vendor's official SDK" of CLAUDE.md's one rule; the SDK is
-  used for this check only, never to drive the agent. A 401 marks the account as a failed run
-  does (`authFailedAt`, `signInState: 'expired'`); a network error changes nothing.
+**What phase 1 already built** (checked on `faedba829`; not redone):
+
+- The free check is `get_usage`: `checkCredential` (`packages/accounts/src/cli-usage.ts:122`)
+  answers `valid` (the plan's limits came back) or `unknown`, and `AccountStore.check`
+  (`store.ts:354`) records `valid` through `confirm` (`:361`, clears `authFailedAt`, sets
+  `checkedAt`).
+- It runs beside every provider refresh, at most every 30 minutes for the account in use
+  (`checkAccountInUse`, `packages/core/src/index.ts:3438`); the throttle is reset when a credential
+  is saved, cleared or signed in (`setCredentials` `:2058`, `defaultSignedIn` `:2068`,
+  `clearCredentials` `:2076`). Nothing paid runs on a refresh.
+- An in-app login is confirmed when it completes (`defaultSignedIn` → `accounts.confirm`).
+- A run that fails at authentication marks the account (`observeSignIn`,
+  `packages/core/src/chats.ts:1441` → `markAuthFailed`, `store.ts:380`).
+- The paid check is `POST /auth/verify` (`verifyAuth`, `index.ts:2161`), the button labelled
+  **Send a test message** with "Sends one short message, which counts against the plan."
+  (`SignInSection.tsx:99`, `account.testMessage`/`account.testHint` in `config.json`). It is only
+  ever pressed by the person.
+- Settings shows "Checked {{ago}}" or "Not checked yet" (`SignInSection.tsx:84`), but its tag says
+  **Signed in** (`:74`) for any credential not marked expired, an unconfirmed environment token
+  included.
+
+**What `credential-check` adds** (sonnet):
+
+- **An API key is checked with the vendor's official SDK**: `@anthropic-ai/sdk`
+  `models.list({ limit: 1 })` (documented, free, `401` for a bad key). This is "the vendor's
+  official SDK" of CLAUDE.md's one rule, used for this check only, never to drive the agent.
+  - Where: `checkCredential` gains a third answer, `refused`, and for an account whose runs get
+    `ANTHROPIC_API_KEY` (an `api-key` account, or the default account when the variable or
+    Claudio's stored key is set; `packages/accounts/src/env.ts`) it calls `models.list` instead
+    of `get_usage`.
+  - `200` is `valid` (`confirm`). `401` is `refused` and goes through `markAuthFailed`
+    (`signInState: 'expired'`), as a failed run does. A network error or any other status is
+    `unknown` and changes nothing.
+  - Skipped (`unknown`) when `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK` or
+    `CLAUDE_CODE_USE_VERTEX` is set: the key is then not Anthropic's to judge.
+  - When: the existing hook (`checkAccountInUse`, unchanged), and on **Check**. A changed key is
+    re-checked at once: the store keeps `checkedFingerprint`, a sha256 of the value (never the
+    value), beside `checkedAt` in the accounts JSON, and an account whose key no longer matches it
+    lists `checkedAt: null`.
+  - **Check** in Settings → Sign-in, shown for a key in place of **Send a test message**, calls
+    `POST /accounts/:id/refresh`, which for a key account now also runs `accounts.check(id)` (same
+    answer shape; `refused` answers the account as `expired`).
 - **An OAuth token from the environment** (`CLAUDE_CODE_OAUTH_TOKEN`) has no free documented check,
-  and claude.ai's internal endpoints are out (the one rule). It is shown as **Not confirmed** with
-  the sentence "Claudio confirms it with the first chat", never as signed in. The first run
-  settles it: an invalid token is refused at authentication, before any token is generated, so it
-  costs nothing and marks the account expired (phase 1's run-failure path); a run that succeeds
-  confirms it (`checkedAt`).
-- **A login made in the app** is confirmed by `get_usage` returning the plan's limits when it does,
-  as phase 1 built; otherwise the same "Not confirmed until the first chat".
-- **Check** in Settings never sends a message on its own: for a key it runs `models.list()`; for an
-  OAuth credential it offers **Send a test message** (phase 1's paid `/auth/verify`) as an explicit,
-  labelled choice with its cost stated.
-- Owned by a small stage-1 task `credential-check` (sonnet): `packages/core/src/cli.ts`,
-  `packages/accounts/src/**` (the check and the state), `packages/core/src/index.ts` (start-up hook),
-  the `@anthropic-ai/sdk` dependency in `packages/accounts/package.json`, web copy for "Not
-  confirmed" in `apps/web/src/i18n/locales/{en,es}/accountsConfig.json` and `config.json`, tests
-  with a fake SDK transport (401, 200, network error).
+  and claude.ai's internal endpoints are out (the one rule).
+  - While `checkedAt` is null its tag reads **Not confirmed** (neutral `Tag`, no status colour),
+    with "Claudio confirms it with the first chat." in place of "Not checked yet". Never "Signed
+    in".
+  - The first run settles it. An invalid token is refused at authentication, before any token is
+    generated, so it costs nothing and marks the account expired (phase 1's path). A turn that
+    succeeds on an account with `checkedAt: null` now confirms it: `observeSignIn` calls
+    `confirm`.
+  - **Send a test message** stays offered beside it, labelled with its cost, as phase 1 built.
+- A login made in the app needs nothing new.
+- Copy (en/es, `account.*` in `config.json`): `notConfirmed` "Not confirmed" · "Sin confirmar";
+  `confirmsOnFirstChat` "Claudio confirms it with the first chat." · "Claudio la confirmará con el
+  primer chat."; `check` "Check" · "Comprobar"; `checking` "Checking…" · "Comprobando…"; `keyRefused`
+  "The API key was refused. Enter a new one." · "Se ha rechazado la clave de API. Introduce una
+  nueva."
+- Files: `packages/accounts/src/{cli-usage,store}.ts`, `packages/accounts/package.json`
+  (`@anthropic-ai/sdk`), `pnpm-lock.yaml`, `observeSignIn` in `packages/core/src/chats.ts`,
+  `apps/api/src/routes/accounts.ts`, `apps/web/src/pages/config/SignInSection.tsx`, `account.*` in
+  `apps/web/src/i18n/locales/{en,es}/config.json`, `docs/accounts.md` (Checking a credential) and
+  the accounts row of `docs/cli-surfaces.md`.
+- Tests: a fake SDK transport (the SDK's `fetch` option) answering 401, 200 and a network error; a
+  changed key re-checked; an environment OAuth token listed unconfirmed until a turn succeeds.
+  Phase 1's fixtures stay. `packages/core/src/index.ts` is not touched: `payload-core` owns it.
 
 **The tunnel survives a slow machine** (owner, 2026-10-18). On 2026-10-18 at 11:55 UTC the desktop's
 tunnel closed itself with an error while Tailscale was fine: the machine was at 97 % CPU (two
@@ -826,47 +1083,85 @@ monitor probes (`monitorMs` 30 s, `commandTimeoutMs` 10 s, `maxMisses` 2,
 - **It comes back on its own.** A tunnel that failed because Tailscale was down or signed out, and
   that the person had started (`wanted` was true), is started again when a later probe finds
   Tailscale ready, with an audit row; a tunnel the person stopped never restarts.
-- Owned by a small stage-1 task `tunnel-resilience` (sonnet): `packages/core/src/tunnel.ts`, its
-  types (`TunnelStatus.checking`), `packages/core/test/tunnel.test.ts` with
-  `packages/core/test/fixtures/fake-tailscale.mjs` gaining a delay knob (slow answers keep the
-  tunnel; a signed-out answer closes it; recovery restarts it), the Remote access card's copy in
-  `apps/web/src/i18n/locales/{en,es}/config.json`, and `docs/tunnel.md`.
+- Owned by the stage-2 task `tunnel-resilience` (sonnet; after `payload-core` for `types.ts`,
+  after `credential-check` for `config.json`, after `test-tmp-hygiene` for the tunnel tests):
+  - `packages/core/src/tunnel.ts` (`runCli` `:128` tells a timeout apart; `check` `:574`, `giveUp`
+    `:610`);
+  - `TunnelStatus.checking` in `packages/shared/src/types.ts` and the regenerated schemas;
+  - `packages/core/test/tunnel.test.ts`, with `packages/core/test/fixtures/fake-tailscale.mjs`
+    gaining a delay knob (slow answers keep the tunnel; a signed-out answer closes it; recovery
+    restarts it);
+  - `apps/web/src/pages/config/RemoteAccessTab.tsx` and `remote.*` in
+    `apps/web/src/i18n/locales/{en,es}/config.json` ("Checking…" · "Comprobando…"; "Tailscale is
+    not answering" · "Tailscale no responde");
+  - `docs/tunnel.md`.
 
 **Tests leave nothing in `/tmp`** (found 2026-10-18). After phase 1's runs, `/tmp` held 301
 directories (167 MB) that tests created and never removed: `claudio-test-*`, `claudio-security-*`,
 `claudio-graph-*`, `claudio-fake-cli-*`, `claudio-fake-login-*`, `claudio-restart-*`,
-`claudio-plain-*`, `claudio-push-*`. Owned by a small stage-1 task `test-tmp-hygiene` (sonnet): find
-each `mkdtemp`/`mkdtempSync` in `packages/*/test`, `apps/*/test` and `e2e/fake-cli` whose directory
-outlives the test (no `t.after`/`after` removal, or removal skipped on failure), clean it up with the
-pattern the suites already use, and make `scripts/test-tmp.mjs` fail a run that leaves a new
-`claudio-*` directory in its tmp root, so the leak cannot come back.
+`claudio-plain-*`, `claudio-push-*`. Every package's `test` script already runs through
+`scripts/test-tmp.mjs`, which points `TMPDIR` at a run directory and removes it, so these came from
+runs outside it (a worker's `tsx --test <file>`). Owned by the stage-1 task `test-tmp-hygiene`
+(sonnet):
+- find each `mkdtemp`/`mkdtempSync` in `packages/*/test`, `apps/*/test` and `e2e/fake-cli` whose
+  directory outlives the test (no `t.after`/`after` removal, or removal skipped on failure), except
+  in files a stage-1 sibling owns ([Tasks](#tasks));
+- clean it up with the pattern the suites already use;
+- make `scripts/test-tmp.mjs` list any `claudio-*` directory left in the run directory before it
+  removes it: a warning locally, a failure under `CI`. The leak cannot come back unnoticed.
 
-## Re-check after phase 1
+## Checked against phase 1 (2026-10-18)
 
-The integrator verifies each against the merged phase-1 code before launching, and corrects this
-plan (or the task prompts) where it differs:
+Against `faedba829` on `fix/container-polish-review` (phase 1 merged, CI green). Corrections are
+already in the sections above.
 
-1. Is the launcher's state machine separable from `packages/core/src/launcher/main.ts`, with spawn,
-   health, clock and files injectable? If not, `payload-core` extracts it first, with phase 1's
-   launcher tests unchanged.
-2. The exact names: `RESTART_EXIT_CODE`, `verifyManifest`, `verifyFiles`, the `state.json` type, the
-   manifest type, `isOwnerActor`, `core.liveWork()`, `CHAT_FORBIDDEN_SYSTEM`.
-3. Does the manifest parser reject unknown fields or `schema` ≠ 1? Decides `schema: 1` vs `2`.
-4. Does `.sig` verification accept only one bare line? The multi-key format must keep it valid.
-5. Is the overlay path built from `CLAUDIO_DATA_DIR` or hard-coded `/data`? Is "supported" tied to
-   `CLAUDIO_LAUNCHER === '1'` and `distribution === 'docker'`? Both must widen.
-6. Does the overlay's tarball contain `server.mjs` as well as `api.mjs`, and `node_modules/node-pty`
-   and `@number0` with their N-API binaries? If `server.mjs` is excluded, `payload-core` adds it.
-7. The phase-1 `ServerUpdateStatus` fields as built (`image`, `source`, `needsImage`) and the
-   `unsupportedReason` values; `LiveWork` as exported.
-8. Is `/api/health` answered without credentials on the desktop's loopback under every auth mode
-   the desktop allows?
-9. Is the Updates card's container branch built so a desktop branch can share its states (one state
-   renderer, two sources)?
-10. Did `server-bundle.yml` sign in environment `release` with `actions/attest-build-provenance`, and
-    is `publish` already waiting on it? The desktop and apt jobs follow the same pattern.
-11. Did phase 1 release? If not, renaming `not-docker` and `image` to host-neutral names is free and
-    the integrator may do it in `payload-core`.
+1. **Machine not separable.** `pick`/`trial`/`failedTrial`/`launch` in `launcher/main.ts` call
+   `spawn`, `fetch`, `node:fs` and `Date` directly; only `protocol.ts` is pure. `payload-core`
+   extracts `machine.ts` ([D1](#d1-shell-and-payload-one-mechanism)).
+2. **Names.** `RESTART_EXIT_CODE` (75), `verifyManifest`, `verifyFiles`, `checkOverlay`,
+   `parseManifest`, `BundleManifest`, `LauncherState` (with an extra `rollbackAudited`),
+   `ImageInfo`, `MANIFEST_FILE`/`SIGNATURE_FILE` in `launcher/protocol.ts`. `isOwnerActor` and
+   `CHAT_FORBIDDEN_SYSTEM` in `apps/api/src/security.ts` (`:725`, `:278`, all four update writes
+   listed). The owner check is `refuseNonOwner` in `routes/server-update.ts`, and `core.liveWork()`
+   is at `index.ts:1991`.
+3. **Manifest parser.** Rejects `schema !== 1` and drops unknown fields: `schema` stays `1`.
+4. **`.sig`.** One bare base64 line only; a keyId line fails. Changed (free: nothing shipped).
+5. **Paths and support.** The overlay root is `<dataDir>/app` in both server and launcher (good).
+   Support is tied to `distribution === 'docker'` and `CLAUDIO_LAUNCHER === '1'`, and `image.json`
+   and keys default to `/app`: widened for `CLAUDIO_LAUNCHER=desktop`.
+6. **Tarball.** All of `apps/api/dist` minus `guard.mjs` and `launcher.mjs`, plus `web/`:
+   `server.mjs` and both N-API modules are in it. But it is built in the image's build stage on
+   Node 26, so `nodeAbi` never equals Electron's. The desktop checks `minShell`, not `nodeAbi`
+   ([Contracts](#shared-types-packagessharedsrctypests)). The Docker context includes
+   `apps/desktop`, so `shellInputs` can be computed there.
+7. **Status as built.** `unsupportedReason`, `image`, `running`, `source: 'image' | 'overlay'`,
+   `state`, `target`, `progress`, `error`, `needsImage`, `lastRollback`. `LiveWork` has no
+   `terminals` and is copied in `apps/web/src/lib/updates.ts:20`.
+8. **`/api/health`** is in `OPEN` (`security.ts:18`): answered without credentials or host check
+   under every mode.
+9. **Card.** `ServerUpdateView` is already a pure renderer with callbacks, so the desktop shares it.
+   Its query runs only `inContainer`. Failures go through `ErrorBox`, which prints the server's
+   English text.
+10. **CI.** `server-bundle.yml` signs in `release` (`CLAUDIO_BUNDLE_SIGNING_KEY`), verifies against
+    `docker/keys`, and attests the tarball but not the manifest. `publish` needs
+    `[please, release, desktop, server-bundle]`. Since decision 2, every `release` job waits for
+    the owner.
+11. **Not released.** `v0.6.1` on `main` has no launcher; PR #46 holds both phases. The names are
+    kept anyway ([Contracts](#shared-types-packagessharedsrctypests)).
+12. **D8 gaps.** Under `none` the hook never reads the desktop credential. The desktop credential
+    only reads. `refuseNonOwner` refuses under `none` first. Three widenings
+    ([D8](#d8-who-may-update-a-payload-on-the-desktop)).
+13. **Owner's test** (phase-1 image, phone): 0.6.1 has no bundle, yet the card offered "Descargar
+    Claudio 0.6.1". The press failed with the raw "the release 0.6.1 has no server bundle". Hence
+    `offer` and the errors by code ([Contracts](#shared-types-packagessharedsrctypests),
+    [Design](#settings--general--updates-in-the-desktop-window)).
+14. **Credentials.** Phase 1 already removed the paid check from refreshes and labels it "Send a
+    test message"; `credential-check` only adds the key check and "Not confirmed"
+    ([Carried over](#carried-over-from-phase-1)).
+15. **Tunnel.** `tunnel.ts` already has a private `checking` flag (an in-flight guard), renamed so
+    the new public field is unambiguous.
+16. **Tmp.** `scripts/test-tmp.mjs` already isolates `TMPDIR` per run; the leaks come from direct
+    `tsx --test` runs ([Carried over](#carried-over-from-phase-1)).
 
 ## Related
 
