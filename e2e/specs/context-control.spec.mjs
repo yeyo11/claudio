@@ -168,6 +168,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
 
     // ---------- phone width: sheets and 44 px targets ----------
     await page.viewport(420, 900);
+    // A phone is a touch screen: targets are sized by the pointer, not by the window's width
+    await page.emulateTouch(true);
     await open(id);
     await page.click('main .chat-head button[aria-label="Chat details"]', undefined, 800);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .insp-context-actions')`, { label: 'the details sheet' });
@@ -203,6 +205,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await closeDialog();
   } finally {
     await page.viewport(1440, 900).catch(() => {});
+    await page.emulateTouch(false).catch(() => {});
     await page.key('Escape').catch(() => {});
     writeFileSync(join(dirs.workspaceDir, 'ctx-work.hold'), '');
     for (const chat of started) {
