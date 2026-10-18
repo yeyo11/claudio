@@ -178,15 +178,17 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const bad = [...sheet.querySelectorAll('button:not([disabled]), label.check')].filter((b) => b.getClientRects().length).map((b) => { const r = b.getBoundingClientRect(); return { text: b.textContent.trim().slice(0, 30), h: Math.round(r.height), w: Math.round(r.width) }; }).filter((r) => r.h < 44 || r.w < 44);
       return { bad };`);
     check(small.bad.length === 0, `the panel’s targets are 44 px on a phone (${JSON.stringify(small.bad)})`);
-    // The 44 px is a switch's invisible hit box: the track drawn inside stays a 34 × 20 pill, never a round blob
-    const tracks = await page.eval(`
+    // The 44 px is a switch's invisible hit box: the track drawn inside stays a 34 × 20 pill, never a
+    // round blob. The sandbox's chat may have no server to switch, so one is placed in the sheet to measure
+    const track = await page.eval(`
       const sheet = [...document.querySelectorAll('[role=dialog]')].pop();
-      return [...sheet.querySelectorAll('[role=switch]')].filter((s) => s.getClientRects().length).map((s) => {
-        const t = getComputedStyle(s, '::before'); const r = s.getBoundingClientRect();
-        const w = r.width - parseFloat(t.left) - parseFloat(t.right); const h = r.height - parseFloat(t.top) - parseFloat(t.bottom);
-        return { w: Math.round(w), h: Math.round(h) };
-      });`);
-    check(tracks.length > 0 && tracks.every((t) => t.w >= 30 && t.w <= 40 && t.h >= 16 && t.h <= 24), `every switch in the sheet keeps its 34 × 20 track (${JSON.stringify(tracks)})`);
+      const s = document.createElement('button'); s.type = 'button'; s.className = 'switch'; s.setAttribute('role', 'switch');
+      sheet.appendChild(s);
+      const t = getComputedStyle(s, '::before'); const r = s.getBoundingClientRect();
+      const out = { w: Math.round(r.width - parseFloat(t.left) - parseFloat(t.right)), h: Math.round(r.height - parseFloat(t.top) - parseFloat(t.bottom)) };
+      s.remove();
+      return out;`);
+    check(track.w >= 30 && track.w <= 40 && track.h >= 16 && track.h <= 24, `a switch in the sheet keeps its 34 × 20 track (${JSON.stringify(track)})`);
     await page.key('Escape');
     await page.waitFor(`return !document.querySelector('.ctx-breakdown')`, { label: 'the panel closed' });
     await page.key('Escape');
