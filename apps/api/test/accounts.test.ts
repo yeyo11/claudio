@@ -353,8 +353,23 @@ test('refreshing one account answers it, and an unknown one is a 404', async () 
 
 test('an api-key account refreshes to a reading that says it has no subscription limits', async () => {
   const created = await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'a-key', secret: 'sk-ant-api-r' }) });
-  const res = await app.inject({ method: 'POST', url: `/api/accounts/${created.json<Account>().id}/refresh` });
-  assert.equal(res.json<Account>().limits?.cli?.available, false);
+  // The key itself is asked of Anthropic: a test never reaches the network
+  const original = core.accounts.check.bind(core.accounts);
+  const asked: string[] = [];
+  core.accounts.check = (async (id: string) => {
+    asked.push(id);
+    await core.accounts.markAuthFailed(id);
+    return 'refused';
+  }) as typeof core.accounts.check;
+  try {
+    const id = created.json<Account>().id;
+    const res = await app.inject({ method: 'POST', url: `/api/accounts/${id}/refresh` });
+    assert.equal(res.json<Account>().limits?.cli?.available, false);
+    assert.deepEqual(asked, [id], 'a key account is checked on refresh');
+    assert.equal(res.json<Account>().signInState, 'expired', 'a refused key answers the account as expired');
+  } finally {
+    core.accounts.check = original;
+  }
 });
 
 test('a sign-in nobody finishes in time ends as expired, not cancelled, and an account that never signed in goes', async () => {
