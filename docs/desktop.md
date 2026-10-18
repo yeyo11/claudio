@@ -385,7 +385,7 @@ release workflow uses a GitHub App token (`vars.RELEASE_APP_ID`, `secrets.RELEAS
 when the app is configured, so the release pull request runs CI like any other; without it the
 workflow falls back to `GITHUB_TOKEN`, releases still publish, and only that pull request's checks
 must be started by hand. Before `v0.1.0` was published, `scripts/install.sh` had nothing to download;
-releases have been published since (`v0.1.0` to `v0.5.1`).
+every release since is listed in [CHANGELOG.md](../CHANGELOG.md).
 
 You can also run the **Desktop** workflow by hand from the Actions tab. With no tag it only builds
 and keeps the packages as the `claudio-linux` run artifact, which is a way to try a change before a
