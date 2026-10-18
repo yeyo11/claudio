@@ -251,7 +251,7 @@ export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { MCP_ENTRY_ENV, type ClaudioMcpLaunch } from './claudio-mcp.ts';
 export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
 export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
-export type { PeerLook, PeerVerdict } from './terminals/peer.ts';
+export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE, readDataDirLock, type DataDirLock, type DataDirLockHolder } from './data-dir-lock.ts';

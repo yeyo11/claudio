@@ -1,11 +1,8 @@
 import { readFileSync, readdirSync, readlinkSync } from 'node:fs';
-import { setTimeout as delay } from 'node:timers/promises';
-import { agentRunProcesses, claudioChildren, descendantsOf, processTable, type ProcessEntry } from '../processes.ts';
+import { AGENT_RUN_ENV } from '../processes.ts';
 
 /** `agent`: the connection belongs to a chat's process or one of its descendants. `unknown` is not "not an agent". */
 export type PeerVerdict = 'agent' | 'not-agent' | 'unknown';
-/** One synchronous look: a verdict, or `exiting` when a process caught exiting stood in the way, which a look a moment later may settle */
-export type PeerLook = PeerVerdict | 'exiting';
 
 export interface PeerSocket {
   /** The client's address as the server's socket reports it (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`) */
@@ -16,102 +13,75 @@ export interface PeerSocket {
   serverPort: number;
 }
 
-/** How long the table of chat processes is trusted: building it reads a file per process */
-const CHATS_TTL_MS = 1000;
-
-/** The inode of the socket whose local port is `local` and remote port `remote`, in one of the kernel's tcp tables */
-function inodeOf(table: string, local: number, remote: number): string | null {
-  let text: string;
-  try {
-    text = readFileSync(table, 'utf8');
-  } catch {
-    return null;
-  }
-  for (const line of text.split('\n').slice(1)) {
-    const fields = line.trim().split(/\s+/);
-    const localPort = Number.parseInt(fields[1]?.split(':')[1] ?? '', 16);
-    const remotePort = Number.parseInt(fields[2]?.split(':')[1] ?? '', 16);
-    const inode = fields[9];
-    if (localPort === local && remotePort === remote && inode && inode !== '0') return inode;
-  }
-  return null;
-}
-
-/** How `/proc` is read for one process: the names in its descriptor directory, and its `stat` line. A test gives its own. */
+/** How `/proc` is read: the processes, one's descriptors, its `stat` line and its environment. A test gives its own. */
 export interface ProcReader {
+  pids(): number[];
   fds(pid: number): string[];
   link(pid: number, fd: string): string;
   stat(pid: number): string;
+  environ(pid: number): string;
 }
 
 const procReader: ProcReader = {
+  pids: () => readdirSync('/proc').filter((name) => /^\d+$/.test(name)).map(Number),
   fds: (pid) => readdirSync(`/proc/${String(pid)}/fd`),
   link: (pid, fd) => readlinkSync(`/proc/${String(pid)}/fd/${fd}`),
   stat: (pid) => readFileSync(`/proc/${String(pid)}/stat`, 'utf8'),
+  environ: (pid) => readFileSync(`/proc/${String(pid)}/environ`, 'utf8'),
 };
 
-/** The kernel's flag for a task inside `do_exit`, in the ninth field of its `stat` line */
-const PF_EXITING = 0x4;
-/**
- * How many looks `verdict` makes while a process caught exiting is to blame, before it answers
- * unknown. Counted, not timed: on a loaded machine one look (the process table and every chat's
- * descriptors) took over 500 ms on its own, and a budget of time was spent before a second look was
- * ever made, so the person was refused for a process that finished a moment later.
- */
-const SETTLE_LOOKS = 25;
-/** Between two looks: a process's exit takes milliseconds, and each look reads /proc again */
-const SETTLE_STEP_MS = 20;
-
-/** The fields of a `stat` line after the command name, which may itself contain spaces and parentheses */
-const statFields = (stat: string): string[] => stat.slice(stat.lastIndexOf(')') + 2).split(' ');
-
-/** Whether a process has ended and only waits to be reaped: it holds no descriptors, and the kernel refuses to list them (EACCES) */
-function finished(proc: ProcReader, pid: number): boolean {
-  try {
-    const state = statFields(proc.stat(pid))[0];
-    return state === 'Z' || state === 'X';
-  } catch {
-    return true;
-  }
-}
+/** The variables that mark a process as a chat's, or as one Claudio started to run an agent's code */
+const AGENT_MARKS = ['CLAUDIO_CHAT_ID=', `${AGENT_RUN_ENV}=`];
+/** A bound on the ancestry walk, against a `stat` that reads a cycle */
+const MAX_DEPTH = 512;
 
 /**
- * Whether a process is on its way out: between the start of its exit and becoming a zombie, the
- * kernel already refuses to list its descriptors (EACCES) while its state still reads running. That
- * lasts milliseconds, and it is the one refusal that clears up on its own.
+ * The inodes of the client's socket: the row whose local port is the client's and whose remote port
+ * is the server's. Both tables are read whatever the address says, since a dual-stack listener sees
+ * an IPv4 client as `::ffff:…` and that socket is in `tcp`, not `tcp6`. `null` when neither table can
+ * be read at all.
  */
-function exiting(proc: ProcReader, pid: number): boolean {
-  try {
-    return (Number(statFields(proc.stat(pid))[6]) & PF_EXITING) !== 0;
-  } catch {
-    return false;
+function socketInodes(local: number, remote: number): Set<string> | null {
+  const found = new Set<string>();
+  let readable = false;
+  for (const table of ['/proc/net/tcp', '/proc/net/tcp6']) {
+    let text: string;
+    try {
+      text = readFileSync(table, 'utf8');
+      readable = true;
+    } catch {
+      continue;
+    }
+    for (const line of text.split('\n').slice(1)) {
+      const fields = line.trim().split(/\s+/);
+      const localPort = Number.parseInt(fields[1]?.split(':')[1] ?? '', 16);
+      const remotePort = Number.parseInt(fields[2]?.split(':')[1] ?? '', 16);
+      const inode = fields[9];
+      if (localPort === local && remotePort === remote && inode && inode !== '0') found.add(inode);
+    }
   }
+  return readable ? found : null;
 }
-
 
 /**
  * Which process opened a loopback connection, as far as it matters: whether it is a chat's, or one
- * Claudio started on an agent's behalf (`CLAUDIO_AGENT_RUN`). Under
- * `mode: none` an agent that calls the API with no token looks exactly like the person's browser,
- * and this is the one thing that tells them apart (docs/plans/terminal.md, §3.5). Linux only.
+ * Claudio started on an agent's behalf (`CLAUDIO_AGENT_RUN`). Under `mode: none` an agent that calls
+ * the API with no token looks exactly like the person's browser, and this is the one thing that tells
+ * them apart (docs/plans/terminal.md, §3.5). Linux only.
  *
- * It finds the client's socket inode in `/proc/net/tcp{,6}` and looks for it among the descriptors of
- * the chats' processes and their descendants only: scanning every process costs 30 to 40 ms on a
- * desktop, and a holder outside those trees is not an agent either way. Where something cannot be
- * read the answer is `unknown`, and the gate decides what to do with it.
+ * It finds the client's socket inode in `/proc/net/tcp{,6}`, the processes that hold it among every
+ * `/proc/<pid>/fd`, and walks each holder's ancestry for an agent's mark in the environment. `not-agent`
+ * is only ever said of a holder that was found and walked; a socket or holder that cannot be found is
+ * `unknown`, and the gate refuses that under `mode: none`.
+ *
+ * It used to scan only the descriptors of the chats' trees, from a table of chat processes cached
+ * for a second, to save the 20 to 40 ms of a full scan. A process an agent started after that table
+ * was read (every `curl` from a Bash tool) was in no tree, and "not in a tree" was answered as "not
+ * an agent": in a burst, about four requests in five got through. Finding the holder itself costs the
+ * same as rebuilding that table, and it answers the question that was asked.
  */
 export class PeerCheck {
-  private chats: { at: number; pids: number[]; complete: boolean } | null = null;
-
-  /** Where the chats' processes come from: the table of processes, and the pids of the chats' CLIs in it. A test gives its own. */
-  constructor(
-    private readonly sources: { table(): ProcessEntry[]; chatPids(): number[] } = {
-      table: processTable,
-      // A verification command is not a chat's child, but it runs what an agent wrote (T8-2)
-      chatPids: () => [...claudioChildren().map((chat) => chat.pid), ...agentRunProcesses()],
-    },
-    private readonly proc: ProcReader = procReader,
-  ) {}
+  constructor(private readonly proc: ProcReader = procReader) {}
 
   /** Whether this machine lets the check work at all */
   available(): 'on' | 'unknown' {
@@ -124,87 +94,89 @@ export class PeerCheck {
     }
   }
 
-  /**
-   * The answer for a connection. A process of a chat's tree caught exiting made it unknown, and under
-   * `mode: none` the person's own browser was refused with it: on a machine whose agents start and
-   * end processes all the time, 1 to 3 requests in 100 were. Once it has finished it holds nothing,
-   * so the look is made again from the start, the socket's inode included: a process that exited
-   * holding the client's socket took the socket with it, and that answer stays unknown. The looks
-   * are spaced by timers, never a blocking wait, so the server goes on serving everyone else.
-   */
+  /** The answer for a connection, as every gate awaits it */
   async verdict(peer: PeerSocket): Promise<PeerVerdict> {
-    for (let looks = 1; ; looks++) {
-      const look = this.check(peer);
-      if (look !== 'exiting') return look;
-      if (looks >= SETTLE_LOOKS) return 'unknown';
-      await delay(SETTLE_STEP_MS);
-    }
+    return this.check(peer);
   }
 
-  /** One look, synchronous and as fast as reading /proc: `exiting` asks the caller to look again shortly, through `verdict` */
-  check(peer: PeerSocket): PeerLook {
-    const look = this.inspect(peer);
-    return look.verdict === 'unknown' && look.exiting.length > 0 ? 'exiting' : look.verdict;
+  /** One look, synchronous and as fast as reading /proc */
+  check(peer: PeerSocket): PeerVerdict {
+    const inodes = socketInodes(peer.port, peer.serverPort);
+    if (!inodes || inodes.size === 0) return 'unknown';
+    const holders = this.holders(new Set([...inodes].map((inode) => `socket:[${inode}]`)));
+    if (holders.length === 0) return 'unknown';
+    const walks = holders.map((pid) => this.fromAgent(pid));
+    if (walks.includes('agent')) return 'agent';
+    return walks.includes('unknown') ? 'unknown' : 'not-agent';
   }
 
-  /** One look: the verdict, and the processes whose descriptors could not be read because they were exiting */
-  private inspect(peer: PeerSocket): { verdict: PeerVerdict; exiting: number[] } {
-    // A v4-mapped peer is an IPv4 socket: it is in tcp, not tcp6
-    const v6 = peer.address.includes(':') && !peer.address.toLowerCase().startsWith('::ffff:');
-    const tables = v6 ? ['/proc/net/tcp6'] : ['/proc/net/tcp'];
-    let inode: string | null = null;
-    let readable = false;
-    for (const table of tables) {
-      try {
-        readFileSync(table, 'utf8');
-        readable = true;
-      } catch {
-        continue;
-      }
-      inode = inodeOf(table, peer.port, peer.serverPort);
-      if (inode) break;
+  /** Every process holding one of the sockets: a descriptor inherited across a fork is held by both */
+  private holders(wanted: Set<string>): number[] {
+    let pids: number[];
+    try {
+      pids = this.proc.pids();
+    } catch {
+      return [];
     }
-    if (!readable || !inode) return { verdict: 'unknown', exiting: [] };
-    const { pids, complete } = this.chatTree();
-    const wanted = `socket:[${inode}]`;
-    let sealed = complete;
-    const leaving: number[] = [];
+    const found: number[] = [];
     for (const pid of pids) {
       let names: string[];
       try {
         names = this.proc.fds(pid);
-      } catch (error) {
-        // Gone since the table was read is fine, and so is a zombie; a directory this user may not read is not
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT' && code !== 'ESRCH' && !finished(this.proc, pid)) {
-          sealed = false;
-          if (exiting(this.proc, pid)) leaving.push(pid);
-        }
+      } catch {
+        // Gone, a zombie, or another user's: none of them is a holder this check could name
         continue;
       }
       for (const name of names) {
         try {
-          if (this.proc.link(pid, name) === wanted) return { verdict: 'agent', exiting: [] };
+          if (wanted.has(this.proc.link(pid, name))) {
+            found.push(pid);
+            break;
+          }
         } catch {
           // closed while looking
         }
       }
     }
-    return { verdict: sealed ? 'not-agent' : 'unknown', exiting: leaving };
+    return found;
   }
 
-  /** The chats' CLI processes and everything below them, from `CLAUDIO_CHAT_ID` in their environment */
-  private chatTree(): { pids: number[]; complete: boolean } {
-    const now = Date.now();
-    if (this.chats && now - this.chats.at < CHATS_TTL_MS) return this.chats;
-    const table = this.sources.table();
-    const pids = new Set<number>();
-    for (const root of this.sources.chatPids()) {
-      pids.add(root);
-      for (const entry of descendantsOf(table, root)) pids.add(entry.pid);
+  /**
+   * Whether the process or one of its ancestors carries an agent's mark. The walk stops at this
+   * server: the chats and verification commands it starts carry the mark below it, and what started
+   * the server (a developer's shell, or an agent's when it runs its own dev server) does not make the
+   * person's terminal shell an agent's. An ancestor whose environment cannot be read (another user's,
+   * such as a display manager) carries no mark of ours.
+   *
+   * A chain that cannot be walked to its end is `unknown`, never clean: a process that exited
+   * mid-walk, or an ancestor that has ended and waits to be reaped (a zombie's environment reads
+   * empty, so a chat's CLI that just ended would hide the curl it left behind).
+   */
+  private fromAgent(holder: number): PeerVerdict {
+    let pid = holder;
+    for (let depth = 0; depth < MAX_DEPTH; depth++) {
+      if (pid <= 1 || pid === process.pid) return 'not-agent';
+      let fields: string[];
+      try {
+        const stat = this.proc.stat(pid);
+        // The command name sits in parentheses and may hold either itself: the state and the ppid follow the last one
+        fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      } catch {
+        return 'unknown';
+      }
+      if (fields[0] === 'Z' || fields[0] === 'X') return 'unknown';
+      try {
+        const environ = this.proc.environ(pid).split('\0');
+        if (environ.some((entry) => AGENT_MARKS.some((mark) => entry.startsWith(mark)))) return 'agent';
+      } catch (error) {
+        // Not ours to read is no mark of ours; gone since the stat line is a walk that did not finish
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT' || code === 'ESRCH') return 'unknown';
+      }
+      const parent = Number(fields[1]);
+      if (!Number.isInteger(parent) || parent === pid) return 'unknown';
+      pid = parent;
     }
-    // An empty table means /proc could not be listed: nothing was ruled out
-    this.chats = { at: now, pids: [...pids], complete: table.length > 0 };
-    return this.chats;
+    return 'unknown';
   }
 }
