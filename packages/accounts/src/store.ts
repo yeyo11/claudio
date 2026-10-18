@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -9,7 +9,7 @@ import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
-import { checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
+import { apiKeyOf, checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
 import { ModelCache, offers } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
@@ -32,12 +32,14 @@ interface StoredAccount {
   authFailedAt?: string;
   /** ISO time the credential was last checked; absent until it was */
   checkedAt?: string;
+  /** sha256 of the API key that was checked, never the key: a changed key is unchecked again */
+  checkedFingerprint?: string;
 }
 
 interface Stored {
   settings: AccountsSettings;
   /** The CLI's own dir is not stored as an account, only what a person changed about it */
-  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string; checkedAt?: string };
+  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string; checkedAt?: string; checkedFingerprint?: string };
   accounts: StoredAccount[];
   policies: RotationPolicy[];
 }
@@ -60,6 +62,11 @@ export interface AccountStoreOptions {
    * Claudio keeps sealed): such a login has no credentials file and is still an account
    */
   defaultEnvCredential?: () => boolean;
+  /**
+   * The environment the CLI's own login runs in, the vault's credential laid over `env`; `env` when
+   * absent. Its `ANTHROPIC_API_KEY` is the one a check judges.
+   */
+  defaultEnv?: () => NodeJS.ProcessEnv;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -96,6 +103,7 @@ function parse(doc: Record<string, unknown>): Stored {
         identity: parseIdentity(a.identity),
         ...(typeof a.authFailedAt === 'string' && a.authFailedAt ? { authFailedAt: a.authFailedAt } : {}),
         ...(typeof a.checkedAt === 'string' && a.checkedAt ? { checkedAt: a.checkedAt } : {}),
+        ...(typeof a.checkedFingerprint === 'string' && a.checkedFingerprint ? { checkedFingerprint: a.checkedFingerprint } : {}),
       });
     }
   }
@@ -110,6 +118,7 @@ function parse(doc: Record<string, unknown>): Stored {
     default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY },
       ...(typeof def.authFailedAt === 'string' && def.authFailedAt ? { authFailedAt: def.authFailedAt } : {}),
       ...(typeof def.checkedAt === 'string' && def.checkedAt ? { checkedAt: def.checkedAt } : {}),
+      ...(typeof def.checkedFingerprint === 'string' && def.checkedFingerprint ? { checkedFingerprint: def.checkedFingerprint } : {}),
     },
     accounts,
     policies,
@@ -200,7 +209,7 @@ export class AccountStore {
 
   list(now: number = Date.now()): Account[] {
     const d = this.stored.default;
-    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined, checkedAt: string | undefined): Account => {
+    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined, checkedAt: string | undefined, fingerprint: string | undefined): Account => {
       const authFailedAt = failedAt !== undefined && !this.signedInSince(id, kind, failedAt) ? failedAt : undefined;
       const signInState = this.signInState(id, kind, identity, authFailedAt);
       // An identity never read from the CLI (the default account starts out assumed signed in) is
@@ -225,13 +234,13 @@ export class AccountStore {
         signedIn: identity.signedIn && (signInState === 'ok' || signInState === 'unknown'),
         signInState,
         ...(authFailedAt ? { authFailedAt } : {}),
-        checkedAt: checkedAt ?? null,
+        checkedAt: this.checkIsCurrent(id, fingerprint) ? (checkedAt ?? null) : null,
         limits,
       };
     };
     return [
-      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt, d.checkedAt),
-      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt, a.checkedAt)),
+      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt, d.checkedAt, d.checkedFingerprint),
+      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt, a.checkedAt, a.checkedFingerprint)),
     ];
   }
 
@@ -345,29 +354,63 @@ export class AccountStore {
     return this.get(id);
   }
 
+  /** The `ANTHROPIC_API_KEY` this account's runs get, or null (see `apiKeyOf`) */
+  private keyOf(id: string): string | null {
+    try {
+      return apiKeyOf(this.ref(id), this.envOf(id));
+    } catch {
+      return null;
+    }
+  }
+
+  /** The CLI's own login also sees what Claudio keeps sealed; every other account has only its own */
+  private envOf(id: string): NodeJS.ProcessEnv {
+    return id === DEFAULT_ID ? (this.opts.defaultEnv?.() ?? this.env) : this.env;
+  }
+
+  /** Whether the account's runs get an API key, which a check can judge for free */
+  usesApiKey(id: string): boolean {
+    return this.keyOf(id) !== null;
+  }
+
+  private fingerprint(key: string): string {
+    return createHash('sha256').update(key).digest('hex');
+  }
+
+  /** A check stands for the key it checked: a changed key lists as never checked */
+  private checkIsCurrent(id: string, fingerprint: string | undefined): boolean {
+    const key = this.keyOf(id);
+    return key === null || fingerprint === undefined || fingerprint === this.fingerprint(key);
+  }
+
   /**
-   * Asks the CLI whether the credential works (`get_usage`; no turn, no tokens) and records when.
-   * `valid` clears a failed-sign-in mark, since the credential just proved itself; `unknown` changes
-   * nothing, as the request cannot tell a refused credential from an unreachable network
-   * (test/fixtures/get-usage-refused-*.json). A refusal is learned from a failed run.
+   * Asks whether the credential works, with no turn and no tokens: Anthropic's own `models.list` for
+   * an API key, the CLI's `get_usage` for the rest (`checkCredential`). `valid` clears a
+   * failed-sign-in mark, since the credential just proved itself. `refused`, which only a key can
+   * be, marks the account expired as a run that failed at authentication does. `unknown` changes
+   * nothing: it cannot tell a refused credential from an unreachable network.
    */
-  async check(id: string, opts: { timeoutMs?: number } = {}): Promise<CredentialCheck> {
-    const result = await checkCredential(this.ref(id), { claude: this.claude, env: this.env, ...opts });
+  async check(id: string, opts: { timeoutMs?: number; fetch?: typeof fetch } = {}): Promise<CredentialCheck> {
+    const result = await checkCredential(this.ref(id), { claude: this.claude, ...opts, env: this.envOf(id) });
     if (result === 'valid') await this.confirm(id);
+    else if (result === 'refused') await this.markAuthFailed(id);
     return result;
   }
 
-  /** The credential just proved itself (a `get_usage` that came back with the plan's limits): not expired, checked now. */
+  /** The credential just proved itself (a key Anthropic accepted, a `get_usage` with the plan's limits, a turn that went through): not expired, checked now. */
   async confirm(id: string, at: number = Date.now()): Promise<void> {
     const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
     delete entry.authFailedAt;
     await this.markChecked(id, at);
   }
 
-  /** Records that the credential was checked now (a `get_usage` that confirmed it, or a test message). */
+  /** Records that the credential was checked now (a check that confirmed it, a turn, or a test message). */
   async markChecked(id: string, at: number = Date.now()): Promise<void> {
     const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
     entry.checkedAt = new Date(at).toISOString();
+    const key = this.keyOf(id);
+    if (key) entry.checkedFingerprint = this.fingerprint(key);
+    else delete entry.checkedFingerprint;
     await this.save();
   }
 

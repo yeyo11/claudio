@@ -1179,6 +1179,8 @@ export const api = {
   accounts: (o: ReadOptions = {}) => request<Account[]>('/accounts', o),
   /** Asks the CLI for the real usage of every enabled account (`get_usage`, no tokens); one that fails keeps its last reading and is named in `failed` */
   refreshAccounts: () => request<AccountsRefreshResult>('/accounts/refresh', { method: 'POST' }),
+  /** Reads one account's usage and, for an API key, asks Anthropic whether it is accepted (free) */
+  checkAccount: (id: string) => request<Account>(`/accounts/${enc(id)}/refresh`, { method: 'POST', timeoutMs: 60_000 }),
   /** A `login` account: answers the sign-in session the CLI runs in the account's own dir */
   signInAccountAgain: (id: string) => request<AccountLoginSession>(`/accounts/${encodeURIComponent(id)}/login`, { method: 'POST' }),
   addLoginAccount: (body: AddLoginAccountRequest) => request<AccountLoginSession>('/accounts', { method: 'POST', body }),
