@@ -684,20 +684,18 @@ Phase 1's [rules](container-polish.md#rules-for-every-task) apply unchanged. And
 
 ## Owner actions before the merge
 
-1. **The apt signing key**, made by the owner's session the way phase 1's Ed25519 key was:
-   - In a throwaway `GNUPGHOME` on a tmpfs:
-     `gpg --batch --quick-gen-key 'Claudio apt repository <yeyochico@gmail.com>' ed25519 sign 3y`
-     with no passphrase (the secret store is the protection; a passphrase in the same store adds
-     nothing).
-   - Export the armored private key into the GitHub Environment `release` as
-     `CLAUDIO_APT_SIGNING_KEY`; export the public key dearmored as
-     `packaging/apt/claudio-archive-keyring.gpg` and armored as `.asc`, committed; record the
-     fingerprint in `docs/decisions/apt-repository.md` and pin it in `install.sh`.
-   - Generate a revocation certificate and keep it, with the private key, in the owner's password
-     manager. Delete the `GNUPGHOME`.
-   - The key expires in 3 years; extending it is a re-export of the same key, shipped in a `.deb`.
-2. **GitHub Pages**: Settings → Pages → Source **GitHub Actions**; the `github-pages` environment's
-   deployment branch policy allows `main` only.
+Done on 2026-10-18 by the owner's session, at the owner's request:
+
+1. **The apt signing key**: an OpenPGP Ed25519 signing key, `Claudio apt repository
+   <yeyochico@gmail.com>`, fingerprint `33DC4ECFD40612112D06475843E6487D3DF5098F`, expiring in 3 years, made in a
+   throwaway `GNUPGHOME` on `/dev/shm` (deleted after). The armored private key is the secret
+   `CLAUDIO_APT_SIGNING_KEY` of the GitHub Environment `release` (deployment branch policy `main`,
+   required reviewer `yeyo11`); the public key is committed as
+   `packaging/apt/claudio-archive-keyring.gpg` (dearmored) and `.asc`. The private key and the
+   revocation certificate were left with the owner for their password manager. The `release-apt`
+   task records the fingerprint in `docs/decisions/apt-repository.md` and pins it in `install.sh`.
+2. **GitHub Pages**: enabled with source **GitHub Actions** (`https://yeyo11.github.io/claudio/`);
+   the `github-pages` environment's deployment branch policy allows `main` only.
 3. **Decide the [open questions](#open-questions)**.
 4. **Migrating this machine**: the installed 0.6.x takes the first phase-2 release through its
    existing updater (one last `pkexec` password) or `sudo apt install ./Claudio-<v>-amd64.deb`; the
@@ -833,6 +831,15 @@ monitor probes (`monitorMs` 30 s, `commandTimeoutMs` 10 s, `maxMisses` 2,
   `packages/core/test/fixtures/fake-tailscale.mjs` gaining a delay knob (slow answers keep the
   tunnel; a signed-out answer closes it; recovery restarts it), the Remote access card's copy in
   `apps/web/src/i18n/locales/{en,es}/config.json`, and `docs/tunnel.md`.
+
+**Tests leave nothing in `/tmp`** (found 2026-10-18). After phase 1's runs, `/tmp` held 301
+directories (167 MB) that tests created and never removed: `claudio-test-*`, `claudio-security-*`,
+`claudio-graph-*`, `claudio-fake-cli-*`, `claudio-fake-login-*`, `claudio-restart-*`,
+`claudio-plain-*`, `claudio-push-*`. Owned by a small stage-1 task `test-tmp-hygiene` (sonnet): find
+each `mkdtemp`/`mkdtempSync` in `packages/*/test`, `apps/*/test` and `e2e/fake-cli` whose directory
+outlives the test (no `t.after`/`after` removal, or removal skipped on failure), clean it up with the
+pattern the suites already use, and make `scripts/test-tmp.mjs` fail a run that leaves a new
+`claudio-*` directory in its tmp root, so the leak cannot come back.
 
 ## Re-check after phase 1
 
