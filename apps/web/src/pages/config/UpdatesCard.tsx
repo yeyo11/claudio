@@ -483,7 +483,7 @@ function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge
               <button type="button" className="btn" onClick={() => setSwitching(false)}>
                 {t('updates.cancel')}
               </button>
-              <button type="button" className="btn btn-primary" data-autofocus disabled={switchToAppImage.isPending} onClick={() => switchToAppImage.mutate({})}>
+              <button type="button" className="btn btn-primary" data-autofocus disabled={switchToAppImage.isPending} onClick={() => switchToAppImage.mutate({ force: false })}>
                 {t('updates.switchConfirm')}
               </button>
             </>
