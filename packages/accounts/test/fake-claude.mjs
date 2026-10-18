@@ -47,6 +47,13 @@ if (a === 'auth' && b === 'status') {
     for (let nl = buf.indexOf('\n'); nl !== -1; nl = buf.indexOf('\n')) {
       const msg = JSON.parse(buf.slice(0, nl));
       buf = buf.slice(nl + 1);
+      if (msg.type === 'control_request' && msg.request.subtype === 'get_usage') {
+        if (process.env.FAKE_USAGE_HANG) continue;
+        // The real answer of a Max login. A token (inference-only scope) and a key get no readout, as the CLI answers them
+        const real = JSON.parse(readFileSync(new URL('./fixtures/get-usage-max.json', import.meta.url), 'utf8'));
+        const response = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN ? { subscription_type: null, rate_limits_available: false, rate_limits: null } : real;
+        console.log(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response } }));
+      }
       if (msg.type === 'control_request' && msg.request.subtype === 'initialize') {
         console.log(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: { commands: [], models, account } } }));
       }

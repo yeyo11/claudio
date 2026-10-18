@@ -5835,7 +5835,49 @@ export interface UpdateScheduleRequest {
  */
 export type AccountKind = 'login' | 'token' | 'api-key';
 
-/** One account's usage, folded from its stream events and, when idle, the CLI's cache. */
+/** A weekly limit that applies to one model only (`Fable`), beside the account-wide windows. */
+export interface ScopedRateLimit extends RateLimitWindow {
+  /** The model's display name as the CLI states it (`Fable`) */
+  model: string;
+  /** The window it counts in; today always `seven_day` */
+  window: string;
+}
+
+/**
+ * The usage credits of a subscription account: what it may spend beyond its plan limits. Amounts
+ * are in minor units (`1230` with `exponent: 2` is 12.30), as the CLI states them.
+ */
+export interface AccountCredits {
+  enabled: boolean;
+  /** Spent this month, in minor units */
+  usedMinor: number;
+  /** The monthly cap in minor units; null when there is none */
+  limitMinor: number | null;
+  /** ISO 4217 code; null when the CLI states none */
+  currency: string | null;
+  /** Decimal places of the currency (2 for USD, EUR) */
+  exponent: number;
+  /** The cap is reached: nothing more is spent until the month turns */
+  limitReached: boolean;
+  /** Why the CLI says they are off, when it does */
+  disabledReason: string | null;
+  /** They were on once: tells "never set up" from "turned off" */
+  everEnabled: boolean;
+}
+
+/** What only the CLI's `get_usage` control request states about an account; kept beside the folded windows. */
+export interface AccountCliUsage {
+  /** ISO time the CLI was asked */
+  observedAt: string;
+  /** Subscription type as the CLI states it (`max`, `pro`, `team`, `enterprise`); null for none */
+  plan: string | null;
+  /** False for an API-key account: it has no subscription limits to read */
+  available: boolean;
+  scoped: ScopedRateLimit[];
+  credits: AccountCredits | null;
+}
+
+/** One account's usage, folded from its stream events, the CLI's `get_usage` and, when idle, the CLI's cache. */
 export interface AccountLimit {
   state: ProviderLimitState;
   /** The window that binds (`five_hour`, `seven_day`), when it is known */
@@ -5847,8 +5889,16 @@ export interface AccountLimit {
   windows: Record<string, RateLimitWindow>;
   /** When the reading was taken: the cache can be days old, so the UI says how old */
   observedAt: string;
-  /** `stream`: a run reported it; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it */
-  source: 'stream' | 'cache' | 'failure';
+  /**
+   * `stream`: a run reported it; `cli`: the CLI answered `get_usage`; `cache`: read from the account
+   * dir's `cachedUsageUtilization`; `failure`: a turn died on it
+   */
+  source: 'stream' | 'cli' | 'cache' | 'failure';
+  /**
+   * The last `get_usage` answer, kept even when a newer stream reading supplied the windows: the
+   * per-model limits and the credits come from it only. Absent until the account was refreshed.
+   */
+  cli?: AccountCliUsage;
 }
 
 /** One Claude account: a config directory of its own, chosen per process. */
@@ -5880,6 +5930,13 @@ export interface Account {
   authFailedAt?: string;
   /** Null until something was read */
   limits: AccountLimit | null;
+}
+
+/** The answer of refreshing accounts' usage: every account as it lists now, and those the CLI could not read. */
+export interface AccountsRefreshResult {
+  accounts: Account[];
+  /** An account whose read failed or timed out keeps its last reading */
+  failed: { id: string; error: string }[];
 }
 
 /** Which account new work takes among the eligible ones. */

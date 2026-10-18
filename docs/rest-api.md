@@ -286,8 +286,10 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/accounts` | The CLI's own login (`default`) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading |
+| GET | `/accounts` | The CLI's own login (`default`) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading (windows, `limits.cli`: plan, per-model limits, credits) |
 | POST | `/accounts` | Add a `login` account and start `claude auth login` in its dir; `201` with the sign-in (`url` for the person to open). `{ alias?, email? }` |
+| POST | `/accounts/refresh` | Read the real usage of every enabled account from the CLI (`get_usage`, no tokens), one at a time with a 30 s timeout each: `{ accounts, failed }`; a failing account keeps its last reading and is named in `failed` |
+| POST | `/accounts/:id/refresh` | The same for one account; answers the account; `404` for an unknown one, `400` when the CLI could not read it |
 | POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir; `201` with the sign-in, followed like `POST /accounts`'s. The account is kept whatever the outcome; `400` for a token or api-key account |
 | POST | `/accounts/token` | Add a `token` or `api-key` account: `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
 | GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `cancelled`); `404` for an unknown one |

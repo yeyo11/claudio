@@ -2,6 +2,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@t
 import type {
   Account,
   AccountLoginCodeRequest,
+  AccountsRefreshResult,
   AccountLoginSession,
   AccountsSettings,
   AddLoginAccountRequest,
@@ -1151,6 +1152,8 @@ export const api = {
   /** No body at all means every registered install; `{ id }` the one row a person aimed at */
   testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
   accounts: (o: ReadOptions = {}) => request<Account[]>('/accounts', o),
+  /** Asks the CLI for the real usage of every enabled account (`get_usage`, no tokens); one that fails keeps its last reading and is named in `failed` */
+  refreshAccounts: () => request<AccountsRefreshResult>('/accounts/refresh', { method: 'POST' }),
   /** A `login` account: answers the sign-in session the CLI runs in the account's own dir */
   signInAccountAgain: (id: string) => request<AccountLoginSession>(`/accounts/${encodeURIComponent(id)}/login`, { method: 'POST' }),
   addLoginAccount: (body: AddLoginAccountRequest) => request<AccountLoginSession>('/accounts', { method: 'POST', body }),

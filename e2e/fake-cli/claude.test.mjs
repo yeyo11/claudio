@@ -394,6 +394,16 @@ const control = (c, id, request) => {
 };
 const status = (e) => e.type === 'system' && e.subtype === 'status';
 
+test('get_usage answers the plan, both windows, a model-scoped weekly limit and the credits', async () => {
+  const c = chat();
+  const usage = (await control(c, 'g-1', { subtype: 'get_usage' })).response.response;
+  assert.equal(usage.subscription_type, 'max');
+  assert.equal(usage.rate_limits_available, true);
+  assert.equal(usage.rate_limits.five_hour.utilization, 5);
+  assert.equal(usage.rate_limits.limits.find((l) => l.kind === 'weekly_scoped').scope.model.display_name, 'Fable');
+  assert.equal(usage.rate_limits.extra_usage.is_enabled, false);
+});
+
 test('get_context_usage answers the recorded shape, with 93 MCP tools on two servers, and refuses a bad detail', async () => {
   const c = chat({ CLAUDIO_FAKE_CLI_COMPACT_MS: '50' });
   const summary = (await control(c, 'u-1', { subtype: 'get_context_usage', detail: 'summary' })).response.response;

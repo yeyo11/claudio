@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-17T21:00:00Z
 tags:
     - accounts
     - rotation
@@ -11,7 +11,7 @@ tags:
 
 Claudio can run on several Claude accounts and move work from one to another at a usage limit. It
 does so with `packages/accounts` (`@claudio/accounts`), which reaches Claude Code only through what the CLI ships for programs: a `CLAUDE_CONFIG_DIR`
-per account, `claude auth login`, `claude auth status --json`, the `rate_limit_event` of the
+per account, `claude auth login`, `claude auth status --json`, the `get_usage` control request, the `rate_limit_event` of the
 stream and the CLI's own `cachedUsageUtilization`. There is no claude-swap, no call to Anthropic's
 HTTP endpoints and no OAuth flow of Claudio's own. The reasons are decisions 7 to 9 of
 [plans/claude-only-fork.md](plans/claude-only-fork.md); the facts it rests on, recorded with a real
@@ -42,13 +42,60 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
 
 ## Usage
 
-Per account and window (`five_hour`, `seven_day`), as a 0-1 utilization with its reset:
+Per account and window (`five_hour`, `seven_day`), as a 0-1 utilization with its reset. Three
+sources, the newest reading winning:
 
-1. **The stream.** Every turn emits a `rate_limit_event`, near a limit or not, and a result that
-   died on a limit carries a 429. This is the live reading and always wins.
-2. **The CLI's cache.** `cachedUsageUtilization`, in each account dir's config, is the reading of an
-   account that has not run a turn. It is stamped with its `fetchedAtMs`, and a window whose reset
-   has passed reads `unknown`, because the cache can be days old.
+1. **`get_usage`, the CLI's own answer.** Refresh asks the CLI itself, with the `get_usage` control
+   request of its stream-json protocol, in the account's own environment (a login account's
+   `CLAUDE_CONFIG_DIR`, a token account's `CLAUDE_CODE_OAUTH_TOKEN`). No prompt, no turn, no tokens,
+   and never an HTTP call of ours ([decisions/get-usage-control-request.md](decisions/get-usage-control-request.md)).
+   `usageOf` in `packages/accounts` runs it with a 30 s timeout and ends the process.
+2. **The stream.** Every turn emits a `rate_limit_event`, near a limit or not, and a result that
+   died on a limit carries a 429. This is the live reading while a chat runs.
+3. **The CLI's cache.** `cachedUsageUtilization`, in each account dir's config, is the reading of an
+   account that has not run a turn and was never refreshed. It is stamped with its `fetchedAtMs`, and
+   a window whose reset has passed reads `unknown`, because the cache can be days old. It stays as
+   the fallback; Claudio never writes it.
+
+A `get_usage` reading is the freshest truth while it is newer than the stream's, and a newer stream
+reading takes the windows back. What only `get_usage` states is kept apart (`limits.cli` on the
+account) so a stream reading does not erase it: the plan (`subscription_type`), the weekly limits
+scoped to one model, and the credits. An API-key account answers `rate_limits_available: false`: it
+has no subscription limits, and its reading says so (`cli.available: false`). So does a
+`claude setup-token` token on a real account (checked 2026-10-17): its scope reaches inference only,
+and the CLI answers `rate_limits_available: false` with no plan. Its card says the CLI gives no
+usage for a token, and its limits appear once a chat runs on it (the stream's `rate_limit_event`).
+
+### Refresh
+
+`POST /accounts/refresh` reads every enabled account, one after the other, each with its own
+timeout, and answers `{ accounts, failed }`; `POST /accounts/:id/refresh` reads one. A login
+account's sign-in is read again too (`claude auth status`). An account the CLI could not read keeps
+its last reading and is named in `failed`, which the Accounts page shows as a toast. The page's
+Refresh button calls the first, and opening Accounts calls it once when an enabled, signed-in
+account has no `get_usage` answer or one older than 10 minutes. Both are refused to a chat's token:
+each starts a CLI process.
+
+### Per-model limits and credits
+
+- **Scoped limits.** A plan can carry a weekly limit that counts one model only (`Fable` at 5 % of
+  its own allowance, say). The CLI lists them in `rate_limits.limits[]` as `weekly_scoped` with the
+  model's display name; they are kept as `limits.cli.scoped[]`, never as an entry of `windows`.
+  The account's own state and binding window come from the session and weekly windows alone, so a
+  spent Fable limit does not mark the account exhausted for Sonnet. Rotation applies a scoped limit
+  only to a chat that runs that model: `choose` skips an account whose limit for the chat's model is
+  at 100 % until its reset, and waits for that reset when every account is out of it. The model is
+  matched by its display name inside the chat's model id.
+- **Credits.** `rate_limits.spend` (amounts with their currency and exponent) and `extra_usage`
+  (`credits_ever_enabled`, `spend_limit_reached`) become `limits.cli.credits`: enabled, used and
+  monthly limit in minor units, currency, decimal places, whether the cap is reached and why they
+  are off. The card shows nothing for credits never set up, "No extra credits" once they were and
+  are off, "Credits · 12.30 of 50.00 € this month" when on, and a warn tag "Limit reached" at the
+  cap.
+
+The card names the plan as a tag beside the name (`Max`, `Pro`, `Team`, `Enterprise`, `API key`),
+draws a bar for the session, the week and each scoped limit ("7 days · Fable") with the usual tones
+(neutral under 60 %, warn from 60 %, bad from 75 %), then the credits line and how old the reading is.
 
 The latest reading per account is `<data>/accounts/limits.json`; the history is the `usage_history`
 rows and each switch or wait a `rotation_events` row. An account with neither reading is `unknown`,
@@ -158,6 +205,10 @@ the rejected `rate_limit_event` before the 429), `workflow-limits.test.ts` for a
 `e2e/specs/chat-account-switch.spec.mjs` covers the on-demand switch from the "+" menu: idle, while
 working, and an exhausted account shown disabled.
 
+`packages/accounts/test/cli-usage.test.ts` guards the parser (against a recorded real answer), the
+fold precedence and the per-model choice; `apps/api/test/accounts.test.ts` the refresh routes; and
+`apps/web/test/account-card.test.tsx` the card.
+
 ## Related
 
-[[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[plans/workflow-engine-limits.md]] · [[orchestrations.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
+[[decisions/get-usage-control-request.md]] · [[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[plans/workflow-engine-limits.md]] · [[orchestrations.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]

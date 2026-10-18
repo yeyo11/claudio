@@ -3,6 +3,7 @@ import type { Core } from '@claudio/core';
 import type {
   Account,
   AccountLoginSession,
+  AccountsRefreshResult,
   AccountsSettings,
   ModelFallback,
   ModelFallbackSuggestion,
@@ -89,6 +90,20 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     const session = await logins.start({ ...(alias ? { alias } : {}), ...(email ? { email } : {}) });
     void reply.status(201);
     return session;
+  });
+
+  // Reads the CLI itself (`get_usage`, no turn, no tokens), one account at a time, each with its own timeout
+  app.post('/accounts/refresh', (): Promise<AccountsRefreshResult> => core.refreshAccountUsage());
+
+  app.post<{ Params: { id: string } }>('/accounts/:id/refresh', async (req): Promise<Account> => {
+    core.accounts.reload();
+    core.accounts.get(req.params.id); // 404 before the CLI is asked anything
+    const { accounts, failed } = await core.refreshAccountUsage([req.params.id]);
+    const error = failed[0]?.error;
+    if (error) throw new Error(`the CLI could not read the usage of ${req.params.id}: ${error}`);
+    const account = accounts.find((a) => a.id === req.params.id);
+    if (!account) throw new Error(`account ${req.params.id} not found`);
+    return account;
   });
 
   app.post<{ Params: { id: string } }>('/accounts/:id/login', async (req, reply): Promise<AccountLoginSession> => {
