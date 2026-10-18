@@ -286,7 +286,7 @@ export interface FlowDeps {
    */
   contextOf?: (chatId: string) => Promise<FlowChatContext | null>;
   /** The commit subjects and changed paths of what the item's branch did, for the `flow.criteria-precheck` state */
-  workDone?: (item: WorkItem) => { commits: string[]; paths: string[] } | null;
+  workDone?: (item: WorkItem) => Promise<{ commits: string[]; paths: string[] } | null> | { commits: string[]; paths: string[] } | null;
   /** The daily spend cap lets a new run start; without it every run may (docs/plans/agent-run-improvements.md) */
   spendOpen?: (itemId: string) => boolean;
 }
@@ -1288,23 +1288,26 @@ export class FlowService {
    */
   private gate(item: WorkItem, stage: FlowStage): Promise<Verdict> | null {
     let point: DecisionPointId;
-    let subject: DecisionSubject;
+    // Built only once the point is known to act: reading what the branch changed takes git a moment
+    let subjectOf: () => Promise<DecisionSubject>;
     if (stage === 'refine') {
       point = 'flow.refine-needed';
-      subject = { kind: 'work_item', id: item.id, data: itemState(item) };
+      subjectOf = async () => ({ kind: 'work_item', id: item.id, data: itemState(item) });
     } else if (stage === 'verify') {
       point = 'flow.criteria-precheck';
       // The Developer only resolved a merge and QA re-verifies it: there is no new work to pre-check
       if (!item.acceptanceCriteria.length || this.deps.pullRequests?.awaitingVerify?.(item.id)) return null;
-      const done = this.deps.workDone?.(item);
-      const summary = this.sql.prepare("SELECT summary FROM flow_runs WHERE item_id = ? AND stage = 'work' AND outcome = 'passed' ORDER BY seq DESC LIMIT 1").get(item.id) as { summary: string | null } | undefined;
-      subject = { kind: 'work_item', id: item.id, data: { criteria: item.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), summary: summary?.summary ?? '', commits: done?.commits ?? [], paths: done?.paths ?? [] } };
+      subjectOf = async () => {
+        const done = await this.deps.workDone?.(item);
+        const summary = this.sql.prepare("SELECT summary FROM flow_runs WHERE item_id = ? AND stage = 'work' AND outcome = 'passed' ORDER BY seq DESC LIMIT 1").get(item.id) as { summary: string | null } | undefined;
+        return { kind: 'work_item', id: item.id, data: { criteria: item.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), summary: summary?.summary ?? '', commits: done?.commits ?? [], paths: done?.paths ?? [] } };
+      };
     } else {
       return null;
     }
     const stance = this.stance(point, item.projectId);
     if (stance === 'off') return null;
-    const asked = this.ask(point, subject, item.projectId);
+    const asked = subjectOf().then((subject) => this.ask(point, subject, item.projectId));
     if (stance === 'watch') {
       this.track(asked);
       return null;

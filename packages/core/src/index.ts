@@ -195,7 +195,7 @@ import { OrchestrationPullRequestService } from './orchestration-pull-requests.t
 import { codeHostAdapter, PullRequestService, PullRequestWatcher, type ApproveResult } from './pull-requests.ts';
 import { AssistantError, AssistantService, type AssistantKnown, type AssistantLaunch, type AssistantProject } from './assistant.ts';
 import { assistantGit } from './assistant-sources.ts';
-import { git, isGitRepo, mainCheckout } from './git.ts';
+import { git, gitAsyncText, isGitRepo, isGitRepoAsync, mainCheckout } from './git.ts';
 import { hostOf } from './work-item-rows.ts';
 import { DecisionEngine } from './decisions/engine.ts';
 import { LessonMiningQueue } from './lessons/queue.ts';
@@ -1254,9 +1254,9 @@ export class Core {
         fixPrompt: (itemId) => this.pullRequests.fixPrompt(itemId),
       },
       decisions: this.decisions,
-      workDone: (item) => {
+      workDone: async (item) => {
         const path = this.projectStore.get(item.projectId)?.path;
-        const summary = path ? this.changes.itemChanges(path, item) : null;
+        const summary = path ? await this.changes.itemChanges(path, item) : null;
         return summary ? { commits: summary.commits.map((c) => c.subject), paths: summary.files.map((f) => f.path) } : null;
       },
       items: this.workItems,
@@ -2506,7 +2506,7 @@ export class Core {
     const journal = await quiet(() => this.journal.handoff(project.id), { text: '', entries: 0, bytes: 0, lessons: 0, lessonBytes: 0 });
     const items = await quiet(() => this.workItems.list({ projectId: project.id }), []);
     const milestones = await quiet(() => this.workItems.milestones(project.id).filter((m) => m.state === 'open').map((m) => m.name), [] as string[]);
-    const commits = !isGitRepo(project.path) ? null : await quiet(() => Number(git(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
+    const commits = !(await isGitRepoAsync(project.path)) ? null : await quiet(async () => Number(await gitAsyncText(project.path, ['rev-list', '--count', 'HEAD'], 10_000)) || 0, 0);
     const chats = [...sessions].sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
     const instructions = await quiet(async () => {
       const file = join(project.path, 'CLAUDE.md');
@@ -3219,7 +3219,7 @@ export class Core {
     if (!scope.commit && !scope.uncommitted) {
       void this.changes.scopeDrift(path, item, { id: item.id, projectId: item.projectId, title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) });
     }
-    return { worktree: item.worktree, branch: item.branch, summary: this.changes.itemChanges(path, item, scope) };
+    return { worktree: item.worktree, branch: item.branch, summary: await this.changes.itemChanges(path, item, scope) };
   }
 
   async workItemDiff(itemId: string, path: string, opts: DiffOptions = {}): Promise<FileDiff> {

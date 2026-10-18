@@ -73,8 +73,14 @@ the right numbers for a given server.
 - **Refusals are polled, not queued.** A task waiting for memory looks again every three seconds. A
   queue with priority for interactive chats is not built.
 - **A stop that finds no `/proc` falls back to signalling the CLI alone**, as before.
-- **Synchronous `git` on request paths** (`packages/core/src/git.ts`, `execFileSync`) still blocks the
-  event loop for as long as a git call takes. Not changed here.
+- **Synchronous `git` is left where it is not on a request path, or is not the cost.** The review
+  endpoints (`/chats/:id/changes`, `/changes/diff`, the task, integration and work-item twins, and a
+  project's overview commit count) go through `...Async` twins in `git.ts` (`execFile`, same arguments,
+  same parsers, same errors) and no longer hold the event loop. Left sync: the orchestrator's own
+  worktree and merge steps, verification, pull-request and merge preparation, `review-diff.ts`
+  (the review prompts), the health poll, the guards (which must answer a hook call before the CLI goes
+  on) and the evals' lanes. Each runs in a background step or is a short single call; converting them
+  is the same mechanical work if one shows up in a profile.
 - **The process table is still read in full, but at most every two seconds** for what is shown
   (`recentProcessTable`). Stopping a chat or cancelling a command reads it fresh: a stale table could
   name a pid the system has reused.

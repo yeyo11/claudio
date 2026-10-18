@@ -17,27 +17,27 @@ import type { DecisionEngine } from './decisions/engine.ts';
 import type { ChatManager } from './chats.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
 import {
-  aheadCount,
-  branchExists,
-  commitsBetween,
-  currentBranch,
-  diffFiles,
-  fileDiff,
-  headCommit,
-  isAncestor,
-  isGitRepo,
-  isUntracked,
-  lineCount,
-  mainCheckout,
-  mainTopLevel,
-  mergeBase,
-  parentOf,
+  aheadCountAsync,
+  branchExistsAsync,
+  commitsBetweenAsync,
+  currentBranchAsync,
+  diffFilesAsync,
+  fileDiffAsync,
+  headCommitAsync,
+  isAncestorAsync,
+  isGitRepoAsync,
+  isUntrackedAsync,
+  lineCountAsync,
+  mainCheckoutAsync,
+  mainTopLevelAsync,
+  mergeBaseAsync,
+  parentOfAsync,
+  resolveCommitAsync,
+  topLevelAsync,
+  uncommittedFilesAsync,
+  untrackedDiffAsync,
+  workingFilesAsync,
   pathInside,
-  resolveCommit,
-  topLevel,
-  uncommittedFiles,
-  untrackedDiff,
-  workingFiles,
 } from './git.ts';
 import type { Orchestrator } from './orchestrator.ts';
 import type { SessionStore } from './sessions.ts';
@@ -90,10 +90,10 @@ const emptySummary = (site: Site): ChangeSummary => ({ branch: site.branch, base
 const liveWorktree = (site: Site): string | null => (site.worktree && existsSync(site.worktree) ? site.worktree : null);
 
 /** What to read the branch through: its worktree's HEAD, or the branch by name once the worktree is gone. */
-function reader(site: Site): { dir: string; ref: string } | null {
+async function reader(site: Site): Promise<{ dir: string; ref: string } | null> {
   const live = liveWorktree(site);
   if (live) return { dir: live, ref: 'HEAD' };
-  if (site.branch && branchExists(site.repo, site.branch)) return { dir: site.repo, ref: site.branch };
+  if (site.branch && (await branchExistsAsync(site.repo, site.branch))) return { dir: site.repo, ref: site.branch };
   return null;
 }
 
@@ -101,47 +101,46 @@ function reader(site: Site): { dir: string; ref: string } | null {
  * The commit a request names, as a full hash, once it is known to be on the branch since its base.
  * Checked by ancestry both ways rather than against the commit list, which stops at 200.
  */
-function commitOnBranch(dir: string, ref: string, base: string | null, sha: string): string {
-  const commit = resolveCommit(dir, sha);
-  const since = base ? resolveCommit(dir, base) : null;
-  if (!commit || !since || commit === since || !isAncestor(dir, since, commit) || !isAncestor(dir, commit, ref)) {
+async function commitOnBranch(dir: string, ref: string, base: string | null, sha: string): Promise<string> {
+  const commit = await resolveCommitAsync(dir, sha);
+  const since = base ? await resolveCommitAsync(dir, base) : null;
+  if (!commit || !since || commit === since || !(await isAncestorAsync(dir, since, commit)) || !(await isAncestorAsync(dir, commit, ref))) {
     throw new Error(`commit ${sha} is not on this branch since its base`);
   }
   return commit;
 }
 
-function summarize(site: Site, scope: ChangeScope = {}): ChangeSummary {
-  const at = reader(site);
+async function summarize(site: Site, scope: ChangeScope = {}): Promise<ChangeSummary> {
+  const at = await reader(site);
   if (!at || !site.base) {
     if (scope.commit) throw new Error(`commit ${scope.commit} is not on this branch since its base`);
     return emptySummary(site);
   }
   const live = liveWorktree(site);
-  const uncommitted = live ? uncommittedFiles(live) : [];
-  const branch: Omit<ChangeSummary, 'files'> = {
-    branch: (live ? currentBranch(live) : null) ?? site.branch,
-    base: site.base,
-    ahead: aheadCount(at.dir, site.base, at.ref),
-    commits: commitsBetween(at.dir, site.base, at.ref),
-    uncommitted,
-  };
+  const uncommitted = live ? await uncommittedFilesAsync(live) : [];
+  const [current, ahead, commits] = await Promise.all([
+    live ? currentBranchAsync(live) : Promise.resolve(null),
+    aheadCountAsync(at.dir, site.base, at.ref),
+    commitsBetweenAsync(at.dir, site.base, at.ref),
+  ]);
+  const branch: Omit<ChangeSummary, 'files'> = { branch: current ?? site.branch, base: site.base, ahead, commits, uncommitted };
   // A scope narrows the files and nothing else: the rest describes the branch, which the scope menu lists
   if (scope.commit) {
-    const commit = commitOnBranch(at.dir, at.ref, site.base, scope.commit);
-    return { ...branch, files: diffFiles(at.dir, parentOf(at.dir, commit), commit) };
+    const commit = await commitOnBranch(at.dir, at.ref, site.base, scope.commit);
+    return { ...branch, files: await diffFilesAsync(at.dir, await parentOfAsync(at.dir, commit), commit) };
   }
   if (scope.uncommitted) return { ...branch, files: uncommitted };
-  const files = diffFiles(at.dir, site.base, at.ref);
-  return { ...branch, files, working: live ? workingFiles(live, site.base) : files };
+  const files = await diffFilesAsync(at.dir, site.base, at.ref);
+  return { ...branch, files, working: live ? await workingFilesAsync(live, site.base) : files };
 }
 
 /**
  * The `--unified` count for `context`, and whether it carries the whole file: `full` becomes a
  * count above the longest side's lines, unless the file is too long to be worth it.
  */
-function unifiedFor(context: DiffContext, sides: () => number[]): { unified: number; full: boolean } {
+async function unifiedFor(context: DiffContext, sides: () => Promise<number[]>): Promise<{ unified: number; full: boolean }> {
   if (context !== 'full') return { unified: Number.isFinite(context) ? Math.min(MAX_CONTEXT, Math.max(0, Math.trunc(context))) : DEFAULT_CONTEXT, full: false };
-  const longest = Math.max(0, ...sides());
+  const longest = Math.max(0, ...(await sides()));
   return longest > FULL_LIMIT ? { unified: DEFAULT_CONTEXT, full: false } : { unified: longest + 1, full: true };
 }
 
@@ -150,8 +149,8 @@ function unifiedFor(context: DiffContext, sides: () => number[]): { unified: num
  * committed or not, since a worker's last edit is usually the interesting part and it is not
  * committed yet; or what one commit did to it, or what is not committed yet.
  */
-function diffOf(site: Site, path: string, opts: DiffOptions = {}): FileDiff {
-  const at = reader(site);
+async function diffOf(site: Site, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
+  const at = await reader(site);
   if (!at || !site.base) throw new Error(`nothing to compare ${path} against: the branch has no worktree or base`);
   const live = liveWorktree(site);
   const rel = pathInside(at.dir, path);
@@ -161,8 +160,8 @@ function diffOf(site: Site, path: string, opts: DiffOptions = {}): FileDiff {
   let from = site.base;
   let to: string | undefined = live ? undefined : at.ref;
   if (opts.commit) {
-    to = commitOnBranch(at.dir, at.ref, site.base, opts.commit);
-    from = parentOf(at.dir, to);
+    to = await commitOnBranch(at.dir, at.ref, site.base, opts.commit);
+    from = await parentOfAsync(at.dir, to);
   } else if (opts.uncommitted) {
     if (!live) throw new Error(`${rel} not found among the uncommitted changes: the worktree is gone`);
     dir = live;
@@ -170,23 +169,23 @@ function diffOf(site: Site, path: string, opts: DiffOptions = {}): FileDiff {
   }
 
   // A file that was created and never added is invisible to `git diff`
-  if (live && to === undefined && isUntracked(live, rel)) {
-    const { full } = unifiedFor(context, () => [lineCount(live, undefined, rel)]);
-    return { path: rel, diff: untrackedDiff(live, rel), full };
+  if (live && to === undefined && (await isUntrackedAsync(live, rel))) {
+    const { full } = await unifiedFor(context, async () => [await lineCountAsync(live, undefined, rel)]);
+    return { path: rel, diff: await untrackedDiffAsync(live, rel), full };
   }
-  const known = diffFiles(dir, from, to).find((f) => f.path === rel);
+  const known = (await diffFilesAsync(dir, from, to)).find((f) => f.path === rel);
   const paths = known?.previousPath ? [known.previousPath, rel] : [rel];
-  const { unified, full } = unifiedFor(context, () => [lineCount(dir, from, paths[0] as string), lineCount(dir, to, rel)]);
-  const diff = fileDiff(dir, from, to, paths, unified);
+  const { unified, full } = await unifiedFor(context, () => Promise.all([lineCountAsync(dir, from, paths[0] as string), lineCountAsync(dir, to, rel)]));
+  const diff = await fileDiffAsync(dir, from, to, paths, unified);
   if (!diff) throw new Error(`${rel} not found among the changes against ${from.slice(0, 8)}`);
   return { path: rel, diff, full };
 }
 
 /** The commit a checkout is on, or null when it is gone or not a repository any more. */
-function tipOf(dir: string | null): string | null {
-  if (!dir || !existsSync(dir) || !isGitRepo(dir)) return null;
+async function tipOf(dir: string | null): Promise<string | null> {
+  if (!dir || !existsSync(dir) || !(await isGitRepoAsync(dir))) return null;
   try {
-    return headCommit(dir);
+    return await headCommitAsync(dir);
   } catch {
     return null;
   }
@@ -254,15 +253,17 @@ export class Changes {
     if (!engine || engine.effective('flow.scope-drift', item.projectId).mode === 'off') return [];
     let commits: Array<{ id: string; message: string; paths: string[] }>;
     try {
-      const summary = this.itemChanges(projectPath, place);
+      const summary = await this.itemChanges(projectPath, place);
       const tip = summary?.commits[0];
       if (!summary || !tip || !this.firstTime(`drift:${item.id}:${tip.hash}`)) return [];
       // Paths only, never the diff: what a commit touched says enough about what it set out to do
-      commits = summary.commits.slice(0, COMMITS_ASKED).map((c) => ({
-        id: c.hash,
-        message: c.subject,
-        paths: (this.itemChanges(projectPath, place, { commit: c.hash })?.files ?? []).slice(0, PATHS_PER_COMMIT).map((f) => f.path),
-      }));
+      commits = await Promise.all(
+        summary.commits.slice(0, COMMITS_ASKED).map(async (c) => ({
+          id: c.hash,
+          message: c.subject,
+          paths: ((await this.itemChanges(projectPath, place, { commit: c.hash }))?.files ?? []).slice(0, PATHS_PER_COMMIT).map((f) => f.path),
+        })),
+      );
     } catch {
       return [];
     }
@@ -312,38 +313,38 @@ export class Changes {
   }
 
   /** The repository a graph's worktrees hang off; refused plainly when the graph never had one. */
-  private repoOf(orch: Orchestration): string {
+  private async repoOf(orch: Orchestration): Promise<string> {
     if (!orch.worktree) throw new Error(`orchestration ${orch.name} has no worktrees: its tasks share one checkout, so there is no branch to compare`);
-    if (!existsSync(orch.cwd) || !isGitRepo(orch.cwd)) throw new Error(`${orch.cwd} is no longer a git repository`);
-    return mainTopLevel(orch.cwd);
+    if (!existsSync(orch.cwd) || !(await isGitRepoAsync(orch.cwd))) throw new Error(`${orch.cwd} is no longer a git repository`);
+    return mainTopLevelAsync(orch.cwd);
   }
 
-  private taskSite(orch: Orchestration, task: OrchestrationTaskState): Site {
-    return { repo: this.repoOf(orch), worktree: task.worktree ?? null, branch: task.branch ?? null, base: task.baseCommit ?? orch.baseCommit ?? null };
+  private async taskSite(orch: Orchestration, task: OrchestrationTaskState): Promise<Site> {
+    return { repo: await this.repoOf(orch), worktree: task.worktree ?? null, branch: task.branch ?? null, base: task.baseCommit ?? orch.baseCommit ?? null };
   }
 
-  private integrationSite(orch: Orchestration): Site {
-    const repo = this.repoOf(orch);
+  private async integrationSite(orch: Orchestration): Promise<Site> {
+    const repo = await this.repoOf(orch);
     const { integration } = orch;
     return { repo, worktree: integration?.worktree ?? null, branch: integration?.branch ?? null, base: orch.baseCommit ?? null };
   }
 
-  taskChanges(id: string, taskId: string, scope: ChangeScope = {}): ChangeSummary {
+  async taskChanges(id: string, taskId: string, scope: ChangeScope = {}): Promise<ChangeSummary> {
     const { orch, task } = this.task(id, taskId);
-    return summarize(this.taskSite(orch, task), scope);
+    return summarize(await this.taskSite(orch, task), scope);
   }
 
-  taskDiff(id: string, taskId: string, path: string, opts: DiffOptions = {}): FileDiff {
+  async taskDiff(id: string, taskId: string, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
     const { orch, task } = this.task(id, taskId);
-    return diffOf(this.taskSite(orch, task), path, opts);
+    return diffOf(await this.taskSite(orch, task), path, opts);
   }
 
-  integrationChanges(id: string, scope: ChangeScope = {}): ChangeSummary {
-    return summarize(this.integrationSite(this.orchestration(id)), scope);
+  async integrationChanges(id: string, scope: ChangeScope = {}): Promise<ChangeSummary> {
+    return summarize(await this.integrationSite(this.orchestration(id)), scope);
   }
 
-  integrationDiff(id: string, path: string, opts: DiffOptions = {}): FileDiff {
-    return diffOf(this.integrationSite(this.orchestration(id)), path, opts);
+  async integrationDiff(id: string, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
+    return diffOf(await this.integrationSite(this.orchestration(id)), path, opts);
   }
 
   private async chatOf(id: string): Promise<ChatSummary> {
@@ -356,17 +357,17 @@ export class Changes {
    * The site of a chat that works in a worktree of its own. A worker of an orchestration is
    * measured from where its own branch was cut, which is not where the main checkout is now.
    */
-  private siteOf(chat: ChatSummary): Site | null {
+  private async siteOf(chat: ChatSummary): Promise<Site | null> {
     if (chat.orchestration?.taskId) {
       const { orch, task } = this.task(chat.orchestration.id, chat.orchestration.taskId);
       if (orch.worktree && task.branch) return this.taskSite(orch, task);
     }
     const tree = chat.worktree;
-    if (!tree || !existsSync(tree.path) || !isGitRepo(tree.path)) return null;
-    const repo = mainTopLevel(tree.path);
+    if (!tree || !existsSync(tree.path) || !(await isGitRepoAsync(tree.path))) return null;
+    const repo = await mainTopLevelAsync(tree.path);
     // Where the worktree left the checkout it was cut from, whatever has landed there since
     const from = this.deps.forkedFrom?.(chat.id);
-    const base = mergeBase(tree.path, 'HEAD', tipOf(from ?? null) ?? headCommit(repo));
+    const base = await mergeBaseAsync(tree.path, 'HEAD', (await tipOf(from ?? null)) ?? (await headCommitAsync(repo)));
     return { repo, worktree: tree.path, branch: tree.branch, base };
   }
 
@@ -375,41 +376,41 @@ export class Changes {
    * checkout (a linked worktree's HEAD is not the main checkout's), as a chat's is. Once the worktree is gone the branch is still read by name, from the
    * project's repository; null when neither is left.
    */
-  private itemSite(projectPath: string, place: { worktree: string | null; branch: string | null }): Site | null {
-    const live = place.worktree && existsSync(place.worktree) && isGitRepo(place.worktree) ? place.worktree : null;
-    const from = live ?? (existsSync(projectPath) && isGitRepo(projectPath) ? projectPath : null);
+  private async itemSite(projectPath: string, place: { worktree: string | null; branch: string | null }): Promise<Site | null> {
+    const live = place.worktree && existsSync(place.worktree) && (await isGitRepoAsync(place.worktree)) ? place.worktree : null;
+    const from = live ?? (existsSync(projectPath) && (await isGitRepoAsync(projectPath)) ? projectPath : null);
     if (!from) return null;
-    const repo = mainCheckout(from);
-    if (!live && !(place.branch && branchExists(repo, place.branch))) return null;
-    const tip = tipOf(projectPath) ?? headCommit(repo);
-    const base = live ? mergeBase(live, 'HEAD', tip) : mergeBase(repo, place.branch ?? 'HEAD', tip);
+    const repo = await mainCheckoutAsync(from);
+    if (!live && !(place.branch && (await branchExistsAsync(repo, place.branch)))) return null;
+    const tip = (await tipOf(projectPath)) ?? (await headCommitAsync(repo));
+    const base = live ? await mergeBaseAsync(live, 'HEAD', tip) : await mergeBaseAsync(repo, place.branch ?? 'HEAD', tip);
     return { repo, worktree: live, branch: place.branch, base };
   }
 
   /** What a work item's branch changed; null while nothing has worked on it in a worktree. */
-  itemChanges(projectPath: string, place: { worktree: string | null; branch: string | null }, scope: ChangeScope = {}): ChangeSummary | null {
+  async itemChanges(projectPath: string, place: { worktree: string | null; branch: string | null }, scope: ChangeScope = {}): Promise<ChangeSummary | null> {
     if (!place.worktree && !place.branch) return null;
-    const site = this.itemSite(projectPath, place);
+    const site = await this.itemSite(projectPath, place);
     return site ? summarize(site, scope) : null;
   }
 
-  itemDiff(projectPath: string, place: { worktree: string | null; branch: string | null }, path: string, opts: DiffOptions = {}): FileDiff {
-    const site = this.itemSite(projectPath, place);
+  async itemDiff(projectPath: string, place: { worktree: string | null; branch: string | null }, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
+    const site = await this.itemSite(projectPath, place);
     if (!site) throw new Error('this work item has no worktree or branch left to compare');
     return diffOf(site, path, opts);
   }
 
   /** A worktree gives a summary; a chat anywhere else has only what its own calls wrote. */
   async chatChanges(id: string, scope: ChangeScope = {}): Promise<ChatChanges> {
-    const site = this.siteOf(await this.chatOf(id));
+    const site = await this.siteOf(await this.chatOf(id));
     return {
-      summary: site ? summarize(site, scope) : null,
+      summary: site ? await summarize(site, scope) : null,
       touched: touchedFilesOf(await this.calls(id, WRITING_TOOLS)),
     };
   }
 
   async chatDiff(id: string, path: string, opts: DiffOptions = {}): Promise<FileDiff> {
-    const site = this.siteOf(await this.chatOf(id));
+    const site = await this.siteOf(await this.chatOf(id));
     if (!site) throw new Error('this chat has no worktree of its own, so there is no diff to show: see the files it touched');
     return diffOf(site, path, opts);
   }
@@ -418,12 +419,12 @@ export class Changes {
    * What a step's path is relative to: the git top level of where the chat works, so it matches a
    * `ChangedFile.path`, or the chat's own directory outside git.
    */
-  private stepRoot(chat: ChatSummary): string {
-    const site = this.siteOf(chat);
+  private async stepRoot(chat: ChatSummary): Promise<string> {
+    const site = await this.siteOf(chat);
     const dir = (site && liveWorktree(site)) ?? (chat.worktree && existsSync(chat.worktree.path) ? chat.worktree.path : chat.cwd);
-    if (existsSync(dir) && isGitRepo(dir)) {
+    if (existsSync(dir) && (await isGitRepoAsync(dir))) {
       try {
-        return topLevel(dir);
+        return await topLevelAsync(dir);
       } catch {
         /* a bare or broken checkout: the directory itself will do */
       }
@@ -434,7 +435,7 @@ export class Changes {
   /** Every edit of a chat's main transcript, oldest first, each with its patch and its why. */
   async chatSteps(id: string): Promise<EditStep[]> {
     const chat = await this.chatOf(id);
-    const root = this.stepRoot(chat);
+    const root = await this.stepRoot(chat);
     // The checkout counts as inside beside the chat's directory and its worktree: a chat in a subdirectory edits its siblings
     const risk = { cwd: chat.cwd, roots: [root, ...(chat.worktree ? [chat.worktree.path] : [])], tempDirs: systemTempDirs() };
     const opts = { root, running: chat.execution !== null, risk };
