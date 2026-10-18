@@ -2,12 +2,12 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AuthStatus, CliInfo, TokenSource } from '@claudio/shared';
-
-/** What `claude auth status` says of the CLI's own login; the account in use is added where accounts are known */
-export type CliAuth = Omit<AuthStatus, 'inUse'>;
 import type { CliSession } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { childEnv } from './child-env.ts';
+
+/** What `claude auth status` says of the CLI's own login; the account in use is added where accounts are known */
+export type CliAuth = Omit<AuthStatus, 'inUse'>;
 
 interface ExecResult {
   stdout: string;

@@ -1,16 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { CliInstallRefusal, DESKTOP_ACTOR, ServerUpdateRefusal, type Core } from '@claudio/core';
+import { CliInstallRefusal, ServerUpdateRefusal, type Core } from '@claudio/core';
 import type { ServerUpdateApplyRequest } from '@claudio/shared';
-
-/**
- * Who may replace the server or its CLI: the owner, through their token or OIDC. Not a chat (its
- * token is also refused by the denylist), not the desktop app, not an anonymous or local caller.
- * TODO(integration): replace with `isOwnerActor` from access-core's `security.ts` once both are merged.
- */
-export function ownerActor(actor: string | null): boolean {
-  if (actor === null || actor.startsWith('chat:')) return false;
-  return !['local', DESKTOP_ACTOR, 'anonymous', 'webhook'].includes(actor);
-}
+import { isOwnerActor } from '../security.ts';
 
 /** The owner check every route here makes, in the shape `ApiRequestError` reads; true when it answered */
 export function refuseNonOwner(core: Core, req: FastifyRequest, reply: FastifyReply, scope: 'update' | 'cli'): boolean {
@@ -18,7 +9,7 @@ export function refuseNonOwner(core: Core, req: FastifyRequest, reply: FastifyRe
     void reply.status(403).send({ error: `${scope === 'update' ? 'updating Claudio' : 'installing Claude Code'} from here needs access protected by a token`, code: `${scope}.needs-auth` });
     return true;
   }
-  if (ownerActor(req.actor)) return false;
+  if (isOwnerActor(req.actor)) return false;
   void reply.status(403).send({ error: 'only the owner may do this', code: `${scope}.not-owner` });
   return true;
 }

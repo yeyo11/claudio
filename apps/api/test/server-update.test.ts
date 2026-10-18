@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, ServerUpdateRefusal, loadConfig } from '@claudio/core';
 import type { ServerUpdateStatus } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
-import { ownerActor } from '../src/routes/server-update.ts';
+import { isOwnerActor } from '../src/security.ts';
 
 const json = (body: unknown, token?: string) => ({
   payload: JSON.stringify(body),
@@ -118,6 +118,6 @@ test('read-only refuses every change before the route runs', async (t) => {
 });
 
 test('only a token or OIDC actor is the owner', () => {
-  for (const actor of ['token:env', 'token:first-run', 'oidc:someone@example.com']) assert.equal(ownerActor(actor), true, actor);
-  for (const actor of [null, 'local', 'desktop', 'anonymous', 'webhook', 'chat:abc']) assert.equal(ownerActor(actor), false, String(actor));
+  for (const actor of ['token:env', 'token:first-run', 'oidc:someone@example.com']) assert.equal(isOwnerActor(actor), true, actor);
+  for (const actor of [null, 'local', 'desktop', 'anonymous', 'webhook', 'chat:abc']) assert.equal(isOwnerActor(actor), false, String(actor));
 });
