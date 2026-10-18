@@ -141,15 +141,31 @@ and a network that is down. Only a good subscription login returns the plan's li
 tell a refused credential from an unreachable network. The four raw answers are fixtures in
 `packages/accounts/test/fixtures/get-usage-refused-*.json`. Therefore:
 
-- `get_usage` **only confirms**: a good answer records `checkedAt` on the account and clears an
-  `expired` mark. It never marks one expired; that still comes from a failed run.
-- The account in use is checked this way at most every 30 minutes, beside the provider refresh and
-  never inside `/health` (a probe spends nothing, [providers.md](providers.md)). `POST /accounts/:id/refresh`
-  is the same free check on demand, and answers `502 accounts.check-failed` when the CLI could not
+- For a **login or an OAuth token**, `get_usage` **only confirms**: a good answer records `checkedAt`
+  on the account and clears an `expired` mark. It never marks one expired; that comes from a failed
   run.
-- **Check** in Settings → Claude Code is labelled **Send a test message** and runs the paid
-  `POST /auth/verify` (a real `haiku` prompt), only on that click. It records `checkedAt` on the
-  account in use.
+- An **API key** (an `api-key` account, or the default account when `ANTHROPIC_API_KEY` is in its
+  environment) is asked of Anthropic with the vendor's official SDK, `models.list({ limit: 1 })`:
+  documented, free, and `401` for a bad key. This is the SDK used for this check only, never to
+  drive the agent. `200` confirms the account; `401` is `refused` and marks it `expired`, as a run
+  that failed at authentication does; a network error or any other status is `unknown` and changes
+  nothing. It is skipped (`unknown`) when `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK` or
+  `CLAUDE_CODE_USE_VERTEX` is set: the key is then not Anthropic's to judge.
+- A key is checked **again when it changes**: the store keeps `checkedFingerprint`, a sha256 of the
+  key (never the key), beside `checkedAt` in `accounts.json`, and an account whose key no longer
+  matches lists `checkedAt: null`.
+- An **OAuth token from the environment** (`CLAUDE_CODE_OAUTH_TOKEN`) has no free documented check,
+  and claude.ai's internal endpoints are out of bounds. Until it is confirmed Settings tags it
+  **Not confirmed** (neutral, never "Signed in") and says Claudio confirms it with the first chat.
+  An invalid token is refused before any token is generated, so that first run costs nothing and
+  marks the account expired; a turn that succeeds on an account never confirmed confirms it.
+- The account in use is checked at most every 30 minutes, beside the provider refresh and never
+  inside `/health` (a probe spends nothing, [providers.md](providers.md)). `POST /accounts/:id/refresh`
+  is the same free check on demand (for a key it also asks Anthropic, and a refused key answers the
+  account as `expired`), and answers `502 accounts.check-failed` when the CLI could not run.
+- **Check** in Settings → Claude Code → Sign-in is shown for a key and calls that route. For the
+  rest the button is **Send a test message**: it runs the paid `POST /auth/verify` (a real `haiku`
+  prompt), only on that click, and records `checkedAt` on the account in use.
 - A sign-in that succeeded or a key that was saved also records a check.
 
 ## Choosing and switching
