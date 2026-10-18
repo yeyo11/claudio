@@ -48,10 +48,12 @@ const clean = () => {
 };
 
 process.on('exit', clean);
-// A runner that ends a file's process with a signal never reaches 'exit'
+// A runner that ends a file's process with a signal never reaches 'exit'. NODE_OPTIONS reaches the
+// processes a test spawns too, and one with a handler of its own (a server that shuts down on
+// SIGTERM) must keep its exit code, so this only ends the process when nobody else listens.
 for (const [signal, number] of [['SIGTERM', 15], ['SIGINT', 2]]) {
   process.on(signal, () => {
     clean();
-    process.exit(128 + number);
+    if (process.listenerCount(signal) === 1) process.exit(128 + number);
   });
 }
