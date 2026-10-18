@@ -1,5 +1,5 @@
 import { Menu, nativeImage, Tray, type MenuItemConstructorOptions } from 'electron';
-import { trayMenu, trayTooltip, type LiveSnapshot, type TrayAction } from './live.ts';
+import { trayMenu, trayTooltip, type LiveSnapshot, type TrayAction, type TrayRestart } from './live.ts';
 
 /** The tray: what is live at a glance, and a way back to it without finding the window */
 export class LiveTray {
@@ -16,9 +16,9 @@ export class LiveTray {
     this.tray.on('click', () => act({ kind: 'show' }));
   }
 
-  update(snapshot: LiveSnapshot, updateReady?: string): void {
+  update(snapshot: LiveSnapshot, restart?: TrayRestart): void {
     this.tray.setToolTip(trayTooltip(snapshot));
-    const template = trayMenu(snapshot, updateReady).map((entry): MenuItemConstructorOptions => {
+    const template = trayMenu(snapshot, restart).map((entry): MenuItemConstructorOptions => {
       if (entry.type === 'separator') return { type: 'separator' };
       const { label, action } = entry;
       return action ? { label, click: () => this.act(action) } : { label, enabled: false };
