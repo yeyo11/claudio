@@ -110,7 +110,7 @@ function NotificationItem({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNo
 }
 
 /**
- * The same switches Settings → Notifications shows, where the person reading a notification is:
+ * The same switches Settings → General → Notifications shows, where the person reading a notification is:
  * the panel owns the disclosure, `NotificationPreferences` owns what is inside it.
  */
 function Preferences() {

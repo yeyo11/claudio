@@ -1,13 +1,15 @@
 import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useSpend } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatCost } from '@claudio/ui/lib/format';
+import { ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { PERMISSION_MODES } from '../../components/ui';
+import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
+import { SaveButton, SettingsReveal, SettingsRow } from './groups/Block';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
@@ -85,35 +87,54 @@ function useSaveAppSettings(onSaved: (next: AppSettings) => void, savedText: str
 }
 
 /**
- * The layered settings the Security tab holds: the hosts this wrapper answers to, and what a new
- * run gets by default. Each one the environment set is shown, read-only, with the variable to change.
+ * The layered settings (`GET /settings/app`) a section draws once they are read: a skeleton of the
+ * rows it waits for until then, and the error in its place if the read fails.
  */
-export function AppSettingsCards() {
+export function WithAppSettings({ rows, children }: { rows: number; children: (saved: AppSettings) => ReactNode }) {
   const { data, error, isLoading } = useQuery({ queryKey: keys.appSettings, queryFn: api.appSettings });
   return (
     <>
       <ErrorBox error={error} />
-      {isLoading && (
-        <Card>
-          <Skeleton rows={4} />
-        </Card>
-      )}
-      {data && (
-        <>
-          {/* Remounted from the server's copy, so a draft never outlives a change made elsewhere; the
-              tunnel's host coming or going is not such a change, and the draft stays */}
-          <HostsCard key={`hosts:${data.allowedHostLayers.file.join(',')}`} saved={data} />
-          <RunsCard key={`runs:${data.maxConcurrentRuns}:${data.defaultPermissionMode}:${data.sources.maxConcurrentRuns}:${data.sources.defaultPermissionMode}`} saved={data} />
-          <SpendCard key={`spend:${String(data.dailySpendCapUsd)}:${data.sources.dailySpendCapUsd}`} saved={data} />
-          <EvalsCard key={`evals:${String(data.evalsPhase2)}:${data.sources.evalsPhase2}`} saved={data} />
-        </>
-      )}
+      {isLoading && <Skeleton rows={rows} />}
+      {data && children(data)}
     </>
   );
 }
 
+// Each section is remounted from the server's copy, so a draft never outlives a change made
+// elsewhere; the tunnel's host coming or going is not such a change, and the hosts' draft stays
+
+/** Runs & spend → Runs. */
+export function RunsSettings() {
+  return (
+    <WithAppSettings rows={3}>
+      {(saved) => (
+        <RunsCard
+          key={`runs:${saved.maxConcurrentRuns}:${saved.defaultPermissionMode}:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
+          saved={saved}
+        />
+      )}
+    </WithAppSettings>
+  );
+}
+
+/** Runs & spend → Daily spend cap. */
+export function SpendSettings() {
+  return <WithAppSettings rows={3}>{(saved) => <SpendCard key={`spend:${String(saved.dailySpendCapUsd)}:${saved.sources.dailySpendCapUsd}`} saved={saved} />}</WithAppSettings>;
+}
+
+/** Runs & spend → Evals. */
+export function EvalsSettings() {
+  return <WithAppSettings rows={2}>{(saved) => <EvalsCard key={`evals:${String(saved.evalsPhase2)}:${saved.sources.evalsPhase2}`} saved={saved} />}</WithAppSettings>;
+}
+
+/** Access & safety → Allowed hosts. */
+export function HostsSettings() {
+  return <WithAppSettings rows={4}>{(saved) => <HostsCard key={`hosts:${saved.allowedHostLayers.file.join(',')}`} saved={saved} />}</WithAppSettings>;
+}
+
 /** The switch of the instruction evals' second phase: pressure levels, judged expectations, the promotion gate and case drafting. */
-function EvalsCard({ saved }: { saved: AppSettings }) {
+export function EvalsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation('config');
   const [on, setOn] = useState(saved.evalsPhase2);
   const fromEnv = saved.sources.evalsPhase2 === 'env';
@@ -121,52 +142,58 @@ function EvalsCard({ saved }: { saved: AppSettings }) {
   const dirty = Object.keys(change).length > 0;
   const save = useSaveAppSettings((next) => setOn(next.evalsPhase2), t('appSettings.evals.saved'));
   return (
-    <Card title={t('appSettings.evals.title')} actions={<SourceTag settings={saved} keys={['evalsPhase2']} />}>
+    <form
+      className="form"
+      data-setting="evals.phase-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (dirty) save.mutate(change);
+      }}
+    >
+      <SourceTag settings={saved} keys={['evalsPhase2']} />
       <p className="small muted">{t('appSettings.evals.intro')}</p>
-      <form
-        className="form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (dirty) save.mutate(change);
-        }}
-      >
-        <Switch checked={on} onChange={setOn} disabled={fromEnv}>
-          {t('appSettings.evals.switch')}
-        </Switch>
-        {fromEnv ? (
-          <EnvNote setting="evalsPhase2" />
-        ) : (
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-              {save.isPending ? t('shared.saving') : t('shared.save')}
-            </button>
-          </div>
-        )}
-      </form>
-    </Card>
+      <Switch checked={on} onChange={setOn} disabled={fromEnv}>
+        {t('appSettings.evals.switch')}
+      </Switch>
+      {fromEnv ? (
+        <EnvNote setting="evalsPhase2" />
+      ) : (
+        <div className="form-actions">
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={save.isPending} />
+        </div>
+      )}
+    </form>
   );
 }
 
+/** "Set by the environment", on a line of its own above the fields it fixed; nothing when it set none. */
 function SourceTag({ settings, keys: owned }: { settings: AppSettings; keys: ReadonlyArray<keyof AppSettingValues> }) {
   const { t } = useTranslation('config');
-  return owned.some((key) => settings.sources[key] === 'env') ? <Tag>{t('appSettings.fromEnv')}</Tag> : null;
+  return owned.some((key) => settings.sources[key] === 'env') ? (
+    <div className="settings-block-head">
+      <Tag>{t('appSettings.fromEnv')}</Tag>
+    </div>
+  ) : null;
 }
 
 /**
  * The environment's hosts and the tunnel's are listed, each tagged with who put it there, because
  * nobody may edit them here; the field holds only the hosts added here, which answer beside them.
  */
-function HostsCard({ saved }: { saved: AppSettings }) {
+export function HostsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
   const layers = saved.allowedHostLayers;
   const [text, setText] = useState(layers.file.join('\n'));
-  const change = changedSettings(saved, { allowedHosts: parseHosts(text) });
+  const hosts = parseHosts(text);
+  const change = changedSettings(saved, { allowedHosts: hosts });
   const dirty = Object.keys(change).length > 0;
   const save = useSaveAppSettings((next) => setText(next.allowedHostLayers.file.join('\n')), t('appSettings.hosts.saved'));
   const fixed = [...layers.env.map((host) => ({ host, tag: t('appSettings.fromEnv') })), ...layers.runtime.map((host) => ({ host, tag: t('appSettings.hosts.fromTunnel') }))];
+  // Every name it answers to besides localhost, counted once: the environment's, the tunnel's and the draft's
+  const answering = new Set([...layers.env, ...layers.runtime, ...hosts]).size;
 
   return (
-    <Card title={t('appSettings.hosts.title')}>
+    <>
       <p className="small muted">{t('appSettings.hosts.intro')}</p>
       {fixed.length > 0 && (
         <>
@@ -183,6 +210,7 @@ function HostsCard({ saved }: { saved: AppSettings }) {
       )}
       <form
         className="form"
+        data-setting="hosts.allowed"
         onSubmit={(event) => {
           event.preventDefault();
           if (dirty) save.mutate(change);
@@ -201,10 +229,11 @@ function HostsCard({ saved }: { saved: AppSettings }) {
             data-testid="allowed-hosts"
           />
         </Field>
+        <p className="small muted tnum">
+          {answering === 0 ? t('appSettings.hosts.consequenceNone') : t('appSettings.hosts.consequence', { count: answering, formatted: formatNumber(answering) })}
+        </p>
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-            {save.isPending ? t('shared.saving') : t('shared.save')}
-          </button>
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={save.isPending} />
           {dirty && (
             <button type="button" className="btn" onClick={() => setText(layers.file.join('\n'))}>
               {t('shared.discard')}
@@ -212,11 +241,12 @@ function HostsCard({ saved }: { saved: AppSettings }) {
           )}
         </div>
       </form>
-    </Card>
+    </>
   );
 }
 
-function RunsCard({ saved }: { saved: AppSettings }) {
+/** What a new run gets by default: the permission mode and how many may work at once, each with what it does. */
+export function RunsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
   const [mode, setMode] = useState<PermissionMode>(saved.defaultPermissionMode);
   const [runs, setRuns] = useState<number | undefined>(saved.maxConcurrentRuns);
@@ -231,47 +261,59 @@ function RunsCard({ saved }: { saved: AppSettings }) {
     },
     t('appSettings.runs.saved'),
   );
+  const envHint = (variable: string) => ` ${t('appSettings.envHint', { variable })}`;
 
   return (
-    <Card title={t('appSettings.runs.title')} actions={<SourceTag settings={saved} keys={['defaultPermissionMode', 'maxConcurrentRuns']} />}>
+    <form
+      className="form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (runsValid && Object.keys(change).length > 0) save.mutate(change);
+      }}
+    >
+      <SourceTag settings={saved} keys={['defaultPermissionMode', 'maxConcurrentRuns']} />
       <p className="small muted">{t('appSettings.runs.intro')}</p>
-      <form
-        className="form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (runsValid && Object.keys(change).length > 0) save.mutate(change);
-        }}
-      >
-        <div className="form-grid">
-          <Field label={t('appSettings.runs.mode')} hint={modeFromEnv ? t('appSettings.envHint', { variable: APP_SETTING_ENV.defaultPermissionMode }) : t('appSettings.runs.modeHint')}>
+      <div className="form-grid">
+        <div data-setting="runs.permission-mode">
+          <Field
+            label={t('appSettings.runs.mode')}
+            hint={`${t(`appSettings.runs.modeConsequence.${mode}`)}${modeFromEnv ? envHint(APP_SETTING_ENV.defaultPermissionMode) : ''}`}
+          >
             <Select
               aria-label={t('appSettings.runs.mode')}
               value={mode}
               onChange={setMode}
               disabled={modeFromEnv}
-              options={PERMISSION_MODES.map((value) => ({ value, label: value }))}
+              options={PERMISSION_MODES.map((value) => ({ value, label: modeLabel(value) }))}
             />
           </Field>
+        </div>
+        <div data-setting="runs.concurrent">
           <Field
             label={t('appSettings.runs.concurrent')}
-            hint={runsFromEnv ? t('appSettings.envHint', { variable: APP_SETTING_ENV.maxConcurrentRuns }) : t('appSettings.runs.concurrentHint', { min: MIN_RUNS, max: MAX_RUNS })}
+            hint={
+              <span className="tnum">
+                {runsValid
+                  ? t('appSettings.runs.concurrentConsequence', { count: runs, formatted: formatNumber(runs) })
+                  : t('appSettings.runs.concurrentRange', { min: formatNumber(MIN_RUNS), max: formatNumber(MAX_RUNS) })}
+                {runsFromEnv ? envHint(APP_SETTING_ENV.maxConcurrentRuns) : ''}
+              </span>
+            }
           >
             <NumberInput aria-label={t('appSettings.runs.concurrent')} value={runs} onChange={setRuns} min={MIN_RUNS} max={MAX_RUNS} disabled={runsFromEnv} />
           </Field>
         </div>
-        {!(modeFromEnv && runsFromEnv) && (
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={!runsValid || Object.keys(change).length === 0 || save.isPending}>
-              {save.isPending ? t('shared.saving') : t('shared.save')}
-            </button>
-          </div>
-        )}
-      </form>
-    </Card>
+      </div>
+      {!(modeFromEnv && runsFromEnv) && (
+        <div className="form-actions">
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={Object.keys(change).length > 0} pending={save.isPending} disabled={!runsValid} />
+        </div>
+      )}
+    </form>
   );
 }
 
-/** What the cap's card shows for a state: the switch, the amount while it is on, and the hints. */
+/** What the cap's section shows for a state: the switch, the amount while it is on, and its consequence. */
 export function SpendFields({
   on,
   amount,
@@ -291,12 +333,20 @@ export function SpendFields({
   onAmount: (amount: number | undefined) => void;
 }) {
   const { t } = useTranslation('config');
+  const cap = on ? validCap(amount) : null;
+  // The consequence, live: today's spend against the amount as it is typed
+  const today =
+    cap !== null && spentUsd !== null ? t('appSettings.spend.today', { spent: formatCost(spentUsd), cap: formatCost(cap), percent: formatPercent((spentUsd / cap) * 100) }) : null;
   return (
     <>
-      <Switch checked={on} onChange={onToggle} disabled={fromEnv}>
-        {t('appSettings.spend.switch')}
-      </Switch>
-      {on && (
+      <SettingsRow>
+        <Switch checked={on} onChange={onToggle} disabled={fromEnv}>
+          {t('appSettings.spend.switch')}
+        </Switch>
+        <p className="small muted tnum">{on ? (today ?? t('appSettings.spend.hintOver')) : spentUsd !== null ? t('appSettings.spend.todayOff', { spent: formatCost(spentUsd) }) : t('appSettings.spend.hintOff')}</p>
+      </SettingsRow>
+      {/* Mounted either way, revealed while the cap is on, so turning it on moves nothing at once */}
+      <SettingsReveal open={on}>
         <Field
           label={t('appSettings.spend.amount')}
           hint={
@@ -309,8 +359,8 @@ export function SpendFields({
         >
           <NumberInput aria-label={t('appSettings.spend.amount')} value={amount} onChange={onAmount} min={MIN_CAP} max={MAX_CAP} step={1} decimal disabled={fromEnv} />
         </Field>
-      )}
-      <p className="small muted">{spentUsd !== null ? t('appSettings.spend.hintToday', { spent: formatCost(spentUsd) }) : t('appSettings.spend.hintOff')}</p>
+        {today && <p className="small muted">{t('appSettings.spend.hintOver')}</p>}
+      </SettingsReveal>
       <p className="small muted">{t('appSettings.spend.hintApi')}</p>
     </>
   );
@@ -319,7 +369,7 @@ export function SpendFields({
 /**
  * The daily spend cap: one number for what all of Claudio's automation may spend in a day. Off, on,
  * set by the environment (read-only, with its variable), or an amount that cannot be one. What it
- * counts is the cost the CLI reports, and the card says what that means on a subscription.
+ * counts is the cost the CLI reports, and the section says what that means on a subscription.
  */
 export function SpendCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
@@ -340,37 +390,35 @@ export function SpendCard({ saved }: { saved: AppSettings }) {
   );
 
   return (
-    <Card title={t('appSettings.spend.title')} actions={<SourceTag settings={saved} keys={['dailySpendCapUsd']} />}>
-      <form
-        className="form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (dirty) save.mutate(change);
-        }}
-      >
-        <SpendFields on={on} amount={amount} fromEnv={fromEnv} invalid={invalid} spentUsd={spend?.spentUsd ?? null} onToggle={setOn} onAmount={setAmount} />
-        {fromEnv ? (
-          <EnvNote setting="dailySpendCapUsd" />
-        ) : (
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={!dirty || save.isPending}>
-              {save.isPending ? t('shared.saving') : t('shared.save')}
+    <form
+      className="form"
+      data-setting="spend-cap.daily"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (dirty) save.mutate(change);
+      }}
+    >
+      <SourceTag settings={saved} keys={['dailySpendCapUsd']} />
+      <SpendFields on={on} amount={amount} fromEnv={fromEnv} invalid={invalid} spentUsd={spend?.spentUsd ?? null} onToggle={setOn} onAmount={setAmount} />
+      {fromEnv ? (
+        <EnvNote setting="dailySpendCapUsd" />
+      ) : (
+        <div className="form-actions">
+          <SaveButton label={t('shared.save')} savingLabel={t('shared.saving')} dirty={dirty} pending={save.isPending} />
+          {dirty && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setOn(saved.dailySpendCapUsd !== null);
+                setAmount(saved.dailySpendCapUsd ?? undefined);
+              }}
+            >
+              {t('shared.discard')}
             </button>
-            {dirty && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setOn(saved.dailySpendCapUsd !== null);
-                  setAmount(saved.dailySpendCapUsd ?? undefined);
-                }}
-              >
-                {t('shared.discard')}
-              </button>
-            )}
-          </div>
-        )}
-      </form>
-    </Card>
+          )}
+        </div>
+      )}
+    </form>
   );
 }

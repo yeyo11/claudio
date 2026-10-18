@@ -7,13 +7,12 @@ import { api, keys } from '../../api';
 import { Sheet } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ProviderRow, useProviderReason } from '../../components/ProviderRow';
-import { useProviderSignIn } from '../../components/setup/provider-sign-in';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { CLAUDE_CODE_ID, providerLink, STATE_TONE, stateLabelKey } from '../../lib/provider-state';
+import { actionsFor, CLAUDE_CODE_ID, providerLink, STATE_TONE, stateLabelKey } from '../../lib/provider-state';
 import { entryOf, latestCheck, orderedIds, withEntry } from '../../lib/provider-settings';
 import { useProviders, useRefreshProviders } from '../../lib/providers';
 import { LimitBars } from './providers/LimitBars';
@@ -36,7 +35,6 @@ export function ProvidersTab() {
   const refresh = useRefreshProviders();
   const [checking, setChecking] = useState(false);
   const [binaryOpen, setBinaryOpen] = useState(false);
-  const signIn = useProviderSignIn();
 
   const save = useMutation({
     mutationFn: (next: ProvidersSettings) => api.putProviderSettings(next),
@@ -60,6 +58,8 @@ export function ProvidersTab() {
   const checkedAt = latestCheck(list);
 
   const recheck = async (): Promise<ProviderStatus[] | null> => {
+    // The row keeps its Retry while a read runs: a second press waits for the first
+    if (checking) return null;
     setChecking(true);
     try {
       return await refresh.mutateAsync();
@@ -96,14 +96,21 @@ export function ProvidersTab() {
     }
   };
 
-  const toolbar = (
-    <div className="prov-toolbar">
-      <button type="button" className="btn" disabled={checking} onClick={() => void recheck()}>
-        {checking ? <Spinner /> : <RefreshCw {...ICON_SM} />}
-        {t('refresh')}
-      </button>
+  // The row's own "Check again", unless its state already offers Retry, which is the same read
+  const offersRetry = actionsFor(status.state, status.reason).some((action) => action.kind === 'retry');
+  const checkAgain = !offersRetry && (
+    <button type="button" className="btn prov-quiet" data-setting="provider.check" aria-busy={checking} onClick={() => !checking && void recheck()}>
+      {checking ? <Spinner /> : <RefreshCw {...ICON_SM} />}
+      {t('refresh')}
+    </button>
+  );
+  const limit = (
+    <>
+      <div className="prov-limit-wrap" data-setting="provider.limits">
+        <LimitBars status={status} />
+      </div>
       <span className="prov-checked tnum">{checkedAt ? t('checkedAgo', { time: timeAgo(checkedAt) }) : t('notChecked')}</span>
-    </div>
+    </>
   );
   const editor = (sheet: boolean) => (
     <BinaryEditor
@@ -120,29 +127,23 @@ export function ProvidersTab() {
     <ProviderRow
       status={status}
       variant={narrow ? 'cell' : 'row'}
-      limit={<LimitBars status={status} />}
-      checking={checking}
+      compact
+      limit={limit}
+      // Not `checking`: the row keeps its state while the button spins, so nothing below it moves
       onRetry={() => void recheck()}
-      onChooseBinary={() => {
-        signIn.close();
-        setBinaryOpen((now) => !now);
-      }}
-      {...signIn.rowProps(status)}
-      open={signIn.rowProps(status).open || (!narrow && binaryOpen)}
+      onChooseBinary={() => setBinaryOpen((now) => !now)}
+      more={checkAgain}
+      open={!narrow && binaryOpen}
     />
   );
 
+  // Signing in is the Sign-in section's: the row's Sign in links there (ProviderRow), so the panel lives in one place
   return (
-    <div className="prov-page">
-      {toolbar}
-      <section className="card grad-border prov-card" aria-label={t('list.aria')}>
-        <div className="prov-item">
-          {row}
-          {!narrow && binaryOpen && editor(false)}
-          {!narrow && signIn.inline(status)}
-        </div>
-      </section>
-      {signIn.sheet([status])}
+    <div className="prov-page prov-bare">
+      <div className="prov-item" data-setting="provider.binary" aria-busy={checking}>
+        {row}
+        {!narrow && binaryOpen && editor(false)}
+      </div>
       {narrow && binaryOpen && (
         <Sheet open onOpenChange={setBinaryOpen} title={status.label} className="prov-sheet">
           {editor(true)}

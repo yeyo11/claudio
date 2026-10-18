@@ -61,6 +61,7 @@
   "schedules.spec.mjs": 17.8,
   "search.spec.mjs": 4.3,
   "security.spec.mjs": 17.4,
+  "settings-search.spec.mjs": 13.6,
   "setup.spec.mjs": 6.7,
   "shell.spec.mjs": 81.2,
   "slash-menu.spec.mjs": 4.5,

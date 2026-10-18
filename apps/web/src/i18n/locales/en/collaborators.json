@@ -226,7 +226,7 @@
     "agentsMayRead": "Teammates' agents may read this",
     "agentsMayReadHint": "Off, a teammate's assistant and chats do not get this project; the teammate still reads it in their Shared tab.",
     "agentReads": "Agents in this project can read what teammates share here",
-    "agentReadsHint": "Only chats that ask before running a command get the read tools: never one in Skip permission checks, and never an orchestration's workers. What they read is listed in Settings → Security."
+    "agentReadsHint": "Only chats that ask before running a command get the read tools: never one in Skip permission checks, and never an orchestration's workers. What they read is listed in Settings → Access & safety."
   },
   "shared": {
     "member": "Collaborator",
@@ -316,7 +316,8 @@
       "list": "List of shared projects",
       "goneCopy": "No longer shared",
       "records_one": "{{count}} record",
-      "records_other": "{{count}} records"
+      "records_other": "{{count}} records",
+      "openAll": "See every read"
     }
   }
 }

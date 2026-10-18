@@ -191,7 +191,7 @@ true. The worst case of mining is 1 USD a day in total; with `lesson.mine` off i
   Lessons segment on a phone. Rows carry pinned, fading, delivered and the retired reason, an evidence
   toggle and a "⋯" menu (a `Sheet` on a phone). The footer shows the mining mode and recent jobs. The
   Handed card shows the lesson count.
-- **Settings → Lessons**: the global lessons, the miner settings and the three switches. Project
+- **Settings → Instructions & memory → Lessons**: the global lessons, the miner settings and the three switches. Project
   settings carry the three delivery switches under Memory.
 - **Chat page**: "Look for lessons" in the "⋯" menu, with a cost confirm.
 - **Decisions tab**: `lesson.mine` in the Memory area.

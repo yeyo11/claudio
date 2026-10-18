@@ -53,7 +53,7 @@ turn it on and put TLS in front.
 Name all three volumes: the image declares each as a volume, so a command that names fewer still
 starts, with the others on volumes Docker made on its own, and replacing the container to update
 starts again with empty ones. [Updating](#updating-a-container-without-losing-anything)
-says how, and Settings → Account warns when a container was started that way.
+says how, and Settings → General → Updates warns when a container was started that way.
 
 ### Building it yourself instead
 
@@ -101,12 +101,12 @@ What the sections below say, in brief:
   security contexts, `auth.mode` (`none`, `token`, `oidc`) and `auth.readOnly`. There is no Ingress
   template; bring your own — and if it gives the pod a host name, put that name in
   `CLAUDIO_ALLOWED_HOSTS` through the chart's `env`.
-- **The tunnel** (Settings → Remote access): the image runs a Tailscale of its own in userspace
+- **The tunnel** (Settings → Access & safety → Remote access): the image runs a Tailscale of its own in userspace
   networking, with its node on the data volume, and you sign it in from the app with a login link or
   an auth key. Once open it goes around the published port, the proxy and the Ingress; turn it off
   with `CLAUDIO_TUNNEL=off` (or `tunnel.enabled: false`). See
   [The tunnel in Docker](#the-tunnel-in-docker).
-- **A pinned Claude Code**: the image installs a fixed version and Settings → Account says when a
+- **A pinned Claude Code**: the image installs a fixed version and Settings → General → Updates says when a
   newer one is published, with how to move. The check reads the npm registry on demand and once a
   day.
 - **Restarts**: Docker only marks a container `unhealthy`, so the image's healthcheck ends the server
@@ -180,7 +180,7 @@ longer `localhost`:
   `*.tunnel.example` does not answer to `eviltunnel.example`. Name a domain you control or that a
   provider controls; a wildcard over a public suffix (`*.com`) guards nothing and is refused at
   startup rather than accepted.
-- **Adding a host later** does not need a restart. Settings → Security → Allowed hosts keeps the
+- **Adding a host later** does not need a restart. Settings → Access & safety → Allowed hosts keeps the
   variable's hosts fixed and lets you add more, which answer beside them from the next request
   ([layered-settings.md](layered-settings.md)).
 - **Rewriting `Host` to the upstream** (nginx's `proxy_set_header Host $proxy_host`, some ingress
@@ -238,12 +238,12 @@ win, so changing the value and upgrading does not change a running install.
 
 `terminal.enabled` (default `false`) writes `CLAUDIO_TERMINAL` as `off` or `on`; see
 [the terminal](#the-terminal). `tunnel.enabled` (default `true`, as in the image) decides whether the pod runs its own
-`tailscaled` and Settings → Remote access may serve it on a tailnet; see the next section. The deployment always writes `CLAUDIO_TUNNEL` as `on` or `off`,
+`tailscaled` and Settings → Access & safety → Remote access may serve it on a tailnet; see the next section. The deployment always writes `CLAUDIO_TUNNEL` as `on` or `off`,
 and `NOTES.txt` warns when it is on.
 
 ## The terminal
 
-Settings → Terminal opens the person's own shell in the browser. It is off until someone turns it on,
+Settings → Access & safety → Terminal opens the person's own shell in the browser. It is off until someone turns it on,
 and in a container it has two conditions:
 
 - **Authentication.** The image listens on `0.0.0.0`, so with `CLAUDIO_AUTH_MODE=none` every request
@@ -266,7 +266,7 @@ binary: nothing is compiled in either build stage.
 
 ## The tunnel in Docker
 
-Settings → Remote access serves Claudio on the person's tailnet through the Tailscale CLI
+Settings → Access & safety → Remote access serves Claudio on the person's tailnet through the Tailscale CLI
 (`tailscale serve`, never Funnel; [tunnel.md](tunnel.md)). A container sees neither the host's
 `tailscale` CLI nor its daemon, so **the image runs a Tailscale of its own** (owner decision,
 2026-10-08), and the person signs it in from the app: the setup assistant's Access step or Settings
@@ -415,7 +415,7 @@ like the rest of the volume. A `login` account is signed in from the Accounts pa
 
 ## The daily spend cap
 
-Set `CLAUDIO_DAILY_SPEND_CAP_USD` in `.env` (or `dailySpendCapUsd` in Settings → Security) to stop an
+Set `CLAUDIO_DAILY_SPEND_CAP_USD` in `.env` (or `dailySpendCapUsd` in Settings → Access & safety) to stop an
 unattended deployment from spending without limit: over the cap new flow runs, orchestration tasks,
 schedule fires and decisions wait until the server's local midnight, and a person's new turn asks
 first. Nothing running is stopped. The figure is the sum of the `total_cost_usd` of each `result`
@@ -436,7 +436,7 @@ Firebase project, no key of anyone else's.
   through, since the push routes are guarded like every other one.
 - **A LAN install over plain HTTP gets the app, not the push.** On `http://192.168.1.10:8797` a phone
   can still add Claudio to its home screen, but the browser registers no worker there: no cached
-  shell, and no notification while the app is closed. Settings → Notifications says exactly that,
+  shell, and no notification while the app is closed. Settings → General → Notifications says exactly that,
   naming the origin, rather than showing a switch that does nothing. A browser on the same machine as
   the server is the exception: `http://localhost:8797` is a secure origin, so push works untouched.
 - **The keypair is made on first use** and kept as `push.json` in the data directory (mode 600, in
@@ -482,7 +482,7 @@ restart cannot change the version.
 
 **How it learns of a release.** The server asks GitHub for the latest release of `yeyo11/claudio`
 60 s after it starts, then once the last answer is a day old (it looks every hour), and whenever
-someone presses **Check for updates** in Settings → Account. GitHub's `latest` never returns a draft
+someone presses **Check for updates** in Settings → General → Updates. GitHub's `latest` never returns a draft
 or a pre-release. What it said is kept as `release.json` in the data directory, and pages read that
 file, never GitHub: `GET /api/system/release` makes no network call. A failed check keeps the
 previous answer and shows the error on the card. One request a day stays far below GitHub's 60 an
@@ -546,7 +546,7 @@ To update it: `docker pull ghcr.io/yeyo11/claudio && docker stop claudio && dock
 the same `docker run`. A named volume is reattached by name, so the new container finds everything.
 Do not add `-v` to `docker rm`: it removes the anonymous volumes too.
 
-**Checking.** `GET /api/system/storage` (and the warning at the top of Settings → Account, which
+**Checking.** `GET /api/system/storage` (and the warning at the top of Settings → General → Updates, which
 reads it) says what each folder sits on: `persistent` for a named volume, a bind mount or a claim,
 `anonymous`, `container` (the container's own layer) or `temporary` (memory or an `emptyDir`).
 `atRisk` is true when any of them would not survive. It reads the mounts the server itself sees, so

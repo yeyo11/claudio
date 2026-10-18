@@ -95,19 +95,18 @@
     "home": "Go to Home"
   },
   "appearance": {
-    "tab": "Appearance",
     "intro": "How Claudio looks and moves in this browser. Stored here, not on the server.",
     "theme": "Theme",
-    "themeHint": "System follows your operating system's light or dark setting.",
+    "themeHint": "System follows your operating system's light or dark mode.",
     "themeOptions": {
       "system": "System",
       "light": "Light",
       "dark": "Dark"
     },
     "language": "Language",
-    "languageHint": "The language of the interface. What Claude writes is never translated.",
+    "languageHint": "What Claude writes is never translated.",
     "motion": "Motion",
-    "motionHint": "Spinners, pulsing rails and counters say what an agent is doing right now.",
+    "motionHint": "The spinners and pulses that show an agent working.",
     "motionOptions": {
       "full": "Full",
       "subtle": "Subtle",

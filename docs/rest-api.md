@@ -533,7 +533,7 @@ a client can say the same sentence in another language instead of showing the se
 step in without ending the turn, `POST /chats/:id/commands/:toolUseId/cancel` kills that one
 command's process tree (found under the CLI's pid, never by matching a command line; Linux only),
 and `POST /chats/:id/hint` sends a message the worker reads at its next step. With the supervisor
-on, a worker that turns `bad` also gets a proposed hint on `health.proposal`, to send, edit or
+(the `supervisor.intervene` point) not off, a worker that turns `bad` also gets a proposed hint on `health.proposal`, to send, edit or
 dismiss.
 
 | Method | Route | Description |
@@ -561,8 +561,8 @@ dismiss.
 | POST | `/chats/:id/interrupt` | End the turn in progress and keep the process, which reads what waits for it. `{ messageId? }` is "Send now": `409` once the agent has read that message, and nothing is interrupted |
 | POST | `/chats/:id/hint` | `{ text }` — a nudge for a chat whose process is up, delivered as its next user message; the signals of `health` carry a suggested text |
 | POST | `/chats/:id/commands/:toolUseId/cancel` | Kill one shell command's process tree without ending the turn: the worker gets a failed result for that call and carries on. Optional `{ reason }`; Linux only |
-| GET | `/settings/supervisor` | The optional supervisor: `{ enabled, model, autoSend, maxCostUsd }`, off by default (`haiku`, `0.05`). From `supervisor.json` in the data directory |
-| PUT | `/settings/supervisor` | Replace them whole. When enabled, a worker whose health turns `bad` wakes it once per signal: a read-only housekeeping chat (`--max-budget-usd` from `maxCostUsd`) reads the signal and the worker's last steps and proposes a hint, on `health.proposal` and as `supervisor.proposed`. `autoSend` sends it without waiting for a person |
+| GET | `/settings/supervisor` | **Deprecated**: the Supervisor is the `supervisor.intervene` decision point; read `GET /decisions/settings`. Answers `{ enabled, model, autoSend, maxCostUsd }` derived from it: `enabled` is the point's mode not being `off`, `autoSend` its mode being `active`, `model` and `maxCostUsd` the engine's `cli.model` and `cli.maxCostUsd` |
+| PUT | `/settings/supervisor` | **Deprecated**: set the point's mode through `PUT /decisions/settings`. Maps `enabled` / `autoSend` onto the mode (off; shadow, which proposes hints for a person to send; active, which sends them on its own, and under Jev only when the engine expects a hint to help) and ignores `model` and `maxCostUsd`. When the point is not off, a worker whose health turns `bad` wakes the Supervisor once per signal: a read-only housekeeping chat reads the signal and the worker's last steps and proposes a hint, on `health.proposal` and as `supervisor.proposed`. Refused to a chat's token (`403`) |
 | POST | `/chats/:id/supervisor/:proposalId/send` | Send the supervisor's proposal through the hint route and mark it `sent` (`409` once sent or dismissed, or with no live process) |
 | POST | `/chats/:id/supervisor/:proposalId/dismiss` | Mark the proposal `dismissed`; nothing reaches the worker |
 | PATCH | `/chats/:id` | `{ permissionMode?, model? }` — a live process switches at once; an ended one on its next execution |

@@ -24,7 +24,7 @@ import type { TranscriptStore } from './transcripts.ts';
 
 /**
  * The executable a driver starts: a fixed path, or one read again at every start. Core passes the
- * latter, so the person's binary override in Settings → Providers applies to the next process
+ * latter, so the person's binary override in Settings → Claude Code applies to the next process
  * without rebuilding the driver.
  */
 export type BinarySource = string | (() => string);

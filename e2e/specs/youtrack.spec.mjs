@@ -1,7 +1,7 @@
 // YouTrack as an issue tracker, end to end through the fake youtrack-app (e2e/fake-trackers), which
 // answers in the shapes youtrack-app 1.0.3 was recorded to print and never reaches a network.
 //
-// 1. Settings → Integrations: YouTrack has no access yet and offers Connect. A token the instance
+// 1. Settings → Connections → Trackers: YouTrack has no access yet and offers Connect. A token the instance
 //    refuses is saved and said so; the right one makes the row ready, naming the account. The token
 //    never comes back from the API, and the field says one is saved. On a phone the form is a sheet.
 // 2. A project with no code host at all can use YouTrack: its tracker form takes the project's short
@@ -19,6 +19,8 @@ import { join } from 'node:path';
 
 export const timeout = 300_000;
 
+// The trackers are a section of Settings → Connections; the old `?tab=integrations` lands on its code hosts
+const TRACKERS = '/settings/connections#trackers';
 const overflow = `return document.documentElement.scrollWidth - innerWidth`;
 
 async function scan(page, check, label) {
@@ -61,18 +63,18 @@ export default async ({ page, api, check, dirs }) => {
     rmSync(fakeDir, { recursive: true, force: true });
     await api.del('/trackers/youtrack/credentials');
 
-    // ================= 1. Settings → Integrations =================
+    // ================= 1. Settings → Connections → Trackers =================
     await page.goto('/', 300);
     for (const theme of ['dark', 'light']) {
       await setTheme(theme);
-      await page.goto('/settings?tab=integrations', 300);
+      await page.goto(TRACKERS, 300);
       await waitState('signed-out', `[${theme}] YouTrack has no access yet`);
       const before = await row();
       check(before.actions[0] === 'connect', `[${theme}] Connect is the first action (${before.actions})`);
       check(/address of your YouTrack and a permanent token/.test(before.text), `[${theme}] the row says what is missing (${before.text.replace(/\s+/g, ' ')})`);
     }
     await setTheme('dark');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(TRACKERS, 300);
     await waitState('signed-out', 'the row again');
     await page.click('[data-tracker="youtrack"] [data-action="connect"]', undefined, 300);
     await page.waitFor(`return Boolean(document.querySelector('input[type=password]'))`, { label: 'the access form opens under the row' });
@@ -98,7 +100,7 @@ export default async ({ page, api, check, dirs }) => {
     const calls = readFileSync(join(fakeDir, 'youtrack.calls'), 'utf8');
     check(!calls.includes('perm-'), 'the token never reached the program’s argv');
     await setTheme('light');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(TRACKERS, 300);
     await waitState('ready', '[light] ready');
     await page.click('[data-tracker="youtrack"] [data-action="connect"]', undefined, 300);
     await page.waitFor(`return Boolean(document.querySelector('input[type=password]'))`, { label: '[light] the access form opens' });
@@ -106,7 +108,7 @@ export default async ({ page, api, check, dirs }) => {
     await scan(page, check, 'the YouTrack access form, light');
     await setTheme('dark');
     await page.viewport(390, 844);
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(TRACKERS, 300);
     await page.waitFor(`return document.querySelector('.prov-cell[data-tracker="youtrack"]')?.dataset.state === 'ready'`, { label: 'a cell on a phone' });
     await page.click('.prov-cell[data-tracker="youtrack"] [data-action="connect"]', undefined, 300);
     await page.waitFor(`return Boolean(document.querySelector('[role=dialog] input[type=password]'))`, { label: 'on a phone the access form is a sheet' });
@@ -166,7 +168,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ================= 4. Forget =================
     await api.del('/trackers/youtrack/credentials');
-    await page.goto('/settings?tab=integrations', 300);
+    await page.goto(TRACKERS, 300);
     await waitState('signed-out', 'forgotten access is signed out again');
     const refused = await api.get(`/projects/${projectId}/tracker/issues`);
     check(refused.status === 409, `the import refuses without access (${refused.status})`);

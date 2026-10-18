@@ -8,7 +8,7 @@
 // fake CLI calls Claudio's real MCP server (`mcp:` step), which reads Ben's copy with the chat's token:
 // the answer fences his text as third-party content, the chat's header carries the "Reads teammates'
 // shares" chip, and its tool row says whose share it read. A chat in bypassPermissions in the same
-// project gets no tool. The read is a row of the audit in Settings → Security, and the copy says a
+// project gets no tool. The read is a row of the audit in Settings → Access & safety → Agent reads, and the copy says a
 // chat read it today. Last, Ben forbids agent reads: Ana's copy says so, and her chat is refused.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -129,7 +129,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben }, s
     await page.waitFor(`return !!document.querySelector('.collab-agents [role=switch]')`, { label: 'the Agents card', timeout: 30_000 });
     check((await page.eval(`return document.querySelector('.collab-agents').innerText`)).includes('The assistant reads what is shared with you'), 'the switch says what it does');
     check((await page.eval(`return document.querySelector('.collab-agents [role=switch]').getAttribute('aria-checked')`)) === 'true', "the assistant's reads are on by default");
-    check((await page.eval(`return document.querySelector('[data-testid=collab-agent-reads-link]')?.getAttribute('href') ?? ''`)).includes('tab=security'), 'the card links to the audit');
+    check((await page.eval(`return document.querySelector('[data-testid=collab-agent-reads-link]')?.getAttribute('href') ?? ''`)) === '/settings/access/agent-reads', 'the card links to the agent reads in Access & safety');
     await page.eval(`document.querySelector('.collab-agents [role=switch]').click(); return true`);
     await until(async () => (await api.get('/collaborators')).body?.settings?.assistantReads === false, "the assistant's switch saved off");
     await page.waitFor(`return document.querySelector('.collab-agents [role=switch]')?.getAttribute('aria-checked') === 'false'`, { label: 'the switch drawn off' });
@@ -194,12 +194,13 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben }, s
       `the read is audited (${JSON.stringify(audit.slice(0, 5))})`,
     );
     check(!audit.some((r) => r.chatId === bypass || r.chatId === before), 'nothing read by the chats that had no tool');
-    await page.goto('/settings?tab=security#agent-reads', 1500);
-    await page.waitFor(`return [...document.querySelectorAll('#agent-reads tbody tr')].some((tr) => tr.innerText.includes(${JSON.stringify(reader.slice(0, 8))}))`, {
-      label: "the read's row in Settings → Security",
+    // The whole list is a detail of Access & safety; the group's screen shows the latest only
+    await page.goto('/settings/access/agent-reads', 1500);
+    await page.waitFor(`return [...document.querySelectorAll('[data-setting="agent-reads.log"] tbody tr')].some((tr) => tr.innerText.includes(${JSON.stringify(reader.slice(0, 8))}))`, {
+      label: "the read's row in Settings → Access & safety → Agent reads",
       timeout: 30_000,
     });
-    const auditRow = await page.eval(`return [...document.querySelectorAll('#agent-reads tbody tr')].find((tr) => tr.innerText.includes(${JSON.stringify(reader.slice(0, 8))})).innerText`);
+    const auditRow = await page.eval(`return [...document.querySelectorAll('[data-setting="agent-reads.log"] tbody tr')].find((tr) => tr.innerText.includes(${JSON.stringify(reader.slice(0, 8))})).innerText`);
     check(auditRow.includes('collab_read_chats') && auditRow.includes('Ben') && auditRow.includes(SHARE_KEY), `the row: tool, whose copy, its key (${auditRow})`);
     await page.goto(base, 1500);
     await page.waitFor(`return !!document.querySelector('[data-testid=collab-agent-reads]')`, { label: '"Read by 1 chat today" on the copy', timeout: 30_000 });

@@ -584,7 +584,7 @@ button.master-item-on:hover {
   }
 }
 
-/* ---- Settings: the grouped side nav on a desktop, grouped cells on a phone ---- */
+/* ---- Settings: eight groups and a search in a side nav on a desktop; list → group → detail on a phone ---- */
 
 /* The nav runs the height of the page, flush with its top and left edges, like the app's own sidebar */
 .settings-layout {
@@ -626,17 +626,72 @@ button.master-item-on:hover {
 .settings-nav-tabs {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.settings-nav-group {
-  display: flex;
-  flex-direction: column;
   gap: 1px;
 }
 
-.settings-nav-label {
-  padding: 0 10px 4px;
+/* While the search has a query its results take the groups' place */
+.settings-nav-tabs[hidden] {
+  display: none;
+}
+
+/* The search heads the nav, and the phone's list */
+.settings-search {
+  min-width: 0;
+}
+
+.settings-search input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Escape clears the field: the browser's own small clear button would be a second, tiny way */
+.settings-search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+/* A result: its group above it in the faint level, the label in the body's */
+.settings-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+
+.settings-result.is-active {
+  background: var(--bg-hover);
+}
+
+.settings-result-group {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+.settings-result-label {
+  min-width: 0;
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.settings-results-none {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
 }
 
 .settings-nav-item {
@@ -714,6 +769,195 @@ button.master-item-on:hover {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-small);
+}
+
+/* A detail's way back to its group, above its title: a quiet link, not a button */
+.settings-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.settings-back:hover {
+  color: var(--text);
+}
+
+/* A group's screen: sections separated by space, never by a card's border */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  scroll-margin-top: 16px;
+}
+
+/* A section's own lines (its consequence, a summary) take the section's gap, not a paragraph's margin */
+.settings-section > p {
+  margin: 0;
+}
+
+.settings-head-title:focus {
+  outline: none;
+}
+
+/* Reached when an address names an anchor the screen does not draw: the focus still shows */
+.settings-head-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.settings-section-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+}
+
+.settings-section-title:focus {
+  outline: none;
+}
+
+.settings-section-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* A row that opens a detail: the name, its count and sources, a chevron; the whole row is the link */
+.settings-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  transition: background var(--dur-fast);
+}
+
+.settings-detail-row:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-detail-name {
+  flex: 1;
+  min-width: 0;
+  /* A name wraps between words, never inside one */
+  overflow-wrap: break-word;
+}
+
+.settings-detail-note {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.settings-detail-chevron {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* A row that stands for a whole section: its name, and under it what the items are */
+.settings-detail-text {
+  display: flex;
+  flex: 1 1 14ch;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 12ch;
+  padding: 6px 0;
+}
+
+/* Beside a name and its description the count gives way first: it wraps, at the row's end */
+.settings-detail-text ~ .settings-detail-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: end;
+  overflow-wrap: break-word;
+}
+
+.settings-detail-desc {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+/* One-row sections: the row is the section, and the rows keep a row's gap between them */
+.settings-row-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-row-section {
+  min-width: 0;
+  scroll-margin-top: 16px;
+}
+
+.settings-row-section:focus {
+  outline: none;
+}
+
+/*
+ * The row a search result or the palette opened: a fill that holds a moment and fades, so the eye
+ * finds it once. --bg-3, not --bg-2: on the light page --bg-2 is the white of a card and would not show.
+ */
+[data-setting].is-found {
+  border-radius: var(--radius-sm);
+  animation: setting-found var(--dur-slow) var(--ease-out) var(--dur-slow) both;
+}
+
+@keyframes setting-found {
+  from {
+    background: var(--bg-3);
+  }
+
+  to {
+    background: transparent;
+  }
+}
+
+:root[data-motion='subtle'] [data-setting].is-found,
+:root[data-motion='off'] [data-setting].is-found {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-setting].is-found {
+    animation: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-search input {
+    min-height: var(--touch);
+    font-size: var(--fs-input);
+  }
+
+  .settings-result {
+    justify-content: center;
+    min-height: var(--touch);
+  }
+
+  .settings-detail-row {
+    min-height: var(--touch);
+  }
 }
 
 /* Phone: a list of cells first, then one screen per tab */
@@ -821,35 +1065,57 @@ button.master-item-on:hover {
   background-size: 100% 360px;
 }
 
-/* ---- Settings → Appearance ---- */
-.appearance {
-  gap: 0;
-  padding: 0;
+/*
+ * A setting's row (settings-patterns.md): the label and its consequence, the control beside them.
+ * Space separates the rows, never a border (AP11); a narrow container stacks the label over the
+ * control, so the same row reads at 320 px and in a wide body.
+ */
+.pref-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
 }
 
-.appearance-row {
+.pref-row {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 12px 24px;
-  padding: 20px;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: 8px 24px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 8px 0;
 }
 
-.appearance-row + .appearance-row {
-  border-top: 1px solid var(--border);
+.pref-row.is-stacked {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.appearance-row-text {
+@container (max-width: 560px) {
+  .pref-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pref-row-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
 
-.appearance-row-title {
+.pref-row-title {
   font-weight: var(--fw-regular);
+  overflow-wrap: anywhere;
 }
 
-.appearance-row-control {
+.pref-row-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+.pref-row-control {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -857,9 +1123,92 @@ button.master-item-on:hover {
   min-width: 0;
 }
 
-.appearance-themes {
+/* A stacked row's control is a block (a list, a form): it takes the row's width */
+.pref-row.is-stacked > .pref-row-control {
+  align-items: stretch;
+}
+
+/* The control column holds a line of buttons and the answer they bring, which wraps on a phone */
+.pref-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+/* A detail screen's content (Behaviour, Files): no card around it, the header above names it */
+.settings-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.settings-detail-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Settings → General → Updates: what is in use and what is out, as one wrapping line under the name */
+.update-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.update-path {
+  /* literal */
+  flex-basis: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Settings → Claude Code → Sign-in: the account in use, a line per fact, under its label */
+.account-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-facts-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  color: var(--text);
+}
+
+/* A button's states share one cell, so the button keeps the width of the longest (AP10) */
+.reserved-label {
+  display: inline-grid;
+}
+
+.reserved-label > span {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+
+.reserved-label > .is-off {
+  visibility: hidden;
+}
+
+/* ---- Settings → General → Appearance ---- */
+/* Its controls are pictures with no text line to share with the label: they line up by the top */
+.appearance .pref-row {
+  align-items: start;
+}
+
+
+/* Three tiles on one line at every width: they share the control column instead of wrapping */
+.appearance-themes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 156px));
+  width: 100%;
   gap: 12px;
 }
 
@@ -867,7 +1216,7 @@ button.master-item-on:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: 156px;
+  min-width: 0;
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1037,7 +1386,7 @@ button.master-item-on:hover {
   gap: 6px;
 }
 
-/* ---- Settings → Install ---- */
+/* ---- Settings → General → Install ---- */
 .install {
   display: flex;
   flex-direction: column;
@@ -1093,11 +1442,6 @@ button.master-item-on:hover {
 }
 
 @media (max-width: 900px) {
-  .appearance-row {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 16px 14px;
-  }
-
   .appearance-themes {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1124,7 +1468,7 @@ button.master-item-on:hover {
   }
 }
 
-/* ---- Settings → Remote access ---- */
+/* ---- Settings → Access & safety → Remote access ---- */
 .tunnel-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1222,6 +1566,120 @@ button.master-item-on:hover {
   overflow-wrap: anywhere;
 }
 
+/*
+ * Runs & spend, Access & safety: the cards they were moved in whole lose their box, since the
+ * section's heading names them and space separates them (AP11); a card's state tag or refresh
+ * leads its first line instead of sitting at the far end of an empty one.
+ */
+.settings-cards .card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.settings-cards .card-head {
+  justify-content: flex-start;
+}
+
+.settings-cards .card-head > span:empty {
+  display: none;
+}
+
+/* One named part of a section that holds several: its name, its state in words beside it */
+.settings-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-block + .settings-block {
+  margin-top: 12px;
+}
+
+.settings-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-block-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  overflow-wrap: anywhere;
+}
+
+/* Rows 12 px apart (plans/settings-ia.md §6.0): the gap spaces them, so a paragraph adds no margin of its own */
+.settings-cards .form {
+  gap: 12px;
+}
+
+.settings-cards p {
+  margin: 0;
+}
+
+/* A control and its consequence: attached, one row */
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* A consequence whose words change with the choice: two lines kept, so the rows below stay put */
+.settings-consequence-2 {
+  min-height: 2lh;
+}
+
+/* Shown only while it applies; closed, it also gives back the gap before it, so nothing jumps */
+.settings-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  min-width: 0;
+  margin-top: -12px;
+  transition:
+    grid-template-rows var(--dur-base) var(--ease-out),
+    margin-top var(--dur-base) var(--ease-out);
+}
+
+.settings-reveal.is-open {
+  grid-template-rows: 1fr;
+  margin-top: 0;
+}
+
+.settings-reveal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+}
+
+/* Open, it leaves room for the focus ring of what is inside; closed, nothing of it may paint */
+.settings-reveal.is-open > .settings-reveal-body {
+  overflow-clip-margin: 4px;
+}
+
+/* A save's two words in one cell: the button keeps the longer's width in both states */
+.btn-states {
+  display: inline-grid;
+}
+
+.btn-states > span {
+  grid-area: 1 / 1;
+}
+
+[data-state='idle'] > .btn-states > .btn-state-loading,
+[data-state='loading'] > .btn-states > .btn-state-idle {
+  visibility: hidden;
+}
+
 @media (max-width: 900px) {
   .tunnel-address {
     flex-direction: column;
@@ -1249,7 +1707,7 @@ button.master-item-on:hover {
   }
 }
 
-/* Settings → Security → Guards. Status colours pair with a word and the shield; nothing here moves */
+/* Settings → Access & safety → Guards. Status colours pair with a word and the shield; nothing here moves */
 .guard-status {
   display: flex;
   align-items: center;
@@ -1319,6 +1777,7 @@ button.master-item-on:hover {
 .guard-subtitle {
   margin: 8px 0 0;
   font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
 }
 
 .guard-problems {

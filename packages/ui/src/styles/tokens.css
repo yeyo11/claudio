@@ -130,7 +130,7 @@
   --scrim: rgba(4, 4, 6, 0.62);
   /* A mask's opaque channel, not a colour anyone sees */
   --mask-ink: #000;
-  /* Miniatures of each theme in Settings → Appearance: they show that theme whichever one is on,
+  /* Miniatures of each theme in Settings → General → Appearance: they show that theme whichever one is on,
      so they are the same in both blocks */
   --swatch-light-bg: #f7f8fc;
   --swatch-light-line: #dae0ee;

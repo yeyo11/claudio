@@ -7,7 +7,10 @@ export default async ({ page, check }) => {
   await page.sleep(300);
   check((await page.eval(`return document.querySelector('.palette-option-title')?.textContent`)) === 'MCP servers', 'best match first');
   await page.key('Enter');
-  await page.waitFor(`return location.pathname + location.search === '/settings?tab=mcp'`, { label: 'navigated to MCP servers' });
+  // The palette reads the settings registry: "MCP servers" is the section of Settings → Connections
+  // and the row opening its editor, both titled the same, and either lands on the servers
+  await page.waitFor(`const at = location.pathname + location.hash; return at === '/settings/connections#mcp' || at === '/settings/connections/mcp'`, { label: 'navigated to MCP servers' });
+  check((await page.eval(`return location.search`)) === '', 'the address is a path, with no ?tab=');
   await page.waitFor(`return !document.querySelector('.palette')`, { label: 'palette closes after running a command (exit animation)' });
 
   await page.key('k', 2);

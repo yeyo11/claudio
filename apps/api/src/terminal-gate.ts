@@ -37,7 +37,7 @@ function serviceRefusal(core: Core): GateRefusal | null {
   const { reason } = core.terminals.status();
   if (reason === null) return null;
   const error: Record<string, string> = {
-    off: 'the terminal is off: turn it on in Settings → Security',
+    off: 'the terminal is off: turn it on in Settings → Access & safety',
     'disabled-by-env': 'the terminal is switched off by CLAUDIO_TERMINAL for this deployment',
     'pty-missing': 'the terminal is not available: its PTY backend could not be loaded on this machine',
     'host-failed': 'the terminal is not available: its host process keeps failing',
@@ -63,7 +63,7 @@ export async function clientRefusal(core: Core, req: FastifyRequest, options: Pi
   const local = fromLocalMachineStrict(req, runtime);
   const mode = core.security.mode;
   if (mode === 'none') {
-    if (!local) return refuse(403, 'needs-auth', 'turn on token authentication in Settings → Security to use the terminal from another device');
+    if (!local) return refuse(403, 'needs-auth', 'turn on token authentication in Settings → Access & safety to use the terminal from another device');
   } else if (!local) {
     const remote = core.terminals.settings().remote;
     if (remote === 'off') return refuse(403, 'remote-off', 'the terminal is set to open on this machine only');
@@ -73,7 +73,7 @@ export async function clientRefusal(core: Core, req: FastifyRequest, options: Pi
       const peer = req.socket.remoteAddress;
       const name = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
       if (peer === undefined || !LOOPBACK.test(peer) || runtime.get(name) === undefined) {
-        return refuse(403, 'needs-tunnel', 'the terminal opens from another device only through the tunnel: turn it on in Settings → Remote access');
+        return refuse(403, 'needs-tunnel', 'the terminal opens from another device only through the tunnel: turn it on in Settings → Access & safety → Remote access');
       }
     }
   }
@@ -86,7 +86,7 @@ export async function clientRefusal(core: Core, req: FastifyRequest, options: Pi
     // With nothing guarding the API, a client nobody could identify is refused rather than trusted:
     // a credential already proves the person under a token or OIDC
     if (verdict === 'unknown' && mode === 'none') {
-      return refuse(403, 'needs-auth', 'this machine cannot tell which process made the request: turn on token authentication in Settings → Security to use the terminal');
+      return refuse(403, 'needs-auth', 'this machine cannot tell which process made the request: turn on token authentication in Settings → Access & safety to use the terminal');
     }
   }
   return null;

@@ -1,6 +1,7 @@
 // The decision engine's screen (Settings → Decisions): the old `?tab=supervisor` link opens it, a
 // point leaves `off` only through the consent dialog with the state it would send, and the row a
-// shadow call leaves shows up in History. The point asked is `notification.urgency`: a chat that
+// shadow call leaves shows up in History, a detail of its own reached from the point's evidence line
+// (filtered by `?point=`) and from "See every decision". The point asked is `notification.urgency`: a chat that
 // ends raises a notification, and with a push subscription registered the engine asks the fake CLI
 // (through the `cli` provider: no model, no network) whether it should interrupt. `palette.intent`
 // cannot be used, it needs a low-latency provider and stays off on the CLI. Scanned with axe on a
@@ -86,23 +87,40 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
     await page.goto("/", 500);
     await theme(page, "dark");
 
-    // ---- the old Supervisor link opens the Decisions tab ----
+    // ---- the old Supervisor link opens Decisions, on the Supervisor's point ----
     await page.goto("/settings?tab=supervisor", 1500);
     await page.waitFor(
-      `return !!document.getElementById('decisions-points-title') && !!document.getElementById('decisions-history')`,
-      { label: "the Decisions tab" },
+      `return location.pathname === '/settings/decisions' && location.hash === '#point-supervisor-intervene'`,
+      { label: "the old address redirects to the Supervisor's point" },
+    );
+    await page.waitFor(
+      `return !!document.getElementById('engine-title') && !!document.getElementById('points-title')`,
+      { label: "the Decisions screen" },
     );
     await expandGroups(page);
     const body = await page.text();
     for (const text of [
       "Decisions",
-      "Engine",
+      "Who answers",
       "Decision points",
-      "History",
-      "Propose hints for workers that look stuck",
+      "See every decision",
+      "Decide whether the supervisor steps in on a stuck worker",
     ]) {
-      check(body.includes(text), `the Decisions tab has "${text}"`);
+      check(body.includes(text), `the Decisions screen has "${text}"`);
     }
+    // No chips and no History on the screen: History is a detail
+    check(
+      !(await page.eval(
+        `return !!document.querySelector('[role=tabpanel] .dp-nav, [role=tabpanel] .chip, [role=tabpanel] .dp-hist-row')`,
+      )),
+      "the screen has no chips and no History list",
+    );
+    check(
+      (await page.eval(
+        `return document.querySelector('[data-setting="points.history"]')?.getAttribute('href')`,
+      )) === "/settings/decisions/history",
+      "one link opens every decision",
+    );
 
     // ---- a point moves to shadow through the consent dialog ----
     check((await modeOf(api)) === "off", `${POINT} starts off`);
@@ -153,7 +171,7 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       `the consent is stored for the cli (${JSON.stringify(granted)})`,
     );
     check(
-      (await page.text(onPoint(".dp-consent"))).includes("Consented"),
+      (await page.text(onPoint(".dp-evidence-consent"))).includes("Consented"),
       "the row says Consented",
     );
     check(
@@ -162,7 +180,7 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       )) === "Shadow",
       "the row shows Shadow",
     );
-    await page.click(".dp-foot button.btn-primary", "Save", 800);
+    await page.click(".dp-foot button.dp-save", undefined, 800);
     await page.waitFor(
       `return document.body.innerText.includes('Decision settings saved')`,
       { label: "the settings are saved" },
@@ -196,12 +214,34 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       `the row is recorded (${JSON.stringify(row && { provider: row.provider, mode: row.mode, status: row.status, unavailable: row.unavailable })})`,
     );
 
-    await page.goto("/settings?tab=decisions", 1200);
+    await page.goto("/settings/decisions", 1200);
+    await expandGroups(page);
+
+    // An act point has no calibrated confidence on the CLI, so it cannot be active there
+    const active = await page.eval(
+      `return [...document.querySelectorAll('[data-point="${POINT}"] [role=radio]')][2]?.getAttribute('aria-disabled')`,
+    );
+    check(
+      active === "true",
+      "Active is unavailable for an act point on the cli",
+    );
+
+    // The point's evidence counts the row and opens History filtered by the point
+    await page.waitFor(
+      `return !!document.querySelector('[data-point="${POINT}"] .dp-evidence a[href*="/settings/decisions/history"]')`,
+      { label: "the point's evidence links to its decisions" },
+    );
+    const evidence = await page.text(onPoint(".dp-evidence"));
+    check(/\b[1-9]\d* decisions?\b/.test(evidence), `the evidence counts the decision (${evidence})`);
+    await page.click(onPoint('.dp-evidence a[href*="/settings/decisions/history"]'), undefined, 800);
+    await page.waitFor(
+      `return location.pathname === '/settings/decisions/history' && new URLSearchParams(location.search).get('point') === ${JSON.stringify(POINT)}`,
+      { label: "History, filtered by the point" },
+    );
     await page.waitFor(
       `return !!document.querySelector('.dp-hist-row[data-decision]')`,
       { label: "a History row" },
     );
-    await expandGroups(page);
     const historyRow = await page.text(".dp-hist-row[data-decision]");
     check(
       historyRow.includes(POINT),
@@ -216,28 +256,33 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       "the row opens on the question it asked",
     );
 
-    // An act point has no calibrated confidence on the CLI, so it cannot be active there
-    const active = await page.eval(
-      `return document.querySelector('[data-point="${POINT}"] [role=radio]:nth-of-type(3)')?.getAttribute('aria-disabled')`,
-    );
-    check(
-      active === "true",
-      "Active is unavailable for an act point on the cli",
+    // Back on the group, "See every decision" opens History without a filter
+    await page.click(".settings-back", undefined, 800);
+    await page.click('[data-setting="points.history"]', undefined, 800);
+    await page.waitFor(
+      `return location.pathname === '/settings/decisions/history' && !location.search.includes('point=') && !!document.querySelector('.dp-hist-row[data-decision]')`,
+      { label: "every decision" },
     );
 
-    // ---- axe on the desktop, both themes ----
+    // ---- axe on the desktop, both themes: the screen and its History ----
     for (const name of ["dark", "light"]) {
       await theme(page, name);
-      await page.goto("/settings?tab=decisions", 1200);
-      await page.waitFor(
-        `return !!document.querySelector('.dp-hist-row[data-decision]')`,
-        { label: `History in ${name}` },
-      );
+      await page.goto("/settings/decisions", 1200);
       await expandGroups(page);
       const violations = await page.axe({ include: "[role=tabpanel]" });
       check(
         violations.length === 0,
-        `[${name}] the Decisions tab has accessibility violations: ${JSON.stringify(violations)}`,
+        `[${name}] the Decisions screen has accessibility violations: ${JSON.stringify(violations)}`,
+      );
+      await page.goto("/settings/decisions/history", 1200);
+      await page.waitFor(
+        `return !!document.querySelector('.dp-hist-row[data-decision]')`,
+        { label: `History in ${name}` },
+      );
+      const history = await page.axe({ include: "[role=tabpanel]" });
+      check(
+        history.length === 0,
+        `[${name}] History has accessibility violations: ${JSON.stringify(history)}`,
       );
     }
 
@@ -248,8 +293,8 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       await theme(page, name);
       await page.goto("/settings?tab=supervisor", 1500);
       await page.waitFor(
-        `return !!document.querySelector('.dp-hist-row[data-decision]')`,
-        { label: `the tab on a phone in ${name}` },
+        `return location.pathname === '/settings/decisions' && !!document.querySelector('.dp-toggle-all')`,
+        { label: `the screen on a phone in ${name}` },
       );
       await expandGroups(page);
       const overflow = await page.eval(
@@ -257,12 +302,12 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       );
       check(
         overflow <= 1,
-        `[${name}] the tab does not scroll sideways on a phone (${overflow}px)`,
+        `[${name}] the screen does not scroll sideways on a phone (${overflow}px)`,
       );
       const violations = await page.axe();
       check(
         violations.length === 0,
-        `[${name}] the Decisions tab on a phone has accessibility violations: ${JSON.stringify(violations)}`,
+        `[${name}] the Decisions screen on a phone has accessibility violations: ${JSON.stringify(violations)}`,
       );
       const heights = await page.eval(
         `return [...document.querySelectorAll('[data-point="${POINT}"] [role=radio]')].map((b) => Math.round(b.getBoundingClientRect().height))`,

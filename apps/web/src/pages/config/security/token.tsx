@@ -11,7 +11,7 @@ import { CopyButton, Field } from '@claudio/ui/components/ui';
 import { setChallenge, setToken } from '../../../lib/auth';
 import { reveal, useRevealedToken } from '../../../lib/revealed-token';
 
-// The access token's pieces, shared by Settings → Security's Token card and the setup assistant's
+// The access token's pieces, shared by Settings → Access & safety's Token card and the setup assistant's
 // Access step: setting or rotating it, the one time a generated token is shown, and a token of the
 // person's own.
 

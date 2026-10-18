@@ -67,7 +67,7 @@ and the deadline (3 s) all block. The launch fails when the guard cannot be arme
 
 ## Settings
 
-**Settings → Security → Guards** (`#guards`), or `GET`/`PUT /settings/guards`, stored in `guards.json`
+**Settings → Access & safety → Guards** (`#guards`), or `GET`/`PUT /settings/guards`, stored in `guards.json`
 in the data directory:
 
 - **Automated runs:** a switch for workers and the flow.

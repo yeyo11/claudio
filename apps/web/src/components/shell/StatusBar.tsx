@@ -23,6 +23,7 @@ import { useTerminalBar } from '../terminal/terminal-bar';
 import { runningCount } from '../terminal/terminal-model';
 import { useTerminalList } from '../terminal/use-terminals';
 import { ProviderDots } from './ProviderDots';
+import { settingsHref } from '../../pages/config/settingsGroups';
 
 type Now = ReturnType<typeof useUsageNow>;
 
@@ -97,7 +98,7 @@ function LimitMeter({ label, percent, exhausted }: { label: string; percent: num
 /**
  * The phone's More sheet opens on this: the default provider, whether it works, and how much of its
  * limit is used. It is what the desktop's status bar says of that provider, as a card, and leads to
- * Settings → Providers. A provider that reports no limit shows none, and says so.
+ * Settings → Claude Code. A provider that reports no limit shows none, and says so.
  */
 export function ProviderCard({ now, connection }: { now: Now; connection: Connection }) {
   const { t } = useTranslation(['shell', 'providers']);
@@ -318,7 +319,7 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
   return (
     <footer className="statusbar" aria-label={t('statusbar.label')}>
       <Tooltip content={[connection.title, connection.detail].filter(Boolean).join(' · ')} side="top">
-        <NavLink to="/settings?tab=account" className="statusbar-item statusbar-conn">
+        <NavLink to={settingsHref('claude-code', { section: 'sign-in' })} className="statusbar-item statusbar-conn">
           <StatusDot tone={connection.tone} live={connection.live} />
           <span className="ellipsis">{connection.short}</span>
         </NavLink>

@@ -256,7 +256,7 @@
   }
 }
 
-/* Settings → Providers: the page, the default row, the list of rows and the sheets of the phone */
+/* Settings → Claude Code: the page, the default row, the list of rows and the sheets of the phone */
 .prov-page {
   display: flex;
   flex-direction: column;
@@ -452,6 +452,42 @@
 
   .prov-sheet .btn,
   .prov-toolbar .btn {
+    min-height: var(--touch);
+  }
+}
+
+/*
+ * Settings → Claude Code → Provider: the one row sits on the screen, not in a card (AP11). Its own
+ * padding hangs outside the column, so its mark lines up with the section's heading and an open
+ * row's fill still has room around the text.
+ */
+.prov-bare > .prov-item {
+  margin-inline: -18px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.prov-bare > .prov-item > .prov-row,
+.prov-bare > .prov-item > .prov-cell,
+.prov-bare > .prov-item > .prov-bin {
+  border-bottom: 0;
+}
+
+.prov-bare .prov-bin {
+  padding-left: 68px;
+}
+
+.prov-limit-wrap {
+  align-self: stretch;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .prov-bare > .prov-item {
+    margin-inline: -14px;
+  }
+
+  .prov-bare .prov-actions .btn {
     min-height: var(--touch);
   }
 }

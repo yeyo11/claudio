@@ -112,9 +112,9 @@ const REASONS = {
   // Where Claudio runs tailscaled itself (the Docker image) there is no terminal to send anyone to
   managedDaemonDown: () =>
     reason('tunnel.managedDaemonDown', "The Tailscale service this container starts for Claudio is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder."),
-  managedLoggedOut: () => reason('tunnel.managedLoggedOut', "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Remote access."),
+  managedLoggedOut: () => reason('tunnel.managedLoggedOut', "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Access & safety → Remote access."),
   managedNotConnected: (state: string) =>
-    reason('tunnel.managedNotConnected', `This Claudio's Tailscale is not connected (${state}). Sign in again from Settings → Remote access.`, { state }),
+    reason('tunnel.managedNotConnected', `This Claudio's Tailscale is not connected (${state}). Sign in again from Settings → Access & safety → Remote access.`, { state }),
 };
 
 interface CliResult {

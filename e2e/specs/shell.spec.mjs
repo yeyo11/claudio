@@ -1,5 +1,5 @@
 // The shell: a one-row top bar whose "New chat ▾" also starts a workflow or an orchestration,
-// Settings → Appearance as the one place for theme, language and motion (they left the top bar),
+// Settings → General → Appearance as the one place for theme, language and motion (they left the top bar),
 // the palette reaching the same preferences, and a phone's bottom tab bar instead of a slide-over.
 
 import { mkdirSync } from 'node:fs';
@@ -49,8 +49,8 @@ export default async ({ page, api, check, dirs }) => {
     // The sidebar's two groups, and the status bar at the bottom of the column
     const groups = await page.eval(`return [...document.querySelectorAll('#sidebar .nav-group')].map((g) => [...g.querySelectorAll('a')].map((a) => a.getAttribute('href').split('?')[0]))`);
     check(
-      JSON.stringify(groups) === JSON.stringify([['/', '/assistant', '/chats', '/tasks', '/orchestration', '/schedules'], ['/projects', '/collaborators', '/accounts', '/connectors', '/usage', '/settings']]),
-      `the sidebar has the Work and Space groups, the Assistant under Home, Tasks between Chats and Orchestrations, Collaborators after Projects and Accounts after Collaborators (docs/design-system.md, docs/plans/collaborators.md §5.1) (${JSON.stringify(groups)})`,
+      JSON.stringify(groups) === JSON.stringify([['/', '/assistant', '/chats', '/tasks', '/orchestration', '/schedules'], ['/projects', '/collaborators', '/accounts', '/usage', '/settings']]),
+      `the sidebar has the Work and Space groups, the Assistant under Home, Tasks between Chats and Orchestrations, Collaborators after Projects and Accounts after Collaborators, and no Connectors: they live in Settings → Connections (docs/design-system.md, docs/plans/collaborators.md §5.1, docs/plans/settings-ia.md §3) (${JSON.stringify(groups)})`,
     );
     const status = await page.eval(`const s = document.querySelector('.statusbar'); if (!s) return null; const r = s.getBoundingClientRect(); return { height: r.height, bottom: r.bottom, text: s.innerText }`);
     check(status !== null && Math.round(status.height) === 30 && Math.abs(status.bottom - 900) <= 1, `the status bar is 30px at the bottom (${JSON.stringify(status)})`);
@@ -132,30 +132,54 @@ export default async ({ page, api, check, dirs }) => {
     await page.key('Enter');
     await page.waitFor(`return location.pathname + location.search === '/tasks?new=1'`, { label: 'New task opens Tasks with its form' });
 
-    // ---- Settings → Appearance: the first tab, and what /settings opens on ----
+    // ---- Settings → General: the first group, and what /settings opens on ----
     await page.goto('/settings', 0);
-    const selected = await page.waitFor(`return document.querySelector('main [role=tab][aria-selected=true]')?.textContent.trim()`, { label: 'the selected Settings tab' });
-    check(selected === 'Appearance', `Settings opens on Appearance (got ${selected})`);
-    const panel = await page.text('[role=tabpanel]');
-    for (const heading of ['Theme', 'Language', 'Motion']) check(panel.includes(heading), `Appearance has ${heading}`);
+    const selected = await page.waitFor(`return document.querySelector('main [role=tab][aria-selected=true]')?.textContent.trim()`, { label: 'the selected Settings group' });
+    check(selected === 'General', `Settings opens on General (got ${selected})`);
+    check((await page.eval(`return location.pathname`)) === '/settings', 'on a desktop /settings stays where it is and shows General');
+    const groupNames = await page.eval(`return [...document.querySelectorAll('main .settings-nav [role=tab]')].map((t) => t.textContent.trim())`);
+    check(
+      JSON.stringify(groupNames) === JSON.stringify(['General', 'Claude Code', 'Connections', 'Instructions & memory', 'Extensions', 'Decisions', 'Runs & spend', 'Access & safety']),
+      `the settings nav has the eight groups, in order (${JSON.stringify(groupNames)})`,
+    );
+    check(!(await page.eval(`return !!document.querySelector('main .settings-nav-label')`)), 'the eight groups need no headings in the nav');
+    await page.waitFor(`return !!document.querySelector('#appearance [role=radio]')`, { label: 'the Appearance section' });
+    const appearance = await page.text('#appearance');
+    for (const heading of ['Theme', 'Language', 'Motion']) check(appearance.includes(heading), `Appearance has ${heading}`);
+    const sections = await page.eval(`return [...document.querySelectorAll('[role=tabpanel] .settings-section')].map((s) => s.id)`);
+    check(JSON.stringify(sections) === JSON.stringify(['appearance', 'notifications', 'updates', 'install']), `General holds Appearance, Notifications, Updates and Install (${JSON.stringify(sections)})`);
 
-    await page.click('[role=tabpanel] [role=radio]', 'Light');
+    await page.click('#appearance [role=radio]', 'Light');
     await page.waitFor(`return document.documentElement.dataset.theme === 'light'`, { label: 'Light applies the light theme' });
-    await page.click('[role=tabpanel] [role=radio]', 'Subtle');
+    await page.click('#appearance [role=radio]', 'Subtle');
     await page.waitFor(`return document.documentElement.dataset.motion === 'subtle' && localStorage.getItem('claudio-motion') === 'subtle'`, { label: 'Subtle is applied and stored' });
-    check((await page.text('[role=tabpanel]')).includes('spinners hold still'), 'the chosen level says what it does');
+    check((await page.text('#appearance')).includes('spinners hold still'), 'the chosen level says what it does');
 
     // The operating system's reduced motion wins, and the page says so instead of silently ignoring the choice
     await page.reduceMotion(true);
     await page.waitFor(`return document.documentElement.dataset.motion === 'off'`, { label: 'reduced motion forces off' });
-    await page.waitFor(`return !!document.querySelector('[role=tabpanel] [role=note]')`, { label: 'the override is explained' });
+    await page.waitFor(`return !!document.querySelector('#appearance [role=note]')`, { label: 'the override is explained' });
     await page.reduceMotion(false);
     await page.waitFor(`return document.documentElement.dataset.motion === 'subtle'`, { label: 'the stored choice is back once the system stops asking' });
 
-    await page.select('[role=tabpanel] .select-trigger', 'Español');
+    await page.select('#appearance .select-trigger', 'Español');
     await page.waitFor(`return document.documentElement.lang === 'es'`, { label: 'the language changes from Appearance' });
-    await page.select('[role=tabpanel] .select-trigger', 'English');
+    await page.select('#appearance .select-trigger', 'English');
     await page.waitFor(`return document.documentElement.lang === 'en'`, { label: 'and changes back' });
+
+    // A detail starts with a link back to its group, and the group's tab stays selected beside it
+    await page.goto('/settings/claude-code/files', 0);
+    await page.waitFor(`return document.querySelector('main .settings-back')?.textContent.includes('Claude Code')`, { label: 'a detail leads back to its group' });
+    check((await page.eval(`return document.querySelector('main [role=tab][aria-selected=true]')?.textContent.trim()`)) === 'Claude Code', "on a detail, its group's tab stays selected");
+    await page.click('main .settings-back', undefined, 600);
+    check(await until(`return location.pathname === '/settings/claude-code' && !document.querySelector('main .settings-back')`), 'the back link of a detail returns to its group');
+    // A group's screen has no back link: the nav is the way to the others
+    await page.goto('/settings/connections', 0);
+    await page.waitFor(`return !!document.querySelector('#connectors')`, { label: 'the Connections group' });
+    check(!(await page.eval(`return !!document.querySelector('main .settings-back')`)), 'a group has no back link on a desktop');
+    // The old Connectors page is a section of Connections now
+    await page.goto('/connectors', 0);
+    check(await until(`return location.pathname + location.hash === '/settings/connections#connectors'`), '/connectors lands on Settings → Connections → Connectors');
 
     // ---- the palette reaches the same preferences ----
     await page.key('k', 2);
@@ -252,7 +276,7 @@ export default async ({ page, api, check, dirs }) => {
     const orchestration = await api.post('/orchestrations', { name: 'e2e-shell-phone-head', objective: 'a phone header', cwd: dirs.workspaceDir, maxAttempts: 1, tasks: [{ id: 'one', name: 'One', prompt: 'Say hi' }] });
     check(orchestration.status === 201, `an orchestration to head (${orchestration.status})`);
     orchestrationId = orchestration.body?.id ?? null;
-    const headed = [`/chats/${chatId}`, `/chats/${chatId}/changes`, `/tasks/${key}/changes`, `/orchestration/${orchestrationId}`, `/orchestration/${orchestrationId}/changes`, `/orchestration/${orchestrationId}/tasks/one/changes`, '/projects', '/schedules', '/usage', '/connectors', '/settings', '/settings?tab=appearance'];
+    const headed = [`/chats/${chatId}`, `/chats/${chatId}/changes`, `/tasks/${key}/changes`, `/orchestration/${orchestrationId}`, `/orchestration/${orchestrationId}/changes`, `/orchestration/${orchestrationId}/tasks/one/changes`, '/projects', '/schedules', '/usage', '/settings', '/settings/general', '/settings/claude-code/files'];
     for (const path of headed) {
       await page.goto(path, 1200);
       await page.waitFor(`return !!document.querySelector('main h1')`, { label: `[390px ${path}] the page` });
@@ -262,7 +286,7 @@ export default async ({ page, api, check, dirs }) => {
       check(await until(`return document.querySelector('.shell')?.dataset.phoneHeader === 'page'`), `[390px ${path}] the shell marks the route phoneHeader: 'page'`);
     }
     // PhoneHeader's h1 is the screen's title on the screens it heads
-    for (const [path, title] of [['/projects', 'Projects'], ['/schedules', 'Schedules'], ['/usage', 'Usage'], ['/connectors', 'Connectors'], ['/settings', 'Settings']]) {
+    for (const [path, title] of [['/projects', 'Projects'], ['/schedules', 'Schedules'], ['/usage', 'Usage'], ['/settings', 'Settings'], ['/settings/general', 'General'], ['/settings/claude-code/files', 'Files of ~/.claude'], ['/connectors', 'Connections']]) {
       await page.goto(path, 1200);
       await until(`return document.querySelector('main .phone-head h1')?.textContent.trim() === ${JSON.stringify(title)}`);
       const h1 = await page.eval(`return document.querySelector('main .phone-head h1')?.textContent.trim() ?? null`);
@@ -273,10 +297,18 @@ export default async ({ page, api, check, dirs }) => {
     // Schedules follows the project scope, so its selector comes into its own header
     await page.goto('/schedules', 1200);
     check(await until(`return !!document.querySelector('main .phone-head .project-selector')?.getClientRects().length`), '[390px /schedules] the project scope is in the header');
-    // A Settings tab goes back to the list, not through history
-    await page.goto('/settings?tab=appearance', 1200);
+    // Settings is list → group → detail on a phone, and back is a step up, not through history
+    await page.goto('/settings', 1200);
+    await page.waitFor(`return document.querySelectorAll('main .settings-cells .settings-cell').length === 8`, { label: '[390px /settings] the list of the eight groups' });
+    check(await until(`return !!document.querySelector('main .settings-search input[type=search]')`), '[390px /settings] the list starts with the search');
+    await page.goto('/settings/general', 1200);
+    await page.waitFor(`return !!document.querySelector('main #appearance')`, { label: '[390px a Settings group] its screen' });
     await page.click('main .phone-head .phone-head-back', undefined, 900);
-    check(await until(`return location.pathname + location.search === '/settings'`), '[390px a Settings tab] back returns to the list');
+    check(await until(`return location.pathname + location.search === '/settings'`), '[390px a Settings group] back returns to the list');
+    await page.goto('/settings/claude-code/files', 1200);
+    await page.waitFor(`return document.querySelector('main .phone-head h1')?.textContent.trim() === 'Files of ~/.claude'`, { label: '[390px a Settings detail] its screen' });
+    await page.click('main .phone-head .phone-head-back', undefined, 900);
+    check(await until(`return location.pathname + location.search === '/settings/claude-code'`), '[390px a Settings detail] back returns to its group');
     // The chat keeps its own header, whose ⋯ opens as a sheet with the chat's entries
     await page.goto(`/chats/${chatId}`, 1200);
     check(await until(`return !!document.querySelector('main .chat-head') && !document.querySelector('main .phone-head')`), '[390px a chat] the chat keeps its own header');

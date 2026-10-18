@@ -133,7 +133,23 @@ export const focusInfo = `
 
 // ---------- the pages, by group ----------
 
-export const SETTINGS_TABS = ['account', 'instructions', 'settings', 'mcp', 'agents', 'skills', 'commands', 'output-styles', 'rules', 'files', 'memory', 'plugins', 'supervisor', 'security', 'remote', 'install', 'notifications'];
+/** Settings' eight groups, then every detail screen, as the paths that open them (docs/plans/settings-ia.md §3) */
+export const SETTINGS_TABS = [
+  '/settings/general',
+  '/settings/claude-code',
+  '/settings/connections',
+  '/settings/instructions',
+  '/settings/extensions',
+  '/settings/decisions',
+  '/settings/runs',
+  '/settings/access',
+  ...['behaviour', 'files'].map((detail) => `/settings/claude-code/${detail}`),
+  '/settings/connections/mcp',
+  ...['claude-md', 'memory', 'lessons', 'rules', 'output-styles'].map((detail) => `/settings/instructions/${detail}`),
+  ...['plugins', 'skills', 'agents', 'commands', 'workflows', 'tool-presets'].map((detail) => `/settings/extensions/${detail}`),
+  '/settings/decisions/history',
+  ...['audit', 'agent-reads'].map((detail) => `/settings/access/${detail}`),
+];
 
 /** Every desktop page is scanned in both themes; Home is the selected project's page, so each theme starts from All projects */
 export async function scanBothThemes(page, pages, scan, each) {

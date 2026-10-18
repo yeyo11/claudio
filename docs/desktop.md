@@ -35,7 +35,7 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8797` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
-| Tunnel (Settings → Remote access) | Off unless `CLAUDIO_TUNNEL=on` | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
+| Tunnel (Settings → Access & safety → Remote access) | Off unless `CLAUDIO_TUNNEL=on` | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
 no boundary: Claude reads and writes your real files and runs commands with your privileges. So it
@@ -53,7 +53,7 @@ To be told on a phone, point it at a wrapper served over HTTPS — see
 
 Authentication is off by default (see [SECURITY.md](../SECURITY.md)). The desktop server only
 listens on the loopback interface, but any process on your machine can reach that port. Turn on a
-token in Settings → Security if other users share the machine.
+token in Settings → Access & safety if other users share the machine.
 
 ## Requirements
 
@@ -150,7 +150,7 @@ every 30 s while the feed is down. The tray and the window menus are in English 
 
 **The tray's credential.** At each launch the app generates a secret (32 random bytes) and hands it
 to the server it starts as `CLAUDIO_DESKTOP_TOKEN`; the tray sends it as its bearer token. It is
-what lets the tray read a server guarded from Settings → Security, whose token only exists as a
+what lets the tray read a server guarded from Settings → Access & safety, whose token only exists as a
 hash and so is never known to the app. The server accepts the secret only from `127.0.0.1` dialled
 on a loopback name (not through the tunnel or a proxy), compares it in constant time, and treats it
 as the actor `desktop`, which may only read (`GET`/`HEAD`; anything else is `403`). It lives in the
@@ -172,7 +172,7 @@ once a day and whenever you press **Check for updates** (see
 [plans/app-updates.md](plans/app-updates.md)). While a newer one is known, a dot marks Settings in
 the sidebar. The app never downloads or restarts on its own: both happen when you ask.
 
-**Where to ask.** Settings → Account → **Updates** shows the version in use and the newest release,
+**Where to ask.** Settings → General → Updates → **Updates** shows the version in use and the newest release,
 with **Download Claudio X** and its progress, then **Restart to update to X**. Help → **Check for
 updates…** does the same through dialogs: up to date, available (Download), ready (Restart), or why
 it cannot. Once a download is ready, the tray menu also has **Restart to update to X**, just above
@@ -247,7 +247,7 @@ Only one instance runs at a time: opening the app again focuses the existing win
 
 ## The terminal
 
-Settings → Terminal opens your login shell in the app. With authentication off, the window counts as
+Settings → Access & safety → Terminal opens your login shell in the app. With authentication off, the window counts as
 this machine, so it works as soon as you turn it on; a phone needs the tunnel and a token. The server
 forks the shell host from `<resources>/server/terminal-host.mjs`, run on Electron's own Node, and
 loads `node-pty` from `<resources>/server/node_modules/node-pty` (a prebuilt binary: the build
@@ -280,7 +280,7 @@ and the accounts in `~/.local/share/claude-swap` are never touched.
 The server listens on `127.0.0.1` only, so a phone cannot reach it directly. Settings → **Remote
 access** serves it on your tailnet through Tailscale (`tailscale serve`): an HTTPS address on this
 machine's tailnet name, `https://<machine>.<tailnet>.ts.net:8444`, and a QR code. The phone needs
-the Tailscale app signed in to the same tailnet. Turn on a token in Settings → Security first,
+the Tailscale app signed in to the same tailnet. Turn on a token in Settings → Access & safety first,
 because the tunnel refuses to open without authentication. The tunnel reaches the port the server
 actually bound to, and since the app keeps that port, "Open the tunnel when Claudio starts" keeps
 working across launches. The address stays the same while the machine keeps its name.

@@ -79,7 +79,7 @@ export default async ({ page, api, check }) => {
   }
 
   // ---- What Settings offers about installing it ----
-  await page.goto('/settings?tab=install', 1500);
+  await page.goto('/settings/general#install', 1500);
   await page.waitFor(`return !!document.querySelector('[data-testid=install-card]')`, { label: 'the install card' });
   const card = await page.text('[data-testid=install-card]');
   check(card.length > 40, `the card says how to install, whatever this browser supports: "${card}"`);

@@ -10,7 +10,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   // ---------- axe: phone width ----------
   await scanNarrow(
     page,
-    ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/accounts', '/projects', '/schedules', '/schedules/new', '/usage', '/connectors', '/settings', '/settings?tab=settings', '/settings?tab=install', '/settings?tab=notifications', '/settings?tab=remote'],
+    ['/', '/chats', '/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/accounts', '/projects', '/schedules', '/schedules/new', '/usage', '/settings', '/settings/general', '/settings/claude-code/behaviour', '/settings/connections', '/settings/access#remote'],
     scan,
     problems,
   );
@@ -18,7 +18,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   // replace the top bar there, so their contrast and names are checked in both
   await scanNarrow(
     page,
-    ['/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/accounts', '/projects', '/schedules', '/schedules/new', '/usage', '/connectors', '/settings', '/settings?tab=install'],
+    ['/chats/new', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/accounts', '/projects', '/schedules', '/schedules/new', '/usage', '/settings', '/settings/general', '/settings/connections'],
     scan,
     problems,
     'light',
@@ -61,7 +61,9 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   if (!(await page.eval(`return document.querySelector('.more-sheet').contains(document.activeElement)`))) problems.push('[420px] opening More does not move focus into it');
   if ((await page.eval(`return document.querySelector('.tabbar-more').getAttribute('aria-expanded')`)) !== 'true') problems.push('[420px] the More button does not say its sheet is open');
   const rest = await page.eval(`return [...document.querySelectorAll('.more-sheet a')].map((a) => a.getAttribute('href'))`);
-  for (const href of ['/projects', '/collaborators', '/accounts', '/schedules', '/usage', '/connectors', '/settings', '/docs', '/settings?tab=account']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
+  for (const href of ['/projects', '/collaborators', '/accounts', '/schedules', '/usage', '/settings', '/docs', '/settings/claude-code#sign-in']) if (!rest.includes(href)) problems.push(`[420px] More does not offer ${href}`);
+  // Connectors are a section of Settings → Connections: More has no entry of its own for them
+  if (rest.includes('/connectors')) problems.push('[420px] More still offers /connectors, which moved into Settings → Connections');
   // Its sections say their figures, as the reference does: at least the project imported above is counted
   await page.waitFor(`return !!document.querySelector('.more-sheet a[href="/projects"] .more-cell-note')`, { label: 'the Projects cell has its count' });
   const projectCount = await page.text('.more-sheet a[href="/projects"] .more-cell-note');
@@ -132,7 +134,7 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   await scan(page, 'new orchestration form');
 
   // ---------- status is never colour alone ----------
-  await checkStatusWords(page, ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/connectors'], problems);
+  await checkStatusWords(page, ['/', '/chats', `/chats/${SESSION}`, `/orchestration/${orchestrationId}`, '/orchestration', '/settings/connections'], problems);
 
   // ---------- the keyboard: reachable, named, ringed, in order ----------
   await page.eval(`localStorage.removeItem('claudio:project'); return true`);

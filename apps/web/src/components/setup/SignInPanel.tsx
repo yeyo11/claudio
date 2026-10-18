@@ -36,20 +36,20 @@ export interface SignInPanelProps {
   host?: string | null;
   /**
    * `inline` opens under a row (`.prov-bin.signin-panel`), `sheet` fills a Sheet on a phone, and `card`
-   * stays open on Settings → Account, where it is the form itself and has nothing to close.
+   * stays open on Settings → Claude Code → Sign-in, where it is the form itself and has nothing to close.
    */
   layout?: PanelLayout;
   /**
-   * A `card` that was opened by a button and can be put away again (Settings → Remote access) offers
-   * Cancel like the other layouts; Settings → Account's card is the form itself and has none
+   * A `card` that was opened by a button and can be put away again (Settings → Access & safety → Remote access) offers
+   * Cancel like the other layouts; Settings → Claude Code → Sign-in is the form itself and has none
    */
   closable?: boolean;
   onClose: () => void;
 }
 
 /**
- * The one sign-in panel (docs/design-system.md, "Setup"): the same in Settings → Providers,
- * Settings → Integrations, Settings → Account and the setup assistant, so nothing is assistant-only.
+ * The one sign-in panel (docs/design-system.md, "Setup"): the same in Settings → Claude Code,
+ * Settings → Connections, Settings → Claude Code → Sign-in and the setup assistant, so nothing is assistant-only.
  * It offers what the vendor documents for the tool (`GET /setup`'s methods): a write-only key, and a
  * device code where there is one. A key never goes anywhere but the request that starts the sign-in.
  */

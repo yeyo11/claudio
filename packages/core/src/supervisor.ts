@@ -1,24 +1,23 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import type { HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
+import type { DecisionMode, HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
-import { writeAtomic } from './config/files.ts';
 import type { Db } from './db.ts';
+import { SUPERVISOR_POINT, type DecisionSettingsStore } from './decisions/settings.ts';
 import { runRef } from './event-sources.ts';
 import type { ClaudioEventInput } from './events.ts';
 import type { TaskContext } from './health-service.ts';
-import type { CoreConfig } from './paths.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 
 // The optional supervisor of docs/plans/agent-observability.md §3. When a worker's health turns
 // bad, a small model reads the signal and the worker's last steps and drafts a hint of a line or
-// two. It is a housekeeping chat of the CLI like the planner, never a call of its own to a model,
-// and a person sends what it proposes unless they chose to let it send on its own.
-
-export const DEFAULT_SUPERVISOR: Readonly<SupervisorConfig> = { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.05 };
+// two. It is a housekeeping chat of the CLI like the planner, never a call of its own to a model.
+//
+// Its one control is the `supervisor.intervene` point (docs/plans/settings-ia.md §7.2): Off, it does
+// not watch; Shadow, it proposes hints for a person to send; Active, it sends them on its own, and
+// under Jev only when the engine expects a hint to help. The model and the cap are the engine's CLI
+// settings, since the hint is always drafted by the CLI.
 
 /** The shipped `read-only` preset, for an install whose person deleted theirs: the supervisor reads, never writes. */
 export const DEFAULT_SUPERVISOR_PRESET: ToolPreset = DEFAULT_TOOL_PRESETS.find((p) => p.id === 'read-only') ?? {
@@ -28,59 +27,17 @@ export const DEFAULT_SUPERVISOR_PRESET: ToolPreset = DEFAULT_TOOL_PRESETS.find((
   disallowedTools: ['Edit', 'Write', 'NotebookEdit'],
 };
 
-/** A ceiling well past what reading a screenful costs, so a typo cannot hand a watcher a worker's budget. */
-const MAX_COST_USD = 5;
-/** What `--model` takes: an alias or a full id, `[1m]` variants included; nothing a shell or a flag could misread. */
-const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,99}$/;
-
-/** Validates a whole document, since `PUT` replaces it: a missing field is an error, not a default. */
-export function parseSupervisorConfig(input: unknown): SupervisorConfig {
+/**
+ * The deprecated `PUT /settings/supervisor` body as the point's mode: `enabled` and `autoSend` map
+ * onto it, and the model and the cap, which are the engine's now, are ignored.
+ */
+export function supervisorModeOf(input: unknown): DecisionMode {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('the supervisor settings must be a JSON object');
   const body = input as Record<string, unknown>;
   if (typeof body.enabled !== 'boolean') throw new Error('enabled must be true or false');
-  if (typeof body.autoSend !== 'boolean') throw new Error('autoSend must be true or false');
-  const model = typeof body.model === 'string' ? body.model.trim() : '';
-  if (!MODEL_RE.test(model)) throw new Error('model must be a model alias or id, such as haiku');
-  const cost = body.maxCostUsd;
-  if (typeof cost !== 'number' || !Number.isFinite(cost) || cost <= 0 || cost > MAX_COST_USD) {
-    throw new Error(`maxCostUsd must be a number above 0 and at most ${String(MAX_COST_USD)}`);
-  }
-  return { enabled: body.enabled, model, autoSend: body.autoSend, maxCostUsd: cost };
-}
-
-/** `supervisor.json` in the data directory; absent until the first save, which reads as the defaults. */
-export class SupervisorSettings {
-  private readonly file: string;
-
-  constructor(config: CoreConfig) {
-    this.file = join(config.dataDir, 'supervisor.json');
-    mkdirSync(config.dataDir, { recursive: true });
-  }
-
-  get(): SupervisorConfig {
-    if (!existsSync(this.file)) return { ...DEFAULT_SUPERVISOR };
-    try {
-      // A field that went bad by hand falls back on its own, so one typo does not switch the supervisor on or off
-      const stored = JSON.parse(readFileSync(this.file, 'utf8')) as Partial<Record<keyof SupervisorConfig, unknown>>;
-      const merged = { ...DEFAULT_SUPERVISOR };
-      for (const key of Object.keys(DEFAULT_SUPERVISOR) as Array<keyof SupervisorConfig>) {
-        try {
-          Object.assign(merged, { [key]: parseSupervisorConfig({ ...DEFAULT_SUPERVISOR, [key]: stored[key] })[key] });
-        } catch {
-          // keep the default for this field
-        }
-      }
-      return merged;
-    } catch {
-      return { ...DEFAULT_SUPERVISOR };
-    }
-  }
-
-  async set(input: unknown): Promise<SupervisorConfig> {
-    const config = parseSupervisorConfig(input);
-    await writeAtomic(this.file, `${JSON.stringify(config, null, 2)}\n`);
-    return config;
-  }
+  if (body.autoSend !== undefined && typeof body.autoSend !== 'boolean') throw new Error('autoSend must be true or false');
+  if (!body.enabled) return 'off';
+  return body.autoSend === true ? 'active' : 'shadow';
 }
 
 /** What the housekeeping chat is asked, and where. */
@@ -100,7 +57,8 @@ export interface SupervisorAnswer {
 }
 
 export interface SupervisorDeps {
-  settings: SupervisorSettings;
+  /** The decision settings: the point's mode, who answers, and the CLI model and cap the hint is drafted with */
+  settings: Pick<DecisionSettingsStore, 'get' | 'setPointMode'>;
   db: Db;
   /** Runs the housekeeping chat to its result; a test puts a fake here, never a real model */
   ask: (question: SupervisorQuestion) => Promise<SupervisorAnswer>;
@@ -232,13 +190,21 @@ export class Supervisor {
 
   constructor(private readonly deps: SupervisorDeps) {}
 
-  get config(): SupervisorConfig {
-    return this.deps.settings.get();
+  private mode(): DecisionMode {
+    return this.deps.settings.get().points[SUPERVISOR_POINT]?.mode ?? 'off';
   }
 
-  /** Replaces the settings; a proposal already made keeps the cost and status it has. */
-  configure(input: unknown): Promise<SupervisorConfig> {
-    return this.deps.settings.set(input);
+  /** The view of the deprecated `GET /settings/supervisor`, derived from the point and the engine */
+  get config(): SupervisorConfig {
+    const settings = this.deps.settings.get();
+    const mode = settings.points[SUPERVISOR_POINT]?.mode ?? 'off';
+    return { enabled: mode !== 'off', model: settings.cli.model, autoSend: mode === 'active', maxCostUsd: settings.cli.maxCostUsd };
+  }
+
+  /** The deprecated `PUT /settings/supervisor`: sets the point's mode; a proposal already made keeps the cost and status it has. */
+  async configure(input: unknown): Promise<SupervisorConfig> {
+    await this.deps.settings.setPointMode(SUPERVISOR_POINT, supervisorModeOf(input));
+    return this.config;
   }
 
   /**
@@ -246,9 +212,10 @@ export class Supervisor {
    * Resolves with the proposal, or null when there was nothing to ask or no usable answer.
    */
   async wake(chat: ChatRuntime, task: TaskContext | null, signals: readonly HealthSignal[]): Promise<SupervisorProposal | null> {
-    const config = this.config;
+    const settings = this.deps.settings.get();
+    const mode = settings.points[SUPERVISOR_POINT]?.mode ?? 'off';
     // Housekeeping is not supervised: that would be the supervisor watching itself
-    if (!config.enabled || chat.origin === 'internal') return null;
+    if (mode === 'off' || chat.origin === 'internal') return null;
     // Not recorded as asked either: once the cap lets go, the next announcement of the signal asks
     if (this.deps.spendOpen?.() === false) return null;
     const answered = new Set(this.deps.db.proposalsOf(chat.id).map((p) => p.signal));
@@ -262,12 +229,12 @@ export class Supervisor {
     try {
       const entries = await this.deps.steps(chat.id).catch((): TranscriptEntry[] => []);
       // A worker the decision says no hint can help gets none; the signal itself stays on the chat
-      if (await this.declined(chat, signal, entries)) {
+      if (settings.provider === 'jev' && (await this.declined(chat, signal, entries))) {
         this.failed.add(key);
         return null;
       }
       const steps = lastSteps(entries);
-      const answer = await this.deps.ask({ prompt: supervisorPrompt(signal, steps, task), cwd: chat.workingDir, model: config.model, maxCostUsd: config.maxCostUsd });
+      const answer = await this.deps.ask({ prompt: supervisorPrompt(signal, steps, task), cwd: chat.workingDir, model: settings.cli.model, maxCostUsd: settings.cli.maxCostUsd });
       const costUsd = Number.isFinite(answer.costUsd) && answer.costUsd > 0 ? answer.costUsd : 0;
       // Spent whether or not the answer is usable, so it counts either way
       if (task && costUsd > 0) this.deps.charge(task.orchestrationId, costUsd);
@@ -296,7 +263,8 @@ export class Supervisor {
         taskName: task?.taskName ?? null,
         proposal,
       });
-      if (!config.autoSend) return proposal;
+      // Read again: a person who switched the point while the hint was being drafted decides
+      if (this.mode() !== 'active') return proposal;
       try {
         return await this.send(proposal.id, { chatId: chat.id });
       } catch {
@@ -312,16 +280,18 @@ export class Supervisor {
   }
 
   /**
-   * `supervisor.intervene`: whether the decision, active and above its threshold, says a hint would
-   * not get this worker out. Shadow, and every other outcome, leave the hint to be asked for as today.
-   * Wakes already run in the background, so shadow is not awaited: nothing here waits for a row.
+   * `supervisor.intervene` under Jev: whether the decision, active and above its threshold, says a
+   * hint would not get this worker out. Shadow, and every other outcome, leave the hint to be asked
+   * for. Under the CLI the engine is not asked at all: its answer has no probability to gate on, and
+   * the hint is itself a call to the CLI. Wakes already run in the background, so shadow is not
+   * awaited: nothing here waits for a row.
    */
   private async declined(chat: ChatRuntime, signal: HealthSignal, entries: readonly TranscriptEntry[]): Promise<boolean> {
     const engine = this.deps.decisions;
-    const stance = stanceOf(engine, 'supervisor.intervene', null);
+    const stance = stanceOf(engine, SUPERVISOR_POINT, null);
     if (!engine || stance === 'off') return false;
     const asked = engine
-      .ask('supervisor.intervene', { kind: 'chat', id: chat.id, data: { signal: signal.kind, detail: signal.detail ?? signal.reason, calls: callsOf(entries) } }, { projectId: null })
+      .ask(SUPERVISOR_POINT, { kind: 'chat', id: chat.id, data: { signal: signal.kind, detail: signal.detail ?? signal.reason, calls: callsOf(entries) } }, { projectId: null })
       .catch(() => null);
     if (stance === 'watch') return false;
     const answer = (await asked)?.answers?.intervene;

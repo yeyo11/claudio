@@ -193,8 +193,8 @@ export const PROMPT_PARAM = 'prompt';
 // to that prompt instead of at the end of the transcript.
 export const chatHref = (chatId: string, promptId?: string): string =>
   `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
-/** Where the daily spend cap is set: Settings, where the runtime settings live */
-export const SPEND_CAP_HREF = '/settings?tab=security';
+/** Where the daily spend cap is set: Settings → Runs & spend (the web's `settingsHref('runs', { section: 'spend-cap' })`) */
+export const SPEND_CAP_HREF = '/settings/runs#spend-cap';
 export const orchestrationHref = (id: string): string => `/orchestration/${encodeURIComponent(id)}`;
 /** Where an owner accepts or denies a join */
 export const COLLABORATORS_HREF = '/collaborators';

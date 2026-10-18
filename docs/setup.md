@@ -46,7 +46,7 @@ where it always does (decision 4).
 
 `sealed` says whether values are encrypted; `keyBeside` whether the key sits in the data directory
 beside them, where it protects a copy of the files (a backup, a file sent by mistake) but not the
-volume. Both are in `GET /setup` as `secrets`, for Settings → Security to say so; passing the key
+volume. Both are in `GET /setup` as `secrets`, for Settings → Access & safety to say so; passing the key
 in the environment is the recommended setup. A value this key cannot open reads as absent.
 
 The file is read again before every write, so two stores on one data directory never undo each
@@ -160,7 +160,7 @@ no shell on the machine signs it in here. Recorded on 1.102.4 against a throwawa
 - **Web.** The assistant's Access step lists Tailscale under the access card (`TailscaleRow`, a
   `.prov-row` like the other tools; a Sheet on a phone), when the tunnel is offered and there is a
   Tailscale: Sign in or Sign out where it is managed, the state and a sentence otherwise. The Done
-  step lists it, pointing at Settings → Remote access. In Settings → Remote access a managed node
+  step lists it, pointing at Settings → Access & safety → Remote access. In Settings → Access & safety → Remote access a managed node
   that is signed out shows **Sign in to Tailscale**, which opens the shared panel inside the card
   (`layout="card" closable`; it never asks for a link before the person presses it), and a signed-in
   one shows Sign out beside its name. The panel offers **Link / Key**; a waiting link is drawn by
@@ -223,18 +223,18 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
   `DELETE /setup/credentials/:tool` (per host for `gh` and `glab`). It is offered where the tool works,
   or keeps only a key Claudio holds. Where it only forgets that key (`signOutKeyOnly`) it is offered only while one is kept, and the confirmation says the tool stops
   working only if it has no other sign-in.
-- **Where the panel is.** Settings → Providers (each signed-out row's Sign in, a ready row's Sign out;
-  `useProviderSignIn`), Settings → Integrations (a signed-out CLI's Sign in, Add another host on a
+- **Where the panel is.** Settings → Claude Code (each signed-out row's Sign in, a ready row's Sign out;
+  `useProviderSignIn`), Settings → Connections (a signed-out CLI's Sign in, Add another host on a
   ready one, and Sign in or Sign out at the end of each known host's line; the rows moved to
-  `pages/config/integrations/rows.tsx` so the assistant lists the same ones), Settings → Account (the
+  `pages/config/integrations/rows.tsx` so the assistant lists the same ones), Settings → Claude Code → Sign-in (the
   panel as the card that replaced the old credential form; the status card and Verify stay), and the
   assistant.
-- **Settings → Security** starts with the Secrets card (`SecretsCard`), from `GET /setup`'s
+- **Settings → Access & safety** starts with the Secrets card (`SecretsCard`), from `GET /setup`'s
   `secrets`: encrypted or not, a warning when the key sits beside the data or when there is none,
   with the link to how to pass `CLAUDIO_SECRET_KEY`.
 - **The assistant** (`SetupAssistant`, lazy) replaces the first-run Providers step, which is gone.
   `lib/first-run.ts`'s `useSetupGate` shows it while `GET /setup` says `seen: false`; a failed read
-  hides it. Steps: Access (None or Token, from the same pieces as Settings → Security's token card,
+  hides it. Steps: Access (None or Token, from the same pieces as Settings → Access & safety's token card,
   `pages/config/security/token.tsx`; turning Token on makes a token first when this browser holds
   none, so it cannot lock the person out), Agents (the providers switched on, or the install page when
   none is found), Code and work items (GitHub, GitLab, YouTrack), Done (a summary with where each

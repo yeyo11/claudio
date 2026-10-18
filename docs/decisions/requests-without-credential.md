@@ -16,7 +16,7 @@ install.
 
 ## What happened
 
-The owner turned `token` mode on from Settings → Security, so `auth.json` held only the token's
+The owner turned `token` mode on from Settings → Access & safety, so `auth.json` held only the token's
 hash and `CLAUDIO_AUTH_TOKEN` was not in the environment. Three things then met:
 
 1. The desktop tray's `LiveMonitor` only had a bearer token when `CLAUDIO_AUTH_TOKEN` was set, so it

@@ -12,17 +12,18 @@ export default async ({ page, api, check }) => {
   try {
     // No cap: nothing in the status bar, and the card says it is off
     await api.put('/settings/app', { dailySpendCapUsd: null });
-    await page.goto('/settings?tab=security', 1500);
-    await page.waitFor(`return (document.querySelector('[role=tabpanel]')?.innerText ?? '').includes('Daily spend cap')`, { label: 'the cap card', timeout: 60_000 });
+    await page.goto('/settings/runs#spend-cap', 1500);
+    await page.waitFor(`return (document.querySelector('[role=tabpanel]')?.innerText ?? '').includes('Daily spend cap')`, { label: 'the Daily spend cap section', timeout: 60_000 });
     check((await statusBar()) === null, 'with no cap the status bar draws no cap item');
     const off = await panelText();
     check(off.includes('Limit daily spend'), 'the card offers the switch');
     check(off.includes('On subscription accounts it is what it would cost on the API, not what you pay.'), 'the card says what the figure is on a subscription');
 
-    // Turn it on, give it an amount, save. By its words: the tab's first switch is Read-only mode's,
-    // and flipping that one would refuse every write after this spec
+    // Turn it on, give it an amount, save. By its words: the screen's other switches (Evals) are not
+    // the cap's, and Runs & spend has one save per section
     check(await page.eval(`const l=[...document.querySelectorAll('[role=tabpanel] label')].find(l=>l.textContent.includes('Limit daily spend'));const s=l?.querySelector('[role=switch]');if(!s)return false;s.click();return true`), 'the cap switch is found by its words');
-    await page.waitFor(`return !!document.querySelector('[role=tabpanel] input[type=number][aria-label="Cap per day, in USD"]')`, { label: 'the amount field' });
+    // The amount is always in the page, closed and inert while the cap is off: wait for it to open
+    await page.waitFor(`return !!document.querySelector('[role=tabpanel] .settings-reveal.is-open input[type=number][aria-label="Cap per day, in USD"]')`, { label: 'the amount field opens' });
     await page.eval(`
       const input = document.querySelector('[role=tabpanel] input[type=number][aria-label="Cap per day, in USD"]');
       const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
@@ -30,7 +31,7 @@ export default async ({ page, api, check }) => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
       return true;
     `);
-    // The cap's own Save: every settings card on the tab has one
+    // The cap's own Save: every section on the screen has one
     await page.click('[role=tabpanel] form:has(input[aria-label="Cap per day, in USD"]) button[type=submit]', 'Save', 800);
     await page.waitFor(`return !!document.querySelector('.statusbar .spend')`, { label: 'the cap in the status bar', timeout: 30_000 });
     check((await api.get('/settings/app')).body.dailySpendCapUsd === 20, 'the cap was saved');

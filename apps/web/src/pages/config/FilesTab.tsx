@@ -97,7 +97,8 @@ function TreeNode({
     <li role="none">
       <div
         role="treeitem"
-        aria-label={isDir ? node.name : `${node.name}${node.size !== undefined ? `, ${formatBytes(node.size)}` : ''}`}
+        // A file is named by what it shows (its name and size); a folder by its name alone, not its delete button
+        aria-label={isDir ? node.name : undefined}
         aria-level={depth + 1}
         aria-expanded={isDir ? open : undefined}
         aria-selected={selected === node.path}
@@ -413,21 +414,19 @@ export function FilesTab({ scope }: { scope: Scope }) {
     }
   };
 
-  return (
-    <Card
-      title={t('config.tabs.files')}
-      actions={
-        <div className="toolbar">
-          <button className="btn btn-small" onClick={() => void tree.refetch()} disabled={tree.isFetching}>
-            {t('shared.refresh')}
-          </button>
-          <button className="btn btn-small btn-primary" onClick={() => void guard().then((ok) => ok && setCreating(true))}>
-            <Plus size={14} strokeWidth={2} aria-hidden />
-            {t('files.newFile')}
-          </button>
-        </div>
-      }
-    >
+  const tools = (
+    <div className="toolbar">
+      <button className="btn btn-small" onClick={() => void tree.refetch()} disabled={tree.isFetching}>
+        {t('shared.refresh')}
+      </button>
+      <button className="btn btn-small btn-primary" onClick={() => void guard().then((ok) => ok && setCreating(true))}>
+        <Plus size={14} strokeWidth={2} aria-hidden />
+        {t('files.newFile')}
+      </button>
+    </div>
+  );
+  const body = (
+    <>
       <div className="editor-meta">
         <span className="small muted">{t('files.root')}</span>
         <span className="mono small break">{root?.path ?? rootId}</span>
@@ -582,6 +581,22 @@ export function FilesTab({ scope }: { scope: Scope }) {
       </div>
 
       {creating && <NewFileDialog existing={allPaths} onClose={() => setCreating(false)} onCreate={startNew} />}
+    </>
+  );
+
+  // The user's tree is a detail screen of Settings → Claude Code, whose header already names it
+  if (!scope.projectId) {
+    return (
+      <div className="settings-detail-body" data-setting="files.tree">
+        <div className="settings-detail-tools">{tools}</div>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Card title={t('config.tabs.files')} actions={tools}>
+      {body}
     </Card>
   );
 }

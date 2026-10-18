@@ -35,7 +35,7 @@ YouTrack is reached through JetBrains' own `youtrack-app` CLI (`@jetbrains/youtr
 installed by the person with npm), with `rest request --path`, which calls YouTrack's documented
 REST API. It is the one tracker with a CLI of its own and credentials Claudio keeps:
 
-- **The address and the token** are saved in Settings → Integrations, on YouTrack's row ("Connect",
+- **The address and the token** are saved in Settings → Connections, on YouTrack's row ("Connect",
   later "Change access"), or through the setup's sign-in (`POST /setup/logins`), in the secret
   vault under `youtrack` (`secrets.json`, 0600, sealed when there is a key: the desktop app's, one
   passed in `CLAUDIO_SECRET_KEY`, or the one the Docker image makes beside the data; see

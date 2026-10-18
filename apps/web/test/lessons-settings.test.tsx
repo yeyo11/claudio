@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { LessonSettings } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { keys } from '../src/api';
@@ -12,8 +13,9 @@ import { TooltipProvider } from '@claudio/ui/components/controls';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { DirtyProvider } from '../src/lib/dirty';
-import { LessonsTab, lessonSettingsProblem } from '../src/pages/config/LessonsTab';
-import { TAB_LABELS } from '../src/pages/config/settingsTabs';
+import { GlobalLessons, LessonSettingsRows, lessonSettingsProblem } from '../src/pages/config/LessonsTab';
+import { detailsOf, sectionsOf } from '../src/pages/config/settingsGroups';
+import { SETTINGS_INDEX } from '../src/pages/config/settingsIndex';
 import { lesson } from './lesson-fixtures';
 
 const settings: LessonSettings = {
@@ -33,27 +35,43 @@ test('the settings validate ranges and the retire threshold before saving', () =
   assert.equal(lessonSettingsProblem({ ...settings, decay: { ...settings.decay, retireBelow: 0.7 } }), 'order');
 });
 
-test('Settings → Lessons lists the global lessons with "Back to a project" and the settings fields', async () => {
-  await i18n.changeLanguage('en');
-  assert.equal(TAB_LABELS.lessons, 'config:config.tabs.lessons');
+function render(screen: ReactNode): string {
   const client = new QueryClient();
   client.setQueryData(keys.lessons(null, 'all'), { lessons: [lesson('9', { projectId: null })], handed: { lessons: 1, bytes: 1, budget: 1, overBudget: 0 } });
   client.setQueryData(keys.lessonSettings, settings);
-  const html = renderToStaticMarkup(
+  return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <RouterProvider router={createMemoryRouter([{ path: '*', element: (<>
         <TooltipProvider>
           <ToastProvider>
             <ConfirmProvider>
-              <DirtyProvider><LessonsTab /></DirtyProvider>
+              <DirtyProvider>{screen}</DirtyProvider>
             </ConfirmProvider>
           </ToastProvider>
         </TooltipProvider>
       </>) }])} />
     </QueryClientProvider>,
   );
-  assert.match(html, /Global lessons/);
-  assert.match(html, /L-9/);
+}
+
+test('the lessons settings are rows of Instructions & memory, each with the id settings search names', async () => {
+  await i18n.changeLanguage('en');
+  assert.ok(sectionsOf('instructions').includes('lessons'));
+  const html = render(<LessonSettingsRows />);
   assert.match(html, /Cost per run/);
   assert.match(html, /Allow “Look for lessons”/);
+  // No card of its own: the section's heading names it
+  assert.doesNotMatch(html, /class="card/);
+  const rows = SETTINGS_INDEX.filter((entry) => entry.section === 'lessons' && entry.id !== 'lessons' && !entry.detail).map((entry) => entry.id);
+  assert.equal(rows.length, 13);
+  for (const id of rows) assert.match(html, new RegExp(`data-setting="${id}"`), id);
+});
+
+test('the global lessons are a detail of Instructions & memory, listing each lesson', async () => {
+  await i18n.changeLanguage('en');
+  assert.ok(detailsOf('instructions').includes('lessons'));
+  assert.equal(SETTINGS_INDEX.find((entry) => entry.id === 'lessons.global')?.detail, 'lessons');
+  const html = render(<GlobalLessons />);
+  assert.match(html, /L-9/);
+  assert.match(html, /Handed to every project that allows them/);
 });

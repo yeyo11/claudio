@@ -208,20 +208,13 @@ test('the desktop app marks the page with its platform; a browser marks nothing'
   assert.deepEqual(desktopClasses({ platform: 'linux x" onload' }), ['is-desktop']);
 });
 
-test('the More sheet says a problem before a count, and nothing it does not know yet', () => {
+test('the More sheet says its figures, and nothing it does not know yet', () => {
   assert.deepEqual(moreNotes({}), {});
-  assert.deepEqual(
-    moreNotes({ projects: 3, schedules: 0, todayCost: 1145.86, connectors: { total: 3, pending: 1 } }),
-    {
-      '/projects': { kind: 'count', value: 3 },
-      '/schedules': { kind: 'count', value: 0 },
-      '/usage': { kind: 'cost', value: 1145.86 },
-      '/connectors': { kind: 'pending', value: 1 },
-    },
-  );
-  // Nothing waiting for authorisation: the plain count, not a zero badge
-  const calm = moreNotes({ connectors: { total: 3, pending: 0 } });
-  assert.deepEqual(calm['/connectors'], { kind: 'count', value: 3 });
+  assert.deepEqual(moreNotes({ projects: 3, schedules: 0, todayCost: 1145.86 }), {
+    '/projects': { kind: 'count', value: 3 },
+    '/schedules': { kind: 'count', value: 0 },
+    '/usage': { kind: 'cost', value: 1145.86 },
+  });
   // A day with no cost is said, not left blank
   assert.deepEqual(moreNotes({ todayCost: null })['/usage'], { kind: 'cost', value: null });
 });

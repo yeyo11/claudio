@@ -3,6 +3,7 @@ import { Workflow } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { formatCost } from '@claudio/ui/lib/format';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 /** Nothing when no decision was recorded in the window. */
 export function DecisionsLineView({ stats: data }: { stats: DecisionStats }) {
@@ -20,7 +21,7 @@ export function DecisionsLineView({ stats: data }: { stats: DecisionStats }) {
         ·
       </span>
       <span>{t('decisions.saved', { count: data.claudeRunsSaved })}</span>
-      <Link to="/settings?tab=decisions">{t('decisions.history')}</Link>
+      <Link to={settingsHref('decisions', { detail: 'history' })}>{t('decisions.history')}</Link>
     </div>
   );
 }

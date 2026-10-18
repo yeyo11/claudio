@@ -46,6 +46,20 @@ Separate provider and bill; content leaves the machine (no other outside service
 17. **Scope: one delivery, every point.** No v1 / v2 / later split: all the decision points below are built together. The order below only sequences the work inside that delivery. Every point still ships off.
 18. **No voice point.** The voice-actions plan (a Siri shortcut dictating an objective) was discarded by the owner, so there is no `voice.intent`; natural-language intent routing lives only in the command palette.
 
+### Amendments
+
+- **D3, amended 2026-10-17.** The Decisions screen no longer has the chips (Engine, Decision points,
+  Supervisor, History): the engine heads the screen, History opens from each point's disagreements and
+  from one "See every decision" link, and the Supervisor section is gone (see D7). Decisions is now a
+  group of Settings in its own right (`/settings/decisions`), no longer a tab under Claudio. Per-project
+  overrides are unchanged. Original text above kept. See [the plan](../plans/settings-ia.md#7-decisions-and-the-supervisor-folded-into-its-point).
+- **D7, amended 2026-10-17.** `supervisor.json` stays on disk, but the Supervisor no longer has a card
+  or a switch of its own: it is the `supervisor.intervene` decision point. Off, Shadow and Active
+  replace `enabled` and `autoSend`; its model and cost are the engine's; Active also works under the CLI
+  for this point only; a one-time migration reads the file and the file is never written again.
+  `?tab=supervisor` lands on `/settings/decisions#point-supervisor-intervene`. Original text above
+  kept. See [the plan](../plans/settings-ia.md#72-the-supervisor-as-supervisorintervene).
+
 ## Decision points (all in the one delivery, in build order)
 
 Order criteria: Claude quota saved, quality, how cleanly shadow can measure it, effort, risk.

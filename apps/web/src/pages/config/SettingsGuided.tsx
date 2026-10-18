@@ -18,6 +18,8 @@ import {
   type HookGroup,
   type Json,
 } from './settingsModel';
+import { settingsHref } from './settingsGroups';
+import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 
 const DEFAULT_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions'] as const;
 
@@ -297,9 +299,9 @@ export function SettingsGuided({
               onChange={(v) => set(['permissions', 'defaultMode'], v)}
               options={[
                 { value: '', label: t('settingsGuided.notSet') },
-                ...DEFAULT_MODES.map((mode) => ({ value: mode, label: mode })),
+                ...DEFAULT_MODES.map((mode) => ({ value: mode, label: modeLabel(mode) })),
                 // Keep a value this form does not know about selectable instead of showing it blank
-                ...(defaultMode && !(DEFAULT_MODES as readonly string[]).includes(defaultMode) ? [{ value: defaultMode, label: defaultMode }] : []),
+                ...(defaultMode && !(DEFAULT_MODES as readonly string[]).includes(defaultMode) ? [{ value: defaultMode, label: modeLabel(defaultMode) }] : []),
               ]}
             />
           </Field>
@@ -377,7 +379,7 @@ export function SettingsGuided({
         summary={enabledPlugins.length > 0 ? t('settingsGuided.pluginCount', { count: enabledPlugins.length }) : undefined}
       >
         <p className="small muted">
-          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ anchor: <Link to="/settings?tab=plugins" /> }} />
+          <Trans t={t} i18nKey="settingsGuided.pluginsHint" components={{ anchor: <Link to={settingsHref('extensions', { detail: 'plugins' })} /> }} />
         </p>
         <div className="chips">
           {enabledPlugins.length === 0 && marketplaces.length === 0 && <span className="small muted">{t('settingsGuided.nothingConfigured')}</span>}

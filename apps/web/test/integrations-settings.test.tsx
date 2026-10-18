@@ -13,7 +13,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
 import { IntegrationsTab } from '../src/pages/config/IntegrationsTab';
-import { GROUPS, isTab, TAB_LABELS } from '../src/pages/config/settingsTabs';
+import { resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
 const host = (over: Partial<CodeHostStatus>): CodeHostStatus => ({
   id: 'github',
@@ -94,11 +94,9 @@ async function render(list: CodeHostStatus[], trackers: TrackerStatus[] = defaul
 
 const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-test('Integrations is a tab of the Claudio group, right after Providers', () => {
-  assert.ok(isTab('integrations'));
-  const claudio = GROUPS.find((g) => g.id === 'claudio')?.tabs ?? [];
-  assert.equal(claudio.indexOf('integrations'), claudio.indexOf('providers') + 1);
-  assert.equal(TAB_LABELS.integrations, 'integrations:tab');
+test('Code hosts, trackers and webhooks are sections of Connections, after the connectors', () => {
+  assert.deepEqual(sectionsOf('connections').slice(0, 4), ['connectors', 'code-hosts', 'trackers', 'webhooks']);
+  assert.equal(resolveSettingsAddress('?tab=integrations', ''), '/settings/connections#code-hosts');
 });
 
 test('the copy of the tab has the same keys and placeholders in both languages', () => {
@@ -148,13 +146,22 @@ test('a signed-out host is a word beside its name, and a missing program offers 
   assert.match(html, /data-action="install"/);
 });
 
-test('with neither program found the page is the one empty state', async () => {
+test('code hosts, trackers and webhooks are three sections, their rows carrying the ids settings search names', async () => {
+  const html = await render([host({}), gitlab({})]);
+  for (const id of ['code-hosts', 'trackers', 'webhooks']) assert.match(html, new RegExp(`<section id="${id}" class="settings-section">`), id);
+  for (const id of ['code-hosts.github', 'code-hosts.gitlab', 'trackers.youtrack']) assert.match(html, new RegExp(`data-setting="${id}"`), id);
+  // The sections' headings name the lists: no card repeats them
+  assert.doesNotMatch(html, /class="card-head"/);
+});
+
+test('with neither program found the code hosts are the one empty state, compact beside the other sections', async () => {
   const html = await render([
     host({ state: 'not-installed', binaryPath: null, version: null, hosts: [] }),
     gitlab({ binaryPath: null, version: null, state: 'not-installed', hosts: [] }),
   ]);
   assert.match(words(html), /Claudio cannot find gh or glab/);
-  assert.equal((html.match(/data-illustration=/g) ?? []).length, 1);
+  assert.equal((html.match(/class="state state-empty/g) ?? []).length, 1);
+  assert.equal((html.match(/data-illustration=/g) ?? []).length, 0);
 });
 
 test('the trackers section lists the three trackers', async () => {

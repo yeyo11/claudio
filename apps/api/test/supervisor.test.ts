@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { ChatSummary, SupervisorConfig, SupervisorProposal } from '@claudio/shared';
+import type { ChatSummary, DecisionSettings, SupervisorConfig, SupervisorProposal } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
 // The supervisor over HTTP: its settings, and a person sending or dismissing what it proposed. The
@@ -59,21 +59,49 @@ const proposal = (over: Partial<SupervisorProposal>): SupervisorProposal => ({
   ...over,
 });
 
-test('the settings read as off by default and are replaced whole', async () => {
+test('the deprecated settings are a view of the supervisor.intervene point, and a write sets its mode only', async () => {
+  const view = async () => (await app.inject({ method: 'GET', url: '/api/settings/supervisor' })).json<SupervisorConfig>();
+  const pointMode = () => core.decisionSettings.get().points['supervisor.intervene']?.mode ?? 'off';
   const read = await app.inject({ method: 'GET', url: '/api/settings/supervisor' });
   assert.equal(read.statusCode, 200);
-  assert.deepEqual(read.json(), { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.05 });
+  // Off by default, with the decision engine's CLI model and cap
+  assert.deepEqual(read.json(), { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.02 });
 
-  const next: SupervisorConfig = { enabled: true, model: 'haiku', autoSend: false, maxCostUsd: 0.02 };
-  const put = await app.inject({ method: 'PUT', url: '/api/settings/supervisor', payload: next });
-  assert.equal(put.statusCode, 200);
-  assert.deepEqual(put.json(), next);
-  assert.deepEqual((await app.inject({ method: 'GET', url: '/api/settings/supervisor' })).json(), next);
+  const put = async (body: unknown) => app.inject({ method: 'PUT', url: '/api/settings/supervisor', payload: body as object });
+  const shadow = await put({ enabled: true, model: 'opus', autoSend: false, maxCostUsd: 3 });
+  assert.equal(shadow.statusCode, 200);
+  assert.deepEqual(shadow.json(), { enabled: true, model: 'haiku', autoSend: false, maxCostUsd: 0.02 }, 'the model and the cap are ignored');
+  assert.equal(pointMode(), 'shadow');
+  assert.deepEqual(core.decisionSettings.get().cli, { model: 'haiku', effort: 'low', maxCostUsd: 0.02 });
 
-  const bad = await app.inject({ method: 'PUT', url: '/api/settings/supervisor', payload: { ...next, maxCostUsd: -1 } });
+  assert.equal((await put({ enabled: true, autoSend: true })).statusCode, 200);
+  assert.equal(pointMode(), 'active');
+  assert.deepEqual(await view(), { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.02 });
+
+  // The engine's settings are what the view reads back
+  const settings = (await app.inject({ url: '/api/decisions/settings' })).json<DecisionSettings>();
+  const { jev: _jev, ...stored } = settings;
+  const updated = await app.inject({ method: 'PUT', url: '/api/decisions/settings', payload: { ...stored, cli: { ...stored.cli, model: 'sonnet', maxCostUsd: 0.04 }, points: { 'supervisor.intervene': { mode: 'shadow' } } } });
+  assert.equal(updated.statusCode, 200);
+  assert.deepEqual(await view(), { enabled: true, model: 'sonnet', autoSend: false, maxCostUsd: 0.04 });
+
+  const bad = await put({ enabled: 'yes' });
   assert.equal(bad.statusCode, 400);
-  assert.match(bad.json<{ error: string }>().error, /maxCostUsd/);
-  await app.inject({ method: 'PUT', url: '/api/settings/supervisor', payload: { ...next, enabled: false } });
+  assert.match(bad.json<{ error: string }>().error, /enabled/);
+  assert.equal(pointMode(), 'shadow', 'a refused write changes nothing');
+
+  assert.equal((await put({ enabled: false, autoSend: true })).statusCode, 200);
+  assert.equal(pointMode(), 'off');
+  assert.equal(existsSync(join(core.config.dataDir, 'supervisor.json')), false, 'supervisor.json is never written');
+});
+
+test('both routes are documented as deprecated', async () => {
+  const spec = (await app.inject('/openapi.json')).json<{ paths: Record<string, Record<string, { deprecated?: boolean; summary?: string }>> }>();
+  for (const method of ['get', 'put']) {
+    const op = spec.paths['/api/settings/supervisor']?.[method];
+    assert.equal(op?.deprecated, true, method);
+    assert.match(op?.summary ?? '', /deprecated/i);
+  }
 });
 
 test('a proposal is sent to its chat once, dismissed once, and found only under its own chat or task', async () => {

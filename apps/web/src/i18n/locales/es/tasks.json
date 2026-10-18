@@ -440,7 +440,7 @@
       "install": "Instalar {{cli}}",
       "sign-in": "Ayuda para iniciar sesión",
       "docs": "Cómo arreglarlo",
-      "settings": "Ajustes → Integraciones"
+      "settings": "Ajustes → Conexiones"
     },
     "hostFallback": "el host de origin"
   },

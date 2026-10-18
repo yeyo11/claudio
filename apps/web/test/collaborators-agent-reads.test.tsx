@@ -81,7 +81,7 @@ test('Collaborators: the assistant switch follows assistantReads and leads to th
   const on = render(<AgentsCard settings={settings()} busy={false} onSave={async () => true} />);
   assert.match(on, /role="switch" aria-checked="true"/);
   assert.ok(text(on).includes('The assistant reads what is shared with you'));
-  assert.match(on, /href="\/settings\?tab=security#agent-reads"/);
+  assert.match(on, /href="\/settings\/access\/agent-reads"/);
   const off = render(<AgentsCard settings={settings({ assistantReads: false })} busy={false} onSave={async () => true} />);
   assert.match(off, /role="switch" aria-checked="false"/);
 });
@@ -157,7 +157,7 @@ test("the copy's line: chats that read it today, the sharer's refusal, and nothi
   assert.equal(render(<AgentReadsLineView agentsMayRead chats={0} />), empty());
   const three = render(<AgentReadsLineView agentsMayRead chats={3} />);
   assert.ok(text(three).includes('Read by 3 chats today'));
-  assert.match(three, /href="\/settings\?tab=security#agent-reads"/);
+  assert.match(three, /href="\/settings\/access\/agent-reads"/);
   assert.ok(text(render(<AgentReadsLineView agentsMayRead chats={1} />)).includes('Read by 1 chat today'));
   const forbidden = render(<AgentReadsLineView agentsMayRead={false} chats={0} />);
   assert.ok(text(forbidden).includes('The sharer does not let agents read this'));
@@ -178,7 +178,7 @@ test('whose copy: person, install and project from the catalog, the person alone
   assert.equal(teammateLabel(shared, 'someone-else', 's1'), null);
 });
 
-test('Security → Read by agents: a row per read with the chat, tool, copy and what; empty and loading states', () => {
+test('Access & safety → Agent reads: a row per read with the chat, tool, copy and what; empty and loading states', () => {
   const html = render(
     <AgentReadsView
       reads={[read(), read({ id: 2, tool: 'collab_list_shared', kind: null, recordIds: [], owner: 'gone', shareKey: 'local/zz', shareId: 'zz' })]}
@@ -187,7 +187,8 @@ test('Security → Read by agents: a row per read with the chat, tool, copy and 
     />,
   );
   const words = text(html);
-  assert.ok(words.includes('Read by agents'));
+  // The section's heading or the detail's title names it; the table keeps the name for a reader
+  assert.match(html, /<table class="table" aria-label="Read by agents">/);
   assert.match(html, /href="\/chats\/chat-aaaaaaaa-1111"/);
   assert.ok(words.includes('collab_read_transcript'));
   assert.ok(words.includes('Ana · laptop · api'));

@@ -55,7 +55,7 @@ shows (`nameFromContent` in `packages/ui/src/components/controls/Select.tsx`).
 - The file map's rows and the phone's file cells (`components/changes/FileMap.tsx`,
   `pages/ChangesReview.tsx`): `RowDetails`; the row's `title` keeps the whole sentence.
 - `IssueChips`, `StatusChips` (chat-ui composer), the branch rows of `LiveBranches`, the phone
-  `ModelPicker`, and the strings of the project cards, Settings → Memory, Schedules, the MCP tab,
+  `ModelPicker`, and the strings of the project cards, Settings → Instructions & memory → Memory, Schedules, the MCP tab,
   the assistant's proposals and the Terminal item.
 
 A second CI run, and a sweep of every `<button>`, `<a>`, `Link` and Radix trigger that has an

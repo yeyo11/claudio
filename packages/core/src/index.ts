@@ -210,7 +210,7 @@ import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts
 import { accountsAtLimit } from './accounts-at-limit.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
-import { DEFAULT_SUPERVISOR_PRESET, Supervisor, SupervisorSettings, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
+import { DEFAULT_SUPERVISOR_PRESET, Supervisor, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 export {
   DecisionEngine,
   DEADLINE_MS,
@@ -406,9 +406,8 @@ export {
 } from './providers/path.ts';
 export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
 export {
-  DEFAULT_SUPERVISOR,
-  parseSupervisorConfig,
   Supervisor,
+  supervisorModeOf,
   SupervisorConflictError,
   type ProposalOwner,
   type SupervisorAnswer,
@@ -474,7 +473,7 @@ export class Core {
   /** What a chat's health is read from: the calls it made, the history of how long commands take */
   readonly health: HealthService;
   private readonly healthMonitor: HealthMonitor;
-  /** The optional model that drafts a hint when a worker's health turns bad; off unless `supervisor.json` says so */
+  /** The optional model that drafts a hint when a worker's health turns bad; off unless the `supervisor.intervene` point says otherwise */
   readonly supervisor: Supervisor;
   /** The decision engine's settings (`decisions.json`) and its Jev key (`decision-credentials.json`, never returned) */
   readonly decisionSettings: DecisionSettingsStore;
@@ -811,8 +810,12 @@ export class Core {
         taskSpentUsd: context.spentUsd,
       });
     };
+    this.decisionCredentials = new DecisionCredentialStore(config);
+    this.decisionSettings = new DecisionSettingsStore(config, this.decisionCredentials);
+    // Before anything reads the point: `supervisor.json` folds into `supervisor.intervene` once
+    this.decisionSettings.migrateSupervisor();
     this.supervisor = new Supervisor({
-      settings: new SupervisorSettings(config),
+      settings: this.decisionSettings,
       db: this.db,
       ask: (question) => this.askSupervisor(question),
       // A page is the newest entries, which is all the supervisor reads
@@ -827,8 +830,6 @@ export class Core {
       // The engine is built just below; a call only ever comes after the constructor
       decisions: { ask: (...args) => this.decisions.ask(...args), effective: (...args) => this.decisions.effective(...args) },
     });
-    this.decisionCredentials = new DecisionCredentialStore(config);
-    this.decisionSettings = new DecisionSettingsStore(config, this.decisionCredentials);
     this.modelFallbacks = new ModelFallbackStore(config);
     this.decisions = new DecisionEngine({
       settings: this.decisionSettings,

@@ -12,6 +12,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { queryView } from '../../lib/query-view';
+import { settingsHref } from '../config/settingsGroups';
 
 const STATUS_BADGE = { unread: 'badge-idle', ok: 'badge-ok', unavailable: 'badge-warn' } as const;
 
@@ -158,7 +159,7 @@ export function ClaudeDocsCard({ project }: { project: Project }) {
         </div>
         <p className="small muted doc-card-note">{t('claudeDocs.connectHint')}</p>
         <div className="doc-new-actions">
-          <Link className="btn btn-small" to="/connectors">
+          <Link className="btn btn-small" to={settingsHref('connections', { section: 'connectors' })}>
             {t('claudeDocs.connectLink')}
           </Link>
         </div>

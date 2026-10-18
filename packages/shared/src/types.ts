@@ -6132,22 +6132,37 @@ export interface ApiError {
 // ---------- Supervisor ----------
 //
 // The optional supervisor of docs/plans/agent-observability.md §3: a small model that reads a
-// worker's last steps when its health turns bad and proposes a hint, which a person or `autoSend`
-// sends on. Off by default, and a housekeeping chat of the CLI like every other model call.
+// worker's last steps when its health turns bad and proposes a hint, which a person sends on, or it
+// sends on its own. A housekeeping chat of the CLI like every other model call. Since
+// docs/plans/settings-ia.md §7.2 its one control is the `supervisor.intervene` point's mode, and its
+// model and cap are the decision engine's CLI settings; `supervisor.json` is read once, by a
+// migration, and never written again.
 
-/** `supervisor.json` in the data directory: settings-shaped. */
+/**
+ * The view `GET /settings/supervisor` derives from the point (deprecated: read
+ * `GET /decisions/settings`). `enabled` is the mode not being `off`, `autoSend` the mode being
+ * `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.maxCostUsd`.
+ */
 export interface SupervisorConfig {
   enabled: boolean;
-  /** Model of the housekeeping chat; `haiku` by default, because it reads a few lines and writes two */
+  /** Model of the housekeeping chat: the decision engine's CLI model */
   model: string;
   /** Send the proposal to the worker on its own instead of waiting for a person */
   autoSend: boolean;
-  /** Passed to the housekeeping chat as `--max-budget-usd` */
+  /** Passed to the housekeeping chat as `--max-budget-usd`: the engine's cap per decision */
   maxCostUsd: number;
 }
 
-/** Replaces the whole document (`PUT /settings/supervisor`). */
-export type UpdateSupervisorConfigRequest = SupervisorConfig;
+/**
+ * `PUT /settings/supervisor` (deprecated): `enabled` and `autoSend` set the `supervisor.intervene`
+ * point's mode (off, shadow, active); `model` and `maxCostUsd` are accepted and ignored.
+ */
+export interface UpdateSupervisorConfigRequest {
+  enabled: boolean;
+  autoSend?: boolean;
+  model?: string;
+  maxCostUsd?: number;
+}
 
 /** `sent`: it reached the worker, by hand or through `autoSend`. */
 export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed';
@@ -9237,7 +9252,7 @@ export interface DecisionPointInfo {
     threshold: number;
     provider: DecisionProviderId;
     consent: DecisionPointSettings['consent'];
-    /** True when the mode is `active` but the point behaves as `shadow` (act point on `cli`, or no consent) */
+    /** True when the mode is `active` but the point behaves as `shadow` (act point on `cli` other than `supervisor.intervene`, or no consent) */
     limited: boolean;
   };
 }

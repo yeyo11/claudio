@@ -7,9 +7,10 @@ import { Sheet } from '@claudio/ui/components/controls';
 import { formatCost } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { setSpendCapAsk, spendView } from '../lib/spend-cap';
+import { settingsHref } from '../pages/config/settingsGroups';
 
 /** Where the daily cap is set: Settings, with the other runtime settings. */
-export const SPEND_CAP_SETTINGS_PATH = '/settings?tab=security';
+export const SPEND_CAP_SETTINGS_PATH = settingsHref('runs', { section: 'spend-cap' });
 
 /**
  * The question a person is asked when the day's spend reached the cap: go on anyway, or not. A

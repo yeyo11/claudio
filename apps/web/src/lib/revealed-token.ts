@@ -23,5 +23,6 @@ const subscribe = (onChange: () => void) => {
 };
 
 export function useRevealedToken(): string | null {
-  return useSyncExternalStore(subscribe, () => revealed);
+  // Nothing is revealed on a server render: the token only ever lives in this tab
+  return useSyncExternalStore(subscribe, () => revealed, () => null);
 }

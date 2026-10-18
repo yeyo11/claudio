@@ -130,7 +130,7 @@ function LessonEditor({ lesson, onDone }: { lesson: Lesson; onDone: () => void }
 
 /**
  * One lesson: its key, the sentence, its confidence and the words that say what state it is in, an
- * evidence toggle and the `⋯` menu (a sheet on a phone). `global` is a lesson of Settings → Lessons:
+ * evidence toggle and the `⋯` menu (a sheet on a phone). `global` is a lesson of Settings → Instructions & memory → Lessons:
  * it can go back to a project, and has no project to export from or to put into `CLAUDE.md`.
  */
 export function LessonRow({ lesson, global = false, onPropose }: { lesson: Lesson; global?: boolean; onPropose?: (proposal: MemoryProposal) => void }) {

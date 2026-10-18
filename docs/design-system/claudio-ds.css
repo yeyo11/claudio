@@ -1009,6 +1009,26 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .decision-card-top .decision-point { flex: 1 1 auto; }
 .decision-card .btn { align-self: flex-start; }
 .m-screen .decision-group { min-height: var(--touch); padding: 0 14px; }
+/* Settings → Decisions (docs/plans/settings-ia.md §7.1): rows on the page, not cards. An engine row
+   is label and control on one baseline with its consequence under the label; Jev's key and model
+   open in place (0fr → 1fr); a point is a row of evidence: name and mode, then one line of what it
+   decided, a middle dot between the parts, the last one opening History filtered by the point. */
+.dp-field { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 24px; min-width: 0; padding: 6px 0; }
+.dp-field-line { margin: 0; font-size: var(--fs-small); color: var(--fg-2); }
+.dp-field-line.is-error { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); }
+.dp-reveal { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-base) var(--ease-out); }
+.dp-reveal.is-open { grid-template-rows: 1fr; }
+.dp-reveal-inner { min-height: 0; overflow: hidden; }
+.dp-area-toggle { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px; border-radius: var(--r-sm); }
+.dp-area-toggle:hover { background: var(--bg-3); }
+.dp-area-name { font-weight: var(--fw-strong); }
+.dp-evidence > :not(:last-child)::after { color: var(--fg-3); }
+.dp-area-points { display: flex; flex-direction: column; gap: 12px; padding: 8px 0 16px 24px; }
+.dp-point { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 16px; padding: 6px 0; }
+.dp-evidence, .dp-point-line { grid-column: 1 / -1; margin: 0; font-size: var(--fs-small); color: var(--fg-2); }
+.dp-evidence { display: flex; flex-wrap: wrap; align-items: baseline; }
+.dp-evidence > :not(:last-child)::after { content: '·'; display: inline-block; padding: 0 6px; }
+.dp-screen > .dp-foot { position: sticky; bottom: 0; z-index: 5; flex-direction: row; align-items: center; justify-content: flex-end; }
 /* Usage: one line, over the page's window, hidden when nothing was decided in it */
 .usage-decisions { flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 40px; padding: 0 16px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--bg-1); font-size: var(--fs-small); color: var(--fg-2); }
 .usage-decisions .ico { flex-shrink: 0; color: var(--fg-3); }
@@ -1498,6 +1518,13 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-row:last-child { border-bottom: 0; }
 /* First run: no handle and no switch, the person is only reading what was found */
 .prov-row.compact { grid-template-columns: 36px minmax(0, 250px) minmax(0, 1fr) auto; }
+/* In a settings section the list is narrower: below 760 px of its width the state and the remedies go under the name */
+.settings-section > .prov-card { container: host-list / inline-size; }
+@container host-list (max-width: 760px) {
+  .prov-row.compact { grid-template-columns: 36px minmax(0, 1fr); row-gap: 10px; }
+  .prov-row.compact > .prov-state, .prov-row.compact > .prov-actions { grid-column: 2; }
+  .prov-row.compact > .prov-actions { flex-wrap: wrap; justify-content: flex-start; }
+}
 .prov-row .proj { width: 36px; height: 36px; border-radius: var(--r); font-size: var(--fs-small); }
 .prov-row.open { background: var(--bg-1); border-bottom: 0; }
 .prov-row.lifted { background: var(--bg-3); box-shadow: var(--shadow-pop); border-radius: var(--r); position: relative; z-index: 1; }
@@ -2584,8 +2611,24 @@ a.cont-from:hover { color: var(--fg); }
 .lesson-job { display: flex; align-items: baseline; gap: 10px; }
 .lesson-job-warn { color: var(--warn); }
 .lesson-job-bad { color: var(--bad); }
-.lessons-settings { display: flex; flex-direction: column; gap: 14px; }
-.lessons-switches { display: flex; flex-direction: column; gap: 10px; }
+/* Settings → Instructions & memory → Lessons: each setting a row, the label and its hint beside the
+   control; below 480 px of its own width the control goes under the label */
+.lessons-settings { container: lessons-settings / inline-size; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.lessons-settings > p { margin: 0; }
+/* The error line is reserved: two lines, so a message that wraps on a phone moves nothing either */
+.lessons-problem { min-height: calc(2 * 1.45em); }
+.lessons-row { min-width: 0; }
+.lessons-row > .field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); align-items: center; gap: 2px 16px; }
+.lessons-row > .field > .field-label { grid-column: 1; grid-row: 1; }
+.lessons-row > .field > .field-hint { grid-column: 1; grid-row: 2; }
+.lessons-row > .field > :nth-child(2) { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+@container lessons-settings (max-width: 480px) {
+  .lessons-row > .field { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .lessons-row > .field > .field-label,
+  .lessons-row > .field > .field-hint,
+  .lessons-row > .field > :nth-child(2) { grid-column: 1; grid-row: auto; }
+}
+.lessons-switches { display: flex; flex-direction: column; gap: 12px; }
 .lessons-settings-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .project-lessons-cell { display: flex; align-items: center; min-height: var(--touch); padding: 0 16px; }
 /* The CLAUDE.md diff: a Dialog on a desktop, a full-height Sheet on a phone */
@@ -2650,3 +2693,92 @@ a.cont-from:hover { color: var(--fg); }
   .collab-share-actions { justify-content: flex-start; }
 }
 /* ---------- end of Collaborators ---------- */
+
+/* ---------- Settings: eight groups, sections, details and search (plans/settings-ia.md) ----------
+   The nav holds the search, then the eight groups as one tablist (.settings-nav-item, no group headings).
+   While the search has a query its results take the groups' place: the group in --fg-3 above each label.
+   A group's screen is sections separated by space, never by a card's border (AP11); a detail is its own
+   screen, opened from a row and headed by a quiet way back to its group. */
+.settings-search { min-width: 0; }
+.settings-search input { width: 100%; min-width: 0; }
+.settings-results { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.settings-result { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 6px 10px; border-radius: var(--r-sm); color: var(--fg); cursor: pointer; }
+.settings-result.is-active { background: var(--bg-3); }
+.settings-result-group { color: var(--fg-3); font-size: var(--fs-small); }
+.settings-result-label { font-size: var(--fs-small); overflow-wrap: anywhere; }
+.settings-results-none { margin: 0; padding: 6px 10px; color: var(--fg-2); font-size: var(--fs-small); }
+.settings-back { display: inline-flex; align-items: center; align-self: flex-start; min-height: 28px; padding: 0 8px; margin: 0 -8px; border-radius: var(--r-sm); color: var(--fg-2); font-size: var(--fs-small); }
+.settings-back:hover { color: var(--fg); }
+.settings-group { display: flex; flex-direction: column; gap: 32px; min-width: 0; }
+.settings-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-section > p { margin: 0; }
+.settings-section-title { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-strong); }
+/* A row that opens a detail ("Skills · 12 · 3 from plugins"): the whole row is the link, 44 px on a phone */
+.settings-detail-row { display: flex; align-items: center; gap: 12px; min-height: 40px; min-width: 0; padding: 0 10px; margin: 0 -10px; border-radius: var(--r-sm); color: var(--fg); }
+.settings-detail-row:hover { background: var(--bg-3); }
+.settings-detail-name { flex: 1; min-width: 0; overflow-wrap: break-word; }
+.settings-detail-note { flex: none; color: var(--fg-2); font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+.settings-detail-text { display: flex; flex: 1 1 14ch; flex-direction: column; gap: 2px; min-width: 12ch; padding: 6px 0; }
+.settings-detail-text ~ .settings-detail-note { flex: 0 1 auto; min-width: 0; text-align: end; overflow-wrap: break-word; }
+.settings-detail-desc { color: var(--fg-2); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.settings-row-sections { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.settings-row-section { min-width: 0; }
+/* The row a result opened: a fill that holds a moment and fades; it does not move under the reduced motion levels */
+[data-setting].is-found { border-radius: var(--r-sm); animation: setting-found var(--dur-slow) var(--ease-out) var(--dur-slow) both; }
+:root[data-motion='subtle'] [data-setting].is-found, :root[data-motion='off'] [data-setting].is-found { animation: none; }
+@keyframes setting-found { from { background: var(--bg-3); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { [data-setting].is-found { animation: none; } }
+@media (max-width: 900px) {
+  .settings-search input { min-height: 44px; font-size: var(--fs-input); }
+  .settings-result, .settings-detail-row { min-height: 44px; }
+}
+/* ---------- end of Settings: eight groups ---------- */
+
+/* ---------- Settings: the setting row (General, Claude Code) ---------- */
+/* Label and consequence, the control beside them; space between rows, never a border; a narrow container stacks them */
+.pref-rows { display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size; }
+.pref-row { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr); gap: 8px 24px; align-items: baseline; min-width: 0; padding: 8px 0; }
+.pref-row.is-stacked { grid-template-columns: minmax(0, 1fr); }
+.pref-row.is-stacked > .pref-row-control { align-items: stretch; }
+@container (max-width: 560px) { .pref-row { grid-template-columns: minmax(0, 1fr); } }
+.pref-row-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pref-row-hint { color: var(--fg-2); font-size: var(--fs-small); overflow-wrap: anywhere; }
+.pref-row-control { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.pref-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+/* A button's states in one cell: it keeps the width of the longest (AP10) */
+.reserved-label { display: inline-grid; }
+.reserved-label > span { grid-area: 1 / 1; text-align: center; }
+.reserved-label > .is-off { visibility: hidden; }
+/* A detail's content (Behaviour, Files): no card, the header names it */
+.settings-detail-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.settings-detail-tools { display: flex; justify-content: flex-end; }
+/* Claude Code → Provider: the one row on the screen, its padding hanging outside the column */
+.prov-bare > .prov-item { margin-inline: -18px; overflow: hidden; border-radius: var(--r-lg); }
+/* ---------- end of Settings: the setting row ---------- */
+
+/* ---------- Settings: a section's parts (Runs & spend, Access & safety) ----------
+   A card moved whole into a section loses its box: the section's heading names it, and its state
+   tag leads its first line. A section with several parts names each one a level under its heading,
+   with the state in words beside the name. */
+.settings-cards .card { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.settings-cards .card-head { justify-content: flex-start; }
+.settings-cards .card-head > span:empty { display: none; }
+.settings-block { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.settings-block + .settings-block { margin-top: 12px; }
+.settings-block-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.settings-block-title { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-strong); overflow-wrap: anywhere; }
+/* Rows 12 px apart; a control and its consequence 4 px apart, as one row */
+.settings-cards .form { gap: 12px; }
+.settings-cards p { margin: 0; }
+.settings-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.settings-consequence-2 { min-height: 2lh; }
+/* Shown only while it applies, revealed 0fr → 1fr; closed, it gives back the gap before it, so nothing jumps */
+.settings-reveal { display: grid; grid-template-rows: 0fr; min-width: 0; margin-top: -12px; transition: grid-template-rows var(--dur-base) var(--ease-out), margin-top var(--dur-base) var(--ease-out); }
+.settings-reveal.is-open { grid-template-rows: 1fr; margin-top: 0; }
+.settings-reveal-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; overflow: clip; }
+.settings-reveal.is-open > .settings-reveal-body { overflow-clip-margin: 4px; }
+/* A section's save: both words stacked in one cell, so it keeps its width while saving; the gradient only while the section has changes */
+.btn-states { display: inline-grid; }
+.btn-states > span { grid-area: 1 / 1; }
+[data-state='idle'] > .btn-states > .btn-state-loading, [data-state='loading'] > .btn-states > .btn-state-idle { visibility: hidden; }
+/* ---------- end of Settings: a section's parts ---------- */

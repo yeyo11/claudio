@@ -5,6 +5,7 @@ import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Empty } from '@claudio/ui/components/ui';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useInstallState } from '../../lib/pwa';
+import { settingsHref } from './settingsGroups';
 
 /**
  * Installing Claudio on the device that is reading this.
@@ -19,7 +20,7 @@ export function InstallTab() {
   const phone = useMediaQuery(NARROW);
 
   return (
-    <div className="install" data-testid="install-card">
+    <div className="install" data-testid="install-card" data-setting="install.app">
       <Empty
         illustration="install"
         size={phone ? 'sm' : 'md'}
@@ -64,7 +65,7 @@ export function InstallTab() {
       )}
 
       {/* The switch itself lives with the other notification choices: one place turns push on */}
-      <Link className="card install-push" to="/settings?tab=notifications">
+      <Link className="card install-push" to={settingsHref('general', { section: 'notifications' })}>
         <span className="install-push-icon" aria-hidden>
           <Bell {...ICON_SM} />
         </span>

@@ -164,6 +164,21 @@ test('a null confidence never clears a threshold: an act point on the cli answer
   assert.equal(s.engine.catalogue(null).find((p) => p.id === 'flow.bounce')?.effective.limited, true);
 });
 
+test('supervisor.intervene is Active in full on the cli, with or without consent, and limited under Jev only without it', async () => {
+  const s = setup();
+  await configure(s, 'supervisor.intervene', 'active', { provider: 'cli' });
+  assert.equal(s.engine.effective('supervisor.intervene', null).limited, false);
+  await configure(s, 'supervisor.intervene', 'active', { provider: 'cli', consent: false });
+  assert.equal(s.engine.effective('supervisor.intervene', null).limited, false, 'under the cli the engine is not asked, so consent does not limit it');
+  await configure(s, 'supervisor.intervene', 'active', { provider: 'jev', consent: false });
+  assert.equal(s.engine.effective('supervisor.intervene', null).limited, true);
+  await configure(s, 'supervisor.intervene', 'active', { provider: 'jev' });
+  assert.equal(s.engine.effective('supervisor.intervene', null).limited, false);
+  // Every other act point stays Active in name only on the cli
+  await configure(s, 'orchestration.retry', 'active', { provider: 'cli' });
+  assert.equal(s.engine.effective('orchestration.retry', null).limited, true);
+});
+
 test('a suggest point acts on any answer, with either provider', async () => {
   const s = setup();
   s.engine.register(new FakeProvider('cli', answering(null)));

@@ -22,6 +22,7 @@ import { dayGroups } from '../home/memory/model';
 import { useRoleName } from '../team/RoleAvatar';
 import { chatsThatRead, useCopyReadsToday } from '../../lib/api/collaborators';
 import { collaboratorsApi, collaboratorsKeys, useSharedWith, type SharedRef } from './shared-data';
+import { settingsHref } from '../config/settingsGroups';
 
 /**
  * The Shared tab's sub-tabs, each a kind a teammate's project may carry: the four of §5.3, and the
@@ -186,7 +187,7 @@ export function SyncLine({ sync }: { sync: SyncState }) {
 
 /**
  * What agents of this install did with the copy today (docs/plans/collaborators-agent-access.md):
- * how many chats read it, linked to the full list in Settings → Security, or that its sharer lets no
+ * how many chats read it, linked to the full list in Settings → Access & safety, or that its sharer lets no
  * agent read it. Nothing while no agent has read it today: a zero is not news.
  */
 export function AgentReadsLine({ shared }: { shared: SharedProject }) {
@@ -206,7 +207,7 @@ export function AgentReadsLineView({ agentsMayRead, chats }: { agentsMayRead: bo
   }
   if (chats === 0) return null;
   return (
-    <Link to="/settings?tab=security#agent-reads" className="small muted collab-share-where" data-testid="collab-agent-reads">
+    <Link to={settingsHref('access', { detail: 'agent-reads' })} className="small muted collab-share-where" data-testid="collab-agent-reads">
       <Bot {...ICON_SM} aria-hidden /> {t('agentReads.today', { count: chats })}
     </Link>
   );

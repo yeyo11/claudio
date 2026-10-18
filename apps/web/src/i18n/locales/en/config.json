@@ -52,11 +52,12 @@
       "title": "Read-only mode",
       "on": "read-only",
       "off": "writes allowed",
-      "intro": "Turn it on to show the panel to someone without letting them change anything: every request that would write is refused with 405.",
       "label": "Refuse every write",
       "note": "Answering a permission prompt still works, so a chat someone is watching can be unblocked, and so does this switch. Everything else, including the token below, is refused until it is turned off.",
       "enabled": "Read-only mode is on",
-      "disabled": "Read-only mode is off"
+      "disabled": "Read-only mode is off",
+      "consequenceOn": "Every write is refused; permission prompts still get answers.",
+      "consequenceOff": "Turn it on to show the panel without letting anyone change it."
     },
     "access": {
       "title": "Access",
@@ -137,7 +138,6 @@
       }
     },
     "guards": {
-      "title": "Guards",
       "intro": "Guards are deterministic checks that run before an agent's command or file write. They block the dangerous ones with a reason the agent can read, and nothing else decides: no model is asked.",
       "loadFailed": "Could not load the guard settings",
       "retry": "Retry",
@@ -272,7 +272,10 @@
         "readOnly": "refused, read-only",
         "rejected": "rejected",
         "failed": "failed"
-      }
+      },
+      "openAll": "See the whole log",
+      "count_one": "{{formatted}} entry",
+      "count_other": "{{formatted}} entries"
     }
   },
   "scope": {
@@ -283,15 +286,13 @@
     "version": "In use",
     "notInstalled": "not installed",
     "pinned": "Pinned by the image",
-    "notPinned": "not pinned (the image installs whatever was current when it was built)",
     "latest": "Newest published",
     "never": "not checked yet",
     "checked": "Last checked {{when}}",
     "check": "Check for updates",
     "checking": "Checking…",
     "updateHow": "Claudio does not update the CLI inside a running container, so a restart always gives the same version. Rebuild the image with CLAUDE_CODE_VERSION={{latest}} (Docker Compose: set it in .env and run docker compose build), or pull a newer Claudio image. On a plain install, run claude update.",
-    "checkFailed": "Could not check for updates",
-    "note": "Checked when you ask and once a day, never when a page loads. It reads the npm registry, not claude.ai."
+    "checkFailed": "Could not check for updates"
   },
   "updates": {
     "title": "Claudio",
@@ -304,7 +305,6 @@
     "check": "Check for updates",
     "checking": "Checking…",
     "checkFailed": "Could not check for updates",
-    "note": "Checked when you ask and once a day, never when a page loads. It reads Claudio's latest release on GitHub.",
     "copyCommand": "Copy the command",
     "remote": "This page is connected to the Claudio at {{host}}, which runs on another machine. Whoever runs it can update it:",
     "docker": {
@@ -371,22 +371,18 @@
     "worksDetail": "A real request completed successfully.",
     "verifyFailed": "Verification failed",
     "inUse": "Account in use",
-    "status": "Status",
-    "loggedIn": "logged in",
-    "loggedOut": "logged out",
-    "account": "Account",
-    "subscription": "Subscription",
-    "credential": "Credential",
+    "loggedIn": "Signed in",
+    "loggedOut": "Signed out",
+    "noAccount": "No account",
     "verifying": "Verifying…",
     "verify": "Verify with a real request",
     "remove": "Remove stored credential",
     "working": "Working",
     "failed": "Failed: {{detail}}",
-    "loggedInNote": "“Logged in” only means a credential is configured; the CLI does not validate it. Use the verification to be sure.",
+    "loggedInNote": "“Logged in” only means a credential is set.",
     "accounts": "Accounts",
-    "accountsOne": "Claude Code runs on its own login. Add more accounts to switch to another one when a limit is reached.",
-    "accountsMany": "Accounts: {{names}}. New work starts on the first one with room.",
-    "manageAccounts": "Manage accounts"
+    "rotationOn": "rotation on",
+    "rotationOff": "rotation off"
   },
   "instructions": {
     "variants": {
@@ -399,8 +395,9 @@
     "projectPlaceholder": "# Project instructions\n\nConventions, commands and context Claude should know in this project.",
     "userPlaceholder": "# Instructions applied to every session of this account",
     "projectTitle": "Project instructions",
-    "userTitle": "User instructions (CLAUDE.md)",
-    "file": "Instructions file"
+    "file": "Instructions file",
+    "row": "What Claude reads at the start of every session",
+    "notWritten": "not written yet"
   },
   "settings": {
     "variants": {
@@ -430,7 +427,432 @@
     },
     "projectTitle": "Project settings",
     "userTitle": "User settings",
-    "file": "Settings file"
+    "file": "Settings file",
+    "nav": "Settings groups",
+    "search": {
+      "label": "Search settings",
+      "placeholder": "Search settings",
+      "none": "No setting matches “{{query}}”",
+      "results": "Settings found"
+    },
+    "back": "← {{group}}",
+    "backTo": "Back to {{group}}",
+    "behaviour": "Behaviour (settings.json)",
+    "memory": {
+      "line_one": "{{count}} project keeps memory",
+      "line_other": "{{count}} projects keep memory",
+      "none": "No project keeps memory yet"
+    },
+    "overridden_one": "Overridden in {{count}} project",
+    "overridden_other": "Overridden in {{count}} projects",
+    "groups": {
+      "general": "General",
+      "claude-code": "Claude Code",
+      "connections": "Connections",
+      "instructions": "Instructions & memory",
+      "extensions": "Extensions",
+      "decisions": "Decisions",
+      "runs": "Runs & spend",
+      "access": "Access & safety"
+    },
+    "sections": {
+      "appearance": "Appearance",
+      "notifications": "Notifications",
+      "updates": "Updates",
+      "install": "Install",
+      "sign-in": "Sign-in",
+      "provider": "Provider",
+      "behaviour": "Behaviour",
+      "files": "Files",
+      "connectors": "Connectors",
+      "code-hosts": "Code hosts",
+      "trackers": "Trackers",
+      "webhooks": "Webhooks",
+      "mcp": "MCP servers",
+      "instructions": "Instructions",
+      "memory": "Memory",
+      "lessons": "Lessons",
+      "rules": "Rules",
+      "output-styles": "Output styles",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "agents": "Agents",
+      "commands": "Commands",
+      "workflows": "Workflows",
+      "tool-presets": "Tool presets",
+      "engine": "Who answers",
+      "points": "Decision points",
+      "runs": "Runs",
+      "spend-cap": "Daily spend cap",
+      "evals": "Evals",
+      "access": "Access",
+      "hosts": "Allowed hosts",
+      "remote": "Remote access",
+      "secrets": "Secrets",
+      "guards": "Guards",
+      "terminal": "Terminal",
+      "audit": "Audit log",
+      "agent-reads": "Agent reads"
+    },
+    "details": {
+      "behaviour": "Behaviour (settings.json)",
+      "files": "Files of ~/.claude",
+      "mcp": "MCP servers",
+      "claude-md": "CLAUDE.md",
+      "memory": "Memory",
+      "lessons": "Global lessons",
+      "rules": "Rules",
+      "output-styles": "Output styles",
+      "plugins": "Plugins",
+      "skills": "Skills",
+      "agents": "Agents",
+      "commands": "Commands",
+      "workflows": "Workflows",
+      "tool-presets": "Tool presets",
+      "history": "Every decision",
+      "audit": "Audit log",
+      "agent-reads": "Agent reads"
+    },
+    "rows": {
+      "appearance": {
+        "theme": "Theme",
+        "language": "Language",
+        "motion": "Motion"
+      },
+      "notifications": {
+        "kinds": "What to notify",
+        "devices": "Devices"
+      },
+      "updates": {
+        "claudio": "Claudio updates",
+        "cli": "Claude Code CLI version"
+      },
+      "install": {
+        "app": "Install the app on this device"
+      },
+      "sign-in": {
+        "account": "Account in use",
+        "panel": "Sign in to Claude Code",
+        "accounts": "Accounts"
+      },
+      "provider": {
+        "binary": "Claude Code binary",
+        "limits": "Usage limits",
+        "check": "Check again"
+      },
+      "behaviour": {
+        "settings-json": "Behaviour (settings.json)"
+      },
+      "files": {
+        "tree": "Files of ~/.claude"
+      },
+      "connectors": {
+        "authorise": "Authorise a connector"
+      },
+      "code-hosts": {
+        "github": "GitHub",
+        "gitlab": "GitLab"
+      },
+      "trackers": {
+        "youtrack": "YouTrack"
+      },
+      "mcp": {
+        "servers": "MCP servers"
+      },
+      "instructions": {
+        "claude-md": "CLAUDE.md"
+      },
+      "memory": {
+        "projects": "Memory of each project"
+      },
+      "lessons": {
+        "miner-model": "Miner model",
+        "miner-effort": "Miner effort",
+        "max-cost": "Cost per run",
+        "project-daily": "Daily cap per project",
+        "global-daily": "Daily cap, all projects",
+        "chat-minutes": "Minutes between runs on one chat",
+        "jobs-daily": "Mining jobs per project per day",
+        "approve-floor": "Confidence at approval",
+        "deliver-at": "Hand over from confidence",
+        "budget": "Handoff budget",
+        "loose-chats": "Global lessons in chats outside a project",
+        "repeated-errors": "Look at repeated errors too",
+        "manual-mining": "Allow “Look for lessons” on a chat",
+        "global": "Global lessons"
+      },
+      "rules": {
+        "list": "Rules"
+      },
+      "output-styles": {
+        "list": "Output styles"
+      },
+      "plugins": {
+        "list": "Plugins"
+      },
+      "skills": {
+        "list": "Skills"
+      },
+      "agents": {
+        "list": "Agents"
+      },
+      "commands": {
+        "list": "Commands"
+      },
+      "workflows": {
+        "list": "Workflows"
+      },
+      "tool-presets": {
+        "list": "Tool presets"
+      },
+      "engine": {
+        "who-answers": "Who answers",
+        "jev-key": "Jev key",
+        "cap": "Cap per decision",
+        "cli-model": "CLI model",
+        "cli-effort": "CLI effort",
+        "history-days": "Days of history kept"
+      },
+      "points": {
+        "history": "See every decision"
+      },
+      "runs": {
+        "permission-mode": "Default permission mode",
+        "concurrent": "Concurrent runs"
+      },
+      "spend-cap": {
+        "daily": "Daily spend cap"
+      },
+      "evals": {
+        "phase-2": "Evals phase 2"
+      },
+      "access": {
+        "mode": "Access mode",
+        "token": "API token",
+        "read-only": "Read-only"
+      },
+      "hosts": {
+        "allowed": "Allowed hosts"
+      },
+      "remote": {
+        "tunnel": "Tunnel"
+      },
+      "secrets": {
+        "storage": "Where secrets are kept"
+      },
+      "guards": {
+        "rules": "Guard rules"
+      },
+      "terminal": {
+        "enabled": "Terminal access"
+      },
+      "audit": {
+        "log": "Audit log"
+      },
+      "agent-reads": {
+        "log": "What agents read"
+      }
+    },
+    "keywords": {
+      "appearance": {
+        "section": "theme look colours dark light",
+        "theme": "dark light system colours",
+        "language": "english spanish español locale",
+        "motion": "animation reduce spinner"
+      },
+      "notifications": {
+        "section": "alerts push bell",
+        "kinds": "kinds levels alerts",
+        "devices": "phone push browser"
+      },
+      "updates": {
+        "section": "version upgrade new release",
+        "claudio": "version upgrade release",
+        "cli": "cli binary version path check"
+      },
+      "install": {
+        "section": "app pwa desktop home screen",
+        "app": "pwa desktop phone"
+      },
+      "sign-in": {
+        "section": "account login credential subscription",
+        "account": "subscription credential verify remove",
+        "panel": "login auth token key",
+        "accounts": "rotation switch"
+      },
+      "provider": {
+        "section": "agent claude code binary",
+        "binary": "path executable cli",
+        "limits": "quota session weekly",
+        "check": "refresh status"
+      },
+      "behaviour": {
+        "section": "settings.json permissions hooks env model",
+        "settings-json": "permissions hooks env model"
+      },
+      "files": {
+        "section": "~/.claude tree explorer",
+        "tree": "explorer hooks scripts keybindings"
+      },
+      "connectors": {
+        "section": "claude.ai gmail calendar drive",
+        "authorise": "claude.ai oauth gmail calendar"
+      },
+      "code-hosts": {
+        "section": "github gitlab gh glab pull request",
+        "github": "gh pull request",
+        "gitlab": "glab merge request"
+      },
+      "trackers": {
+        "section": "issues tickets",
+        "youtrack": "issues tickets token"
+      },
+      "webhooks": {
+        "section": "freshness pull request events"
+      },
+      "mcp": {
+        "section": "tools connectors",
+        "servers": "tools stdio http"
+      },
+      "instructions": {
+        "section": "CLAUDE.md prompt",
+        "claude-md": "instructions prompt"
+      },
+      "memory": {
+        "section": "facts feedback MEMORY.md projects",
+        "projects": "MEMORY.md projects"
+      },
+      "lessons": {
+        "section": "mining learning",
+        "miner-model": "model haiku sonnet",
+        "miner-effort": "effort reasoning",
+        "max-cost": "cap dollars",
+        "project-daily": "cost dollars",
+        "global-daily": "cost dollars",
+        "chat-minutes": "interval",
+        "jobs-daily": "limit",
+        "approve-floor": "approve",
+        "deliver-at": "handoff threshold",
+        "budget": "bytes size",
+        "loose-chats": "chats",
+        "repeated-errors": "errors",
+        "manual-mining": "manual",
+        "global": "promoted"
+      },
+      "rules": {
+        "section": "rules files",
+        "list": ".claude/rules"
+      },
+      "output-styles": {
+        "section": "style tone",
+        "list": "outputStyle"
+      },
+      "plugins": {
+        "section": "marketplace install extensions",
+        "list": "installed browse marketplaces"
+      },
+      "skills": {
+        "section": "SKILL.md",
+        "list": "SKILL.md"
+      },
+      "agents": {
+        "section": "subagents",
+        "list": "subagents .claude/agents"
+      },
+      "commands": {
+        "section": "slash",
+        "list": "slash .claude/commands"
+      },
+      "workflows": {
+        "section": "saved script",
+        "list": ".claude/workflows script"
+      },
+      "tool-presets": {
+        "section": "tools allowed denied",
+        "list": "tools allowed denied"
+      },
+      "engine": {
+        "section": "engine provider jev cli",
+        "who-answers": "engine provider jev cli model",
+        "jev-key": "api key secret",
+        "cap": "cost dollars limit",
+        "cli-model": "advanced haiku",
+        "cli-effort": "advanced reasoning",
+        "history-days": "retention advanced"
+      },
+      "points": {
+        "section": "modes shadow active off",
+        "history": "history log",
+        "point": "decision point mode shadow active off"
+      },
+      "runs": {
+        "section": "permission concurrent chats",
+        "permission-mode": "acceptEdits plan bypass",
+        "concurrent": "parallel queue"
+      },
+      "spend-cap": {
+        "section": "cost money budget dollars",
+        "daily": "cost money budget"
+      },
+      "evals": {
+        "section": "phase 2 evaluation",
+        "phase-2": "evaluation"
+      },
+      "access": {
+        "section": "auth token oidc login",
+        "mode": "none token oidc",
+        "token": "bearer key",
+        "read-only": "readonly lock"
+      },
+      "hosts": {
+        "section": "host origin domain",
+        "allowed": "host origin domain"
+      },
+      "remote": {
+        "section": "tunnel tailscale phone address qr",
+        "tunnel": "tailscale tailnet serve"
+      },
+      "secrets": {
+        "section": "encrypted keychain keys",
+        "storage": "encrypted keychain"
+      },
+      "guards": {
+        "section": "block rules dangerous commands",
+        "rules": "block deny"
+      },
+      "terminal": {
+        "section": "shell pty console",
+        "enabled": "shell pty"
+      },
+      "audit": {
+        "section": "writes requests history",
+        "log": "requests filter"
+      },
+      "agent-reads": {
+        "section": "collaborators shared",
+        "log": "collaborators shared"
+      }
+    },
+    "consequences": {
+      "engine": {
+        "who-answers": "Uses your Claude Code quota, or Jev."
+      },
+      "runs": {
+        "concurrent": "Past it, new chats are refused and workers wait for a slot."
+      },
+      "spend-cap": {
+        "daily": "New runs wait once today’s spend reaches it."
+      },
+      "access": {
+        "read-only": "Nobody can change anything through the API."
+      },
+      "hosts": {
+        "allowed": "Other addresses are refused."
+      },
+      "remote": {
+        "tunnel": "Reach Claudio from your phone over Tailscale."
+      }
+    }
   },
   "settingsGuided": {
     "notSet": "Not set (inherit)",
@@ -587,7 +1009,9 @@
     "actions": "Actions",
     "editNamed": "Edit {{name}}",
     "editInUserNamed": "Edit in user scope: {{name}}",
-    "removeNamed": "Remove {{name}}"
+    "removeNamed": "Remove {{name}}",
+    "row": "Add, edit and check servers",
+    "listAria": "MCP servers of this account"
   },
   "toolPresets": {
     "intro": "Named sets of allowed and blocked tools. Pick one when you start or resume a chat; a chat keeps the set it was given even if you edit the preset later.",
@@ -627,7 +1051,10 @@
     "restoreTitle": "Restore the shipped presets?",
     "restoreBody": "Read-only, No network and Everything go back to how they ship, and any you removed come back. Your own presets and the default stay as they are.",
     "restored": "Shipped presets restored",
-    "restoreFailed": "Could not restore the shipped presets"
+    "restoreFailed": "Could not restore the shipped presets",
+    "row": "The tools a chat may use, picked when it starts",
+    "shippedCount_one": "{{count}} shipped",
+    "shippedCount_other": "{{count}} shipped"
   },
   "resources": {
     "kinds": {
@@ -646,7 +1073,8 @@
         "createFirst": "Create the first agent",
         "content": "agent content",
         "create": "Create agent",
-        "deleteTitle": "Delete agent “{{name}}”?"
+        "deleteTitle": "Delete agent “{{name}}”?",
+        "row": "Subagents Claude can hand work to"
       },
       "skills": {
         "hint": "Packaged instructions Claude loads on demand. Each skill is a directory with a SKILL.md; extra files live in the Files tab.",
@@ -663,7 +1091,8 @@
         "createFirst": "Create the first skill",
         "content": "skill content",
         "create": "Create skill",
-        "deleteTitle": "Delete skill “{{name}}”?"
+        "deleteTitle": "Delete skill “{{name}}”?",
+        "row": "Instructions Claude loads when a task needs them"
       },
       "commands": {
         "hint": "Custom slash commands: the file name is the command name. $ARGUMENTS is replaced with what the user types.",
@@ -680,7 +1109,8 @@
         "createFirst": "Create the first command",
         "content": "command content",
         "create": "Create command",
-        "deleteTitle": "Delete command “{{name}}”?"
+        "deleteTitle": "Delete command “{{name}}”?",
+        "row": "Your own slash commands"
       },
       "output-styles": {
         "hint": "Alternative system-prompt styles, selectable with the outputStyle setting.",
@@ -697,7 +1127,8 @@
         "createFirst": "Create the first output style",
         "content": "output style content",
         "create": "Create output style",
-        "deleteTitle": "Delete output style “{{name}}”?"
+        "deleteTitle": "Delete output style “{{name}}”?",
+        "row": "Other ways for Claude to write its answers"
       },
       "rules": {
         "hint": "Modular instructions loaded next to CLAUDE.md. Optional `paths:` frontmatter limits a rule to matching files.",
@@ -714,7 +1145,8 @@
         "createFirst": "Create the first rule",
         "content": "rule content",
         "create": "Create rule",
-        "deleteTitle": "Delete rule “{{name}}”?"
+        "deleteTitle": "Delete rule “{{name}}”?",
+        "row": "Instructions loaded next to CLAUDE.md, by path"
       },
       "workflows": {
         "hint": "Saved scripts the Workflow tool runs by name. The name in `meta` is the one Claude uses; run one from New chat.",
@@ -731,7 +1163,8 @@
         "createFirst": "Create the first workflow",
         "content": "workflow content",
         "create": "Create workflow",
-        "deleteTitle": "Delete workflow “{{name}}”?"
+        "deleteTitle": "Delete workflow “{{name}}”?",
+        "row": "Scripts the Workflow tool runs by name"
       }
     },
     "exists": "Already exists",
@@ -900,7 +1333,10 @@
     "updateNamed": "Update {{name}}",
     "cliOutput": "CLI output",
     "uninstallNamed": "Uninstall {{name}}",
-    "removeNamed": "Remove marketplace {{name}}"
+    "removeNamed": "Remove marketplace {{name}}",
+    "row": "Bundles of skills, agents, commands and hooks",
+    "fromMarketplaces_one": "from {{count}} marketplace",
+    "fromMarketplaces_other": "from {{count}} marketplaces"
   },
   "orchestration": {
     "errors": {
@@ -1074,11 +1510,10 @@
     }
   },
   "notifications": {
-    "title": "Notifications",
-    "intro": "What reaches you, and how. These switches are this browser's own; push is registered with the server, and it is what lets a notification arrive while Claudio is closed.",
+    "intro": "Chosen per browser; push arrives even with Claudio closed.",
     "devices": {
       "title": "Devices registered for push",
-      "intro": "Every install that turned push on. A subscription belongs to an install and not to a person, so each of these is sent the same notifications, and removing one silences that device for everybody.",
+      "intro": "Removing a device silences it for everybody.",
       "none": "No device is registered",
       "noneHint": "Turn the switch above on, from the phone or the computer you want to be told on.",
       "thisDevice": "This device",
@@ -1184,7 +1619,6 @@
     "decideFailed": "Could not change the proposal"
   },
   "remote": {
-    "title": "Tunnel through Tailscale",
     "intro": "Reach this Claudio from your phone or another computer on your tailnet, through this machine's Tailscale. Only devices signed in to your tailnet can open the address; nothing is published on the internet.",
     "node": "This machine on the tailnet:",
     "states": {
@@ -1207,8 +1641,8 @@
     "failedTitle": "The tunnel failed",
     "authRequired": {
       "title": "Turn on authentication first",
-      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Security.",
-      "action": "Open Security"
+      "body": "While Claudio asks for no credential, anyone with the address would control this machine, so the tunnel stays closed. Turn on a token or OIDC in Access, above.",
+      "action": "Go to Access"
     },
     "tailscale": {
       "tags": {
@@ -1256,7 +1690,6 @@
       "qr": "QR code of {{url}}"
     },
     "startWith": {
-      "title": "On start",
       "label": "Open the tunnel when Claudio starts",
       "hint": "Off by default. It still needs authentication turned on and Tailscale ready."
     },
@@ -1285,27 +1718,41 @@
       "placeholder": "claudio.example.com",
       "saved": "Allowed hosts saved",
       "fromTunnel": "tunnel, while it is open",
-      "hintBesideEnv": "One per line: a name, or *.example.com for the names under it. No ports. They answer beside the ones from the environment, at once."
+      "hintBesideEnv": "One per line: a name, or *.example.com for the names under it. No ports. They answer beside the ones from the environment, at once.",
+      "consequence_one": "Answers to {{formatted}} name besides localhost.",
+      "consequence_other": "Answers to {{formatted}} names besides localhost.",
+      "consequenceNone": "Answers to localhost only."
     },
     "runs": {
       "title": "Runs",
       "intro": "What a new run gets unless it asks for something else. A change applies to the next run, without a restart.",
       "mode": "Default permission mode",
-      "modeHint": "The --permission-mode of a chat, schedule or orchestration that does not choose one.",
       "concurrent": "Runs at once",
-      "concurrentHint": "From {{min}} to {{max}}. A new chat past the limit is refused until one ends, and an orchestration runs no more workers than this at once.",
-      "saved": "Run defaults saved"
+      "saved": "Run defaults saved",
+      "modeConsequence": {
+        "acceptEdits": "Edits go ahead; other tools still ask.",
+        "auto": "Claude Code decides which tools need asking.",
+        "bypassPermissions": "Nothing asks: every tool runs at once.",
+        "manual": "Each tool asks before it runs.",
+        "dontAsk": "A tool that would ask is refused instead.",
+        "plan": "Claude plans and changes nothing."
+      },
+      "concurrentConsequence_one": "Up to {{formatted}} run at once; a new chat past it is refused.",
+      "concurrentConsequence_other": "Up to {{formatted}} runs at once; a new chat past them is refused.",
+      "concurrentRange": "A whole number from {{min}} to {{max}}."
     },
     "spend": {
       "title": "Daily spend cap",
       "switch": "Limit daily spend",
       "amount": "Cap per day, in USD",
-      "hintToday": "Today: {{spent}} according to the CLI. Over the cap, automatic work waits and your chats ask before sending.",
       "hintApi": "On subscription accounts it is what it would cost on the API, not what you pay.",
       "hintOff": "No cap: nothing waits for the day’s spend.",
       "invalid": "Enter an amount above 0 and up to {{max}}.",
       "saved": "Daily spend cap saved",
-      "savedOff": "Daily spend cap turned off"
+      "savedOff": "Daily spend cap turned off",
+      "today": "Today {{spent}} of {{cap}}, {{percent}}.",
+      "todayOff": "Today {{spent}}, and no cap: nothing waits for it.",
+      "hintOver": "Over the cap, automatic work waits and chats ask first."
     },
     "evals": {
       "title": "Instruction evals, phase 2",
@@ -1318,20 +1765,23 @@
     "saved": "Lesson settings saved",
     "saveFailed": "Could not save the lesson settings",
     "globalTitle": "Global lessons",
-    "globalHint": "Lessons you promoted from a project. They are handed in every project that allows them.",
+    "globalHint": "Handed to every project that allows them.",
     "emptyTitle": "No global lessons",
     "emptyBody": "Make a lesson global from its menu in a project’s Memory tab.",
-    "settingsTitle": "Mining and delivery",
     "model": "Miner model",
     "modelHint": "The one-shot chat that writes lesson candidates.",
     "effort": "Miner effort",
+    "effortHint": "More effort reads chats more carefully and costs more.",
     "maxCost": "Cost per run (USD)",
     "maxCostHint": "The hard cap of one mining run.",
     "projectDaily": "Daily cap per project (USD)",
+    "projectDailyHint": "A project stops mining at this much a day.",
     "globalDaily": "Daily cap, all projects (USD)",
+    "globalDailyHint": "Every project stops mining at this much a day.",
     "chatMinutes": "Minutes between runs on one chat",
     "chatMinutesHint": "A chat is not mined again sooner than this.",
     "jobsDaily": "Mining jobs per project per day",
+    "jobsDailyHint": "A project mines at most this many times a day.",
     "approveFloor": "Confidence at approval",
     "approveFloorHint": "An approved lesson starts at least here.",
     "deliverAt": "Hand over from confidence",
@@ -1346,7 +1796,9 @@
     "save": "Save",
     "problem": {
       "range": "A value is out of range.",
-      "order": "Lessons must be retired below the confidence they are handed from."
-    }
+      "order": "Lessons must be retired below the confidence they are handed from.",
+      "field": "{{field}} goes from {{min}} to {{max}}."
+    },
+    "globalRow": "Lessons every project that allows them gets"
   }
 }

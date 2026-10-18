@@ -15,13 +15,21 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import i18n from '../src/i18n';
 import { patchSettings, targetsFor } from '../src/lib/events';
 import { encodeQr, formatBits, reedSolomon } from '../src/lib/qr';
-import { AppSettingsCards, changedSettings, parseHosts } from '../src/pages/config/AppSettingsCards';
+import { changedSettings, HostsSettings, parseHosts, RunsSettings } from '../src/pages/config/AppSettingsCards';
 import { reachedThrough, TAILSCALE_DNS_ADMIN_URL, TAILSCALE_DOWNLOAD_URL, TUNNEL_TONE, TunnelPanel } from '../src/pages/config/RemoteAccessTab';
 
 // Settings → Remote access and the layered settings (docs/plans/tunnel.md, task `web`): the tunnel's
 // state in a word and a colour, the address with its QR code only while it answers, Tailscale's
 // readiness and the guard standing in for the button when either is missing, and settings the
 // environment owns shown but never sent.
+
+// The two sections that read the layered settings: Access & safety's hosts and Runs & spend's run defaults
+const AppSettingsSections = () => (
+  <>
+    <HostsSettings />
+    <RunsSettings />
+  </>
+);
 
 const NODE = 'claudio-test.tail0000.ts.net';
 const URL_ = `https://${NODE}:8443`;
@@ -188,7 +196,7 @@ test('a closed tunnel offers the one primary action, with the node, its port and
 test('while the guard is open, the warning and the way to Security replace the start button', () => {
   const html = panel(status('stopped'), 'none');
   assert.match(html, /data-testid="tunnel-auth-required"/);
-  assert.match(html, /href="\/settings\?tab=security"/);
+  assert.match(html, /href="\/settings\/access#access"/);
   assert.doesNotMatch(html, /tunnel-start|btn-primary/);
 });
 
@@ -348,7 +356,7 @@ test('hosts are read one per line, lower-cased, without the blanks', () => {
 test('a setting the environment set is shown read-only, naming its variable', () => {
   const client = new QueryClient();
   client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }, { env: ['*.devtunnels.ms'], file: ['claudio.example.com'] }));
-  const html = wrap(<AppSettingsCards />, client);
+  const html = wrap(<AppSettingsSections />, client);
   assert.ok(text(html).includes('set by the environment'));
   assert.ok(html.includes('CLAUDIO_ALLOWED_HOSTS'));
   assert.ok(html.includes('CLAUDIO_DEFAULT_PERMISSION_MODE'));
@@ -364,7 +372,7 @@ test('a setting the environment set is shown read-only, naming its variable', ()
 test("the tunnel's host is listed read-only while it is lent, and is not in the field", () => {
   const client = new QueryClient();
   client.setQueryData(keys.appSettings, layered({}, { file: [], runtime: ['abc123.lhr.life'] }));
-  const html = wrap(<AppSettingsCards />, client);
+  const html = wrap(<AppSettingsSections />, client);
   assert.match(html, /<span class="mono">abc123\.lhr\.life<\/span><span class="badge badge-muted"><span class="badge-text">tunnel, while it is open/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*><\/textarea>/);
   assert.doesNotMatch(html, /CLAUDIO_ALLOWED_HOSTS/);
@@ -373,7 +381,7 @@ test("the tunnel's host is listed read-only while it is lent, and is not in the 
 test('settings nobody pinned are editable', () => {
   const client = new QueryClient();
   client.setQueryData(keys.appSettings, layered());
-  const html = wrap(<AppSettingsCards />, client);
+  const html = wrap(<AppSettingsSections />, client);
   assert.doesNotMatch(html, /set by the environment/);
   assert.doesNotMatch(html, /fixed-hosts/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>claudio.example.com<\/textarea>/);

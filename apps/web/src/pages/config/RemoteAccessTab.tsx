@@ -16,6 +16,7 @@ import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
 import { SignOutButton } from '../../components/setup/SignOutButton';
+import { settingsHref } from './settingsGroups';
 
 /** Where Tailscale is downloaded, and where a tailnet turns MagicDNS and HTTPS certificates on. */
 export const TAILSCALE_DOWNLOAD_URL = 'https://tailscale.com/download';
@@ -45,7 +46,7 @@ export function reachedThrough(url: string | null, host: string): boolean {
 }
 
 /**
- * Settings → Remote access: this Claudio on the person's tailnet, through `tailscale serve`. The
+ * Settings → Access & safety → Remote access: this Claudio on the person's tailnet, through `tailscale serve`. The
  * status comes whole with every `tunnel.changed` (lib/events.ts), so the page follows the tunnel
  * through its states without polling; reading it again also asks the CLI again, which is how a
  * `tailscale up` run in a terminal shows up.
@@ -116,7 +117,7 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
         onRecheck={() => void queryClient.invalidateQueries({ queryKey: keys.tunnel })}
       />
       {status.enabled && status.tailscale.state === 'ready' && (
-        <Card title={t('remote.startWith.title')}>
+        <div className="settings-block">
           <Switch
             checked={status.settings.startWithClaudio}
             disabled={settings.isPending}
@@ -125,7 +126,7 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
             {t('remote.startWith.label')}
           </Switch>
           <p className="small muted">{t('remote.startWith.hint')}</p>
-        </Card>
+        </div>
       )}
       <p className="small muted">{t('remote.footnote')}</p>
     </>
@@ -166,7 +167,7 @@ export function TunnelPanel({
 
   if (closedHere) {
     return (
-      <Card title={t('remote.title')} actions={<Tag tone={TUNNEL_TONE.stopped}>{t('remote.states.stopped')}</Tag>}>
+      <Card actions={<Tag tone={TUNNEL_TONE.stopped}>{t('remote.states.stopped')}</Tag>}>
         <div data-testid="tunnel-closed-here">
           <Empty illustration="offline" size="sm" title={t('remote.closedHere.title')}>
             {t('remote.closedHere.body')}
@@ -180,7 +181,7 @@ export function TunnelPanel({
   // so a start button would only ever answer 409
   if (!status.enabled) {
     return (
-      <Card title={t('remote.title')} actions={<Tag tone="warn">{t('remote.disabled.tag')}</Tag>}>
+      <Card actions={<Tag tone="warn">{t('remote.disabled.tag')}</Tag>}>
         <p className="small muted">{t('remote.intro')}</p>
         <div className="alert alert-warn" role="status" data-testid="tunnel-disabled">
           <ShieldAlert {...ICON} className="alert-icon" />
@@ -196,7 +197,7 @@ export function TunnelPanel({
   if (status.tailscale.state !== 'ready') return <TailscaleNotReady readiness={status.tailscale} managed={status.managed} checking={checking} onRecheck={onRecheck} />;
 
   return (
-    <Card title={t('remote.title')} actions={<Tag tone={TUNNEL_TONE[state]}>{t(`remote.states.${state}`)}</Tag>}>
+    <Card actions={<Tag tone={TUNNEL_TONE[state]}>{t(`remote.states.${state}`)}</Tag>}>
       <p className="small muted">{t('remote.intro')}</p>
       {status.tailscale.host && (
         <div className="tunnel-node">
@@ -233,7 +234,7 @@ export function TunnelPanel({
             <strong>{t('remote.authRequired.title')}</strong>
             <div className="small">{t('remote.authRequired.body')}</div>
             <div className="form-actions">
-              <Link className="btn btn-small" to="/settings?tab=security">
+              <Link className="btn btn-small" to={settingsHref('access', { section: 'access' })}>
                 {t('remote.authRequired.action')}
               </Link>
             </div>
@@ -274,7 +275,7 @@ function TailscaleNotReady({ readiness, managed, checking, onRecheck }: { readin
 
   if (readiness.state === 'missing') {
     return (
-      <Card title={t('remote.title')} actions={<Tag tone="warn">{t('remote.tailscale.tags.missing')}</Tag>}>
+      <Card actions={<Tag tone="warn">{t('remote.tailscale.tags.missing')}</Tag>}>
         <div data-testid="tunnel-tailscale-missing">
           <Empty
             illustration="cli-missing"
@@ -311,7 +312,7 @@ function TailscaleNotReady({ readiness, managed, checking, onRecheck }: { readin
         ? { href: TAILSCALE_DOWNLOAD_URL, label: t('remote.tailscale.update') }
         : null;
   return (
-    <Card title={t('remote.title')} actions={<Tag tone="warn">{t(`remote.tailscale.tags.${state}`)}</Tag>}>
+    <Card actions={<Tag tone="warn">{t(`remote.tailscale.tags.${state}`)}</Tag>}>
       <p className="small muted">{t('remote.intro')}</p>
       <div className="alert alert-warn" role="status" data-testid={`tunnel-tailscale-${state}`}>
         <TriangleAlert {...ICON} className="alert-icon" />
@@ -351,7 +352,7 @@ function ManagedSignIn({ readiness, checking, onRecheck }: { readiness: Tailscal
   const [open, setOpen] = useState(false);
   const state = readiness.state === 'stopped' ? 'stopped' : 'loggedOut';
   return (
-    <Card title={t('remote.title')} actions={<Tag tone="warn">{t(`remote.tailscale.tags.${state}`)}</Tag>}>
+    <Card actions={<Tag tone="warn">{t(`remote.tailscale.tags.${state}`)}</Tag>}>
       <p className="small muted">{t('remote.intro')}</p>
       <div className="alert alert-warn" role="status" data-testid={`tunnel-tailscale-${state}`}>
         <TriangleAlert {...ICON} className="alert-icon" />

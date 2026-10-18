@@ -18,7 +18,7 @@ never starts `claude` in it. The design, the threat model and the decisions are 
 
 ## Who may open it
 
-- **Off by default.** Settings → Security → Terminal turns it on; `CLAUDIO_TERMINAL=off|on` overrides
+- **Off by default.** Settings → Access & safety → Terminal turns it on; `CLAUDIO_TERMINAL=off|on` overrides
   the switch for whoever deployed Claudio (the UI then shows it read-only).
 - **Authentication off: this machine only.** From loopback, with no forwarded or runtime host.
 - **Authentication on: the owner's token.** From another device only through the tunnel

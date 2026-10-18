@@ -12,14 +12,22 @@ const PAGES = [
   '/tasks?view=list',
   '/tasks/milestones',
   '/orchestration',
-  '/connectors',
   '/accounts',
+  // Settings: its eight groups (docs/plans/settings-ia.md §3) and a few of their details
   '/settings',
-  '/settings?tab=settings',
-  '/settings?tab=mcp',
-  '/settings?tab=files',
-  '/settings?tab=memory',
-  '/settings?tab=plugins',
+  '/settings/general',
+  '/settings/claude-code',
+  '/settings/connections',
+  '/settings/instructions',
+  '/settings/extensions',
+  '/settings/decisions',
+  '/settings/runs',
+  '/settings/access',
+  '/settings/claude-code/behaviour',
+  '/settings/connections/mcp',
+  '/settings/claude-code/files',
+  '/settings/instructions/memory',
+  '/settings/extensions/plugins',
 ];
 // The project page is a dashboard, with a full view for each of its own things. Board and Memory
 // exist only while their modules are on, so the project is imported with every module on
@@ -51,12 +59,12 @@ export default async ({ page, api, check, dirs }) => {
     await page.shot(`pages-${theme}`);
   }
   // Claudio rotates between Claude accounts (docs/accounts.md): /accounts is a page of its own again,
-  // not the redirect to Settings → Providers Claudio left when it retired claude-swap
+  // not the redirect to Settings → Claude Code Claudio left when it retired claude-swap
   await page.goto('/accounts', 900);
   await page.waitFor(`return location.pathname === '/accounts' && (document.querySelector('main')?.innerText.trim().length ?? 0) > 20`, { label: '/accounts stays on the Accounts page' });
 
   await page.viewport(420, 900);
-  for (const path of ['/', '/settings?tab=settings', '/settings?tab=plugins', projectPages[0]]) {
+  for (const path of ['/', '/settings/claude-code/behaviour', '/settings/extensions/plugins', projectPages[0]]) {
     await page.goto(path, 900);
     const overflow = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
     check(overflow <= 2, `${path} overflows horizontally by ${overflow}px at 420px`);

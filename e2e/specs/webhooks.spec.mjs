@@ -1,4 +1,4 @@
-// Webhooks (code hosts, phase 6): the receiver, Settings → Integrations → Webhooks and the freshness line of a
+// Webhooks (code hosts, phase 6): the receiver, Settings → Connections → Webhooks and the freshness line of a
 // change request, through the fake gh and glab (e2e/fake-hosts), in both themes and on a phone.
 //
 // Reference screens: DesktopIntegracionesWebhooks*, MobileIntegracionesWebhooks* and DSWebhooks. With E2E_SHOTS
@@ -40,6 +40,8 @@ import { DatabaseSync } from 'node:sqlite';
 
 export const timeout = 420_000;
 
+// The webhooks are a section of Settings → Connections
+const WEBHOOKS = '/settings/connections#webhooks';
 const GH_ORIGIN = 'https://github.com/acme/shop.git';
 const GL_ORIGIN = 'https://gitlab.com/acme/shop.git';
 const ADDRESS = 'https://e2e0a1b2c3d4.lhr.life';
@@ -199,8 +201,14 @@ export default async ({ page, api, check, dirs }) => {
     await page.sleep(wait);
   };
   const actionsOf = (id) => page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${rowOf(id)} [data-action]`)})].map((a) => a.getAttribute('data-action'))`);
-  const openIntegrations = async (id, kind, label) => {
-    await page.goto('/settings?tab=integrations', 300);
+  // A new document each time, so the theme and the overlay's config are read again: from the same
+  // path, an address that differs only in its #section is a same-document navigation
+  const loadWebhooks = async () => {
+    await page.goto('/settings', 0);
+    await page.goto(WEBHOOKS, 300);
+  };
+  const openWebhooks = async (id, kind, label) => {
+    await loadWebhooks();
     await page.waitFor(`return document.querySelectorAll('.wh-card [data-project]').length === 2`, { label: `${label}: a row per project` });
     await page.waitFor(kindIs(id, kind), { label: `${label}: the GitHub row is ${kind}` });
   };
@@ -250,7 +258,7 @@ export default async ({ page, api, check, dirs }) => {
     await setTheme('dark');
     removeOverlay = await page.onNewDocument(overlay);
     await config({});
-    await openIntegrations(ghId, 'unavailable', 'no address, dark');
+    await openWebhooks(ghId, 'unavailable', 'no address, dark');
     await page.waitFor(kindIs(glId, 'unavailable'), { label: 'the GitLab row' });
     check(/tailnet/.test(await text('.wh-card .wh-notice')), 'with no address the card says the tunnel only reaches the tailnet');
     check(!(await page.eval(`return !!document.querySelector('.wh-card .wh-bar')`)), 'and shows no address line');
@@ -262,23 +270,23 @@ export default async ({ page, api, check, dirs }) => {
     check(!/redeliver/i.test(await text('.wh-card')), 'there is no redelivery');
     await everyScreen('webhooks-no-address-dark', 'Webhooks without an address, dark');
     await setTheme('light');
-    await openIntegrations(ghId, 'unavailable', 'no address, light');
+    await openWebhooks(ghId, 'unavailable', 'no address, light');
     await everyScreen('webhooks-no-address-light', 'Webhooks without an address, light');
     await setTheme('dark');
 
     // ---- 2. An address: the row offers Register, and the dialog says what it will do ----
     await config({ address: ADDRESS });
-    await openIntegrations(ghId, 'off', 'with an address, dark');
+    await openWebhooks(ghId, 'off', 'with an address, dark');
     check((await actionsOf(ghId)).join(',') === 'register', `an unregistered project offers Register and nothing else (${(await actionsOf(ghId)).join(',')})`);
     check((await text('.wh-card .wh-bar')).includes(ADDRESS) && /Open/.test(await text('.wh-card .wh-bar')), 'the card says where notices arrive, and that it is open');
     check((await actionsOf(glId)).join(',') === 'register', `a GitLab project offers Register too (${(await actionsOf(glId)).join(',')})`);
     check(/Without a webhook, Claudio reads the pull requests every 2 min/.test(await text(rowOf(ghId))), 'an off row says what a webhook is for');
     await everyScreen('webhooks-off-dark', 'Webhooks with an address, dark');
     await setTheme('light');
-    await openIntegrations(ghId, 'off', 'with an address, light');
+    await openWebhooks(ghId, 'off', 'with an address, light');
     await everyScreen('webhooks-off-light', 'Webhooks with an address, light');
     await setTheme('dark');
-    await page.goto('/settings?tab=integrations', 300);
+    await loadWebhooks();
     await page.waitFor(kindIs(ghId, 'off'), { label: 'the row, off' });
 
     const callsBefore = ghCalls().length;
@@ -306,7 +314,7 @@ export default async ({ page, api, check, dirs }) => {
     await noSecret('the refused dialog');
     await closeDialog();
     await setTheme('light');
-    await openIntegrations(ghId, 'off', 'dialog, light');
+    await openWebhooks(ghId, 'off', 'dialog, light');
     await page.click(`${rowOf(ghId)} [data-action="register"]`, undefined, 500);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .wh-dlg')`, { label: 'the Register dialog, light' });
     await everyScreen('webhooks-register-light', 'the Register dialog, light');
@@ -333,18 +341,18 @@ export default async ({ page, api, check, dirs }) => {
     check(listed.registrations.length === 1 && listed.registrations[0].remoteHookId === HOOK_ID, `the registration is listed (${JSON.stringify(listed.registrations)})`);
     check(!JSON.stringify(listed).includes(SECRET) && !/"secret"/i.test(JSON.stringify(listed)), 'and the API carries no secret');
 
-    await openIntegrations(ghId, 'active', 'registered, dark');
+    await openWebhooks(ghId, 'active', 'registered, dark');
     check((await actionsOf(ghId)).join(',') === 'test,remove', `a registered project offers Test and Remove, never Register or redelivery (${(await actionsOf(ghId)).join(',')})`);
     const active = await text(rowOf(ghId));
     check(/Active/.test(active) && /last test/i.test(active) && /backup read/i.test(active), `an active row says its state, its last test and its backup read (${active})`);
     check((await text('.wh-card .wh-bar')).includes(ADDRESS), 'the address line is shown');
-    check(/1 project/.test(await text('.wh-card .prov-summary')) || /2 projects · 1 with a webhook/.test(await text('.wh-card .prov-summary')), `the summary counts the hook (${await text('.wh-card .prov-summary')})`);
+    check(/1 project/.test(await text('#webhooks .prov-summary')) || /2 projects · 1 with a webhook/.test(await text('#webhooks .prov-summary')), `the summary counts the hook (${await text('#webhooks .prov-summary')})`);
     await everyScreen('webhooks-active-dark', 'an active webhook, dark');
     await setTheme('light');
-    await openIntegrations(ghId, 'active', 'registered, light');
+    await openWebhooks(ghId, 'active', 'registered, light');
     await everyScreen('webhooks-active-light', 'an active webhook, light');
     await setTheme('dark');
-    await openIntegrations(ghId, 'active', 'registered, dark again');
+    await openWebhooks(ghId, 'active', 'registered, dark again');
 
     // Test: the CLI pings the hook and reads what the host says about the delivery
     const beforeTest = ghCalls().length;
@@ -368,12 +376,12 @@ export default async ({ page, api, check, dirs }) => {
     check((await actionsOf(ghId)).join(',') === 'test,remove', 'a failing row still offers Test and Remove');
     await everyScreen('webhooks-failing-dark', 'a failing webhook, dark');
     await setTheme('light');
-    await openIntegrations(ghId, 'failing', 'failing, light');
+    await openWebhooks(ghId, 'failing', 'failing, light');
     await everyScreen('webhooks-failing-light', 'a failing webhook, light');
     await setTheme('dark');
     // It recovers when the next test is answered
     state('gh', { ci: 'passing' });
-    await openIntegrations(ghId, 'failing', 'failing, recovering');
+    await openWebhooks(ghId, 'failing', 'failing, recovering');
     await act(ghId, 'test', 300);
     await page.waitFor(kindIs(ghId, 'active'), { timeout: 30_000, label: 'a test the host answers makes it active again' });
 
@@ -392,7 +400,7 @@ export default async ({ page, api, check, dirs }) => {
       now,
       now,
     );
-    await openIntegrations(ghId, 'active', 'GitLab registered, dark');
+    await openWebhooks(ghId, 'active', 'GitLab registered, dark');
     await page.waitFor(kindIs(glId, 'active'), { label: 'the GitLab row is active' });
     check((await actionsOf(glId)).join(',') === 'test,remove', `a registered GitLab project offers Test and Remove (${(await actionsOf(glId)).join(',')})`);
     await everyScreen('webhooks-gitlab-active-dark', 'a GitLab webhook, dark');
@@ -410,7 +418,7 @@ export default async ({ page, api, check, dirs }) => {
     await act(glId, 'test', 300);
     await page.waitFor(kindIs(glId, 'failing'), { timeout: 30_000, label: 'the GitLab row is failing' });
     state('glab', {});
-    await openIntegrations(ghId, 'active', 'GitLab failing, recovering');
+    await openWebhooks(ghId, 'active', 'GitLab failing, recovering');
     await act(glId, 'test', 300);
     await page.waitFor(kindIs(glId, 'active'), { timeout: 30_000, label: 'a test GitLab answers makes it active again' });
     // Remove: asks first, deletes the hook through glab
@@ -424,7 +432,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- A phone ----
     await page.viewport(...PHONE);
-    await openIntegrations(ghId, 'active', 'phone, dark');
+    await openWebhooks(ghId, 'active', 'phone, dark');
     check(await page.eval(`return document.querySelectorAll('.wh-card .prov-cell').length === 2 && !document.querySelector('.wh-card .prov-row')`), 'a phone shows cells, not rows');
     check((await page.eval(overflow)) <= 0, 'the phone page does not scroll sideways');
     const small = await page.eval(`return [...document.querySelectorAll('.wh-card .btn')].filter((b) => b.getBoundingClientRect().height < 44).map((b) => b.textContent.trim())`);
@@ -432,12 +440,12 @@ export default async ({ page, api, check, dirs }) => {
     check(!(await page.eval(`return !!document.querySelector('.wh-card input[type=checkbox]')`)), 'no checkbox on a phone');
     await everyScreen('webhooks-phone-dark', 'Webhooks on a phone, dark');
     await setTheme('light');
-    await openIntegrations(ghId, 'active', 'phone, light');
+    await openWebhooks(ghId, 'active', 'phone, light');
     await everyScreen('webhooks-phone-light', 'Webhooks on a phone, light');
     await setTheme('dark');
     // The Register dialog on a phone, from a project that is off for a moment
     dbRun("UPDATE webhook_registrations SET state = 'removed' WHERE id = ?", registrationId);
-    await openIntegrations(ghId, 'off', 'phone, off');
+    await openWebhooks(ghId, 'off', 'phone, off');
     await page.click(`${rowOf(ghId)} [data-action="register"]`, undefined, 500);
     await page.waitFor(`return !!document.querySelector('[role=dialog] .wh-dlg')`, { label: 'the Register dialog on a phone' });
     check((await page.eval(overflow)) <= 0, 'the phone dialog does not scroll the page sideways');
@@ -546,7 +554,7 @@ export default async ({ page, api, check, dirs }) => {
     await fresh('silent', 'a silent hook');
     const silent = await line();
     check(/Webhook silent/.test(silent) && !/Instant/.test(silent) && /Meanwhile GitHub is read at the normal pace/.test(silent), `a registered hook that is silent says so and falls back to the normal pace (${silent})`);
-    check(await page.eval(`return !!document.querySelector('.item-pr-wait .fresh a[href="/settings?tab=integrations"]')`), 'and links to the webhooks');
+    check(await page.eval(`return !!document.querySelector('.item-pr-wait .fresh a[href="/settings/connections#webhooks"]')`), 'and links to the webhooks');
     await still('silent');
     await everyScreen('webhooks-fresh-silent-dark', 'the freshness line, silent, dark');
     await setTheme('light');
@@ -571,7 +579,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---- Remove: asks first, deletes the hook on the host, and the row goes off ----
     await config({ address: ADDRESS });
-    await openIntegrations(ghId, 'active', 'before removing');
+    await openWebhooks(ghId, 'active', 'before removing');
     await act(ghId, 'remove', 400);
     await page.waitFor(`return !!document.querySelector('[role=dialog]')`, { label: 'the removal asks first' });
     const ask = await page.text('[role=dialog]');

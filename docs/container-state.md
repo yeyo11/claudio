@@ -58,7 +58,7 @@ nothing moved the chart's tag, so a plain `helm install` ran a very old release.
 - **The server says when a folder would be lost.** `GET /system/storage` reads
   `/proc/self/mountinfo` and classifies the config dir, the data dir and the workspace as
   `persistent`, `anonymous`, `container`, `temporary` or `unknown`. It works under any way of
-  starting the container, since it reads what the process sees. Settings → Account shows a warning
+  starting the container, since it reads what the process sees. Settings → General → Updates shows a warning
   with the command that names all three volumes, before any update command. It cannot tell a new
   empty named volume from the intended one (Compose started from another folder), so the compose
   file and the README tell people to set `COMPOSE_PROJECT_NAME` once.

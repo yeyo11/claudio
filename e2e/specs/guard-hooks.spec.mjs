@@ -1,7 +1,7 @@
 // Guards end to end (docs/plans/guards.md, "e2e"), against the fake CLI: the fake reads `--settings`,
 // runs the PreToolUse command for each `run:` step and turns exit 2 into the CLI's error tool_result
 // (e2e/fake-cli/README.md), so the real bundled guard.mjs decides here. Seven scenarios: a guarded chat
-// that is blocked, one that passes, an orchestration task blocked by `no-verify`, Settings → Guards,
+// that is blocked, one that passes, an orchestration task blocked by `no-verify`, Settings → Access & safety → Guards,
 // a chat token refused on PUT /settings/guards, the guard made unavailable, and the phone.
 //
 // guard.spec.mjs is the unsaved-changes guard; this file is about the guards of agents.
@@ -34,6 +34,12 @@ export default async ({ page, api, check, dirs }) => {
     chats.push(res.body.id);
     return res.body.id;
   };
+  // A new document: from the same path, an address that differs only in its #section is a
+  // same-document navigation, which neither reloads the page nor fetches the guards' status again
+  const openGuards = async () => {
+    await page.goto('/settings', 0);
+    await page.goto('/settings/access#guards', 1500);
+  };
   const theme = (name) => page.eval(`localStorage.setItem('claudio-theme', '${name}'); return true`);
   let bundleMode = null;
   let projectId = null;
@@ -64,7 +70,7 @@ export default async ({ page, api, check, dirs }) => {
     check(!strip.failedRow, 'a blocked call is the strip, not a failed call row');
     await page.waitFor(`return [...document.querySelectorAll('.chat-head .guard-tag')].some((t) => t.textContent.trim() === 'Guards')`, { label: 'the Guards tag in the header', timeout: 30_000 });
     check(true, 'the header shows the Guards tag');
-    await page.goto('/settings?tab=security', 1500);
+    await page.goto('/settings/access#guards', 1500);
     await page.waitFor(`return [...document.querySelectorAll('#guards .guard-event')].some((e) => e.textContent.includes('push'))`, { label: 'the block in Recent blocks', timeout: 30_000 });
     const recent = await page.eval(`const e = [...document.querySelectorAll('#guards .guard-event')].find((x) => x.textContent.includes('push')); return e.querySelector('a')?.getAttribute('href') ?? ''`);
     check(recent === `/chats/${blockedChat}`, `Recent blocks links to the chat (${recent})`);
@@ -106,19 +112,19 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`return !!document.querySelector('.transcript .notice.is-guard')`, { label: 'the notice at the end of the chip', timeout: 30_000 });
     check(true, 'the chip opens the chat at the guard notice');
 
-    // ===== 4. Settings → Guards: a rule toggled survives a reload; "Try a command" names the rule =====
-    await page.goto('/settings?tab=security', 1500);
+    // ===== 4. Settings → Access & safety → Guards: a rule toggled survives a reload; "Try a command" names the rule =====
+    await page.goto('/settings/access#guards', 1500);
     const rule = (id) => page.eval(`return document.querySelector('#guards [data-rule="${id}"] [role=switch]')?.getAttribute('aria-checked') ?? null`);
     await page.waitFor(`return !!document.querySelector('#guards [data-rule="secrets"] [role=switch]')`, { label: 'the secrets switch' });
     const before = await rule('secrets');
     await page.click('#guards [data-rule="secrets"] [role=switch]', undefined, 1200);
     check((await rule('secrets')) !== before, 'the secrets switch flipped');
-    await page.goto('/settings?tab=security', 1500);
+    await openGuards();
     await page.waitFor(`return !!document.querySelector('#guards [data-rule="secrets"] [role=switch]')`, { label: 'the secrets switch after a reload' });
     check((await rule('secrets')) !== before, 'the switch kept its state after a reload');
     check((await api.get('/settings/guards')).body.settings.rules.secrets === (before !== 'true'), 'the server holds the new state');
     await page.fill('#guards .guard-try-row input', 'git commit -n -m x');
-    await page.click('#guards .guard-try .btn-primary', undefined, 800);
+    await page.click('#guards .guard-try button[type=submit]', undefined, 800);
     await page.waitFor(`const r = document.querySelector('[data-testid=guard-result]')?.textContent ?? ''; return r.includes('Would be blocked') && r.includes('no-verify')`, { label: 'the "Try a command" verdict' });
     check(true, '"Try a command" reads blocked by no-verify');
 
@@ -141,7 +147,7 @@ export default async ({ page, api, check, dirs }) => {
     {
       bundleMode = statSync(GUARD_BUNDLE).mode & 0o777;
       chmodSync(GUARD_BUNDLE, 0o666);
-      await page.goto('/settings?tab=security', 1500);
+      await openGuards();
       await page.waitFor(`return !!document.querySelector('#guards .guard-status.is-bad')`, { label: 'the bad status', timeout: 30_000 });
       const unavailable = await api.post('/chats', { prompt: 'run: ls', cwd: project.path });
       if (unavailable.status === 201) chats.push(unavailable.body.id);
@@ -155,8 +161,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(390, 844);
     for (const name of ['dark', 'light']) {
       await theme(name);
-      await page.goto('/settings?tab=security', 1500);
-      await page.waitFor(`return !!document.querySelector('#guards [data-rule]')`, { label: `[${name}] the card` });
+      await page.goto('/settings/access#guards', 1500);
+      await page.waitFor(`return !!document.querySelector('#guards [data-rule]')`, { label: `[${name}] the Guards section` });
       const card = await page.eval(`
         // A switch is tapped through its label, which flips it as well: the label is the target measured, as in the rules Sheet below
         const small = (el) => { const r = (el.getAttribute('role') === 'switch' ? el.closest('label') ?? el : el).getBoundingClientRect(); return r.width > 0 && Math.min(r.width, r.height) < 44 && r.height < 44; };

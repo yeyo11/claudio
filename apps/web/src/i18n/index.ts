@@ -24,7 +24,7 @@
  *      wording of the previous Orchestration pages that the two above still reuse
  *    - `components`: components/**, the App.tsx shell and navigation, CommandPalette, notifications
  *    - `shell`: what the redesigned shell added: the live chip and Live section, the mobile tab bar,
- *      the New chat menu and Settings → Appearance
+ *      the New chat menu and Settings → General → Appearance
  *    - `primitives`: the shared building blocks every page reuses (Spinner, ProgressBar, Stepper,
  *      ActivityTicker, Menu, SplitButton, Sheet, ListToolbar): words a page does not get to reword
  *    - `tasks`: the Tasks board, list and milestones (pages/tasks/Board, List, Milestones), and the

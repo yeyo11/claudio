@@ -16,15 +16,15 @@
   },
   "unavailable": {
     "title": "The terminal is not available here",
-    "unknown": "Claudio could not tell why. Check Settings → Security.",
-    "settings": "Open Security settings",
-    "off": "The terminal is off. Turn it on in Settings → Security.",
+    "unknown": "Claudio could not tell why. Check Settings → Access & safety.",
+    "settings": "Open Access & safety",
+    "off": "The terminal is off. Turn it on in Settings → Access & safety.",
     "disabled-by-env": "The terminal is turned off by the environment (CLAUDIO_TERMINAL).",
     "pty-missing": "This install has no pseudo-terminal support, so no shell can be started.",
     "host-failed": "The terminal host failed repeatedly. Restart Claudio, or turn the terminal off and on again.",
     "read-only": "Claudio is in read-only mode, which does not allow a shell.",
-    "needs-auth": "From another device the terminal needs token authentication. Turn it on in Settings → Security.",
-    "remote-off": "Other devices cannot open a terminal. Allow the tunnel in Settings → Security.",
+    "needs-auth": "From another device the terminal needs token authentication. Turn it on in Settings → Access & safety.",
+    "remote-off": "Other devices cannot open a terminal. Allow the tunnel in Settings → Access & safety.",
     "needs-tunnel": "From another device the terminal opens only through the tunnel.",
     "from-agent": "A terminal cannot be opened from a process an agent started.",
     "chat-token": "A chat's token cannot open a terminal."
@@ -121,7 +121,15 @@
     "peerOn": "The peer check runs: a process an agent started cannot open a terminal.",
     "peerUnknown": "The peer check cannot run here, so a terminal opens only from this machine without authentication.",
     "screenReader": "Screen reader mode",
-    "screenReaderHint": "Makes the terminal readable to a screen reader, at some cost in speed. Kept in this browser."
+    "screenReaderHint": "Makes the terminal readable to a screen reader, at some cost in speed. Kept in this browser.",
+    "consequence": {
+      "maxTerminals_one": "Up to {{formatted}} terminal open at once.",
+      "maxTerminals_other": "Up to {{formatted}} terminals open at once.",
+      "idleMinutes_one": "Closes after {{formatted}} minute unattended.",
+      "idleMinutes_other": "Closes after {{formatted}} minutes unattended.",
+      "scrollbackLines_one": "Keeps {{formatted}} line for a reload.",
+      "scrollbackLines_other": "Keeps {{formatted}} lines for a reload."
+    }
   },
   "history": {
     "title": "Terminal history",

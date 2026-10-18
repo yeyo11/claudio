@@ -52,16 +52,15 @@ export const PHONE_HEADER_ROUTES: readonly PhoneHeaderRoute[] = [
   // An orchestration (MobileOrquestacion)
   { path: /^\/orchestration\/[^/]+\/?$/, phoneHeader: 'page' },
   // The screens reached from Más (MobileCuentas, MobileProyectos, MobileProgramaciones, MobileUso,
-  // MobileConectores, MobileAjustes)
+  // MobileAjustes)
   { path: /^\/projects\/?$/, phoneHeader: 'page' },
   { path: /^\/schedules\/?$/, phoneHeader: 'page' },
   // The schedule editor, a modal flow headed by "Cancelar" (the MobileNuevaTarea pattern)
   { path: /^\/schedules\/(?:new|[^/]+\/edit)\/?$/, phoneHeader: 'page' },
   { path: /^\/accounts\/?$/, phoneHeader: 'page' },
   { path: /^\/usage\/?$/, phoneHeader: 'page' },
-  { path: /^\/connectors\/?$/, phoneHeader: 'page' },
-  // Settings, its list and each tab (MobileAjustes, MobileInstalar)
-  { path: /^\/settings\/?$/, phoneHeader: 'page' },
+  // Settings: its list, each group and each detail (MobileAjustes, MobileInstalar)
+  { path: /^\/settings(?:\/[^/]+){0,2}\/?$/, phoneHeader: 'page' },
 ];
 
 export function phoneHeaderOf(pathname: string, projectPage = false): PhoneHeaderMark {

@@ -17,7 +17,7 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
 
 ## Who may open it
 
-- **The auth mode** is `none`, `token` or `oidc` (Settings → Security, `auth.json` in the data
+- **The auth mode** is `none`, `token` or `oidc` (Settings → Access & safety, `auth.json` in the data
   directory with the hash of the token, mode 0600; `CLAUDIO_AUTH_MODE` only seeds an install that has
   none yet). See [securing.md](securing.md). The setup assistant's Access
   step sets the same thing, and turning Token on makes a token first when the browser holds none, so
@@ -53,7 +53,7 @@ there is a key, as `enc:v1:…`.
    0600, as before the vault.
 
 A key beside the data protects a copy of the files (a backup, a file sent by mistake), not the
-volume: whoever can read `/data` reads both. Settings → Security's Secrets card says which case an
+volume: whoever can read `/data` reads both. Settings → Access & safety's Secrets card says which case an
 install is in (`GET /setup`'s `secrets`: `sealed`, `keyBeside`), and recommends passing the key in the
 environment; [deploy.md](deploy.md#what-the-image-contains) says how. The Helm chart takes it from a
 Secret (`secretKey.existingSecret`, rendered as `valueFrom.secretKeyRef`), so it stays out of the
@@ -303,7 +303,7 @@ so:
 - **A read changes nothing.** A chat's read never pulls from the owner (`refresh` is ignored), so an
   agent cannot make this install contact a peer.
 - **Audited.** Every read is a `collab_agent_reads` row (chat, tool, copy, kind, record ids; the newest
-  20,000 kept), listed in Settings → Security and counted on the copy.
+  20,000 kept), listed in Settings → Access & safety and counted on the copy.
 
 **The vault's new kind of secret.** The iroh secret key is generated once, when Collaborators is
 first turned on, and kept in the vault. It is the first vault value that is not handed to a CLI's

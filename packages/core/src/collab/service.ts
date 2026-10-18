@@ -1457,7 +1457,7 @@ export class CollaboratorsService {
     }
   }
 
-  /** One read by an agent, as a row: what Settings → Security and the shared copy count */
+  /** One read by an agent, as a row: what Settings → Access & safety and the shared copy count */
   recordAgentRead(read: Omit<AgentReadEntry, 'id' | 'shareId' | 'at'> & { at?: string }): AgentReadEntry {
     return this.deps.store.appendAgentRead({ ...read, shareId: shareIdOf(read.shareKey), at: read.at ?? new Date().toISOString() });
   }

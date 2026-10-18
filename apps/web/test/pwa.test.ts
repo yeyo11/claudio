@@ -323,7 +323,7 @@ test('the worker leaves the API, the docs and every other origin entirely alone'
 
 test('a navigation to a route of the app is painted from the cached shell', async () => {
   const worker = await ready();
-  for (const route of ['/', '/chats', '/chats/abc-123', '/settings?tab=install', '/orchestration/7']) {
+  for (const route of ['/', '/chats', '/chats/abc-123', '/settings/general#install', '/settings/claude-code/behaviour', '/orchestration/7']) {
     assert.equal(await worker.fetch(navigation(route)), 'cached /index.html', `${route} is served the app shell`);
   }
 });
