@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { bootGuardScript, bootStrings, injectBootGuard } from './scripts/boot-guard.ts';
+import { injectSplash, splashStrings } from './scripts/splash.ts';
 import { buildServiceWorker } from './scripts/sw-shell.ts';
 
 // release-please bumps every package.json together, and the root one is where the build reads it
@@ -64,8 +65,27 @@ function bootGuard(): Plugin {
   };
 }
 
+/**
+ * Writes the splash into index.html's body, in `pnpm dev` too: the web app and the installed PWA open
+ * on the brand intro while the bundle loads, and the app hands over once its first screen is up
+ * (src/lib/splash.ts). The desktop shell's window skips it, having played its own.
+ */
+function splash(): Plugin {
+  let root = '';
+  return {
+    name: 'claudio:splash',
+    configResolved(config) {
+      root = config.root;
+    },
+    transformIndexHtml: {
+      order: 'pre',
+      handler: (html) => injectSplash(html, splashStrings(root)),
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), bootGuard(), serviceWorkerShell()],
+  plugins: [react(), bootGuard(), splash(), serviceWorkerShell()],
   // Compared with the version the server puts in every `stream.hello` (src/lib/reload.ts)
   define: { __CLAUDIO_VERSION__: JSON.stringify(VERSION) },
   // One instance of each stateful library across the app and the packages it imports: two React

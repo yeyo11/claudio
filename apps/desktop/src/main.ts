@@ -10,6 +10,7 @@ import { LiveMonitor, monitorHeaders } from './live-monitor.ts';
 import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
+import { SPLASH_HANDOFF_MAX_MS } from '@claudio/ui/splash';
 import { missingResources, resolveResources } from './resources.ts';
 import { secretKeyFor } from './secret-key.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
@@ -92,6 +93,17 @@ function showError(title: string, detail: string): void {
   void load(errorUrl(title, detail, serverLog.path));
 }
 
+/**
+ * Lets the splash finish before the UI replaces it: its intro always plays to the end, pauses on the
+ * finished lockup and fades out. The server never waits on it (it started alongside), and the UI
+ * waits at most SPLASH_HANDOFF_MAX_MS, even if the page never answers.
+ */
+async function handOffSplash(): Promise<void> {
+  if (!win) return;
+  const finished = win.webContents.executeJavaScript('window.claudioSplash?.handOff()', true).catch(() => undefined);
+  await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, SPLASH_HANDOFF_MAX_MS))]);
+}
+
 async function startServer(): Promise<void> {
   if (starting) return;
   starting = true;
@@ -134,6 +146,7 @@ async function startServer(): Promise<void> {
     rememberPort(userData, Number(new URL(url).port));
     desktopLog.line(`server ready at ${url}`);
     startMonitor(serverOrigin);
+    await handOffSplash();
     await load(url);
   } catch (err) {
     showError('Claudio could not start its server', err instanceof Error ? err.message : String(err));

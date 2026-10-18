@@ -67,6 +67,11 @@
     var doc = win.document;
     var root = doc.getElementById('root');
     if (!root) return;
+    // The splash (packages/ui/src/splash) waits for a hand-off that will never come: it must not
+    // cover the way back, and what it kept out of reach is reachable again
+    var splash = doc.getElementById('claudio-splash');
+    if (splash && splash.remove) splash.remove();
+    root.inert = false;
     var copy = strings[language()] || strings.en;
     var box = doc.createElement('div');
     box.className = 'state state-empty boot-failed';

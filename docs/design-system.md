@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-17T08:57:27Z
+updated_at: 2026-10-18T08:40:00Z
 tags:
     - design-system
     - web
@@ -289,6 +289,29 @@ The phone is the top bar, the page and a tab bar.
   and the connection.
 - **Detail screens** (chat, new chat, orchestration detail) hide the tab bar and put the composer
   or the main action at the bottom.
+
+### The splash
+
+Every full load of the app opens on the brand intro: the desktop window, the web page and the
+installed PWA. The design and its timings are in
+[plans/splash-eat-the-code.md](plans/splash-eat-the-code.md).
+
+- **What it is.**
+  - A four-second performance on the brand lockup, built from `packages/ui/src/splash`.
+  - It holds the finished lockup until the app is ready, then fades into the page.
+  - The web writes it into `index.html` (`apps/web/scripts/splash.ts`), so it paints before the
+    bundle. The app hands over from `SplashHandOff` (`apps/web/src/lib/splash.ts`) after its first
+    commit.
+- **Colours.** The brand kit's literal values, on the app's own page background, so the fade never
+  flashes:
+  - dark: the dark lockup on Deep Space;
+  - light: the light lockup (spark, cursor and bits in Electric Blue, name in Deep Space) on the
+    light `--bg`.
+- **Motion levels.** Under `subtle`, `off` or `prefers-reduced-motion`, it is the still lockup, and
+  it goes the moment the app is ready. It pauses in a hidden tab.
+- **Where it does not play.**
+  - Inside the desktop window's web page: the shell already played it.
+  - Under the e2e driver, which sets `window.__claudioNoSplash` on every document.
 
 ### Projects, board and work items
 
