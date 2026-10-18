@@ -8,12 +8,14 @@ import {
   entryText,
   isModelName,
   normalizeMessage,
+  runsElapsedMs,
   searchPattern,
   TranscriptSearch,
   TRANSCRIPT_PAGE,
   TRANSCRIPT_PAGE_MAX,
   type AgentTranscript,
   type BackgroundTaskOutput,
+  type ChatBranchRun,
   type TranscriptEntry,
   type TranscriptSearchResult,
 } from '@claudio/shared';
@@ -172,6 +174,16 @@ function tag(text: string, name: string): string | null {
 }
 
 /**
+ * Every task a notification names. After a session restart the CLI reports what the old process
+ * left behind in one block, listing several ids (shell tasks, and a `__orphan_summary__:shell`
+ * marker that is not a task at all).
+ */
+function taskIds(text: string): string[] {
+  const ids = [...text.matchAll(/<task-id>([\s\S]*?)<\/task-id>/g)].map((m) => m[1]?.trim() ?? '');
+  return ids.filter((id) => id !== '' && !id.startsWith('__orphan_summary__:'));
+}
+
+/**
  * Where the CLI keeps a session's task output: its own temp dir, per user, project and session.
  * The wrapper runs as the same user as the CLI, in and out of the container, so it resolves the
  * same directory.
@@ -215,11 +227,53 @@ interface AgentStop {
 }
 
 /** Where an agent stands, from the stop its parent was notified of and how recently it wrote. */
-function agentState(stop: AgentStop | undefined, mtime: Date | null, live: boolean): { status: SubagentInfo['status']; endedAt: string | null } {
+function agentState(
+  stop: AgentStop | undefined,
+  mtime: Date | null,
+  live: boolean,
+  /** When its parent last resumed it (SendMessage), where the transcript says so */
+  resumedAt?: string,
+): { status: SubagentInfo['status']; endedAt: string | null } {
   const lastActivityAt = mtime ? mtime.toISOString() : null;
-  const resumed = stop && mtime ? mtime.getTime() > Date.parse(stop.at) + RESUMED_AFTER_MS : false;
+  const resumed = stop ? (resumedAt !== undefined && resumedAt > stop.at) || (mtime ? mtime.getTime() > Date.parse(stop.at) + RESUMED_AFTER_MS : false) : false;
   if (!stop || resumed) return { status: live ? 'running' : 'stopped', endedAt: live ? null : lastActivityAt };
-  return { status: stop.status === 'completed' ? 'completed' : 'failed', endedAt: stop.at };
+  return { status: stopStatus(stop.status), endedAt: stop.at };
+}
+
+/** An agent's state and runs from the folded activity of its session. */
+function agentFacts(activity: SessionActivity, agentId: string, mtime: Date | null, live: boolean, fallbackStart: string | null) {
+  const resumes = activity.resumes.get(agentId) ?? [];
+  const state = agentState(activity.stops.get(agentId), mtime, live, resumes.at(-1));
+  const launch = activity.agents.get(agentId) ?? fallbackStart;
+  const runs = launch ? agentRuns([launch, ...resumes], activity.stopLog.get(agentId) ?? [], state) : [];
+  return { state, launch, runs };
+}
+
+/** `stopped` and `killed` are an agent someone stopped, which is not a failure (warn, not bad). */
+function stopStatus(status: string): SubagentInfo['status'] {
+  if (status === 'completed') return 'completed';
+  return status === 'stopped' || status === 'killed' ? 'stopped' : 'failed';
+}
+
+/**
+ * The stretches an agent worked, from its launch and each resume against each time it stopped.
+ * A run with no stop of its own ended when the next began (its notification was lost); the last one
+ * is open while the agent runs.
+ */
+function agentRuns(starts: string[], stops: string[], state: { status: SubagentInfo['status']; endedAt: string | null }): ChatBranchRun[] {
+  const ordered = [...starts].sort();
+  const ends = [...stops].sort();
+  const runs: ChatBranchRun[] = ordered.map((startedAt, i) => {
+    const next = ordered[i + 1];
+    const end = ends.find((at) => at >= startedAt && (next === undefined || at < next));
+    return { startedAt, endedAt: end ?? next ?? null };
+  });
+  const last = runs.at(-1);
+  if (!last) return runs;
+  // Written to after its last stop with no resume on record: it is working again
+  if (state.status === 'running' && last.endedAt !== null) runs.push({ startedAt: last.endedAt, endedAt: null });
+  else if (state.status !== 'running' && last.endedAt === null) last.endedAt = state.endedAt ?? last.startedAt;
+  return runs;
 }
 
 interface SessionActivity {
@@ -229,6 +283,10 @@ interface SessionActivity {
   tasks: Map<string, TaskLaunch>;
   /** id → the latest time it stopped, for agents and tasks alike */
   stops: Map<string, AgentStop>;
+  /** agentId → every time it stopped, oldest first, for the runs of an agent that was resumed */
+  stopLog: Map<string, string[]>;
+  /** agentId → every time its parent resumed it with SendMessage, oldest first */
+  resumes: Map<string, string[]>;
 }
 
 /** The activity folded so far, with what a later line needs of an earlier one. */
@@ -240,9 +298,21 @@ interface ActivityFold extends SessionActivity {
   launchInputs: Map<string, { tool: string; input: Record<string, unknown> }>;
 }
 
+function recordStop(activity: ActivityFold, id: string, stop: AgentStop): void {
+  activity.stops.set(id, stop);
+  activity.stopLog.set(id, [...(activity.stopLog.get(id) ?? []), stop.at]);
+}
+
 const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
-  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), launchInputs: new Map() }),
-  clone: (a) => ({ agents: new Map(a.agents), tasks: new Map(a.tasks), stops: new Map(a.stops), launchInputs: new Map(a.launchInputs) }),
+  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), stopLog: new Map(), resumes: new Map(), launchInputs: new Map() }),
+  clone: (a) => ({
+    agents: new Map(a.agents),
+    tasks: new Map(a.tasks),
+    stops: new Map(a.stops),
+    stopLog: new Map([...a.stopLog].map(([id, at]) => [id, [...at]])),
+    resumes: new Map([...a.resumes].map(([id, at]) => [id, [...at]])),
+    launchInputs: new Map(a.launchInputs),
+  }),
   add: (activity, o) => {
     const at = typeof o.timestamp === 'string' ? o.timestamp : null;
     const message = o.message as { content?: unknown } | undefined;
@@ -264,12 +334,16 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
       // A foreground agent never gets a notification: its call's own result is how it reports back,
       // with `status: 'completed'` (a background one's says `async_launched`, and its notification ends it)
       if (typeof result.agentId === 'string' && result.status === 'completed') {
-        activity.stops.set(result.agentId, { at, status: 'completed', summary: null });
+        recordStop(activity, result.agentId, { at, status: 'completed', summary: null });
+      }
+      // The parent sent a stopped agent a message: it works again, under the id it always had
+      if (typeof result.resumedAgentId === 'string') {
+        activity.resumes.set(result.resumedAgentId, [...(activity.resumes.get(result.resumedAgentId) ?? []), at]);
       }
       // A task stopped on request never gets a notification: all it leaves is TaskStop's result.
       // Without this it would read as running for as long as its session lived.
       if (typeof result.task_id === 'string' && typeof result.message === 'string' && /stopped/i.test(result.message)) {
-        activity.stops.set(result.task_id, { at, status: 'stopped', summary: result.message });
+        recordStop(activity, result.task_id, { at, status: 'stopped', summary: result.message });
       }
       const launch = resultFor ? activity.launchInputs.get(resultFor) : undefined;
       // A Monitor's result names its task `taskId`, not `backgroundTaskId` like a Bash call's
@@ -297,9 +371,10 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
     for (const id of answered) activity.launchInputs.delete(id);
     const text = lineText(o);
     if (!at || !text.includes('<task-notification>')) return;
-    const id = tag(text, 'task-id');
     // Later lines win: an agent can be resumed and stop again, notifying each time
-    if (id) activity.stops.set(id, { at, status: tag(text, 'status') ?? 'completed', summary: tag(text, 'summary') });
+    const status = tag(text, 'status') ?? 'completed';
+    const summary = tag(text, 'summary');
+    for (const id of taskIds(text)) recordStop(activity, id, { at, status, summary });
   },
 };
 
@@ -580,14 +655,15 @@ export class SessionStore {
         if (cwd) this.cwdCache.set(transcriptFile, cwd);
       }
       const lastActivityAt = transcript ? transcript.mtime.toISOString() : null;
-      const state = agentState(activity.stops.get(agentId), transcript?.mtime ?? null, live);
+      const { state, launch, runs } = agentFacts(activity, agentId, transcript?.mtime ?? null, live, lastActivityAt);
       out.push({
         toolUseId: meta.toolUseId ?? '',
         subagentType: meta.agentType ?? 'agent',
         description: meta.description ?? agentId,
         status: state.status,
-        startedAt: activity.agents.get(agentId) ?? lastActivityAt ?? new Date(0).toISOString(),
+        startedAt: launch ?? new Date(0).toISOString(),
         endedAt: state.endedAt,
+        runs,
         agentId,
         lastActivityAt,
         cwd: cwd ?? null,
@@ -758,6 +834,7 @@ export class SessionStore {
     let startedAt: string | null;
     let endedAt: string | null;
     let durationMs: number | null = null;
+    let runs: ChatBranchRun[] = [];
     let description = meta?.description ?? null;
     let workflowPhase = meta?.workflowPhase ?? null;
     if (opts.runId) {
@@ -771,8 +848,11 @@ export class SessionStore {
       workflowPhase ??= agent?.phaseTitle ?? null;
     } else {
       const activity = await this.activity(found.file);
-      ({ status, endedAt } = agentState(activity.stops.get(agentId), info?.mtime ?? null, live));
-      startedAt = activity.agents.get(agentId) ?? read.firstAt;
+      const facts = agentFacts(activity, agentId, info?.mtime ?? null, live, read.firstAt);
+      ({ status, endedAt } = facts.state);
+      startedAt = facts.launch;
+      runs = facts.runs;
+      if (status !== 'running') durationMs = runsElapsedMs(runs, 0);
     }
     if (durationMs === null && startedAt && endedAt) durationMs = Math.max(0, Date.parse(endedAt) - Date.parse(startedAt));
 
@@ -792,6 +872,7 @@ export class SessionStore {
       startedAt,
       endedAt,
       durationMs,
+      runs,
       lastActivityAt,
       model: read.model,
       usage: read.usage,

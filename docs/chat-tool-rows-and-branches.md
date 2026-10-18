@@ -146,6 +146,36 @@ reader uses. A branch is running only in a chat that is alive.
   `chatBusy` (for lists and the shell) and `openCallInTurn` (the call in flight, looking only after
   the last message a person sent). The strip, the cards and the polling intervals read through it.
 
+## Resumed agents and runs
+
+A background agent that finished can be resumed: the parent calls `SendMessage` with the agent's id
+(the call's result says `resumedAgentId`), and the agent works again under the **same id**. The CLI
+announces it with a new `task_started` whose `tool_use_id` is the `SendMessage` call's, not the
+`Agent` call's, and ends it with a `task_notification` for the same task id. An agent is therefore
+looked up by its id first and by its launching call second; the old order (call id only) recorded the
+resume as a second agent that nothing could end, and the chat read "working" for ever.
+
+- **One record, several runs.** `SubagentInfo.runs` / `ChatSubagent.runs` / `AgentTranscript.runs`
+  (`ChatBranchRun`: `startedAt`, `endedAt`) list every stretch the agent worked, oldest first. A
+  resume reopens the record (running, `endedAt: null`) and appends a run; an end closes only the open
+  run, and a repeated notification does not move a finished end. `startedAt` stays the first launch.
+- **The disk fold** reads the same thing: `toolUseResult.resumedAgentId` is a resume, every
+  notification and a foreground agent's own result is a stop (`stopLog`), and `agentRuns` pairs them
+  (a run whose notification was lost ends where the next begins). A transcript written after the last
+  stop with no resume on record still reads as running, on a new run.
+- **One clock** (`runsElapsedMs`, `packages/shared/src/branch-runs.ts`): while the agent runs, the
+  current run's elapsed time; once it ended, the active time over all its runs. The wait between
+  runs never counts. The strip, the cards, the chat side panel and the subagent panel all use it. The
+  panel also shows the first start ("Started") and, when there is more than one, "N runs".
+  A chat nothing holds closes the open run with the chat, so the clock stops.
+- **One child per id.** `toChildren` keeps one record per agent id (the one that saw more runs, then
+  the older), so a duplicate can never shadow the agent it repeats.
+- **A notification may name several tasks.** After a session restart the CLI reports what the old
+  process left behind in one block listing several `<task-id>` tags, among them
+  `__orphan_summary__:shell`, which is a marker and not a task. Every real id is stopped by it.
+- **Stopped is not failed.** `stopped` and `killed` map to the `stopped` state (warn); only `failed`
+  is failed (bad).
+
 ## Copy
 
 Strings are under `transcript.call.*` (the lenses) and `branches.*` (the strip and cards) in

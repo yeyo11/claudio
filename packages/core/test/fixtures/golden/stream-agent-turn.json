@@ -70,6 +70,12 @@
         "status": "completed",
         "startedAt": "<time>",
         "endedAt": "<time>",
+        "runs": [
+          {
+            "startedAt": "<time>",
+            "endedAt": "<time>"
+          }
+        ],
         "agentId": "agent-1",
         "background": false
       }

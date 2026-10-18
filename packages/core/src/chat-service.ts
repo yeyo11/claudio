@@ -7,6 +7,7 @@ import {
   searchPattern,
   TranscriptSearch,
   TRANSCRIPT_PAGE_MAX,
+  runsElapsedMs,
   type AgentTranscript,
   type ClaudioAssistantMarker,
   type BackgroundTaskOutput,
@@ -1176,10 +1177,14 @@ export class ChatService {
     if (!branch) return transcript;
     // A workflow agent has no end of its own; the workflow it belongs to ending is when it did
     const endedAt = 'endedAt' in branch ? branch.endedAt : (workflow?.endedAt ?? null);
+    const runs = 'runs' in branch ? branch.runs : transcript.runs;
     return {
       ...transcript,
       status: branch.status,
       endedAt: branch.status === 'running' ? null : (endedAt ?? transcript.endedAt),
+      // The runs of the same branch the strip reads, so the panel's clock is the strip's
+      runs,
+      durationMs: branch.status === 'running' || !('runs' in branch) ? transcript.durationMs : runsElapsedMs(runs, 0),
     };
   }
 }

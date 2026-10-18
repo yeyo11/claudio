@@ -544,9 +544,13 @@ export interface AgentTranscript {
   /** `stopped` when its session ended before the agent reported back */
   status: 'running' | 'completed' | 'failed' | 'stopped';
   background: boolean;
+  /** When it was first launched */
   startedAt: string | null;
   endedAt: string | null;
+  /** Time it was active, over all its runs; the current run's elapsed time is `runs` against the clock */
   durationMs: number | null;
+  /** Every stretch it worked, oldest first; empty for a workflow agent */
+  runs: ChatBranchRun[];
   lastActivityAt: string | null;
   model: string | null;
   usage: TokenUsage;
@@ -1180,6 +1184,16 @@ export interface ChatBackgroundTask {
   ownerId: string | null;
 }
 
+/**
+ * One stretch an agent was working: from its launch, or from a resume by its parent, to the
+ * notification that it stopped. An agent that was resumed has several; `endedAt` is null for the
+ * one still open.
+ */
+export interface ChatBranchRun {
+  startedAt: string;
+  endedAt: string | null;
+}
+
 /** A branch of a chat that works on its own: its messages live inside the chat's transcript. */
 export interface ChatSubagent {
   /** Id of its transcript inside the chat */
@@ -1192,8 +1206,11 @@ export interface ChatSubagent {
   kind: string;
   description: string;
   status: ChatBranchStatus;
+  /** When it was first launched; a resume does not move it (see `runs`) */
   startedAt: string;
   endedAt: string | null;
+  /** Every stretch it worked, oldest first: one, or more when its parent resumed it */
+  runs: ChatBranchRun[];
   lastActivityAt: string | null;
   /** Where it works, when that is not the chat's directory (a worktree) */
   cwd: string | null;
