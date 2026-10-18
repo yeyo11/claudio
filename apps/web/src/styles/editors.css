@@ -1169,7 +1169,8 @@ button.master-item-on:hover {
 @media (max-width: 768px) {
   [data-testid='updates-card'] .pref-actions,
   [data-testid='cli-card'] .pref-actions {
-    flex: 1 1 100%;
+    /* The control column is a column flexbox: the row stretches across it, not along it */
+    align-self: stretch;
     flex-wrap: wrap;
   }
 
