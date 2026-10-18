@@ -153,7 +153,7 @@ export default async ({ page, api, check, releases }) => {
     await withShell({ status: 'copy-command', version: NEXT, command: COMMAND }, NO_SWITCH, async () => {
       await page.waitFor(cardSays('Install it from a terminal.'), { label: 'the copy-command sentence' });
       const shown = await page.waitFor(
-        `const el = [...document.querySelectorAll(${JSON.stringify(`${DESKTOP} [data-testid^=update-steps] code, ${DESKTOP} [data-testid^=update-steps] pre`)})].find((e) => e.textContent.includes('sha256sum'));
+        `const el = [...document.querySelectorAll(${JSON.stringify(`${DESKTOP} [data-testid=update-copy-command] code`)})].find((e) => e.textContent.includes('sha256sum'));
          return el && { text: el.textContent, overflows: el.scrollWidth > el.clientWidth + 1, ellipsis: getComputedStyle(el).textOverflow === 'ellipsis' }`,
         { label: 'the command' },
       );
