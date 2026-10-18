@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T18:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - orchestration
     - verification
@@ -27,7 +27,7 @@ optional, so a graph stored before it still loads, and nothing is backfilled.
 | `OrchestrationIntegration` | `startedAt`, `endedAt` | `integrate()`; a re-integration overwrites both, so the phase is the last integration |
 | `VerificationState` | `startedAt`, `endedAt` | `checkBranch()`; the "not run" branch sets both to one instant |
 | `VerificationState` | `fixes[]` | `fix()`, one per fixer attempt: its chat (`runId`, null if it could not start), the command, the attempt, start, end and cost |
-| `VerificationCommand` | `runs[]` | `checkAll()`, one per execution: `pass`, `startedAt`, `durationMs`, `passed`/`failed`, `timedOut`, `cancelled`. `durationMs` still means the last run |
+| `VerificationCommand` | `runs[]` | `checkAll()`, one per execution: `pass`, `probe`, `startedAt`, `durationMs`, `passed`/`failed`, `timedOut`, `cancelled`. `durationMs` still means the last run |
 | `Orchestration` | `synthesisStartedAt`, `synthesisEndedAt` | `synthesize()`, the failure path included |
 | `VerificationState.review` | `startedAt`, `endedAt` | the review gate, from its first round to its end |
 | `review_rounds` rows | runs of each round, `costUsd` | the gate runner; `orchestrationTimings` takes the rounds as its fourth argument |
@@ -76,7 +76,13 @@ nothing is cached. What is still running counts up to `at`.
 - **Integration, verification and synthesis**: the recorded fields. A graph stored before them
   falls back to the executions of its role's chats, or leaves the phase out and names the field in
   `missing`. An older graph's fixer attempts are read from its fixer chats the same way.
-- **checksMs**: every run of every command. **fixerMs**: every fix. **passes**: the highest pass.
+- **checksMs**: every run of every command, quick re-checks included. **fixerMs**: every fix.
+  **passes**: the highest pass.
+- **Quick re-checks.** After a fix, the check that failed runs alone before the full pass (see
+  [[plans/review-gate.md]], "Failed check first"). That run is recorded in `runs[]` with
+  `probe: true` and the number of the pass that follows it, so a command can show
+  `pass 1 failed`, `pass 2 probe`, `pass 2`. It adds its time to `checksMs` and to the command's
+  `totalMs`, and does not raise `passes`. The Timings panel marks it "quick re-check".
 - **Where a fixer's loop stops.** A fix attempt that reports `[STOP]`, adds errors, or leaves the same
   failure signature after three attempts ends the loop and the verification concludes `failed`
   (`failureSignature`, `errorCount` and `parseFixerReport` in `packages/core/src/verification.ts`). The

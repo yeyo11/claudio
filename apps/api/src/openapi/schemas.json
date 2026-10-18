@@ -4938,6 +4938,11 @@
         "type": "number",
         "description": "1 for the first pass over the checks, one more each time a fix sends them all back to pending"
       },
+      "probe": {
+        "type": "boolean",
+        "const": true,
+        "description": "Set on the quick run of a check that failed, right after a fix, before every check runs again: it carries the number of the pass that follows it, and absent means a run of the full pass"
+      },
       "startedAt": {
         "type": "string"
       },

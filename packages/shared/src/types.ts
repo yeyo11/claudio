@@ -4298,6 +4298,11 @@ export interface VerificationCommand {
 export interface VerificationRun {
   /** 1 for the first pass over the checks, one more each time a fix sends them all back to pending */
   pass: number;
+  /**
+   * Set on the quick run of a check that failed, right after a fix, before every check runs again:
+   * it carries the number of the pass that follows it, and absent means a run of the full pass
+   */
+  probe?: true;
   startedAt: string;
   durationMs: number;
   status: 'passed' | 'failed';
