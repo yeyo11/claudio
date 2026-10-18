@@ -776,27 +776,36 @@ Phase 1's [rules](container-polish.md#rules-for-every-task) apply unchanged. And
 
 ## Carried over from phase 1
 
-**An environment credential is checked once with a test message** (owner, 2026-10-18). Phase 1's
-spike (`signin-core`, fixtures `packages/accounts/test/fixtures/get-usage-refused-*.json`) found that
-`get_usage` on CLI 2.1.302 answers success with `rate_limits_available: false` for an invalid OAuth
-token, an invalid API key, no credential and a dead network alike, so it can only confirm a good
-login, never refuse a bad one. A credential set in the environment (`CLAUDE_CODE_OAUTH_TOKEN`,
-`ANTHROPIC_API_KEY`) is the case the owner hit: shown signed in while invalid.
+**Checking a credential never spends tokens** (owner, 2026-10-18). Phase 1's spike (`signin-core`,
+fixtures `packages/accounts/test/fixtures/get-usage-refused-*.json`) and a probe on CLI 2.1.302 the
+same day found that no free CLI surface tells a bad credential from a good one: `auth status`
+says `loggedIn: true` whenever the variable exists; `initialize` answers the same `account`
+(`tokenSource` and `apiProvider` only) and the same model list for an invalid OAuth token, an
+invalid API key, no credential and a valid login; `get_usage` answers `rate_limits_available:
+false` for all of them. The owner rejected an automatic paid test message, so:
 
-- When the server starts and the environment credential is new or changed (compare a sha256 of the
-  value, stored in the data dir; never the value), Claudio runs the existing paid check
-  (`POST /auth/verify`'s code path, one minimal message on the cheapest model) once, in the
-  background, after start-up.
-- A refusal (an authentication error, `api_error_status` 401/403) marks the account as a failed run
-  does (`authFailedAt`, `signInState: 'expired'`), so readiness, the status bar and Settings show it
-  signed out with **Sign in again**; a check that could not run changes nothing and is retried at
-  the next start.
-- This is the one automatic check that spends; `docs/providers.md`'s "probes spend nothing" rule
-  gains this exception, with the reason. Never on a timer, never for a login made in the app.
-- Owned by `payload-core`'s neighbour task with the least load, or a small task of its own
-  (`env-credential-check`, sonnet, stage 1): `packages/core/src/index.ts` (start-up hook),
-  `packages/core/src/cli.ts`, `packages/accounts/src/store.ts`, tests with the fake CLI answering
-  `invalid` with a 401.
+- **An API key** (in the environment or saved in Claudio) is checked with the vendor's official SDK,
+  `@anthropic-ai/sdk` `models.list()` (documented, free, answers 401 for a bad key), when the key
+  is new or changed (a sha256 of the value stored in the data dir, never the value) and on
+  **Check** in Settings. This is "the vendor's official SDK" of CLAUDE.md's one rule; the SDK is
+  used for this check only, never to drive the agent. A 401 marks the account as a failed run
+  does (`authFailedAt`, `signInState: 'expired'`); a network error changes nothing.
+- **An OAuth token from the environment** (`CLAUDE_CODE_OAUTH_TOKEN`) has no free documented check,
+  and claude.ai's internal endpoints are out (the one rule). It is shown as **Not confirmed** with
+  the sentence "Claudio confirms it with the first chat", never as signed in. The first run
+  settles it: an invalid token is refused at authentication, before any token is generated, so it
+  costs nothing and marks the account expired (phase 1's run-failure path); a run that succeeds
+  confirms it (`checkedAt`).
+- **A login made in the app** is confirmed by `get_usage` returning the plan's limits when it does,
+  as phase 1 built; otherwise the same "Not confirmed until the first chat".
+- **Check** in Settings never sends a message on its own: for a key it runs `models.list()`; for an
+  OAuth credential it offers **Send a test message** (phase 1's paid `/auth/verify`) as an explicit,
+  labelled choice with its cost stated.
+- Owned by a small stage-1 task `credential-check` (sonnet): `packages/core/src/cli.ts`,
+  `packages/accounts/src/**` (the check and the state), `packages/core/src/index.ts` (start-up hook),
+  the `@anthropic-ai/sdk` dependency in `packages/accounts/package.json`, web copy for "Not
+  confirmed" in `apps/web/src/i18n/locales/{en,es}/accountsConfig.json` and `config.json`, tests
+  with a fake SDK transport (401, 200, network error).
 
 ## Re-check after phase 1
 
