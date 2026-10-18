@@ -1,0 +1,252 @@
+name: Desktop smoke
+
+# The desktop packages, built and exercised the way a person gets them (docs/plans/unified-updates.md,
+# Tests, "Smoke in CI"). Every key here is a throwaway made in the run: the release keys are never used.
+#
+# - deb: two versions of the .deb and a repository signed with a throwaway OpenPGP key; in debian:trixie
+#   and ubuntu:26.04, install from the repository, upgrade through it, refuse another key and an
+#   expired Release, remove and purge (packaging/apt/test/roundtrip.sh). Root is needed, so it runs
+#   inside containers.
+# - appimage: the AppImage under xvfb-run with its own config dir, updated to a signed payload served
+#   through CLAUDIO_RELEASES_URL (promoted once its page rendered), then to one whose web never renders
+#   (rolled back after two failed trials).
+on:
+  pull_request:
+    paths:
+      - apps/desktop/**
+      - packaging/**
+      - packages/core/src/launcher/**
+      - scripts/install.sh
+      - .github/workflows/desktop-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    # Two .deb builds (about 2 min each) and two container round trips that install Electron's
+    # libraries (about 3 min each)
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Its keyring takes the real one's place in the packages built below, and its secret half signs
+      # the test repositories
+      - name: Throwaway apt key
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          gpg --batch --quiet --passphrase '' --quick-gen-key 'Claudio smoke <smoke@example.invalid>' ed25519 sign 1d
+          mkdir -p "$RUNNER_TEMP/keys"
+          gpg --batch --export 'Claudio smoke' > "$RUNNER_TEMP/keys/claudio-archive-keyring.gpg"
+          gpg --batch --armor --export-secret-keys 'Claudio smoke' > "$RUNNER_TEMP/keys/signing-key.asc"
+
+      - name: Two versions of the .deb
+        run: |
+          pnpm --filter @claudio/web build
+          pnpm --filter @claudio/api bundle
+          pnpm --filter @claudio/desktop run build
+          pnpm --filter @claudio/desktop run package:stage
+          install -m 0644 "$RUNNER_TEMP/keys/claudio-archive-keyring.gpg" apps/desktop/dist/package/claudio-archive-keyring.gpg
+          cd apps/desktop
+          next=$(node -p "const [a, b, c] = require('./package.json').version.split(/[.-]/); [a, b, Number(c) + 1].join('.') + '-smoke.1'")
+          pnpm exec electron-builder --linux deb --config electron-builder.yml --publish never
+          pnpm exec electron-builder --linux deb --config electron-builder.yml --publish never -c.extraMetadata.version="$next"
+          mkdir -p "$RUNNER_TEMP/debs"
+          cp release/*.deb "$RUNNER_TEMP/debs/"
+          ls -l "$RUNNER_TEMP/debs"
+
+      - name: apt round trip in debian:trixie
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/debs:/debs:ro" -v "$RUNNER_TEMP/keys:/keys:ro" \
+            debian:trixie bash /src/packaging/apt/test/roundtrip.sh
+
+      - name: apt round trip in ubuntu:26.04
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -v "$RUNNER_TEMP/debs:/debs:ro" -v "$RUNNER_TEMP/keys:/keys:ro" \
+            ubuntu:26.04 bash /src/packaging/apt/test/roundtrip.sh
+
+  appimage:
+    runs-on: ubuntu-latest
+    # One AppImage build (about 3 min), two bundles, and two updates whose second waits out two trials
+    timeout-minutes: 30
+    env:
+      SMOKE_TOKEN: smoke-owner-token
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The static AppImage runtime mounts itself through fusermount3: fuse3, and no libfuse2
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xauth fuse3
+
+      # Its public half joins docker/keys in this checkout only, so the AppImage built below trusts the
+      # payloads it signs
+      - name: Throwaway bundle key
+        run: |
+          openssl genpkey -algorithm ed25519 -out "$RUNNER_TEMP/bundle.pem"
+          openssl pkey -in "$RUNNER_TEMP/bundle.pem" -pubout -out docker/keys/smoke.pub
+
+      - name: The AppImage
+        run: |
+          pnpm --filter @claudio/web build
+          pnpm --filter @claudio/api bundle
+          pnpm --filter @claudio/desktop run build
+          pnpm --filter @claudio/desktop run package:stage
+          cd apps/desktop
+          pnpm exec electron-builder --linux AppImage --config electron-builder.yml --publish never
+          ls -l release/*.AppImage
+
+      # Two newer payloads for this shell: minShell is inherited from a previous manifest that names
+      # this shell's own version and shellInputs. The second one's web never renders, so its trial
+      # never sees `claudio:page-ready`
+      - name: Two signed payloads
+        run: |
+          base=$(node -p "require('./apps/desktop/package.json').version")
+          next=$(node -p "const [a, b, c] = '$base'.split(/[.-]/); [a, b, Number(c) + 1].join('.')")
+          {
+            echo "BASE=$base"
+            echo "V1=$next-smoke.1"
+            echo "V2=$next-smoke.2"
+          } >> "$GITHUB_ENV"
+          node -e "
+            const shell = JSON.parse(require('fs').readFileSync('apps/desktop/dist/package/shell.json', 'utf8'));
+            require('fs').writeFileSync(process.argv[1], JSON.stringify({ minShell: shell.version, shellInputs: shell.shellInputs }));
+          " "$RUNNER_TEMP/previous.json"
+          mkdir -p "$RUNNER_TEMP/releases"
+          node apps/api/scripts/server-bundle.mjs --version "$next-smoke.1" --previous "$RUNNER_TEMP/previous.json" \
+            --sign-with "$RUNNER_TEMP/bundle.pem" --verify-with docker/keys/smoke.pub --out "$RUNNER_TEMP/releases"
+          printf '<!doctype html><title>Never renders</title>\n' > apps/web/dist/index.html
+          node apps/api/scripts/server-bundle.mjs --version "$next-smoke.2" --previous "$RUNNER_TEMP/previous.json" \
+            --sign-with "$RUNNER_TEMP/bundle.pem" --verify-with docker/keys/smoke.pub --out "$RUNNER_TEMP/releases"
+          ls -l "$RUNNER_TEMP/releases"
+
+      - name: Update to a payload, then roll back from one whose page never renders
+        run: |
+          releases="$RUNNER_TEMP/releases"
+          latest() {
+            node -e "
+              const [dir, v] = process.argv.slice(1);
+              const names = ['tar.gz', 'json', 'json.sig'].map((ext) => 'claudio-server-' + v + '-linux-x64.' + ext);
+              require('fs').writeFileSync(dir + '/latest.json', JSON.stringify({
+                tag_name: 'v' + v, html_url: 'https://example.invalid/v' + v, published_at: new Date().toISOString(),
+                assets: names.map((name) => ({ name, browser_download_url: 'http://127.0.0.1:8765/' + name })),
+              }));
+            " "$releases" "$1"
+          }
+          latest "$V1"
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory "$releases" > "$RUNNER_TEMP/releases.log" 2>&1 &
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/config"
+          # --no-sandbox only here: the runner restricts unprivileged user namespaces and its sandbox is not
+          # what this tests. The shell never passes it on its own (apps/desktop/test/packaging.test.ts).
+          CLAUDIO_RELEASES_URL=http://127.0.0.1:8765/latest.json CLAUDIO_AUTH_MODE=token CLAUDIO_AUTH_TOKEN="$SMOKE_TOKEN" \
+            xvfb-run -a apps/desktop/release/Claudio-*-x86_64.AppImage --no-sandbox > "$RUNNER_TEMP/app.log" 2>&1 &
+          cat > "$RUNNER_TEMP/drive.mjs" <<'DRIVE'
+          import { readFileSync } from 'node:fs';
+          const { XDG_CONFIG_HOME, SMOKE_TOKEN, V1, V2, BASE } = process.env;
+          const userData = `${XDG_CONFIG_HOME}/Claudio`;
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          async function until(what, probe, ms) {
+            const end = Date.now() + ms;
+            let last;
+            for (;;) {
+              try {
+                const value = await probe();
+                if (value) return value;
+              } catch (err) {
+                last = err;
+              }
+              if (Date.now() > end) throw new Error(`timed out waiting for ${what}${last ? `: ${last.message}` : ''}`);
+              await sleep(1000);
+            }
+          }
+          const port = await until('the server port', () => JSON.parse(readFileSync(`${userData}/server-port.json`, 'utf8')).port, 120_000);
+          const base = `http://127.0.0.1:${port}/api`;
+          async function api(method, path, body) {
+            const res = await fetch(base + path, {
+              method,
+              headers: { authorization: `Bearer ${SMOKE_TOKEN}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+              body: body ? JSON.stringify(body) : undefined,
+            });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${JSON.stringify(json)}`);
+            return json;
+          }
+          const status = () => api('GET', '/system/server-update');
+          const state = () => JSON.parse(readFileSync(`${userData}/data/app/state.json`, 'utf8'));
+          async function install(version) {
+            await api('POST', '/system/release/check');
+            const offered = await until(`${version} offered`, async () => {
+              const s = await status();
+              if (s.unsupportedReason) throw new Error(`unsupported: ${s.unsupportedReason}`);
+              return s.offer?.version === version && s.offer.installable ? s : null;
+            }, 60_000);
+            console.log(`offered ${version}`, JSON.stringify(offered.offer));
+            await api('POST', '/system/server-update/download', { version });
+            await until(`${version} ready`, async () => (await status()).state === 'ready', 120_000);
+            // The server restarts under the answer: a dropped connection is the expected end of it
+            await api('POST', '/system/server-update/apply', { force: true }).catch((err) => console.log(`apply: ${err.message}`));
+          }
+
+          await until('the server', async () => (await fetch(`${base}/health`)).ok, 60_000);
+          const first = await status();
+          if (first.running !== BASE || first.base !== 'shell') throw new Error(`starts on ${first.running} from ${first.base}`);
+
+          await install(V1);
+          await until(`${V1} promoted after its page rendered`, async () => {
+            const s = await status();
+            const st = state();
+            return s.running === V1 && s.source === 'overlay' && st.active === V1 && st.trial === null;
+          }, 180_000);
+          console.log(`promoted ${V1}`);
+
+          await until('the server back', async () => (await fetch(`${base}/health`)).ok, 60_000);
+          await install(V2);
+          const rolled = await until(`${V2} rolled back`, async () => {
+            const s = await status();
+            const st = state();
+            return s.running === V1 && st.lastRollback?.from === V2 && st.bad.includes(V2) && s.lastRollback?.from === V2 ? s : null;
+          }, 360_000);
+          console.log('rolled back', JSON.stringify(rolled.lastRollback));
+          const audit = await api('GET', '/audit?limit=50');
+          if (!JSON.stringify(audit).includes(V2)) throw new Error('no audit row names the rolled-back version');
+          console.log('audit row found');
+          DRIVE
+          node "$RUNNER_TEMP/drive.mjs"
+
+      - name: Logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-smoke-appimage-logs
+          path: |
+            ${{ runner.temp }}/app.log
+            ${{ runner.temp }}/releases.log
+            ${{ runner.temp }}/config/Claudio/logs
+            ${{ runner.temp }}/config/Claudio/data/app/state.json
+          if-no-files-found: ignore

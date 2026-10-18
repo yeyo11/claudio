@@ -1,0 +1,137 @@
+name: apt repository
+
+# Builds and signs Claudio's apt repository, served by GitHub Pages at https://yeyo11.github.io/claudio/apt/
+# (docs/plans/unified-updates.md, D4; docs/decisions/apt-repository.md). It is rebuilt from scratch
+# every time from release assets, so Pages holds no state to lose: the newest published .deb files,
+# plus the release being made when desktop.yml calls it with that build's artifact.
+#
+# - Called by desktop.yml during a release: builds the Pages artifact only. release.yml deploys it
+#   after `publish`, so apt never offers a version whose release is not public.
+# - Monthly (schedule) and by hand: rebuilds from published releases only and deploys, so the
+#   Release file is re-signed long before its 90-day Valid-Until ends.
+#
+# GitHub Pages cannot answer an HTTP redirect, and apt follows only those (an HTML redirect fails
+# apt's size and hash check), so the pool holds the .deb files themselves (decision 3's fallback):
+# four of them, about 480 MB, under Pages' 1 GB site limit.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release being made, left out of the published ones so a rebuild of it is not counted twice
+        required: false
+        default: ''
+        type: string
+      artifact:
+        description: A run artifact holding that release's .deb (desktop.yml's claudio-linux)
+        required: false
+        default: ''
+        type: string
+      deploy:
+        description: Deploy to Pages in this run; release.yml deploys after publish instead
+        required: false
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the rebuilt repository to GitHub Pages
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    # The 3rd of every month, off the hour
+    - cron: '23 5 3 * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Downloads of four ~120 MB packages and seconds of indexing and signing
+    timeout-minutes: 15
+    # The apt signing key is a secret of this environment: `main` only, and the owner approves every
+    # job in it (decision 2). The key signs a root install on every apt user, so nothing else in this
+    # job needs more than read access.
+    environment: release
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils gnupg
+
+      - name: The release's own package
+        if: inputs.artifact != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.artifact }}
+          path: new
+
+      # With a release in the making, three published ones beside it; without, the newest four.
+      # Releases without a .deb (none so far) are skipped, never fatal.
+      - name: The newest published packages
+        run: |
+          mkdir -p debs
+          want=4
+          if [ -d new ]; then
+            cp new/*-amd64.deb debs/
+            want=3
+          fi
+          got=0
+          for tag in $(gh release list --exclude-drafts --exclude-pre-releases --limit 30 --json tagName -q '.[].tagName'); do
+            [ "$got" -lt "$want" ] || break
+            [ "$tag" != "$TAG" ] || continue
+            name=$(gh release view "$tag" --json assets -q '.assets[].name' | grep -E -- '-amd64\.deb$' | head -n1 || true)
+            [ -n "$name" ] || continue
+            gh release download "$tag" --pattern "$name" --dir debs --clobber
+            got=$((got + 1))
+          done
+          ls -l debs
+
+      # The key exists only in a GNUPGHOME under the runner's temp dir, for these steps, and the
+      # repository is checked with gpgv against packaging/apt/claudio-archive-keyring.gpg, the keyring
+      # every .deb ships: a secret that is not that key fails here instead of breaking apt for everyone.
+      - name: Build and sign
+        env:
+          CLAUDIO_APT_SIGNING_KEY: ${{ secrets.CLAUDIO_APT_SIGNING_KEY }}
+        run: |
+          if [ -z "$CLAUDIO_APT_SIGNING_KEY" ]; then
+            echo "::error::CLAUDIO_APT_SIGNING_KEY is not set in the release environment; refusing to publish an unsigned apt repository"
+            exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          trap 'gpgconf --kill all >/dev/null 2>&1 || true; rm -rf "$GNUPGHOME"' EXIT
+          mkdir -m 700 "$GNUPGHOME"
+          printf '%s\n' "$CLAUDIO_APT_SIGNING_KEY" | gpg --batch --quiet --import
+          fingerprint=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr:/ { print $10; exit }')
+          bash packaging/apt/build-repo.sh --debs debs --out site/apt --sign-with "$fingerprint" \
+            --verify-with packaging/apt/claudio-archive-keyring.gpg
+
+      # actions/deploy-pages deploys the artifact named github-pages from this run
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    if: github.event_name == 'schedule' || inputs.deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Its branch policy allows `main` only
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
