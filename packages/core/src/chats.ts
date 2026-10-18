@@ -1939,6 +1939,17 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * A replay clears the limit flags before it stops the process that is still on its way out, and
+   * `finalize` reads those flags to record why the execution ended. Stamp the cause on the execution
+   * first, or the account that hit its limit is lost from `limitedTail` after a restart.
+   */
+  private keepLimitCause(chat: LiveChat): void {
+    if (chat.rateLimited && chat.execution && !chat.execution.endedAt) {
+      chat.execution.cause = chat.authFailed ? 'auth' : 'rate-limit';
+    }
+  }
+
+  /**
    * Re-sends the turn that died against the limit, on the same chat and provider: what `wait` does
    * once the reset has passed. The process is gone by now, so `send` respawns it with `--resume`.
    */
@@ -1950,6 +1961,7 @@ export class ChatManager extends EventEmitter {
     if (account) chat.forcedAccount = account;
     else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
     else chat.limitReplays++;
+    this.keepLimitCause(chat);
     chat.rateLimited = false;
     chat.authFailed = false;
     chat.limitRequested = false;
@@ -1985,6 +1997,7 @@ export class ChatManager extends EventEmitter {
     if (account) chat.forcedAccount = account;
     else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
     else chat.limitReplays++;
+    this.keepLimitCause(chat);
     chat.rateLimited = false;
     chat.authFailed = false;
     chat.limitRequested = false;
