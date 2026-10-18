@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { SettingsFiles } from '../src/config/files.ts';
 import { McpConfig } from '../src/config/mcp.ts';
 import { parseVariant, projectScope, userScope } from '../src/config/scope.ts';
@@ -13,6 +13,10 @@ import { SecretVault } from '../src/secret-vault.ts';
 import { ensureProviderHomes, loadConfig } from '../src/paths.ts';
 import { encodeProjectId, Workspace } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
+
+// loadConfig creates the directories it is pointed at
+const scratch = mkdtempSync(join(tmpdir(), 'claudio-config-'));
+after(() => rmSync(scratch, { recursive: true, force: true }));
 
 test('settings and instructions round-trip per scope', async () => {
   const config = tempConfig();
@@ -130,7 +134,7 @@ test('the Claude credential reaches claude processes only, wins over the contain
 });
 
 test('an allowed-hosts pattern that guards nothing stops the wrapper instead of opening it', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-hosts', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-hosts', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-hosts', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(scratch, 'hosts', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'hosts', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'hosts', 'workspace') };
 
   assert.deepEqual(loadConfig({ ...base, CLAUDIO_ALLOWED_HOSTS: ' *.Example.com , claudio.internal ' }).allowedHosts, ['*.example.com', 'claudio.internal']);
   assert.deepEqual(loadConfig({ ...base }).allowedHosts, []);
@@ -142,7 +146,7 @@ test('an allowed-hosts pattern that guards nothing stops the wrapper instead of 
 });
 
 test('the tunnel is offered by default, and in the Docker image only once its entrypoint started a tailscaled of its own', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-switch', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(scratch, 'switch', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'switch', 'workspace') };
   const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
 
   assert.equal(loadConfig(base).tunnelEnabled, true);
@@ -160,7 +164,7 @@ test('the tunnel is offered by default, and in the Docker image only once its en
 });
 
 test('only the tailscaled the image started is Claudio\'s to sign in, and its node name is a host name', () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-managed', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-managed', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(scratch, 'managed', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'managed', 'workspace') };
   const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };
   const managed = { ...docker, CLAUDIO_TAILSCALE_MANAGED: '1' };
 
@@ -181,7 +185,7 @@ test('only the tailscaled the image started is Claudio\'s to sign in, and its no
 });
 
 test("the tunnel's Serve port is 8444 unless set, and a value that is not a port stops the start", () => {
-  const base = { CLAUDE_CONFIG_DIR: join(tmpdir(), 'claudio-switch', 'claude'), CLAUDIO_DATA_DIR: join(tmpdir(), 'claudio-switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(tmpdir(), 'claudio-switch', 'workspace') };
+  const base = { CLAUDE_CONFIG_DIR: join(scratch, 'switch', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'switch', 'workspace') };
   assert.equal(loadConfig(base).tunnelPort, 8444);
   assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '' }).tunnelPort, 8444);
   assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
