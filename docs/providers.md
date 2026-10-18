@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-15T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - providers
     - detection

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T18:00:00Z
-updated_at: 2026-10-18T21:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - plan
     - docker
@@ -1415,7 +1415,9 @@ the integrator's** and had not happened when this was written. Nothing is pushed
 - **The spike answered "if not".** On CLI 2.1.302 `get_usage` answers the same for a bad OAuth token, a
   bad API key, no credential and a down network, so it only **confirms** a credential (`checkedAt`,
   clears `expired`) and never refuses one. `checkCredential` returns `valid` or `unknown`. **Check** in
-  Settings is **Send a test message** and calls the paid `POST /auth/verify`; the free
+  Settings is **Send a test message** and calls the paid `POST /auth/verify` (phase 2 made **Check** free
+  for an API key, through the SDK's `models.list`, and an environment OAuth token reads **Not confirmed**;
+  see [unified-updates.md](unified-updates.md#outcome)); the free
   `POST /accounts/:id/refresh` is the confirm-only check and answers `502 accounts.check-failed` when
   the CLI could not run. Fixtures: `packages/accounts/test/fixtures/get-usage-refused-*.json`.
 - **The terminal refusal has no "Allow from any device" button.** A change of `remote` made from the
@@ -1478,6 +1480,22 @@ The orchestration's review, applied on `fix/container-polish-review`:
   step shows "Claudio made this token the first time it started…".
 - **The launcher refuses a trial that is not newer than the active overlay.**
 - The `remote-off` refusal has no action, for the reason the table above gives.
+
+### Found later (2026-10-18 and 2026-10-19)
+
+Phase 2 and the fixes after it, all in this pull request, changed or closed some of the above:
+
+- **Credential checks:** a key is now free to check (`models.list`), see the first difference above.
+- **Flaky tests:** the three named under "Flaky under load" are not all explained; the orchestrator
+  test is still unexplained, the launcher one was the tmp preload's SIGTERM handler, and the terminal
+  reattach test failed on CI because readline erased a line when a long prompt was redrawn after a
+  resize (fixed in the test; details in [unified-updates.md](unified-updates.md#found-later-on-the-integration-branch-2026-10-18-and-2026-10-19)).
+- **The terminal needs no project.** A shell opens in the workspace when the chat has no project or
+  is a loose chat ([terminal.md](../terminal.md)); D3's refusals are unchanged.
+- **The env/lock incident:** the orchestration of phase 2 was stopped when a worker's `pnpm dev`
+  opened the owner's live data directory and closed its tunnel; the integrator finished it by hand.
+  The fixes (`withoutServerEnv`, `server.lock` with exit 73 which the launcher reads as neither a failed
+  trial nor a restart, `tunnel.ruleRemoved`) are described in the same section.
 
 ### Known limits
 

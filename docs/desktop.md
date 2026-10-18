@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-10-19T09:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - desktop
     - electron
@@ -32,10 +32,10 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Sandbox | The container | **None** |
 | Default permission mode | `bypassPermissions` | `acceptEdits` |
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
-| Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
+| Login | Signed in from the app (paste-code `claude auth login`) or an API key | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8797` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
-| Tunnel (Settings → Access & safety → Remote access) | Off unless `CLAUDIO_TUNNEL=on` | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
+| Tunnel (Settings → Access & safety → Remote access) | On, with a tailscaled of its own; `CLAUDIO_TUNNEL=off` turns it off | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
 no boundary: Claude reads and writes your real files and runs commands with your privileges. So it

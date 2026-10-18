@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - rest-api
     - api
@@ -70,7 +70,7 @@ environment and to no other, and never returned by any endpoint.
 | GET | `/auth` | Fresh auth status, including where the credential comes from and `inUse`: the account new work would start on (`id`, `label`, `kind`, `signInState`, `checkedAt`), null when none can take work |
 | PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one). `oauthToken` is deprecated: the UI signs in with `POST /accounts/default/login` instead, but a script that sends it keeps working |
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
-| POST | `/auth/verify` | Sends a minimal real request (one short message, which counts against the plan) on the account in use and records `checkedAt`. `claude auth status` only reports what is configured, and `get_usage` cannot refuse a credential, so this is the one check that proves it |
+| POST | `/auth/verify` | Sends a minimal real request (one short message, which counts against the plan) on the account in use and records `checkedAt`. `claude auth status` only reports what is configured, and `get_usage` cannot refuse a credential, so this is the check that proves a login or an OAuth token (an API key is checked for free by `POST /accounts/:id/refresh`) |
 
 ## Setup
 

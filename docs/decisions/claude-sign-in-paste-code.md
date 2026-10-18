@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-18T20:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - decision
     - sign-in
@@ -50,6 +50,9 @@ only a good subscription login returns limits (fixtures:
   never marks one expired; a failed run still does.
 - **Check** in Settings is **Send a test message** and runs the paid `POST /auth/verify`, only on that
   click, with the copy saying it sends one short message.
+- Phase 2 narrowed this: an API key is now checked for free with the SDK's `models.list`, and **Check**
+  is shown for a key; **Send a test message** remains the paid check for a login or an OAuth token
+  ([accounts.md](../accounts.md#checking-a-credential)).
 - Rejected: running `/auth/verify` on a timer (it costs a turn, and probes spend nothing,
   [providers.md](../providers.md)); and trusting `auth status` (it was the bug).
 

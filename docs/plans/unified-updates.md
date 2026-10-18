@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-19T09:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - plan
     - updates
@@ -1290,6 +1290,36 @@ Not done, because it needs CI, a deployment, a desktop or the owner:
   `CLAUDIO_LAUNCHER` as `1` only. The new desktop values (`desktop`, `CLAUDIO_SHELL_*`,
   `CLAUDIO_PAYLOAD`) are documented in [updates.md](../updates.md#files-and-variables). The table is
   not in this task's file list.
+
+### Found later, on the integration branch (2026-10-18 and 2026-10-19)
+
+- **The orchestration was stopped and finished by hand.** An orchestration worker ran `pnpm dev` in
+  its worktree with the desktop's `CLAUDIO_DATA_DIR` and `PORT` in its environment (the note above
+  about a review dev server was an early sign). The dev server opened the owner's live data
+  directory and, before it failed to bind the port, closed the owner's Tailscale tunnel; the
+  orchestration `claudio-unified-updates` (edd3c08f) was stopped, and the integrator finished its
+  verification (the `docker build` check, one uncommitted fix of the verification fixer) on the branch.
+- **Three fixes came out of it.** Children Claudio starts no longer inherit the server's variables:
+  `withoutServerEnv` drops `PORT` and `HOST` and allow-lists `CLAUDIO_*`
+  ([security-model.md](../security-model.md#what-a-child-process-inherits),
+  [chat-environment.md](../chat-environment.md)). A server takes an exclusive lock,
+  `<data>/server.lock`, before it touches the data directory, and a second one exits with 73
+  (security-model.md, [development.md](../development.md)). The tunnel reads a rule removed or changed
+  outside Claudio as `tunnel.ruleRemoved` at once, and a server removes only the rule it added
+  ([tunnel.md](../tunnel.md)); this also covers the tunnel note in "Notes for the integrator".
+- **Open item 5 is closed:** the Updates card ignores `needs-auth` when the desktop bridge can act on
+  the payload, as the shell's menu already did.
+- **Item 8's flaky launcher test** (and the one in phase 1) had a cause on the way: the tmp preload's
+  SIGTERM handler ran before a spawned server's own and ended it with 143; fixed in
+  `scripts/test-tmp-preload.mjs`. The `configuration.md` note is done: the table names `desktop`.
+- **A flaky terminal reattach test** (`apps/api/test/terminals.test.ts`, CI run 39140691363) failed
+  because readline redraws a prompt longer than 80 columns on SIGWINCH and erased the line just above
+  it, with CI's long temporary path in the prompt. The resize and `stty size` now come before the
+  echo, and the test types only once the shell answers a probe.
+- **Merged in:** main's #47 (a verification fix is checked by the failed check first,
+  [orchestrations.md](../orchestrations.md)), and fix branches for the terminal in the workspace with
+  no project ([terminal.md](../terminal.md)) and for a resumed subagent keeping one record with
+  several runs ([chat-tool-rows-and-branches.md](../chat-tool-rows-and-branches.md)).
 
 ## Related
 

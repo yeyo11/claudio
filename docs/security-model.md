@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-18T20:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - security
     - secrets
@@ -428,9 +428,10 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 - A key beside the data does not protect the volume; only a key passed in the environment does.
 - Nothing about a copy is enforced on a teammate's machine: a removed member keeps what they already
   received ([Collaborators](#collaborators)).
-- A credential is not refused for free: the CLI's `get_usage` answers the same for a bad token, a bad
-  key and a network that is down, so a revoked one reads `ready` until a run fails on it or the
-  person presses **Send a test message** ([accounts.md](accounts.md#checking-a-credential)).
+- A login or an OAuth token is not refused for free: the CLI's `get_usage` answers the same for a bad
+  token, a bad key and a network that is down, so a revoked one reads `ready` (an environment token
+  reads **Not confirmed**) until a run fails on it or the person presses **Send a test message**. An
+  API key is the exception: `models.list` refuses it for free ([accounts.md](accounts.md#checking-a-credential)).
 
 ## Related
 

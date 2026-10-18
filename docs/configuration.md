@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - configuration
     - environment
@@ -25,7 +25,7 @@ README's.
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `CLAUDIO_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
-| `CLAUDIO_DATA_DIR` | `./data` | Wrapper state |
+| `CLAUDIO_DATA_DIR` | `./data` | Wrapper state. One server at a time: it takes `<data>/server.lock` first, and a second one on the same directory exits with code 73 without touching it ([security-model.md](security-model.md)) |
 | `CLAUDIO_SECRET_KEY` | – | 32 bytes as hex: the key the secret vault (`secrets.json`) seals the keys and tokens Claudio hands a CLI with. The desktop app passes its own. Without it the Docker image makes one beside the data on the first write (`secret.key`, mode 600), which protects a copy of the files but not the volume, so passing it here is the recommended setup; a source install without it keeps the values plain at 0600. The server drops it from its environment once read |
 | `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Runs & spend and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Runs & spend unless set here, like the mode above. Empty counts as unset |
@@ -44,7 +44,7 @@ README's.
 | `CLAUDIO_RELEASES_URL` | GitHub's latest release of `yeyo11/claudio` | Where that check asks instead: a mirror or a test fixture. It must answer in GitHub's shape (`tag_name`, `html_url`, `published_at`, and `assets[]` with `name` and `browser_download_url`, which the in-app server update reads) |
 | `CLAUDIO_SERVER_UPDATE` | on | `off` hides in-app server updates in a container: the Updates card shows the host commands. See [updates.md](updates.md) |
 | `CLAUDIO_BUNDLE_KEYS_DIR` | `/app/keys` | The public keys the **server** checks a downloaded bundle against; tests and e2e point it at a fixture. The launcher ignores it and always uses `/app/keys` |
-| `CLAUDIO_LAUNCHER`, `CLAUDIO_APP_DIR` | set by the launcher | `CLAUDIO_LAUNCHER=1` tells the server it is supervised and may exit 75 to be restarted; `CLAUDIO_APP_DIR` is the directory the running bundle came from (`/app` or `/data/app/<version>`). Not for setting by hand |
+| `CLAUDIO_LAUNCHER`, `CLAUDIO_APP_DIR` | set by the launcher | `CLAUDIO_LAUNCHER=1` (the container's launcher) or `desktop` (the desktop shell, [updates.md](updates.md#files-and-variables)) tells the server it is supervised and may exit 75 to be restarted; `CLAUDIO_APP_DIR` is the directory the running bundle came from (`/app` or `/data/app/<version>`). Not for setting by hand |
 | `CLAUDIO_DISTRIBUTION` | – (a source checkout) | How this server was installed, which decides the update steps the UI offers: `docker` (set by the image), `appimage` or `deb` (set by the desktop app) |
 | `CLAUDIO_PID_FILE` | `/tmp/claudio.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `CLAUDIO_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
