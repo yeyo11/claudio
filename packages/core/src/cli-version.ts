@@ -41,8 +41,13 @@ export class CliVersionWatch extends VersionCheck<Stored> {
     return value && VERSION.test(value) ? value : null;
   }
 
-  /** What the last check learned. Never touches the network. */
-  info(current: string | null): CliVersionInfo {
+  /** The newest published version the last check found */
+  get latest(): string | null {
+    return this.stored.latest;
+  }
+
+  /** What the last check learned. Never touches the network. `installation` is what the in-app installer adds (`updates/cli-install.ts`). */
+  info(current: string | null, installation: Pick<CliVersionInfo, 'source' | 'installable' | 'install'> = { source: 'path', installable: false, install: null }): CliVersionInfo {
     const { latest, checkedAt } = this.stored;
     return {
       current,
@@ -51,6 +56,7 @@ export class CliVersionWatch extends VersionCheck<Stored> {
       checkedAt,
       updateAvailable: current !== null && latest !== null && compareVersions(latest, current) > 0,
       ...(this.lastError ? { error: this.lastError } : {}),
+      ...installation,
     };
   }
 
