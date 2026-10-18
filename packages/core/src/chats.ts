@@ -124,7 +124,7 @@ const MAX_LIMIT_REPLAYS = 1;
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'clearAuthFailed' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels' | 'canRun'>;
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels' | 'canRun'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -1437,13 +1437,16 @@ export class ChatManager extends EventEmitter {
   /**
    * A turn died on the account's sign-in: the account is marked, so that no choice lands on it until
    * it signs in again. A turn that went through on a marked account clears the mark. The mark is
-   * stored before the turn's end is announced, which is when the rotation chooses.
+   * stored before the turn's end is announced, which is when the rotation chooses. A turn that
+   * went through on an account never confirmed (an OAuth token from the environment has no free
+   * check) confirms it: the CLI refuses an invalid token before generating anything.
    */
   private observeSignIn(chat: LiveChat, authFailed: boolean): void {
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
-    const done = authFailed ? store.markAuthFailed(id) : store.get(id).authFailedAt ? store.clearAuthFailed(id) : null;
+    const account = authFailed ? null : store.get(id);
+    const done = authFailed ? store.markAuthFailed(id) : account?.authFailedAt || account?.checkedAt === null ? store.confirm(id) : null;
     void done?.catch(() => undefined);
   }
 

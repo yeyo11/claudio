@@ -100,6 +100,8 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.post<{ Params: { id: string } }>('/accounts/:id/refresh', async (req, reply): Promise<Account | { error: string; code: string }> => {
     core.accounts.reload();
     core.accounts.get(req.params.id); // 404 before the CLI is asked anything
+    // An API key is asked of Anthropic too (free), whatever the CLI then says; a refusal marks the account expired, which the answer shows
+    if (core.accounts.usesApiKey(req.params.id)) await core.accounts.check(req.params.id);
     const { accounts, failed } = await core.refreshAccountUsage([req.params.id]);
     const error = failed[0]?.error;
     // The CLI could not answer at all (no network, a timeout): the account is left as it was. A client acts on the code
