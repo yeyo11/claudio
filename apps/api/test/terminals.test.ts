@@ -399,6 +399,22 @@ class Session {
   type(data: string): void {
     this.socket.send(Buffer.from(data));
   }
+  /**
+   * Waits until the shell runs what is typed: a shell still starting may drop typeahead (zsh's line
+   * editor flushes it), so a probe is typed again until its answer comes back, each with a new value.
+   */
+  async ready(): Promise<void> {
+    const end = Date.now() + 20_000;
+    for (let n = 1; ; n += 1) {
+      this.type(`echo ready-$((${String(n)}*1000))\r`);
+      try {
+        await this.until(() => this.text.includes(`ready-${String(n * 1000)}`), 'the shell to answer', 2_000);
+        return;
+      } catch (error) {
+        if (Date.now() > end) throw error;
+      }
+    }
+  }
   get hello(): Extract<TerminalServerFrame, { type: 'hello' }> | undefined {
     return this.frames.find((f): f is Extract<TerminalServerFrame, { type: 'hello' }> => f.type === 'hello');
   }
@@ -468,12 +484,17 @@ test('input reaches the shell, a resize reaches the PTY, and a reload is repaint
 
   const first = await attach(w.app, open, terminal.id);
   assert.equal(first.hello?.terminal.id, terminal.id);
-  first.type('echo hi-$((6*7))\r');
-  await first.until(() => first.text.includes('hi-42'), 'the echo');
+  await first.ready();
 
+  // The resize goes first: on SIGWINCH readline redraws its prompt by moving up the lines it thinks the
+  // prompt wrapped onto at the old width and erasing them, and with a prompt longer than 80 columns
+  // that erased the line printed just above it (the PTY and the screen are already 100 wide). Once
+  // `stty size` answers, that redraw is over and what is printed next stays on the screen.
   first.socket.send(JSON.stringify({ type: 'resize', cols: 100, rows: 30 }));
   first.type('stty size\r');
   await first.until(() => first.text.includes('30 100'), 'stty size');
+  first.type('echo hi-$((6*7))\r');
+  await first.until(() => first.text.includes('hi-42'), 'the echo');
   first.socket.send(JSON.stringify({ type: 'ack', bytes: first.text.length }));
   first.socket.close();
   await new Promise((r) => setTimeout(r, 200));
