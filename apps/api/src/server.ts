@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { Core, MCP_ENTRY_ENV } from '@claudio/core';
+import { Core, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
@@ -109,18 +109,20 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   // when "start with Claudio" is on
   core.tunnel.attach(port, urlHost);
   let closing: Promise<void> | undefined;
-  return {
-    url,
-    port,
-    close() {
-      closing ??= (async () => {
-        const ended = core.shutdown();
-        await app.close();
-        // The process exits next, and a probe still running would outlive it and keep writing the
-        // config home it was started with
-        await ended;
-      })();
-      return closing;
-    },
+  const close = () => {
+    closing ??= (async () => {
+      const ended = core.shutdown();
+      await app.close();
+      // The process exits next, and a probe still running would outlive it and keep writing the
+      // config home it was started with
+      await ended;
+    })();
+    return closing;
   };
+  // An in-app update ends this process the way SIGTERM does, with the code that has the launcher start it again
+  core.serverUpdates.onRestart = async () => {
+    await close();
+    process.exit(RESTART_EXIT_CODE);
+  };
+  return { url, port, close };
 }

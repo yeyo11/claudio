@@ -3,6 +3,7 @@
 //   api.mjs     the long-lived service the container starts (src/index.ts)
 //   mcp.mjs     the MCP server a chat's CLI starts (packages/mcp/src/main.ts)
 //   guard.mjs  the guard program, the hook the CLI runs before each tool call (packages/core/src/guards/main.ts)
+//   launcher.mjs  what the container starts: it runs api.mjs from /app or a verified update (packages/core/src/launcher/main.ts)
 //   terminal-host.mjs  the process the server forks for the person's terminals (packages/core/src/terminals/host/main.ts)
 //   collab-host.mjs  the process the server forks for the Collaborators iroh endpoint (packages/core/src/collab/host/main.ts)
 // Only node: builtins stay external (node:sqlite among them), so no file needs node_modules, a source
@@ -30,6 +31,8 @@ await build({
     'collab-host': `${root}../../packages/core/src/collab/host/main.ts`,
     // The PreToolUse hook the CLI runs per tool call (packages/core/src/guards/main.ts): it ships alone and read-only
     guard: `${root}../../packages/core/src/guards/main.ts`,
+    // The container's launcher (packages/core/src/launcher/main.ts): root-owned in the image like the guard, never part of an update
+    launcher: `${root}../../packages/core/src/launcher/main.ts`,
   },
   external: ['node-pty', '@number0/iroh'],
   outdir: `${root}dist`,
