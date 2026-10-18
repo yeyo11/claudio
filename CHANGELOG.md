@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/yeyo11/claudio/compare/v0.3.0...v0.4.0) (2026-10-18)
+
+
+### Features
+
+* **accounts:** Refresh reads the real quota from the CLI's get_usage; the card names the plan, the per-model weekly limits and the credits ([#31](https://github.com/yeyo11/claudio/issues/31)) ([d369c9e](https://github.com/yeyo11/claudio/commit/d369c9ef31677a4057c03fb92f6e5685c16e866d))
+* **settings:** Settings in eight groups with search, the Decisions screen as evidence, and the Supervisor as its decision point ([#34](https://github.com/yeyo11/claudio/issues/34)) ([ca86866](https://github.com/yeyo11/claudio/commit/ca8686698eadbc2ecfd92dd01c644c71c6d28dbd))
+
+
+### Bug fixes
+
+* **chat-ui:** a switch in the phone's context sheet keeps its pill shape ([#35](https://github.com/yeyo11/claudio/issues/35)) ([670a460](https://github.com/yeyo11/claudio/commit/670a4606b7c09b7550f40e144b3080939e92a299))
+
+
+### Documentation
+
+* **plans:** the process isolation study, completed from its transcript ([#32](https://github.com/yeyo11/claudio/issues/32)) ([65b9655](https://github.com/yeyo11/claudio/commit/65b9655bfc4daf0aba9ad15b9d1fbf5738c01ef0))
+
 ## [0.3.0](https://github.com/yeyo11/claudio/compare/v0.2.1...v0.3.0) (2026-10-17)
 
 
