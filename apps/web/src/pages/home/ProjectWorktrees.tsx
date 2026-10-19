@@ -35,7 +35,8 @@ function Creator({ creator }: { creator: WorktreeCreator }) {
 function WorktreeRow({ project, worktree }: { project: Project; worktree: ProjectWorktree }) {
   const { t } = useTranslation('projects');
   const name = worktree.branch ?? worktree.name ?? worktree.path;
-  const chats = `/chats?project=${encodeURIComponent(project.id)}&worktree=${encodeURIComponent(worktree.path)}`;
+  // A chat in the main checkout has no worktree to filter by: the main row leads to all the project's chats
+  const chats = `/chats?project=${encodeURIComponent(project.id)}${worktree.main ? '' : `&worktree=${encodeURIComponent(worktree.path)}`}`;
   return (
     <li className={`worktree-row ${worktree.main ? 'is-main' : ''}`}>
       <div className="worktree-main">

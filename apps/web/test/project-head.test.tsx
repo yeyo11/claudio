@@ -103,3 +103,9 @@ test("the worktrees widget counts and lists the linked worktrees, never the main
   assert.equal(/>main</.test(html), false);
   assert.match(html, /class="small muted tnum">1</);
 });
+
+test("the header counts the linked worktrees: the main checkout heading the list is the project itself", () => {
+  const checkout = { path: '/tmp/shop', cwd: '/tmp/shop', name: null, branch: 'main', main: true, detached: false, locked: null, chatCount: 0, lastActivity: null, createdBy: null };
+  const repo = { commonDir: '/tmp/shop/.git', mainCheckout: '/tmp/shop', subdir: '', remote: null, bare: false };
+  assert.match(wrap(<ProjectHead project={{ ...project, repo, worktrees: [checkout] }} primaryTask={false} />), /0 worktrees/);
+});
