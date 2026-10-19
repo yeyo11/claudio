@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, type ChildProcess } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from './fs.ts';
@@ -56,9 +56,12 @@ export function readCredentials(dir: string): CredentialsReading | null {
 }
 
 /** Through `claude auth status --json` in the account's own environment; no file of the account is read. */
-export function identify(account: AccountRef, opts: { claude?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}): Promise<Identity> {
+export function identify(
+  account: AccountRef,
+  opts: { claude?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; onSpawn?: (child: ChildProcess) => void } = {},
+): Promise<Identity> {
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       opts.claude ?? 'claude',
       ['auth', 'status', '--json'],
       { env: envFor(account, opts.env), timeout: opts.timeoutMs ?? 20_000, maxBuffer: 1 << 20 },
@@ -75,5 +78,6 @@ export function identify(account: AccountRef, opts: { claude?: string; env?: Nod
         reject(err ?? new Error('claude auth status printed nothing'));
       },
     );
+    opts.onSpawn?.(child);
   });
 }

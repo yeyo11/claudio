@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ModelOption, ModelTier } from '@claudio/shared';
@@ -30,6 +30,8 @@ export interface ModelsOptions {
   claude?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /** Hears of each CLI process as it starts (`ControlOptions.onSpawn`) */
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -85,11 +87,12 @@ export async function readInitialize(account: AccountRef, opts: ModelsOptions = 
 /** `claude --version`, the half of the cache key that moves with a CLI update. */
 export function cliVersion(opts: ModelsOptions = {}): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(opts.claude ?? 'claude', ['--version'], { env: opts.env ?? process.env, timeout: opts.timeoutMs ?? 20_000 }, (err, stdout) => {
+    const child = execFile(opts.claude ?? 'claude', ['--version'], { env: opts.env ?? process.env, timeout: opts.timeoutMs ?? 20_000 }, (err, stdout) => {
       const out = stdout.trim();
       if (out) resolve(out);
       else reject(err ?? new Error('claude --version printed nothing'));
     });
+    opts.onSpawn?.(child);
   });
 }
 

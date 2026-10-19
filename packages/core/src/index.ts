@@ -651,6 +651,8 @@ export class Core {
       dataDir: config.dataDir,
       defaultDir: config.configDir,
       claude: () => config.claudeBin,
+      // The boot read of the models list and the usage reads end with the core, like every probe
+      onSpawn: (child) => this.children.add(child),
       // What the CLI will see, the vault's credential included: a login with no file is still one
       defaultEnvCredential: () => {
         const env = childEnv('claude-code');

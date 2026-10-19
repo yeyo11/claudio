@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { envFor, type AccountRef } from './env.ts';
 import { isRecord } from './fs.ts';
 
@@ -6,6 +6,11 @@ export interface ControlOptions {
   claude?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /**
+   * Hears of each CLI process as it starts, so the owner can end it when it stops: a read still
+   * running after its owner shut down writes the CLI's config into a directory that is gone
+   */
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 /**
@@ -20,6 +25,7 @@ export function controlRequest(account: AccountRef, subtype: string, opts: Contr
       env: envFor(account, opts.env),
       stdio: ['pipe', 'pipe', 'ignore'],
     });
+    opts.onSpawn?.(child);
     const requestId = `claudio-${subtype}`;
     let buffer = '';
     let settled = false;
