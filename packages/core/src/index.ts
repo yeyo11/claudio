@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { systemTempDirs } from './temp-dirs.ts';
 import type {
@@ -179,9 +180,10 @@ import { admissionLimitsFrom, chatProcessUsage, readSystemLoad } from './system-
 import { samplerSettingsFrom, SystemSampler } from './system-history.ts';
 import { recentProcessTable } from './processes.ts';
 import { byStart, EXPORTED_ORIGINS, type ProjectExportSource } from './project-export.ts';
+import { candidateKey, projectCandidates, ProjectSuggestions, suggestionExclusions } from './project-suggestions.ts';
 import { parseKeyPrefix, parseModules, parseProjectSettings, parseProjectSetup, ProjectSettingsStore, settingsChanges } from './project-settings.ts';
 import { PROJECT_TEMPLATES } from './project-templates.ts';
-import { attachProject, projectCandidates, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
+import { attachProject, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
@@ -580,6 +582,7 @@ export class Core {
   private readonly projectStore: ProjectStore;
   /** What each project configures, one JSON document per project id, kept when the project is removed */
   private readonly projectSettingsStore: ProjectSettingsStore;
+  private readonly projectSuggestions: ProjectSuggestions;
   /**
    * The work items of every project, kept in the shared database. Routes gate writes through
    * `workItemProject` and friends first: the store itself knows nothing of modules.
@@ -790,6 +793,7 @@ export class Core {
     });
     this.projectStore = new ProjectStore(config, this.repos);
     this.projectSettingsStore = new ProjectSettingsStore(config);
+    this.projectSuggestions = new ProjectSuggestions(config);
     this.team = new TeamService({
       dataDir: config.dataDir,
       project: async (id) => {
@@ -2394,9 +2398,19 @@ export class Core {
     return sessions.map(placeOf);
   }
 
-  /** The directories with the most chats that are not projects yet: what a first start offers to import. */
+  /** The repositories with the most chats that are not projects yet, then a few plain directories: what a first start offers to import (D8). */
   async projectCandidates(): Promise<ProjectCandidate[]> {
-    return projectCandidates(this.projectStore.list(), await this.chatPlaces(), (d) => this.repos.place(d));
+    const exclusions = suggestionExclusions(this.config, lanesRoot(this.config.dataDir), homedir());
+    return projectCandidates(this.projectStore.list(), await this.chatPlaces(), this.repos, exclusions, this.projectSuggestions.hidden());
+  }
+
+  /** Stops offering one suggestion; `key` is a {@link ProjectCandidate}'s. */
+  async hideProjectCandidate(key: unknown): Promise<void> {
+    return this.projectSuggestions.hide(candidateKey(key));
+  }
+
+  async unhideProjectCandidate(key: unknown): Promise<void> {
+    return this.projectSuggestions.unhide(candidateKey(key));
   }
 
   /**

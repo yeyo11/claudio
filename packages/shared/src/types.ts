@@ -1749,12 +1749,27 @@ export interface Project {
   modules: ProjectModule[];
 }
 
-/** A directory chats have run in that is not imported, offered on first start. */
+/** A repository, or a directory in none, that chats have run in and that is not a project: offered on first start. */
 export interface ProjectCandidate {
+  /** What hiding it records: the common dir, or the path for a directory */
+  key: string;
+  kind: 'repository' | 'directory';
+  /** A repository's main checkout (the folder holding `.bare` or `.git` for a bare one), or the directory itself */
   path: string;
   name: string;
+  /** origin's URL with credentials stripped; null without one, and always null for a directory */
+  remote: string | null;
   chatCount: number;
+  /** The linked worktrees the chats ran in; 0 for a directory */
+  worktreeCount: number;
   lastActivity: string | null;
+  /** A project that is another clone of the same remote */
+  sameRemoteAs: ChatProject | null;
+}
+
+/** Hides or shows again one suggestion: the `key` of a {@link ProjectCandidate}. */
+export interface CandidateKeyRequest {
+  key: string;
 }
 
 /** Imports a directory; every chat under it is adopted, retroactively. */
