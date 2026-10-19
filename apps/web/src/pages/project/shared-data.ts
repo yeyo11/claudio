@@ -98,13 +98,13 @@ export const useCollaboratorsStatus = () => useQuery({ queryKey: collaboratorsKe
 /**
  * The teammates' projects this project's Shared tab shows, and whether that is known yet (an
  * address that opens the tab waits for it instead of being sent back to Resumen). The catalog is
- * read only while Collaborators is on, so a person who never turned it on costs one small request.
+ * a small local read, so it is made whether or not Collaborators is on: the copies outlive the switch.
  */
 export function useSharedWith(projectId: string): { projects: SharedProject[]; settled: boolean } {
   const status = useCollaboratorsStatus();
-  const on = Boolean(status.data?.settings.enabled && !status.data.unavailable);
-  const catalog = useQuery({ queryKey: collaboratorsKeys.catalog, queryFn: ({ signal }) => collaboratorsApi.catalog({ signal }), enabled: on, staleTime: 30_000 });
+  const available = Boolean(status.data && !status.data.unavailable);
+  const catalog = useQuery({ queryKey: collaboratorsKeys.catalog, queryFn: ({ signal }) => collaboratorsApi.catalog({ signal }), enabled: available, staleTime: 30_000 });
   const projects = useMemo(() => sharedWith(projectId, status.data, catalog.data), [projectId, status.data, catalog.data]);
-  const settled = status.isError || (status.data !== undefined && (!on || catalog.data !== undefined || catalog.isError));
+  const settled = status.isError || (status.data !== undefined && (!available || catalog.data !== undefined || catalog.isError));
   return { projects, settled };
 }
