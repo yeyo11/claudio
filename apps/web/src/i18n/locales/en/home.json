@@ -173,7 +173,7 @@
       "defaultModel": "default model",
       "defaultMode": "default mode",
       "noPreset": "no preset",
-      "mcpDefault": "MCP: CLI default",
+      "mcpDefault": "MCP: the CLI's",
       "mcpChosen_one": "MCP: {{count}} server",
       "mcpChosen_other": "MCP: {{count}} servers",
       "allOptions": "All options",
