@@ -349,7 +349,7 @@ El preset de herramientas quedó fijado al empezar el chat; reanudarlo puede cam
 | State | Icon (lucide) | Tone | Tooltip and aria-label (es / en) |
 | --- | --- | --- | --- |
 | live / synced | `CircleCheck` | ok | "Sincronizado · hace {{ago}}" / "Synced · {{ago}} ago" |
-| pending | ring spinner (small) | neutral | "Sincronizando…" / "Syncing…" |
+| pending | `RefreshCw`, still (a loop means an agent working) | neutral | "Sincronizando…" / "Syncing…" |
 | offline | `Moon` | idle | "El propietario no está conectado" / "The owner is away" |
 | paused | `Pause` | warn | "En pausa: Colaboradores está desactivado" / "Paused: Collaborators is off" |
 | error | `TriangleAlert` | bad | "Falló la última sincronización" / "The last sync failed" |
@@ -357,15 +357,15 @@ El preset de herramientas quedó fijado al empezar el chat; reanudarlo puede cam
 - 14 px icon after the tab's word, inside the tab button. The tab keeps its classes.
 - `SyncLine` in paused mode: a `Tag` warn "En pausa" / "Paused", plus a link "Activar Colaboradores" /
   "Turn Collaborators on" to `/collaborators`.
-- The spinner follows the motion levels: it stops under subtle, off, reduced motion and a hidden
-  tab, as every loop does.
+- Nothing on the tab moves: a sync is not an agent working, so pending is a still icon, not a
+  spinner (changed after the `/ui-review` of PR #49).
 
 ### The Claudio row in the "+" Servers panel (D6)
 
 ```
 [◆] Claudio                                          [ ●— ]
-    Lee y cambia proyectos, tareas, chats y orquestaciones
-    25 herramientas · conectado
+    Edita proyectos, tareas, chats y orquestaciones
+    25 herramientas · Conectado
 ```
 
 - `[◆]` is `BrandMark` at 16 px. It is the logo, so it is not counted as a gradient surface (it is

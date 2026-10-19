@@ -576,6 +576,15 @@ a.part-of { color: inherit; text-decoration: none; }
 .proj-tabs .tab .ico { color: var(--fg-3); }
 .proj-tabs .tab.on .ico { color: var(--fg); }
 .proj-tabs .tab .count { margin-left: 1px; }
+/* The Shared tab's sync icon: 14 px after the word, in its state's tone (ok synced, idle owner away, warn paused,
+   bad failed, neutral pending), still in every state, its words in the tooltip and the label. */
+.proj-tabs .tab .tab-sync { display: inline-flex; color: var(--fg-2); }
+.proj-tabs .tab .tab-sync > svg { color: inherit; }
+/* A shared copy's sync line: the tag keeps its width, "Paused" and "Turn Collaborators on" share one line. */
+.sync-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sync-line > :first-child { flex: 0 1 auto; }
+.sync-line .link-btn { display: inline-flex; align-items: center; min-height: 24px; }
+@media (pointer: coarse) { .sync-line .link-btn { min-height: 44px; } }
 
 /* Work item key (AGN-12), type icon and priority mark. */
 .wi-key { font-family: var(--mono); font-size: var(--fs-small); font-weight: var(--fw-regular); color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -2395,6 +2404,17 @@ a.cont-from:hover { color: var(--fg); }
 .composer-server-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .composer-server.is-off .composer-server-name, .composer-server.is-off .composer-server-icon { color: var(--fg-3); }
 .composer-server-link { color: var(--accent); }
+/* Claudio's own server, first in the Servers panel and apart from the CLI's list: the logo at 16 px, the name, a
+   one-line summary, a status line that keeps its height while off (no shift when switched on), the switch, and a warn
+   line only when the chat skips permission checks. */
+.composer-servers-claudio { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.composer-servers-claudio-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 4px; }
+.composer-servers-claudio-name { font-size: var(--fs-body); font-weight: var(--fw-strong); }
+.composer-servers-claudio-status { min-height: 20px; }
+.composer-servers-claudio-warn { display: flex; align-items: flex-start; gap: 6px; margin: 0; padding: 0 4px; color: var(--warn); font-size: var(--fs-small); }
+/* The options popover's rows that open the real list (preset, MCP servers) are link buttons. */
+.kv-narrow .link-btn { min-height: 24px; }
+@media (pointer: coarse) { .kv-narrow .link-btn { min-height: 44px; text-align: start; } }
 /* ---------- end of The box and its "+" menu ---------- */
 
 /* ---------- The terminal: the person's own shell ---------- */
@@ -2542,6 +2562,11 @@ a.cont-from:hover { color: var(--fg); }
 .call-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: var(--fs-small); color: var(--fg-3); }
 .call-term, .call-stderr { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: var(--fs-small); line-height: 1.6; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
 .call-stderr { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 30%, transparent); background: var(--bad-soft); }
+/* Stderr of a call that did not fail: the terminal block in neutral colours, never red. */
+.call-stderr-neutral { margin: 0; padding: 10px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-1); font-family: var(--mono); font-size: var(--fs-small); line-height: 1.6; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The CLI's note about the shell ("The shell went back to …"): a sentence in sans, only the path in mono. */
+.call-meta.call-note { font-family: var(--sans); }
+.call-meta.call-note code { font-family: var(--mono); overflow-wrap: anywhere; }
 .call-files { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-family: var(--mono); font-size: var(--fs-small); color: var(--fg-2); }
 .call-files li { padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .call-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: var(--fs-small); }
