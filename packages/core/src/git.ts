@@ -95,18 +95,29 @@ export interface WorktreeEntry {
   branch: string | null;
   /** The reason it was locked with, `''` when locked with none; null when not locked */
   locked: string | null;
+  /** The bare repository itself, listed first where a main checkout would be */
+  bare: boolean;
+  detached: boolean;
+  /** Its directory is gone: git would prune it */
+  prunable: boolean;
 }
 
-/** Every worktree git knows of in `repo`'s repository, the main checkout first. */
+/**
+ * Every worktree git knows of in `repo`'s repository, the main checkout first. The list path reads
+ * git's files instead (`worktreesOf` in `repos.ts`); this is its oracle and its fallback.
+ */
 export function worktrees(repo: string): WorktreeEntry[] {
   const entries: WorktreeEntry[] = [];
   for (const line of git(repo, ['worktree', 'list', '--porcelain'], 10_000).split('\n')) {
-    if (line.startsWith('worktree ')) entries.push({ path: line.slice('worktree '.length), branch: null, locked: null });
+    if (line.startsWith('worktree ')) entries.push({ path: line.slice('worktree '.length), branch: null, locked: null, bare: false, detached: false, prunable: false });
     const last = entries[entries.length - 1];
     if (!last) continue;
     if (line.startsWith('branch ')) last.branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
     else if (line === 'locked') last.locked = '';
     else if (line.startsWith('locked ')) last.locked = line.slice('locked '.length);
+    else if (line === 'bare') last.bare = true;
+    else if (line === 'detached') last.detached = true;
+    else if (line === 'prunable' || line.startsWith('prunable ')) last.prunable = true;
   }
   return entries;
 }
