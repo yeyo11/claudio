@@ -560,12 +560,14 @@
   color: var(--bad);
 }
 
-/* The CLI's note about the shell: a sentence, with only the path a literal */
-.call-note {
+/* The CLI's note about the shell: a sentence, with only the path a literal. Two classes, so the
+   sentence wins over `.call-meta`'s mono, which comes later in this file */
+.call-meta.call-note {
   font: var(--fs-small) var(--sans);
 }
 
-.call-note code {
+.call-meta.call-note code {
+  /* literal: a path */
   font: var(--fs-small) var(--mono);
 }
 

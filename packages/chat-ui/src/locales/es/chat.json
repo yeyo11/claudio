@@ -122,14 +122,14 @@
       "servers": "Servidores"
     },
     "claudio": "Claudio",
-    "claudioSummary": "Lee y cambia proyectos, tareas, chats y orquestaciones",
+    "claudioSummary": "Edita proyectos, tareas, chats y orquestaciones",
     "claudioStatus": {
-      "connected": "conectado",
-      "pending": "conectando",
-      "failed": "falló",
-      "needs-auth": "necesita autorización",
-      "disabled": "desactivado",
-      "unknown": "desconocido"
+      "connected": "Conectado",
+      "pending": "Conectando",
+      "failed": "Falló",
+      "needs-auth": "Necesita autorización",
+      "disabled": "Desactivado",
+      "unknown": "Desconocido"
     },
     "claudioUnavailable": {
       "no-api": "No disponible: aún no se conoce la dirección de la API de Claudio.",

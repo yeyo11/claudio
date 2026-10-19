@@ -56,6 +56,6 @@ test('the options popover shows the live server count and links to the Servers p
 test('the same rows are plain text when the page gives no way to open the lists, and speak Spanish', () => {
   const html = render(chat(undefined), 'es');
   assert.match(html, /2 de 3 activos/);
-  assert.match(html, /[Ss]in preset · Ver reglas/);
+  assert.match(html, /Sin preset · Ver reglas/, 'a row starts in sentence case');
   assert.doesNotMatch(html, /link-btn/);
 });

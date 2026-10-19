@@ -45,7 +45,6 @@
     "limitBack": "Available again {{time}}",
     "checkUsage": "Check usage in Accounts",
     "rotatesAtLimit": "Accounts rotate at the limit",
-    "notChecked": "Couldn't check the CLI",
     "notCheckedShort": "Not checked",
     "willRetry": "Couldn't check the CLI; it will retry",
     "openClaudeSettings": "Open Claude Code settings"

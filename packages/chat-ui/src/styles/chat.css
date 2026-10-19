@@ -896,6 +896,11 @@
   margin-top: 2px;
 }
 
+/* The status line keeps a badge's height while the switch is off, so turning it on shifts nothing */
+.composer-servers-claudio-status {
+  min-height: 20px;
+}
+
 .composer-servers-claudio-name {
   font-size: var(--fs-body);
   font-weight: var(--fw-strong);
@@ -2792,7 +2797,12 @@ a.attachment-chip:hover {
   }
 }
 
-/* The options popover's rows that open the real list are links: a phone gets a full-size target */
+/* The options popover's rows that open the real list are links: a target of their own size on a
+   desktop, a full-size one on a phone (a button centres its line inside the extra height) */
+.kv-narrow .link-btn {
+  min-height: 24px;
+}
+
 @media (pointer: coarse) {
   .kv-narrow .link-btn {
     min-height: 44px;

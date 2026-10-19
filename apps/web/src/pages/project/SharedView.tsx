@@ -175,7 +175,7 @@ export function SyncLine({ sync }: { sync: SyncState }) {
   const { t } = useTranslation('collaborators');
   const ago = sync.lastSyncedAt ? timeAgo(sync.lastSyncedAt) : null;
   return (
-    <span className="inline-form small">
+    <span className="inline-form small sync-line">
       {sync.state === 'live' && <Tag tone="ok">{t('shared.sync.live')}</Tag>}
       {sync.state === 'synced' && <span className="muted">{ago ? t('shared.sync.synced', { ago }) : t('shared.sync.pending')}</span>}
       {sync.state === 'offline' && <Tag tone="idle">{ago ? t('shared.sync.offline', { ago }) : t('shared.sync.offlineNever')}</Tag>}

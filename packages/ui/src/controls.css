@@ -498,7 +498,8 @@
 
 .tooltip {
   z-index: 1200;
-  max-width: 320px;
+  /* Never wider than the room Radix measured beside the trigger, so a 320 px screen keeps it whole */
+  max-width: min(320px, var(--radix-tooltip-content-available-width, 320px));
   padding: 7px 10px;
   border-radius: var(--radius);
   background: var(--text);
@@ -506,6 +507,8 @@
   font-size: var(--fs-small);
   font-weight: var(--fw-regular);
   line-height: 1.4;
+  /* A path or a key has no spaces: it breaks inside the bubble instead of running out of it */
+  overflow-wrap: anywhere;
   box-shadow: var(--shadow-pop);
   transform-origin: var(--radix-tooltip-content-transform-origin);
   animation: tooltip-in var(--dur-fast) var(--ease-out);

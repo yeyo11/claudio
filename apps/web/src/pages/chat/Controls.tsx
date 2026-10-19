@@ -87,7 +87,7 @@ export function LiveOptions({ chat, onOpenServers, onOpenEnvironment }: { chat: 
   const { t } = useTranslation(['chat', 'work']);
   const { tools } = chat;
   const servers = useLiveServers(chat.id, Boolean(chat.execution));
-  const count = serversOn(servers.data?.servers);
+  const count = serversOn(servers.data);
   // The same words as the chip: the live count while the process is up, else what the chat started with
   const serversWords = count
     ? t('composerMenu.serversOn', { on: formatNumber(count.on), total: formatNumber(count.total) })
@@ -96,7 +96,7 @@ export function LiveOptions({ chat, onOpenServers, onOpenEnvironment }: { chat: 
         ? t('status.serversChosen', { count: tools.mcp.servers.length })
         : t('tools.card.noServers')
       : t('tools.card.serversDefault');
-  const presetWords = tools?.preset ? tools.preset.name : t('tools.card.noPreset');
+  const presetWords = tools?.preset ? tools.preset.name : t('tools.noPreset');
   return (
     <div className="stack-tight">
       <dl className="kv kv-narrow">

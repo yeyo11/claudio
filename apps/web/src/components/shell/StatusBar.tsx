@@ -82,7 +82,7 @@ export function useConnection(overview: Now['overview'], feedOpen: boolean): Con
       detail: rotation ? t('components:shell.rotatesAtLimit') : t('components:shell.checkUsage'),
       short: [label, t('components:shell.nearLimit')].filter(Boolean).join(' · '),
     },
-    unchecked: { title: t('components:shell.notChecked'), detail: t('components:shell.willRetry'), short: [label, t('components:shell.notCheckedShort')].filter(Boolean).join(' · ') },
+    unchecked: { title: t('components:shell.notCheckedShort'), detail: t('components:shell.willRetry'), short: [label, t('components:shell.notCheckedShort')].filter(Boolean).join(' · ') },
     unready: { title: t(`providers:state.${claude?.state ?? 'unknown'}`), detail: t('components:shell.openClaudeSettings'), short: t(`providers:state.${claude?.state ?? 'unknown'}`) },
   };
   const said = kind === 'ready' ? null : words[kind];

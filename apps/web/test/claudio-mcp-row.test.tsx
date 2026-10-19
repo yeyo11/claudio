@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { ChatUiProvider, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 // Not one of the package's exports: the app reaches it through the composer
-import { mcpKey, ServersPanel } from '../../../packages/chat-ui/src/composer/ServersPanel.tsx';
+import { mcpKey, ServersPanel, serversOn } from '../../../packages/chat-ui/src/composer/ServersPanel.tsx';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { setLanguage } from '../src/i18n';
 
@@ -49,7 +49,7 @@ test('the Claudio row comes first, outside the list the e2e specs count, with it
   const html = render({ live: true, servers: [docs], claudio: state() });
   assert.ok(html.indexOf('composer-servers-claudio') < html.indexOf('class="composer-servers"'), 'the row is above the list');
   assert.equal((html.match(/class="composer-server( |")/g) ?? []).length, 1, 'the list keeps only the CLI’s servers');
-  assert.match(text(html), /Claudio Reads and changes projects, tasks, chats and orchestrations/);
+  assert.match(text(html), /Claudio Edits projects, tasks, chats and orchestrations/);
   assert.match(html, /aria-label="Turn Claudio on"/);
   assert.equal(html.includes('composer-servers-claudio-warn'), false);
 });
@@ -57,7 +57,7 @@ test('the Claudio row comes first, outside the list the e2e specs count, with it
 test('once on, the CLI’s own entry for it merges into the row: shown once, with its tools and status in words', () => {
   const html = render({ live: true, servers: [docs, ours], claudio: state({ on: true }) }, 'default', 'es');
   assert.equal((html.match(/class="composer-server( |")/g) ?? []).length, 1);
-  assert.match(text(html), /25 herramientas conectado/);
+  assert.match(text(html), /25 herramientas Conectado/);
   assert.match(html, /aria-label="Desactivar Claudio"/);
 });
 
@@ -80,4 +80,20 @@ test('the assistant chat and another agent’s chat are not offered the row', ()
     const html = render({ live: true, servers: [docs], claudio: state({ unavailable }) });
     assert.equal(html.includes('composer-servers-claudio'), false, unavailable);
   }
+});
+
+test('the Claudio row keeps its status line while off, so switching it on does not push the list down', () => {
+  const off = render({ live: true, servers: [docs], claudio: state() });
+  assert.match(off, /class="composer-server-meta composer-servers-claudio-status small" aria-hidden="true"><\/span>/);
+  const on = render({ live: true, servers: [docs, ours], claudio: state({ on: true }) });
+  assert.match(on, /composer-servers-claudio-status[^>]*>.*Connected/);
+});
+
+test('the summaries count Claudio’s row as one more switch, on when it is switched on, never twice', () => {
+  const off = { ...docs, name: 'off', status: 'disabled' as const };
+  assert.deepEqual(serversOn({ servers: [docs, off], claudio: state() }), { on: 1, total: 3 });
+  assert.deepEqual(serversOn({ servers: [docs, off, ours], claudio: state({ on: true }) }), { on: 2, total: 3 });
+  assert.deepEqual(serversOn({ servers: [docs, off], claudio: state({ unavailable: 'assistant' }) }), { on: 1, total: 2 }, 'not offered, not counted');
+  assert.deepEqual(serversOn({ servers: [docs, off] }), { on: 1, total: 2 });
+  assert.equal(serversOn(undefined), null);
 });

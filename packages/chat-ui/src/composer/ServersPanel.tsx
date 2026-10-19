@@ -1,4 +1,4 @@
-import type { Chat, ChatClaudioMcp, LiveMcpServer } from '@claudio/shared';
+import type { Chat, ChatClaudioMcp, ChatMcpServers, LiveMcpServer } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cloud, Plug, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -25,10 +25,28 @@ export function offersClaudio(state: ChatClaudioMcp | undefined): state is ChatC
   return state !== undefined && state.unavailable !== 'assistant' && state.unavailable !== 'provider';
 }
 
-/** How many of the servers are on, for the menu's one-line summary; null until they are read. */
-export function serversOn(servers: readonly LiveMcpServer[] | undefined): { on: number; total: number } | null {
-  if (!servers) return null;
-  return { on: servers.filter((s) => s.status !== 'disabled').length, total: servers.length };
+/**
+ * The panel's rows: Claudio's own server apart (when the chat offers it), and the CLI's list without
+ * its entry for it, so a server that is on is shown, and counted, once.
+ */
+function panelRows(data: Pick<ChatMcpServers, 'servers' | 'claudio'>) {
+  const { servers, claudio } = data;
+  const offered = offersClaudio(claudio);
+  // Once on, the CLI lists it too: shown once, in its own row
+  const ours = offered && claudio.on ? servers.find((s) => s.name === CLAUDIO_SERVER && s.scope === 'dynamic') : undefined;
+  return { claudio: offered ? claudio : null, ours: ours ?? null, list: ours ? servers.filter((s) => s !== ours) : servers };
+}
+
+/**
+ * How many of the panel's switches are on, for the one-line summaries (the "+" menu, the chip, the
+ * options popover); null until they are read. Claudio's row counts as one, on when it is switched on,
+ * so the summary and the panel never disagree.
+ */
+export function serversOn(data: Pick<ChatMcpServers, 'servers' | 'claudio'> | undefined): { on: number; total: number } | null {
+  if (!data) return null;
+  const { claudio, list } = panelRows(data);
+  const on = list.filter((s) => s.status !== 'disabled').length + (claudio?.on ? 1 : 0);
+  return { on, total: list.length + (claudio ? 1 : 0) };
 }
 
 /** The servers of the live process, read when `enabled` (the menu is open) and again while one connects. */
@@ -81,15 +99,10 @@ function LiveServers({ chat }: { chat: Chat }) {
 
   if (servers.isLoading) return <Skeleton rows={2} height={5} />;
   if (servers.error) return <ErrorBox error={servers.error} />;
-  const all = servers.data?.servers ?? [];
-  const claudio = servers.data?.claudio;
-  const offered = offersClaudio(claudio);
-  // Once on, the CLI lists it too: shown once, in its own row
-  const ours = offered && claudio.on ? all.find((s) => s.name === CLAUDIO_SERVER && s.scope === 'dynamic') : undefined;
-  const list = ours ? all.filter((s) => s !== ours) : all;
+  const { claudio, ours, list } = panelRows(servers.data ?? { servers: [] });
   return (
     <>
-      {offered && <ClaudioRow chat={chat} state={claudio} server={ours ?? null} />}
+      {claudio && <ClaudioRow chat={chat} state={claudio} server={ours} />}
       {list.length === 0 ? (
         <p className="small muted">{t('composerMenu.noServers')}</p>
       ) : (
@@ -162,13 +175,16 @@ function ClaudioRow({ chat, state, server }: { chat: Chat; state: ChatClaudioMcp
         <div className="composer-server-body">
           <span className="composer-servers-claudio-name">{t('composerMenu.claudio')}</span>
           <span className="small muted">{t('composerMenu.claudioSummary')}</span>
-          {status && (
-            <span className="composer-server-meta small">
-              {server && server.tools.length > 0 && <span className="muted tnum">{t('composerMenu.tools', { count: server.tools.length })}</span>}
-              {status === 'pending' && <Spinner />}
-              <Tag tone={TONE[status]}>{t(`composerMenu.claudioStatus.${status}`)}</Tag>
-            </span>
-          )}
+          {/* Drawn while off too, empty: switching it on fills the line instead of pushing the list down */}
+          <span className="composer-server-meta composer-servers-claudio-status small" aria-hidden={status ? undefined : true}>
+            {status && (
+              <>
+                {server && server.tools.length > 0 && <span className="muted tnum">{t('composerMenu.tools', { count: server.tools.length })}</span>}
+                {status === 'pending' && <Spinner />}
+                <Tag tone={TONE[status]}>{t(`composerMenu.claudioStatus.${status}`)}</Tag>
+              </>
+            )}
+          </span>
           {reason && <span className="small muted">{t(`composerMenu.claudioUnavailable.${reason}`)}</span>}
           {refusal && (
             <span className="small composer-server-error">
