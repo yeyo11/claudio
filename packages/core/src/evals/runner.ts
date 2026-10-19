@@ -25,6 +25,7 @@ import {
   type RunEvent,
   type TranscriptEntry,
   type ToolPolicy,
+  withoutServerEnv,
 } from '@claudio/shared';
 import { agentsDefinitionFile } from '../agents-file.js';
 import type { ChatRuntime, NewChat, RunMeta, RunResult } from '../chats.js';
@@ -168,7 +169,8 @@ export interface EvalRunnerDeps {
  * credentials, which a sample itself never gets (`api: false`).
  */
 function commandEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const out = { ...env };
+  // Nor the server's own variables (its port, its data directory): a check may start a Claudio
+  const out = withoutServerEnv(env);
   for (const name of Object.keys(out)) if (/^CLAUDIO_(AUTH_|DESKTOP_TOKEN|API_|CHAT_ID|OIDC_)/.test(name)) delete out[name];
   return out;
 }

@@ -1,14 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { SquareTerminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
-import { api, keys, useProjects } from '../api';
+import { useProjects } from '../api';
 import { TerminalPanel } from '../components/terminal/TerminalPanel';
 import { baseName, requestFor, tabLabels } from '../components/terminal/terminal-model';
 import { terminalWindowPath, useWindowPresence } from '../components/terminal/terminal-window';
-import { useCloseTerminal, useOpenTerminal, useTerminalStatus } from '../components/terminal/use-terminals';
+import { useCloseTerminal, useOpenTerminal, useTerminalOne, useTerminalStatus } from '../components/terminal/use-terminals';
 import { Unavailable } from './Terminals';
 
 /**
@@ -21,13 +20,13 @@ export function TerminalWindow({ id }: { id: string }) {
   const navigate = useNavigate();
   const status = useTerminalStatus();
   const projects = useProjects();
-  const one = useQuery({ queryKey: keys.terminalOne(id), queryFn: ({ signal }) => api.terminal(id, { signal }) });
-  const terminal = one.data;
+  const one = useTerminalOne(id);
+  const { terminal } = one;
   const open = useOpenTerminal((next) => navigate(terminalWindowPath(next.id), { replace: true }));
   const close = useCloseTerminal();
   useWindowPresence(id);
 
-  const name = terminal ? (tabLabels([terminal], (projectId) => projects.data?.find((each) => each.id === projectId)?.name).get(terminal.id) ?? baseName(terminal.cwd)) : null;
+  const name = terminal ? (tabLabels([terminal], (projectId) => projects.data?.find((each) => each.id === projectId)?.name, t('new.workspace')).get(terminal.id) ?? baseName(terminal.cwd)) : null;
   // The window's title is what the window manager and the desktop app show
   useEffect(() => {
     document.title = `${t('page.windowTitle')} — ${name ?? ''}`.replace(/ — $/, '');
@@ -50,9 +49,16 @@ export function TerminalWindow({ id }: { id: string }) {
           terminal={terminal}
           compact={false}
           autoFocus
-          onEnded={() => void one.refetch()}
+          onEnded={(reason) => {
+            // Closed by a person elsewhere: the server forgot the id, so the window says so instead of asking for it
+            if (reason === 'closed') one.forget();
+            else void one.refetch();
+          }}
           onReopen={() => open.mutate(requestFor(terminal))}
-          onClose={() => close.mutate(terminal.id, { onSuccess: () => window.close() })}
+          onClose={() => {
+            one.forget();
+            close.mutate(terminal.id, { onSuccess: () => window.close(), onError: one.remember });
+          }}
         />
       )}
     </div>

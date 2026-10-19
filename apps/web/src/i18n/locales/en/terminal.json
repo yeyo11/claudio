@@ -23,11 +23,16 @@
     "pty-missing": "This install has no pseudo-terminal support, so no shell can be started.",
     "host-failed": "The terminal host failed repeatedly. Restart Claudio, or turn the terminal off and on again.",
     "read-only": "Claudio is in read-only mode, which does not allow a shell.",
-    "needs-auth": "From another device the terminal needs token authentication. Turn it on in Settings → Access & safety.",
-    "remote-off": "Other devices cannot open a terminal. Allow the tunnel in Settings → Access & safety.",
-    "needs-tunnel": "From another device the terminal opens only through the tunnel.",
+    "needs-auth": "The terminal needs access protected by a token.",
+    "remote-off": "The terminal is set to open on this machine only.",
+    "needs-tunnel": "From another device the terminal opens only through the tunnel. To allow any device, change it on this machine or through the tunnel.",
     "from-agent": "A terminal cannot be opened from a process an agent started.",
     "chat-token": "A chat's token cannot open a terminal."
+  },
+  "refusal": {
+    "protect": "Protect with a token",
+    "tunnel": "Open the tunnel",
+    "access": "Open Access & safety"
   },
   "limits": {
     "off": "A terminal opens only on this machine. Other devices cannot open one.",
@@ -75,7 +80,9 @@
   "new": {
     "button": "New terminal",
     "choose": "Choose where to open the terminal",
-    "checkout": "The project's checkout"
+    "checkout": "The project's checkout",
+    "workspace": "Workspace",
+    "inWorkspace": "New terminal in the workspace"
   },
   "tabs": {
     "label": "Open terminals",
@@ -140,7 +147,18 @@
     "where": "Directory",
     "how": "How it went",
     "running": "Running",
-    "refused": "{{count}} refused: {{reasons}}",
+    "refused_one": "{{count}} attempt refused: {{reasons}}",
+    "refused_other": "{{count}} attempts refused: {{reasons}}",
+    "refusedReason": {
+      "needs-auth": "no token",
+      "needs-tunnel": "not through the tunnel",
+      "remote-off": "other devices off",
+      "from-agent": "from an agent's process",
+      "chat-token": "a chat's token",
+      "bad-origin": "from another site",
+      "bad-ticket": "an expired or reused connection link",
+      "unknown": "another reason"
+    },
     "ended": {
       "exit": "The shell exited",
       "closed": "Closed by you",
@@ -159,8 +177,6 @@
     "item": "Terminal: {{count}} running",
     "hide": "Hide the terminal panel",
     "newIn": "Open a terminal in…",
-    "noProjects": "There is no project to open a terminal in.",
-    "empty": "No terminal is open. Use + to open one in a project.",
     "running": "running",
     "label": "Terminal"
   },

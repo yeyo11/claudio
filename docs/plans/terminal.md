@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T17:30:00Z
-updated_at: 2026-10-15T17:46:01Z
+updated_at: 2026-10-18T12:00:00Z
 tags:
     - plan
     - terminal
@@ -632,8 +632,12 @@ phone must not freeze the shell for the desktop window watching the same termina
   project's `ProjectWorktree` entries as Claudio lists them (`git worktree list`, the same source
   the project page uses).
 - `chatId` → the chat's `worktree.path` when it has one, else the chat's own `cwd`, and in both cases
-  the directory must be the chat's project path or one of its worktrees (a chat outside any project
-  gets no terminal: `400 terminal.no-project`).
+  the directory must be the chat's project path or one of its worktrees. ~~A chat outside any project
+  gets no terminal: `400 terminal.no-project`.~~ Since 2026-10-18 (owner): a chat outside any project
+  opens in its own directory, which must be inside the workspace; `terminal.no-project` is left for a
+  chat whose project is gone.
+- `{ workspace: true }` (2026-10-18) → `config.workspaceDir`, where chats outside any project run, so a
+  terminal can be opened before any project exists. Recorded with the scope `workspace`.
 - The result goes through `fs.realpathSync` and is compared with the realpath of the allowed roots,
   so a symlinked worktree cannot point the shell elsewhere; it must exist and be a directory.
 - What the person does with `cd` afterwards is theirs: this confines where Claudio **opens** a
@@ -828,13 +832,21 @@ attempt is written to the audit rows.
 
 - This closes the gap no credential can: under `mode: none`, an agent on the same machine that
   calls the API **without** a token looks exactly like the person's browser.
-- It runs only on the terminal routes and the upgrade, and the table of chat pids is cached for 1 s.
-  Finding the holder of an inode by scanning every `/proc/*/fd` costs 30–40 ms on a desktop (t0), so
-  the check scans only the fds of the chat processes and their descendants: if one of them holds the
-  client's socket, refuse. That is the same answer as the ancestor walk, at a fraction of the cost.
-  A peer seen as `::ffff:127.0.0.1` is an IPv4 socket, found in `/proc/net/tcp`, not `tcp6`.
+- It runs only on the terminal routes and the upgrade. It finds every holder of the client's inode
+  over the whole `/proc/*/fd` (20–55 ms on a desktop) and walks each holder's ancestry up to the
+  server's own pid, looking for `CLAUDIO_CHAT_ID` or `CLAUDIO_AGENT_RUN` in each environment. Both
+  tables are read whatever the address says; a peer seen as `::ffff:127.0.0.1` is an IPv4 socket,
+  found in `/proc/net/tcp`.
+- **Built differently at first, and it leaked.** The first version scanned only the descriptors of
+  the chats' trees, from a table of chat pids cached for 1 s, and answered "not in a tree" as "not an
+  agent". A process an agent started after that table was read (every `curl` from a Bash tool) was in
+  no tree: a reviewer got through once in six tries on 2026-10-18, and a burst of 50 new processes got
+  through about 45 times. Finding the holder itself costs about what rebuilding that table did, and
+  `not-agent` now means a holder was found and its whole ancestry walked.
 - "Holder not found" is `unknown`, not "not a chat": a client running as another user has an `fd`
-  directory the server cannot read.
+  directory the server cannot read, and a client that closed its socket before the check has no row.
+  A walk that cannot finish (an ancestor exited mid-walk, or is a zombie, whose environment reads
+  empty) is `unknown` too.
 - Behind Vite's dev proxy the peer is Vite's Node process: if a chat started the dev server, every
   request through it reads as an agent's and is refused. Correct, and worth a line in Settings.
 - Where `/proc` cannot be read (macOS dev, a hardened container), the check reports `unknown` and
@@ -1100,7 +1112,9 @@ frames; the route's description links to them.
 
 - **cwd:** a project id gives its path; a listed worktree is accepted; an unlisted path, `..`, a
   symlinked worktree pointing outside, a deleted directory and a chat outside any project are
-  refused.
+  refused. (2026-10-18: the workspace scope opens in the workspace; a chat outside any project opens
+  in its directory inside the workspace, and one outside it, or behind a symlink that leaves it, is
+  refused.)
 - **env:** no `CLAUDIO_*` survives; `ELECTRON_RUN_AS_NODE`, `ANTHROPIC_API_KEY`,
   `CLAUDE_CODE_OAUTH_TOKEN` and a fake vault's values are gone; `TERM`, `COLORTERM`,
   `TERM_PROGRAM` set; `CLAUDIO_CHAT_ID` never set.
@@ -1271,6 +1285,13 @@ in parallel; `t7`; `t8`; final full checks.
 - **Q6. Scope of the chat terminal.** A chat without a worktree gets a terminal in its project
   directory, the same one as the project terminal. Keep it, or offer the chat dock only for chats
   with their own worktree?
+  - **Answered 2026-10-18 (owner): the terminal opens without a project.** With no project created no
+    terminal could be opened at all. A third scope, the workspace (`{ workspace: true }`, resolved to
+    `config.workspaceDir` and confined to it like a project), does what a chat outside any project does:
+    it runs there. A chat outside any project opens in its own directory, confined to the workspace; a
+    chat in a project keeps the behaviour above. Every gate is unchanged and the sessions record the
+    scope `workspace`. The status bar's "+" and the phone's "New terminal" open in the workspace with
+    All projects. See [terminal.md](../terminal.md#where-a-shell-opens).
 - **Q7. Docker with auth off.** The terminal is unavailable there by design. Is that the expected
   behaviour, or should a deployment be able to declare its bridge address "local"? (The plan says
   no: that is what the token is for.)

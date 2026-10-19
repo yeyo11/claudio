@@ -240,11 +240,12 @@ export function HostRow({
             type="button"
             className={className}
             data-action={kind}
-            aria-pressed={open}
-            aria-label={tSetup('row.signInAria', { label: status.label })}
+            aria-expanded={open}
+            aria-label={open ? tSetup('row.closeSignInAria', { label: status.label }) : tSetup('row.signInAria', { label: status.label })}
             onClick={() => onSignIn(status.hosts.find((h) => h.signedIn === false)?.hostname ?? null)}
           >
-            {tSetup('row.signIn')}
+            {/* Open, the panel below carries its own Sign in: this one only closes it, and says so */}
+            {open ? tSetup('row.closeSignIn') : tSetup('row.signIn')}
           </button>
         ) : (
           link(LINKS[status.id].signIn, t('row.signIn'))

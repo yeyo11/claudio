@@ -1,7 +1,7 @@
 import type { AuthConfig, AuthMode, CodeHostId, CodeHostStatus, SetupState, TrackerStatus } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, ExternalLink, RefreshCw, Shield } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
@@ -62,44 +62,56 @@ export function SetupAssistant({ onFinish }: { onFinish: () => void }) {
   // The shell is not mounted yet, and the sign-ins move through the event feed
   useEventFeed();
   const [wizard, setWizard] = useState<WizardState>(START);
+  const body = useRef<HTMLElement>(null);
   const setup = useQuery({ queryKey: keys.setup, queryFn: ({ signal }) => api.setup({ signal }) });
   const at = SETUP_STEPS.indexOf(wizard.step) + 1;
   const name = t(`steps.${wizard.step}`);
 
   const go = (next: WizardState) => {
     setWizard(next);
-    window.scrollTo({ top: 0 });
+    body.current?.scrollTo({ top: 0 });
   };
 
   return (
     <div className="prov-first-page setup-page" data-setup-step={wizard.step}>
-      <main className="prov-first setup">
-        <div className="prov-first-brand">
-          <BrandMark size={26} />
-          <span className="prov-first-name">Claudio</span>
-          <span className="grow" />
-          <span className="section-label">{phone ? t('labelPhone', { n: at, total: SETUP_STEPS.length, name }) : t('label', { n: at, total: SETUP_STEPS.length })}</span>
-          {/* On a phone the header has room for the step's name only; Skip on each step gets there too */}
-          {wizard.step !== 'done' && !phone && (
-            <button type="button" className="btn prov-quiet btn-small" data-action="skip-all" onClick={onFinish}>
-              {t('skipAll')}
-            </button>
+      <header className="setup-head">
+        <div className="setup-track">
+          <div className="prov-first-brand">
+            <BrandMark size={26} />
+            <span className="prov-first-name">Claudio</span>
+            <span className="grow" />
+            <span className="section-label">{phone ? t('labelPhone', { n: at, total: SETUP_STEPS.length, name }) : t('label', { n: at, total: SETUP_STEPS.length })}</span>
+            {/* On a phone the header has room for the step's name only; Skip on each step gets there too */}
+            {wizard.step !== 'done' && !phone && (
+              <button type="button" className="btn prov-quiet btn-small" data-action="skip-all" onClick={onFinish}>
+                {t('skipAll')}
+              </button>
+            )}
+          </div>
+          <StepBar wizard={wizard} bare={phone} />
+        </div>
+      </header>
+      {/* The only part that scrolls: the head and the foot stay where they are */}
+      <main className="setup setup-body" ref={body}>
+        <div className="setup-track setup-grid">
+          {!setup.data ? (
+            setup.error ? <ErrorBox error={setup.error} /> : <Skeleton rows={4} />
+          ) : wizard.step === 'access' ? (
+            <AccessStep setup={setup.data} phone={phone} />
+          ) : wizard.step === 'agents' ? (
+            <AgentsStep phone={phone} />
+          ) : wizard.step === 'code' ? (
+            <CodeStep phone={phone} />
+          ) : (
+            <DoneStep setup={setup.data} skipped={wizard.skipped} phone={phone} onLeave={onFinish} />
           )}
         </div>
-        <StepBar wizard={wizard} bare={phone} />
-        {!setup.data ? (
-          setup.error ? <ErrorBox error={setup.error} /> : <Skeleton rows={4} />
-        ) : wizard.step === 'access' ? (
-          <AccessStep setup={setup.data} phone={phone} />
-        ) : wizard.step === 'agents' ? (
-          <AgentsStep phone={phone} />
-        ) : wizard.step === 'code' ? (
-          <CodeStep phone={phone} />
-        ) : (
-          <DoneStep setup={setup.data} skipped={wizard.skipped} phone={phone} onLeave={onFinish} />
-        )}
-        <Foot wizard={wizard} phone={phone} onBack={() => go(retreat(wizard))} onSkip={() => go(advance(wizard, true))} onContinue={() => go(advance(wizard))} onFinish={onFinish} />
       </main>
+      <footer className="setup-foot-bar">
+        <div className="setup-track">
+          <Foot wizard={wizard} phone={phone} onBack={() => go(retreat(wizard))} onSkip={() => go(advance(wizard, true))} onContinue={() => go(advance(wizard))} onFinish={onFinish} />
+        </div>
+      </footer>
     </div>
   );
 }
@@ -208,11 +220,33 @@ function Foot({
   );
 }
 
+/** The step's title and explanation: the left column on a wide screen. On a short one the text clamps to three lines, with More. */
 function Intro({ title, text }: { title: string; text: string }) {
+  const { t } = useTranslation('setup');
+  const [open, setOpen] = useState(false);
+  // More is offered only when the clamp really cuts the text: a three-line text has nothing to expand
+  const paragraph = useRef<HTMLParagraphElement>(null);
+  const [cut, setCut] = useState(false);
+  useEffect(() => {
+    const measure = () => {
+      const el = paragraph.current;
+      if (el && !open) setCut(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open, text]);
   return (
-    <div className="prov-first-intro">
+    <div className="prov-first-intro setup-aside">
       <h1 className="text-display">{title}</h1>
-      <p>{text}</p>
+      <p ref={paragraph} className={open ? 'setup-aside-text is-open' : 'setup-aside-text'}>
+        {text}
+      </p>
+      {(cut || open) && (
+        <button type="button" className="btn prov-quiet btn-small setup-aside-more" aria-expanded={open} onClick={() => setOpen((now) => !now)}>
+          {open ? t('intro.less') : t('intro.more')}
+        </button>
+      )}
     </div>
   );
 }
@@ -297,6 +331,7 @@ function AccessCard({ auth }: { auth: AuthConfig }) {
             options={SETUP_MODES.map((value) => ({ value, label: t(`config:security.access.modes.${value}.label`) }))}
           />
           <p className="small muted">{t('setup:access.body')}</p>
+          {auth.mode === 'token' && auth.firstRunToken && <p className="small muted">{t('setup:access.firstRun')}</p>}
           {auth.readOnly && <p className="small muted">{t('setup:access.readOnly')}</p>}
           <RevealedToken boxed body={t('setup:access.shownOnceBody')} />
           {!auth.readOnly && (
@@ -524,7 +559,7 @@ function DoneStep({ setup, skipped, phone, onLeave }: { setup: SetupState; skipp
 
   return (
     <>
-      <div className={phone ? 'setup-done-head phone' : 'setup-done-head'}>
+      <div className={phone ? 'setup-done-head setup-aside phone' : 'setup-done-head setup-aside'}>
         <Illustration name="welcome" size={phone ? 'sm' : 'md'} />
         <div className="prov-first-intro">
           <h1 className="text-display">{t('setup:done.title')}</h1>

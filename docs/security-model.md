@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - security
     - secrets
@@ -22,6 +22,21 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
   none yet). See [securing.md](securing.md). The setup assistant's Access
   step sets the same thing, and turning Token on makes a token first when the browser holds none, so
   it cannot lock the person out ([setup.md](setup.md#the-web)).
+- **The first-run owner token.** A container started with no auth variable makes an owner token on
+  its first start and turns token authentication on; it is printed once and kept in
+  `/data/first-run-token` (0600) until first used, and the audit log records its generation and first
+  use. A 0.6.x container saved as `none` is migrated once; `CLAUDIO_AUTH_MODE=none` or choosing None
+  in Settings is respected ([deploy.md](deploy.md#the-first-run-token),
+  [decisions/container-owner-token.md](decisions/container-owner-token.md)).
+- **The host claim.** `POST /security/allowed-hosts/claim` is the one route the host check lets
+  through. It needs an owner credential (refused under `none`, to the desktop and to a chat), its
+  wrong tokens count in the sign-in back-off, and a DNS-rebinding page cannot hold the bearer token.
+- **Owner-only routes.** `isOwnerActor` (a `token:*` or OIDC actor) guards the claim, the in-app
+  server update and the CLI install. `CHAT_FORBIDDEN_SYSTEM` lists them for a chat's token; read-only
+  refuses them with `405` ([updates.md](updates.md#who-may-update)).
+- **`/app` is root-owned in the image**, so an agent running as `node` in `bypassPermissions` can no
+  longer rewrite the server it runs under. Updates live in `/data/app` and are re-verified at every
+  boot by a root-owned launcher against root-owned public keys ([updates.md](updates.md#how-it-is-trusted)).
 - **Read-only mode** (`CLAUDIO_READ_ONLY`) refuses every write, the setup's included (405).
 - **A chat's own token.** A chat Claudio starts gets its own `CLAUDIO_API_TOKEN`
   ([chat-environment.md](chat-environment.md)); it may not change the security settings, open the
@@ -91,6 +106,53 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
   probe, not by reading the output.
 - **Masked where text leaves the machine.** Every vault value joins Claudio's own secrets
   (`recognizeSecrets`, `packages/core/src/decisions/redact.ts`), masked in a decision's state whatever text surrounds them.
+
+## What a child process inherits
+
+Everything Claudio starts for an agent or a person (a chat's or a worker's Claude Code, the flow,
+the assistant, a decision's `cli` run, one-shot runs, the hooks and MCP servers those start, the
+setup and sign-in CLIs, the host CLIs, a verification or eval command, the terminal's shell) gets
+none of the server's own configuration. `withoutServerEnv` (`packages/shared/src/server-env.ts`) is
+the one rule, applied by `childEnv`, by the accounts' `envFor`, by `runCommand` and by the evals'
+`commandEnv`:
+
+- `PORT` and `HOST` are dropped;
+- `CLAUDIO_*` is an **allow-list**, not a deny-list: only `CLAUDIO_API_URL`, `CLAUDIO_API_TOKEN` and
+  `CLAUDIO_CHAT_ID` pass (a chat's are set by `spawnProcess` anyway), plus the `CLAUDIO_FAKE_CLI_*`
+  switches of the browser suite's fake Claude Code. A variable the server adds tomorrow is dropped
+  without anyone remembering to;
+- the terminal is stricter: its shell gets no `CLAUDIO_*` at all (`terminals/env.ts`).
+
+Why: on 2026-10-18 a worker ran `pnpm dev` in its worktree, and the dev server read the desktop's
+`CLAUDIO_DATA_DIR` and `PORT` from the worker's environment. It opened the owner's live data
+directory, and before it failed to bind the port it took the desktop's tunnel record for a leftover,
+ran `tailscale serve --https=8444 off` and closed the owner's tunnel. The exact list a chat gets is
+in [chat-environment.md](chat-environment.md#what-a-child-gets-and-what-it-never-gets).
+
+## One server per data directory
+
+A server takes an exclusive lock on its data directory before anything reads or writes it: before
+the stores open, the migrations run or the tunnel reconciles (`acquireDataDirLock`,
+`packages/core/src/data-dir-lock.ts`, called first in `startServer`, which the dev server, the
+container's API and the desktop's server child all go through). A second server on the same
+directory prints which directory and which pid hold it, and exits with code 73 having touched
+nothing. The launcher (the container's, the desktop's) reads that code as "not the payload's fault":
+a trial that ends with it is neither failed nor restarted.
+
+- **How.** Node 22 has no advisory file lock without a native module, so the lock is
+  `<data>/server.lock`, created with O_EXCL (`wx`), naming its holder: a random id, the pid, the
+  hostname, the process's start time from `/proc/<pid>/stat` and the boot id. It is removed on
+  every way out but a crash.
+- **Stale locks.** A crash leaves the file behind; it is stale when that pid is gone, when the pid now
+  belongs to a process that started later (a reused pid), when it was written before the last boot,
+  or when it was written on another host (a container recreated on the same volume gets a new
+  hostname, and refusing would keep it from ever starting again). A stale lock is removed under a
+  second O_EXCL file (`server.lock.takeover`), and only if it is still the one judged stale, so two
+  servers starting at once on a crashed one's directory cannot both win.
+- **The tunnel trusts it.** The tunnel's record carries the lock's id. At start only a record written
+  under a previous holder's lock is reconciled; one from before the lock existed is left alone while
+  something answers at its target. And a server only ever takes away the rule it added itself
+  ([tunnel.md](tunnel.md#only-what-claudio-added)).
 
 ## What the vendors' CLIs keep in plain text
 
@@ -207,12 +269,15 @@ The terminal is a shell on the machine that runs Claudio, so it is the most priv
 server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-security); the rules:
 
 - off until the owner turns it on; with authentication off it opens only from loopback, and off this
-  machine only through the tunnel with a token (or any device with a token, if the owner allows it);
-- a chat's token, the desktop secret and any process a chat started are refused, the last by looking
-  up the connection's owner in `/proc`; when that cannot be told, it fails closed under `none`. Known
-  limit, accepted by the owner (2026-10-15): with authentication off, an agent that has a shell can
-  detach from its chat's process tree and reach the terminal; with token or OIDC authentication it
-  cannot. Settings warns about it beside the switch;
+  machine only through the tunnel with a token (or any device with a token, if the owner allows it,
+  which is the default in a container, where no request is ever from loopback: the owner token
+  already starts chats that run any command, so the terminal adds nothing to it);
+- a chat's token, the desktop secret and any process a chat started are refused, the last by finding
+  the processes that hold the connection's socket in `/proc` and walking their ancestry for a chat's
+  mark; "not an agent" is said only of a holder found and walked to the end, and anything else fails
+  closed under `none`. Known limit, accepted by the owner (2026-10-15): with authentication off, an
+  agent that has a shell can detach from its chat's process tree, drop the chat's variable and reach
+  the terminal; with token or OIDC authentication it cannot. Settings warns about it beside the switch;
 - the socket opens with a one-use ticket (30 s, bound to the terminal and the `Origin`), and the
   `Origin` and `Host` are checked before the upgrade;
 - **Forwarded requests.** `X-Forwarded-*` is whatever its sender wrote, so it is believed from one
@@ -225,7 +290,13 @@ server offers. The full model is [plans/terminal.md §3](plans/terminal.md#3-sec
   forwarding is believed, the ticket and the socket compare the `Origin` with the forwarded
   authority (the page's), not with the `Host` the proxy rewrote; otherwise with the `Host`, as in
   production, where the API serves the page itself and nothing changes;
-- the shell gets the vault's tool credentials but no `CLAUDIO_*` variable and none of Claude's own;
+- **where it opens is confined.** The client sends ids, never a path, and the directory is resolved
+  through symlinks and must be inside its root: the project's directory or one of its listed
+  worktrees, or the configured workspace (`config.workspaceDir`) for a terminal with no project and
+  for a chat outside any project, whose own directory must be inside the workspace. What the person
+  does with `cd` afterwards is theirs;
+- the shell gets the vault's tool credentials but no `CLAUDIO_*` variable, no `PORT` or `HOST`, and
+  none of Claude's own;
 - sessions and attachments (including refusals) are audited, never their content.
 
 See [terminal.md](terminal.md).
@@ -358,9 +429,12 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 - A key beside the data does not protect the volume; only a key passed in the environment does.
 - Nothing about a copy is enforced on a teammate's machine: a removed member keeps what they already
   received ([Collaborators](#collaborators)).
-- A kept token is not validated for free, so a revoked one reads `ready` until a run fails on it.
+- A login or an OAuth token is not refused for free: the CLI's `get_usage` answers the same for a bad
+  token, a bad key and a network that is down, so a revoked one reads `ready` (an environment token
+  reads **Not confirmed**) until a run fails on it or the person presses **Send a test message**. An
+  API key is the exception: `models.list` refuses it for free ([accounts.md](accounts.md#checking-a-credential)).
 
 ## Related
 
-[[guards.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
 [[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]]

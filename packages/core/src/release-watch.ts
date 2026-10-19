@@ -7,20 +7,40 @@ import { VERSION, VersionCheck, compareVersions, type VersionCheckOptions } from
 const RELEASES_URL = 'https://api.github.com/repos/yeyo11/claudio/releases/latest';
 const DISTRIBUTIONS: readonly ClaudioDistribution[] = ['docker', 'appimage', 'deb'];
 
+/** A file attached to a release: the server bundle, its manifest and signature among them */
+export interface ReleaseAsset {
+  name: string;
+  url: string;
+}
+
 interface Stored {
   latest: string | null;
   publishedAt: string | null;
   url: string | null;
   checkedAt: string | null;
+  /** What the release attaches, for an in-app update to find its bundle; a mirror must serve the same shape */
+  assets: ReleaseAsset[];
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+
+function assetsOf(value: unknown): ReleaseAsset[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((asset: unknown) => {
+    if (!asset || typeof asset !== 'object') return [];
+    const { name, url, browser_download_url: download } = asset as Record<string, unknown>;
+    const href = text(download) ?? text(url);
+    return typeof name === 'string' && href ? [{ name, url: href }] : [];
+  });
+}
 
 export interface ReleaseWatchOptions extends VersionCheckOptions {
   /** The version this server runs */
   current: string;
   /** Where `system.release` goes when a check finds a newer release */
   events?: EventBus;
+  /** After every successful check, the daily one included: the in-app update judges the release it found */
+  onChecked?: () => void;
 }
 
 /**
@@ -31,6 +51,7 @@ export interface ReleaseWatchOptions extends VersionCheckOptions {
 export class ReleaseWatch extends VersionCheck<Stored> {
   private readonly current: string;
   private readonly events: EventBus | undefined;
+  private readonly onChecked: (() => void) | undefined;
   /** Seeded with what the file holds, so a restart does not announce the same release again */
   private announced: string | null;
 
@@ -40,18 +61,20 @@ export class ReleaseWatch extends VersionCheck<Stored> {
       {
         file: 'release.json',
         offSwitch: 'CLAUDIO_UPDATE_CHECK',
-        empty: { latest: null, publishedAt: null, url: null, checkedAt: null },
+        empty: { latest: null, publishedAt: null, url: null, checkedAt: null, assets: [] },
         parse: (saved) => ({
           latest: text(saved.latest),
           publishedAt: text(saved.publishedAt),
           url: text(saved.url),
           checkedAt: text(saved.checkedAt),
+          assets: assetsOf(saved.assets),
         }),
       },
       options,
     );
     this.current = options.current;
     this.events = options.events;
+    this.onChecked = options.onChecked;
     this.announced = this.stored.latest;
   }
 
@@ -75,6 +98,12 @@ export class ReleaseWatch extends VersionCheck<Stored> {
     };
   }
 
+  /** The newest release and what it attaches, as the last check left them. Never touches the network. */
+  latestRelease(): { version: string; assets: ReleaseAsset[] } | null {
+    const { latest, assets } = this.stored;
+    return latest === null ? null : { version: latest, assets };
+  }
+
   protected async fetchLatest(): Promise<Stored> {
     const url = this.env.CLAUDIO_RELEASES_URL || RELEASES_URL;
     const res = await this.fetchFn(url, {
@@ -83,10 +112,10 @@ export class ReleaseWatch extends VersionCheck<Stored> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-    const body = (await res.json()) as { tag_name?: unknown; html_url?: unknown; published_at?: unknown };
+    const body = (await res.json()) as { tag_name?: unknown; html_url?: unknown; published_at?: unknown; assets?: unknown };
     const version = typeof body.tag_name === 'string' ? body.tag_name.replace(/^v/, '') : '';
     if (!VERSION.test(version)) throw new Error('the release has no version tag');
-    return { latest: version, publishedAt: text(body.published_at), url: text(body.html_url), checkedAt: this.checkedAtIso };
+    return { latest: version, publishedAt: text(body.published_at), url: text(body.html_url), checkedAt: this.checkedAtIso, assets: assetsOf(body.assets) };
   }
 
   protected failure(reason: string): string {
@@ -94,6 +123,7 @@ export class ReleaseWatch extends VersionCheck<Stored> {
   }
 
   protected afterCheck(): void {
+    this.onChecked?.();
     const release = this.info();
     const { latest } = release;
     if (latest === null || !release.updateAvailable) return;

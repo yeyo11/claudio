@@ -1,5 +1,6 @@
 import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { connect } from 'node:net';
 import { join } from 'node:path';
 import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
@@ -41,6 +42,10 @@ export interface TunnelTiming {
   probeTtlMs: number;
   /** Readings in a row that find Tailscale down or the rule gone before an active tunnel gives up */
   maxMisses: number;
+  /** The longest wait between two readings while the CLI does not answer (the wait doubles from `monitorMs`) */
+  maxBackoffMs: number;
+  /** How long an active tunnel may go on getting no answer before the status says Tailscale is not answering */
+  stalledAfterMs: number;
 }
 
 const DEFAULT_TIMING: TunnelTiming = {
@@ -48,6 +53,8 @@ const DEFAULT_TIMING: TunnelTiming = {
   commandTimeoutMs: 10_000,
   probeTtlMs: 2_000,
   maxMisses: 2,
+  maxBackoffMs: 300_000,
+  stalledAfterMs: 600_000,
 };
 
 export interface TunnelDeps {
@@ -99,6 +106,8 @@ const REASONS = {
   loggedOut: () => reason('tunnel.tailscaleLoggedOut', 'This machine is not signed in to a tailnet. Run tailscale up in a terminal, then try again.'),
   notConnected: (state: string) =>
     reason('tunnel.tailscaleNotConnected', `Tailscale is not connected on this machine (${state}). Run tailscale up in a terminal, then try again.`, { state }),
+  // Shown on an active tunnel whose rule is still in place: only the answers are missing
+  notAnswering: () => reason('tunnel.tailscaleNotAnswering', 'Tailscale is not answering. The tunnel keeps its rule and checks again.'),
   magicDnsOff: () => reason('tunnel.magicDnsOff', 'MagicDNS is off for this tailnet. Turn it on in the DNS page of the Tailscale admin console, then try again.'),
   httpsOff: () => reason('tunnel.httpsOff', 'HTTPS certificates are off for this tailnet. Turn them on in the DNS page of the Tailscale admin console, then try again.'),
   permission: () =>
@@ -121,6 +130,8 @@ interface CliResult {
   ok: boolean;
   /** The CLI could not be run at all */
   missing: boolean;
+  /** The call timed out or could not be spawned: no answer, which says nothing about Tailscale itself */
+  unanswered: boolean;
   stdout: string;
   stderr: string;
 }
@@ -129,11 +140,14 @@ function runCli(bin: string, args: string[], timeoutMs: number): Promise<CliResu
   return new Promise((resolve) => {
     execFile(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
       if (!error) {
-        resolve({ ok: true, missing: false, stdout, stderr });
+        resolve({ ok: true, missing: false, unanswered: false, stdout, stderr });
         return;
       }
       const code = (error as NodeJS.ErrnoException).code;
-      resolve({ ok: false, missing: code === 'ENOENT' || code === 'EACCES', stdout, stderr: stderr || error.message });
+      const missing = code === 'ENOENT' || code === 'EACCES';
+      // `execFile` kills a call that outlives its timeout; a string code is a spawn failure, a number is the CLI's own exit status
+      const unanswered = !missing && (error.killed === true || typeof code === 'string');
+      resolve({ ok: false, missing, unanswered, stdout, stderr: stderr || error.message });
     });
   });
 }
@@ -208,6 +222,34 @@ interface ServeRecord {
   port: number;
   host: string;
   target: string;
+  /**
+   * The data directory's lock (`data-dir-lock.ts`) the server that wrote it held. A server that
+   * holds the lock now knows that one is gone. A record without it was written before the lock
+   * existed, perhaps by a Claudio that still runs.
+   */
+  lock?: string;
+}
+
+const sameRule = (a: ServeRecord, b: ServeRecord): boolean => a.port === b.port && a.host === b.host && a.target === b.target && a.lock === b.lock;
+
+/** Whether something accepts connections at `target` (`http://host:port`): a live server behind a rule */
+function targetAnswers(target: string, timeoutMs = 1_000): Promise<boolean> {
+  let url: URL;
+  try {
+    url = new URL(target);
+  } catch {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const socket = connect({ host: url.hostname.replace(/^\[|\]$/g, ''), port: Number(url.port || 80) });
+    const done = (answers: boolean) => {
+      socket.destroy();
+      resolve(answers);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
 }
 
 const DEFAULT_SETTINGS: TunnelSettings = { startWithClaudio: false };
@@ -227,7 +269,10 @@ const versionAtLeast = (version: [number, number, number], min: readonly [number
  * background Serve rule in the node's own config, beyond Claudio's life, so the rule is recorded in
  * `<dataDir>/tunnel/serve-rule.json` before it is added, removed on stop and on shutdown, and a
  * rule a crash left behind is reconciled away when Claudio starts again. Removal only ever touches
- * a port that still holds exactly the rule Claudio added.
+ * a port that still holds exactly the rule Claudio added, and only the rule this process added, or
+ * one a previous holder of the data directory's lock left: a record is not proof that its writer
+ * is gone (on 2026-10-18 a second server on the desktop's data directory took the desktop's live
+ * rule for a leftover and closed its tunnel).
  */
 export class TunnelManager {
   private readonly dir: string;
@@ -240,11 +285,15 @@ export class TunnelManager {
   private reason: Localized | null = null;
   private tailscale: TailscaleReadiness = UNPROBED;
   private probedAt = 0;
-  private probing: Promise<TailscaleReadiness> | null = null;
+  private probing: Promise<TailscaleReadiness | null> | null = null;
   /** The host lent to the guard: set only while `active` */
   private lent: string | null = null;
   private since: string | null = null;
   private target: { host: string; port: number } | null = null;
+  /** The data directory's lock this server holds, written into the record */
+  private lockId: string | null = null;
+  /** The rule this process added and has not taken away: the only one stop, give-up and shutdown remove */
+  private rule: ServeRecord | null = null;
   /** Whether the person wants the tunnel open */
   private wanted = false;
   /** Aborted whenever the tunnel stops or gives up, so a call still in flight changes nothing after it */
@@ -254,8 +303,16 @@ export class TunnelManager {
   /** A leftover rule being taken away; a start waits for it, so it never removes the new one */
   private cleaning: Promise<void> = Promise.resolve();
   private monitor: NodeJS.Timeout | null = null;
-  private checking = false;
+  /** A monitor reading is in flight */
+  private monitoring = false;
   private misses = 0;
+  /** Since when the monitor has had no answer from the CLI; null while it answers */
+  private unknownSince: number | null = null;
+  /** Readings in a row without an answer, for the back-off */
+  private unknowns = 0;
+  /** The tunnel failed because Tailscale was down or signed out after the person opened it: it opens again when Tailscale is ready */
+  private recovering = false;
+  private recoveryTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly deps: TunnelDeps) {
     this.dir = join(deps.dataDir, 'tunnel');
@@ -272,13 +329,24 @@ export class TunnelManager {
       state: this.state,
       url: active && this.lent ? this.urlOf(this.lent) : null,
       since: active ? this.since : null,
-      reason: this.state === 'failed' ? this.reason : null,
+      reason: this.state === 'failed' ? this.reason : this.stalled ? REASONS.notAnswering() : null,
+      checking: this.checking,
       enabled: this.enabled,
       managed: this.deps.managed ?? false,
       tailscale: { ...this.tailscale },
       port: this.port,
       settings: { ...this.settings },
     };
+  }
+
+  /** An active tunnel whose last readings got no answer: its rule and host stay, the tab says "Checking…" */
+  private get checking(): boolean {
+    return this.state === 'active' && this.unknownSince !== null;
+  }
+
+  /** Nothing but unknowns for longer than `stalledAfterMs` */
+  private get stalled(): boolean {
+    return this.checking && this.unknownSince !== null && Date.now() - this.unknownSince >= this.timing.stalledAfterMs;
   }
 
   private get enabled(): boolean {
@@ -304,9 +372,11 @@ export class TunnelManager {
     return this.status();
   }
 
-  private probe(): Promise<TailscaleReadiness> {
+  /** Null when the CLI gave no answer (a timeout or a spawn failure): the last reading stands. */
+  private probe(): Promise<TailscaleReadiness | null> {
     this.probing ??= this.readReadiness()
       .then((readiness) => {
+        if (!readiness) return null;
         this.tailscale = readiness;
         this.probedAt = Date.now();
         return readiness;
@@ -317,14 +387,16 @@ export class TunnelManager {
     return this.probing;
   }
 
-  private async readReadiness(): Promise<TailscaleReadiness> {
+  private async readReadiness(): Promise<TailscaleReadiness | null> {
     const version = await this.cli(['version']);
+    if (version.unanswered) return null;
     if (version.missing || !version.ok) return { state: 'missing', version: null, host: null, reason: REASONS.missing() };
     const text = firstLine(version.stdout);
     const parsed = parseTailscaleVersion(text);
     if (!parsed || !versionAtLeast(parsed, MIN_TAILSCALE_VERSION)) return { state: 'unsupported', version: text || null, host: null, reason: REASONS.unsupported(text || 'unknown') };
     const shown = parsed.join('.');
     const status = await this.cli(['status', '--json']);
+    if (status.unanswered) return null;
     // `--json` prints the state even when the node is stopped; only a daemon that does not answer leaves no JSON
     let json: StatusJson | null = null;
     try {
@@ -343,11 +415,12 @@ export class TunnelManager {
   /**
    * Where the tunnel forwards to: the port the server actually bound to, which is not always the
    * one it asked for. Takes away a rule a crash left behind, then opens the tunnel when "start with
-   * Claudio" is on.
+   * Claudio" is on. `lock` is the id of the data directory's lock the server holds.
    */
-  attach(port: number, host = '127.0.0.1'): void {
+  attach(port: number, host = '127.0.0.1', lock: string | null = null): void {
     this.target = { host, port };
-    if (existsSync(this.recordFile)) this.cleaning = this.removeRule().catch(() => undefined);
+    this.lockId = lock;
+    if (existsSync(this.recordFile)) this.cleaning = this.reconcile().catch(() => undefined);
     // A setting saved before the operator turned the tunnel off is not a reason to open it
     if (!this.settings.startWithClaudio || !this.enabled) return;
     this.start('claudio').catch((error: unknown) => {
@@ -361,7 +434,7 @@ export class TunnelManager {
    * owns the machine" into "whoever on the tailnet has the URL does". Refused as well where the
    * deploy does not offer it. A Tailscale that is not ready is a state, not an error.
    */
-  async start(actor: 'request' | 'claudio' = 'request'): Promise<TunnelStatus> {
+  async start(actor: 'request' | 'claudio' | 'recovery' = 'request'): Promise<TunnelStatus> {
     if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());
@@ -369,14 +442,22 @@ export class TunnelManager {
     await this.cleaning;
     if (this.wanted) return this.status();
     const readiness = await this.probe();
+    if (!readiness) {
+      this.fail(REASONS.notAnswering());
+      return this.status();
+    }
     if (readiness.state !== 'ready' || !readiness.host) {
       this.fail(readiness.reason ?? REASONS.missing());
       return this.status();
     }
+    this.cancelRecovery();
     this.wanted = true;
     this.misses = 0;
     this.run = new AbortController();
-    if (actor !== 'request') this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary: 'Start the tunnel with Claudio' });
+    if (actor !== 'request') {
+      const summary = actor === 'recovery' ? 'Start the tunnel again: Tailscale is ready' : 'Start the tunnel with Claudio';
+      this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary });
+    }
     this.set('starting');
     const run = this.run;
     this.opening = this.open(readiness.host, run).finally(() => {
@@ -387,6 +468,8 @@ export class TunnelManager {
 
   /** Closes the tunnel: its host leaves the allowlist first, then Claudio's Serve rule goes. */
   async stop(why: 'request' | 'unguarded' = 'request'): Promise<TunnelStatus> {
+    // A tunnel the person stopped never restarts
+    this.cancelRecovery();
     if (!this.wanted && !this.opening && !this.stopping) {
       if (this.state === 'failed') this.set('stopped');
       return this.status();
@@ -399,7 +482,7 @@ export class TunnelManager {
       this.withdraw();
       this.set('stopping');
       await this.opening;
-      await this.removeRule();
+      await this.removeOwnRule();
       this.set('stopped');
     })().finally(() => {
       this.stopping = null;
@@ -433,10 +516,13 @@ export class TunnelManager {
    */
   shutdown(): void {
     this.wanted = false;
+    this.cancelRecovery();
     this.run.abort();
     this.stopMonitor();
     this.withdraw();
-    const record = this.readRecord();
+    // Only the rule this process added: a server that never opened the tunnel (one that failed to
+    // bind its port, say) has nothing to take away, whatever the record says
+    const record = this.rule;
     if (!record) return;
     const run = (args: string[]) => spawnSync(this.deps.tailscaleBin, args, { encoding: 'utf8', timeout: this.timing.commandTimeoutMs });
     try {
@@ -447,7 +533,8 @@ export class TunnelManager {
         const off = run(['serve', '--yes', `--https=${record.port}`, 'off']);
         if (off.status !== 0 && !/handler does not exist/i.test(off.stderr)) return;
       }
-      rmSync(this.recordFile, { force: true });
+      this.rule = null;
+      this.dropRecord(record);
     } catch {
       // The record stays: the next start takes the rule away
     }
@@ -468,7 +555,9 @@ export class TunnelManager {
   private readRecord(): ServeRecord | null {
     try {
       const raw = JSON.parse(readFileSync(this.recordFile, 'utf8')) as Partial<ServeRecord>;
-      if (typeof raw.port === 'number' && typeof raw.host === 'string' && typeof raw.target === 'string') return { port: raw.port, host: raw.host, target: raw.target };
+      if (typeof raw.port === 'number' && typeof raw.host === 'string' && typeof raw.target === 'string') {
+        return { port: raw.port, host: raw.host, target: raw.target, ...(typeof raw.lock === 'string' ? { lock: raw.lock } : {}) };
+      }
     } catch {
       // No record, or one nobody can read: nothing is known to be Claudio's
     }
@@ -478,6 +567,12 @@ export class TunnelManager {
   private writeRecord(record: ServeRecord): void {
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
     writeFileSync(this.recordFile, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  }
+
+  /** Removes the record, if it still describes `rule`: one another server wrote since is not this one's to drop */
+  private dropRecord(rule: ServeRecord): void {
+    const onDisk = this.readRecord();
+    if (!onDisk || sameRule(onDisk, rule)) rmSync(this.recordFile, { force: true });
   }
 
   private async serveConfig(): Promise<ServeConfigJson | null> {
@@ -508,7 +603,9 @@ export class TunnelManager {
     if (!live()) return;
     if (!before) return this.giveUp(REASONS.daemonDown());
     if (servePortUse(before, this.port, host, target) !== 'free') return this.giveUp(REASONS.portTaken(this.port));
-    this.writeRecord({ port: this.port, host, target });
+    const rule: ServeRecord = { port: this.port, host, target, ...(this.lockId ? { lock: this.lockId } : {}) };
+    this.rule = rule;
+    this.writeRecord(rule);
     const added = await this.cli(['serve', '--bg', '--yes', `--https=${this.port}`, target]);
     if (!added.ok) {
       const detail = firstLine(added.stderr);
@@ -536,23 +633,43 @@ export class TunnelManager {
   }
 
   /**
-   * Takes Claudio's rule away, if the port still holds exactly it. A port that is free, or that
-   * someone else took over, is not Claudio's any more: the record goes and nothing is touched. When
-   * Tailscale cannot be asked, the record stays for the next try.
+   * At start, the record a previous run left. One written under this data directory's lock is a
+   * previous holder's, and the lock this server holds says that holder is gone: its rule is taken
+   * away. One written before the lock existed may be a Claudio's that still runs on this directory:
+   * its rule is left alone while something answers at its target, which a crashed server does not.
    */
-  private async removeRule(): Promise<void> {
+  private async reconcile(): Promise<void> {
     const record = this.readRecord();
     if (!record) {
       rmSync(this.recordFile, { force: true });
       return;
     }
+    const own = this.targetUrl();
+    if (!record.lock && record.target !== own && (await targetAnswers(record.target))) return;
+    await this.removeRecorded(record);
+  }
+
+  /** Takes away the rule this process added, if any */
+  private async removeOwnRule(): Promise<void> {
+    const rule = this.rule;
+    if (!rule) return;
+    if (await this.removeRecorded(rule)) this.rule = null;
+  }
+
+  /**
+   * Takes `record`'s rule away, if the port still holds exactly it. A port that is free, or that
+   * someone else took over, is not Claudio's any more: the record goes and nothing is touched. When
+   * Tailscale cannot be asked, the record stays for the next try. True once the rule is gone.
+   */
+  private async removeRecorded(record: ServeRecord): Promise<boolean> {
     const config = await this.serveConfig();
-    if (!config) return;
+    if (!config) return false;
     if (servePortUse(config, record.port, record.host, record.target) === 'match') {
       const off = await this.cli(['serve', '--yes', `--https=${record.port}`, 'off']);
-      if (!off.ok && !/handler does not exist/i.test(off.stderr)) return;
+      if (!off.ok && !/handler does not exist/i.test(off.stderr)) return false;
     }
-    rmSync(this.recordFile, { force: true });
+    this.dropRecord(record);
+    return true;
   }
 
   /**
@@ -562,58 +679,150 @@ export class TunnelManager {
    */
   private startMonitor(run: AbortController): void {
     this.stopMonitor();
-    this.monitor = setInterval(() => void this.check(run), this.timing.monitorMs);
+    this.scheduleCheck(run, this.timing.monitorMs);
+  }
+
+  private scheduleCheck(run: AbortController, delayMs: number): void {
+    this.monitor = setTimeout(() => void this.check(run), delayMs);
     this.monitor.unref();
   }
 
   private stopMonitor(): void {
-    if (this.monitor) clearInterval(this.monitor);
+    if (this.monitor) clearTimeout(this.monitor);
     this.monitor = null;
+    this.unknownSince = null;
+    this.unknowns = 0;
   }
 
+  /**
+   * One reading. A reading the CLI did not answer (a busy machine, a spawn failure) is unknown, not
+   * down: the tunnel stays active, says it is checking, and tries again later and later. Only an
+   * answer closes it.
+   */
   private async check(run: AbortController): Promise<void> {
-    if (this.checking) return;
-    this.checking = true;
+    if (this.monitoring || run.signal.aborted || this.state !== 'active') return;
+    this.monitoring = true;
     try {
-      const readiness = await this.probe();
+      const outcome = await this.reading(run);
       if (run.signal.aborted || this.state !== 'active') return;
-      if (readiness.state !== 'ready' || !readiness.host) {
-        if (++this.misses >= this.timing.maxMisses) this.giveUp(readiness.reason ?? REASONS.daemonDown());
-        return;
-      }
-      const record = this.readRecord();
-      const config = await this.serveConfig();
-      if (run.signal.aborted || this.state !== 'active') return;
-      if (!config || !record) {
-        if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
-        return;
-      }
-      // Read under the name the node has now: a rename moves the rule's key in the Serve config with it
-      if (servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
-        this.giveUp(REASONS.ruleRemoved());
-        return;
-      }
-      this.misses = 0;
-      if (readiness.host !== this.lent) {
-        // The node was renamed: the rule follows the node, and the old name stops answering
-        this.withdraw();
-        this.lend(readiness.host);
-        this.writeRecord({ ...record, host: readiness.host });
-        this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${readiness.host} joined the allowlist` });
-        this.changed();
-      }
+      if (outcome === 'unknown') this.noAnswer();
+      else this.answered();
     } finally {
-      this.checking = false;
+      this.monitoring = false;
     }
+    if (!run.signal.aborted && this.state === 'active') this.scheduleCheck(run, this.nextDelay());
   }
 
-  private giveUp(why: Localized): void {
+  private nextDelay(): number {
+    return Math.min(this.timing.monitorMs * 2 ** this.unknowns, Math.max(this.timing.maxBackoffMs, this.timing.monitorMs));
+  }
+
+  private noAnswer(): void {
+    const before = JSON.stringify([this.checking, this.stalled]);
+    this.unknownSince ??= Date.now();
+    this.unknowns++;
+    if (JSON.stringify([this.checking, this.stalled]) !== before) this.changed();
+  }
+
+  private answered(): void {
+    if (this.unknownSince === null) return;
+    this.unknownSince = null;
+    this.unknowns = 0;
+    this.changed();
+  }
+
+  /** Reads Tailscale and the rule once; `unknown` when either call got no answer, and nothing was changed then. */
+  private async reading(run: AbortController): Promise<'answered' | 'unknown'> {
+    const readiness = await this.probe();
+    if (run.signal.aborted || this.state !== 'active') return 'answered';
+    if (!readiness) return 'unknown';
+    if (readiness.state !== 'ready' || !readiness.host) {
+      // Down, signed out or disconnected is an answer. It counts twice in a row before the tunnel closes, and it opens again when Tailscale is back
+      if (++this.misses >= this.timing.maxMisses) {
+        this.giveUp(readiness.reason ?? REASONS.daemonDown(), readiness.state === 'daemonDown' || readiness.state === 'loggedOut' || readiness.state === 'stopped');
+      }
+      return 'answered';
+    }
+    const record = this.rule;
+    const result = await this.cli(['serve', 'status', '--json']);
+    if (run.signal.aborted || this.state !== 'active') return 'answered';
+    if (result.unanswered) return 'unknown';
+    let config: ServeConfigJson | null = null;
+    try {
+      const json = result.ok ? (JSON.parse(result.stdout) as unknown) : null;
+      config = json && typeof json === 'object' ? (json as ServeConfigJson) : null;
+    } catch {
+      config = null;
+    }
+    if (!config) {
+      // No Serve config at all is the CLI failing to reach tailscaled, the one case that is the daemon's
+      if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
+      return 'answered';
+    }
+    // Tailscale answered: a rule that is not there, or not Claudio's, was removed or changed. What
+    // is on disk does not decide it; the record is only how a crash is reconciled
+    if (!record || servePortUse(config, record.port, readiness.host, record.target) !== 'match') {
+      this.giveUp(REASONS.ruleRemoved());
+      return 'answered';
+    }
+    this.misses = 0;
+    // A record someone deleted while the rule stands is written again, so a crash can still be reconciled
+    if (!existsSync(this.recordFile)) this.writeRecord(record);
+    if (readiness.host !== this.lent) {
+      // The node was renamed: the rule follows the node, and the old name stops answering
+      this.withdraw();
+      this.lend(readiness.host);
+      this.rule = { ...record, host: readiness.host };
+      this.writeRecord(this.rule);
+      this.deps.audit?.({ method: 'PUT', path: '/api/tunnel', summary: `Tunnel host ${readiness.host} joined the allowlist` });
+      this.changed();
+    }
+    return 'answered';
+  }
+
+  /**
+   * Closes the tunnel on an answer that says it cannot hold. With `recover`, a tunnel the person
+   * opened is opened again once a later reading finds Tailscale ready. The rule is only taken away
+   * if it still is Claudio's, and never because of an unknown.
+   */
+  private giveUp(why: Localized, recover = false): void {
     this.wanted = false;
     this.run.abort();
     this.stopMonitor();
     this.withdraw();
     this.fail(why);
-    this.cleaning = this.removeRule().catch(() => undefined);
+    this.cleaning = this.removeOwnRule().catch(() => undefined);
+    if (recover) this.scheduleRecovery();
+  }
+
+  private scheduleRecovery(): void {
+    this.recovering = true;
+    this.recoveryTimer = setTimeout(() => void this.tryRecovery(), this.timing.monitorMs);
+    this.recoveryTimer.unref();
+  }
+
+  private cancelRecovery(): void {
+    this.recovering = false;
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = null;
+  }
+
+  private async tryRecovery(): Promise<void> {
+    this.recoveryTimer = null;
+    if (!this.recovering) return;
+    const readiness = await this.probe().catch(() => null);
+    if (!this.recovering) return;
+    if (readiness?.state === 'ready') {
+      this.cancelRecovery();
+      try {
+        await this.start('recovery');
+      } catch {
+        // Refused (authentication off, no port): it stays failed with its reason
+      }
+      return;
+    }
+    // An unknown or a Tailscale still down: wait for the next reading
+    this.scheduleRecovery();
   }
 
   /** Takes the lent host back from the guard, and writes down that it left. */

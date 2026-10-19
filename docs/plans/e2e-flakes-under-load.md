@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T11:40:00Z
-updated_at: 2026-10-17T11:40:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - plan
     - e2e
@@ -28,6 +28,10 @@ condition, never a longer sleep, and no assertion weakened.
 | `merge.spec`, the warning state | The fake gh applied `state: closed` to every pull request, and the watcher stored the others closed when it polled in that window. | `stateOf` in the fake hosts names the one number. |
 | `merge.spec`, reduced motion | The media change reaches the page as an event, after the 300 ms pause. | Wait for the still glyph. |
 | `composer.spec`, a `SecurityError` on `sessionStorage` | Not reproduced: 150 navigations under a 4x throttle never left the tab off the app. The same error has been seen in other specs as a read of storage on `about:blank`. | `page.goto` now fails at once when the tab is not on the app after the navigation, and a `SecurityError` in `page.eval` says where the tab is. |
+
+The peer check's retry on a process caught exiting is gone since 2026-10-18: the check now finds the
+socket's holder itself instead of scanning the chats' trees, so a process exiting somewhere in a
+chat's tree no longer stands between the person and the answer ([[plans/terminal.md]] §3.5).
 
 ## Tools this left
 

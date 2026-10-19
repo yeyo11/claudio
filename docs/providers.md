@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-15T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - providers
     - detection
@@ -96,9 +96,11 @@ Every state but `ready` carries a **typed reason code**: `missing-credentials`, 
 never a raw error string.
 
 - **Probes spend nothing.** One that would cost tokens or quota is not run.
-- **Sign in** happens from the app: Claude Code takes the token `claude setup-token` makes on the
-  person's own machine, because its `auth login` needs a terminal; see
-  [setup.md](setup.md#methods-per-tool).
+- **Sign in** happens from the app: Claude Code's `claude auth login`, relayed (open a link, approve,
+  paste the code), or an API key; see [setup.md](setup.md#methods-per-tool). `loggedIn` from
+  `claude auth status` is not trusted on its own: a credential is confirmed by the CLI's free
+  `get_usage` request, and a refusal from a run marks the account signed out
+  ([accounts.md](accounts.md#sign-in-state)).
 - **Install is a link** to the vendor's page. The app does not run installers or show commands; the
   watchers below pick the binary up once it lands on PATH.
 

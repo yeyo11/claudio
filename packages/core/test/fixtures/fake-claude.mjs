@@ -69,8 +69,9 @@
 //
 //   FAKE_CLAUDE_SPAWNS=<file>     appends `<pid> <argv>` to <file> as it starts, so a test can count
 //                                 every process spawned, tracked or not
-//   FAKE_CLAUDE_ENVS=<file>       appends one JSON line `{ url, token }` per spawn: the CLAUDIO_API_URL and
-//                                 CLAUDIO_API_TOKEN the process was given
+//   FAKE_CLAUDE_ENVS=<file>       appends one JSON line `{ url, token, chat, claudio }` per spawn: the
+//                                 CLAUDIO_API_URL, CLAUDIO_API_TOKEN and CLAUDIO_CHAT_ID the process was
+//                                 given, and the names of every CLAUDIO_*, PORT and HOST it holds
 //   FAKE_CLAUDE_ACCOUNTS=<file>   appends one JSON line `{ dir, oauth, apiKey, authToken }` per spawn: the account variables
 //                                 the process was given, which are the account it runs on
 //   FAKE_CLAUDE_LIMITED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies against
@@ -99,7 +100,11 @@ const args = process.argv.slice(2);
 // the last account a chat ran on would otherwise read the listing's whenever it landed last
 const probe =
   args[0] === '--version' || args[0] === 'agents' || args[0] === 'auth' || args.join(' ') === '-p --input-format stream-json --output-format stream-json --verbose';
-if (process.env.FAKE_CLAUDE_ENVS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.CLAUDIO_API_URL ?? null, token: process.env.CLAUDIO_API_TOKEN ?? null })}\n`);
+if (process.env.FAKE_CLAUDE_ENVS && !probe) {
+  // `claudio`: every CLAUDIO_* name it was given, and PORT and HOST, which must never be the server's
+  const claudio = Object.keys(process.env).filter((name) => name.startsWith('CLAUDIO_') || name === 'PORT' || name === 'HOST').sort();
+  appendFileSync(process.env.FAKE_CLAUDE_ENVS, `${JSON.stringify({ url: process.env.CLAUDIO_API_URL ?? null, token: process.env.CLAUDIO_API_TOKEN ?? null, chat: process.env.CLAUDIO_CHAT_ID ?? null, claudio })}\n`);
+}
 if (process.env.FAKE_CLAUDE_ACCOUNTS && !probe) appendFileSync(process.env.FAKE_CLAUDE_ACCOUNTS, `${JSON.stringify({ dir: process.env.CLAUDE_CONFIG_DIR ?? null, oauth: process.env.CLAUDE_CODE_OAUTH_TOKEN ?? null, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authToken: process.env.ANTHROPIC_AUTH_TOKEN ?? null })}\n`);
 if (process.env.FAKE_CLAUDE_SPAWNS && !probe) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close, and a

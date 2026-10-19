@@ -9,8 +9,9 @@ import { baseName } from './terminal-model';
 
 /**
  * Where a new terminal opens. With a project chosen it opens there at once (the checkout, or one of
- * its worktrees from the menu beside the button); with All projects the button is a menu of the
- * projects that can take one, a sheet on a phone. `icon` draws the button as the panel's "+".
+ * its worktrees from the menu beside the button). With All projects it opens in the workspace, where
+ * chats outside any project run: at once when there is no project, else from a menu that lists the
+ * workspace first and then the projects (a sheet on a phone). `icon` draws the button as the panel's "+".
  */
 export function NewTerminal({
   project,
@@ -31,10 +32,23 @@ export function NewTerminal({
   const label = t('new.button');
 
   if (!project) {
-    const entries: MenuEntry[] = projects
+    const openWorkspace = () => onOpen({ workspace: true });
+    const elsewhere: MenuEntry[] = projects
       .filter((each) => each.exists)
       .map((each) => ({ id: each.id, label: each.name, onSelect: () => onOpen({ projectId: each.id }) }));
-    const choose: MenuEntry[] = entries.length > 0 ? entries : [{ id: 'none', label: t('bar.noProjects'), disabled: true }];
+    if (elsewhere.length === 0) {
+      return icon ? (
+        <button type="button" className="icon-btn term-plus" aria-label={t('new.inWorkspace')} disabled={pending} onClick={openWorkspace}>
+          <Plus {...ICON_SM} />
+        </button>
+      ) : (
+        <button type="button" className="btn btn-primary" disabled={pending} onClick={openWorkspace}>
+          <Plus {...ICON_SM} /> {label}
+        </button>
+      );
+    }
+    // Disabled while one opens, so a second tap cannot open a second shell
+    const choose: MenuEntry[] = [{ id: 'workspace', label: t('new.workspace'), onSelect: openWorkspace }, ...elsewhere].map((entry) => ({ ...entry, disabled: pending }));
     if (narrow || !icon) return <MoreActions entries={choose} label={t('bar.newIn')} text={label} />;
     return (
       <Menu

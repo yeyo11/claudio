@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - rest-api
     - api
@@ -45,6 +45,13 @@ Types live in [`packages/shared/src/types.ts`](../packages/shared/src/types.ts).
 | POST | `/system/cli-version/check` | Check the npm registry for a newer Claude Code now (also done once a day) |
 | GET | `/system/release` | Claudio in use, the newest release, how this server was installed (`distribution`), as the last check left it (never asks GitHub) |
 | POST | `/system/release/check` | Check GitHub for a newer Claudio release now (also done once a day) |
+| POST | `/system/cli-version/install` | Owner only, in the Linux x64 container: install a newer Claude Code (`{ version? }`) from the npm registry's native package, checked against its integrity, into `/data/cli`; answers 202 and `install` follows it |
+| DELETE | `/system/cli-version/install` | Owner only: go back to the image's Claude Code (removes `/data/cli/current`) |
+| GET | `/system/server-update` | In-app updates of the payload, in the container or under the desktop app (`CLAUDIO_LAUNCHER=desktop`): why they are not offered, the base (`image` or `shell`) and its version, the running version, the desktop shell's facts, a download's state, `needsImage`, `needsShell`, the newest release's `offer` (`installable`, or `blocked` by `no-bundle`, `unverified`, `needs-image`, `needs-shell`, `failed-before`), the launcher's last rollback |
+| POST | `/system/server-update/download` | Owner only, or the desktop shell's own credential under `CLAUDIO_LAUNCHER=desktop`: download the newest release's signed server bundle (`{ version? }`), checked before it is unpacked into `<dataDir>/app`; 202, `412 update.needs-image`, `412 update.needs-shell` |
+| POST | `/system/server-update/apply` | Owner only, or the desktop shell: restart onto the downloaded bundle (`{ force?, whenIdle? }`); `409 update.live-work` with the live counts (chats, orchestrations, terminals) unless `force` |
+| DELETE | `/system/server-update/scheduled` | Owner only, or the desktop shell: call off a restart that waits for idleness |
+| POST | `/system/server-update/revert` | Owner only, or the desktop shell: restart onto the base version, the image's or the desktop app's own (`{ force?, whenIdle? }`) |
 | GET | `/system/storage` | In a Docker install, whether the Claude config dir, the data dir and the workspace sit on a persistent volume or would be lost when the container is replaced (`persistent`, `anonymous`, `container`, `temporary`); `atRisk` says whether any would |
 | GET | `/system/load` | What the machine is doing now (load average, memory, PSI of CPU, memory and I/O) and whether it admits a new chat; read from `/proc`, Linux only |
 | GET | `/system/processes` | What each live chat's process tree uses: processes, resident memory (MB) and CPU seconds so far; read from `/proc`, Linux only |
@@ -60,10 +67,10 @@ environment and to no other, and never returned by any endpoint.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/auth` | Fresh auth status, including where the credential comes from |
-| PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one) |
+| GET | `/auth` | Fresh auth status, including where the credential comes from and `inUse`: the account new work would start on (`id`, `label`, `kind`, `signInState`, `checkedAt`), null when none can take work |
+| PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one). `oauthToken` is deprecated: the UI signs in with `POST /accounts/default/login` instead, but a script that sends it keeps working |
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
-| POST | `/auth/verify` | Sends a minimal real request. `claude auth status` only reports what is configured, it does not validate the token |
+| POST | `/auth/verify` | Sends a minimal real request (one short message, which counts against the plan) on the account in use and records `checkedAt`. `claude auth status` only reports what is configured, and `get_usage` cannot refuse a credential, so this is the check that proves a login or an OAuth token (an API key is checked for free by `POST /accounts/:id/refresh`) |
 
 ## Setup
 
@@ -94,7 +101,8 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/security/auth` | Mode, whether a token is set, the OIDC fields and read-only. Never the token |
+| GET | `/security/auth` | Mode, whether a token is set, the OIDC fields, read-only and `firstRunPending` (the container's first-run token is still unused). Never the token |
+| POST | `/security/allowed-hosts/claim` | Adds the host the request was dialled on to the allowlist's file layer (the one Settings edits) and answers `{ host, allowedHosts }`. The one route exempt from the host check. Needs the owner's token: `403 host.needs-auth` under `none`, `403 host.not-owner` for the desktop credential or a chat's token, `400 host.invalid`, `405` in read-only mode, `401` (counted by the back-off) otherwise |
 | PUT | `/security/auth` | `{ mode?, oidc?, readOnly? }`. A mode that would lock everyone out is refused; stays reachable in read-only mode, because it is the switch |
 | POST | `/security/token` | Set or rotate the bearer token — `{ token? }`, generated when omitted. Returned once |
 | DELETE | `/security/token` | Remove it; refused while the mode is `token` |
@@ -108,7 +116,7 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/tunnel` | `{ state, url, since, reason, enabled, managed, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, `enabled` false where the deploy does not offer the tunnel (`CLAUDIO_TUNNEL`), `managed` true where Claudio runs the `tailscaled` itself (the image) and signs it in from the setup, `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
+| GET | `/tunnel` | `{ state, url, since, reason, checking, enabled, managed, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, or `active` with `tunnel.tailscaleNotAnswering` after ten minutes without an answer from the CLI, `checking` true while the last readings got no answer (the tunnel stays `active`), `enabled` false where the deploy does not offer the tunnel (`CLAUDIO_TUNNEL`), `managed` true where Claudio runs the `tailscaled` itself (the image) and signs it in from the setup, `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
 | PUT | `/tunnel/settings` | `{ startWithClaudio }`, off by default. Emits `tunnel.changed` |
 | POST | `/tunnel/start` | Adds Claudio's `tailscale serve` rule on `port`; `409` while the auth mode is `none` or where `enabled` is false, `failed` with the reason when Tailscale is not ready or the port serves something else. The address shows, and the node's exact name joins the allowlist, once the rule reads back from the Serve config |
 | POST | `/tunnel/stop` | Takes the name off the allowlist and removes only Claudio's Serve rule; turning the auth mode to `none` does it first |
@@ -287,13 +295,13 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/accounts` | The CLI's own login (`default`) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading (windows, `limits.cli`: plan, per-model limits, credits) |
+| GET | `/accounts` | The CLI's own login (`default`, left out while it has no credential at all: no credentials file and no key or token in the environment, unless it expired) and the accounts added here: identity, `enabled`, `signedIn` and the last usage reading (windows, `limits.cli`: plan, per-model limits, credits) |
 | POST | `/accounts` | Add a `login` account and start `claude auth login` in its dir; `201` with the sign-in (`url` for the person to open). `{ alias?, email? }` |
 | POST | `/accounts/refresh` | Read the real usage of every enabled account from the CLI (`get_usage`, no tokens), one at a time with a 30 s timeout each: `{ accounts, failed }`; a failing account keeps its last reading and is named in `failed` |
-| POST | `/accounts/:id/refresh` | The same for one account; answers the account; `404` for an unknown one, `400` when the CLI could not read it |
-| POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir; `201` with the sign-in, followed like `POST /accounts`'s. The account is kept whatever the outcome; `400` for a token or api-key account |
-| POST | `/accounts/token` | Add a `token` or `api-key` account: `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
-| GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `cancelled`); `404` for an unknown one |
+| POST | `/accounts/:id/refresh` | The same for one account; answers the account; `404` for an unknown one, `502 accounts.check-failed` when the CLI could not answer. A `get_usage` that comes back with the plan's limits confirms the credential and records `checkedAt`. For an API key (an `api-key` account, or the default one with `ANTHROPIC_API_KEY`) it also asks Anthropic with the SDK's free `models.list`: a `401` answers the account as `expired` |
+| POST | `/accounts/:id/login` | Sign an existing `login` account in again (expired or incomplete sign-in): `claude auth login` in its dir (`default` is the CLI's own config dir, and a successful sign-in there drops a token Claudio kept); `201` with the sign-in, followed like `POST /accounts`'s, which ends `expired` when nobody finishes it in 15 minutes. The account is kept whatever the outcome; `400` for a token or api-key account |
+| POST | `/accounts/token` | Add a `token` or `api-key` account (`kind: 'token'` is deprecated, kept for scripts): `{ kind, alias, secret }`; the secret is write-only. `201` with the account |
+| GET | `/accounts/logins/:id` | One sign-in's state (`starting`, `waiting-for-person`, `succeeded`, `failed`, `expired`, `cancelled`); `404` for an unknown one |
 | POST | `/accounts/logins/:id/code` | Hand the CLI the code the page showed, when its browser could not open: `{ code }`; `409` when the sign-in is over |
 | DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |
 | PATCH | `/accounts/:id` | `{ alias?, enabled? }`; a disabled account is never chosen for new work |
@@ -468,7 +476,7 @@ The person's own shell, in a project's directory or a chat's worktree. Off until
 | PUT | `/terminal/settings` | `{ enabled?, remote?, maxTerminals?, idleMinutes?, scrollbackLines?, replayLines?, shell?, loginShell? }`; turning it off closes every terminal. Emits `terminal.changed` |
 | GET | `/terminal/history?limit=&offset=` | Sessions and the attempts that were refused, newest first: who, from where, when and how many bytes, never content |
 | GET | `/terminals?project=&chat=` | The open terminals and those that ended in the last hour |
-| POST | `/terminals` | `{ projectId, worktree? }` or `{ chatId }`, optional `cols` and `rows`: ids in, directory out. `409 terminal.limit`, `400 terminal.no-project`. Emits `terminal.changed` |
+| POST | `/terminals` | `{ projectId, worktree? }`, `{ chatId }` or `{ workspace: true }` (the configured workspace, with no project), optional `cols` and `rows`: ids in, directory out. A chat outside any project opens in its own directory, confined to the workspace. `409 terminal.limit`, `400 terminal.no-project` (the chat's project is gone), `400 terminal.bad-cwd` (outside its project or the workspace). Emits `terminal.changed` |
 | GET | `/terminals/:id` | One terminal |
 | POST | `/terminals/:id/ticket` | `{ ticket, expiresAt }`: valid 30 seconds, one use, bound to the terminal and the `Origin` that asked |
 | GET | `/terminals/:id/socket?ticket=` | The stream, as a WebSocket: binary frames carry the bytes, text frames the JSON control messages (`TerminalClientFrame`, `TerminalServerFrame`). The `Origin` must be the page's own |

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T21:00:00Z
-updated_at: 2026-10-09T16:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - setup
     - security
@@ -29,7 +29,7 @@ through a temp file created at 0600 (`writeAtomic`), keyed by tool and variable:
 { "claude-code": { "CLAUDE_CODE_OAUTH_TOKEN": "enc:v1:…" }, "youtrack": { "YOUTRACK_HOST": "…", "YOUTRACK_TOKEN": "enc:v1:…" } }
 ```
 
-It keeps only what a CLI reads from its **environment**: Claude Code's token or key, YouTrack's
+It keeps only what a CLI reads from its **environment**: Claude Code's API key (and a token an older Claudio kept), YouTrack's
 address and token. A CLI with a login command of its own (gh, glab) stores its credential itself,
 where it always does (decision 4).
 
@@ -83,11 +83,17 @@ Core sets the vault once (`useVaultForChildren`) before anything spawns. Every s
 
 | Tool | Key | Device code | Sign-out |
 | --- | --- | --- | --- |
-| `claude-code` | vault, `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, one at a time | none | vault cleared, then `claude auth logout` |
+| `claude-code` | vault, `ANTHROPIC_API_KEY`; and `accountLogin`: the paste-code `claude auth login` on the `default` account | none (the account login relays a link and a pasted code, see below) | vault cleared, then `claude auth logout` |
 | `gh` | `gh auth login --with-token --hostname H`, stdin | `gh auth login --web --hostname H` | `gh auth logout --hostname H` |
 | `glab` | `glab auth login --hostname H --stdin` | `glab auth login --device --hostname H` | `glab auth logout --hostname H` |
 | `youtrack` | vault, `YOUTRACK_HOST` (the `host` field) and `YOUTRACK_TOKEN` | none | vault cleared |
 | `tailscale` | `tailscale up --reset --hostname=N --auth-key=file:P` (`key: 'file'`) | `tailscale up --reset --hostname=N`: a login URL, no code | tunnel closed, then `tailscale logout` |
+
+Claude Code's methods are **Claude account** (`accountLogin: true`) and **API key**. The OAuth token
+(`CLAUDE_CODE_OAUTH_TOKEN`, `claude setup-token`) is no longer offered: `POST /setup/logins` with that
+variable is refused, an environment that already sets it keeps working, and a token the vault already
+holds keeps working until it fails or is replaced
+([decisions/claude-sign-in-paste-code.md](decisions/claude-sign-in-paste-code.md)).
 
 Two fields shape the panel beyond key and device. `deviceVia` names the tool whose device sign-in a
 tool uses, and `signOutKeyOnly` marks a tool whose sign-out only forgets the kept key; Claude Code
@@ -211,14 +217,21 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
 - **The sign-in panel** (`SignInPanel`, `SignInSheet`) serves every tool but YouTrack, which keeps its
   address-and-token form (`YoutrackAccess`). It reads the tool's row of `GET /setup`'s `methods`: the
   Code / Key choice where there is a device code (code first), a second choice where the key may go
-  in several variables (Claude Code's token or API key), the host field for
+  in several variables, the host field for
   `gh` and `glab`. The key field is write-only and cleared once sent. Opening an agent's panel on Code
   asks for a code at once; a host CLI asks for its host first. A device session moves with
   `login.updated` events (`useLogin`), read with `GET /setup/logins/:id` every 3 s only while the event
   stream is down; succeeded closes the panel and reads every readiness list again, cancelled closes it,
   failed and expired say why by code with the one action (Retry, Use a key, See install, Get another
-  code). Closing a panel whose code still waits cancels the session. Claude Code's panel names
-  `claude setup-token` inside the sentence, with no copy button.
+  code). Closing a panel whose code still waits cancels the session.
+- **The Claude sign-in panel** (`ClaudeSignIn`, with `SignInFrame` and `SignInSession`) is the one
+  panel of the assistant, Settings → Claude Code and Accounts → Add account. It offers **Claude
+  account** first and **API key** second, never the OAuth token. Claude account runs
+  `POST /accounts/default/login` (the CLI's own `claude auth login`, relayed through pipes by
+  `account-logins.ts`): open the link, approve, paste the code the page shows. It signs in the CLI's
+  own config dir, so the `claude` in the terminal is signed in too, and a success clears a token
+  Claudio kept in the vault. It warns when the environment sets a credential, which takes precedence.
+  A login left unfinished for 15 minutes ends as `expired`.
 - **Sign out** (`SignOutButton`) asks first, as a destructive action, and calls
   `DELETE /setup/credentials/:tool` (per host for `gh` and `glab`). It is offered where the tool works,
   or keeps only a key Claudio holds. Where it only forgets that key (`signOutKeyOnly`) it is offered only while one is kept, and the confirmation says the tool stops
@@ -244,7 +257,17 @@ namespace; the pure logic (methods per tool, failures, steps, summary) is `lib/s
   only hides it until the page reloads.
 - **e2e.** `e2e/specs/setup.spec.mjs` walks the assistant's four steps against the fake `claude`
   of `e2e/fake-cli/`, which reads as signed in, so the Agents step shows Claude Code ready and the
-  summary says so; the device sign-in is covered by the core tests with recorded output.
+  summary says so; the device sign-in is covered by the core tests with recorded output. Because the
+  fake already reads as signed in, the assistant's Claude sign-in is not walked there; `accounts.spec.mjs`
+  adds a login account through the fake CLI's `auth login`, and checks the `default` account is absent
+  on a fresh data directory.
+- **The assistant's layout.** A full-height frame: a header, a body that scrolls and a foot pinned to
+  the bottom of the viewport. From 1180 px it has two columns (the step's title and explanation on the
+  left, its cards on the right); on a short screen the intro is clamped, with More shown only when text
+  is cut. The provider rows are laid out by container queries, so the binary path wraps and the state
+  and actions never cut each other. The phone keeps the app's 900 px breakpoint. The reference screens
+  and [design-system.md](design-system.md#setup-the-assistant-the-sign-in-panel-and-the-secrets-line)
+  say the same.
 
 ## Related
 

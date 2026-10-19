@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-09T10:00:00Z
+updated_at: 2026-10-18T20:00:00Z
 tags:
     - tunnel
     - remote-access
@@ -102,11 +102,45 @@ Two more things are only learned when the rule is added, and fail the start with
 | `stopping` | closing | warn | The name left the allowlist; the rule is being removed |
 | `failed` | failed | bad | Gave up, with a reason |
 
-While active, Claudio reads Tailscale and the Serve config again every 30 s. A rule removed or
-changed in a terminal (`tailscale serve reset`) fails the tunnel with `tunnel.ruleRemoved` at once;
-Tailscale not ready in two readings in a row fails it with that reason. A node renamed in the admin
-console moves the allowed name and the address with it. There is no reconnect loop: Tailscale keeps
-its own connection, and a failed tunnel is opened again with the button.
+`active` with `checking: true` keeps its colour and adds the word "Checking…" (below).
+
+While active, Claudio reads Tailscale and the Serve config again every 30 s. A node renamed in the
+admin console moves the allowed name and the address with it. The reason a reading fails the
+tunnel with says what Tailscale answered:
+
+| Reason | When |
+| --- | --- |
+| `tunnel.ruleRemoved` | Tailscale is running and answers, and the port no longer holds Claudio's rule: removed (`tailscale serve reset`, another program's `serve off`) or changed to point elsewhere. At once, on the first reading |
+| `tunnel.tailscaleNotConnected`, `tunnel.tailscaleLoggedOut` | `BackendState` is not `Running`, or the node signed out; two readings in a row |
+| `tunnel.tailscaleDaemonDown` | The CLI answered but could not reach tailscaled: no status JSON, or no Serve config; two readings in a row |
+| `tunnel.tailscaleNotAnswering` | Not a failure: ten minutes of readings that got no answer at all (below) |
+
+The rule is checked against what this process added, which it keeps in memory, not against the
+record on disk. On 2026-10-18 a second server deleted the desktop's record and took its rule away;
+the desktop read the missing record as "Tailscale is down" and said `tunnel.tailscaleDaemonDown`
+while tailscaled was running. Now that reads `tunnel.ruleRemoved`, and a record deleted while the
+rule still stands is written again.
+
+### A slow machine is not a dead Tailscale
+
+A reading the CLI did not answer (the call timed out after 10 s, or could not be spawned) is
+**unknown**, not down. On 2026-10-18 a machine at 97 % CPU made two readings in a row time out, the
+tunnel closed itself and took its Serve rule away while Tailscale was fine. Now:
+
+- **Only an answer closes the tunnel**: `BackendState` not `Running`, signed out, a daemon that
+  answers it is down, or the Serve rule gone or changed by someone else. An unknown never counts as a
+  miss and never runs `serve off` or withdraws the host.
+- **The tunnel stays `active`** and `GET /api/tunnel` says `checking: true`; the tab shows
+  "Checking…" with no change of status colour. The readings back off (30 s, 60 s, 120 s, capped at
+  5 min) and the first answer clears the flag.
+- **After 10 minutes of nothing but unknowns** the status carries the reason
+  `tunnel.tailscaleNotAnswering` while the state stays `active`: the tab shows a warning, "Tailscale
+  is not answering". The rule and the host are still kept.
+- **It comes back on its own.** A tunnel the person had opened that failed because Tailscale was
+  down, signed out or disconnected is started again when a later reading finds Tailscale ready, with
+  the audit row "Start the tunnel again: Tailscale is ready". Closing it with the button, or
+  shutting Claudio down, cancels that; a failure of any other kind (the rule removed, the port taken)
+  waits for the button.
 
 ## Only what Claudio added
 
@@ -122,6 +156,9 @@ Serve config is global to the node, and the person may have rules of their own. 
   adding it.
 - **Recorded before it is added.** `<dataDir>/tunnel/serve-rule.json` (mode 600) holds the port, the
   name and the target, written before `serve --bg` runs.
+- **Only the rule this process added.** Stop, shutdown and a failure take away the rule this process
+  added, never one a record on disk names: a server that never opened the tunnel (one that failed to
+  bind its port and shut down at once) removes nothing.
 - **Removed only while it is still exactly that.** On stop, on shutdown (synchronously, as the
   process leaves), and when the tunnel fails, Claudio reads the config and runs
   `serve --https=<port> off` only if the port still holds its rule. A port someone else took over
@@ -129,7 +166,12 @@ Serve config is global to the node, and the person may have rules of their own. 
   (measured), which counts as gone.
 - **Reconciled after a crash.** A background Serve rule outlives the process that added it, so a
   record found when Claudio starts is reconciled the same way before anything else, including "start
-  with Claudio". A second Claudio on the same machine (a dev server beside the desktop app) gets
+  with Claudio". The record carries the id of the data directory's lock its writer held
+  ([security-model.md](security-model.md#one-server-per-data-directory)): a server holds that lock
+  before it gets here, so a record written under an earlier lock is a gone server's, and its rule is
+  taken away. A record without a lock (written by a Claudio from before the lock) may be a running Claudio's, and is left
+  alone while something answers at its target. A second Claudio on the same machine needs its own
+  data directory, which it cannot share with a running one; on its own data directory it gets
   `tunnel.portTaken` rather than taking the first one's rule; give it another `CLAUDIO_TUNNEL_PORT`.
 
 ## What has to hold before a byte crosses

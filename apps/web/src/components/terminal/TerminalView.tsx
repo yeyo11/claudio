@@ -7,7 +7,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Terminal } from '@claudio/shared';
+import type { Terminal, TerminalServerFrame } from '@claudio/shared';
 import { useToast } from '@claudio/ui/components/Toast';
 import { copyText } from '@claudio/ui/lib/clipboard';
 import { api, BASE } from '../../api';
@@ -33,7 +33,12 @@ export interface TerminalViewHandle {
   paste(): Promise<void>;
   find(query: string, options: FindOptions, backwards?: boolean): boolean;
   clearFind(): void;
+  /** The person is closing this terminal: drop the socket now and never reconnect */
+  forget(): void;
 }
+
+/** Why a view's terminal ended: the shell exited, or the server's reason for closing it */
+export type TerminalEndedBy = 'exit' | Extract<TerminalServerFrame, { type: 'closed' }>['reason'];
 
 interface Props {
   terminal: Terminal;
@@ -48,8 +53,8 @@ interface Props {
   label: string;
   onLink: (link: LinkState) => void;
   onTitle: (title: string) => void;
-  /** The shell ended, or the server closed this terminal: the list should be read again */
-  onEnded: () => void;
+  /** The shell ended (`exit`), or the server closed this terminal and says why; `closed` means it was closed and is forgotten */
+  onEnded: (reason: TerminalEndedBy) => void;
   /** The app's own shortcuts, handed back before xterm sees the key */
   onToggle?: () => void;
   onSearch?: () => void;
@@ -120,6 +125,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       return backwards ? addon.findPrevious(query, options) : addon.findNext(query, options);
     },
     clearFind: () => search.current?.clearDecorations(),
+    forget: () => connection.current?.forget(),
   }));
 
   function sendPaste(text: string): void {
@@ -245,9 +251,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
           onSize: (cols, rows) => {
             if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows);
           },
-          onExit: () => latest.current.onEnded(),
-          onClosed: (_reason, again) => {
-            if (!again) latest.current.onEnded();
+          onExit: () => latest.current.onEnded('exit'),
+          onClosed: (reason, again) => {
+            if (again) return;
+            // Closed by a person, here or elsewhere: the server has forgotten the id, so nothing may ask for it again
+            if (reason === 'closed') link.forget();
+            latest.current.onEnded(reason);
           },
         },
       );

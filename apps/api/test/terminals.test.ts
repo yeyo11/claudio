@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +8,7 @@ import { test, type TestContext } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { WebSocket } from 'ws';
 import { Core, loadConfig, type PeerVerdict } from '@claudio/core';
-import type { Project, Terminal, TerminalHistoryPage, TerminalServerFrame, TerminalStatus, TerminalTicket } from '@claudio/shared';
+import type { Chat, Project, Terminal, TerminalHistoryPage, TerminalServerFrame, TerminalStatus, TerminalTicket } from '@claudio/shared';
 import { buildApp, redactUrl } from '../src/app.ts';
 import { TICKET_TTL_MS, TerminalTickets } from '../src/terminal-socket.ts';
 
@@ -399,6 +399,22 @@ class Session {
   type(data: string): void {
     this.socket.send(Buffer.from(data));
   }
+  /**
+   * Waits until the shell runs what is typed: a shell still starting may drop typeahead (zsh's line
+   * editor flushes it), so a probe is typed again until its answer comes back, each with a new value.
+   */
+  async ready(): Promise<void> {
+    const end = Date.now() + 20_000;
+    for (let n = 1; ; n += 1) {
+      this.type(`echo ready-$((${String(n)}*1000))\r`);
+      try {
+        await this.until(() => this.text.includes(`ready-${String(n * 1000)}`), 'the shell to answer', 2_000);
+        return;
+      } catch (error) {
+        if (Date.now() > end) throw error;
+      }
+    }
+  }
   get hello(): Extract<TerminalServerFrame, { type: 'hello' }> | undefined {
     return this.frames.find((f): f is Extract<TerminalServerFrame, { type: 'hello' }> => f.type === 'hello');
   }
@@ -468,12 +484,17 @@ test('input reaches the shell, a resize reaches the PTY, and a reload is repaint
 
   const first = await attach(w.app, open, terminal.id);
   assert.equal(first.hello?.terminal.id, terminal.id);
-  first.type('echo hi-$((6*7))\r');
-  await first.until(() => first.text.includes('hi-42'), 'the echo');
+  await first.ready();
 
+  // The resize goes first: on SIGWINCH readline redraws its prompt by moving up the lines it thinks the
+  // prompt wrapped onto at the old width and erasing them, and with a prompt longer than 80 columns
+  // that erased the line printed just above it (the PTY and the screen are already 100 wide). Once
+  // `stty size` answers, that redraw is over and what is printed next stays on the screen.
   first.socket.send(JSON.stringify({ type: 'resize', cols: 100, rows: 30 }));
   first.type('stty size\r');
   await first.until(() => first.text.includes('30 100'), 'stty size');
+  first.type('echo hi-$((6*7))\r');
+  await first.until(() => first.text.includes('hi-42'), 'the echo');
   first.socket.send(JSON.stringify({ type: 'ack', bytes: first.text.length }));
   first.socket.close();
   await new Promise((r) => setTimeout(r, 200));
@@ -550,4 +571,54 @@ test('a request from a chat’s own process is refused as from-agent through the
   await new Promise((done) => child.once('close', done));
   assert.match(out, /^403 .*from-agent/);
   assert.ok(w.core.terminals.history().entries.some((entry) => entry.attachments.some((a) => a.refused === 'from-agent')));
+});
+
+// ---------- where it opens ----------
+
+test('with no project at all, the workspace scope opens a shell in the configured workspace', async (t) => {
+  const w = await wrapper(t);
+  const res = await w.app.inject({ method: 'POST', url: '/api/terminals', ...json({ workspace: true }) });
+  if (res.statusCode === 409 && /pty-missing|not available/.test(res.body)) return t.skip('node-pty cannot load here');
+  assert.equal(res.statusCode, 201, res.body);
+  const terminal = res.json<Terminal>();
+  assert.deepEqual(terminal.scope, { kind: 'workspace' });
+  assert.equal(terminal.cwd, realpathSync(w.core.config.workspaceDir));
+  assert.deepEqual(w.core.terminals.history().entries.find((e) => e.id === terminal.id)?.scope, { kind: 'workspace' });
+});
+
+test('the workspace scope still passes the gate: off is 409, no credential 401 and a chat token 403', async (t) => {
+  const off = await wrapper(t, { enabled: false });
+  assert.equal((await off.app.inject({ method: 'POST', url: '/api/terminals', ...json({ workspace: true }) })).statusCode, 409);
+  const w = await wrapper(t);
+  await withToken(w.app);
+  const chat = w.core.security.chatTokens.mint('chat-ws');
+  assert.equal((await call(w.app, 'POST', '/api/terminals', json({ workspace: true }))).statusCode, 401);
+  const asChat = await call(w.app, 'POST', '/api/terminals', { ...json({ workspace: true }), headers: { 'content-type': 'application/json', authorization: `Bearer ${chat}` } });
+  assert.equal(asChat.statusCode, 403);
+  assert.equal(asChat.json<{ reason: string }>().reason, 'chat-token');
+});
+
+test('a chat outside any project opens in its own directory inside the workspace, and is refused outside it', async (t) => {
+  const w = await wrapper(t);
+  const inside = join(w.core.config.workspaceDir, 'loose-chat');
+  mkdirSync(inside, { recursive: true });
+  const elsewhere = mkdtempSync(join(tmpdir(), 'claudio-terminals-elsewhere-'));
+  t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
+  const chats: Record<string, { cwd: string; worktree: null; project: null }> = {
+    'loose-in': { cwd: inside, worktree: null, project: null },
+    'loose-out': { cwd: elsewhere, worktree: null, project: null },
+  };
+  // A chat record without running Claude: the lookup reads only these three fields
+  t.mock.method(w.core.chats, 'get', async (id: string) => (chats[id] ?? null) as unknown as Chat | null);
+
+  const res = await w.app.inject({ method: 'POST', url: '/api/terminals', ...json({ chatId: 'loose-in' }) });
+  if (res.statusCode === 409 && /pty-missing|not available/.test(res.body)) return t.skip('node-pty cannot load here');
+  assert.equal(res.statusCode, 201, res.body);
+  const terminal = res.json<Terminal>();
+  assert.deepEqual(terminal.scope, { kind: 'chat', chatId: 'loose-in' });
+  assert.equal(terminal.cwd, realpathSync(inside));
+
+  const refused = await w.app.inject({ method: 'POST', url: '/api/terminals', ...json({ chatId: 'loose-out' }) });
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.json<{ code: string }>().code, 'terminal.bad-cwd');
 });

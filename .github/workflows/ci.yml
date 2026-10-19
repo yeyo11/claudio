@@ -146,9 +146,18 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build the image
         run: docker build -f docker/Dockerfile -t claudio:ci .
-      - name: Container reports a detected CLI
+      - name: Container makes a first-run token and reports a detected CLI
         run: |
           docker run -d --name claudio --init -p 8797:8797 claudio:ci
-          for i in $(seq 1 30); do curl -fsS localhost:8797/api/system && break; sleep 1; done
-          curl -fsS localhost:8797/api/system | grep -q '"installed":true'
-          curl -fsS -o /dev/null localhost:8797/docs/
+          for i in $(seq 1 30); do curl -fsS localhost:8797/api/health >/dev/null && break; sleep 1; done
+          # A fresh container with no auth configured answers only to the token it made on first start
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8797/api/system)" = 401
+          docker logs claudio 2>&1 | grep -q 'first-run-token'
+          # Read before the first authenticated request, which deletes the file
+          TOKEN=$(docker exec claudio cat /data/first-run-token)
+          curl -fsS -H "Authorization: Bearer $TOKEN" localhost:8797/api/system | grep -q '"installed":true'
+          curl -fsS -o /dev/null -H "Authorization: Bearer $TOKEN" localhost:8797/docs/
+          # The terminal's login shell must reach an in-app Claude Code first, as Claudio itself does: with a
+          # fake overlay in place, `claude` there is the overlay's (nothing is downloaded)
+          docker exec claudio sh -c 'mkdir -p /data/cli/9.9.9/bin && printf "#!/bin/sh\necho overlay\n" > /data/cli/9.9.9/bin/claude && chmod +x /data/cli/9.9.9/bin/claude && ln -sfn 9.9.9 /data/cli/current'
+          test "$(docker exec claudio bash -lc 'command -v claude')" = /data/cli/current/bin/claude

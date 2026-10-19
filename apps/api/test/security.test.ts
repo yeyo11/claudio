@@ -3,7 +3,7 @@ import { get } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import { REDACTED } from '@claudio/shared';
@@ -19,7 +19,13 @@ interface Wrapper {
   core: Core;
 }
 
+const roots = new Set<string>();
+after(() => {
+  for (const root of roots) rmSync(root, { recursive: true, force: true });
+});
+
 async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpdir(), 'claudio-security-'))): Promise<Wrapper> {
+  roots.add(root);
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -52,7 +58,7 @@ test('an install nobody configured is open, exactly as it was', async (t) => {
   const { app } = await wrapper();
   t.after(() => app.close());
 
-  assert.deepEqual((await app.inject('/api/security/auth')).json(), { mode: 'none', tokenSet: false, readOnly: false });
+  assert.deepEqual((await app.inject('/api/security/auth')).json(), { mode: 'none', tokenSet: false, readOnly: false, firstRunPending: false, firstRunToken: false });
   assert.equal((await app.inject('/api/overview')).statusCode, 200);
   assert.equal((await app.inject('/api/system')).statusCode, 200);
 });
@@ -84,7 +90,7 @@ test('with a token every route needs it, and health does not', async (t) => {
   // The token is never readable back, in any shape
   const config = await app.inject({ url: '/api/security/auth', ...bearer(token) });
   assert.equal(config.payload.includes(token), false);
-  assert.deepEqual(config.json(), { mode: 'token', tokenSet: true, readOnly: false });
+  assert.deepEqual(config.json(), { mode: 'token', tokenSet: true, readOnly: false, firstRunPending: false, firstRunToken: false });
 });
 
 test('the event stream takes the token in the query string, which EventSource cannot avoid', async (t) => {
@@ -298,6 +304,8 @@ test('the environment can hand a fresh install a closed door', async (t) => {
     mode: 'token',
     tokenSet: true,
     readOnly: true,
+    firstRunPending: false,
+    firstRunToken: false,
   });
   assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...authed('a-token-from-a-secret', { name: 'x' }) })).statusCode, 405);
 });

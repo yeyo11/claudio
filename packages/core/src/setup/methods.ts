@@ -25,6 +25,7 @@ const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>):
   variables: [],
   exclusive: false,
   device: false,
+  accountLogin: false,
   deviceVia: null,
   needsHost: false,
   defaultHost: null,
@@ -34,10 +35,11 @@ const row = (tool: SetupTool, methods: Partial<Omit<SetupToolMethods, 'tool'>>):
 });
 
 export const TOOL_LOGINS: Readonly<Record<SetupTool, ToolLogin>> = {
-  // `claude setup-token` makes the OAuth token on the person's own machine; `auth login` needs a
-  // terminal, so there is no device row. Either variable signs the CLI in, never both at once.
+  // The way in is the CLI's own `claude auth login`, which Claudio relays (open a link, paste the
+  // code; `accountLogin`), into the CLI's own config dir. The other is an API key. The OAuth token
+  // of `claude setup-token` is not offered; one already in the environment keeps working.
   'claude-code': {
-    methods: row('claude-code', { key: 'env', variables: ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'], exclusive: true }),
+    methods: row('claude-code', { key: 'env', variables: ['ANTHROPIC_API_KEY'], exclusive: false, accountLogin: true }),
     keyCommand: null,
     deviceCommand: null,
     signOutCommand: () => ['auth', 'logout'],
@@ -84,8 +86,16 @@ export function setupMethods(): SetupToolMethods[] {
   }));
 }
 
+/**
+ * A token Claudio kept before the sign-in moved to `claude auth login` still has to hide the
+ * container's key (and the reverse): the CLI would otherwise pick between them. Not offered any
+ * more, so no longer a list of `variables`.
+ */
+const CLAUDE_CREDENTIALS = ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'] as const;
+
 /** The variables of a tool that may not be set together; empty for every tool but Claude Code */
 export function exclusiveVariables(tool: string): readonly string[] {
+  if (tool === 'claude-code') return CLAUDE_CREDENTIALS;
   const login = (TOOL_LOGINS as Readonly<Record<string, ToolLogin | undefined>>)[tool];
   return login?.methods.exclusive ? login.methods.variables : [];
 }

@@ -37,9 +37,9 @@ class FakeSocket implements SocketLike {
   bytes(data: number[]) {
     this.onmessage?.({ data: new Uint8Array(data).buffer });
   }
-  drop() {
+  drop(code?: number) {
     this.readyState = 3;
-    this.onclose?.({});
+    this.onclose?.(code === undefined ? {} : { code });
   }
 }
 
@@ -220,4 +220,42 @@ test('stopping closes the socket and cancels a pending retry', async () => {
   await second.flush();
   second.connection.stop();
   assert.equal(second.sockets[0]?.closed, true);
+});
+
+test('a terminal closed by the person is forgotten: the socket goes and no ticket is asked again', async () => {
+  const t = setup();
+  t.connection.start();
+  await t.flush();
+  t.sockets[0]?.open();
+  t.connection.forget();
+  assert.equal(t.sockets[0]?.closed, true);
+  // Whatever the socket does as it goes, nothing is scheduled and no second ticket is spent
+  t.sockets[0]?.drop();
+  await t.flush();
+  assert.equal(t.timers.length, 0);
+  assert.equal(t.issuedCount(), 1);
+  assert.equal(t.sockets.length, 1);
+});
+
+test('a socket the server would not attach (1008: the terminal is gone) is not retried', async () => {
+  const t = setup();
+  t.connection.start();
+  await t.flush();
+  t.sockets[0]?.drop(1008);
+  assert.equal(t.links.at(-1), 'ended');
+  assert.equal(t.timers.length, 0);
+  assert.equal(t.issuedCount(), 1);
+});
+
+test('a terminal closed on the server ends the connection for good, even when the socket drops after the frame', async () => {
+  const t = setup();
+  t.connection.start();
+  await t.flush();
+  t.sockets[0]?.open();
+  t.sockets[0]?.frame({ type: 'closed', reason: 'closed' });
+  t.sockets[0]?.drop(1000);
+  await t.flush();
+  assert.deepEqual(t.events, ['closed closed false']);
+  assert.equal(t.timers.length, 0);
+  assert.equal(t.issuedCount(), 1);
 });

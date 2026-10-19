@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ChatBackgroundTask, ChatChildren, ChatSubagent, ChatWorkflow } from '@claudio/shared';
+import { runsElapsedMs, type ChatBackgroundTask, type ChatChildren, type ChatSubagent, type ChatWorkflow } from '@claudio/shared';
 import {
   BRANCH_GRACE_MS,
+  agentBranch,
+  branchElapsed,
   branchCounts as countsOf,
   branchesOfStep as stepBranches,
   liveBranches as strip,
@@ -26,6 +28,7 @@ const sub = (over: Partial<ChatSubagent> = {}): ChatSubagent => ({
   status: 'running',
   startedAt: ago(42_000),
   endedAt: null,
+  runs: [],
   lastActivityAt: null,
   cwd: null,
   tasks: [],
@@ -123,7 +126,35 @@ test('the count is what still runs, by kind', () => {
     }),
     NOW,
   );
-  assert.deepEqual(branchCounts(rows), { agents: 2, tasks: 1, workflows: 0 });
+  assert.deepEqual(branchCounts(rows), { agents: 2, waiting: 0, tasks: 1, workflows: 0 });
+});
+
+test('an agent waiting for its background work stays in the strip, and is not counted as working', () => {
+  const waiting = sub({
+    id: 'w',
+    status: 'waiting',
+    endedAt: null,
+    startedAt: ago(600_000),
+    runs: [{ startedAt: ago(600_000), endedAt: ago(300_000) }],
+  });
+  const kids = children({ subagents: [sub({ id: 'a' }), waiting] });
+  // Long after its run closed: no grace applies to it
+  const rows = liveBranches(kids, NOW + 3_600_000);
+  assert.deepEqual(rows.map((r) => [r.id, r.status]), [['w', 'waiting'], ['a', 'running']]);
+  assert.deepEqual(branchCounts(rows), { agents: 1, waiting: 1, tasks: 0, workflows: 0 });
+  assert.equal(nextExpiry(rows, NOW), null);
+  // The clock stopped with its run: 5 min of work, whatever the wait since
+  const row = rows.find((r) => r.id === 'w');
+  assert.equal(branchElapsed(row as Branch, NOW + 3_600_000), 300_000);
+  assert.deepEqual(branchCounts(liveBranches(children({ subagents: [waiting] }), NOW)), { agents: 0, waiting: 1, tasks: 0, workflows: 0 });
+  assert.equal(newestBranch(liveBranches(children({ subagents: [waiting] }), NOW)), null);
+});
+
+test('a waiting agent in a chat nothing holds is stopped: its background work went with the process', () => {
+  const waiting = sub({ id: 'w', status: 'waiting', endedAt: null, runs: [{ startedAt: ago(60_000), endedAt: ago(30_000) }] });
+  const rows = liveBranches(children({ subagents: [waiting] }), NOW - 18_000, false);
+  assert.deepEqual(rows.map((r) => r.status), ['stopped']);
+  assert.deepEqual(countsOf({ alive: false, state: 'idle' }, rows), { agents: 0, waiting: 0, tasks: 0, workflows: 0 });
 });
 
 test('the newest activity wins, else the branch that started last', () => {
@@ -203,6 +234,27 @@ test('a workflow agent still running in a workflow that ended is shown as its wo
 test('a chat nothing holds counts nothing as running and has no newest branch', () => {
   const rows = liveBranches(children({ backgroundTasks: [task({ status: 'stopped', endedAt: ago(1000) })] }), NOW);
   const gone = { alive: false, state: 'idle' } as const;
-  assert.deepEqual(countsOf(gone, [{ ...rows[0]!, status: 'running', endedAt: null }]), { agents: 0, tasks: 0, workflows: 0 });
+  assert.deepEqual(countsOf(gone, [{ ...rows[0]!, status: 'running', endedAt: null }]), { agents: 0, waiting: 0, tasks: 0, workflows: 0 });
   assert.equal(newestOf(gone, [{ ...rows[0]!, status: 'running', endedAt: null }]), null);
+});
+
+test('the strip and the panel show one duration for an agent that was resumed', () => {
+  const first = { startedAt: ago(3_600_000), endedAt: ago(3_300_000) };
+  const chat = { alive: true, state: 'working' } as const;
+  // Running again: the clock is the current run, not the hour since the first start
+  const resumed = agentBranch(chat, sub({ startedAt: first.startedAt, runs: [first, { startedAt: ago(90_000), endedAt: null }] }));
+  assert.equal(branchElapsed(resumed, NOW), 90_000);
+  assert.equal(branchElapsed(resumed, NOW), runsElapsedMs(resumed.runs, NOW));
+  // Done: the time it worked over both runs, not the wait between them
+  const second = { startedAt: ago(120_000), endedAt: ago(60_000) };
+  const done = agentBranch(chat, sub({ status: 'completed', startedAt: first.startedAt, endedAt: second.endedAt, runs: [first, second] }));
+  assert.equal(branchElapsed(done, NOW), 300_000 + 60_000);
+  assert.equal(branchElapsed(done, NOW + 600_000), 360_000);
+});
+
+test('an agent of a chat nothing holds stops its clock with the chat', () => {
+  const gone = { alive: false, state: 'idle', updatedAt: ago(30_000) } as const;
+  const branch = agentBranch(gone, sub({ runs: [{ startedAt: ago(100_000), endedAt: null }] }));
+  assert.equal(branchElapsed(branch, NOW), 70_000);
+  assert.equal(branchElapsed(branch, NOW + 60_000), 70_000);
 });

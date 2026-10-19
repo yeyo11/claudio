@@ -1083,25 +1083,25 @@
     "file": "DesktopConfiguracionAcceso.html",
     "title": "Desktop · Configuración, acceso",
     "w": 1440,
-    "h": 1024
+    "h": 1000
   },
   {
     "file": "DesktopConfiguracionAgentesClave.html",
-    "title": "Desktop · Configuración, agentes: el token de Claude Code",
+    "title": "Desktop · Configuración, agentes: iniciar sesión en Claude Code",
     "w": 1440,
-    "h": 1100
+    "h": 900
   },
   {
     "file": "DesktopConfiguracionIntegraciones.html",
     "title": "Desktop · Configuración, código y tareas",
     "w": 1440,
-    "h": 1024
+    "h": 900
   },
   {
     "file": "DesktopConfiguracionListo.html",
     "title": "Desktop · Configuración, listo",
     "w": 1440,
-    "h": 1024
+    "h": 900
   },
   {
     "file": "DesktopAjustesSeguridad.html",
@@ -1123,7 +1123,7 @@
   },
   {
     "file": "MobileConfiguracionAgentesClave.html",
-    "title": "Móvil · Configuración, el token de Claude Code",
+    "title": "Móvil · Configuración, iniciar sesión en Claude Code",
     "w": 390,
     "h": 844
   },

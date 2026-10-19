@@ -341,6 +341,37 @@ test('prompt injection: under none, a chat process that detaches and drops CLAUD
   assert.match(out, /^200 /);
 });
 
+// The reviewer's finding of 2026-10-18: from an agent's shell, `PUT /api/terminal/settings` got
+// through about once in six, and more often in bursts. Each request here is a new process the chat
+// starts after the previous one ended, as a `curl` from a Bash tool is.
+test('prompt injection: a burst of 50 requests, each from a new process of a chat\'s tree, is refused every time', async (t) => {
+  const w = await wrapper(t, { verdict: 'real' });
+  const open = await listen(t, w.app);
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-peer-burst-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const result = join(dir, 'result');
+  const request = `fetch(process.argv[1] + '/api/terminal/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{"enabled":true}' }).then(async (r) => console.log(String(r.status) + ' ' + ((await r.json()).reason ?? '')), (e) => console.log('error ' + e.message));`;
+  // Half the requests drop the variable and are only the chat's descendants
+  const chat = `
+    const { spawnSync } = require('node:child_process');
+    const lines = [];
+    for (let i = 0; i < 50; i++) {
+      const env = { ...process.env };
+      if (i % 2 === 0) delete env.CLAUDIO_CHAT_ID;
+      lines.push(spawnSync(process.execPath, ['-e', ${JSON.stringify(request)}, process.argv[1]], { env, encoding: 'utf8' }).stdout.trim());
+    }
+    require('node:fs').writeFileSync(process.argv[2], lines.join('\\n'));
+  `;
+  const ambient = { ...process.env };
+  delete ambient.CLAUDIO_AGENT_RUN;
+  const root = spawn(process.execPath, ['-e', chat, open.base, result], { env: { ...ambient, CLAUDIO_CHAT_ID: 'chat-burst' }, stdio: 'ignore' });
+  t.after(() => root.kill('SIGKILL'));
+  await new Promise<void>((resolve) => root.once('exit', () => resolve()));
+  const lines = readFileSync(result, 'utf8').split('\n');
+  assert.equal(lines.length, 50);
+  assert.deepEqual(new Set(lines), new Set(['403 from-agent']), lines.join(', '));
+});
+
 // ---------- a leaked owner token ----------
 
 test('leaked token: with the feature off the token opens nothing, and turning it on from another device is refused', async (t) => {

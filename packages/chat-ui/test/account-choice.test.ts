@@ -4,7 +4,7 @@ import type { Account, ModelOption } from '@claudio/shared';
 import { accountSwitchText, readNotices } from '../src/lib/chat-notice';
 import { accountLabel, accountRow, canChoose } from '../src/lib/account-choice';
 
-const account = (patch: Partial<Account> = {}): Account => ({ id: 'a', kind: 'login', alias: null, email: 'a@x.dev', organization: null, plan: 'max', enabled: true, signedIn: true, signInState: 'ok', limits: null, ...patch });
+const account = (patch: Partial<Account> = {}): Account => ({ id: 'a', kind: 'login', alias: null, email: 'a@x.dev', organization: null, plan: 'max', enabled: true, signedIn: true, signInState: 'ok', checkedAt: null, limits: null, ...patch });
 const limits = (patch: Partial<NonNullable<Account['limits']>> = {}): NonNullable<Account['limits']> => ({
   state: 'ok',
   window: 'five_hour',

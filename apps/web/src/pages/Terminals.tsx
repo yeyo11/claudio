@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { SquareTerminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +6,6 @@ import type { Terminal, TerminalStatus as TerminalStatusInfo } from '@claudio/sh
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Empty, ErrorBox, PageHeader, Skeleton } from '@claudio/ui/components/ui';
 import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
-import { api, keys } from '../api';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
 import { TerminalPanel } from '../components/terminal/TerminalPanel';
 import { NewTerminal } from '../components/terminal/NewTerminal';
@@ -15,7 +13,7 @@ import { TerminalStatus as TerminalStatusWord } from '../components/terminal/Ter
 import { useTerminalBar } from '../components/terminal/terminal-bar';
 import { baseName, requestFor, tabLabels, unavailableKey } from '../components/terminal/terminal-model';
 import { terminalPath } from '../components/terminal/terminal-path';
-import { useCloseTerminal, useOpenTerminal, useTerminalList, useTerminalStatus } from '../components/terminal/use-terminals';
+import { useCloseTerminal, useOpenTerminal, useTerminalList, useTerminalOne, useTerminalStatus } from '../components/terminal/use-terminals';
 import { useProjectScope } from '../lib/project-scope';
 import { settingsHref } from './config/settingsGroups';
 
@@ -62,7 +60,7 @@ function MobileTerminals() {
   const { terminals, isLoading, error } = useTerminalList({ all: true }, available);
   const navigate = useNavigate();
   const open = useOpenTerminal((terminal) => navigate(terminalPath(terminal.id)));
-  const names = tabLabels(terminals, (id) => projects.find((each) => each.id === id)?.name);
+  const names = tabLabels(terminals, (id) => projects.find((each) => each.id === id)?.name, t('new.workspace'));
   const title = t('page.title');
 
   return (
@@ -107,13 +105,17 @@ export function TerminalScreen() {
   const compact = useMediaQuery(COMPACT);
   const ownHeader = useOwnPhoneHeader();
   const status = useTerminalStatus();
-  const one = useQuery({ queryKey: keys.terminalOne(id), queryFn: ({ signal }) => api.terminal(id, { signal }) });
-  const terminal = one.data;
+  const one = useTerminalOne(id);
+  const { terminal } = one;
   const leave = (from: Terminal) => navigate(from.scope.kind === 'chat' ? `/chats/${encodeURIComponent(from.scope.chatId)}` : '/terminals');
+  const closeThis = (from: Terminal) => {
+    one.forget();
+    close.mutate(from.id, { onSuccess: () => leave(from), onError: one.remember });
+  };
   const open = useOpenTerminal((next) => navigate(terminalPath(next.id), { replace: true }));
   const close = useCloseTerminal();
 
-  const name = terminal ? baseName(terminal.cwd) : t('page.title');
+  const name = terminal ? (terminal.scope.kind === 'workspace' ? t('new.workspace') : baseName(terminal.cwd)) : t('page.title');
   const header = ownHeader ? (
     <PhoneHeader title={name} subtitle={terminal?.cwd} back={terminal ? { onBack: () => leave(terminal) } : undefined} />
   ) : (
@@ -123,7 +125,7 @@ export function TerminalScreen() {
   return (
     <div className="term-page">
       {header}
-      {one.isLoading || status.isLoading ? (
+      {one.isLoading || status.isLoading || one.forgotten ? (
         <Skeleton rows={4} height={14} />
       ) : !status.data?.available ? (
         <Unavailable status={status.data} />
@@ -138,9 +140,15 @@ export function TerminalScreen() {
           key={terminal.id}
           terminal={terminal}
           compact={compact}
-          onEnded={() => void one.refetch()}
+          onEnded={(reason) => {
+            // Closed by a person elsewhere: the server forgot it, so this screen leaves instead of asking for it
+            if (reason === 'closed') {
+              one.forget();
+              leave(terminal);
+            } else void one.refetch();
+          }}
           onReopen={() => open.mutate(requestFor(terminal))}
-          onClose={() => close.mutate(terminal.id, { onSuccess: () => leave(terminal) })}
+          onClose={() => closeThis(terminal)}
         />
       )}
     </div>

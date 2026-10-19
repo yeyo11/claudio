@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { constants } from 'node:os';
 import { createInterface } from 'node:readline';
 import type { LogFile } from './log.ts';
 
@@ -37,6 +38,14 @@ export interface ServerEnvOptions {
   desktopSecret: string;
   /** The key for the server's secret files, from `secretKeyFor`; null when the keyring is not there */
   secretKey?: string | null;
+  /** The payload this server runs: `<resources>/server`, or an overlay in `<dataDir>/app/<version>` */
+  appDir: string;
+  /** The shell's guard, whichever payload runs */
+  guardEntry: string;
+  /** The shell's public keys, which a downloaded payload must verify against */
+  keysDir: string;
+  /** The shell as the server reports it (`ShellInfo`); `inputs` is '' when the package has no `shell.json` */
+  shell: { inputs: string; aptManaged: boolean };
 }
 
 export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
@@ -48,6 +57,18 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
     PORT: opts.base.PORT || String(opts.rememberedPort ?? 0),
     HOST: '127.0.0.1',
     CLAUDIO_WEB_DIST: opts.webDist,
+    // Supervised by this shell (docs/plans/unified-updates.md, Environment variables): exit 75 starts
+    // the server again, and the update routes take the shell's own credential (D8)
+    CLAUDIO_LAUNCHER: 'desktop',
+    CLAUDIO_APP_DIR: opts.appDir,
+    // The guard and the keys are the shell's, never a payload's: an overlay lives in a folder the
+    // person (and so an agent running as them) can write
+    CLAUDIO_GUARD_ENTRY: opts.guardEntry,
+    CLAUDIO_BUNDLE_KEYS_DIR: opts.keysDir,
+    CLAUDIO_SHELL_VERSION: opts.version,
+    CLAUDIO_SHELL_INPUTS: opts.shell.inputs,
+    ...(opts.distribution ? { CLAUDIO_SHELL_PACKAGE: opts.distribution } : {}),
+    CLAUDIO_SHELL_APT: opts.shell.aptManaged ? '1' : '0',
     CLAUDIO_DATA_DIR: opts.dataDir,
     CLAUDIO_WORKSPACE_DIR: opts.workspaceDir,
     CLAUDIO_VERSION: opts.version,
@@ -64,15 +85,36 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
 export class ServerProcess {
   private child: ChildProcess | undefined;
   private stopping = false;
+  private lastDetail = '';
+  private resolveExit: (code: number) => void = () => undefined;
+  /** Resolves with the exit code of the server `start` spawned (128 + the signal's number for a signal) */
+  readonly exited: Promise<number>;
 
   constructor(
     private readonly spec: ServerSpawn,
     private readonly log: LogFile,
-    /** Called when the server dies without having been asked to stop */
-    private readonly onCrash: (detail: string) => void,
-  ) {}
+    /** Called when the server dies after it was ready without having been asked to stop */
+    private readonly onCrash: (detail: string) => void = () => undefined,
+  ) {
+    this.exited = new Promise((resolve) => {
+      this.resolveExit = resolve;
+    });
+  }
 
-  /** Resolves with the server URL once it printed its READY line */
+  /** How it ended: the exit, and the end of its stderr */
+  get detail(): string {
+    return this.lastDetail;
+  }
+
+  /** Sends a signal to the server, without waiting */
+  signal(signal: NodeJS.Signals): void {
+    const child = this.child;
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    this.stopping = true;
+    child.kill(signal);
+  }
+
+  /** Resolves with the server URL once it printed its READY line. Once per instance. */
   start(): Promise<string> {
     return new Promise((resolve, reject) => {
       // The IPC channel makes the server exit by itself if this process dies without cleaning up
@@ -118,14 +160,21 @@ export class ServerProcess {
       child.once('error', (err) => {
         this.log.line(`server failed to spawn: ${err.message}`);
         if (!ready) fail(err);
+        // A process that never started emits no exit
+        if (child.pid === undefined) {
+          this.lastDetail = `The server could not be started: ${err.message}`;
+          this.resolveExit(127);
+        }
       });
       child.once('exit', (code, signal) => {
         clearTimeout(timer);
         const how = signal ? `signal ${signal}` : `code ${code}`;
         this.log.line(`server exited with ${how}`);
         if (this.child === child) this.child = undefined;
-        if (this.stopping) return;
         const detail = `The server exited with ${how}.${stderrTail ? `\n\n${stderrTail.trim()}` : ''}`;
+        this.lastDetail = detail;
+        this.resolveExit(code ?? 128 + (signal ? (constants.signals[signal] ?? 1) : 1));
+        if (this.stopping) return;
         if (ready) this.onCrash(detail);
         else reject(new Error(detail));
       });

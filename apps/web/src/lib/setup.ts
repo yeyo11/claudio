@@ -55,10 +55,10 @@ export function variableChoices(methods: SetupToolMethods): string[] {
 }
 
 /** How a variable is offered in the choice: a word of the copy for Claude Code, its own name otherwise. */
-export type VariableLabel = { kind: 'copy'; key: 'oauthToken' | 'apiKey' } | { kind: 'name'; name: string };
+export type VariableLabel = { kind: 'copy'; key: 'apiKey' } | { kind: 'name'; name: string };
 
 export function variableLabel(tool: SetupTool, variable: string): VariableLabel {
-  if (tool === 'claude-code') return { kind: 'copy', key: variable === 'ANTHROPIC_API_KEY' ? 'apiKey' : 'oauthToken' };
+  if (tool === 'claude-code') return { kind: 'copy', key: 'apiKey' };
   return { kind: 'name', name: variable };
 }
 
@@ -70,7 +70,7 @@ export function keyLink(tool: SetupTool, host: string | null): string | null {
   const at = (host ?? '').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
   switch (tool) {
     case 'claude-code':
-      return 'https://code.claude.com/docs/en/authentication';
+      return 'https://console.anthropic.com/settings/keys';
     case 'gh':
       return `https://${at || 'github.com'}/settings/tokens`;
     case 'glab':

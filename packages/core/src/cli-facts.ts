@@ -75,10 +75,13 @@ export interface SubagentInfo {
   toolUseId: string;
   subagentType: string;
   description: string;
-  /** `stopped` when its session ended before the agent reported back */
-  status: 'running' | 'completed' | 'failed' | 'stopped';
+  /** `stopped` when its session ended before the agent reported back; `waiting` after a turn that left its own background work running */
+  status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
+  /** First launch; a resume by its parent adds a run and leaves this alone */
   startedAt: string;
   endedAt: string | null;
+  /** Every stretch it worked, oldest first; absent on a record that predates runs (read as one) */
+  runs?: Array<{ startedAt: string; endedAt: string | null }>;
   /** The CLI's own id for the agent, which is also the name of its transcript */
   agentId?: string;
   /** Last time the agent wrote to its transcript */

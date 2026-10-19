@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CodeHostStatus, LoginSession, ProviderReadinessState, ProviderStatus, SetupState, SetupToolMethods } from '@claudio/shared';
+import type { AccountLoginSession, AuthStatus, CodeHostStatus, LoginSession, ProviderReadinessState, ProviderStatus, SetupState, SetupToolMethods } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -10,6 +10,8 @@ import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { keys } from '../src/api';
 import { DeviceCode, SignInPanel } from '../src/components/setup/SignInPanel';
+import { SignInSession } from '../src/components/setup/SignInSession';
+import { useConnection } from '../src/components/shell/StatusBar';
 import i18n from '../src/i18n';
 import {
   advance,
@@ -40,6 +42,7 @@ const row = (tool: SetupToolMethods['tool'], methods: Partial<Omit<SetupToolMeth
   variables: [],
   exclusive: false,
   device: false,
+  accountLogin: false,
   deviceVia: null,
   needsHost: false,
   defaultHost: null,
@@ -48,7 +51,7 @@ const row = (tool: SetupToolMethods['tool'], methods: Partial<Omit<SetupToolMeth
   ...methods,
 });
 const METHODS: SetupToolMethods[] = [
-  row('claude-code', { variables: ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'], exclusive: true }),
+  row('claude-code', { variables: ['ANTHROPIC_API_KEY'], accountLogin: true }),
   row('gh', { key: 'stdin', device: true, needsHost: true, defaultHost: 'github.com' }),
   row('glab', { key: 'stdin', device: true, needsHost: true, defaultHost: 'gitlab.com' }),
   row('youtrack', { variables: ['YOUTRACK_TOKEN'], needsHost: true }),
@@ -107,10 +110,11 @@ const host = (id: 'github' | 'gitlab', state: CodeHostStatus['state'], user: str
     hosts: user ? [{ hostname: id === 'github' ? 'github.com' : 'gitlab.com', default: true, signedIn: true, user }] : [],
   }) as unknown as CodeHostStatus;
 
-async function render(node: React.ReactNode): Promise<string> {
+async function render(node: React.ReactNode, seed?: (client: QueryClient) => void): Promise<string> {
   await i18n.changeLanguage('en');
   const client = new QueryClient();
   client.setQueryData(keys.setup, SETUP);
+  seed?.(client);
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <TooltipProvider>
@@ -132,7 +136,7 @@ test('a tool with a device code offers it first, then the key; one without offer
 });
 
 test('only an env tool with several variables asks which one the key goes in', () => {
-  assert.deepEqual(variableChoices(methods('claude-code')), ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+  assert.deepEqual(variableChoices(methods('claude-code')), [], 'the OAuth token is no longer offered, so the API key is the only one');
   assert.deepEqual(variableChoices(methods('youtrack')), [], 'one variable: nothing to choose');
   assert.deepEqual(variableChoices(methods('gh')), [], 'a stdin key has no variable');
   assert.deepEqual(variableLabel('claude-code', 'ANTHROPIC_API_KEY'), { kind: 'copy', key: 'apiKey' });
@@ -240,15 +244,96 @@ test('the summary marks what was skipped plainly, what is not signed in as signe
   assert.equal(open[0]?.badge, 'open', 'no guard is plain, not a failure');
 });
 
-test('Claude Code\'s panel names claude setup-token inside the sentence, with no copy button, and a write-only field', async () => {
-  const html = await render(<SignInPanel tool="claude-code" label="Claude Code" onClose={() => undefined} />);
-  assert.match(html, /<code>claude setup-token<\/code>/);
-  assert.match(html, /<strong>your own computer<\/strong>/);
-  assert.doesNotMatch(html, /Copy/, 'it reads as an explanation, not a command to paste');
-  assert.match(html, /type="password"/);
-  assert.match(words(html), /OAuth token/);
-  assert.match(words(html), /API key/, 'the token or the API key');
+const AUTH: AuthStatus = { loggedIn: false, tokenSource: 'none', inUse: null };
+const claudePanel = (auth: AuthStatus = AUTH) =>
+  render(<SignInPanel tool="claude-code" label="Claude Code" onClose={() => undefined} />, (client) => client.setQueryData(keys.auth, auth));
+
+test('Claude Code\'s panel offers the Claude account first and the API key second, and never a token', async () => {
+  const html = await claudePanel();
+  assert.match(words(html), /Claude account API key/, 'the account first, the key second');
+  assert.equal(html.match(/role="radio"/g)?.length, 2, 'no third way');
+  assert.match(words(html), /Claude Code keeps the credentials, and Claudio never reads them/);
+  assert.match(words(html), /Sign in/);
+  assert.doesNotMatch(html, /setup-token|OAuth token|oat01/, 'the OAuth token is not offered anywhere');
+  assert.doesNotMatch(html, /type="password"/, 'the key field waits for the API key choice');
   assert.match(html, /prov-bin signin-panel/);
+});
+
+test('a credential in the deployment\'s environment warns that it beats a sign-in made here', async () => {
+  const html = await claudePanel({ ...AUTH, loggedIn: true, tokenSource: 'env-oauth-token' });
+  assert.match(words(html), /This deployment sets CLAUDE_CODE_OAUTH_TOKEN in its environment, and Claude Code uses it before any sign-in made here/);
+  const key = await claudePanel({ ...AUTH, loggedIn: true, tokenSource: 'env-api-key' });
+  assert.match(words(key), /This deployment sets ANTHROPIC_API_KEY/);
+  assert.doesNotMatch(await claudePanel(), /This deployment sets/);
+});
+
+test('a token Claudio saved earlier is replaced by the sign-in, and says so', async () => {
+  const html = await claudePanel({ ...AUTH, loggedIn: true, tokenSource: 'wrapper-oauth-token' });
+  assert.match(words(html), /Signing in replaces the token saved earlier\./);
+});
+
+const loginSession = (patch: Partial<AccountLoginSession> = {}): AccountLoginSession => ({
+  id: 'l1',
+  accountId: 'default',
+  state: 'waiting-for-person',
+  url: 'https://claude.ai/oauth/authorize?fake=1',
+  startedAt: new Date(Date.now() - 60_000).toISOString(),
+  endedAt: null,
+  account: null,
+  ...patch,
+});
+
+test('a Claude account sign-in that waits shows the link, the code field and the time left', async () => {
+  const html = await render(<SignInSession session={loginSession()} onCode={() => undefined} sending={false} error={null} />);
+  assert.match(html, /signin-device live-energy is-link/);
+  assert.match(words(html), /Waiting for you to approve/);
+  assert.match(words(html), /expires in 1[34]:/);
+  assert.match(words(html), /Send code/);
+});
+
+test('a link nobody opened expires with a warning and a way to get another', async () => {
+  const html = await render(<SignInSession session={loginSession({ state: 'expired', endedAt: '2026-10-08T10:15:00Z' })} onCode={() => undefined} sending={false} error={null} onRetry={() => undefined} />);
+  assert.match(html, /signin-result warn/);
+  assert.match(html, /role="alert"/);
+  assert.match(words(html), /The sign-in link expired\./);
+  assert.match(words(html), /Get a new link/);
+  assert.doesNotMatch(html, /live-energy/, 'nothing moves once it ended');
+});
+
+test('a sign-in that failed says so and offers to try again', async () => {
+  const html = await render(<SignInSession session={loginSession({ state: 'failed', endedAt: '2026-10-08T10:01:00Z' })} onCode={() => undefined} sending={false} error={null} onRetry={() => undefined} />);
+  assert.match(html, /signin-result"/);
+  assert.match(words(html), /The sign-in did not finish\./);
+  assert.match(words(html), /Try again/);
+});
+
+// ---------- the status bar reads the account in use ----------
+
+function Reading({ auth, claude }: { auth: AuthStatus; claude: ProviderReadinessState }) {
+  const connection = useConnection({ data: { system: { auth, cli: { installed: true, version: '2.1.302' } } }, isError: false } as unknown as Parameters<typeof useConnection>[0], true);
+  return <pre>{JSON.stringify({ ...connection, claude })}</pre>;
+}
+async function connection(auth: AuthStatus, state: ProviderReadinessState = 'ready') {
+  const html = await render(<Reading auth={auth} claude={state} />, (client) => client.setQueryData(keys.providers, [provider('claude-code', 'Claude Code', state)]));
+  return JSON.parse(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')) as { healthy: boolean; short: string; title: string };
+}
+const inUse = (patch: Partial<NonNullable<AuthStatus['inUse']>> = {}): NonNullable<AuthStatus['inUse']> => ({ id: 'work', label: 'work', kind: 'login', signInState: 'ok', checkedAt: null, ...patch });
+
+test('the status bar is healthy on the account in use, even when the CLI\'s own login is empty', async () => {
+  const ok = await connection({ ...AUTH, loggedIn: false, inUse: inUse() });
+  assert.equal(ok.healthy, true);
+  assert.equal(ok.short, 'work', 'the short label is the account\'s alias');
+});
+
+test('the status bar says so when no account can take work, or the one in use expired', async () => {
+  const none = await connection({ ...AUTH, loggedIn: true, inUse: null });
+  assert.equal(none.healthy, false);
+  assert.equal(none.title, 'Not signed in');
+  const expired = await connection({ ...AUTH, loggedIn: true, inUse: inUse({ signInState: 'expired' }) });
+  assert.equal(expired.healthy, false);
+  assert.equal(expired.title, 'Sign-in expired');
+  const refused = await connection({ ...AUTH, inUse: inUse() }, 'signed-out');
+  assert.equal(refused.healthy, false, 'a provider that is not ready is not healthy either');
 });
 
 test('GitHub\'s panel heads with Code / Key and asks for the host first', async () => {

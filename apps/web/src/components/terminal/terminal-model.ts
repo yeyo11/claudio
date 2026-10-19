@@ -55,6 +55,49 @@ export function unavailableKey(reason: TerminalUnavailableReason): `unavailable.
   return `unavailable.${reason}`;
 }
 
+const REASONS: readonly TerminalUnavailableReason[] = [
+  'off', 'disabled-by-env', 'pty-missing', 'host-failed', 'read-only', 'needs-auth', 'remote-off', 'needs-tunnel', 'from-agent', 'chat-token',
+];
+
+/** What a person can do about a refusal, when there is something */
+export type TerminalRefusalAction =
+  /**
+   * Opens a section of Settings → Access & safety. The only kind there is: a refusal that comes
+   * from another device is judged again on every change made from there, so a button that changed
+   * `remote` here could only be refused once more (the gate does not let a remote caller widen its
+   * own access).
+   */
+  { kind: 'link'; label: 'protect' | 'tunnel' | 'access'; section: 'access' | 'remote' };
+
+export interface TerminalRefusal {
+  reason: TerminalUnavailableReason;
+  /** `warn` for what a setting fixes, `bad` for what is broken */
+  tone: 'warn' | 'bad';
+  /** The `terminal` key of the sentence: the server's own text is never shown */
+  sentence: `unavailable.${TerminalUnavailableReason}`;
+  /** The way out, first the one that fixes it here; empty when only the environment can */
+  actions: TerminalRefusalAction[];
+}
+
+const ACTIONS: Partial<Record<TerminalUnavailableReason, TerminalRefusalAction[]>> = {
+  'needs-auth': [{ kind: 'link', label: 'protect', section: 'access' }],
+  'needs-tunnel': [{ kind: 'link', label: 'tunnel', section: 'remote' }],
+  'read-only': [{ kind: 'link', label: 'access', section: 'access' }],
+};
+
+/**
+ * A refusal in the person's words, from the reason a status carries or from the `terminal.<reason>`
+ * code the terminal routes answer with. Null for anything else (a network failure, a 500), which
+ * keeps the generic message.
+ */
+export function terminalRefusal(source: unknown): TerminalRefusal | null {
+  const code = typeof source === 'object' && source !== null ? (source as { code?: unknown }).code : null;
+  const reason = typeof source === 'string' ? source : typeof code === 'string' && code.startsWith('terminal.') ? code.slice('terminal.'.length) : null;
+  const known = REASONS.find((candidate) => candidate === reason);
+  if (!known) return null;
+  return { reason: known, tone: known === 'pty-missing' || known === 'host-failed' ? 'bad' : 'warn', sentence: unavailableKey(known), actions: ACTIONS[known] ?? [] };
+}
+
 /** The last part of a path: what a tab can hold of a directory. */
 export function baseName(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path;
@@ -63,21 +106,25 @@ export function baseName(path: string): string {
 /** The request that opens a terminal like this one: what "Open again" sends. */
 export function requestFor(terminal: Pick<Terminal, 'scope'>): CreateTerminalRequest {
   const { scope } = terminal;
-  return scope.kind === 'chat' ? { chatId: scope.chatId } : { projectId: scope.projectId, ...(scope.worktree ? { worktree: scope.worktree } : {}) };
+  if (scope.kind === 'chat') return { chatId: scope.chatId };
+  if (scope.kind === 'workspace') return { workspace: true };
+  return { projectId: scope.projectId, ...(scope.worktree ? { worktree: scope.worktree } : {}) };
 }
 
 /**
  * What a tab of the status bar's panel is called: the project's name for a terminal in its checkout,
- * the project and the folder for one in a worktree, the folder alone for a chat's or a project that
- * is no longer in the list. Two with the same label are numbered, so a tab is never ambiguous.
+ * the project and the folder for one in a worktree, the workspace's name for one opened there, and the
+ * folder alone for a chat's or a project that is no longer in the list. Two with the same label are
+ * numbered, so a tab is never ambiguous.
  */
-export function tabLabels(terminals: readonly Terminal[], projectName: (id: string) => string | undefined): Map<string, string> {
+export function tabLabels(terminals: readonly Terminal[], projectName: (id: string) => string | undefined, workspaceName?: string): Map<string, string> {
   const seen = new Map<string, number>();
   const labels = new Map<string, string>();
   for (const terminal of terminals) {
     const folder = baseName(terminal.cwd);
-    const project = terminal.scope.kind === 'project' ? projectName(terminal.scope.projectId) : undefined;
-    const base = !project ? folder : terminal.scope.kind === 'project' && terminal.scope.worktree ? `${project} · ${folder}` : project;
+    const { scope } = terminal;
+    const project = scope.kind === 'project' ? projectName(scope.projectId) : undefined;
+    const base = scope.kind === 'workspace' ? (workspaceName ?? folder) : !project ? folder : scope.kind === 'project' && scope.worktree ? `${project} · ${folder}` : project;
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     labels.set(terminal.id, n === 1 ? base : `${base} ${String(n)}`);

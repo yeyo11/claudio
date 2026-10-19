@@ -447,3 +447,21 @@
   font-size: var(--fs-small);
   color: var(--fg);
 }
+
+/* A refused-attempts tag lists its reasons in words: it wraps inside its cell rather than widening
+   the history table past its card and squeezing the actor and directory columns */
+/* …but at phrase width, never a word per line: the column keeps room for a reason, and on a phone
+   the table scrolls sideways in its wrapper (as it already did) instead of growing each row tall */
+.term-history-how {
+  min-width: 24ch;
+}
+
+.term-history-how .badge {
+  white-space: normal;
+}
+
+/* The history is paged (ten entries a page), so its table never needs a scroller of its own inside
+   the page: a page with refusals in words is taller than the shared wrapper's cap */
+.term-history .table-wrap {
+  max-height: none;
+}

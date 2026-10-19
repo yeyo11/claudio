@@ -16,6 +16,7 @@ const sub = (over: Partial<ChatSubagent> = {}): ChatSubagent => ({
   status: 'running',
   startedAt: '2026-10-17T10:00:00.000Z',
   endedAt: null,
+  runs: [],
   lastActivityAt: null,
   cwd: null,
   tasks: [],

@@ -31,6 +31,12 @@ export default async ({ page, api, check, releases }) => {
     const text = await page.text(`[data-testid=update-docker-${way}]`);
     check(text.includes(command), `the ${way} way offers "${command}": ${text}`);
   }
+  // The harness has no launcher, so Claudio cannot update itself here and the card says why above the commands
+  const server = await api.get('/system/server-update');
+  check(server.status === 200 && server.body.unsupportedReason === 'no-launcher', `a container without the launcher cannot update itself: ${JSON.stringify(server.body)}`);
+  await page.waitFor(`return document.querySelector('[data-testid=server-update-unsupported]')?.innerText.includes("started without Claudio's launcher")`, { label: 'the card to say why it cannot update itself' });
+  // The card never offers what cannot install: no download button where Claudio cannot update itself
+  check(!(await page.eval(`return [...document.querySelectorAll(${JSON.stringify(`${CARD} button`)})].some((b) => b.textContent.includes('Download Claudio'))`)), 'no download button where the update cannot be installed');
   // Only the steps' own alert: the card may also carry the storage warning, which the harness raises
   // because it says it is a Docker install while its folders are not on named volumes
   check(!(await page.eval(`return !!document.querySelector(${JSON.stringify(`${CARD} [data-testid^="update-steps-"] .alert`)})`)), 'a page on this machine is not told to ask whoever runs the server');

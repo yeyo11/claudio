@@ -2285,7 +2285,7 @@ a.cont-from:hover { color: var(--fg); }
 /* ---------- end of Queued messages ---------- */
 
 /* ---------- Setup (docs/plans/in-app-setup.md): the assistant, the sign-in panel and the done summary ----------
-   The assistant is the first run's page (.prov-first) with the wizard's .steps on top. A step the person skipped is
+   The assistant is a full-height frame (.setup-page) with the wizard's .steps on top. A step the person skipped is
    .step.skipped: a dotted bar and the word "omitido", never a status colour, since skipping fails nothing. The sign-in
    panel is .prov-bin.signin under the row (on a phone, a Sheet with the same pieces). While a device-code sign-in waits
    for the person, its box (.signin-device) is the screen's one live surface and carries .energy; nothing else on the
@@ -2297,7 +2297,48 @@ a.cont-from:hover { color: var(--fg); }
 /* The phone keeps the bars only: the names stay for screen readers, and the step's name sits in the header */
 .steps-bare .step { gap: 0; }
 .steps-bare .step-name, .steps-bare .step-skip { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.setup-foot { display: flex; align-items: center; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+/* The frame (docs/plans/container-polish.md, D7): a head, a body that scrolls and a foot pinned to the bottom of the
+   viewport, on one centred track (880 px; 1180 px from 1180 px of width). On a wide screen the body has two columns:
+   the step's title and explanation (.setup-aside, sticky) and its cards. A short screen (max-height 760) clamps the
+   explanation to three lines. The first-run Providers page that shares .prov-first is untouched. */
+.app.setup-page { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+.setup-track { width: min(880px, 100% - 48px); margin: 0 auto; }
+.setup-head { padding: 24px 0 16px; }
+.setup-head .setup-track { display: flex; flex-direction: column; gap: 18px; }
+.setup-body { min-height: 0; overflow: hidden; padding: 8px 0 28px; }
+.setup-grid { display: flex; flex-direction: column; gap: 22px; }
+.setup-foot-bar { padding: 12px 0; border-top: 1px solid var(--line); background: var(--bg); }
+.setup-foot { display: flex; align-items: center; gap: 10px; }
+.setup-aside { display: flex; flex-direction: column; gap: 10px; }
+.setup-aside h1 { margin: 0; }
+.setup-aside p { margin: 0; max-width: 640px; line-height: 1.55; color: var(--fg-2); }
+@media (min-width: 1180px) {
+  .setup-track { width: min(1180px, 100% - 64px); }
+  .setup-grid { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); column-gap: 48px; row-gap: 0; align-items: start; }
+  .setup-grid > * { grid-column: 2; max-inline-size: 820px; margin-bottom: 22px; }
+  .setup-grid > .setup-aside { grid-column: 1; grid-row: 1 / span 6; position: sticky; top: 0; max-inline-size: none; margin-bottom: 0; }
+  .setup-aside p { max-width: 44ch; }
+}
+/* The provider rows are laid out by the width of their card: the name with its state right after it, the reason, then the
+   version and the path (a literal: it wraps, it is never cut); the actions at the end. Under 640 px of card the actions
+   go on their own line under the text. */
+.setup-list { container: setup-list / inline-size; }
+.setup-page .prov-row.compact { grid-template-columns: 50px max-content minmax(0, 1fr) auto; column-gap: 0; row-gap: 2px; align-items: start; }
+.setup-page .prov-row.compact > :first-child { grid-column: 1; grid-row: 1 / span 3; }
+.setup-page .prov-row.compact .prov-id, .setup-page .prov-row.compact .prov-state { display: contents; }
+.setup-page .prov-row.compact .prov-name { grid-column: 2; grid-row: 1; align-self: center; }
+.setup-page .prov-row.compact .prov-state > .badge { grid-column: 3; grid-row: 1; justify-self: start; margin-left: 8px; }
+.setup-page .prov-row.compact .prov-account { display: none; }
+.setup-page .prov-row.compact .prov-reason { grid-column: 2 / span 2; grid-row: 2; }
+.setup-page .prov-row.compact .prov-meta { grid-column: 2 / span 2; grid-row: 3; font-family: var(--mono); overflow-wrap: anywhere; }
+.setup-page .prov-row.compact .prov-actions { grid-column: 4; grid-row: 1 / span 3; align-self: start; margin-left: 14px; }
+@container setup-list (max-width: 639px) {
+  .setup-page .prov-row.compact { grid-template-columns: 50px max-content minmax(0, 1fr); }
+  .setup-page .prov-row.compact .prov-reason, .setup-page .prov-row.compact .prov-meta { grid-column: 2 / -1; }
+  .setup-page .prov-row.compact .prov-actions { grid-column: 2 / -1; grid-row: 4; justify-content: flex-start; margin: 8px 0 0; }
+}
+.setup-page .prov-bin.signin > * { max-inline-size: 640px; }
+/* A fact about the sign-in the person should know before choosing (the environment sets a credential) */
 .prov-bin.signin { gap: 12px; padding-left: 68px; }
 .signin-head { display: flex; align-items: center; gap: 10px; min-height: 30px; }
 .signin-note { margin: 0; font-size: var(--fs-small); line-height: 1.55; color: var(--fg-2); max-width: 640px; }

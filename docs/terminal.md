@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T20:00:00Z
-updated_at: 2026-10-15T20:00:00Z
+updated_at: 2026-10-18T18:00:00Z
 tags:
     - terminal
     - pty
@@ -10,8 +10,8 @@ tags:
 ---
 # The terminal
 
-A real interactive shell per project and per chat, opened in the project's directory or in the
-chat's worktree, in a panel of the web app (desktop and phone) and of the Electron app. It is **the
+A real interactive shell per project, per chat and in the workspace, opened in the project's
+directory, the chat's worktree or the configured workspace, in a panel of the web app (desktop and phone) and of the Electron app. It is **the
 person's own shell**: Claudio never writes into it, never reads what it prints to decide anything and
 never starts `claude` in it. The design, the threat model and the decisions are in
 [the plan](plans/terminal.md); this page says what exists and how to use and check it.
@@ -22,14 +22,39 @@ never starts `claude` in it. The design, the threat model and the decisions are 
   the switch for whoever deployed Claudio (the UI then shows it read-only).
 - **Authentication off: this machine only.** From loopback, with no forwarded or runtime host.
 - **Authentication on: the owner's token.** From another device only through the tunnel
-  (`remote: 'tunnel'`, the default), or from any device with a token (`remote: 'any'`, which the
-  card warns about). `remote: 'off'` keeps it to this machine.
+  (`remote: 'tunnel'`, the default outside a container), or from any device with a token
+  (`remote: 'any'`, which the card warns about, and the default in a container). `remote: 'off'`
+  keeps it to this machine.
+- **In a container the default is `any`.** Every request there comes from the Docker bridge, never
+  from loopback, so `'tunnel'` made the terminal unusable rather than safer (`CLAUDIO_DISTRIBUTION=docker`
+  picks the default; a value saved in `terminal.json` wins). The image makes an owner token on its
+  first start ([deploy.md](deploy.md#the-first-run-token)), which is what the terminal then needs.
+  The owner token already starts chats that run any command as `node`, so this adds no capability to
+  its holder.
 - **Never** a chat's token, the desktop secret, or a process an agent started (peer check). Read-only
   mode refuses it.
+- **How the peer check decides.** For a loopback connection it finds the client's socket in
+  `/proc/net/tcp{,6}`, every process holding it under `/proc/*/fd`, and walks each one's ancestry up
+  to the server, looking for `CLAUDIO_CHAT_ID` or `CLAUDIO_AGENT_RUN`
+  (`packages/core/src/terminals/peer.ts`). It says "not an agent" only of a holder it found and walked
+  to the end; a socket already closed, a holder another user owns, or an ancestor that exited mid-walk
+  is `unknown`, and `unknown` is refused under `none` (`needs-auth`). It costs 20 to 55 ms, on the
+  terminal routes and the upgrade only. Until 2026-10-18 it looked only inside the chats' trees as a
+  table cached for a second, and a process an agent had just started was in no tree yet: a burst of
+  new processes from a chat got through about nine times in ten
+  ([plans/terminal.md §3.5](plans/terminal.md)).
 - **Limit with authentication off.** A process that detaches from its chat's process tree (`setsid -f`,
-  a double fork) is no longer found by the peer check, so an agent that has a shell can reach the
-  terminal. With token or OIDC authentication it cannot: it holds no credential. The owner accepted
-  this on 2026-10-15 and the card warns about it beside the switch when the mode is `none`.
+  a double fork) **and** drops `CLAUDIO_CHAT_ID` from its environment is no longer found by the peer
+  check, so an agent that has a shell can reach the terminal. With token or OIDC authentication it
+  cannot: it holds no credential. The owner accepted this on 2026-10-15 and the card warns about it
+  beside the switch when the mode is `none`.
+
+**Refusals are shown in words.** Settings → Access & safety → Terminal turns every reason the gate gives
+into a sentence with a link to the fix where there is one (protect access with a token; open the
+tunnel; read-only mode); it never shows the server's own English text. The switch returns to its value
+and the sentence appears under it, and *Where it opens* can be chosen before the terminal is on.
+Raising it from another device is refused by design (a remote caller must not widen its own access),
+so the card does not offer a button for that: change it on this machine, or through the tunnel.
 
 **Dev server.** `pnpm dev` proxies `/api` through Vite with `xfwd: true`. Opened at
 `http://localhost:5181` or `http://127.0.0.1:5181` on this machine, the terminal works as it does in
@@ -41,6 +66,25 @@ and refuses, so use the built app (`pnpm build && pnpm start`) for that. The rul
 [security-model.md](security-model.md#the-terminal).
 
 The gate's reasons (`GET /terminal` → `reason`) are listed in the [REST API tables](rest-api.md#terminal).
+
+## Where a shell opens
+
+The client never sends a path: `POST /terminals` takes a project (and one of its listed worktrees), a
+chat, or `{ workspace: true }`, and the server derives the directory, resolved through symlinks and
+confined to its root (`packages/core/src/terminals/cwd.ts`):
+
+- **A project** opens in its directory or one of the worktrees Claudio lists for it.
+- **A chat in a project** opens in its worktree, else its own directory, inside that project.
+- **The workspace** (`config.workspaceDir`, `/workspace` in the image) needs no project at all: it is
+  where a chat outside any project runs, so it is where a terminal opens when there is no project
+  (owner, 2026-10-18; before, nothing could be opened until a project existed).
+- **A chat outside any project** opens in its own directory, which must be inside the workspace; a
+  loose chat started somewhere else, or a symlink in the workspace that leads out of it, is refused
+  (`400 terminal.bad-cwd`).
+
+Every gate is the same for the three (owner token, chat tokens refused, tickets, `Origin`, peer
+check, read-only, limits), and the session rows record the scope (`project`, `chat` or `workspace`).
+`cd` afterwards is the person's: this confines where Claudio opens a shell, not what it may reach.
 
 ## What a shell gets
 
@@ -60,9 +104,10 @@ rows, shown in the card's history table.
 
 - **The status bar.** A Terminal item (icon and the number of running shells) next to the usage and the
   account toggles a panel docked above the status bar, on every page. The panel holds all the terminals:
-  one tab per terminal (named after its project or folder, with its status), switch, X to close and "+"
-  to open another. "+" opens in the project chosen in the top bar; with All projects it is a menu of the
-  projects. It is resizable by its handle, remembers open or closed and its height in the browser, and Esc
+  one tab per terminal (named after its project, the workspace or its folder, with its status), switch, X
+  to close and "+" to open another. "+" opens in the project chosen in the top bar. With All projects it
+  opens in the workspace: at once when there is no project, else from a menu that lists the workspace
+  first and then the projects. Opening the panel with no shell running opens one there too. It is resizable by its handle, remembers open or closed and its height in the browser, and Esc
   hides it unless focus is inside a terminal. `Ctrl+\`` toggles it from anywhere.
 - **That is the only desktop entry point** (owner, 2026-10-15). There is no Terminals page, no "Open
   terminal" button on a project, no palette command and no button in the chat header. An old `/terminals`
@@ -77,15 +122,25 @@ rows, shown in the card's history table.
   app the window is native (see [desktop.md](desktop.md#the-terminal)). A menu opened in full screen
   does not show (it is outside the element); leave full screen first.
 - On a phone there is no status bar: More → Terminals lists the open terminals and offers "New terminal"
-  (in the project chosen, or a menu of projects with All projects); a row opens `/terminals/:id`, a full
+  (in the project chosen; with All projects in the workspace, or a menu of the workspace and the
+  projects); a row opens `/terminals/:id`, a full
   screen with a key bar (Esc, Tab, arrows, sticky Ctrl and Alt).
 
 **Closing.** X (`DELETE /terminals/:id`) ends the shell and removes the terminal from the list at once,
-and forgets one that already ended. A terminal that ended by itself (the shell exited, idle, a server
+and forgets one that already ended. The view forgets the id before the request goes: its socket closes
+and is not reconnected, and nothing asks for that terminal again (a `GET` or a ticket for it would be a
+404). A terminal closed elsewhere (`closed` frame with reason `closed`, or gone from a
+`terminal.changed`) is forgotten the same way; a socket the server will not attach (close code 1008)
+is not retried. A terminal that ended by itself (the shell exited, idle, a server
 restart) stays listed as "Cerrado" with "Abrir de nuevo" until X dismisses it, or an hour passes. The
 history table keeps every session either way.
 
-Every entry stays hidden unless `GET /terminal` says `available`. Colours come from the `--term-*`
+Every entry stays hidden unless `GET /terminal` says `available`, and nothing reads `GET /terminals` or a
+terminal until then: those routes sit behind the same gate as the rest and would answer 409 while the
+feature is off. The gate stays as it is rather than answering an empty list, so an API caller is told
+the feature is off instead of that there is nothing open. A `terminal.changed` event carries the
+server's status, not this client's, so the web writes an unavailable one at once and reads an
+available one again through `GET /terminal` (the gate may still refuse this device). Colours come from the `--term-*`
 tokens, in both themes; the cursor blinks only at motion level `full`.
 
 ## Checks

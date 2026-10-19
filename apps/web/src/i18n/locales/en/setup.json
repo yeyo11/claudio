@@ -10,6 +10,10 @@
     "done": "Done",
     "skipped": "skipped"
   },
+  "intro": {
+    "more": "More",
+    "less": "Less"
+  },
   "foot": {
     "back": "Back",
     "skip": "Skip",
@@ -31,6 +35,7 @@
     "oidc": "OIDC is on. You change it in Settings → Access & safety.",
     "more": "OIDC and the read-only mode are in Settings → Access & safety.",
     "shownOnceBody": "It is shown only this once. This browser already uses it; anything else that calls the API will need it.",
+    "firstRun": "Claudio made this token the first time it started. Rotate it to choose one of your own.",
     "generateAnother": "Generate another",
     "readOnly": "Claudio is in read-only mode: the access cannot be changed from here."
   },
@@ -89,7 +94,6 @@
     "variable": "What you will paste",
     "variableProvider": "Provider of the key",
     "variables": {
-      "oauthToken": "OAuth token",
       "apiKey": "API key"
     },
     "host": "Host",
@@ -102,10 +106,10 @@
       "tailscale": "Tailscale auth key"
     },
     "link": {
-      "claude-code": "How the token is made",
       "gh": "Create a token at {{host}}",
       "glab": "Create a token at {{host}}",
-      "tailscale": "Create an auth key in the Tailscale admin console"
+      "tailscale": "Create an auth key in the Tailscale admin console",
+      "apiKey": "Create an API key in the Anthropic Console"
     },
     "hint": {
       "envSealed": "Kept encrypted, and only {{label}}'s processes receive it. It is not shown again.",
@@ -114,7 +118,6 @@
       "glab": "With the api and write_repository scopes. glab keeps it in its own configuration; Claudio keeps no copy.",
       "tailscale": "One use is enough: Tailscale keeps this machine signed in with a key of its own, and Claudio keeps no copy. It reaches Tailscale through a file only it can read, removed right after."
     },
-    "claude": "Claude Code has no sign-in Claudio can do for you. On <b>your own computer</b>, where you already use Claude, run <code>claude setup-token</code> in a terminal: it opens the browser, you sign in with your subscription, and it shows you a token that lasts a year. Paste it here.",
     "claudeApiKey": "An Anthropic API key bills the API account it belongs to, not your subscription.",
     "save": "Save and check",
     "saving": "Checking…",
@@ -150,11 +153,25 @@
       "new-code": "Get another code"
     },
     "signedIn": "Signed in to {{label}}",
-    "startFailed": "Could not start the sign-in"
+    "startFailed": "Could not start the sign-in",
+    "account": {
+      "intro": "Sign in with the Claude account you use for Claude Code. Claudio opens the sign-in and relays it; Claude Code keeps the credentials, and Claudio never reads them.",
+      "signIn": "Sign in"
+    },
+    "way": {
+      "account": "Claude account",
+      "key": "API key"
+    },
+    "envNote": "This deployment sets {{variable}} in its environment, and Claude Code uses it before any sign-in made here. Remove it from the deployment to use the account you sign in with.",
+    "wrapperNote": "Signing in replaces the token saved earlier.",
+    "wrapperKeyNote": "Signing in removes the API key saved in Claudio.",
+    "claudeSignedIn": "Signed in to Claude Code"
   },
   "row": {
     "signIn": "Sign in",
     "signInAria": "Sign in to {{label}}",
+    "closeSignIn": "Close",
+    "closeSignInAria": "Close the sign-in to {{label}}",
     "addHost": "Add another host"
   },
   "signOut": {

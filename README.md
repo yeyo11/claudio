@@ -69,36 +69,40 @@ The long version, with the screens, is [docs/features.md](docs/features.md).
 ## Install
 
 **Desktop app (Linux x86_64).** Every [release](https://github.com/yeyo11/claudio/releases/latest)
-carries a `.deb` and an AppImage. The installer takes the `.deb` through apt on Debian and Ubuntu and
-the AppImage under `~/.local` everywhere else:
+carries a `.deb` and an AppImage. The installer takes the AppImage under `~/.local` where Chromium's
+sandbox runs without root (no password), and the `.deb` through a signed apt repository on the
+Debian and Ubuntu hosts that restrict it, such as Ubuntu 24.04 and later:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash
 ```
 
 It runs on your machine with your own `claude` and `~/.claude` login, so nothing is sandboxed and
-chats start in `acceptEdits`. It updates itself from Help → **Check for updates…**. See
-[docs/desktop.md](docs/desktop.md).
+chats start in `acceptEdits`. Most releases update Claudio itself without a password and without
+replacing the app (Settings → General → Updates, or Help → **Check for updates…**); on the `.deb`,
+apt updates the app. See [docs/desktop.md](docs/desktop.md).
 
 **Docker.** The image is `ghcr.io/yeyo11/claudio` (amd64; `latest`, a tag per release, and `edge`
 from `main`):
 
 ```bash
 docker run -d --init --name claudio --restart unless-stopped -p 127.0.0.1:8797:8797 \
-  -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat-... \
   -v claudio-config:/home/node/.claude -v claudio-data:/data -v claudio-workspace:/workspace \
   ghcr.io/yeyo11/claudio
 ```
 
-The token comes from `claude setup-token` on a machine where you are logged in. Name all three
-volumes, or replacing the container to update starts again with empty ones. Compose, the TLS proxy,
-the Helm chart and updating are in [docs/deploy.md](docs/deploy.md).
+Open <http://localhost:8797>, sign in with the owner token the container printed once in its log
+(`docker logs claudio`), then sign in to Claude in the setup assistant: open the link, approve and
+paste the code. No Claude variable is needed. Name all three volumes, or replacing the container to
+update starts again with empty ones. Compose, the TLS proxy, the Helm chart and updating (the app
+can update itself in a container) are in [docs/deploy.md](docs/deploy.md).
 
 > [!IMPORTANT]
-> **Authentication is off until you turn it on.** That is right for a port bound to `127.0.0.1`, and
-> wrong for anything else: with `mode: none`, anyone who reaches the port can start a chat on your
-> account and read every transcript on the machine. Before publishing the port, turn on a token or
-> OIDC and put a TLS-terminating proxy in front — see [docs/securing.md](docs/securing.md).
+> **A container makes an owner token on its first start; a source install or the desktop app has
+> authentication off until you turn it on.** Off is right for a port bound to `127.0.0.1` and wrong
+> for anything else: with `mode: none`, anyone who reaches the port can start a chat on your account
+> and read every transcript on the machine. Before publishing the port, use a token or OIDC and put a
+> TLS-terminating proxy in front — see [docs/securing.md](docs/securing.md).
 > [SECURITY.md](SECURITY.md) spells out exactly what is and is not protected.
 
 **From source.** Node 22+, pnpm 10 and a logged-in `claude` on your `PATH`:

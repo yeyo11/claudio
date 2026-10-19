@@ -32,6 +32,122 @@ export interface CliVersionInfo {
   updateAvailable: boolean;
   /** Why the last check failed (registry unreachable, unexpected answer); the previous `latest` is kept */
   error?: string;
+  /** Where the CLI in use comes from: the image's pin, one installed in-app under `/data/cli`, or the PATH */
+  source: 'image' | 'data' | 'path';
+  /** Whether `POST /system/cli-version/install` may run here */
+  installable: boolean;
+  /** The in-app install, while one runs or after it failed; null where installing is not offered */
+  install: { state: 'idle' | 'installing' | 'failed'; version: string | null; error: CliInstallError | null } | null;
+}
+
+/**
+ * Why an in-app install of Claude Code failed or was refused. `download-interrupted`: the connection
+ * kept dropping or stalling mid-download after every retry; `fetch-failed`: no usable answer at all.
+ */
+export type CliInstallError = 'fetch-failed' | 'download-interrupted' | 'integrity' | 'out-of-range' | 'not-newer' | 'version-mismatch' | 'disk';
+
+/** What is live on this server, counted as the overview counts it: what a restart would stop */
+export interface LiveWork {
+  /** Chats working now */
+  working: number;
+  /** Chats waiting for a person (their CLI is running) */
+  waiting: number;
+  /** Orchestrations running */
+  running: number;
+  /** Terminals whose shell is running: a restart ends every one of them */
+  terminals: number;
+}
+
+export type ServerUpdateState = 'idle' | 'downloading' | 'verifying' | 'ready' | 'scheduled' | 'restarting' | 'failed';
+/** `download-interrupted`: the bundle's connection kept dropping or stalling after every retry (docs/updates.md) */
+export type ServerUpdateError = 'fetch-failed' | 'download-interrupted' | 'bad-signature' | 'bad-manifest' | 'disk' | 'needs-image' | 'needs-shell';
+/**
+ * Why this server cannot update itself. `not-docker` means no launcher host at all, a source install
+ * (the name is phase 1's); `no-launcher` a container or desktop install its launcher does not
+ * supervise, or `CLAUDIO_SERVER_UPDATE=off`; `development` a desktop app run from a checkout.
+ */
+export type ServerUpdateUnsupported = 'not-docker' | 'no-launcher' | 'no-keys' | 'needs-auth' | 'read-only' | 'development';
+
+/**
+ * Why the newest release cannot be installed in-app, known before any download: `no-bundle`, it was
+ * published without a signed server bundle; `unverified`, its manifest could not be fetched or does
+ * not verify; `needs-image`/`needs-shell`, it needs a newer image or desktop app; `failed-before`,
+ * it did not start here before.
+ */
+export type ServerUpdateBlocked = 'no-bundle' | 'needs-image' | 'needs-shell' | 'unverified' | 'failed-before';
+
+/** The newest release as the last release check judged it, from its assets and signed manifest */
+export interface ServerUpdateOffer {
+  version: string;
+  /** True only when a download can succeed: bundle, manifest and signature present, signed, made for this base */
+  installable: boolean;
+  /** Null when installable */
+  blocked: ServerUpdateBlocked | null;
+}
+
+/**
+ * Every `code` the update routes answer. A client shows each from its code, never from the `error`
+ * text beside it.
+ */
+export type ServerUpdateRefusalCode =
+  | 'update.needs-auth'
+  | 'update.not-owner'
+  | 'update.unsupported'
+  | 'update.no-release'
+  | 'update.busy'
+  | 'update.not-ready'
+  | 'update.not-overlay'
+  | 'update.live-work'
+  | 'update.needs-image'
+  | 'update.needs-shell';
+
+/** The desktop shell the server runs under, as the shell told it when it started the server */
+export interface ShellInfo {
+  version: string;
+  package: 'appimage' | 'deb';
+  /** sha256 over what only a new shell can change */
+  shellInputs: string;
+  /** The apt source is registered: apt updates the shell */
+  aptManaged: boolean;
+}
+
+/**
+ * Claudio updating itself (docs/plans/unified-updates.md): a signed bundle unpacked under
+ * `<dataDir>/app/<version>`, which the host's launcher (the container's, or the desktop shell) boots
+ * on trial and keeps once `/api/health` answers, or rolls back.
+ */
+export interface ServerUpdateStatus {
+  /** Null when this server can update itself */
+  unsupportedReason: ServerUpdateUnsupported | null;
+  /** The base payload's version: baked in the image (`/app/image.json`) or bundled in the desktop shell */
+  image: string;
+  /** The version running now */
+  running: string;
+  /** `image` is the base payload on both hosts, `overlay` a bundle under `<dataDir>/app` */
+  source: 'image' | 'overlay';
+  state: ServerUpdateState;
+  /** The version being downloaded, ready or scheduled */
+  target: string | null;
+  /** 0..1 while downloading */
+  progress: number | null;
+  error: ServerUpdateError | null;
+  /** The newest release needs a newer image than this one */
+  needsImage: { version: string; minImage: string } | null;
+  lastRollback: { from: string; to: string; at: string } | null;
+  /** What the base payload ships in: the image (`/app`) or the desktop shell (`<resources>`) */
+  base: 'image' | 'shell';
+  /** The desktop shell this server runs under; null outside the desktop */
+  shell: ShellInfo | null;
+  /** The newest release needs a newer desktop shell than this one */
+  needsShell: { version: string; minShell: string } | null;
+  /** The newest release newer than what runs, judged before a download is offered; null when there is none */
+  offer: ServerUpdateOffer | null;
+}
+
+/** `force` restarts over live work (the person was asked); `whenIdle` waits until nothing is live */
+export interface ServerUpdateApplyRequest {
+  force?: boolean;
+  whenIdle?: boolean;
 }
 
 /**
@@ -102,6 +218,11 @@ export interface AuthStatus {
   subscriptionType?: string;
   tokenSource: TokenSource;
   error?: string;
+  /**
+   * The account new work would start on, which is not always the CLI's own login: a signed-out
+   * default with a signed-in login account beside it still runs chats. Null when no account can take work
+   */
+  inUse: AccountInUse | null;
 }
 
 /** A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent. */
@@ -424,12 +545,16 @@ export interface AgentTranscript {
   workflowPhase: string | null;
   /** Its first message: the prompt it was given */
   prompt: string | null;
-  /** `stopped` when its session ended before the agent reported back */
-  status: 'running' | 'completed' | 'failed' | 'stopped';
+  /** `stopped` when its session ended before the agent reported back; `waiting` when it ended its turn with background work of its own running */
+  status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped';
   background: boolean;
+  /** When it was first launched */
   startedAt: string | null;
   endedAt: string | null;
+  /** Time it was active, over all its runs; the current run's elapsed time is `runs` against the clock */
   durationMs: number | null;
+  /** Every stretch it worked, oldest first; empty for a workflow agent */
+  runs: ChatBranchRun[];
   lastActivityAt: string | null;
   model: string | null;
   usage: TokenUsage;
@@ -1046,6 +1171,12 @@ export interface ChatOrchestration {
 /** How far a piece of work a chat delegated has got. */
 export type ChatBranchStatus = 'running' | 'completed' | 'failed' | 'stopped';
 
+/**
+ * An agent has one more state: `waiting`, its turn ended while background work of its own still
+ * runs, so it may resume by itself. Not working (no clock, no spinner) and not done.
+ */
+export type ChatAgentStatus = ChatBranchStatus | 'waiting';
+
 /** A command or agent a chat sent off to run beside it. */
 export interface ChatBackgroundTask {
   id: string;
@@ -1063,6 +1194,16 @@ export interface ChatBackgroundTask {
   ownerId: string | null;
 }
 
+/**
+ * One stretch an agent was working: from its launch, or from a resume by its parent, to the
+ * notification that it stopped. An agent that was resumed has several; `endedAt` is null for the
+ * one still open.
+ */
+export interface ChatBranchRun {
+  startedAt: string;
+  endedAt: string | null;
+}
+
 /** A branch of a chat that works on its own: its messages live inside the chat's transcript. */
 export interface ChatSubagent {
   /** Id of its transcript inside the chat */
@@ -1074,9 +1215,12 @@ export interface ChatSubagent {
   sessionId: string;
   kind: string;
   description: string;
-  status: ChatBranchStatus;
+  status: ChatAgentStatus;
+  /** When it was first launched; a resume does not move it (see `runs`) */
   startedAt: string;
   endedAt: string | null;
+  /** Every stretch it worked, oldest first: one, or more when its parent resumed it */
+  runs: ChatBranchRun[];
   lastActivityAt: string | null;
   /** Where it works, when that is not the chat's directory (a worktree) */
   cwd: string | null;
@@ -4784,6 +4928,28 @@ export interface AuthConfig {
   oidc?: OidcConfig;
   /** Reject every mutating method with 405, except answering a permission prompt */
   readOnly: boolean;
+  /** The token a container made on its first start has not been used yet: the sign-in screen says where to find it */
+  firstRunPending: boolean;
+  /** The token set is still the one a container made on its first start, used or not; a rotation ends it */
+  firstRunToken: boolean;
+}
+
+/** The `421` body of a request for a host this wrapper does not answer to */
+export interface HostRefusal {
+  error: string;
+  code: 'host-not-allowed';
+  /** The name the request was dialled by, port stripped */
+  host: string;
+  mode: AuthMode;
+  /** The owner's token can add the host through `POST /security/allowed-hosts/claim` */
+  canClaim: boolean;
+  /** The first-run token is still unused, so the screen says where to find it */
+  firstRunToken: boolean;
+}
+
+export interface ClaimHostResult {
+  host: string;
+  allowedHosts: string[];
 }
 
 export interface UpdateAuthConfigRequest {
@@ -4995,8 +5161,16 @@ export interface TunnelStatus {
   url: string | null;
   /** When the tunnel last became active; null unless `state` is `active` */
   since: string | null;
-  /** Why the tunnel failed, with a code a client translates; null unless `state` is `failed` */
+  /**
+   * Why the tunnel failed, with a code a client translates; null unless `state` is `failed`, or
+   * `active` after ten minutes of readings that Tailscale did not answer (`tunnel.tailscaleNotAnswering`)
+   */
   reason: Localized | null;
+  /**
+   * The last readings of Tailscale got no answer (a timeout or a spawn failure on a busy machine):
+   * the tunnel stays `active` with its rule and host, and the UI says "Checking…"
+   */
+  checking: boolean;
   /**
    * Whether this deploy offers the tunnel at all (`CLAUDIO_TUNNEL`, on by default). While false,
    * `start` is refused and the UI says who can turn it on instead of offering a button
@@ -5959,8 +6133,20 @@ export interface Account {
    * signs in again. Absent while it can authenticate
    */
   authFailedAt?: string;
+  /** When the credential was last checked with `get_usage` (no turn) or a test message; null when never */
+  checkedAt: string | null;
   /** Null until something was read */
   limits: AccountLimit | null;
+}
+
+/** The account new work would start on, as Settings and the status bar name it */
+export interface AccountInUse {
+  id: string;
+  /** The alias, else the email, else the id */
+  label: string;
+  kind: AccountKind;
+  signInState: AccountSignInState;
+  checkedAt: string | null;
 }
 
 /** The answer of refreshing accounts' usage: every account as it lists now, and those the CLI could not read. */
@@ -6076,7 +6262,8 @@ export interface UpdateAccountRequest {
   enabled?: boolean;
 }
 
-export type AccountLoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'cancelled';
+/** `expired`: the CLI waited for a code the person never pasted and the sign-in was stopped */
+export type AccountLoginState = 'starting' | 'waiting-for-person' | 'succeeded' | 'failed' | 'expired' | 'cancelled';
 
 /**
  * The sign-in of a `login` account, as `POST /accounts` started it. Carries the URL the CLI printed
@@ -7735,6 +7922,12 @@ export interface SystemReleaseEvent extends ClaudioEventBase {
   release: ClaudioReleaseInfo;
 }
 
+/** The in-app update of the server moved: a download's progress, ready, scheduled, restarting, failed */
+export interface SystemServerUpdateEvent extends ClaudioEventBase {
+  type: 'system.server-update';
+  status: ServerUpdateStatus;
+}
+
 /** `rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot). */
 export type ScheduleChangeAction = 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled' | 'rescheduled';
 
@@ -8038,8 +8231,8 @@ export interface TunnelChangedEvent extends ClaudioEventBase {
 
 // ---------- Terminal: the person's own shell ----------
 
-/** What a terminal is opened in: a project's directory or worktree, or a chat's working directory. */
-export type TerminalScope = { kind: 'project'; projectId: string; worktree: string | null } | { kind: 'chat'; chatId: string };
+/** What a terminal is opened in: a project's directory or worktree, a chat's working directory, or the workspace where chats outside any project run. */
+export type TerminalScope = { kind: 'project'; projectId: string; worktree: string | null } | { kind: 'chat'; chatId: string } | { kind: 'workspace' };
 export type TerminalState = 'running' | 'exited' | 'closed';
 export type TerminalEndReason = 'exit' | 'closed' | 'idle' | 'server-stopping' | 'server-crashed' | 'host-failed' | 'disabled' | 'read-only';
 /** Why the terminal cannot be opened from here and now; `null` in the status when it can. */
@@ -8088,7 +8281,8 @@ export interface Terminal {
   exitCode: number | null;
 }
 
-export type CreateTerminalRequest = ({ projectId: string; worktree?: string } | { chatId: string }) & { cols?: number; rows?: number };
+/** Ids in, directory out: a project (and one of its listed worktrees), a chat, or the workspace (`config.workspaceDir`). Never a path. */
+export type CreateTerminalRequest = ({ projectId: string; worktree?: string } | { chatId: string } | { workspace: true }) & { cols?: number; rows?: number };
 export type UpdateTerminalSettingsRequest = Partial<TerminalSettings>;
 
 /** A ticket opens the terminal's socket once, within seconds. */
@@ -8269,6 +8463,8 @@ export interface SetupToolMethods {
   exclusive: boolean;
   /** Whether the vendor documents a device-code sign-in Claudio runs */
   device: boolean;
+  /** The CLI's own `claude auth login`, relayed (open a link, paste a code): offered first. Only Claude Code */
+  accountLogin: boolean;
   /**
    * The device sign-in is another tool's; `POST /setup/logins` with the tool's `device` starts that
    * tool's session, and the session names it. Null for every tool now: none of the remaining ones
@@ -8993,6 +9189,7 @@ export type ClaudioEvent =
   | HealthChangedEvent
   | SessionsChangedEvent
   | SystemReleaseEvent
+  | SystemServerUpdateEvent
   | ProvidersChangedEvent
   | HostsChangedEvent
   | OrchestrationPullRequestEvent

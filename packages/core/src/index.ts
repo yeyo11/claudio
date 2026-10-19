@@ -8,6 +8,7 @@ import type {
   ClaudioReleaseInfo,
   TrackerId,
   CliVersionInfo,
+  LiveWork,
   StorageReport,
   ProcessUsageReport,
   SystemSample,
@@ -30,6 +31,7 @@ import type {
   MemoryProjectSummary,
   Overview,
   Account,
+  AccountInUse,
   AccountsRefreshResult,
   AccountsSnapshot,
   PermissionDecision,
@@ -106,16 +108,20 @@ import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } f
 import { Connectors } from './connectors.ts';
 import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
-import { detectCli, execCli, getAuthStatus } from './cli.ts';
+import { detectCli, execCli, getAuthStatus, type CliAuth } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
+import { ServerUpdates } from './updates/server-update.ts';
+import { CliInstaller } from './updates/cli-install.ts';
+import { resolveClaudeBin } from './claude-bin.ts';
+import { claudeCodeManifest } from './providers/claude-code/manifest.ts';
 import { storageReport } from './storage.ts';
 import { ConfigExplorer } from './config/explorer.ts';
 import { SettingsFiles } from './config/files.ts';
 import { ChangeWatcher } from './change-watcher.ts';
 import { Changes, type ChangeScope, type DiffOptions } from './changes.ts';
 import { CredentialStore, type StoredCredentials } from './credentials.ts';
-import { useVaultForChildren } from './child-env.ts';
+import { childEnv, useVaultForChildren } from './child-env.ts';
 import { SecretVault } from './secret-vault.ts';
 import { LoginService } from './setup/logins.ts';
 import { setupMethods } from './setup/methods.ts';
@@ -246,10 +252,11 @@ export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 export { MCP_ENTRY_ENV, type ClaudioMcpLaunch } from './claudio-mcp.ts';
 export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
 export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
-export type { PeerLook, PeerVerdict } from './terminals/peer.ts';
+export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
+export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE, readDataDirLock, type DataDirLock, type DataDirLockHolder } from './data-dir-lock.ts';
+export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, dataDirFrom, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
@@ -281,7 +288,11 @@ export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
-export { ReleaseWatch, type ReleaseWatchOptions } from './release-watch.ts';
+export { ReleaseWatch, type ReleaseWatchOptions, type ReleaseAsset } from './release-watch.ts';
+export { ServerUpdates, ServerUpdateRefusal, type ServerUpdatesOptions } from './updates/server-update.ts';
+export { resolveClaudeBin, overlayBinary, type ClaudeBinOptions } from './claude-bin.ts';
+export { CliInstaller, CliInstallRefusal, type CliInstallerOptions } from './updates/cli-install.ts';
+export { RESTART_EXIT_CODE } from './launcher/protocol.ts';
 export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
@@ -423,6 +434,11 @@ const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
+/** How long a check of the account in use is good for */
+const ACCOUNT_CHECK_MS = 30 * 60_000;
+
+/** A system read before the account in use is added to it, which is done on every answer */
+type SystemRead = Omit<SystemInfo, 'uptimeSec' | 'models' | 'auth'> & { auth: CliAuth };
 
 /** A session's directory: the worktree the CLI recorded when it ran in one, else where it started. */
 const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ?? s.projectPath, updatedAt: s.updatedAt });
@@ -550,6 +566,10 @@ export class Core {
   readonly cliVersion: CliVersionWatch;
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
+  /** Claudio updating itself inside its container: signed bundles under /data/app (docs/plans/container-polish.md, D4) */
+  readonly serverUpdates: ServerUpdates;
+  /** Claude Code installed in-app inside the container, under /data/cli */
+  readonly cliInstaller: CliInstaller;
   readonly workspace: Workspace;
   readonly locator = new Locator();
   private readonly projectStore: ProjectStore;
@@ -610,8 +630,8 @@ export class Core {
   private language: ClaudioLanguage = 'en';
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
-  private systemCache: { at: number; gen: number; value: Omit<SystemInfo, 'uptimeSec' | 'models'> } | null = null;
-  private systemPending: { gen: number; promise: Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> } | null = null;
+  private systemCache: { at: number; gen: number; value: SystemRead } | null = null;
+  private systemPending: { gen: number; promise: Promise<SystemRead> } | null = null;
   private systemGen = 0;
 
   constructor(config: CoreConfig = loadConfig()) {
@@ -620,21 +640,35 @@ export class Core {
     this.vault = new SecretVault(config);
     this.releaseVault = useVaultForChildren(this.vault);
     this.providersSettings = new ProvidersSettingsStore(config);
+    this.useResolvedClaudeBin(config);
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
     const drivers = this.sessionDrivers(config);
-    this.accounts = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: config.claudeBin });
+    this.accounts = new AccountStore({
+      dataDir: config.dataDir,
+      defaultDir: config.configDir,
+      claude: () => config.claudeBin,
+      // What the CLI will see, the vault's credential included: a login with no file is still one
+      defaultEnvCredential: () => {
+        const env = childEnv('claude-code');
+        return Boolean(env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY);
+      },
+    });
     this.providers = new ProviderDetector({
       processes: this.children,
       config,
       otherAccount: () => this.readyAccountLabel(),
+      defaultExpired: () => this.accounts.list().find((a) => a.id === DEFAULT_ID)?.signInState === 'expired',
       accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
-      commandAliases: { 'claude-code': [config.claudeBin] },
+      // A getter: the binary can move under a running server (an in-app CLI update)
+      commandAliases: { get 'claude-code'() { return [config.claudeBin]; } },
       readClaude: async () => {
         const { cli, auth } = await this.system();
+        // Beside the reading, never inside `/health`: a free check of the account in use, at most every 30 minutes
+        this.checkAccountInUse();
         return { cli, auth };
       },
     });
@@ -674,6 +708,18 @@ export class Core {
         summary: 'Replace the token from CLAUDIO_AUTH_TOKEN (CLAUDIO_AUTH_TOKEN_RESET)',
       });
     }
+    if (this.security.firstRunGenerated) {
+      this.db.appendAudit({
+        at: this.security.firstRunGenerated.at,
+        actor: 'env',
+        method: 'POST',
+        path: '/api/security/token',
+        status: 200,
+        summary: 'Generate the first-run owner token',
+      });
+    }
+    this.security.onFirstRunUsed = (at) =>
+      this.db.appendAudit({ at, actor: 'token:first-run', method: 'POST', path: '/api/security/token', status: 200, summary: 'The first-run owner token was used for the first time' });
     this.guards = new GuardSettingsStore(config.dataDir, {
       onChange: (settings) => this.events.emit({ type: 'guards.changed', title: 'Guard settings changed', settings }),
     });
@@ -707,7 +753,35 @@ export class Core {
     };
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
-    this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events });
+    // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
+    this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events, onChecked: () => void this.serverUpdates.inspect() });
+    const securityState = () => ({ mode: this.security.mode, readOnly: this.security.readOnly });
+    this.serverUpdates = new ServerUpdates({
+      dataDir: config.dataDir,
+      distribution: config.distribution,
+      running: CLAUDIO_VERSION,
+      release: () => this.release.latestRelease(),
+      security: securityState,
+      liveWork: () => this.liveWork(),
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
+      events: this.events,
+    });
+    this.serverUpdates.auditRollback();
+    // At start too, from the release the last check left: the card never offers what cannot install
+    void this.serverUpdates.inspect();
+    this.cliInstaller = new CliInstaller({
+      dataDir: config.dataDir,
+      distribution: config.distribution,
+      range: claudeCodeManifest.versions.range ?? '',
+      pinned: () => this.cliVersion.pinned,
+      current: () => this.systemKnown()?.cli.version ?? null,
+      latest: () => this.cliVersion.latest,
+      security: securityState,
+      changed: async () => {
+        this.forgetSystem();
+        await this.system(true);
+      },
+    });
     this.projectStore = new ProjectStore(config);
     this.projectSettingsStore = new ProjectSettingsStore(config);
     this.team = new TeamService({
@@ -1509,6 +1583,7 @@ export class Core {
           const chat = await this.chats.get(id);
           return chat ? { cwd: chat.cwd, worktree: chat.worktree?.path ?? null, projectId: chat.project?.id ?? null } : null;
         },
+        workspace: () => this.config.workspaceDir,
       },
     });
     // Shells a previous server left running (it was killed hard) end before any new one opens
@@ -1623,18 +1698,19 @@ export class Core {
     return (id ? providers.driverFor(id)?.models() : null) ?? [];
   }
 
-  private withUptime(value: Omit<SystemInfo, 'uptimeSec' | 'models'>): SystemInfo {
+  private withUptime(value: SystemRead): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while this is a file the CLI writes, cached by its own mtime
-    return { ...value, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    // The account in use moves with rotation and sign-ins, faster than the system read is redone
+    return { ...value, auth: { ...value.auth, inUse: this.accountInUse() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
-  private readSystem(join = true): Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> {
+  private readSystem(join = true): Promise<SystemRead> {
     const pending = this.systemPending;
     if (join && pending && pending.gen === this.systemGen) return pending.promise;
     const gen = this.systemGen;
     const at = Date.now();
-    const promise: Promise<Omit<SystemInfo, 'uptimeSec' | 'models'>> = (async () => {
+    const promise: Promise<SystemRead> = (async () => {
       const cli = await detectCli(this.config);
       const auth = cli.installed
         ? await getAuthStatus(this.config)
@@ -1747,9 +1823,32 @@ export class Core {
     };
   }
 
+  /**
+   * From here `config.claudeBin` is the binary Claudio runs, decided on every read (claude-bin.ts):
+   * everything that launches the CLI reads it by absolute path, so a CLI installed in-app is used by
+   * the next process without a restart, and the login shell's PATH never gets a say.
+   */
+  private useResolvedClaudeBin(config: CoreConfig): void {
+    const configured = config.claudeBin;
+    Object.defineProperty(config, 'claudeBin', {
+      enumerable: true,
+      configurable: true,
+      get: () =>
+        resolveClaudeBin({
+          configured,
+          dataDir: config.dataDir,
+          distribution: config.distribution,
+          override: () => this.providersSettings.get().providers['claude-code']?.binaryPath ?? null,
+          // Not built yet while the constructor wires the drivers; nothing runs the CLI before it is
+          pinned: () => (this.cliVersion as CliVersionWatch | undefined)?.pinned ?? null,
+          range: claudeCodeManifest.versions.range ?? '',
+        }),
+    });
+  }
+
   /** The one driver there is: Claude Code's. */
   private sessionDrivers(config: CoreConfig): ProviderDriver[] {
-    return [new ClaudeCodeDriver(config.claudeBin)];
+    return [new ClaudeCodeDriver(() => config.claudeBin)];
   }
 
   /**
@@ -1874,7 +1973,8 @@ export class Core {
   }
 
   async cliVersionInfo(): Promise<CliVersionInfo> {
-    return this.cliVersion.info((await this.system()).cli.version);
+    const { cli } = await this.system();
+    return this.cliVersion.info(cli.version, this.cliInstaller.info(cli.path));
   }
 
   /** Asks the registry now; the button on the System page, not something a page load may trigger. */
@@ -1914,7 +2014,22 @@ export class Core {
   /** Asks GitHub now, for the Check for updates button. */
   async checkRelease(): Promise<ClaudioReleaseInfo> {
     await this.release.check();
+    // Whether the new release installs here (a bundle, a valid signature, a base it fits) is in its
+    // assets and signed manifest, judged now rather than on a page load
+    await this.serverUpdates.inspect();
     return this.release.info();
+  }
+
+  /** What a restart would stop, counted as the overview counts it */
+  async liveWork(): Promise<LiveWork> {
+    const chats = await this.chats.list({ origins: ['claudio', 'external', 'orchestration'] });
+    return {
+      working: chats.filter((c) => c.state === 'working').length,
+      waiting: chats.filter((c) => c.state === 'waiting').length,
+      running: this.orchestrator.runningCount(),
+      // Every shell ends with the server (docs/terminal.md, Lifetime)
+      terminals: this.terminals.running(),
+    };
   }
 
   /** The version this server runs, as every client should expect it */
@@ -1977,11 +2092,25 @@ export class Core {
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
     await this.credentials.set(credentials);
+    this.inUseCheckedAt.delete(DEFAULT_ID);
     return this.system(true);
+  }
+
+  /**
+   * `claude auth login` on the CLI's own login succeeded. A token or an API key Claudio kept in the
+   * vault would keep winning over the new credentials file (the variables beat it), so it is dropped.
+   */
+  async defaultSignedIn(): Promise<void> {
+    const { auth } = await this.system(true);
+    if (auth.tokenSource === 'wrapper-oauth-token' || auth.tokenSource === 'wrapper-api-key') await this.credentials.clear();
+    this.inUseCheckedAt.delete(DEFAULT_ID);
+    await this.accounts.confirm(DEFAULT_ID).catch(() => undefined);
+    await this.system(true);
   }
 
   async clearCredentials(): Promise<SystemInfo> {
     await this.credentials.clear();
+    this.inUseCheckedAt.delete(DEFAULT_ID);
     return this.system(true);
   }
 
@@ -2065,6 +2194,7 @@ export class Core {
   }
 
   async verifyAuth(): Promise<AuthVerification> {
+    const inUse = this.accountInUse()?.id ?? null;
     const run = this.runtime.start({
       prompt: 'Reply with exactly: ok',
       model: 'haiku',
@@ -2076,6 +2206,8 @@ export class Core {
     });
     const result = await this.runtime.waitForResult(run.id);
     this.runtime.remove(run.id);
+    // The turn ran on the account new work starts on: a finished one is a check of it, a 401 marked it
+    if (inUse && !result.isError) await this.accounts.markChecked(inUse).catch(() => undefined);
     const { auth } = await this.system(true);
     return { ok: !result.isError, detail: result.result.slice(0, 500), auth };
   }
@@ -3281,9 +3413,9 @@ export class Core {
 
   /** What the dashboard shows of the accounts: how many can take work, and the one new work would start on. */
   private accountsSnapshot(): AccountsSnapshot {
-    const list = this.accounts.list();
+    const list = this.accounts.listed();
     const ready = list.filter((a) => a.enabled && a.signedIn);
-    return { total: list.length, ready: ready.length, current: this.accounts.pick({ current: null }).account };
+    return { total: list.length, ready: ready.length, current: this.accountInUse()?.id ?? null };
   }
 
   /** A signed-in account other than the CLI's own login, when there is one: Claude can run on it though the CLI itself is signed out. */
@@ -3306,12 +3438,52 @@ export class Core {
     for (const id of targets) {
       try {
         if (this.accounts.ref(id).kind === 'login') await this.accounts.refresh(id).catch(() => undefined);
-        await this.runtime.noteAccountReading(id, await this.accounts.fetchUsage(id));
+        const reading = await this.accounts.fetchUsage(id);
+        await this.runtime.noteAccountReading(id, reading);
+        if (reading.cli?.available) await this.accounts.confirm(id);
       } catch (e) {
         failed.push({ id, error: e instanceof Error ? e.message : String(e) });
       }
     }
-    return { accounts: this.accounts.list(), failed };
+    return { accounts: this.accounts.listed(), failed };
+  }
+
+  /** The account new work would start on, as Settings and the status bar name it; null when none can take work */
+  private accountInUse(): AccountInUse | null {
+    // The CLI's own login is assumed signed in until read: with no credential at all it is a ghost, not an account
+    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
+    const id = this.accounts.pick({ current: null, ...(ghost ? { failedOn: [DEFAULT_ID] } : {}) }).account;
+    const account = id ? this.accounts.list().find((a) => a.id === id) : undefined;
+    if (!account) return null;
+    return { id: account.id, label: account.alias ?? account.email ?? account.id, kind: account.kind, signInState: account.signInState, checkedAt: account.checkedAt };
+  }
+
+  private checkingInUse = false;
+  /**
+   * When each account was last checked, whatever the answer. `checkedAt` is set only by a `valid`
+   * answer, so an API key, a variable or a credential `get_usage` cannot confirm would otherwise be
+   * checked on every provider refresh. In memory: a restart may check once more, which is free.
+   */
+  private readonly inUseCheckedAt = new Map<string, number>();
+
+  /**
+   * The free check (`get_usage`) of the account in use, when it was never checked or not in the last
+   * 30 minutes. It confirms a working credential; it cannot refuse one (see `checkCredential`).
+   */
+  private checkAccountInUse(): void {
+    const inUse = this.accountInUse();
+    if (!inUse || this.checkingInUse) return;
+    if (inUse.checkedAt !== null && Date.now() - Date.parse(inUse.checkedAt) < ACCOUNT_CHECK_MS) return;
+    const attempted = this.inUseCheckedAt.get(inUse.id);
+    if (attempted !== undefined && Date.now() - attempted < ACCOUNT_CHECK_MS) return;
+    this.inUseCheckedAt.set(inUse.id, Date.now());
+    this.checkingInUse = true;
+    void this.accounts
+      .check(inUse.id)
+      .catch(() => undefined)
+      .finally(() => {
+        this.checkingInUse = false;
+      });
   }
 
   /**
@@ -3369,6 +3541,7 @@ export class Core {
     this.lessons.stop();
     this.cliVersion.stop();
     this.release.stop();
+    this.serverUpdates.close();
     this.healthMonitor.stop();
     this.providers.close();
     this.hosts.close();

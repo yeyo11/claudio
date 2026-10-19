@@ -111,11 +111,23 @@
       },
       "error": {
         "type": "string"
+      },
+      "inUse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountInUse"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The account new work would start on, which is not always the CLI's own login: a signed-out default with a signed-in login account beside it still runs chats. Null when no account can take work"
       }
     },
     "required": [
       "loggedIn",
-      "tokenSource"
+      "tokenSource",
+      "inUse"
     ]
   },
   "TokenSource": {
@@ -129,6 +141,57 @@
       "none"
     ],
     "description": "`wrapper-*`: configured through the API; `env-*`: passed through the container environment;"
+  },
+  "AccountInUse": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string",
+        "description": "The alias, else the email, else the id"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AccountKind"
+      },
+      "signInState": {
+        "$ref": "#/components/schemas/AccountSignInState"
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "kind",
+      "signInState",
+      "checkedAt"
+    ],
+    "description": "The account new work would start on, as Settings and the status bar name it"
+  },
+  "AccountKind": {
+    "type": "string",
+    "enum": [
+      "login",
+      "token",
+      "api-key"
+    ],
+    "description": "How an account signs in: `login` is `claude auth login` in the account's own config dir (it has an email, an organization and a plan); `token` is a `claude setup-token` and `api-key` an API key, which have no identity of their own, so they need an alias."
+  },
+  "AccountSignInState": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "expired",
+      "incomplete",
+      "unknown"
+    ],
+    "description": "How far an account's sign-in can be trusted."
   },
   "PermissionMode": {
     "type": "string",
@@ -3014,11 +3077,12 @@
         "type": "string",
         "enum": [
           "running",
+          "waiting",
           "completed",
           "failed",
           "stopped"
         ],
-        "description": "`stopped` when its session ended before the agent reported back"
+        "description": "`stopped` when its session ended before the agent reported back; `waiting` when it ended its turn with background work of its own running"
       },
       "background": {
         "type": "boolean"
@@ -3027,7 +3091,8 @@
         "type": [
           "string",
           "null"
-        ]
+        ],
+        "description": "When it was first launched"
       },
       "endedAt": {
         "type": [
@@ -3039,7 +3104,15 @@
         "type": [
           "number",
           "null"
-        ]
+        ],
+        "description": "Time it was active, over all its runs; the current run's elapsed time is `runs` against the clock"
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBranchRun"
+        },
+        "description": "Every stretch it worked, oldest first; empty for a workflow agent"
       },
       "lastActivityAt": {
         "type": [
@@ -3109,6 +3182,7 @@
       "startedAt",
       "endedAt",
       "durationMs",
+      "runs",
       "lastActivityAt",
       "model",
       "usage",
@@ -3121,6 +3195,25 @@
       "tasks"
     ],
     "description": "Everything one subagent or workflow agent did, from the transcript and meta the CLI keeps for it beside the session's transcript: what it was asked, how it went, and its whole conversation."
+  },
+  "ChatBranchRun": {
+    "type": "object",
+    "properties": {
+      "startedAt": {
+        "type": "string"
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "startedAt",
+      "endedAt"
+    ],
+    "description": "One stretch an agent was working: from its launch, or from a resume by its parent, to the notification that it stopped. An agent that was resumed has several; `endedAt` is null for the one still open."
   },
   "ChatBackgroundTask": {
     "type": "object",
@@ -6875,6 +6968,9 @@
         "$ref": "#/components/schemas/SystemReleaseEvent"
       },
       {
+        "$ref": "#/components/schemas/SystemServerUpdateEvent"
+      },
+      {
         "$ref": "#/components/schemas/ProvidersChangedEvent"
       },
       {
@@ -8902,6 +8998,322 @@
       "source"
     ],
     "description": "How this Claudio was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name."
+  },
+  "SystemServerUpdateEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "system.server-update"
+      },
+      "status": {
+        "$ref": "#/components/schemas/ServerUpdateStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "The in-app update of the server moved: a download's progress, ready, scheduled, restarting, failed"
+  },
+  "ServerUpdateStatus": {
+    "type": "object",
+    "properties": {
+      "unsupportedReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateUnsupported"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when this server can update itself"
+      },
+      "image": {
+        "type": "string",
+        "description": "The base payload's version: baked in the image (`/app/image.json`) or bundled in the desktop shell"
+      },
+      "running": {
+        "type": "string",
+        "description": "The version running now"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "image",
+          "overlay"
+        ],
+        "description": "`image` is the base payload on both hosts, `overlay` a bundle under `<dataDir>/app`"
+      },
+      "state": {
+        "$ref": "#/components/schemas/ServerUpdateState"
+      },
+      "target": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The version being downloaded, ready or scheduled"
+      },
+      "progress": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "0..1 while downloading"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateError"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "needsImage": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "minImage": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "minImage"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest release needs a newer image than this one"
+      },
+      "lastRollback": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "at"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "base": {
+        "type": "string",
+        "enum": [
+          "image",
+          "shell"
+        ],
+        "description": "What the base payload ships in: the image (`/app`) or the desktop shell (`<resources>`)"
+      },
+      "shell": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ShellInfo"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The desktop shell this server runs under; null outside the desktop"
+      },
+      "needsShell": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "minShell": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "minShell"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest release needs a newer desktop shell than this one"
+      },
+      "offer": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateOffer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The newest release newer than what runs, judged before a download is offered; null when there is none"
+      }
+    },
+    "required": [
+      "unsupportedReason",
+      "image",
+      "running",
+      "source",
+      "state",
+      "target",
+      "progress",
+      "error",
+      "needsImage",
+      "lastRollback",
+      "base",
+      "shell",
+      "needsShell",
+      "offer"
+    ],
+    "description": "Claudio updating itself (docs/plans/unified-updates.md): a signed bundle unpacked under `<dataDir>/app/<version>`, which the host's launcher (the container's, or the desktop shell) boots on trial and keeps once `/api/health` answers, or rolls back."
+  },
+  "ServerUpdateUnsupported": {
+    "type": "string",
+    "enum": [
+      "not-docker",
+      "no-launcher",
+      "no-keys",
+      "needs-auth",
+      "read-only",
+      "development"
+    ],
+    "description": "Why this server cannot update itself. `not-docker` means no launcher host at all, a source install (the name is phase 1's); `no-launcher` a container or desktop install its launcher does not supervise, or `CLAUDIO_SERVER_UPDATE=off`; `development` a desktop app run from a checkout."
+  },
+  "ServerUpdateState": {
+    "type": "string",
+    "enum": [
+      "idle",
+      "downloading",
+      "verifying",
+      "ready",
+      "scheduled",
+      "restarting",
+      "failed"
+    ]
+  },
+  "ServerUpdateError": {
+    "type": "string",
+    "enum": [
+      "fetch-failed",
+      "download-interrupted",
+      "bad-signature",
+      "bad-manifest",
+      "disk",
+      "needs-image",
+      "needs-shell"
+    ],
+    "description": "`download-interrupted`: the bundle's connection kept dropping or stalling after every retry (docs/updates.md)"
+  },
+  "ShellInfo": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string"
+      },
+      "package": {
+        "type": "string",
+        "enum": [
+          "appimage",
+          "deb"
+        ]
+      },
+      "shellInputs": {
+        "type": "string",
+        "description": "sha256 over what only a new shell can change"
+      },
+      "aptManaged": {
+        "type": "boolean",
+        "description": "The apt source is registered: apt updates the shell"
+      }
+    },
+    "required": [
+      "version",
+      "package",
+      "shellInputs",
+      "aptManaged"
+    ],
+    "description": "The desktop shell the server runs under, as the shell told it when it started the server"
+  },
+  "ServerUpdateOffer": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string"
+      },
+      "installable": {
+        "type": "boolean",
+        "description": "True only when a download can succeed: bundle, manifest and signature present, signed, made for this base"
+      },
+      "blocked": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerUpdateBlocked"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when installable"
+      }
+    },
+    "required": [
+      "version",
+      "installable",
+      "blocked"
+    ],
+    "description": "The newest release as the last release check judged it, from its assets and signed manifest"
+  },
+  "ServerUpdateBlocked": {
+    "type": "string",
+    "enum": [
+      "no-bundle",
+      "needs-image",
+      "needs-shell",
+      "unverified",
+      "failed-before"
+    ],
+    "description": "Why the newest release cannot be installed in-app, known before any download: `no-bundle`, it was published without a signed server bundle; `unverified`, its manifest could not be fetched or does not verify; `needs-image`/`needs-shell`, it needs a newer image or desktop app; `failed-before`, it did not start here before."
   },
   "ProvidersChangedEvent": {
     "type": "object",
@@ -11389,7 +11801,11 @@
             "type": "null"
           }
         ],
-        "description": "Why the tunnel failed, with a code a client translates; null unless `state` is `failed`"
+        "description": "Why the tunnel failed, with a code a client translates; null unless `state` is `failed`, or `active` after ten minutes of readings that Tailscale did not answer (`tunnel.tailscaleNotAnswering`)"
+      },
+      "checking": {
+        "type": "boolean",
+        "description": "The last readings of Tailscale got no answer (a timeout or a spawn failure on a busy machine): the tunnel stays `active` with its rule and host, and the UI says \"Checking…\""
       },
       "enabled": {
         "type": "boolean",
@@ -11416,6 +11832,7 @@
       "url",
       "since",
       "reason",
+      "checking",
       "enabled",
       "managed",
       "tailscale",
@@ -11669,9 +12086,21 @@
           "kind",
           "chatId"
         ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "workspace"
+          }
+        },
+        "required": [
+          "kind"
+        ]
       }
     ],
-    "description": "What a terminal is opened in: a project's directory or worktree, or a chat's working directory."
+    "description": "What a terminal is opened in: a project's directory or worktree, a chat's working directory, or the workspace where chats outside any project run."
   },
   "TerminalState": {
     "type": "string",
@@ -13585,16 +14014,24 @@
         "type": "string"
       },
       "status": {
-        "$ref": "#/components/schemas/ChatBranchStatus"
+        "$ref": "#/components/schemas/ChatAgentStatus"
       },
       "startedAt": {
-        "type": "string"
+        "type": "string",
+        "description": "When it was first launched; a resume does not move it (see `runs`)"
       },
       "endedAt": {
         "type": [
           "string",
           "null"
         ]
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBranchRun"
+        },
+        "description": "Every stretch it worked, oldest first: one, or more when its parent resumed it"
       },
       "lastActivityAt": {
         "type": [
@@ -13635,12 +14072,25 @@
       "status",
       "startedAt",
       "endedAt",
+      "runs",
       "lastActivityAt",
       "cwd",
       "tasks",
       "activity"
     ],
     "description": "A branch of a chat that works on its own: its messages live inside the chat's transcript."
+  },
+  "ChatAgentStatus": {
+    "anyOf": [
+      {
+        "$ref": "#/components/schemas/ChatBranchStatus"
+      },
+      {
+        "type": "string",
+        "const": "waiting"
+      }
+    ],
+    "description": "An agent has one more state: `waiting`, its turn ended while background work of its own still runs, so it may resume by itself. Not working (no clock, no spinner) and not done."
   },
   "ChatWorkflow": {
     "type": "object",
@@ -14323,16 +14773,24 @@
         "type": "string"
       },
       "status": {
-        "$ref": "#/components/schemas/ChatBranchStatus"
+        "$ref": "#/components/schemas/ChatAgentStatus"
       },
       "startedAt": {
-        "type": "string"
+        "type": "string",
+        "description": "When it was first launched; a resume does not move it (see `runs`)"
       },
       "endedAt": {
         "type": [
           "string",
           "null"
         ]
+      },
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ChatBranchRun"
+        },
+        "description": "Every stretch it worked, oldest first: one, or more when its parent resumed it"
       },
       "lastActivityAt": {
         "type": [
@@ -14374,6 +14832,7 @@
       "id",
       "kind",
       "lastActivityAt",
+      "runs",
       "sessionId",
       "startedAt",
       "status",
@@ -17585,12 +18044,22 @@
       "readOnly": {
         "type": "boolean",
         "description": "Reject every mutating method with 405, except answering a permission prompt"
+      },
+      "firstRunPending": {
+        "type": "boolean",
+        "description": "The token a container made on its first start has not been used yet: the sign-in screen says where to find it"
+      },
+      "firstRunToken": {
+        "type": "boolean",
+        "description": "The token set is still the one a container made on its first start, used or not; a rotation ends it"
       }
     },
     "required": [
       "mode",
       "tokenSet",
-      "readOnly"
+      "readOnly",
+      "firstRunPending",
+      "firstRunToken"
     ],
     "description": "How the API is guarded. The token is **never** in this document: only its hash is stored, and the token itself is shown once, when it is set. `token?: never` says so in the type, so no route can leak it by echoing the configuration back."
   },
@@ -17620,6 +18089,60 @@
       "issuer",
       "audience",
       "clientId"
+    ]
+  },
+  "HostRefusal": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "host-not-allowed"
+      },
+      "host": {
+        "type": "string",
+        "description": "The name the request was dialled by, port stripped"
+      },
+      "mode": {
+        "$ref": "#/components/schemas/AuthMode"
+      },
+      "canClaim": {
+        "type": "boolean",
+        "description": "The owner's token can add the host through `POST /security/allowed-hosts/claim`"
+      },
+      "firstRunToken": {
+        "type": "boolean",
+        "description": "The first-run token is still unused, so the screen says where to find it"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "host",
+      "mode",
+      "canClaim",
+      "firstRunToken"
+    ],
+    "description": "The `421` body of a request for a host this wrapper does not answer to"
+  },
+  "ClaimHostResult": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "type": "string"
+      },
+      "allowedHosts": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "host",
+      "allowedHosts"
     ]
   },
   "UpdateAuthConfigRequest": {
@@ -19040,6 +19563,61 @@
       "error": {
         "type": "string",
         "description": "Why the last check failed (registry unreachable, unexpected answer); the previous `latest` is kept"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "image",
+          "data",
+          "path"
+        ],
+        "description": "Where the CLI in use comes from: the image's pin, one installed in-app under `/data/cli`, or the PATH"
+      },
+      "installable": {
+        "type": "boolean",
+        "description": "Whether `POST /system/cli-version/install` may run here"
+      },
+      "install": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "installing",
+                  "failed"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CliInstallError"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "state",
+              "version",
+              "error"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The in-app install, while one runs or after it failed; null where installing is not offered"
       }
     },
     "required": [
@@ -19047,9 +19625,25 @@
       "pinned",
       "latest",
       "checkedAt",
-      "updateAvailable"
+      "updateAvailable",
+      "source",
+      "installable",
+      "install"
     ],
     "description": "Which Claude Code the wrapper runs and whether a newer one exists. The check costs a registry read, so it happens on demand or once a day, never on a page load: `checkedAt` says how old the answer is."
+  },
+  "CliInstallError": {
+    "type": "string",
+    "enum": [
+      "fetch-failed",
+      "download-interrupted",
+      "integrity",
+      "out-of-range",
+      "not-newer",
+      "version-mismatch",
+      "disk"
+    ],
+    "description": "Why an in-app install of Claude Code failed or was refused. `download-interrupted`: the connection kept dropping or stalling mid-download after every retry; `fetch-failed`: no usable answer at all."
   },
   "StorageReport": {
     "type": "object",
@@ -19114,6 +19708,46 @@
       "unknown"
     ],
     "description": "What a folder of the server sits on, read from the mounts the process sees. `persistent` is a named volume, a bind mount or an orchestrator's claim: it outlives the container. The other three do not: `anonymous` is a volume Docker made on its own (the image declares `VOLUME`, the command did not name one), which the next `docker run` replaces with an empty one; `container` is the container's own layer; `temporary` is memory or an emptyDir. `unknown` is a mount table that could not be read or told apart."
+  },
+  "ServerUpdateApplyRequest": {
+    "type": "object",
+    "properties": {
+      "force": {
+        "type": "boolean"
+      },
+      "whenIdle": {
+        "type": "boolean"
+      }
+    },
+    "description": "`force` restarts over live work (the person was asked); `whenIdle` waits until nothing is live"
+  },
+  "LiveWork": {
+    "type": "object",
+    "properties": {
+      "working": {
+        "type": "number",
+        "description": "Chats working now"
+      },
+      "waiting": {
+        "type": "number",
+        "description": "Chats waiting for a person (their CLI is running)"
+      },
+      "running": {
+        "type": "number",
+        "description": "Orchestrations running"
+      },
+      "terminals": {
+        "type": "number",
+        "description": "Terminals whose shell is running: a restart ends every one of them"
+      }
+    },
+    "required": [
+      "working",
+      "waiting",
+      "running",
+      "terminals"
+    ],
+    "description": "What is live on this server, counted as the overview counts it: what a restart would stop"
   },
   "ProjectSettings": {
     "type": "object",
@@ -26477,8 +27111,27 @@
         "required": [
           "chatId"
         ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "cols": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          },
+          "workspace": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "workspace"
+        ]
       }
-    ]
+    ],
+    "description": "Ids in, directory out: a project (and one of its listed worktrees), a chat, or the workspace (`config.workspaceDir`). Never a path."
   },
   "UpdateTerminalSettingsRequest": {
     "type": "object",
@@ -27135,6 +27788,13 @@
         "type": "string",
         "description": "ISO time a run on it failed because the CLI could not authenticate; cleared when the account signs in again. Absent while it can authenticate"
       },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the credential was last checked with `get_usage` (no turn) or a test message; null when never"
+      },
       "limits": {
         "anyOf": [
           {
@@ -27157,28 +27817,10 @@
       "enabled",
       "signedIn",
       "signInState",
+      "checkedAt",
       "limits"
     ],
     "description": "One Claude account: a config directory of its own, chosen per process."
-  },
-  "AccountKind": {
-    "type": "string",
-    "enum": [
-      "login",
-      "token",
-      "api-key"
-    ],
-    "description": "How an account signs in: `login` is `claude auth login` in the account's own config dir (it has an email, an organization and a plan); `token` is a `claude setup-token` and `api-key` an API key, which have no identity of their own, so they need an alias."
-  },
-  "AccountSignInState": {
-    "type": "string",
-    "enum": [
-      "ok",
-      "expired",
-      "incomplete",
-      "unknown"
-    ],
-    "description": "How far an account's sign-in can be trusted."
   },
   "AccountLimit": {
     "type": "object",
@@ -27676,8 +28318,10 @@
       "waiting-for-person",
       "succeeded",
       "failed",
+      "expired",
       "cancelled"
-    ]
+    ],
+    "description": "`expired`: the CLI waited for a code the person never pasted and the sign-in was stopped"
   },
   "AccountsRefreshResult": {
     "type": "object",
@@ -28224,6 +28868,10 @@
         "type": "boolean",
         "description": "Whether the vendor documents a device-code sign-in Claudio runs"
       },
+      "accountLogin": {
+        "type": "boolean",
+        "description": "The CLI's own `claude auth login`, relayed (open a link, paste a code): offered first. Only Claude Code"
+      },
       "deviceVia": {
         "anyOf": [
           {
@@ -28276,6 +28924,7 @@
       "variables",
       "exclusive",
       "device",
+      "accountLogin",
       "deviceVia",
       "needsHost",
       "defaultHost",

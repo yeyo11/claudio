@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import type { AuthConfig, AuthMode, AuthTokenResult, OidcConfig, SetAuthTokenRequest, UpdateAuthConfigRequest } from '@claudio/shared';
@@ -24,7 +24,23 @@ interface StoredAuth {
   envResetHash?: string;
   oidc?: OidcConfig;
   readOnly: boolean;
+  /**
+   * The owner token a container made for itself the first time it started (D3 of
+   * docs/plans/container-polish.md). `pending` holds until a request first authenticates with it;
+   * `generatedAt` stays, so the one-time migration of an older install never runs twice.
+   */
+  firstRun?: { generatedAt: string; pending: boolean };
+  /** When a person chose `none` in Settings: a later start must not generate a first-run token over it */
+  noneChosenAt?: string;
 }
+
+/** Names the token a container generated, in an audit row and as `tokenId` */
+export const FIRST_RUN_TOKEN_ID = 'first-run';
+/** Beside `auth.json`: the token, until it is first used, because `docker logs` is easy to lose */
+export const FIRST_RUN_TOKEN_FILE = 'first-run-token';
+
+/** The variables that say how access is configured: any of them set means the deployment decided */
+const AUTH_DECIDING_KEYS = ['CLAUDIO_AUTH_MODE', 'CLAUDIO_AUTH_TOKEN', 'CLAUDIO_OIDC_ISSUER'] as const;
 
 const DEFAULTS: StoredAuth = { mode: 'none', readOnly: false };
 
@@ -100,10 +116,25 @@ export class AuthStore {
    * them, and never in `StoredAuth`: they live exactly as long as this process does.
    */
   readonly chatTokens: ChatTokenStore;
+  /** When this start generated the first-run token; the owner of the store writes the audit row, like `environmentReset` */
+  readonly firstRunGenerated: { at: string } | null;
+  /** Called with the first request's time when it authenticates with the first-run token, for the same reason */
+  onFirstRunUsed: ((at: string) => void) | null = null;
+  private readonly tokenFile: string;
+  private readonly announce: (text: string) => void;
 
-  constructor(config: CoreConfig, env: AuthEnv = config.authEnv, verifier = new OidcVerifier(), chatTokens = new ChatTokenStore()) {
+  constructor(
+    config: CoreConfig,
+    env: AuthEnv = config.authEnv,
+    verifier = new OidcVerifier(),
+    chatTokens = new ChatTokenStore(),
+    /** Where the first-run block and the start-up notes go: standard output on a server, a capture in a test */
+    announce: (text: string) => void = (text) => process.stdout.write(text),
+  ) {
     this.chatTokens = chatTokens;
+    this.announce = announce;
     this.file = join(config.dataDir, 'auth.json');
+    this.tokenFile = join(config.dataDir, FIRST_RUN_TOKEN_FILE);
     this.oidcVerifier = verifier;
     const desktop = env.CLAUDIO_DESKTOP_TOKEN?.trim();
     // Starting with a secret too short to be one would hand the guard a guessable way in
@@ -127,6 +158,54 @@ export class AuthStore {
       this.stored = fromEnvironment(env);
       if (this.stored.mode !== 'none' || this.stored.readOnly) this.persistSync();
     }
+    this.firstRunGenerated = this.firstRunOnStart(config.distribution, env);
+  }
+
+  /**
+   * In a container nothing is "this machine", so under `none` the terminal and in-app updates could
+   * never work, and every device on the published port drives chats unguarded. A start with no
+   * authentication variable therefore makes an owner token, once: for a new install, and for an
+   * older one that still says `none` and never chose it.
+   */
+  private firstRunOnStart(distribution: string | undefined, env: AuthEnv): { at: string } | null {
+    if (distribution !== 'docker') return null;
+    const decided = AUTH_DECIDING_KEYS.some((key) => Boolean(env[key]?.trim()));
+    if (decided) {
+      if (env.CLAUDIO_AUTH_MODE?.trim() === 'none') this.announce('Claudio: CLAUDIO_AUTH_MODE=none keeps access open, so the terminal and in-app updates are unavailable until access is protected with a token.\n');
+      return null;
+    }
+    if (this.stored.mode === 'none' && !this.stored.firstRun && !this.stored.noneChosenAt) {
+      const token = randomBytes(32).toString('base64url');
+      const at = new Date().toISOString();
+      this.stored = {
+        ...this.stored,
+        mode: 'token',
+        tokenHash: sha256(token).toString('hex'),
+        tokenId: FIRST_RUN_TOKEN_ID,
+        tokenCreatedAt: at,
+        firstRun: { generatedAt: at, pending: true },
+      };
+      this.persistSync();
+      // 0600 and the server's user: whoever reads /data owns the install already
+      writeFileSync(this.tokenFile, `${token}\n`, { mode: 0o600 });
+      this.announce(firstRunBlock(token));
+      return { at };
+    }
+    if (this.stored.firstRun?.pending) {
+      this.announce(`Claudio: the owner token made on first start has not been used yet; it is in ${FIRST_RUN_TOKEN_FILE} in the data directory.\n`);
+    }
+    return null;
+  }
+
+  /** The first-run token has not yet authenticated a request, so the sign-in screen says where to find it */
+  get firstRunPending(): boolean {
+    return this.stored.firstRun?.pending === true;
+  }
+
+  /** Done with the token's file: first use, a rotation or a removal */
+  private settleFirstRun(): void {
+    rmSync(this.tokenFile, { force: true });
+    if (this.stored.firstRun?.pending) this.stored = { ...this.stored, firstRun: { ...this.stored.firstRun, pending: false } };
   }
 
   private async persist(): Promise<void> {
@@ -160,6 +239,8 @@ export class AuthStore {
       tokenSet: Boolean(this.stored.tokenHash),
       ...(this.stored.oidc ? { oidc: this.stored.oidc } : {}),
       readOnly: this.stored.readOnly,
+      firstRunPending: this.firstRunPending,
+      firstRunToken: Boolean(this.stored.tokenHash) && this.stored.tokenId === FIRST_RUN_TOKEN_ID,
     };
   }
 
@@ -188,6 +269,8 @@ export class AuthStore {
       if (mode === 'token' && !next.tokenHash) throw new Error('set a token before turning on token authentication');
       if (mode === 'oidc' && !next.oidc) throw new Error('configure the issuer and the audience before turning on OIDC');
       next.mode = mode;
+      // A person who chose it must not have it undone by a later start (the migration)
+      if (mode === 'none') next.noneChosenAt = new Date().toISOString();
     }
     if (next.mode === 'none' && this.stored.mode !== 'none') await this.beforeUnguarded?.();
     this.stored = next;
@@ -213,6 +296,8 @@ export class AuthStore {
       tokenId: randomBytes(4).toString('hex'),
       tokenCreatedAt: createdAt,
     };
+    // A token of the owner's own replaces the generated one, which must not stay readable on disk
+    this.settleFirstRun();
     await this.persist();
     return { token, createdAt };
   }
@@ -223,8 +308,18 @@ export class AuthStore {
     // `envResetHash` stays: forgetting it would let a variable still set re-apply a token removed on purpose
     const { tokenHash: _hash, tokenId: _id, tokenCreatedAt: _createdAt, ...rest } = this.stored;
     this.stored = rest;
+    this.settleFirstRun();
     await this.persist();
     return this.config;
+  }
+
+  /**
+   * Whether `credential` is the desktop app's per-launch secret, sent from this machine, whatever the
+   * mode. Under `none` `actorFor` answers `local` for anything, so the four update writes the desktop
+   * shell makes ask this instead (docs/plans/unified-updates.md, D8).
+   */
+  isDesktopCredential(credential: string | undefined, fromLocalMachine: boolean): boolean {
+    return fromLocalMachine && credential !== undefined && this.desktopHash !== null && sameSecret(credential, this.desktopHash);
   }
 
   /**
@@ -242,7 +337,17 @@ export class AuthStore {
     if (fromLocalMachine && this.desktopHash && sameSecret(credential, this.desktopHash)) return DESKTOP_ACTOR;
     if (this.stored.mode === 'token') {
       if (!this.stored.tokenHash || !sameSecret(credential, this.stored.tokenHash)) return null;
-      return `token:${this.stored.tokenId ?? 'default'}`;
+      const id = this.stored.tokenId ?? 'default';
+      if (id === FIRST_RUN_TOKEN_ID && this.stored.firstRun?.pending) {
+        this.settleFirstRun();
+        this.onFirstRunUsed?.(new Date().toISOString());
+        try {
+          await this.persist();
+        } catch {
+          // The request is already authenticated; the flag is retried by the next write
+        }
+      }
+      return `token:${id}`;
     }
     const oidc = this.stored.oidc;
     if (!oidc) return null;
@@ -298,6 +403,21 @@ function fromEnvironment(env: AuthEnv): StoredAuth {
   const readOnly = env.CLAUDIO_READ_ONLY?.trim();
   if (readOnly) stored.readOnly = flagOn(readOnly);
   return stored;
+}
+
+/** Jupyter-style: framed so it stands out in a log, printed once */
+function firstRunBlock(token: string): string {
+  const lines = [
+    'Claudio made an owner token the first time it started.',
+    'Paste it on the sign-in screen. It is shown only here, once.',
+    '',
+    `  ${token}`,
+    '',
+    `Until it is first used it is also in ${FIRST_RUN_TOKEN_FILE} in the data directory.`,
+  ];
+  const width = Math.max(...lines.map((line) => line.length));
+  const bar = `+${'-'.repeat(width + 2)}+`;
+  return `\n${bar}\n${lines.map((line) => `| ${line.padEnd(width)} |`).join('\n')}\n${bar}\n\n`;
 }
 
 function flagOn(value: string | undefined): boolean {

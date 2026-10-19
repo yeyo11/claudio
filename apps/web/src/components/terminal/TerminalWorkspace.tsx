@@ -69,7 +69,18 @@ export function TerminalWorkspace({
   const { t } = useTranslation('terminal');
   const queryClient = useQueryClient();
   const toast = useToast();
-  const { terminals, isLoading, error } = useTerminalList(scope);
+  const listed = useTerminalList(scope);
+  const { isLoading, error } = listed;
+  // Ids being closed, or that the server said were closed: out of the tabs at once, so no panel stays to reconnect to them
+  const [forgotten, setForgotten] = useState<ReadonlySet<string>>(() => new Set());
+  const forget = (id: string, gone: boolean) =>
+    setForgotten((now) => {
+      const next = new Set(now);
+      if (gone) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const terminals = listed.terminals.filter((terminal) => !forgotten.has(terminal.id));
   const [picked, setPicked] = useState<string | null>(null);
   const [links, setLinks] = useState<Record<string, LinkState>>({});
   const choice = selectedId !== undefined ? selectedId : picked;
@@ -94,13 +105,20 @@ export function TerminalWorkspace({
   // The dock opens a shell on first use; once, so a slow answer does not open two
   const asked = useRef(false);
   const idle = !isLoading && !error && !terminals.some((terminal) => terminal.state === 'running');
+  const answered = !isLoading && !error;
   useEffect(() => {
-    if (!autoOpen || !idle || asked.current || open.isPending || !request) return;
+    if (!autoOpen || asked.current || open.isPending || !request || !answered) return;
+    // A shell is already running, so the panel shows it: the wish is spent here, not kept for when the
+    // last shell is closed, which would open one nobody asked for
+    if (!idle) {
+      onAutoOpened?.();
+      return;
+    }
     asked.current = true;
     onAutoOpened?.();
     open.mutate(request());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoOpen, idle]);
+  }, [autoOpen, idle, answered]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.terminalList(scopeKey(scope)) });
@@ -108,7 +126,11 @@ export function TerminalWorkspace({
   const reopen = (from: Terminal) => {
     open.mutate(requestFor(from));
   };
-  const closeCurrent = (terminal: Terminal) => close.mutate(terminal.id);
+  const closeCurrent = (terminal: Terminal) => {
+    forget(terminal.id, true);
+    // A close that failed brings the tab back, attached again
+    close.mutate(terminal.id, { onError: () => forget(terminal.id, false) });
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
@@ -180,7 +202,10 @@ export function TerminalWorkspace({
             onFocused?.();
           }}
           onLink={(link) => setLinks((all) => ({ ...all, [current.id]: link }))}
-          onEnded={refresh}
+          onEnded={(reason) => {
+            if (reason === 'closed') forget(current.id, true);
+            refresh();
+          }}
           onReopen={() => reopen(current)}
           onClose={() => closeCurrent(current)}
         />

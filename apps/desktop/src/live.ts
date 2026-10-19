@@ -125,14 +125,22 @@ function itemLabel(item: LiveItem): string {
 
 export type TrayAction = { kind: 'show' } | { kind: 'open'; path: string } | { kind: 'update' } | { kind: 'quit' };
 
+/** The update a restart applies, for the tray's one restart line */
+export interface TrayRestart {
+  version: string;
+  /** apt already installed it: the restart only starts it */
+  finish: boolean;
+}
+
 export type TrayEntry = { type: 'separator' } | { type: 'item'; label: string; action: TrayAction | null };
 
 /**
  * The tray menu as data. The status line comes first as a disabled item: on Linux the tray is an
  * AppIndicator, which never shows the tooltip, so the menu is the only place it can be read.
- * `updateReady` is the version of a downloaded update, offered just above Quit.
+ * `restart` is the one restart an update waits for, offered just above Quit: a downloaded payload or
+ * AppImage, or a shell apt replaced underneath (`finish`).
  */
-export function trayMenu(snapshot: LiveSnapshot, updateReady?: string): TrayEntry[] {
+export function trayMenu(snapshot: LiveSnapshot, restart?: TrayRestart): TrayEntry[] {
   const entries: TrayEntry[] = [
     { type: 'item', label: liveWords(snapshot) ?? 'Nothing running', action: null },
     { type: 'separator' },
@@ -148,7 +156,10 @@ export function trayMenu(snapshot: LiveSnapshot, updateReady?: string): TrayEntr
     if (hidden > 0) entries.push({ type: 'item', label: `${hidden} more…`, action: { kind: 'open', path: '/chats' } });
   }
   entries.push({ type: 'separator' });
-  if (updateReady) entries.push({ type: 'item', label: `Restart to update to ${updateReady}`, action: { kind: 'update' } });
+  if (restart) {
+    const label = restart.finish ? `Restart to finish the update to ${restart.version}` : `Restart to update to ${restart.version}`;
+    entries.push({ type: 'item', label, action: { kind: 'update' } });
+  }
   entries.push({ type: 'item', label: 'Quit Claudio', action: { kind: 'quit' } });
   return entries;
 }

@@ -404,6 +404,46 @@ test('get_usage answers the plan, both windows, a model-scoped weekly limit and 
   assert.equal(usage.rate_limits.extra_usage.is_enabled, false);
 });
 
+test('get_usage answers the recorded refusal for an invalid token or key', async () => {
+  for (const variable of ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']) {
+    const c = chat({ [variable]: 'invalid' });
+    const usage = (await control(c, 'g-bad', { subtype: 'get_usage' })).response.response;
+    const recorded = JSON.parse(readFileSync(join(dirname(bin), '../../packages/accounts/test/fixtures/get-usage-refused-api-key.json'), 'utf8'));
+    assert.equal(usage.rate_limits_available, false);
+    assert.deepEqual(Object.keys(usage), Object.keys(recorded));
+    c.done();
+  }
+});
+
+test('get_usage answers the recorded refusal for a fake-expired token', async () => {
+  const c = chat({ CLAUDE_CODE_OAUTH_TOKEN: 'fake-expired-x' });
+  const usage = (await control(c, 'g-exp', { subtype: 'get_usage' })).response.response;
+  assert.equal(usage.rate_limits_available, false);
+  c.done();
+});
+
+test('auth login prints the link, takes the code on stdin and writes the credentials; a bad code fails', async () => {
+  const run = (code) =>
+    new Promise((resolve) => {
+      const dir = mkdtempSync(join(tmpdir(), 'claudio-fake-login-'));
+      const proc = spawn(bin, ['auth', 'login'], { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, stdio: ['pipe', 'pipe', 'ignore'] });
+      let out = '';
+      proc.stdout.on('data', (d) => {
+        out += d;
+        if (out.includes('authorize?fake=1') && proc.stdin.writable) proc.stdin.write(`${code}\n`);
+      });
+      proc.on('exit', (exit) => resolve({ exit, dir, out }));
+    });
+  const good = await run('abc#123');
+  assert.equal(good.exit, 0);
+  assert.match(good.out, /https:\/\/claude\.ai\/oauth\/authorize\?fake=1/);
+  const credentials = JSON.parse(readFileSync(join(good.dir, '.credentials.json'), 'utf8'));
+  assert.ok(credentials.claudeAiOauth.refreshToken);
+  const bad = await run('bad');
+  assert.equal(bad.exit, 1);
+  assert.equal(existsSync(join(bad.dir, '.credentials.json')), false);
+});
+
 test('get_context_usage answers the recorded shape, with 93 MCP tools on two servers, and refuses a bad detail', async () => {
   const c = chat({ CLAUDIO_FAKE_CLI_COMPACT_MS: '50' });
   const summary = (await control(c, 'u-1', { subtype: 'get_context_usage', detail: 'summary' })).response.response;

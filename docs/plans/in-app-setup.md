@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T19:00:00Z
-updated_at: 2026-10-09T16:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - plan
     - setup
@@ -269,6 +269,18 @@ e2e suites:
   on the person's own machine, or an API key; there is no device code for it.
 - A key beside the data protects a copy of the files, not the volume
   ([security-model.md](../security-model.md#known-limits)).
+
+## Note, 2026-10-18: Claude Code's sign-in changed
+
+This plan said `claude auth login` could not be driven without a terminal, so Claude Code took the
+token `claude setup-token` makes, or an API key (the "Claude Code" row of the table above and "Left
+open"). That was superseded: the paste-code `claude auth login`, relayed through pipes, works in the
+image, and the assistant, Settings → Claude Code and Accounts now offer **Claude account** first and
+**API key** second, with no OAuth token. See
+[plans/container-polish.md](container-polish.md) and
+[decisions/claude-sign-in-paste-code.md](../decisions/claude-sign-in-paste-code.md). The other
+tools in this plan are unchanged.
+
 
 ## Related
 

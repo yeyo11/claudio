@@ -340,6 +340,8 @@
     "title": "En marcha",
     "agents_one": "{{count}} agente",
     "agents_other": "{{count}} agentes",
+    "waiting_one": "{{count}} agente esperando a su tarea en segundo plano",
+    "waiting_other": "{{count}} agentes esperando a su tarea en segundo plano",
     "tasks_one": "{{count}} tarea en segundo plano",
     "tasks_other": "{{count}} tareas en segundo plano",
     "workflows_one": "{{count}} workflow",
@@ -352,6 +354,7 @@
       "running": "Trabajando",
       "completed": "Terminado",
       "failed": "Ha fallado",
+      "waiting": "Esperando",
       "stopped": "Detenido"
     },
     "nested": "de {{owner}}",

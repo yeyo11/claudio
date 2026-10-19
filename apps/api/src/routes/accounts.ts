@@ -13,6 +13,7 @@ import type {
   RotationPolicyRequest,
   UsageHistoryPoint,
 } from '@claudio/shared';
+import { DEFAULT_ID } from '@claudio/accounts';
 import { AccountLogins } from '../account-logins.ts';
 
 /**
@@ -74,13 +75,14 @@ const moment = (value: string | undefined, name: string): string | undefined => 
 };
 
 export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  const logins = new AccountLogins(core.accounts, core.config.claudeBin);
+  const logins = new AccountLogins(core.accounts, () => core.config.claudeBin, (accountId) => (accountId === DEFAULT_ID ? core.defaultSignedIn() : Promise.resolve()));
   app.addHook('onClose', async () => logins.close());
 
   // The terminal's `claudio-accounts` shares the data dir and may have written since the last read
   app.get('/accounts', (): Account[] => {
     core.accounts.reload();
-    return core.accounts.list();
+    // The CLI's own login is left out while it has no credential at all: an empty ghost beside the real accounts
+    return core.accounts.listed();
   });
 
   app.post<{ Body: unknown }>('/accounts', async (req, reply): Promise<AccountLoginSession> => {
@@ -95,12 +97,15 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // Reads the CLI itself (`get_usage`, no turn, no tokens), one account at a time, each with its own timeout
   app.post('/accounts/refresh', (): Promise<AccountsRefreshResult> => core.refreshAccountUsage());
 
-  app.post<{ Params: { id: string } }>('/accounts/:id/refresh', async (req): Promise<Account> => {
+  app.post<{ Params: { id: string } }>('/accounts/:id/refresh', async (req, reply): Promise<Account | { error: string; code: string }> => {
     core.accounts.reload();
     core.accounts.get(req.params.id); // 404 before the CLI is asked anything
+    // An API key is asked of Anthropic too (free), whatever the CLI then says; a refusal marks the account expired, which the answer shows
+    if (core.accounts.usesApiKey(req.params.id)) await core.accounts.check(req.params.id);
     const { accounts, failed } = await core.refreshAccountUsage([req.params.id]);
     const error = failed[0]?.error;
-    if (error) throw new Error(`the CLI could not read the usage of ${req.params.id}: ${error}`);
+    // The CLI could not answer at all (no network, a timeout): the account is left as it was. A client acts on the code
+    if (error) return reply.status(502).send({ error: `the CLI could not read the usage of ${req.params.id}: ${error}`, code: 'accounts.check-failed' });
     const account = accounts.find((a) => a.id === req.params.id);
     if (!account) throw new Error(`account ${req.params.id} not found`);
     return account;

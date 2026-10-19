@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - development
     - e2e
@@ -34,6 +34,29 @@ pnpm media        # re-record docs/media (needs pnpm build first)
 
 Locally the wrapper uses your real `~/.claude`. Point `CLAUDE_CONFIG_DIR` somewhere else to
 experiment with config writes safely.
+
+**A second Claudio needs its own data directory and port.** One server holds a data directory at a
+time ([security-model.md](security-model.md#one-server-per-data-directory)): a second one started on
+the same `CLAUDIO_DATA_DIR` prints which pid holds it and exits with code 73 before it reads
+anything. A dev server beside the desktop app, or in a second worktree, is started with both of its
+own:
+
+```bash
+CLAUDIO_DATA_DIR=$PWD/data PORT=8798 VITE_API_TARGET=http://127.0.0.1:8798 pnpm dev
+```
+
+A chat Claudio started no longer hands its `CLAUDIO_DATA_DIR`, `PORT` or any other server variable to
+what it runs ([chat-environment.md](chat-environment.md#what-a-child-gets-and-what-it-never-gets)),
+so `pnpm dev` from an agent's worktree falls back to the checkout's own `data/` and `:8797`. A shell
+that exported them itself still passes them on: unset them, or set both.
+
+**The terminal cannot be tried through a dev server an agent started.** Behind `pnpm dev` the API's
+client is Vite's proxy, a loopback process; the terminal's peer check looks at that process, finds an
+agent among its ancestors and answers `from-agent`, whatever browser is on the other end. To show a
+person the terminal from a branch an agent serves, serve the built web from the API itself, so the
+person's browser is the peer: `pnpm --filter @claudio/web build`, then start the API with
+`CLAUDIO_WEB_DIST=<checkout>/apps/web/dist`, its own `CLAUDIO_DATA_DIR` and `PORT`, and, on the LAN,
+`HOST=0.0.0.0`, a token and `CLAUDIO_ALLOWED_HOSTS` ([terminal.md](terminal.md)).
 
 **The browser suite runs on GitHub, not here.** `pnpm e2e` refuses to start outside CI unless
 `E2E_ALLOW_LOCAL=1` is set, and agents never set it: each run boots a server and a Chrome per shard as

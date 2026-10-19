@@ -2,8 +2,9 @@ name: Desktop
 
 # Reusable, like image.yml: the release workflow calls it with the tag it just published, and it can be run
 # by hand to get a build to test. Without a tag it only builds and keeps the packages as a run artifact;
-# with one it also attaches them to that GitHub release. It is called, never triggered by a tag push — a tag
-# created by GITHUB_TOKEN does not start a workflow of its own.
+# with one it also attaches them to that GitHub release, signs the desktop manifest, attests every file and
+# builds the apt repository that carries the .deb (docs/plans/unified-updates.md, D4 and D7). It is called,
+# never triggered by a tag push — a tag created by GITHUB_TOKEN does not start a workflow of its own.
 on:
   workflow_call:
     inputs:
@@ -27,6 +28,12 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,6 +53,41 @@ jobs:
       # AppImage itself (latest-linux.yml gives its size), so there is no separate .blockmap file to ship.
       - run: pnpm desktop:dist
 
+      # minShell is inherited from the previous release when nothing only a new shell can change moved
+      # (shellInputs), as server-bundle.yml does for minImage: the newest published release's server
+      # manifest carries both. None leaves it empty, and minShell is then this version.
+      - id: previous
+        run: |
+          previous=$(gh release list --exclude-drafts --limit 20 --json tagName -q '.[].tagName' | grep -vx "${TAG:-none}" | head -n1 || true)
+          url=""
+          if [ -n "$previous" ]; then
+            name=$(gh release view "$previous" --json assets -q '.assets[].name' | grep -E '^claudio-server-.*-linux-x64\.json$' | head -n1 || true)
+            if [ -n "$name" ]; then
+              url="https://github.com/${GH_REPO}/releases/download/${previous}/${name}"
+            fi
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # The desktop manifest (claudio-desktop-<v>-linux-x64.json): the AppImage's and the .deb's names,
+      # sizes, sha256 and sha512, shellInputs and minShell. The shell checks a downloaded package against
+      # it, and so does install.sh, once the `sign` job below has signed it (D7).
+      - name: Desktop manifest
+        env:
+          PREVIOUS: ${{ steps.previous.outputs.url }}
+        run: |
+          node apps/api/scripts/server-bundle.mjs --desktop-manifest apps/desktop/release \
+            --previous "$PREVIOUS" --commit "$(git rev-parse HEAD)"
+          ls apps/desktop/release/claudio-desktop-*-linux-x64.json
+
+      # For people and auditors: nothing in the app reads them
+      - uses: actions/attest-build-provenance@v4
+        if: inputs.tag != ''
+        with:
+          subject-path: |
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/claudio-desktop-*-linux-x64.json
+
       - uses: actions/upload-artifact@v7
         with:
           name: claudio-linux
@@ -53,6 +95,7 @@ jobs:
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
             apps/desktop/release/latest-linux.yml
+            apps/desktop/release/claudio-desktop-*-linux-x64.json
           if-no-files-found: error
 
       # The release exists by now as a draft (release-please creates it before this runs), and the release
@@ -69,7 +112,89 @@ jobs:
           fi
           gh release upload "$TAG" apps/desktop/release/*.AppImage apps/desktop/release/*.deb \
             apps/desktop/release/latest-linux.yml --clobber
+
+  # Signs the desktop manifest with the payload's Ed25519 key, so the shell's own keys (<resources>/keys,
+  # from docker/keys) verify it. A job of its own beside `apt-repo`: both wait on the `release`
+  # environment's approval from the moment `linux` ends, so the owner approves them together (decision 2).
+  sign:
+    needs: linux
+    if: inputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: claudio-linux
+          path: out
+
+      # One line `<keyId> <base64>` (D7): keyId is the first 16 hex characters of the sha256 of the
+      # public key's DER, so a rotation can sign with two keys at once and each shell picks the line its
+      # keys know. Never publish unsigned: a missing key fails the job, and `publish` waits on it. The
+      # key lives in a file only for this step.
+      - name: Sign the desktop manifest
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ inputs.tag }}
+          CLAUDIO_BUNDLE_SIGNING_KEY: ${{ secrets.CLAUDIO_BUNDLE_SIGNING_KEY }}
+        run: |
+          if [ -z "$CLAUDIO_BUNDLE_SIGNING_KEY" ]; then
+            echo "::error::CLAUDIO_BUNDLE_SIGNING_KEY is not set in the release environment; refusing to publish an unsigned desktop manifest"
+            exit 1
+          fi
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$CLAUDIO_BUNDLE_SIGNING_KEY" > "$key"
+          manifest=$(ls out/claudio-desktop-*-linux-x64.json)
+          key_id=$(openssl pkey -in "$key" -pubout -outform DER | sha256sum | cut -c1-16)
+          signature=$(openssl pkeyutl -sign -inkey "$key" -rawin -in "$manifest" | base64 -w0)
+          printf '%s %s\n' "$key_id" "$signature" > "${manifest}.sig"
+
+      # What a shell trusts is docker/keys, which it carries in <resources>/keys. A signature none of them
+      # verifies would ship a manifest no shell and no install.sh accepts.
+      - name: Verify the signature against the shell's keys
+        run: |
+          manifest=$(ls out/claudio-desktop-*-linux-x64.json)
+          ok=0
+          while read -r key_id signature; do
+            printf '%s' "$signature" | base64 -d > sig.bin
+            for pub in docker/keys/*.pub; do
+              if openssl pkeyutl -verify -pubin -inkey "$pub" -rawin -in "$manifest" -sigfile sig.bin >/dev/null; then
+                echo "verified by $pub (key id $key_id)"
+                ok=1
+              fi
+            done
+          done < "${manifest}.sig"
+          if [ "$ok" != 1 ]; then
+            echo "::error::no key in docker/keys verifies the desktop manifest's signature"
+            exit 1
+          fi
+
+      - name: Attach to the release
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft -q .isDraft)" != "true" ]; then
+            echo "::warning::$TAG is already published and immutable; the manifest is not attached"
+            exit 0
+          fi
+          gh release upload "$TAG" out/claudio-desktop-*-linux-x64.json out/claudio-desktop-*-linux-x64.json.sig --clobber
+
+  # The apt repository with this release's .deb and the newest published ones, signed and uploaded as this
+  # run's Pages artifact. release.yml deploys it after `publish`, so `publish` waiting on this workflow
+  # also waits on the signed repository.
+  apt-repo:
+    needs: linux
+    if: inputs.tag != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/apt-repo.yml
+    with:
+      tag: ${{ inputs.tag }}
+      artifact: claudio-linux

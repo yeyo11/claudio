@@ -223,6 +223,8 @@ const env = {
   CLAUDIO_UPDATE_CHECK: 'off',
   // The Updates card offers the Docker commands, the one distribution a browser run can stand for
   CLAUDIO_DISTRIBUTION: 'docker',
+  // ...and, with no authentication variable, makes an owner token on first start: the specs drive an open server
+  CLAUDIO_AUTH_MODE: 'none',
   // ...which turns the tunnel off by default; the Remote access specs need it offered. No spec can
   // open a real one: the suite runs with authentication off, and the tunnel refuses to start then
   CLAUDIO_TUNNEL: 'on',
@@ -230,6 +232,9 @@ const env = {
   // asks, let alone changes, the real Tailscale of the machine it runs on
   TAILSCALE_BIN: join(root, 'packages/core/test/fixtures/fake-tailscale.mjs'),
   FAKE_TAILSCALE_STATE: join(sandbox, 'tailscale-node.json'),
+  // Where the fake gh, glab and YouTrack read their answers and write their calls. A child never
+  // gets CLAUDIO_DATA_DIR (packages/shared/src/server-env.ts), so the fakes have their own name for it
+  FAKE_STATE_DIR: join(sandbox, 'data'),
   // Live specs need the real login; everything else runs against an empty config dir
   ...(live ? {} : { CLAUDE_CONFIG_DIR: join(sandbox, 'claude') }),
   ...(await collabEnv()),
@@ -436,6 +441,7 @@ async function startPeer(name, page, browser) {
     CLAUDIO_FAKE_CLI_LOG: peerFake.log,
     CLAUDIO_FAKE_CLI_SCRIPTS: peerFake.scripts,
     FAKE_TAILSCALE_STATE: join(home, 'tailscale-node.json'),
+    FAKE_STATE_DIR: peerDirs.dataDir,
     ...(await collabEnv()),
   };
   const entry = { child: null };

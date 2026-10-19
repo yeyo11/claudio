@@ -5,7 +5,7 @@ state="$FAKE_GH_STATE"
 echo "$*" >> "$state/calls"
 # The golden tests also keep the order of every call, with what the execution layer set around it
 # and the body it was given on stdin (only `pr create` reads one).
-if [ -n "$CLAUDIO_CALL_LOG" ]; then
+if [ -n "$FAKE_CALL_LOG" ]; then
   {
     echo "gh $*"
     echo "  cwd: $PWD"
@@ -13,7 +13,7 @@ if [ -n "$CLAUDIO_CALL_LOG" ]; then
       eval "set_=\${$v+set}"
       if [ -n "$set_" ]; then eval "echo \"  env: $v=\$$v\""; else echo "  env: $v=<unset>"; fi
     done
-  } >> "$CLAUDIO_CALL_LOG"
+  } >> "$FAKE_CALL_LOG"
 fi
 case "$1 $2" in
   "--version "*) printf 'gh version 2.92.0 (2026-04-28)\nhttps://github.com/cli/cli/releases/tag/v2.92.0\n'; exit 0 ;;
@@ -53,7 +53,7 @@ case "$1 $2" in
   "pr create")
     n=$(cat "$state/next" 2>/dev/null || echo 7)
     cat > "$state/body-$n"
-    if [ -n "$CLAUDIO_CALL_LOG" ]; then { echo "  stdin:"; sed 's/^/    | /' "$state/body-$n"; echo; } >> "$CLAUDIO_CALL_LOG"; fi
+    if [ -n "$FAKE_CALL_LOG" ]; then { echo "  stdin:"; sed 's/^/    | /' "$state/body-$n"; echo; } >> "$FAKE_CALL_LOG"; fi
     echo "$@" > "$state/create-$n"
     if [ -f "$state/exists" ]; then printf 'a pull request for branch "task/cw-1" into branch "main" already exists:\nhttps://github.com/acme/shop/pull/%s\n' "$n" >&2; exit 1; fi
     echo "https://github.com/acme/shop/pull/$n"; exit 0 ;;

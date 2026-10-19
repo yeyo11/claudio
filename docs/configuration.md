@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - configuration
     - environment
@@ -19,28 +19,32 @@ README's.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `CLAUDE_CODE_OAUTH_TOKEN` | – | Subscription token from `claude setup-token` |
-| `ANTHROPIC_API_KEY` | – | Alternative: API key billing |
+| `CLAUDE_CODE_OAUTH_TOKEN` | – | **Headless and legacy**, not the way to start: a subscription token from `claude setup-token`, for a deployment that cannot open a browser. See [Claude Code credentials](#claude-code-credentials) |
+| `ANTHROPIC_API_KEY` | – | API key billing. Also a choice in the setup assistant, which keeps it in the vault |
 | `PORT` / `HOST` | `8797` / `127.0.0.1` (`0.0.0.0` in the image) | API listen address. Loopback by default because the API runs commands on the machine and starts with no credential; the image opens it because Compose publishes the container on `127.0.0.1` anyway. Binding every interface while the mode is `none` logs a warning |
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
 | `CLAUDIO_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
-| `CLAUDIO_DATA_DIR` | `./data` | Wrapper state |
+| `CLAUDIO_DATA_DIR` | `./data` | Wrapper state. One server at a time: it takes `<data>/server.lock` first, and a second one on the same directory exits with code 73 without touching it ([security-model.md](security-model.md)) |
 | `CLAUDIO_SECRET_KEY` | – | 32 bytes as hex: the key the secret vault (`secrets.json`) seals the keys and tokens Claudio hands a CLI with. The desktop app passes its own. Without it the Docker image makes one beside the data on the first write (`secret.key`, mode 600), which protects a copy of the files but not the volume, so passing it here is the recommended setup; a source install without it keeps the values plain at 0600. The server drops it from its environment once read |
 | `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Runs & spend and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Runs & spend unless set here, like the mode above. Empty counts as unset |
 | `CLAUDIO_SETUP_SEEN` | off | `on` records that the setup assistant was finished or skipped. Without the variable the assistant writes it to `app-settings.json` (`POST /api/setup/seen`). The older `CLAUDIO_PROVIDERS_STEP_SEEN`, and a `providersStepSeen` already stored, still count. Empty counts as unset |
 | `CLAUDIO_PUSH_SUBJECT` | `https://github.com/yeyo11/claudio` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:claudio@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
-| `CLAUDIO_AUTH_MODE` | `none` | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. See [securing.md](securing.md) |
+| `CLAUDIO_AUTH_MODE` | `none` (in the image: unset makes a first-run token, see below) | `none`, `token` or `oidc`. **Seeds** an install that has no `auth.json` yet; after that the setting saved from the UI wins. In the image, `none` set here is always respected and logs one line saying the terminal and in-app updates need a token. See [securing.md](securing.md) |
 | `CLAUDIO_AUTH_TOKEN` | – | The bearer token to seed with when the mode is `token`. Only its SHA-256 is stored |
+| *(none)* first-run token | – | In the image, when none of `CLAUDIO_AUTH_MODE`, `CLAUDIO_AUTH_TOKEN` and `CLAUDIO_OIDC_ISSUER` is set, the first start makes an owner token, prints it once and keeps it in `/data/first-run-token` until first used. The Helm chart's `auth.mode: auto` (the default) writes no variable so this happens. See [deploy.md](deploy.md#the-first-run-token) |
 | `CLAUDIO_AUTH_TOKEN_RESET` | – | `1` makes `CLAUDIO_AUTH_TOKEN` replace the stored token on start, on an install that already has one. The change is audited with actor `env`, and a value already applied is not applied twice |
 | `CLAUDIO_DESKTOP_TOKEN` | – | Set by the desktop app on the server it starts: a secret generated at each launch that its tray sends as a bearer token. Accepted only from loopback, dialled on a loopback name, as the read-only actor `desktop`; kept in memory, never stored, and removed from the environment chats inherit. See [docs/desktop.md](desktop.md) |
 | `CLAUDIO_READ_ONLY` | `false` | Seeds read-only mode |
 | `CLAUDIO_OIDC_ISSUER` / `_AUDIENCE` / `_CLIENT_ID` | – | Seed the OIDC settings: the issuer whose JWKS validates a JWT, the `aud` it must carry and the client id. A configured client id refuses a token whose `azp` names another client, and accepts one that carries no `azp` at all |
 | `CLAUDIO_CLI_UPDATE_CHECK` | on | `off` stops the daily check for a newer Claude Code (the button in Settings keeps working) |
-| `CLAUDIO_CLI_REGISTRY_URL` | the npm registry | Where that check reads the package metadata: a mirror, for an air-gapped install |
+| `CLAUDIO_CLI_REGISTRY_URL` | the npm registry | Where that check reads the package metadata, and where the in-app install of a newer Claude Code downloads the platform package from: a mirror, for an air-gapped install |
 | `CLAUDIO_UPDATE_CHECK` | on | `off` stops the daily check for a newer Claudio release (**Check for updates** in Settings keeps working) |
-| `CLAUDIO_RELEASES_URL` | GitHub's latest release of `yeyo11/claudio` | Where that check asks instead: a mirror or a test fixture. It must answer in GitHub's shape (`tag_name`, `html_url`, `published_at`) |
+| `CLAUDIO_RELEASES_URL` | GitHub's latest release of `yeyo11/claudio` | Where that check asks instead: a mirror or a test fixture. It must answer in GitHub's shape (`tag_name`, `html_url`, `published_at`, and `assets[]` with `name` and `browser_download_url`, which the in-app server update reads) |
+| `CLAUDIO_SERVER_UPDATE` | on | `off` hides in-app server updates in a container: the Updates card shows the host commands. See [updates.md](updates.md) |
+| `CLAUDIO_BUNDLE_KEYS_DIR` | `/app/keys` | The public keys the **server** checks a downloaded bundle against; tests and e2e point it at a fixture. The launcher ignores it and always uses `/app/keys` |
+| `CLAUDIO_LAUNCHER`, `CLAUDIO_APP_DIR` | set by the launcher | `CLAUDIO_LAUNCHER=1` (the container's launcher) or `desktop` (the desktop shell, [updates.md](updates.md#files-and-variables)) tells the server it is supervised and may exit 75 to be restarted; `CLAUDIO_APP_DIR` is the directory the running bundle came from (`/app` or `/data/app/<version>`). Not for setting by hand |
 | `CLAUDIO_DISTRIBUTION` | – (a source checkout) | How this server was installed, which decides the update steps the UI offers: `docker` (set by the image), `appimage` or `deb` (set by the desktop app) |
 | `CLAUDIO_PID_FILE` | `/tmp/claudio.pid` in the image | Where the server writes its pid, so the image's healthcheck can end a wedged server |
 | `CLAUDIO_HEALTH_RESTART_AFTER` | `3` | Consecutive failed health probes (30 s apart) after which the container restarts itself |
@@ -82,3 +86,23 @@ Variables that belong to one feature, described where that feature is:
 ## Related
 
 [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[securing.md]] · [[chat-environment.md]] · [[security-model.md]] · [[rest-api.md]]
+
+## Claude Code credentials
+
+Claudio signs in to Claude Code in the app: the setup assistant, Settings → Claude Code and
+Accounts → Add account offer **Claude account** (the CLI's own `claude auth login`, relayed: open a
+link, approve, paste the code the page shows) and **API key**. In the assistant and Settings the
+Claude account goes into the CLI's own config dir (`/home/node/.claude` in the image), so the
+`claude` run in the terminal is signed in too ([decisions/claude-sign-in-paste-code.md](decisions/claude-sign-in-paste-code.md)).
+
+The environment still works, for headless deployments:
+
+- **`CLAUDE_CODE_OAUTH_TOKEN`** (compose, `docker run -e`, Helm's `claude.existingSecret`) is read by
+  the CLI itself. It is the way to start only where nobody can open a browser. Settings → Claude Code
+  names it as the source, it is validated like any credential, and it takes precedence over an
+  account signed in from the app, which the sign-in panel warns about. Make the token with
+  `claude setup-token` on a machine where you are signed in.
+- **`ANTHROPIC_API_KEY`** in the environment works the same way.
+- A token that an older Claudio kept in its vault keeps working until it fails or is replaced; a
+  successful Claude-account sign-in clears it. `PUT /auth/credentials { oauthToken }` and
+  `POST /accounts/token` still answer for scripts but are deprecated.

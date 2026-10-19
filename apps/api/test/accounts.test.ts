@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { Account, AccountLoginSession, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
+import type { Account, AccountLoginSession, AuthStatus, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
+import { AccountLogins } from '../src/account-logins.ts';
 import { buildApp } from '../src/app.ts';
 
 // The accounts over HTTP, against the accounts package's fake `claude`, which honours
@@ -55,11 +56,81 @@ async function untilUrl(id: string): Promise<AccountLoginSession> {
   throw new Error('the CLI printed no URL');
 }
 
-test('the default account is listed first, and the list is the same as the store', async () => {
+test('the default account stays out of the list while it has no credential at all', async () => {
+  assert.deepEqual(await accounts(), []);
+  const auth = (await app.inject('/api/auth')).json<AuthStatus>();
+  assert.equal(auth.inUse, null, 'no account can take work');
+
+  // Only a login account is signed in: it is the account in use, though the CLI's own login is empty
+  const session = (await app.inject({ method: 'POST', url: '/api/accounts', ...json({ alias: 'work' }) })).json<AccountLoginSession>();
+  await untilUrl(session.id);
+  await app.inject({ method: 'POST', url: `/api/accounts/logins/${session.id}/code`, ...json({ code: 'good-code' }) });
+  assert.equal((await untilEnded(session.id)).state, 'succeeded');
+  assert.deepEqual((await accounts()).map((a) => a.id), [session.accountId]);
+  const inUse = (await app.inject('/api/auth')).json<AuthStatus>().inUse;
+  assert.equal(inUse?.id, session.accountId);
+  assert.equal(inUse?.label, 'work');
+  assert.ok(inUse?.checkedAt, 'a sign-in that succeeded is a check');
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/${session.accountId}` })).statusCode, 200);
+});
+
+test('the default account is listed first once it has credentials, and the list is the store\'s listed accounts', async () => {
+  mkdirSync(join(root, 'claude'), { recursive: true });
+  writeFileSync(join(root, 'claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
   const list = await accounts();
   assert.equal(list[0]?.id, 'default');
   assert.equal(list[0]?.kind, 'login');
-  assert.deepEqual(list, core.accounts.list());
+  assert.deepEqual(list, core.accounts.listed());
+  assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/default/login' })).statusCode, 201, 'the sign-in route works on the CLI\'s own login');
+});
+
+test('signing the CLI\'s own login in clears a token Claudio kept, which would beat the new credentials', async () => {
+  await core.setCredentials({ oauthToken: 'sk-ant-oat01-kept' });
+  assert.equal((await core.system(true)).auth.tokenSource, 'wrapper-oauth-token');
+  const session = (await app.inject({ method: 'POST', url: '/api/accounts/default/login' })).json<AccountLoginSession>();
+  assert.equal(session.accountId, 'default');
+  await untilUrl(session.id);
+  await app.inject({ method: 'POST', url: `/api/accounts/logins/${session.id}/code`, ...json({ code: 'good-code' }) });
+  assert.equal((await untilEnded(session.id)).state, 'succeeded');
+  assert.notEqual((await core.system(true)).auth.tokenSource, 'wrapper-oauth-token');
+  assert.ok(core.accounts.get('default').checkedAt);
+});
+
+test('signing the CLI\'s own login in clears an API key Claudio kept, which would keep precedence over the new login', async () => {
+  await core.setCredentials({ apiKey: 'sk-ant-api03-kept' });
+  assert.equal((await core.system(true)).auth.tokenSource, 'wrapper-api-key');
+  const session = (await app.inject({ method: 'POST', url: '/api/accounts/default/login' })).json<AccountLoginSession>();
+  await untilUrl(session.id);
+  await app.inject({ method: 'POST', url: `/api/accounts/logins/${session.id}/code`, ...json({ code: 'good-code' }) });
+  assert.equal((await untilEnded(session.id)).state, 'succeeded');
+  assert.notEqual((await core.system(true)).auth.tokenSource, 'wrapper-api-key');
+});
+
+test('the free check of the account in use runs once per 30 minutes even when it cannot confirm the credential', async () => {
+  const original = core.accounts.check.bind(core.accounts);
+  let checks = 0;
+  // An API key is never confirmed by get_usage, so checkedAt stays as it was
+  core.accounts.check = (async () => {
+    checks += 1;
+    return 'unknown';
+  }) as typeof core.accounts.check;
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+  try {
+    await core.setCredentials({ apiKey: 'sk-ant-api03-unconfirmable' });
+    await core.accounts.markChecked('default', Date.now() - 31 * 60_000);
+    await core.providers.refresh({ only: ['claude-code'] });
+    await settle();
+    await core.providers.refresh({ only: ['claude-code'] });
+    await settle();
+    assert.equal(checks, 1, 'a second refresh inside the window does not check again');
+    await core.setCredentials({ apiKey: 'sk-ant-api03-replaced' });
+    await core.providers.refresh({ only: ['claude-code'] });
+    await settle();
+    assert.equal(checks, 2, 'a changed credential is checked again at once');
+  } finally {
+    core.accounts.check = original;
+    await core.clearCredentials();
+  }
 });
 
 test('a token account needs an alias and a secret, keeps the secret in a 0600 file and never answers it back', async () => {
@@ -282,6 +353,42 @@ test('refreshing one account answers it, and an unknown one is a 404', async () 
 
 test('an api-key account refreshes to a reading that says it has no subscription limits', async () => {
   const created = await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'a-key', secret: 'sk-ant-api-r' }) });
-  const res = await app.inject({ method: 'POST', url: `/api/accounts/${created.json<Account>().id}/refresh` });
-  assert.equal(res.json<Account>().limits?.cli?.available, false);
+  // The key itself is asked of Anthropic: a test never reaches the network
+  const original = core.accounts.check.bind(core.accounts);
+  const asked: string[] = [];
+  core.accounts.check = (async (id: string) => {
+    asked.push(id);
+    await core.accounts.markAuthFailed(id);
+    return 'refused';
+  }) as typeof core.accounts.check;
+  try {
+    const id = created.json<Account>().id;
+    const res = await app.inject({ method: 'POST', url: `/api/accounts/${id}/refresh` });
+    assert.equal(res.json<Account>().limits?.cli?.available, false);
+    assert.deepEqual(asked, [id], 'a key account is checked on refresh');
+    assert.equal(res.json<Account>().signInState, 'expired', 'a refused key answers the account as expired');
+  } finally {
+    core.accounts.check = original;
+  }
+});
+
+test('a sign-in nobody finishes in time ends as expired, not cancelled, and an account that never signed in goes', async () => {
+  const logins = new AccountLogins(core.accounts, FAKE_CLAUDE, undefined, { expiresMs: 400 });
+  try {
+    const session = await logins.start({});
+    for (let i = 0; i < 100 && !logins.get(session.id).endedAt; i += 1) await new Promise((r) => setTimeout(r, 50));
+    const ended = logins.get(session.id);
+    assert.equal(ended.state, 'expired');
+    assert.ok(!(await accounts()).some((a) => a.id === session.accountId));
+  } finally {
+    logins.close();
+  }
+});
+
+test('refreshing an account whose CLI cannot run answers 502 accounts.check-failed', async (t) => {
+  const id = (await core.accounts.add({ kind: 'login' })).id;
+  t.mock.method(core.accounts, 'fetchUsage', () => Promise.reject(new Error('the CLI did not answer get_usage in time')));
+  const res = await app.inject({ method: 'POST', url: `/api/accounts/${id}/refresh` });
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.json<{ code: string }>().code, 'accounts.check-failed');
 });

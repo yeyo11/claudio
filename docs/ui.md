@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - ui
     - web
@@ -33,7 +33,7 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
 | Claudio assistant | `/assistant`: a global chat that knows Claudio, reads it through its own MCP server and changes something only when the person allows each change. See [claudio-assistant.md](claudio-assistant.md) |
 | Accounts | `/accounts`: the Claude accounts of this machine, each signed in once, with their usage, the rotation settings and per-project policies. See [accounts.md](accounts.md) |
 | Collaborators | `/collaborators`: turning sharing on, groups, invites and members, and the read-only copies of what teammates share. See [collaborators.md](collaborators.md) |
-| Terminals | `/terminals`: the person's own shells per project and per chat, off until Settings → Access & safety turns them on. See [terminal.md](terminal.md) |
+| Terminals | `/terminals`: the person's own shells per project, per chat and in the workspace, off until Settings → Access & safety turns them on. See [terminal.md](terminal.md) |
 
 ## Across the app
 

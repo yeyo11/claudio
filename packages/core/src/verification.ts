@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { EFFORT_LEVELS, isEffort, type Commit, type FixStopKind, type ReviewGateSpec, type VerificationFixedLocation, type VerificationSpec } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, type Commit, type FixStopKind, type ReviewGateSpec, type VerificationFixedLocation, type VerificationSpec, withoutServerEnv } from '@claudio/shared';
 import { git } from './git.ts';
 import { flatten } from './health.ts';
 import { AGENT_RUN_ENV, processTable, terminateTree } from './processes.ts';
@@ -382,7 +382,8 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
       // Its own process group, so what it leaves behind is found from it and a signal never reaches the wrapper
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: agentRunEnv({ ...base, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
+      // The project's own commands, which may start a Claudio of their own: never with the server's port and data directory
+      env: agentRunEnv({ ...withoutServerEnv(base), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' }, runId),
     });
     const finish = (exitCode: number | null) => {
       if (settled) return;

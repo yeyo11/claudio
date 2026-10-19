@@ -10,6 +10,7 @@ import type {
   EffectiveEnvironment,
   McpHealthStatus,
 } from '@claudio/shared';
+import { closeRuns } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
 
 // What a chat delegated, in Claudio's words. The CLI reports the same work three ways (its stream,
@@ -62,6 +63,7 @@ export function toChatSubagent(sub: LiveSubagent, tasks: ChatBackgroundTask[], s
     status: sub.status,
     startedAt: sub.startedAt,
     endedAt: sub.endedAt,
+    runs: sub.runs ?? [{ startedAt: sub.startedAt, endedAt: sub.endedAt }],
     lastActivityAt: sub.lastActivityAt ?? null,
     cwd: sub.cwd ?? null,
     tasks: tasks.filter((t) => t.ownerId === id),
@@ -131,7 +133,7 @@ export function settleChildren(children: ChatChildren, endedAt: string): ChatChi
   return {
     subagents: children.subagents.map((s) => ({
       ...s,
-      ...(s.status === 'running' ? { status: 'stopped' as const, endedAt: s.endedAt ?? endedAt } : {}),
+      ...(s.status === 'running' || s.status === 'waiting' ? { status: 'stopped' as const, endedAt: s.endedAt ?? endedAt, runs: closeRuns(s.runs, s.endedAt ?? endedAt) } : {}),
       // An ended agent is doing nothing, whatever its last call left open
       activity: null,
       tasks: s.tasks.map(task),
@@ -159,13 +161,29 @@ export function toChildren({ subagents, tasks, workflows }: BranchFacts, session
   return settleAt === undefined ? children : settleChildren(children, settleAt);
 }
 
+/**
+ * One record per agent id. Two can only meet when facts from two places disagree about the same
+ * agent; the one that saw more of its runs wins, then the older start, so a later duplicate can
+ * never shadow the agent it repeats.
+ */
+function oneEach(subagents: LiveSubagent[]): LiveSubagent[] {
+  const byId = new Map<string, LiveSubagent>();
+  for (const sub of subagents) {
+    const id = subagentId(sub);
+    const held = byId.get(id);
+    const better = !held || (sub.runs?.length ?? 1) > (held.runs?.length ?? 1) || ((sub.runs?.length ?? 1) === (held.runs?.length ?? 1) && sub.startedAt < held.startedAt);
+    if (better) byId.set(id, sub);
+  }
+  return [...byId.values()];
+}
+
 function group({ subagents, tasks, workflows }: BranchFacts, sessionId: string): ChatChildren {
   const mapped = tasks.map(toChatTask);
   const owners = new Set(subagents.map(subagentId));
   const running = (a: { status: string; startedAt: string }, b: { status: string; startedAt: string }) =>
     Number(b.status === 'running') - Number(a.status === 'running') || b.startedAt.localeCompare(a.startedAt);
   return {
-    subagents: subagents.map((s) => toChatSubagent(s, mapped, sessionId)).sort(running),
+    subagents: oneEach(subagents).map((s) => toChatSubagent(s, mapped, sessionId)).sort(running),
     backgroundTasks: mapped.filter((t) => t.ownerId === null || !owners.has(t.ownerId)).sort(running),
     workflows: workflows.map(toChatWorkflow).sort(running),
   };

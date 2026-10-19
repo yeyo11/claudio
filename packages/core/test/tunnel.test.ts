@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
@@ -30,6 +31,7 @@ interface FakeNode {
   magicDNS?: boolean;
   certDomains?: string[];
   operator?: boolean;
+  delayMs?: number;
   serve?: Record<string, unknown>;
 }
 
@@ -299,6 +301,132 @@ test('a rule removed in a terminal closes the tunnel, and Tailscale going down d
   await until(() => down.manager.status().state === 'failed', 'failed');
   assert.equal(down.manager.status().reason?.code, 'tunnel.tailscaleNotConnected');
   assert.deepEqual(down.hosts.list(), []);
+});
+
+test('a rule removed while Tailscale answers says ruleRemoved, also when its record was deleted first, never that the daemon is down', async (t) => {
+  // The incident of 2026-10-18: a second server deleted the record and took the rule away; the
+  // desktop's monitor read "no record" as the daemon being down
+  const r = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(r);
+  rmSync(r.record);
+  // The rule stands: the tunnel stays open and writes its record again, so a crash can still be reconciled
+  await until(() => existsSync(r.record), 'the record written again');
+  assert.equal(r.manager.status().state, 'active');
+  assert.deepEqual(r.hosts.list(), [NODE]);
+
+  rmSync(r.record);
+  r.setNode({ serve: {} });
+  await until(() => r.manager.status().state === 'failed', 'failed');
+  assert.equal(r.manager.status().reason?.code, 'tunnel.ruleRemoved');
+  assert.deepEqual(r.hosts.list(), []);
+
+  // Changed rather than removed: the port now proxies somewhere else
+  const changed = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(changed);
+  changed.setNode({ serve: ours(8444, 'http://127.0.0.1:3000') });
+  await until(() => changed.manager.status().state === 'failed', 'failed');
+  assert.equal(changed.manager.status().reason?.code, 'tunnel.ruleRemoved');
+  assert.deepEqual(changed.node().serve, ours(8444, 'http://127.0.0.1:3000'), "the rule that replaced Claudio's is left alone");
+});
+
+test('a server that never opened the tunnel takes nothing away when it shuts down, whatever the record says', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-second-'));
+  const live = rig(t, { root, attach: false });
+  live.manager.attach(8787, '127.0.0.1', 'lock-of-the-live-server');
+  await openTunnel(live);
+  const record = readFileSync(live.record, 'utf8');
+  assert.match(record, /"lock":"lock-of-the-live-server"/);
+
+  // A second server on the same directory that failed to bind its port shuts down at once
+  const second = rig(t, { root, attach: false });
+  second.manager.shutdown();
+  assert.deepEqual(second.node().serve, ours());
+  assert.equal(readFileSync(live.record, 'utf8'), record);
+  assert.equal(live.manager.status().state, 'active');
+});
+
+test('at start, a record from before the lock is left alone while its target answers, and one under a previous lock is reconciled', async (t) => {
+  // Something answering where the old record points: a Claudio that still runs, which wrote no lock
+  const listener = createServer();
+  await new Promise<void>((resolve) => listener.listen(0, '127.0.0.1', resolve));
+  t.after(() => listener.close());
+  const address = listener.address();
+  const otherTarget = `http://127.0.0.1:${typeof address === 'object' && address ? String(address.port) : '0'}`;
+
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-legacy-'));
+  const r = rig(t, { root, attach: false, node: { serve: ours(8444, otherTarget) } });
+  mkdirSync(join(root, 'data', 'tunnel'), { recursive: true });
+  writeFileSync(r.record, JSON.stringify({ port: 8444, host: NODE, target: otherTarget }));
+  r.manager.attach(8787, '127.0.0.1', 'lock-now');
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.ok(existsSync(r.record), 'the live server\'s record stays');
+  assert.deepEqual(r.node().serve, ours(8444, otherTarget));
+  assert.ok(!r.calls().some((call) => call.endsWith('off')));
+
+  // The same rule, written under a lock: its holder is gone, since this server holds the lock now
+  writeFileSync(r.record, JSON.stringify({ port: 8444, host: NODE, target: otherTarget, lock: 'lock-before' }));
+  const next = rig(t, { root, attach: false });
+  next.manager.attach(8787, '127.0.0.1', 'lock-now');
+  await until(() => !existsSync(next.record), 'the leftover reconciled');
+  assert.deepEqual(next.node().serve, {});
+});
+
+test('a Tailscale that is slow to answer keeps the tunnel, its rule and its host, and says it is checking', async (t) => {
+  const r = rig(t, { timing: { monitorMs: 30, maxBackoffMs: 90, commandTimeoutMs: 400, stalledAfterMs: 400 } });
+  await openTunnel(r);
+  const opened = r.calls().length;
+  assert.equal(r.manager.status().state, 'active');
+  assert.equal(r.manager.status().checking, false);
+
+  r.setNode({ delayMs: 1500 });
+  await until(() => r.manager.status().checking, 'checking');
+  const slow = r.manager.status();
+  assert.equal(slow.state, 'active');
+  assert.equal(slow.url, `https://${NODE}:8444`);
+  assert.deepEqual(r.hosts.list(), [NODE]);
+
+  // Nothing but unknowns for longer than the limit: a warning, not a failure
+  await until(() => r.manager.status().reason?.code === 'tunnel.tailscaleNotAnswering', 'the not-answering reason');
+  assert.equal(r.manager.status().state, 'active');
+  assert.deepEqual(r.hosts.list(), [NODE]);
+  assert.ok(r.events.some((event) => event.checking), 'the feed carried the checking flag');
+
+  // The rule is still there, and no reading ever asked for it to be taken away
+  assert.deepEqual(r.node().serve, ours());
+  assert.deepEqual(r.calls().slice(opened).filter((call) => call.endsWith('off')), []);
+
+  r.setNode({ delayMs: 0 });
+  await until(() => !r.manager.status().checking, 'answers again');
+  assert.equal(r.manager.status().state, 'active');
+  assert.equal(r.manager.status().reason, null);
+  assert.deepEqual(r.hosts.list(), [NODE]);
+});
+
+test('Tailscale signed out closes the tunnel, and it opens again by itself once Tailscale is ready', async (t) => {
+  const r = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(r);
+  r.setNode({ backendState: 'NeedsLogin' });
+  await until(() => r.manager.status().state === 'failed', 'failed');
+  assert.equal(r.manager.status().reason?.code, 'tunnel.tailscaleLoggedOut');
+  assert.deepEqual(r.hosts.list(), []);
+
+  r.setNode({ backendState: 'Running' });
+  await until(() => r.manager.status().state === 'active', 'active again');
+  assert.deepEqual(r.hosts.list(), [NODE]);
+  assert.ok(r.audit.includes('Start the tunnel again: Tailscale is ready'));
+});
+
+test('a tunnel the person stopped never restarts, even once Tailscale is ready', async (t) => {
+  const r = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(r);
+  r.setNode({ backendState: 'Stopped' });
+  await until(() => r.manager.status().state === 'failed', 'failed');
+  await r.manager.stop();
+  assert.equal(r.manager.status().state, 'stopped');
+  r.setNode({ backendState: 'Running' });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(r.manager.status().state, 'stopped');
+  assert.deepEqual(r.hosts.list(), []);
 });
 
 test('a node renamed while the tunnel is open moves the allowed host with it', async (t) => {

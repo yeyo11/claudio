@@ -9,20 +9,8 @@ const TICK_MS = 60 * 60 * 1000;
 /** Not at boot: a start-up is already busy, and a restart loop must not turn into a request loop */
 const FIRST_CHECK_DELAY_MS = 60_000;
 
-/** `2.1.278` and nothing looser: `latest` or `stable` mean the image does not pin */
-export const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
-
-const parts = (v: string) => v.split('-')[0]!.split('.').map(Number);
-
-/** Positive when `a` is newer than `b`; a pre-release sorts below its release. */
-export function compareVersions(a: string, b: string): number {
-  const [pa, pb] = [parts(a), parts(b)];
-  for (let i = 0; i < 3; i += 1) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return Number(!a.includes('-')) - Number(!b.includes('-'));
-}
+// Defined beside the launcher, which is bundled alone and may import nothing but `node:*`
+export { VERSION, compareVersions } from './launcher/protocol.ts';
 
 export interface VersionCheckOptions {
   env?: NodeJS.ProcessEnv;

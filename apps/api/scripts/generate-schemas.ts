@@ -37,7 +37,7 @@ const ROOT_TYPES = [
   'VerificationSpec', 'VerificationState', 'ReviewGateDetail', 'AcceptReviewRequest', 'ReviewRoleInfo', 'VerifyOrchestrationRequest', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
   'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',
   // Security
-  'AuthConfig', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage', 'AuditFilter',
+  'AuthConfig', 'HostRefusal', 'ClaimHostResult', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage', 'AuditFilter',
   // Guards (docs/plans/guards.md)
   'GuardSettingsView', 'UpdateGuardSettingsRequest', 'GuardEventPage', 'GuardCheckRequest', 'GuardCheckResult',
   // Per-chat MCP servers and tool presets
@@ -54,7 +54,7 @@ const ROOT_TYPES = [
   // Web Push
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
-  'CliVersionInfo', 'ClaudioReleaseInfo', 'StorageReport',
+  'CliVersionInfo', 'ClaudioReleaseInfo', 'StorageReport', 'ServerUpdateStatus', 'ServerUpdateApplyRequest', 'LiveWork',
   // Project ecosystem: modules and templates, work items, milestones and the board
   'ProjectSettings', 'ProjectTemplate', 'WorkItem', 'WorkItemDetail', 'WorkItemComment', 'WorkItemHistoryEntry', 'WorkItemLink', 'WorkItemFilter',
   'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',

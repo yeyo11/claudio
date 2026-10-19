@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AccountLimit } from '@claudio/shared';
-import { AccountStore, choose, fold, parseUsage, Readings, readingFromEvent, usageOf, type Reading } from '../src/index.ts';
+import { AccountStore, checkCredential, choose, fold, parseUsage, Readings, readingFromEvent, usageOf, type Reading } from '../src/index.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FAKE = join(HERE, 'fake-claude.mjs');
@@ -194,5 +194,62 @@ describe('the store', () => {
     const after = s.get(a.id);
     assert.equal(after.plan, 'max');
     assert.equal(after.limits?.source, 'cli');
+  });
+});
+
+describe('checkCredential', () => {
+  it('reads every recorded answer for a refused credential as unknown: it cannot tell refused from unreachable', () => {
+    for (const name of ['oauth-token', 'api-key', 'signed-out', 'offline']) {
+      const raw = JSON.parse(readFileSync(join(HERE, 'fixtures', `get-usage-refused-${name}.json`), 'utf8')) as { rate_limits_available: boolean };
+      assert.equal(raw.rate_limits_available, false, name);
+      assert.equal(parseUsage(raw).cli?.available, false, name);
+    }
+  });
+
+  it('is valid for a login whose limits come back, unknown for a token the CLI gives none for', async () => {
+    const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'check-')), defaultDir, claude: FAKE, env: env() });
+    assert.equal(await checkCredential(store.ref('default'), { claude: FAKE, env: env() }), 'valid');
+    const token = await store.add({ kind: 'token', alias: 'tok', secret: 'sk-ant-oat01-invalid' });
+    assert.equal(await checkCredential(store.ref(token.id), { claude: FAKE, env: env() }), 'unknown');
+  });
+
+  it('is unknown when the CLI cannot be run at all', async () => {
+    assert.equal(await checkCredential({ id: 'x', kind: 'login', dir: root }, { claude: join(root, 'missing') }), 'unknown');
+  });
+});
+
+describe('check and hasCredential', () => {
+  it('records checkedAt and clears a failed sign-in on a valid check; an unknown one changes nothing', async () => {
+    const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'check-')), defaultDir, claude: FAKE, env: env() });
+    assert.equal(store.get('default').checkedAt, null);
+    await store.markAuthFailed('default');
+    assert.equal(store.get('default').signInState, 'expired');
+    assert.equal(await store.check('default'), 'valid');
+    const checked = store.get('default');
+    assert.notEqual(checked.signInState, 'expired');
+    assert.ok(checked.checkedAt);
+    const token = await store.add({ kind: 'token', alias: 'tok', secret: 'sk-ant-oat01-invalid' });
+    assert.equal(await store.check(token.id), 'unknown');
+    assert.equal(store.get(token.id).checkedAt, null);
+  });
+
+  it('lists the default account only while it has a credential', async () => {
+    const empty = mkdtempSync(join(root, 'empty-'));
+    const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'vis-')), defaultDir: empty, claude: FAKE, env: env() });
+    const login = await store.add({ kind: 'login' });
+    assert.deepEqual(store.listed().map((a) => a.id), [login.id]);
+    assert.equal(store.get('default').id, 'default');
+    writeFileSync(join(empty, '.credentials.json'), '{}');
+    assert.deepEqual(store.listed().map((a) => a.id), ['default', login.id]);
+  });
+
+  it('keeps an expired default in the list and counts a credential from the environment', async () => {
+    const empty = mkdtempSync(join(root, 'empty-'));
+    const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'vis-')), defaultDir: empty, claude: FAKE, env: env() });
+    assert.equal(store.hasCredential('default'), false);
+    await store.markAuthFailed('default');
+    assert.equal(store.hasCredential('default'), true);
+    const viaEnv = new AccountStore({ dataDir: mkdtempSync(join(root, 'vis-')), defaultDir: empty, claude: FAKE, env: env(), defaultEnvCredential: () => true });
+    assert.equal(viaEnv.listed()[0]?.id, 'default');
   });
 });

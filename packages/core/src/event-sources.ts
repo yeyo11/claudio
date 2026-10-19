@@ -450,7 +450,8 @@ export class RunEventPublisher {
           background,
         });
       }
-      if (sub.status !== 'running' && (!before || before.status === 'running')) {
+      // Waiting is not an end: the agent's own background work may still bring it back
+      if (sub.status !== 'running' && sub.status !== 'waiting' && (!before || before.status === 'running' || before.status === 'waiting')) {
         this.emit({
           type: 'subagent.ended',
           title: `Subagent ${sub.status === 'completed' ? 'finished' : sub.status}: ${label}`,

@@ -1,0 +1,133 @@
+name: Server bundle
+
+# Reusable, like desktop.yml: the release workflow calls it with the tag it just published. It builds the
+# server bundle inside the image's own build (the very code the image ships), signs the manifest with
+# the release key, verifies the signature against the public keys the image carries, and attaches the
+# three files to the draft release. A container running that release's launcher downloads them from the
+# release (docs/plans/container-polish.md, D4). Without a tag it only builds, and signs nothing.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to build and attach the bundle to (e.g. v0.6.1); empty builds the current commit only
+        required: false
+        default: ''
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach the bundle to (e.g. v0.6.1); empty builds the current commit only
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    # The Docker build is a cached copy of the image's own (about 2 min); signing and upload are seconds
+    timeout-minutes: 15
+    # The signing key is the secret of this environment, which only `main` may deploy to. Only a tagged
+    # run enters it, so a build without a tag neither waits on nor touches the key.
+    environment: ${{ inputs.tag != '' && 'release' || '' }}
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      # minImage is inherited from the previous release when nothing only a new image can change moved
+      # (imageInputs), so the build needs that release's manifest: the newest published release other
+      # than this one. None, or one without a bundle (the first), leaves it empty, and then the bundle's
+      # minImage is its own version.
+      - id: previous
+        run: |
+          previous=$(gh release list --exclude-drafts --limit 20 --json tagName -q '.[].tagName' | grep -vx "${TAG:-none}" | head -n1 || true)
+          url=""
+          if [ -n "$previous" ]; then
+            name=$(gh release view "$previous" --json assets -q '.assets[].name' | grep -E '^claudio-server-.*-linux-x64\.json$' | head -n1 || true)
+            if [ -n "$name" ]; then
+              url="https://github.com/${GH_REPO}/releases/download/${previous}/${name}"
+            fi
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Build the bundle
+        env:
+          PREVIOUS: ${{ steps.previous.outputs.url }}
+        run: |
+          docker buildx build -f docker/Dockerfile --target bundle-export --output type=local,dest=out \
+            --build-arg "BUNDLE_PREVIOUS=${PREVIOUS}" --build-arg "CLAUDIO_COMMIT=$(git rev-parse HEAD)" .
+          ls -l out
+
+      # The signature is base64 Ed25519 over the manifest's exact bytes, which is what the launcher and
+      # the server check with node:crypto. Never publish unsigned: on a release tag a missing key fails
+      # the job, and `publish` waits on it. The key lives in a file only for this step.
+      - name: Sign the manifest
+        if: inputs.tag != ''
+        env:
+          CLAUDIO_BUNDLE_SIGNING_KEY: ${{ secrets.CLAUDIO_BUNDLE_SIGNING_KEY }}
+        run: |
+          if [ -z "$CLAUDIO_BUNDLE_SIGNING_KEY" ]; then
+            echo "::error::CLAUDIO_BUNDLE_SIGNING_KEY is not set in the release environment; refusing to publish an unsigned bundle"
+            exit 1
+          fi
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$CLAUDIO_BUNDLE_SIGNING_KEY" > "$key"
+          manifest=$(ls out/claudio-server-*-linux-x64.json)
+          openssl pkeyutl -sign -inkey "$key" -rawin -in "$manifest" | base64 -w0 > "${manifest}.sig"
+
+      # What a container will trust is docker/keys, the keys the image carries. A signature none of them
+      # verifies would ship a bundle no container accepts.
+      - name: Verify the signature against the image's keys
+        if: inputs.tag != ''
+        run: |
+          manifest=$(ls out/claudio-server-*-linux-x64.json)
+          base64 -d "${manifest}.sig" > sig.bin
+          ok=0
+          for pub in docker/keys/*.pub; do
+            if openssl pkeyutl -verify -pubin -inkey "$pub" -rawin -in "$manifest" -sigfile sig.bin; then
+              ok=1
+            fi
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::no key in docker/keys verifies the manifest's signature"
+            exit 1
+          fi
+
+      # For people and auditors: nothing in the container reads them. The manifest too, which is what
+      # the signature covers (docs/plans/unified-updates.md, D7)
+      - uses: actions/attest-build-provenance@v4
+        if: inputs.tag != ''
+        with:
+          subject-path: |
+            out/claudio-server-*-linux-x64.tar.gz
+            out/claudio-server-*-linux-x64.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: claudio-server-bundle
+          path: out/claudio-server-*
+          if-no-files-found: error
+
+      # The release exists as a draft by now and the release workflow publishes it afterwards; a published
+      # release is immutable and takes no files (the guard of desktop.yml). --clobber makes a second build
+      # of a draft replace the files instead of failing on the name.
+      - name: Attach to the release
+        if: inputs.tag != ''
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft -q .isDraft)" != "true" ]; then
+            echo "::warning::$TAG is already published and immutable; the bundle stays on this run as an artifact"
+            exit 0
+          fi
+          gh release upload "$TAG" out/claudio-server-*-linux-x64.tar.gz out/claudio-server-*-linux-x64.json \
+            out/claudio-server-*-linux-x64.json.sig --clobber

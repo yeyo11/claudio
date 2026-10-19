@@ -116,7 +116,9 @@ test('the methods table offers a device sign-in where the vendor documents one',
     Object.entries(methods).filter(([, m]) => m.device).map(([tool]) => tool).sort(),
     ['gh', 'glab', 'tailscale'],
   );
-  assert.deepEqual(methods['claude-code']?.variables, ['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+  // The CLI's own login first, then a key; the OAuth token of `claude setup-token` is not offered
+  assert.deepEqual(methods['claude-code']?.variables, ['ANTHROPIC_API_KEY']);
+  assert.deepEqual(Object.entries(methods).filter(([, m]) => m.accountLogin).map(([tool]) => tool), ['claude-code']);
 });
 
 // ---------- device sign-in ----------
@@ -221,9 +223,9 @@ test('a key the CLI takes but the readiness probe does not is a failure; one the
 test('a key for a tool that reads its environment is sealed in the vault and handed to no process', async () => {
   const r = rig();
   await r.logins.start({ tool: 'claude-code', method: 'key', secret: 'sk-ant-api', variable: 'ANTHROPIC_API_KEY' });
-  await r.logins.start({ tool: 'claude-code', method: 'key', secret: 'sk-ant-oat' });
-  // One credential at a time: the token replaced the key
-  assert.deepEqual(r.vault.get('claude-code'), { CLAUDE_CODE_OAUTH_TOKEN: 'sk-ant-oat' });
+  await r.logins.start({ tool: 'claude-code', method: 'key', secret: 'sk-ant-api2' });
+  // One credential at a time: the newer key replaced the first
+  assert.deepEqual(r.vault.get('claude-code'), { ANTHROPIC_API_KEY: 'sk-ant-api2' });
 
   assert.equal(existsSync(r.record), false, 'nothing ran: the vault hands it to the tool\'s processes later');
 

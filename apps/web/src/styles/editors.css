@@ -1159,6 +1159,28 @@ button.master-item-on:hover {
   min-width: 0;
 }
 
+/* Buttons of an alert wrap their label rather than leave it (a refusal's action, a failed update's retry) */
+.alert .form-actions > .btn {
+  white-space: normal;
+  text-align: start;
+}
+
+/* Settings → General → Updates in a container: on a phone the actions fill the column, at the touch height */
+@media (max-width: 768px) {
+  .update-zone .pref-actions {
+    /* The control column is a column flexbox: the row stretches across it, not along it */
+    align-self: stretch;
+    flex-wrap: wrap;
+  }
+
+  .update-zone .btn:not(.update-command .btn),
+  .alert .form-actions > .btn {
+    width: 100%;
+    min-height: var(--control-h);
+    justify-content: center;
+  }
+}
+
 .update-path {
   /* literal */
   flex-basis: 100%;

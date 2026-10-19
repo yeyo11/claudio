@@ -52,10 +52,10 @@ export interface ProviderRowProps {
 }
 
 /** The plain-words reason under the state: a code the detector gave, or what ready means. */
-export function useProviderReason(status: ProviderStatus, enabled = true): string {
+export function useProviderReason(status: ProviderStatus, enabled = true, named = false): string {
   const { t } = useTranslation('providers');
   if (!enabled) return t('reason.disabled');
-  if (status.state === 'ready') return t('readyReason');
+  if (status.state === 'ready') return named && status.account ? t('readyAs', { account: status.account }) : t('readyReason');
   // A detector that gave no code still leaves the state's own word to say
   if (status.reason === null) return t(stateLabelKey(status.state));
   return t(`reason.${status.reason}`, {
@@ -97,7 +97,8 @@ export function ProviderRow({
   more,
 }: ProviderRowProps) {
   const { t } = useTranslation('providers');
-  const reason = useProviderReason(status, enabled);
+  // The compact row has no account line of its own, so its reason names the account
+  const reason = useProviderReason(status, enabled, compact);
   const shown = enabled ? status.state : 'disabled';
   const account = status.account ?? t('row.noAccount');
   const meta = versionLine(status);
@@ -195,11 +196,12 @@ function ActionButton({
             type="button"
             className={cls(action)}
             data-action="sign-in"
-            aria-pressed={open}
-            aria-label={tSetup('row.signInAria', { label: status.label })}
+            aria-expanded={open}
+            aria-label={open ? tSetup('row.closeSignInAria', { label: status.label }) : tSetup('row.signInAria', { label: status.label })}
             onClick={onSignIn}
           >
-            {t('row.signIn')}
+            {/* Open, the panel below carries its own Sign in: this one only closes it, and says so */}
+            {open ? tSetup('row.closeSignIn') : t('row.signIn')}
           </button>
         );
       }

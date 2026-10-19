@@ -1390,6 +1390,10 @@
   color: var(--bad);
 }
 
+.chat-launch-status.is-waiting {
+  color: var(--idle);
+}
+
 .chat-launch-status.is-stopped {
   color: var(--warn);
 }

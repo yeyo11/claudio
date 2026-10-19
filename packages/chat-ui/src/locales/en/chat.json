@@ -340,6 +340,8 @@
     "title": "Running now",
     "agents_one": "{{count}} agent",
     "agents_other": "{{count}} agents",
+    "waiting_one": "{{count}} agent waiting for its background task",
+    "waiting_other": "{{count}} agents waiting for their background tasks",
     "tasks_one": "{{count}} background task",
     "tasks_other": "{{count}} background tasks",
     "workflows_one": "{{count}} workflow",
@@ -352,6 +354,7 @@
       "running": "Working",
       "completed": "Done",
       "failed": "Failed",
+      "waiting": "Waiting",
       "stopped": "Stopped"
     },
     "nested": "from {{owner}}",

@@ -121,7 +121,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
   /** Where the CLI lists what the account may run, and the names chats learned for the aliases; set by the manager */
   modelSource: { file: string; seen: () => Readonly<Record<string, string>>; listed?: () => ModelOption[] | null } | null = null;
 
-  constructor(private readonly claudeBin: string) {}
+  /** A function when the binary can change under a running server (an in-app CLI update) */
+  constructor(private readonly claudeBin: string | (() => string)) {}
 
   translatePolicy(policy: ToolPolicy): PolicyTranslation {
     return translateClaudePolicy(policy);
@@ -151,7 +152,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
-    return { bin: this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
+    return { bin: typeof this.claudeBin === 'function' ? this.claudeBin() : this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession {

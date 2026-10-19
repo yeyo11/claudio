@@ -1,4 +1,4 @@
-import type { ChatBranchStatus, ChatControl, ChatOrigin, ChatState, ChatSummary, ExecutionOutcome } from '@claudio/shared';
+import type { ChatAgentStatus, ChatControl, ChatOrigin, ChatState, ChatSummary, ExecutionOutcome } from '@claudio/shared';
 import { CircleCheck, CirclePause, Cog, Hand, Lock, Network, OctagonX, Play, Terminal, TriangleAlert, Zap, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded } from '../lib/chat-model';
@@ -54,11 +54,13 @@ export function OutcomeBadge({ outcome }: { outcome: ExecutionOutcome | null }) 
   );
 }
 
-const BRANCH_TONE: Record<ChatBranchStatus, string> = { running: 'active', completed: 'ok', failed: 'bad', stopped: 'warn' };
-const BRANCH_ICON: Record<Exclude<ChatBranchStatus, 'running'>, LucideIcon> = { completed: CircleCheck, failed: TriangleAlert, stopped: OctagonX };
+// An agent waiting for its own background work is neither working nor done: the idle tone and a
+// pause, no spinner, as nothing is live in it
+const BRANCH_TONE: Record<ChatAgentStatus, string> = { running: 'active', waiting: 'idle', completed: 'ok', failed: 'bad', stopped: 'warn' };
+const BRANCH_ICON: Record<Exclude<ChatAgentStatus, 'running'>, LucideIcon> = { waiting: CirclePause, completed: CircleCheck, failed: TriangleAlert, stopped: OctagonX };
 
 /** How far a subagent, a background task or a workflow has got. */
-export function BranchStatus({ status }: { status: ChatBranchStatus }) {
+export function BranchStatus({ status }: { status: ChatAgentStatus }) {
   // Subscribes the badge to language changes; statusText reads the active language
   useTranslation();
   const Icon = status === 'running' ? null : BRANCH_ICON[status];

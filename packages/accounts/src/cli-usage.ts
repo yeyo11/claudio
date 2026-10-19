@@ -1,6 +1,7 @@
 import type { AccountCredits, AccountCliUsage, RateLimitWindow, ScopedRateLimit } from '@claudio/shared';
+import Anthropic from '@anthropic-ai/sdk';
 import { controlRequest, type ControlOptions } from './control.ts';
-import type { AccountRef } from './env.ts';
+import { DEFAULT_ID, readSecret, type AccountRef } from './env.ts';
 import { isRecord } from './fs.ts';
 import type { Reading } from './usage.ts';
 
@@ -107,4 +108,60 @@ export function parseUsage(response: unknown, now: number = Date.now()): Reading
 export async function usageOf(account: AccountRef, opts: ControlOptions = {}): Promise<Reading> {
   // Measured at 11-15 s with four accounts read in a loaded machine: 20 s was too close
   return parseUsage(await controlRequest(account, 'get_usage', { timeoutMs: 30_000, ...opts }));
+}
+
+/** What a check says of a credential: it works, the vendor refused it, or nothing certain */
+export type CredentialCheck = 'valid' | 'refused' | 'unknown';
+
+/** Where the key is not Anthropic's to judge: a gateway, Bedrock or Vertex answers for it */
+const OTHER_BACKENDS = ['ANTHROPIC_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'] as const;
+
+/** The `ANTHROPIC_API_KEY` the account's runs get, or null: another kind, no key, or another backend in the environment. */
+export function apiKeyOf(account: AccountRef, base: NodeJS.ProcessEnv = process.env): string | null {
+  if (OTHER_BACKENDS.some((name) => base[name])) return null;
+  if (account.kind === 'api-key') return readSecret(account);
+  return account.id === DEFAULT_ID ? base.ANTHROPIC_API_KEY?.trim() || null : null;
+}
+
+export interface KeyCheckOptions {
+  /** The SDK's transport; a test puts its own here */
+  fetch?: typeof fetch;
+  timeoutMs?: number;
+}
+
+/**
+ * Whether Anthropic accepts the API key: the vendor's official SDK, `models.list({ limit: 1 })`,
+ * which is documented, free (no tokens) and answers 401 for a bad key. Used for this check only,
+ * never to drive the agent. A network error or any other status is `unknown`.
+ */
+export async function checkApiKey(apiKey: string, opts: KeyCheckOptions = {}): Promise<CredentialCheck> {
+  // A fixed base URL and no auth token: what the SDK would read from the environment is not what this check judges
+  const client = new Anthropic({ apiKey, authToken: null, baseURL: 'https://api.anthropic.com', maxRetries: 0, timeout: opts.timeoutMs ?? 20_000, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
+  try {
+    await client.models.list({ limit: 1 });
+    return 'valid';
+  } catch (e) {
+    return e instanceof Anthropic.APIError && e.status === 401 ? 'refused' : 'unknown';
+  }
+}
+
+/**
+ * Whether the account's credential works, with no turn and no token. An account whose runs get an
+ * API key asks Anthropic through `checkApiKey`. Any other is asked of the CLI's `get_usage`, which
+ * answers success with `rate_limits_available: false` for a refused token, no credential and an
+ * unreachable network alike (test/fixtures/get-usage-refused-*.json, CLI 2.1.302): only the plan's
+ * limits coming back prove an OAuth credential (`valid`), and everything else, a failed request
+ * included, is `unknown`. An environment OAuth token is refused at its first run instead.
+ */
+export async function checkCredential(account: AccountRef, opts: ControlOptions & KeyCheckOptions = {}): Promise<CredentialCheck> {
+  try {
+    const key = apiKeyOf(account, opts.env);
+    if (key) return await checkApiKey(key, opts);
+    // A key account this check cannot judge (another backend) has no CLI answer worth reading either
+    if (account.kind === 'api-key') return 'unknown';
+    const response = await controlRequest(account, 'get_usage', { timeoutMs: 30_000, ...opts });
+    return isRecord(response) && response.rate_limits_available === true ? 'valid' : 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }

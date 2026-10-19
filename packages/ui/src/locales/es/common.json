@@ -50,6 +50,23 @@
     "submit": "Entrar",
     "rejected": "No se ha aceptado esa credencial. Comprueba que no ha caducado y que es la que conoce este wrapper.",
     "failed": "No se ha podido contactar con el wrapper para comprobar la credencial.",
-    "hint": "Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Claudio."
+    "hint": "Un token se muestra una sola vez, al crearlo. ¿Lo has perdido? Rótalo desde la máquina donde corre Claudio.",
+    "firstRun": {
+      "title": "Inicia sesión con el token de propietario",
+      "body": "Este Claudio creó un token de propietario la primera vez que arrancó y lo escribió una vez en el registro del contenedor. En la máquina donde se ejecuta, léelo con <code>docker logs</code> y el nombre del contenedor, y pégalo aquí.",
+      "hint": "Hasta que entres por primera vez, también está en <code>/data/first-run-token</code> dentro del contenedor. En Kubernetes lo muestra <code>kubectl logs</code>."
+    }
+  },
+  "hostRefused": {
+    "title": "Este Claudio aún no responde a <mono>{{host}}</mono>",
+    "body": "Solo responde a las direcciones que conoce, para que ninguna otra web pueda manejarlo desde tu navegador.",
+    "label": "Token de propietario",
+    "submit": "Añadir {{host}} y entrar",
+    "adding": "Añadiendo…",
+    "tooMany": "Demasiados intentos. Espera {{wait}} y vuelve a intentarlo.",
+    "refused": "No se ha añadido el host.",
+    "notOwner": "Esa credencial no es la del propietario, así que no puede añadir un host.",
+    "invalid": "Ese nombre no se puede añadir a la lista de hosts.",
+    "manual": "Añádelo donde se ejecuta Claudio: nómbralo en <code>CLAUDIO_ALLOWED_HOSTS</code> al arrancar el contenedor, o abre Claudio en localhost y añádelo en Ajustes → Acceso y seguridad → Hosts permitidos."
   }
 }

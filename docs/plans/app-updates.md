@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T14:26:57Z
-updated_at: 2026-09-25T16:22:09Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - plan
     - updates
@@ -416,6 +416,39 @@ Found while building or reviewing this work, and fixed in the same pull request:
   the server gave it: `ELECTRON_RUN_AS_NODE` was absent, though the server itself was started with
   it.
 
+## Note, 2026-10-18: the Docker image now updates from the UI
+
+"Updating the Docker image from the UI" was out of scope here because the container cannot replace
+its own image. It still cannot; what changed is that a container now replaces the *server* inside
+itself: a signed bundle in `/data/app` started by a root-owned launcher, and Claude Code installed
+into `/data/cli`. A release that needs a newer image still shows the host commands. The "Signing
+releases" non-goal above is also settled for the container (Ed25519, not GitHub as the trust root).
+See [updates.md](../updates.md), [plans/container-polish.md](container-polish.md) and
+[decisions/container-in-app-updates.md](../decisions/container-in-app-updates.md).
+
+## Note, 2026-10-19: the `.deb` no longer asks for a password
+
+This plan accepted `pkexec` for the `.deb` and rejected an apt repository ("a GPG key, signing in CI
+and a hosted repository to keep alive"). Both are reversed by
+[plans/unified-updates.md](unified-updates.md) and
+[decisions/shell-payload-updates.md](../decisions/shell-payload-updates.md):
+
+- `DebUpdater.install()`, `pkexec` and the `no-elevation` reason are gone. The app never escalates.
+- A release is split into a **payload** (the server and the web, a signed bundle that installs
+  in-app with no password and restarts only the server) and the **shell** (Electron and what only a
+  package can change).
+- The `.deb` registers a signed apt repository on GitHub Pages
+  ([decisions/apt-repository.md](../decisions/apt-repository.md)), so apt updates the shell; a `.deb`
+  installed before the repository gets one command to copy, checked against the signed desktop
+  manifest.
+- "Signing releases" is no longer a non-goal: the payload and a desktop manifest carry Ed25519
+  signatures, the repository a GPG one, and every artifact an attestation.
+- `install.sh` takes the AppImage where Chromium's sandbox runs without root, and the `.deb` through
+  the repository elsewhere.
+
+The release check, the reload offer and the Updates card described below still stand; the card now has
+two zones. See [desktop.md](../desktop.md#updating) and [updates.md](../updates.md).
+
 ## Related
 
-[[desktop.md]] · [[deploy.md]] · [[plans/mobile.md]] · [[status.md]]
+[[desktop.md]] · [[deploy.md]] · [[plans/mobile.md]] · [[status.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]]

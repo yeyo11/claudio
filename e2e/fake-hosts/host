@@ -3,7 +3,7 @@
 # dialect. They answer only what the Integrations page, a project's readiness and the change request
 # flow ask. See README.md.
 name=$(basename "$0")
-dir="${CLAUDIO_DATA_DIR:-.}/fake-hosts"
+dir="${FAKE_STATE_DIR:-.}/fake-hosts"
 file="$dir/$name.json"
 
 read_key() {

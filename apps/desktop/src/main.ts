@@ -1,36 +1,55 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
+import { loadKeys } from '@claudio/core/launcher/protocol';
+import { RELEASE_DOWNLOADS, packageFileName, verifyDownload } from './desktop-manifest.ts';
 import { IPC, isAppPath } from './ipc.ts';
-import { EMPTY_SNAPSHOT, liveWords, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction } from './live.ts';
+import { EMPTY_SNAPSHOT, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction, type TrayRestart } from './live.ts';
 import { LiveMonitor, monitorHeaders } from './live-monitor.ts';
 import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
+import {
+  PayloadHost,
+  forgetOverlays,
+  parsePayloadAction,
+  parsePayloadFacts,
+  payloadAnswer,
+  payloadRequest,
+  readShellJson,
+  type PayloadAction,
+  type PayloadBoot,
+  type PayloadFacts,
+  type ServerHandle,
+} from './payload.ts';
 import { SPLASH_HANDOFF_MAX_MS } from '@claudio/ui/splash';
-import { missingResources, resolveResources } from './resources.ts';
+import { missingResources, resolveResources, type Resources } from './resources.ts';
 import { secretKeyFor } from './secret-key.ts';
 import { rememberedPort, rememberPort } from './server-port.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
 import { resolveUserPath } from '@claudio/core/providers/path';
+import { DPKG_RECORD, appImagePaths, downloadTo, fuseUsable, installAppImage, sandboxRootless, switchState, type SwitchState } from './switch.ts';
 import { isTerminalWindowUrl } from './terminal-window.ts';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
 import {
+  aptManaged,
   appImageRelaunch,
   appImageWritable,
-  debCanElevate,
   DesktopUpdater,
   distributionOf,
   installDecision,
+  liveWorkOf,
   parseInstallRequest,
   readPackageType,
   updateSupport,
+  workWords,
   type InstallAnswer,
   type InstallRequest,
+  type LiveWork,
   type UpdaterEngine,
   type UpdateState,
 } from './updater.ts';
@@ -50,6 +69,8 @@ const dataDir = join(userData, 'data');
 const workspaceDir = process.env.CLAUDIO_WORKSPACE_DIR ?? join(homedir(), 'Claudio', 'workspace');
 const logsDir = join(userData, 'logs');
 const RELEASES_URL = 'https://github.com/yeyo11/claudio/releases/latest';
+/** Settings → General → Updates, where both update zones and the `.deb` command are */
+const SETTINGS_UPDATES = '/settings/general#updates';
 
 // Which package this is, the way electron-updater tells: the AppImage runtime sets APPIMAGE, and
 // electron-builder writes resources/package-type into the .deb
@@ -57,18 +78,32 @@ const packageFacts = { appImage: process.env.APPIMAGE, packageType: readPackageT
 const distribution = distributionOf(packageFacts);
 /** Once per launch, so a server restarted from the error page still knows the tray */
 const desktopSecret = newDesktopSecret();
+/**
+ * What this shell is, read once: the payload it bundles has its version, and an overlay is judged
+ * against it. A `shell.json` of another version already at start would be a broken package; the
+ * shell then boots only what it bundles.
+ */
+const shellAtStart = ((): { version: string; shellInputs: string } | null => {
+  const read = readShellJson(resolveResources().shellJson);
+  return read && read.version === app.getVersion() ? read : null;
+})();
 
 let win: BrowserWindow | undefined;
-let server: ServerProcess | undefined;
+let payload: PayloadHost | undefined;
+let serverRun: Promise<void> | undefined;
 let serverOrigin: string | undefined;
-let starting = false;
 let quitting = false;
 let monitor: LiveMonitor | undefined;
 let tray: LiveTray | undefined;
 let live: LiveSnapshot = EMPTY_SNAPSHOT;
 let updater: DesktopUpdater;
-/** A restart to install an update is under way: the server is going down on purpose */
+/** What the server said of its payload update last, for the tray and the menus */
+let payloadFacts: PayloadFacts | null = null;
+/** The page a restarted server's window goes back to */
+let restorePath: string | null = null;
+/** A restart to install an update, or a relaunch, is under way: the server is going down on purpose */
 let updating = false;
+let switching = false;
 
 // Opened once the single-instance lock is ours, so a rejected second launch never rotates the running one's logs
 let desktopLog: LogFile;
@@ -93,6 +128,11 @@ function showError(title: string, detail: string): void {
   void load(errorUrl(title, detail, serverLog.path));
 }
 
+function showSplash(): void {
+  paintTitleBar(SPLASH_TITLE_BAR);
+  void load(splashUrl());
+}
+
 /**
  * Lets the splash finish before the UI replaces it: its intro always plays to the end, pauses on the
  * finished lockup and fades out. The server never waits on it (it started alongside), and the UI
@@ -104,62 +144,201 @@ async function handOffSplash(): Promise<void> {
   await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, SPLASH_HANDOFF_MAX_MS))]);
 }
 
-async function startServer(): Promise<void> {
-  if (starting) return;
-  starting = true;
+/** Starts the server, through the payload machine, unless it already runs */
+function startServer(): void {
+  if (serverRun) return;
+  serverRun = runServer().finally(() => {
+    serverRun = undefined;
+  });
+}
+
+/** Stops the server and waits until the machine's run has ended */
+async function stopServer(): Promise<void> {
+  stopMonitor();
+  const running = serverRun;
+  await payload?.stop();
+  await running;
+}
+
+/**
+ * One run of the payload machine (payload.ts): it boots the overlay `state.json` names or the
+ * bundled payload, starts it again on exit 75, keeps a trial only once it answered and its page
+ * rendered, and rolls back on its own. It ends when the server stops for good.
+ */
+async function runServer(): Promise<void> {
+  showSplash();
+  const res = resolveResources();
+  const missing = missingResources(res);
+  if (missing.length) {
+    showError('Claudio is missing files', `Not found:\n${missing.join('\n')}`);
+    return;
+  }
+  let PATH: string;
   try {
-    paintTitleBar(SPLASH_TITLE_BAR);
-    void load(splashUrl());
-    const res = resolveResources();
-    const missing = missingResources(res);
-    if (missing.length) {
-      showError('Claudio is missing files', `Not found:\n${missing.join('\n')}`);
-      return;
-    }
     mkdirSync(dataDir, { recursive: true });
     mkdirSync(workspaceDir, { recursive: true });
-
-    const PATH = await resolveUserPath();
-    server = new ServerProcess(
-      {
-        entry: res.serverEntry,
-        cwd: userData,
-        env: serverEnv({
-          base: process.env,
-          PATH,
-          rememberedPort: rememberedPort(userData),
-          webDist: res.webDist,
-          dataDir,
-          workspaceDir,
-          version: app.getVersion(),
-          distribution,
-          desktopSecret,
-          secretKey: secretKeyFor(join(userData, 'secret-key.bin'), safeStorage),
-        }),
-      },
-      serverLog,
-      (detail) => showError('The Claudio server stopped unexpectedly', detail),
-    );
-    const url = await server.start();
-    serverOrigin = new URL(url).origin;
-    // What it bound, not what it was asked for: a taken port makes the server pick another
-    rememberPort(userData, Number(new URL(url).port));
-    desktopLog.line(`server ready at ${url}`);
-    startMonitor(serverOrigin);
-    await handOffSplash();
-    await load(url);
+    PATH = await resolveUserPath();
   } catch (err) {
     showError('Claudio could not start its server', err instanceof Error ? err.message : String(err));
-  } finally {
-    starting = false;
+    return;
   }
+  const host = new PayloadHost({
+    bundledDir: dirname(res.serverEntry),
+    bundledWeb: res.webDist,
+    keysDir: res.keysDir,
+    dataDir,
+    shell: shellAtStart,
+    ignoreOverlays: process.env.CLAUDIO_PAYLOAD === 'bundled',
+    spawn: (boot) => spawnServer(boot, res, PATH),
+    onReady: (url, boot) => void showServer(url, boot),
+    health: async (origin) => {
+      try {
+        return (await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(5_000) })).status === 200;
+      } catch {
+        return false;
+      }
+    },
+    relaunchInstead: () => updater.state.status === 'shell-replaced',
+    log: (line) => desktopLog.line(`payload: ${line}`),
+  });
+  payload = host;
+  const end = await host.run();
+  if (payload === host) payload = undefined;
+  setMenu();
+  if (end.why === 'relaunch') {
+    relaunchShell();
+  } else if (end.why === 'exited') {
+    showError(end.ready ? 'The Claudio server stopped unexpectedly' : 'Claudio could not start its server', end.detail);
+  }
+}
+
+/** A server for one boot; on a restart the window shows the splash until it is ready again */
+function spawnServer(boot: PayloadBoot, res: Resources, PATH: string): ServerHandle {
+  if (serverOrigin) {
+    const current = win?.webContents.getURL() ?? '';
+    if (current.startsWith(`${serverOrigin}/`)) restorePath = current.slice(serverOrigin.length);
+    stopMonitor();
+    serverOrigin = undefined;
+    showSplash();
+  }
+  setMenu(boot);
+  const proc = new ServerProcess(
+    {
+      entry: boot.entry,
+      cwd: userData,
+      env: serverEnv({
+        base: process.env,
+        PATH,
+        rememberedPort: rememberedPort(userData),
+        webDist: boot.webDist,
+        dataDir,
+        workspaceDir,
+        version: app.getVersion(),
+        distribution,
+        desktopSecret,
+        secretKey: secretKeyFor(join(userData, 'secret-key.bin'), safeStorage),
+        appDir: boot.dir,
+        guardEntry: res.guardEntry,
+        keysDir: res.keysDir,
+        shell: { inputs: shellAtStart?.shellInputs ?? '', aptManaged: updater.aptManaged },
+      }),
+    },
+    serverLog,
+  );
+  return { ready: proc.start(), exited: proc.exited, stop: () => proc.signal('SIGTERM'), kill: () => proc.signal('SIGKILL'), detail: () => proc.detail };
+}
+
+async function showServer(url: string, boot: PayloadBoot): Promise<void> {
+  const origin = new URL(url).origin;
+  serverOrigin = origin;
+  // What it bound, not what it was asked for: a taken port makes the server pick another
+  rememberPort(userData, Number(new URL(url).port));
+  desktopLog.line(`server ready at ${url}: Claudio ${boot.version}${boot.bundled ? '' : ' from the data dir'}${boot.trial ? ', on trial' : ''}`);
+  startMonitor(origin);
+  void refreshPayloadFacts();
+  await handOffSplash();
+  if (serverOrigin !== origin) return;
+  const path = restorePath && isAppPath(restorePath) ? restorePath : null;
+  restorePath = null;
+  payload?.windowLoading();
+  await load(path ? `${origin}${path}` : url);
+}
+
+/** The shell's own request to its server, with its per-launch credential (D8) */
+async function shellApi(method: string, path: string, body?: unknown): Promise<Response> {
+  if (!serverOrigin) throw new Error('the server is not running');
+  return fetch(`${serverOrigin}${path}`, {
+    method,
+    headers: { ...monitorHeaders(desktopSecret, process.env), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+  });
+}
+
+async function refreshPayloadFacts(): Promise<void> {
+  try {
+    const res = await shellApi('GET', '/api/system/server-update');
+    payloadFacts = res.ok ? parsePayloadFacts(await res.json()) : null;
+  } catch {
+    payloadFacts = null;
+  }
+  redrawTray();
+}
+
+/** A payload action made for the page, the tray or the menu; a server that does not answer is a 503 with no code */
+async function runPayloadAction(action: PayloadAction): Promise<unknown> {
+  const request = payloadRequest(action);
+  let answer: unknown;
+  try {
+    answer = await payloadAnswer(await shellApi(request.method, request.path, request.body));
+  } catch {
+    answer = { status: 503, code: null };
+  }
+  void refreshPayloadFacts();
+  return answer;
+}
+
+/** `{ status, code, live }` from `runPayloadAction`, or null when the action succeeded */
+function refusalOf(answer: unknown): { status: number; code: string | null; live: LiveWork | null } | null {
+  if (!answer || typeof answer !== 'object') return null;
+  const r = answer as Record<string, unknown>;
+  if (typeof r.status !== 'number') return null;
+  const l = r.live && typeof r.live === 'object' ? (r.live as Record<string, unknown>) : null;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return { status: r.status, code: typeof r.code === 'string' ? r.code : null, live: l ? { working: n(l.working), waiting: n(l.waiting), running: n(l.running), terminals: n(l.terminals) } : null };
+}
+
+/** The open terminals: a restart ends their shells, so they count as live work (D6) */
+async function openTerminals(): Promise<number> {
+  try {
+    const res = await shellApi('GET', '/api/terminal');
+    const running = res.ok ? ((await res.json()) as { running?: unknown }).running : 0;
+    return typeof running === 'number' ? running : 0;
+  } catch {
+    return 0;
+  }
+}
+
+const liveWork = async (): Promise<LiveWork> => liveWorkOf(live, await openTerminals());
+
+/** The one restart the tray offers: the shell apt replaced, a verified AppImage, or a downloaded payload */
+function trayRestart(): TrayRestart | undefined {
+  const s = updater.state;
+  if (s.status === 'shell-replaced') return { version: s.version, finish: true };
+  if (s.status === 'ready') return { version: s.version, finish: false };
+  if (payloadFacts?.target && (payloadFacts.state === 'ready' || payloadFacts.state === 'scheduled')) return { version: payloadFacts.target, finish: false };
+  return undefined;
+}
+
+function redrawTray(): void {
+  tray?.update(live, trayRestart());
 }
 
 /** Tray, taskbar progress and badge, redrawn only when what they show changed */
 function showLive(snapshot: LiveSnapshot): void {
   if (sameSnapshot(snapshot, live)) return;
   live = snapshot;
-  tray?.update(snapshot, updater.readyVersion);
+  redrawTray();
   const progress = progressOf(snapshot);
   if (progress.mode === 'none') win?.setProgressBar(-1);
   else if (progress.mode === 'indeterminate') win?.setProgressBar(2, { mode: 'indeterminate' });
@@ -174,6 +353,9 @@ function startMonitor(origin: string): void {
     origin,
     headers: monitorHeaders(desktopSecret, process.env),
     onSnapshot: showLive,
+    onEvent: (type) => {
+      if (type === 'system.server-update' || type === 'system.release') void refreshPayloadFacts();
+    },
     log: (line) => desktopLog.line(line),
   });
   monitor.start();
@@ -216,14 +398,17 @@ function fromLocalPage(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 function createUpdater(): DesktopUpdater {
   const next = new DesktopUpdater({
-    support: updateSupport({ ...packageFacts, dev: isDev, appImageWritable, debCanElevate: () => debCanElevate() }),
-    // Picked the way electron-updater's own autoUpdater picks, from the same facts
+    support: updateSupport({ ...packageFacts, dev: isDev, appImageWritable }),
+    // Picked the way electron-updater's own autoUpdater picks, from the same facts. The .deb's engine
+    // only checks and downloads: its install() asks for a password, and the app never escalates
     engine: () => (distribution === 'deb' ? new DebUpdater() : new AppImageUpdater()) satisfies UpdaterEngine,
+    aptManaged: () => aptManaged(),
+    verify: (version, file, kind) => verifyDownload({ version, kind, file, keys: loadKeys(resolveResources().keysDir), running: app.getVersion() }),
     log: (line) => desktopLog.line(line),
   });
   next.onState((state) => {
     desktopLog.line(`update state: ${JSON.stringify(state)}`);
-    tray?.update(live, next.readyVersion);
+    redrawTray();
     if (win && serverOrigin && win.webContents.getURL().startsWith(`${serverOrigin}/`)) {
       win.webContents.send(IPC.updateChanged, state);
     }
@@ -232,64 +417,154 @@ function createUpdater(): DesktopUpdater {
 }
 
 /**
- * Restarts into the downloaded update. The server child goes first, so no chat or orchestration is
- * still writing while the updater replaces the files under it; the new version starts once this
- * process has exited, so it gets the single-instance lock.
+ * apt replaced the package under the running app: `<resources>/shell.json` says another version
+ * than this process (D3). Looked at every minute, on focus, and when the folder changes where the
+ * file system says so.
+ */
+function lookForReplacedShell(): void {
+  if (distribution !== 'deb' || isDev) return;
+  const now = readShellJson(resolveResources().shellJson);
+  if (now && now.version !== app.getVersion() && updater.state.status !== 'shell-replaced') {
+    desktopLog.line(`the system installed the desktop app ${now.version} under the running ${app.getVersion()}`);
+    updater.markReplaced(now.version);
+  }
+}
+
+function watchShell(): void {
+  if (distribution !== 'deb' || isDev) return;
+  setInterval(lookForReplacedShell, 60_000).unref();
+  try {
+    watch(process.resourcesPath, () => lookForReplacedShell()).on('error', () => undefined);
+  } catch {
+    // The minute's look still runs
+  }
+}
+
+/** A full relaunch: the window, the tray and Electron go too, and the binary on disk starts */
+function relaunchShell(): void {
+  updating = true;
+  desktopLog.line('relaunching the desktop app');
+  app.relaunch();
+  app.quit();
+}
+
+/** Runs a new AppImage once this process has exited; quits */
+function relaunchInto(appImage: string): void {
+  updating = true;
+  const relaunch = appImageRelaunch(process.pid, appImage, process.argv.slice(1));
+  spawn(relaunch.command, relaunch.args, { detached: true, stdio: 'ignore', cwd: process.env.OWD ?? homedir() }).unref();
+  app.quit();
+}
+
+/**
+ * Restarts into the downloaded AppImage, or starts the shell apt installed. The server child goes
+ * first, so no chat or orchestration is still writing while the updater replaces the files under
+ * it; the new version starts once this process has exited, so it gets the single-instance lock.
  */
 async function restartToUpdate(): Promise<void> {
   if (updating || quitting) return;
   updating = true;
-  desktopLog.line(`restarting to update to ${updater.readyVersion ?? '?'}`);
-  stopMonitor();
-  await server?.stop();
-  if (!updater.install()) {
+  const replaced = updater.state.status === 'shell-replaced';
+  desktopLog.line(`restarting to ${replaced ? 'start' : 'update to'} ${updater.readyVersion ?? '?'}`);
+  await stopServer();
+  if (replaced) {
+    relaunchShell();
+    return;
+  }
+  if (!(await updater.install())) {
     updating = false;
     desktopLog.line('the update could not be installed; starting the server again');
-    await startServer();
+    startServer();
     return;
   }
   // The AppImage's own path, not process.execPath: that points inside its mount, gone after the exit
   const appImage = distribution === 'appimage' ? (updater.installedAppImage ?? process.env.APPIMAGE) : undefined;
-  if (appImage) {
-    const relaunch = appImageRelaunch(process.pid, appImage, process.argv.slice(1));
-    spawn(relaunch.command, relaunch.args, { detached: true, stdio: 'ignore', cwd: process.env.OWD ?? homedir() }).unref();
-  } else {
-    app.relaunch();
-  }
-  app.quit();
+  if (appImage) relaunchInto(appImage);
+  else relaunchShell();
 }
 
 /** What the page's install() does: restart, schedule for the next quit, or say what is live */
-function requestInstall(request: InstallRequest): InstallAnswer {
-  const answer = installDecision(updater.state, live, request);
+async function requestInstall(request: InstallRequest): Promise<InstallAnswer> {
+  const answer = installDecision(updater.state, await liveWork(), request);
   if (answer.status === 'scheduled') {
     updater.requestInstallOnQuit();
-    desktopLog.line(`update to ${answer.version} will install on quit`);
+    desktopLog.line(`update to ${answer.version} will apply on quit`);
   } else if (answer.status === 'restarting') {
     void restartToUpdate();
   }
   return answer;
 }
 
+/** The busy dialog: what is live, and the person's three choices; resolves 0 now, 1 later, 2 cancel */
+async function askOverLiveWork(question: string, work: LiveWork, later: string): Promise<number> {
+  showWindow();
+  return message({
+    type: 'question',
+    message: question,
+    detail: `${workWords(work) ?? 'Work is running'}. Restarting now stops it.`,
+    buttons: ['Restart now', later, 'Cancel'],
+    defaultId: 1,
+    cancelId: 2,
+  });
+}
+
 /** The shell's own restart (tray, Help menu): asks first when a restart would stop live work */
 async function confirmRestart(): Promise<void> {
-  const answer = installDecision(updater.state, live, {});
+  const s = updater.state;
+  if (s.status !== 'ready' && s.status !== 'shell-replaced') {
+    if (payloadFacts?.target && (payloadFacts.state === 'ready' || payloadFacts.state === 'scheduled')) await restartPayload('apply', payloadFacts.target);
+    return;
+  }
+  const answer = installDecision(s, await liveWork(), {});
   if (answer.status === 'restarting') {
     void restartToUpdate();
     return;
   }
   if (answer.status !== 'busy') return;
-  showWindow();
-  const response = await message({
+  const question = s.status === 'shell-replaced' ? `Restart Claudio to finish the update to ${answer.version}?` : `Restart to update to Claudio ${answer.version}?`;
+  const response = await askOverLiveWork(question, answer.live, 'Update when I quit');
+  if (response === 0) await requestInstall({ force: true });
+  else if (response === 1) await requestInstall({ whenIdle: true });
+}
+
+/** A payload restart through the server's routes: onto the downloaded version, or back to the bundled one */
+async function restartPayload(action: 'apply' | 'revert', version: string): Promise<void> {
+  const refused = refusalOf(await runPayloadAction({ action }));
+  if (!refused) return;
+  if (refused.code === 'update.live-work' && refused.live) {
+    const question = action === 'apply' ? `Restart to update to Claudio ${version}?` : `Go back to the bundled Claudio ${version}?`;
+    const response = await askOverLiveWork(question, refused.live, 'Restart when nothing is running');
+    if (response === 2) return;
+    const again = refusalOf(await runPayloadAction({ action, ...(response === 0 ? { force: true } : { whenIdle: true }) }));
+    if (!again) return;
+    refused.code = again.code;
+  }
+  if (action === 'revert') {
+    await revertLocally(version);
+    return;
+  }
+  await message({ type: 'error', message: 'Claudio could not restart to update', detail: `The server refused it (${refused.code ?? 'no answer'}).` });
+}
+
+/**
+ * Help → Use the bundled Claudio when the server cannot be asked (it does not answer, or refuses):
+ * the shell forgets the overlays itself and starts its own payload, with no page involved.
+ */
+async function revertLocally(version: string): Promise<void> {
+  const go = await ask({
     type: 'question',
-    message: `Restart to update to Claudio ${answer.version}?`,
-    detail: `${liveWords(live) ?? 'Work is running'}. Restarting now stops it.`,
-    buttons: ['Restart now', 'Update when I quit', 'Cancel'],
-    defaultId: 1,
-    cancelId: 2,
+    message: `Go back to the bundled Claudio ${version}?`,
+    detail: 'The server did not take the request, so the desktop app restarts it onto the version it bundles. Anything running stops.',
+    buttons: ['Restart', 'Cancel'],
   });
-  if (response === 0) requestInstall({ force: true });
-  else if (response === 1) requestInstall({ whenIdle: true });
+  if (!go) return;
+  await stopServer();
+  forgetOverlays(dataDir, (line) => desktopLog.line(`payload: ${line}`));
+  startServer();
+}
+
+async function useBundled(): Promise<void> {
+  await restartPayload('revert', app.getVersion());
 }
 
 /** A dialog on the window when there is one; resolves with the index of the button pressed */
@@ -303,73 +578,182 @@ async function ask(options: Omit<Electron.MessageBoxOptions, 'defaultId' | 'canc
   return (await message({ ...options, defaultId: 0, cancelId: 1 })) === 0;
 }
 
-/** Help → Check for updates…: the person asked, so this is where the updater talks to GitHub */
+async function openSettingsAsked(options: Omit<Electron.MessageBoxOptions, 'defaultId' | 'cancelId' | 'buttons'>): Promise<void> {
+  if (await ask({ ...options, buttons: ['Open Settings', 'Close'] })) openPath(SETTINGS_UPDATES);
+}
+
+/**
+ * Help → Check for updates…, the payload's part: what most releases change. True when it had
+ * something to say; false leaves the word to the desktop app's own check.
+ */
+async function checkPayloadFromMenu(): Promise<boolean> {
+  if (!serverOrigin) return false;
+  // Refused under a guard (the shell's credential only reads there): the daily check answers instead
+  await shellApi('POST', '/api/system/release/check').catch(() => undefined);
+  await refreshPayloadFacts();
+  const f = payloadFacts;
+  // Under auth `none` the status says `needs-auth`, but the shell's own requests are accepted (D8)
+  if (!f || (f.unsupportedReason !== null && f.unsupportedReason !== 'needs-auth')) return false;
+  if (f.target && (f.state === 'ready' || f.state === 'scheduled')) {
+    if (await ask({ type: 'info', message: `Claudio ${f.target} is ready`, detail: 'Restart now to use it, or later from the tray.', buttons: ['Restart', 'Later'] })) {
+      await restartPayload('apply', f.target);
+    }
+    return true;
+  }
+  if (f.state === 'downloading' || f.state === 'verifying') {
+    await message({ type: 'info', message: `Downloading Claudio ${f.target ?? ''}`.trim(), detail: 'The tray offers the restart when it is done.' });
+    return true;
+  }
+  if (f.needsShell) {
+    await openSettingsAsked({
+      type: 'info',
+      message: `Claudio ${f.needsShell.version} needs a newer desktop app`,
+      detail: `It needs the desktop app ${f.needsShell.minShell} or later. Update the desktop app first; Claudio follows on its own.`,
+    });
+    return true;
+  }
+  if (f.offer?.installable) {
+    const download = await ask({
+      type: 'info',
+      message: `Claudio ${f.offer.version} is available`,
+      detail: `You are running ${f.running}. It downloads in the background, and you choose when to restart.`,
+      buttons: ['Download', 'Later'],
+    });
+    if (!download) return true;
+    const refused = refusalOf(await runPayloadAction({ action: 'download', version: f.offer.version }));
+    if (refused) await message({ type: 'error', message: 'The update could not be downloaded', detail: `The server refused it (${refused.code ?? 'no answer'}).` });
+    return true;
+  }
+  return false;
+}
+
+const shellErrorWords = (state: Extract<UpdateState, { status: 'error' }>) =>
+  state.code === 'bad-signature' ? 'The download has no valid signature and was discarded.' : state.message;
+
+/** Help → Check for updates…: the person asked, so this is where both updaters talk to GitHub */
 async function checkForUpdatesFromMenu(): Promise<void> {
+  if (await checkPayloadFromMenu()) return;
   const state: UpdateState = await updater.check();
+  await shellStateDialog(state);
+}
+
+async function shellStateDialog(state: UpdateState): Promise<void> {
   const current = app.getVersion();
   switch (state.status) {
     case 'unsupported':
-      if (
-        await ask({
-          type: 'info',
-          message: 'Claudio cannot update itself here',
-          detail: state.message,
-          buttons: ['Open releases page', 'Close'],
-        })
-      ) {
+      if (await ask({ type: 'info', message: 'Claudio cannot update itself here', detail: state.message, buttons: ['Open releases page', 'Close'] })) {
         void shell.openExternal(RELEASES_URL);
       }
       return;
     case 'idle':
       await message({ type: 'info', message: 'Claudio is up to date', detail: `You are running ${current}, the newest release.` });
       return;
+    case 'apt-managed':
+      await message({
+        type: 'info',
+        message: 'Your system updates the desktop app through apt',
+        detail: state.latest
+          ? `Desktop app ${state.latest} is out; it arrives with the system's next update.`
+          : `You are running ${current}. A newer one arrives with the system's other updates.`,
+      });
+      return;
     case 'available': {
       const download = await ask({
         type: 'info',
-        message: `Claudio ${state.version} is available`,
-        detail: `You are running ${current}. It downloads in the background, and you choose when to restart.`,
+        message: `Desktop app ${state.version} is available`,
+        detail: `You are running ${current}. It downloads in the background and its signature is checked before anything installs.`,
         buttons: ['Download', 'Later'],
       });
       if (!download) return;
       const done = await updater.download();
-      if (done.status === 'ready') await offerRestart(done.version);
-      else if (done.status === 'error') {
-        await message({ type: 'error', message: 'The update could not be downloaded', detail: done.message });
-      }
+      if (done.status === 'available') return;
+      await shellStateDialog(done);
       return;
     }
     case 'downloading':
-      await message({
-        type: 'info',
-        message: `Downloading Claudio ${state.version}`,
-        detail: `${state.percent}% so far. The tray offers the restart when it is done.`,
-      });
+      await message({ type: 'info', message: `Downloading Claudio ${state.version}`, detail: `${state.percent}% so far. The tray offers the restart when it is done.` });
+      return;
+    case 'verifying':
+      await message({ type: 'info', message: `Checking the signature of Claudio ${state.version}`, detail: 'The tray offers the restart when it is done.' });
       return;
     case 'ready':
-      await offerRestart(state.version);
+      if (await ask({ type: 'info', message: `Claudio ${state.version} is ready to install`, detail: 'Restart now to use it, or later from the tray.', buttons: ['Restart', 'Later'] })) {
+        await confirmRestart();
+      }
+      return;
+    case 'copy-command':
+      // A dialog cannot hold a command to copy well; Settings shows it with a copy button
+      await openSettingsAsked({
+        type: 'info',
+        message: `Desktop app ${state.version} is ready to install`,
+        detail: 'Install it from a terminal with the command Settings shows. It asks for your password, and apt shows what it will change before it does.',
+      });
+      return;
+    case 'shell-replaced':
+      if (await ask({ type: 'info', message: `The system installed desktop app ${state.version}`, detail: 'Restart Claudio to use it.', buttons: ['Restart Claudio', 'Later'] })) {
+        await confirmRestart();
+      }
       return;
     case 'error':
-      await message({ type: 'error', message: 'Could not check for updates', detail: state.message });
+      await message({ type: 'error', message: 'Could not update the desktop app', detail: shellErrorWords(state) });
       return;
     case 'checking':
       return;
   }
 }
 
-async function offerRestart(version: string): Promise<void> {
-  const restart = await ask({
-    type: 'info',
-    message: `Claudio ${version} is ready to install`,
-    detail: 'Restart now to use it, or later from the tray.',
-    buttons: ['Restart', 'Later'],
-  });
-  if (restart) await confirmRestart();
+function currentSwitchState(): SwitchState {
+  return switchState({ distribution, sandboxRootless: sandboxRootless(), fuse: fuseUsable(), debInstalled: existsSync(DPKG_RECORD) });
+}
+
+/**
+ * The switch from the `.deb` to the AppImage (D5): downloads the AppImage of the newest release
+ * known (this one when none is newer), checks it against the signed desktop manifest, installs it
+ * where `install.sh` would, and restarts from it. Asks first over live work, like any restart.
+ */
+async function switchToAppImage(request: InstallRequest): Promise<InstallAnswer> {
+  const state = currentSwitchState();
+  if (switching || updating || !state.available) return { status: 'not-ready', state: updater.state };
+  const version = updater.latest ?? app.getVersion();
+  const work = await liveWork();
+  if (!request.force && workWords(work) !== null) return { status: 'busy', version, live: work };
+  switching = true;
+  const paths = appImagePaths();
+  const file = join(dirname(paths.appImage), `.Claudio-${version}.download`);
+  const failed = (code: 'bad-signature' | 'fetch-failed' | 'other', text: string): InstallAnswer => {
+    desktopLog.line(`switch to the AppImage: ${text}`);
+    rmSync(file, { force: true });
+    switching = false;
+    return { status: 'not-ready', state: { status: 'error', code, message: text } };
+  };
+  try {
+    desktopLog.line(`switching to the AppImage ${version}`);
+    await downloadTo(`${RELEASE_DOWNLOADS}/v${version}/${packageFileName(version, 'appimage')}`, file);
+  } catch (err) {
+    return failed('fetch-failed', err instanceof Error ? err.message : String(err));
+  }
+  const res = resolveResources();
+  const checked = await verifyDownload({ version, kind: 'appimage', file, keys: loadKeys(res.keysDir), running: app.getVersion(), allowSame: true });
+  if (!checked.ok) return failed(checked.code, checked.message);
+  try {
+    installAppImage(file, paths, res.icon, (line) => desktopLog.line(line));
+  } catch (err) {
+    return failed('other', err instanceof Error ? err.message : String(err));
+  }
+  void (async () => {
+    await stopServer();
+    relaunchInto(paths.appImage);
+  })();
+  return { status: 'restarting', version };
 }
 
 async function restartServer(): Promise<void> {
-  stopMonitor();
-  await server?.stop();
-  await startServer();
+  if (updater.state.status === 'shell-replaced') {
+    await restartToUpdate();
+    return;
+  }
+  await stopServer();
+  startServer();
 }
 
 // Anything that is not the local server goes to the system browser
@@ -391,6 +775,22 @@ function guardNavigation(webContents: WebContents): void {
     event.preventDefault();
     openExternal(url);
   });
+}
+
+/** The application menu; Help offers the bundled payload back while an overlay runs */
+function setMenu(boot: PayloadBoot | null = payload?.current ?? null): void {
+  Menu.setApplicationMenu(
+    buildMenu(
+      { data: dataDir, workspace: workspaceDir, logs: logsDir },
+      isDev,
+      {
+        quit: () => app.quit(),
+        checkForUpdates: () => void checkForUpdatesFromMenu(),
+        useBundled: () => void useBundled(),
+      },
+      boot && !boot.bundled ? app.getVersion() : undefined,
+    ),
+  );
 }
 
 function createWindow(): void {
@@ -464,20 +864,19 @@ function createWindow(): void {
     }
   });
 
+  win.on('focus', lookForReplacedShell);
   win.on('closed', () => {
     win = undefined;
   });
-  void startServer();
+  startServer();
 }
 
 async function shutdown(): Promise<void> {
-  // Before the server goes, so its dropped feed is not logged as a failure
-  monitor?.stop();
-  await server?.stop();
+  await stopServer();
   // install({ whenIdle }) left the update for now: the server is down, so nothing runs from the files it replaces
   if (!updating && updater?.installOnQuit) {
     desktopLog.line(`installing update to ${updater.readyVersion ?? '?'} on quit`);
-    updater.install();
+    await updater.install();
   }
   await Promise.all([desktopLog.close(), serverLog.close()]);
 }
@@ -493,14 +892,23 @@ if (!app.requestSingleInstanceLock()) {
     const theme = parseTitleBarTheme(value);
     if (theme) paintTitleBar(theme);
   });
+  // The page rendered: what a trial boot waits for, besides /api/health
+  ipcMain.on(IPC.pageReady, (event) => {
+    if (fromLocalPage(event)) payload?.pageReady();
+  });
 
   // window.claudioDesktop.updates: the same local-page rule as the title bar
   const denied = () => Promise.reject(new Error('not allowed from this page'));
   ipcMain.handle(IPC.updateState, (event) => (fromLocalPage(event) ? updater.state : denied()));
   ipcMain.handle(IPC.updateDownload, (event) => (fromLocalPage(event) ? updater.download() : denied()));
-  ipcMain.handle(IPC.updateInstall, (event, value: unknown) =>
-    fromLocalPage(event) ? requestInstall(parseInstallRequest(value)) : denied(),
-  );
+  ipcMain.handle(IPC.updateInstall, (event, value: unknown) => (fromLocalPage(event) ? requestInstall(parseInstallRequest(value)) : denied()));
+  ipcMain.handle(IPC.payload, (event, value: unknown) => {
+    if (!fromLocalPage(event)) return denied();
+    const action = parsePayloadAction(value);
+    return action ? runPayloadAction(action) : { status: 400, code: null };
+  });
+  ipcMain.handle(IPC.switchState, (event) => (fromLocalPage(event) ? currentSwitchState() : denied()));
+  ipcMain.handle(IPC.switchAppImage, (event, value: unknown) => (fromLocalPage(event) ? switchToAppImage({ force: parseInstallRequest(value).force }) : denied()));
 
   app.on('before-quit', (event) => {
     if (quitting) return;
@@ -516,16 +924,13 @@ if (!app.requestSingleInstanceLock()) {
     desktopLog = new LogFile(logsDir, 'desktop.log');
     serverLog = new LogFile(logsDir, 'server.log');
     updater = createUpdater();
-    Menu.setApplicationMenu(
-      buildMenu({ data: dataDir, workspace: workspaceDir, logs: logsDir }, isDev, {
-        quit: () => app.quit(),
-        checkForUpdates: () => void checkForUpdatesFromMenu(),
-      }),
-    );
+    if (!shellAtStart && app.isPackaged) desktopLog.line('no shell.json for this version: only the bundled Claudio boots');
+    setMenu(null);
+    watchShell();
     createWindow();
     try {
       tray = new LiveTray(resolveResources().icon, trayAction);
-      tray.update(live, updater.readyVersion);
+      redrawTray();
     } catch (err) {
       // A desktop without a status area is no reason to fail: the window still has everything
       desktopLog.line(`no tray: ${err instanceof Error ? err.message : String(err)}`);

@@ -21,12 +21,24 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
 
 | Kind | Added with | A process gets | Identity |
 |---|---|---|---|
-| `login` | `claude auth login`, run in the account's own dir | `CLAUDE_CONFIG_DIR=<account dir>`; the CLI refreshes its tokens there | email, organisation and plan, from `claude auth status --json` |
-| `token` | a `claude setup-token` token, pasted once | `CLAUDE_CODE_OAUTH_TOKEN` | the alias the person gives it |
+| `login` | `claude auth login`, run in the account's own dir (paste-code: open a link, approve, paste the code) | `CLAUDE_CONFIG_DIR=<account dir>`; the CLI refreshes its tokens there | email, organisation and plan, from `claude auth status --json` |
+| `token` | **deprecated**: a `claude setup-token` token, pasted once. No longer offered in the app; accounts already added stay listed and keep working | `CLAUDE_CODE_OAUTH_TOKEN` | the alias the person gives it |
 | `api-key` | an API key, pasted once | `ANTHROPIC_API_KEY` | the alias; no usage limits to read |
 
-- **The default account** is the CLI's own config dir (`CLAUDE_CONFIG_DIR`, else `~/.claude`), so a
-  fresh install works with nothing to set up. It is listed first and cannot be removed.
+- **The default account** is the CLI's own config dir (`CLAUDE_CONFIG_DIR`, else `~/.claude`;
+  `/home/node/.claude` in the image). It is listed first and cannot be removed, but **it shows only
+  when it exists**: `GET /accounts` and the overview's count leave it out while it has no credential
+  at all (no `.credentials.json`, and no key or token for it in the environment or the vault). A
+  desktop whose `~/.claude` is signed in keeps showing it, and an expired default stays listed with
+  **Sign in again**. `GET /accounts/default`, `PATCH` and its login route work either way. The setup
+  assistant and Settings → Claude Code sign in **here**, through `POST /accounts/default/login`, so the
+  CLI itself is signed in (the `claude` in the terminal works); Accounts → Add account makes a separate
+  login account in its own dir, for rotation
+  ([decisions/claude-sign-in-paste-code.md](decisions/claude-sign-in-paste-code.md)).
+- **The account in use** is the one new work would start on (`accounts.pick({ current: null })`).
+  `GET /auth` carries it as `inUse`; Settings → Claude Code, the status bar and the phone's More sheet
+  read it and the provider's readiness, not the default dir's `loggedIn`. A default with no credential
+  is skipped.
 - **An alias** is required for `token` and `api-key` accounts only: a `login` account already has
   its email.
 - **Dirs** live in `<data>/accounts/<id>/`. `settings.json`, `CLAUDE.md`, `keybindings.json`,
@@ -113,11 +125,48 @@ An account's `signInState` says whether its sign-in can be relied on, beside `si
 | `incomplete` | its credentials file has no non-empty `refreshToken` key (a broken copy) | no |
 
 `claude auth status` keeps answering `loggedIn: true` for a dead session, so the state is not read
-from it. Claudio only looks at whether the credentials file exists, its modification time and
+from it. Nor is the free `get_usage` check a judge of a refused credential: it can **confirm** one
+but not refuse it (below). Claudio only looks at whether the credentials file exists, its modification time and
 whether the `refreshToken` key is non-empty, never its value. `expired` clears when the file
 changes after `authFailedAt` (a new sign-in) or when a later run on the account succeeds; the
 Accounts page and the status bar card show "Sign-in expired" with a "Sign in again" action
-(`POST /accounts/:id/login`) that reopens the sign-in panel.
+(`POST /accounts/:id/login`) that reopens the sign-in panel. A default account found refused by a run
+counts as signed out, and readiness falls back to another signed-in account.
+
+### Checking a credential
+
+Checked 2026-10-18 on CLI 2.1.302, the `get_usage` control request answers **success with
+`rate_limits_available: false`** for an invalid OAuth token, an invalid API key, no credential at all
+and a network that is down. Only a good subscription login returns the plan's limits, so it cannot
+tell a refused credential from an unreachable network. The four raw answers are fixtures in
+`packages/accounts/test/fixtures/get-usage-refused-*.json`. Therefore:
+
+- For a **login or an OAuth token**, `get_usage` **only confirms**: a good answer records `checkedAt`
+  on the account and clears an `expired` mark. It never marks one expired; that comes from a failed
+  run.
+- An **API key** (an `api-key` account, or the default account when `ANTHROPIC_API_KEY` is in its
+  environment) is asked of Anthropic with the vendor's official SDK, `models.list({ limit: 1 })`:
+  documented, free, and `401` for a bad key. This is the SDK used for this check only, never to
+  drive the agent. `200` confirms the account; `401` is `refused` and marks it `expired`, as a run
+  that failed at authentication does; a network error or any other status is `unknown` and changes
+  nothing. It is skipped (`unknown`) when `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_USE_BEDROCK` or
+  `CLAUDE_CODE_USE_VERTEX` is set: the key is then not Anthropic's to judge.
+- A key is checked **again when it changes**: the store keeps `checkedFingerprint`, a sha256 of the
+  key (never the key), beside `checkedAt` in `accounts.json`, and an account whose key no longer
+  matches lists `checkedAt: null`.
+- An **OAuth token from the environment** (`CLAUDE_CODE_OAUTH_TOKEN`) has no free documented check,
+  and claude.ai's internal endpoints are out of bounds. Until it is confirmed Settings tags it
+  **Not confirmed** (neutral, never "Signed in") and says Claudio confirms it with the first chat.
+  An invalid token is refused before any token is generated, so that first run costs nothing and
+  marks the account expired; a turn that succeeds on an account never confirmed confirms it.
+- The account in use is checked at most every 30 minutes, beside the provider refresh and never
+  inside `/health` (a probe spends nothing, [providers.md](providers.md)). `POST /accounts/:id/refresh`
+  is the same free check on demand (for a key it also asks Anthropic, and a refused key answers the
+  account as `expired`), and answers `502 accounts.check-failed` when the CLI could not run.
+- **Check** in Settings → Claude Code → Sign-in is shown for a key and calls that route. For the
+  rest the button is **Send a test message**: it runs the paid `POST /auth/verify` (a real `haiku`
+  prompt), only on that click, and records `checkedAt` on the account in use.
+- A sign-in that succeeded or a key that was saved also records a check.
 
 ## Choosing and switching
 

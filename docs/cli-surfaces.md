@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - cli
     - one-rule
@@ -34,6 +34,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Lessons from corrections | one confined one-shot chat per mined stretch: `--json-schema`, `--max-budget-usd`, `--restricted --tools= --setting-sources=`, `--no-session-persistence`, and no API token in it ([docs/lessons.md](lessons.md)) |
 | Usage limit | `rate_limit_event` messages in the stream (the window, its use and when it resets), and a 429 result when a turn dies on it |
 | Several accounts | one `CLAUDE_CONFIG_DIR` per account, with `claude auth login` and `claude auth status --json` run in it; `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` in the environment of a token or key account. Usage per account from `get_usage` (below), the `rate_limit_event` of the stream, and the CLI's own `cachedUsageUtilization` for an account that has not run yet ([accounts.md](accounts.md)) |
+| Signing in to Claude | `claude auth login`, relayed through pipes (open the link, paste the code the page shows) in the account's own `CLAUDE_CONFIG_DIR`; on the **default** account that is the CLI's own dir (`POST /accounts/default/login`), so the `claude` in the terminal is signed in too. `get_usage` confirms a login or token but cannot refuse one (CLI 2.1.302); an API key is checked with the SDK's free `models.list`; and `claude setup-token` is no longer offered ([accounts.md](accounts.md#checking-a-credential), [decisions/claude-sign-in-paste-code.md](decisions/claude-sign-in-paste-code.md)) |
 | Real usage of an account | the `get_usage` control request of the stream-json protocol (the sibling of `initialize` and `get_context_usage`): no prompt, no turn, no tokens, in the account's own `CLAUDE_CONFIG_DIR` or token environment. It answers the plan, the session and weekly windows, the weekly limits scoped to one model and the credits ([accounts.md](accounts.md#usage), [decisions/get-usage-control-request.md](decisions/get-usage-control-request.md)) |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
 | Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums the `total_cost_usd` of each `result` message in the stream (the CLI's own figure; Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
@@ -44,9 +45,16 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
 
-The one thing Claudio reads about Claude Code that is not the CLI is the npm registry's metadata for
-`@anthropic-ai/claude-code`, to tell you when a newer version exists. It is a plain metadata read
-(no Anthropic API), done on demand and once a day, and `CLAUDIO_CLI_UPDATE_CHECK=off` stops the daily one.
+Two things Claudio reads about Claude Code are not the CLI, and both are the vendor's documented
+package on the npm registry. The first is the metadata of `@anthropic-ai/claude-code`, to tell you
+when a newer version exists: a plain metadata read (no Anthropic API), done on demand and once a day,
+and `CLAUDIO_CLI_UPDATE_CHECK=off` stops the daily one. The second, in a container only, is the
+install of a newer CLI from the app: the native platform package
+`@anthropic-ai/claude-code-linux-x64`, downloaded from the registry (or `CLAUDIO_CLI_REGISTRY_URL`),
+checked against its `dist.integrity` (SHA-512), with only `package/claude` extracted and no lifecycle
+script run, then confirmed by `claude --version`. It lands in `/data/cli/<version>/` and
+`/data/cli/current` is switched with a rename ([updates.md](updates.md#claude-code)). It is the same
+binary the image's installer puts in `~/.local`, from the package the vendor publishes for programs.
 Claudio asks GitHub the same way about its own releases (`CLAUDIO_UPDATE_CHECK=off` stops that one).
 
 ## Related

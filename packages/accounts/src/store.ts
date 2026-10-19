@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -9,8 +9,8 @@ import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
-import { usageOf } from './cli-usage.ts';
-import { ModelCache, offers } from './models.ts';
+import { apiKeyOf, checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
+import { ModelCache, offers, type ModelsOptions } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
@@ -30,14 +30,28 @@ interface StoredAccount {
   identity: Identity;
   /** ISO time a run on it failed because the CLI could not authenticate; absent while it can */
   authFailedAt?: string;
+  /** ISO time the credential was last checked; absent until it was */
+  checkedAt?: string;
+  /** sha256 of the API key that was checked, never the key: a changed key is unchecked again */
+  checkedFingerprint?: string;
 }
 
 interface Stored {
   settings: AccountsSettings;
   /** The CLI's own dir is not stored as an account, only what a person changed about it */
-  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string };
+  default: { enabled: boolean; alias: string | null; identity: Identity; authFailedAt?: string; checkedAt?: string; checkedFingerprint?: string };
   accounts: StoredAccount[];
   policies: RotationPolicy[];
+}
+
+/** `claude` is read when a call is made, not when the cache is built: the binary can change under a running server */
+function modelsOptions(claude: () => string, env: NodeJS.ProcessEnv): ModelsOptions {
+  return {
+    get claude() {
+      return claude();
+    },
+    env,
+  };
 }
 
 const NO_IDENTITY: Identity = { signedIn: false, email: null, organization: null, plan: null };
@@ -50,9 +64,19 @@ export interface AccountStoreOptions {
   /** The CLI's own config dir; `CLAUDE_CONFIG_DIR` or `~/.claude` when absent */
   defaultDir?: string;
   /** The `claude` binary; `claude` on the PATH when absent */
-  claude?: string;
+  claude?: string | (() => string);
   /** The environment the `claude` subprocesses start from; `process.env` when absent */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Whether the CLI's own login has a key or token in its environment (the container's, or the one
+   * Claudio keeps sealed): such a login has no credentials file and is still an account
+   */
+  defaultEnvCredential?: () => boolean;
+  /**
+   * The environment the CLI's own login runs in, the vault's credential laid over `env`; `env` when
+   * absent. Its `ANTHROPIC_API_KEY` is the one a check judges.
+   */
+  defaultEnv?: () => NodeJS.ProcessEnv;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -88,6 +112,8 @@ function parse(doc: Record<string, unknown>): Stored {
         links: Array.isArray(a.links) ? a.links.filter((l): l is string => typeof l === 'string') : [],
         identity: parseIdentity(a.identity),
         ...(typeof a.authFailedAt === 'string' && a.authFailedAt ? { authFailedAt: a.authFailedAt } : {}),
+        ...(typeof a.checkedAt === 'string' && a.checkedAt ? { checkedAt: a.checkedAt } : {}),
+        ...(typeof a.checkedFingerprint === 'string' && a.checkedFingerprint ? { checkedFingerprint: a.checkedFingerprint } : {}),
       });
     }
   }
@@ -101,6 +127,8 @@ function parse(doc: Record<string, unknown>): Stored {
     settings: parseSettings(doc.settings),
     default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY },
       ...(typeof def.authFailedAt === 'string' && def.authFailedAt ? { authFailedAt: def.authFailedAt } : {}),
+      ...(typeof def.checkedAt === 'string' && def.checkedAt ? { checkedAt: def.checkedAt } : {}),
+      ...(typeof def.checkedFingerprint === 'string' && def.checkedFingerprint ? { checkedFingerprint: def.checkedFingerprint } : {}),
     },
     accounts,
     policies,
@@ -117,7 +145,10 @@ export class AccountStore {
   readonly readings: Readings;
   private readonly modelCache: ModelCache;
   private readonly file: string;
-  private readonly claude: string;
+  private readonly claudeOf: () => string;
+  private get claude(): string {
+    return this.claudeOf();
+  }
   private readonly env: NodeJS.ProcessEnv;
   private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
   private readonly listeners = new Set<() => void>();
@@ -125,10 +156,11 @@ export class AccountStore {
   constructor(private readonly opts: AccountStoreOptions) {
     this.env = opts.env ?? process.env;
     this.defaultDir = opts.defaultDir ?? this.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude');
-    this.claude = opts.claude ?? 'claude';
+    const claude = opts.claude ?? 'claude';
+    this.claudeOf = typeof claude === 'function' ? claude : () => claude;
     this.file = join(opts.dataDir, 'accounts.json');
     this.readings = new Readings(join(opts.dataDir, 'accounts', 'limits.json'));
-    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), { claude: this.claude, env: this.env });
+    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), modelsOptions(() => this.claude, this.env));
     this.reload();
   }
 
@@ -191,7 +223,7 @@ export class AccountStore {
 
   list(now: number = Date.now()): Account[] {
     const d = this.stored.default;
-    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined): Account => {
+    const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined, checkedAt: string | undefined, fingerprint: string | undefined): Account => {
       const authFailedAt = failedAt !== undefined && !this.signedInSince(id, kind, failedAt) ? failedAt : undefined;
       const signInState = this.signInState(id, kind, identity, authFailedAt);
       // An identity never read from the CLI (the default account starts out assumed signed in) is
@@ -216,13 +248,32 @@ export class AccountStore {
         signedIn: identity.signedIn && (signInState === 'ok' || signInState === 'unknown'),
         signInState,
         ...(authFailedAt ? { authFailedAt } : {}),
+        checkedAt: this.checkIsCurrent(id, fingerprint) ? (checkedAt ?? null) : null,
         limits,
       };
     };
     return [
-      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt),
-      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt)),
+      view(DEFAULT_ID, 'login', d.alias, d.enabled, d.identity, d.authFailedAt, d.checkedAt, d.checkedFingerprint),
+      ...this.stored.accounts.map((a) => view(a.id, a.kind, a.alias, a.enabled, a.identity, a.authFailedAt, a.checkedAt, a.checkedFingerprint)),
     ];
+  }
+
+  /**
+   * Whether the account has any credential at all. A login account or a token or key one always
+   * does; the CLI's own login only when it has a credentials file, a key or token in its
+   * environment, or a credential that failed (an expired login is a real account with a problem).
+   * An empty default dir is a ghost, which `listed` leaves out.
+   */
+  hasCredential(id: string): boolean {
+    if (id !== DEFAULT_ID) return true;
+    if (this.stored.default.authFailedAt !== undefined) return true;
+    if (existsSync(join(this.defaultDir, CREDENTIALS_FILE))) return true;
+    return this.opts.defaultEnvCredential?.() ?? Boolean(this.env.CLAUDE_CODE_OAUTH_TOKEN || this.env.ANTHROPIC_API_KEY);
+  }
+
+  /** `list` without the CLI's own login while it has no credential at all */
+  listed(now: number = Date.now()): Account[] {
+    return this.list(now).filter((a) => a.id !== DEFAULT_ID || this.hasCredential(a.id));
   }
 
   private signInState(id: string, kind: AccountKind, identity: Identity, authFailedAt: string | undefined): AccountSignInState {
@@ -315,6 +366,66 @@ export class AccountStore {
     if (entry.authFailedAt !== undefined && this.signedInSince(id, ref.kind, entry.authFailedAt)) delete entry.authFailedAt;
     await this.save();
     return this.get(id);
+  }
+
+  /** The `ANTHROPIC_API_KEY` this account's runs get, or null (see `apiKeyOf`) */
+  private keyOf(id: string): string | null {
+    try {
+      return apiKeyOf(this.ref(id), this.envOf(id));
+    } catch {
+      return null;
+    }
+  }
+
+  /** The CLI's own login also sees what Claudio keeps sealed; every other account has only its own */
+  private envOf(id: string): NodeJS.ProcessEnv {
+    return id === DEFAULT_ID ? (this.opts.defaultEnv?.() ?? this.env) : this.env;
+  }
+
+  /** Whether the account's runs get an API key, which a check can judge for free */
+  usesApiKey(id: string): boolean {
+    return this.keyOf(id) !== null;
+  }
+
+  private fingerprint(key: string): string {
+    return createHash('sha256').update(key).digest('hex');
+  }
+
+  /** A check stands for the key it checked: a changed key lists as never checked */
+  private checkIsCurrent(id: string, fingerprint: string | undefined): boolean {
+    const key = this.keyOf(id);
+    return key === null || fingerprint === undefined || fingerprint === this.fingerprint(key);
+  }
+
+  /**
+   * Asks whether the credential works, with no turn and no tokens: Anthropic's own `models.list` for
+   * an API key, the CLI's `get_usage` for the rest (`checkCredential`). `valid` clears a
+   * failed-sign-in mark, since the credential just proved itself. `refused`, which only a key can
+   * be, marks the account expired as a run that failed at authentication does. `unknown` changes
+   * nothing: it cannot tell a refused credential from an unreachable network.
+   */
+  async check(id: string, opts: { timeoutMs?: number; fetch?: typeof fetch } = {}): Promise<CredentialCheck> {
+    const result = await checkCredential(this.ref(id), { claude: this.claude, ...opts, env: this.envOf(id) });
+    if (result === 'valid') await this.confirm(id);
+    else if (result === 'refused') await this.markAuthFailed(id);
+    return result;
+  }
+
+  /** The credential just proved itself (a key Anthropic accepted, a `get_usage` with the plan's limits, a turn that went through): not expired, checked now. */
+  async confirm(id: string, at: number = Date.now()): Promise<void> {
+    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    delete entry.authFailedAt;
+    await this.markChecked(id, at);
+  }
+
+  /** Records that the credential was checked now (a check that confirmed it, a turn, or a test message). */
+  async markChecked(id: string, at: number = Date.now()): Promise<void> {
+    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    entry.checkedAt = new Date(at).toISOString();
+    const key = this.keyOf(id);
+    if (key) entry.checkedFingerprint = this.fingerprint(key);
+    else delete entry.checkedFingerprint;
+    await this.save();
   }
 
   /**

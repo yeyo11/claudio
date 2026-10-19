@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - desktop
     - electron
@@ -32,10 +32,10 @@ start, and that becomes the port it remembers. `PORT` in the environment overrid
 | Sandbox | The container | **None** |
 | Default permission mode | `bypassPermissions` | `acceptEdits` |
 | Claude Code CLI | Baked into the image | Yours, from your `PATH` |
-| Login | `CLAUDE_CODE_OAUTH_TOKEN` | Your existing `~/.claude` login |
+| Login | Signed in from the app (paste-code `claude auth login`) or an API key | Your existing `~/.claude` login |
 | Listens on | `0.0.0.0:8797` | `127.0.0.1`, the port it used last |
 | Web Push | Over HTTPS, to any installed browser or phone | Not registered — see below |
-| Tunnel (Settings → Access & safety → Remote access) | Off unless `CLAUDIO_TUNNEL=on` | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
+| Tunnel (Settings → Access & safety → Remote access) | On, with a tailscaled of its own; `CLAUDIO_TUNNEL=off` turns it off | On; needs Tailscale installed and signed in on the machine (not a `.deb` dependency) |
 
 The image can afford `bypassPermissions` because the container is the boundary. The desktop app has
 no boundary: Claude reads and writes your real files and runs commands with your privileges. So it
@@ -66,8 +66,9 @@ token in Settings → Access & safety if other users share the machine.
   operator once (`sudo tailscale set --operator=$USER`). It is not a dependency of the `.deb`, since
   it is not in Debian's archive. Without it, the tab says how to install it and everything else
   works.
-- For the AppImage, `libfuse2` (`libfuse2t64` on Ubuntu 24.04). Without it, run the AppImage with
-  `--appimage-extract-and-run`.
+- For the AppImage, FUSE: `/dev/fuse` and `fusermount3` (present on current desktops). The AppImage
+  uses the static runtime, so `libfuse2` is no longer needed. Without FUSE, run it with
+  `--appimage-extract-and-run`, or take the `.deb`.
 
 ## Installing
 
@@ -77,18 +78,42 @@ token in Settings → Access & safety if other users share the machine.
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash
 ```
 
-It downloads the latest release and picks the package for your system: the `.deb` through apt on
-Debian and Ubuntu (it asks for your password once), the AppImage everywhere else, installed under
-`~/.local` with a menu entry and icon and no root. Options go after `bash -s --`:
+It downloads the latest release and picks the format that suits your system:
+
+- **The AppImage** where Chromium's sandbox starts without root and FUSE is usable. It is installed
+  under `~/.local` with a menu entry, an icon and a `~/.local/bin/claudio` link, and needs no root.
+- **The `.deb`, through a signed apt repository,** everywhere else on Debian and Ubuntu. Ubuntu 24.04
+  and later restrict unprivileged user namespaces (`kernel.apparmor_restrict_unprivileged_userns`),
+  and Chromium's sandbox cannot start inside an AppImage in a user folder there. The `.deb` can: its
+  postinst installs an AppArmor profile. Claudio never starts without the sandbox (`--no-sandbox`) to
+  get around this. The installer asks for your password once.
+- An existing `.deb` install stays a `.deb`, so a second run does not install a second copy.
+
+The AppImage is checked before it is installed, against the release's Ed25519-signed desktop manifest
+with the key pinned in `install.sh` (OpenSSL 3). With an older OpenSSL, or a release without a
+manifest, it says so and checks the sha512 in `latest-linux.yml`; a manifest that is present and does
+not verify stops the install. Options go after `bash -s --`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --version v0.2.0
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --appimage
+curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --deb
 curl -fsSL https://raw.githubusercontent.com/yeyo11/claudio/main/scripts/install.sh | bash -s -- --uninstall
 ```
 
-Uninstalling keeps your data (`~/.config/Claudio`, `~/Claudio`). To update, see [Updating](#updating):
-the app installs a new release itself.
+`--appimage` and `--deb` force a format. `--deb` fetches the repository's keyring and refuses it
+unless it holds exactly the pinned key (fingerprint `33DC4ECFD40612112D06475843E6487D3DF5098F`), then
+runs `apt-get install -y claudio`.
+
+Uninstalling keeps your data (`~/.config/Claudio`, `~/Claudio`). To update, see [Updating](#updating).
+
+**Add the apt repository by hand**
+
+The `.deb` registers the repository itself when it is installed. To do it first, follow the page at
+<https://yeyo11.github.io/claudio/apt/>, then `sudo apt install claudio`. The repository is signed
+(`InRelease`, valid for 90 days and re-signed every month), and its key is trusted for this repository
+only (`Signed-By`), never through `/etc/apt/trusted.gpg.d`. The decision and its findings:
+[decisions/apt-repository.md](decisions/apt-repository.md).
 
 **By hand**
 
@@ -112,7 +137,11 @@ not readable by user `_apt`. That is harmless: the package installed. Installing
 avoids it.
 
 This installs to `/opt/Claudio`, links `/usr/bin/claudio` and adds a launcher entry. Start it from
-your application menu or with `claudio`.
+your application menu or with `claudio`. The package also registers the apt repository once
+(`/etc/apt/sources.list.d/claudio.sources`, with its keyring in `/usr/share/keyrings`), so apt keeps
+the app up to date from then on. If you delete the source it does not come back on an upgrade; set
+`CLAUDIO_APT_REPO=off` in `/etc/default/claudio`, or in the environment of the install, to skip it.
+`apt remove claudio` removes the source and `apt purge` also removes `/etc/default/claudio`.
 
 The window opens on a splash screen while the server starts: a 4 s brand intro in which the
 logo's C takes two bits of code from its cursor in two bites, settles, and the name is written out
@@ -170,42 +199,110 @@ and chats out with `429` ([decisions/requests-without-credential.md](decisions/r
 
 ## Updating
 
+An update has two parts, and most releases change only the first
+([decisions/shell-payload-updates.md](decisions/shell-payload-updates.md),
+[plans/unified-updates.md](plans/unified-updates.md)):
+
+- **Claudio, the payload.** The server, the API, the web and the terminal and Collaborators hosts: a
+  signed bundle, the same one the Docker image installs ([updates.md](updates.md)). It installs
+  **without a password and without replacing the app**: only the server restarts, and the window
+  reloads on its own.
+- **The desktop app, the shell.** Electron, the launcher machine, the guard, the public keys and the
+  preload with its IPC. It changes rarely, and only a package can change it. Each release says the
+  oldest shell it runs on (`minShell`); when the newest Claudio needs a newer shell, Settings says so
+  and the payload waits for it.
+
 The app learns of a release from its own server, which asks GitHub for the latest Claudio release
-once a day and whenever you press **Check for updates** (see
-[plans/app-updates.md](plans/app-updates.md)). While a newer one is known, a dot marks Settings in
-the sidebar. The app never downloads or restarts on its own: both happen when you ask.
+once a day and whenever you press **Check for updates** (see [plans/app-updates.md](plans/app-updates.md)).
+While a newer one is known, a dot marks Settings in the sidebar. The app never downloads or restarts
+on its own: both happen when you ask.
 
-**Where to ask.** Settings → General → Updates → **Updates** shows the version in use and the newest release,
-with **Download Claudio X** and its progress, then **Restart to update to X**. Help → **Check for
-updates…** does the same through dialogs: up to date, available (Download), ready (Restart), or why
-it cannot. Once a download is ready, the tray menu also has **Restart to update to X**, just above
-Quit. The check that looks for the files to download only runs when you ask for the download, so the
-server's daily check is the only one there is.
+**Where to ask.** Settings → General → Updates has two zones. **Claudio** shows what runs and the
+newest release, with **Download Claudio X** and its progress, then **Restart to update to X**.
+**Desktop app** shows the shell's own state (below). Help → **Check for updates…** reads both
+through dialogs, the payload first and then the shell; when a command has to be copied it opens
+Settings, which can hold it. Once an update is ready, the tray menu has one line above Quit:
+**Restart to update to X**, or **Restart to finish the update to X** after the system replaced the
+shell.
 
-**The restart waits for idle.** Restarting the app restarts its server, and that stops every chat
-and orchestration in flight. So if chats are working, waiting for your answer (their CLI process is
-still running) or orchestrations are running, the restart asks first — *2 chats are working, 1
-orchestration is running…* — and offers **Restart now**, **Update when I quit** or Cancel. *Update
-when I quit* installs the update the next time you quit Claudio, after the server has stopped. A
-restart stops the tray's monitor and the server first, installs, and starts the new version (an
-AppImage through a detached shell that waits for the old process to exit, since `app.relaunch()`
-runs from the image's mount, which goes away with it); if the install fails, the old server is
-started again.
+When the newest release cannot be installed from here, the card offers no download. It says why, once
+and translated: published without an in-app update, needs a newer desktop app, could not be checked,
+or did not start here before. A refusal is shown from its code, never as the server's English text.
 
-**AppImage.** The update replaces the AppImage file in place. `install.sh` installs it as
-`~/.local/share/claudio/Claudio.AppImage`, a name with no version in it, so the menu entry keeps working. A copy
-you downloaded by hand as `Claudio-<version>-x86_64.AppImage` is replaced by a file under the new
-version's name, so a launcher or a shortcut pointing at the old name has to be pointed at the new
-one.
+**The restart waits for idle.** Restarting stops every chat in flight, so if chats are working or
+waiting for your answer, orchestrations are running, or terminals are open, the restart asks first
+and offers **Restart now**, **Restart when nothing is running** (or **Update when I quit** for the
+shell) or Cancel. Chats and orchestrations resume after a payload restart (the next turn continues
+the session, interrupted tasks continue); a turn in flight is lost, and so is every terminal shell:
+terminals end with the server and show as closed with **Open again**
+([terminal.md](terminal.md), [known-limitations.md](known-limitations.md)).
 
-**`.deb`.** The update downloads the new `.deb` and installs it through `pkexec`, which asks for your
-password in a system dialog. The window does not respond while that dialog is up; the server is
-already stopped by then. electron-updater tries `gksudo`, `kdesudo`, `pkexec` and `beesu`, in that
-order, and falls back to plain `sudo`, which has no terminal to ask on and would fail after the
-download. So the app looks for one of the four on its `PATH` first, and when none is there it says
-so up front instead of offering a download it cannot install (`policykit-1` provides `pkexec`).
+**How a payload installs.** The signed bundle is unpacked into
+`~/.config/Claudio/data/app/<version>/` (`$XDG_CONFIG_HOME` respected), with `state.json` beside the
+versions. That path is inside the data folder the guard protects from agents, and it survives an
+AppImage swap, an apt upgrade and a switch between the two. The shell runs the same state machine as
+the Docker launcher (`packages/core/src/launcher/machine.ts`) around the server child:
 
-**When it says it cannot update itself** (`unsupported`), it gives one of four reasons, and links
+1. At **every boot** it verifies the bundle's Ed25519 signature and every file's sha256 against the
+   public keys in `<resources>/keys`, and never boots anything older than the payload bundled in the
+   shell or than the running one.
+2. The server exits 75 to ask for a restart; the shell starts it again from the new bundle and the
+   window goes back to the page it was on.
+3. The new bundle is a *trial*. It is kept only when `/api/health` answers **and** the web page tells
+   the shell it rendered (`claudio:page-ready`) within 30 s of the window starting to load it. After
+   two failed trials it is marked bad, never offered again, and the app goes back to the previous
+   bundle, then to the payload bundled in the shell. The server writes an audit row for the rollback
+   and the card says "Claudio X did not start, so the app went back to Y".
+
+To recover without the page, use Help → **Use the bundled Claudio (X)** (shown while an overlay
+runs), or start the app once with `CLAUDIO_PAYLOAD=bundled`, which ignores overlays.
+
+The page cannot update the payload by itself, because the desktop runs without a token by default.
+It asks the shell over IPC (`claudio:payload`), and the shell calls the server's update routes with
+its per-launch desktop credential. The server accepts that credential for exactly the four update
+writes, and only when the shell started it (`CLAUDIO_LAUNCHER=desktop`); chat tokens, read-only mode
+and the anonymous local actor stay refused, so an agent's `curl` to `127.0.0.1` cannot restart the
+server over live work.
+
+**The shell, by package.** Whichever package you installed, the app **never asks for elevation**:
+no `pkexec`, no password dialog, no `dpkg` under the running app.
+
+- **AppImage.** The update replaces the AppImage file in place and restarts the app. Before it
+  installs, the shell checks the download again against the signed desktop manifest (a listed key,
+  the version, no downgrade, and size, sha256 and sha512). `install.sh` installs it as
+  `~/.local/share/claudio/Claudio.AppImage`, a name with no version in it, so the menu entry keeps
+  working. A copy you downloaded by hand as `Claudio-<version>-x86_64.AppImage` is replaced by a file
+  under the new version's name, so a launcher or a shortcut pointing at the old name has to be
+  pointed at the new one.
+- **`.deb` with the apt source** (`apt-managed`). The system's updater (Software Updater,
+  `unattended-upgrades`, `apt upgrade`) installs the new version. The app downloads nothing for the
+  shell; it only tells you a newer one is out. Once apt replaced the files, the app notices
+  (it re-reads `<resources>/shell.json` every minute, when the window gets focus and when the folder
+  changes), says "The system installed desktop app X", and offers **Restart Claudio**. Until you
+  restart it, any restart of the server is upgraded to a full relaunch, because the binary on disk
+  is no longer the one running.
+- **`.deb` without the apt source** (installs from before the repository, or after you removed the
+  source). The app downloads the `.deb`, checks it against the signed desktop manifest and shows one
+  command to copy into a terminal. It copies the file to a root-owned path, checks its sha256 and only
+  then hands apt that copy, so a process running as you cannot swap the package between the check and
+  your `sudo`:
+
+  ```
+  /usr/bin/sudo /usr/bin/install -D -m 0644 -o root -g root -- '<cache file>' '/var/cache/claudio/claudio_<v>_amd64.deb' && echo '<sha256>  /var/cache/claudio/claudio_<v>_amd64.deb' | /usr/bin/sha256sum -c - && /usr/bin/sudo /usr/bin/apt install -- '/var/cache/claudio/claudio_<v>_amd64.deb'
+  ```
+
+  There is no `-y`: apt shows what it will change and asks. The new package registers the apt
+  source, so you need this command **once**.
+
+**Switch to the AppImage.** On a `.deb`, when the host lets the AppImage sandbox without root and FUSE
+works, the card offers **Use the AppImage instead**. It downloads the AppImage, checks it against the
+signed manifest, installs it at `install.sh`'s paths and restarts from it, so later updates need no
+password. Your chats, settings, overlays, `~/Claudio/workspace` and `~/.claude` stay. The `.deb`
+stays installed (removing it needs root), so the card shows `/usr/bin/sudo /usr/bin/apt remove
+claudio`; until you run it, `/usr/bin/claudio` still starts the `.deb`. A `~/.local/bin/claudio` you
+wrote yourself is left alone. On a host that restricts user namespaces the switch is not offered.
+
+**When it says it cannot update itself** (`unsupported`), it gives one of three reasons, and links
 the release page so you can install by hand:
 
 | Reason | Message |
@@ -213,22 +310,33 @@ the release page so you can install by hand:
 | A development build (`desktop:dev`) | Updates are off in a development build. |
 | The AppImage cannot be written | The AppImage at *path* cannot be replaced: the file or its folder is not writable. |
 | Neither an AppImage nor a `.deb` | This copy of Claudio was not installed from an AppImage or a .deb, so it cannot update itself. |
-| A `.deb` with no graphical password prompt | Installing the .deb needs a password prompt (pkexec), and none was found. Install policykit-1, or download the .deb and install it with apt. |
 
 A copy is an AppImage when its runtime sets `APPIMAGE`, and a `.deb` when `resources/package-type`
 (which electron-builder writes into the package) says `deb`, the same test electron-updater makes.
-The app passes the answer to its server as `CLAUDIO_DISTRIBUTION`, which is how a browser pointed at
-this server knows to send you to Help → Check for updates… instead of showing Docker commands.
+The app passes the answer to its server as `CLAUDIO_DISTRIBUTION`, and the facts about the shell
+(`CLAUDIO_SHELL_VERSION`, `CLAUDIO_SHELL_INPUTS`, `CLAUDIO_SHELL_PACKAGE`, `CLAUDIO_SHELL_APT`),
+which is how a browser pointed at this server tells the payload from the shell. A browser or a phone
+on this server sees the Claudio zone, and for the shell only "The desktop app is updated on the
+computer that runs it."
 
-Every download is checked against the SHA-512 in the release's `latest-linux.yml`, fetched over HTTPS
-from the same GitHub release; GitHub is the trust root, as it is for `install.sh`. What the updater
-does is logged to `desktop.log`.
+**How it is verified.** The payload and the desktop manifest carry Ed25519 signatures with a key id,
+so a key rotation can overlap; an AppImage must match both `latest-linux.yml`'s sha512 and the signed
+manifest; the apt repository is GPG-signed with a `Valid-Until`; and every artifact has a GitHub
+build-provenance attestation. The table is in
+[plans/unified-updates.md](plans/unified-updates.md#d7-verification-stronger-than-sha512). What the
+updater does is logged to `desktop.log`.
+
+**Migrating a 0.6.x `.deb`.** An install from before this mechanism takes the first release through its
+old updater (one last `pkexec` password), or with `sudo apt install ./Claudio-<v>-amd64.deb`. The new
+package registers the repository, and from then on apt handles the shell and the app handles the
+payload.
 
 ## Where things live
 
 | What | Path |
 | --- | --- |
 | Wrapper state (runs, orchestrations, `wrapper.db`) | `~/.config/Claudio/data` |
+| Installed payloads and their `state.json` | `~/.config/Claudio/data/app/` |
 | Logs | `~/.config/Claudio/logs/desktop.log` and `server.log` |
 | Default working directory for runs | `~/Claudio/workspace` |
 | Claude Code config and transcripts | `~/.claude` (the CLI's own, unchanged) |
@@ -241,7 +349,8 @@ with `CLAUDIO_WORKSPACE_DIR` set. Each run can still use any project directory.
 The packaged app carries `guard.mjs` in `<resources>/server/`, beside `server.mjs`, and the server
 finds it through `CLAUDIO_GUARD_ENTRY` ([guards.md](guards.md)). The AppImage is a read-only mount and
 the `.deb` installs under a root-owned directory, so the agent cannot edit it. Guard files and per-run
-scratch folders go under the data folder (`guards/`, `tmp/`).
+scratch folders go under the data folder (`guards/`, `tmp/`). The guard, the public keys
+(`<resources>/keys`) and `shell.json` are the shell's: an installed payload never carries them.
 
 The **File** menu opens the data, workspace and logs folders (press `Alt` if the menu bar is
 hidden). Each log is rotated when the app starts once it passes 5 MB, keeping the last three.
@@ -343,14 +452,19 @@ app. It does not watch for changes: rerun it after editing the UI or the API. Fo
 
 `pnpm --filter @claudio/desktop test` runs the shell's unit tests (the tray menu and tooltip, the
 progress fraction, the event-stream reader, the title-bar options, the updater state machine and
-when it can update), and the root `pnpm test` includes them. The Updates card's desktop branch is
+when it can update, the payload machine around the server child, the desktop manifest check and the
+switch to the AppImage), and the root `pnpm test` includes them. The Updates card's desktop branch is
 covered in the browser by `e2e/specs/updates-desktop.spec.mjs`, which stands a fake
-`claudioDesktop.updates` in for the preload.
+`claudioDesktop.updates` in for the preload (CI only). The package scripts and the apt round trip are
+tested in `apps/desktop/test/packaging.test.ts` and `.github/workflows/desktop-smoke.yml`, inside
+containers.
 
 The web UI knows it is in the app through `window.claudioDesktop`, which the preload exposes with
 `platform`, `version`, `setTitleBarTheme({ color, symbolColor })`, `onNavigate(listener)` and
-`updates` (`state()`, `onState(listener)`, `download()`, `install({ whenIdle?, force? })`, accepted
-only from the local server's page like the title-bar colours). When it
+`updates` (`state()`, `onState(listener)`, `download()`, `install({ whenIdle?, force? })`,
+`payload(action)`, `switchState()`, `switchToAppImage({ force? })`, `pageReady()`), accepted only from
+the local server's page like the title-bar colours. The web calls `pageReady()` once after its first
+render; without it every new payload is rolled back. When it
 exists, `<html>` carries `is-desktop` and `desktop-<platform>`: `.is-desktop .topbar` and
 `.is-desktop .sidebar-head` are the drag region (`app-region: drag`, with links, buttons, inputs and
 menus opted out), the top bar keeps clear of the window controls with `env(titlebar-area-x)` and
@@ -372,7 +486,11 @@ permission from the packed tree: files keep the builder's mode, and under umask 
 described in [CONTRIBUTING.md](../CONTRIBUTING.md#how-a-release-happens). The release workflow then
 calls `.github/workflows/desktop.yml`, which builds on Ubuntu with `pnpm desktop:dist` and attaches
 the AppImage, the `.deb` and `latest-linux.yml` — what an installed app's updater reads, listing both
-packages with their SHA-512 — to that draft before it is published. electron-builder runs with
+packages with their SHA-512 — to that draft before it is published, together with the signed desktop
+manifest (`claudio-desktop-<v>-linux-x64.json` and `.sig`, signed in the `release` environment, which
+the owner approves). `apt-repo.yml` builds and signs the apt repository from the `.deb` in the same
+run, and `release.yml` deploys it to Pages only after the release is published, so apt never offers a
+version that is not public. electron-builder runs with
 `--publish never`, so that workflow is the only thing that uploads, and there is no separate
 `.blockmap` file: the AppImage's is embedded in the AppImage. Re-running it for a tag replaces
 the files while the release is still a draft; a published release is immutable, so a rebuild of one
@@ -393,4 +511,4 @@ release.
 
 ## Related
 
-[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[tunnel.md]]
+[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]] · [[decisions/apt-repository.md]] · [[updates.md]] · [[tunnel.md]]

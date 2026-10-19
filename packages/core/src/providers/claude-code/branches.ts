@@ -1,4 +1,4 @@
-import { normalizeMessage, type TranscriptEntry } from '@claudio/shared';
+import { closeRuns, isWaitingOnBackground, normalizeMessage, type TranscriptEntry } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../../cli-facts.ts';
 import { now } from '../../live-chat.ts';
 import { readProgress, workflowStatus } from '../../workflows.ts';
@@ -22,7 +22,7 @@ export class ClaudeBranches implements BranchTracker {
 
   endForeground(at: string): void {
     for (const sub of this.subagents.values()) {
-      if (sub.status === 'running' && !sub.background) Object.assign(sub, { status: 'stopped', endedAt: at });
+      if (sub.status === 'running' && !sub.background) endAgent(sub, 'stopped', at);
     }
   }
 
@@ -32,12 +32,30 @@ export class ClaudeBranches implements BranchTracker {
     }
     for (const sub of this.subagents.values()) {
       // 'stopped', as the screens call an agent its process took down with it: nothing here failed
-      if (sub.status === 'running') Object.assign(sub, { status: 'stopped', endedAt: at });
+      // A waiting agent's own background work went down with the process too
+      if (sub.status === 'running' || sub.status === 'waiting') endAgent(sub, 'stopped', at);
     }
     for (const workflow of this.workflows.values()) {
       if (workflow.status === 'running') Object.assign(workflow, { status: 'stopped', endedAt: at });
     }
   }
+}
+
+/** Ends an agent and the run it was in, once: an agent that already ended keeps its first end. */
+function endAgent(agent: SubagentInfo, status: SubagentInfo['status'], at: string): void {
+  agent.status = status;
+  agent.endedAt = agent.endedAt ?? at;
+  agent.runs = closeRuns(agent.runs ?? [{ startedAt: agent.startedAt, endedAt: null }], agent.endedAt);
+}
+
+/**
+ * The agent's turn ended with background work of its own running: its run closes (the clock stops)
+ * but it is not over, and its end stays open for the notification that says it finished.
+ */
+function pauseAgent(agent: SubagentInfo, at: string): void {
+  agent.status = 'waiting';
+  agent.endedAt = null;
+  agent.runs = closeRuns(agent.runs ?? [{ startedAt: agent.startedAt, endedAt: null }], at);
 }
 
 const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
@@ -47,20 +65,21 @@ function trackSubagents(chat: ClaudeBranches, entry: NonNullable<ReturnType<type
   for (const block of entry.blocks) {
     if (block.type === 'tool_use' && SUBAGENT_TOOLS.has(block.name)) {
       const input = (block.input ?? {}) as Record<string, unknown>;
+      const startedAt = now();
       chat.subagents.set(block.id, {
         toolUseId: block.id,
         subagentType: String(input.subagent_type ?? 'general-purpose'),
         description: String(input.description ?? input.prompt ?? '').slice(0, 200),
         status: 'running',
-        startedAt: now(),
+        startedAt,
         endedAt: null,
+        runs: [{ startedAt, endedAt: null }],
       });
     } else if (block.type === 'tool_result') {
       const sub = chat.subagents.get(block.toolUseId);
       // A background agent's tool result only says it was launched; its task notification ends it
       if (sub && sub.status === 'running' && !sub.background) {
-        sub.status = block.isError ? 'failed' : 'completed';
-        sub.endedAt = now();
+        endAgent(sub, block.isError ? 'failed' : 'completed', now());
       }
     }
   }
@@ -146,26 +165,47 @@ function trackTask(chat: ClaudeBranches, subtype: string, raw: Record<string, un
   }
 }
 
-/** The Agent tool call it belongs to was seen first; the task adds its id and whether it runs in the background. */
+/**
+ * The Agent tool call it belongs to was seen first; the task adds its id and whether it runs in the
+ * background. The same agent id starting again is a resume: the parent sent it a message with
+ * SendMessage, and the CLI starts a task for the same agent under that call's id, so it is looked
+ * up by agent id first and reopened, not recorded a second time.
+ */
 function startAgentTask(chat: ClaudeBranches, taskId: string, raw: Record<string, unknown>): void {
   const toolUseId = typeof raw.tool_use_id === 'string' ? raw.tool_use_id : '';
   const background = raw.is_backgrounded === true;
+  const resumed = [...chat.subagents.values()].find((s) => s.agentId === taskId);
+  if (resumed) {
+    if (typeof raw.is_backgrounded === 'boolean') resumed.background = background;
+    // A waiting agent that starts again resumed by itself; one that ended was resumed by its parent
+    if (resumed.status !== 'running') {
+      const at = now();
+      Object.assign(resumed, { status: 'running', endedAt: null });
+      resumed.runs = [...(resumed.runs ?? [{ startedAt: resumed.startedAt, endedAt: resumed.startedAt }]), { startedAt: at, endedAt: null }];
+    }
+    return;
+  }
   const known = chat.subagents.get(toolUseId);
   if (known) {
     Object.assign(known, { agentId: taskId, background });
     if (typeof raw.subagent_type === 'string') known.subagentType = raw.subagent_type;
     // Its launch result may have closed it already; a background agent is only done when it says so
-    if (background && known.status !== 'running') Object.assign(known, { status: 'running', endedAt: null });
+    if (background && known.status !== 'running') {
+      Object.assign(known, { status: 'running', endedAt: null });
+      known.runs = (known.runs ?? []).map((run, i, all) => (i === all.length - 1 ? { ...run, endedAt: null } : run));
+    }
     return;
   }
   // Spawned by a subagent rather than the main agent: no tool call of its own reached the stream
+  const startedAt = now();
   chat.subagents.set(toolUseId || taskId, {
     toolUseId,
     subagentType: String(raw.subagent_type ?? 'general-purpose'),
     description: String(raw.description ?? '').slice(0, 200),
     status: 'running',
-    startedAt: now(),
+    startedAt,
     endedAt: null,
+    runs: [{ startedAt, endedAt: null }],
     agentId: taskId,
     background,
   });
@@ -174,8 +214,14 @@ function startAgentTask(chat: ClaudeBranches, taskId: string, raw: Record<string
 function updateAgentTask(agent: SubagentInfo, subtype: string, raw: Record<string, unknown>): void {
   const patch = (raw.patch ?? {}) as Record<string, unknown>;
   const status = subtype === 'task_notification' ? raw.status : subtype === 'task_updated' ? patch.status : undefined;
-  if (status === 'completed') Object.assign(agent, { status: 'completed', endedAt: agent.endedAt ?? now() });
-  else if (status === 'failed' || status === 'killed') Object.assign(agent, { status: status === 'killed' ? 'stopped' : 'failed', endedAt: agent.endedAt ?? now() });
+  // Only an open run ends: a repeated notification must not move the end of a finished one.
+  // A waiting agent has no open run but is not over, so its final notification still ends it.
+  if (agent.status !== 'running' && agent.status !== 'waiting') return;
+  if (status === 'completed' && subtype === 'task_notification' && isWaitingOnBackground({ summary: strOr(raw.summary), note: strOr(raw.note) })) {
+    if (agent.status === 'running') pauseAgent(agent, now());
+  } else if (status === 'completed') endAgent(agent, 'completed', now());
+  else if (status === 'failed') endAgent(agent, 'failed', now());
+  else if (status === 'killed' || status === 'stopped') endAgent(agent, 'stopped', now());
 }
 
 function updateWorkflow(workflow: WorkflowRun, subtype: string, raw: Record<string, unknown>): void {
@@ -192,3 +238,5 @@ function updateWorkflow(workflow: WorkflowRun, subtype: string, raw: Record<stri
   if (workflow.status !== 'running') workflow.endedAt ??= now();
   if (subtype === 'task_notification' && typeof raw.summary === 'string') workflow.summary = raw.summary;
 }
+
+const strOr = (value: unknown): string | null => (typeof value === 'string' ? value : null);

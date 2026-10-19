@@ -9,7 +9,7 @@ They answer what Settings → Integrations, a project's readiness and the change
 `--version` (or `version`), the sign-in probe, the default branch, and `pr`/`mr` `create`, `list` and
 `view`. Anything else exits 1 with `is not part of the fake`.
 
-What they answer is read from `$CLAUDIO_DATA_DIR/fake-hosts/<name>.json`, so a spec changes it without
+What they answer is read from `$FAKE_STATE_DIR/fake-hosts/<name>.json`, so a spec changes it without
 restarting anything:
 
 | Key | Default | Effect |

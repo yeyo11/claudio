@@ -39,10 +39,13 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | --- | --- |
 | `--version`, `-v` | `2.1.1-fake (Claude Code)`, or `CLAUDIO_FAKE_CLI_VERSION` |
 | `auth status [--json]` | `{"loggedIn":true,"authMethod":"fake","apiProvider":"firstParty"}` |
+| `auth login` | prints `https://claude.ai/oauth/authorize?fake=1`, reads one line (the code) on stdin, writes `.credentials.json` with a refresh token into `CLAUDE_CONFIG_DIR` (else `~/.claude`) and exits 0; the code `bad` exits 1 |
 | `agents [--json]` | `[]` |
 | `mcp list` | `No MCP servers configured. …` |
 | `plugin list --json`, `plugin marketplace list --json` | `[]` |
 | anything else without `-p` | exit 1, `fake claude: … is not part of the fake` on stderr |
+
+`get_usage` (a control request of a chat) answers the recorded refusal (a success with `rate_limits_available: false`, as the real CLI 2.1.302 does for a bad credential) when `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is `invalid`, or the token starts with `fake-expired`.
 
 ## A chat: `-p --input-format stream-json --output-format stream-json`
 

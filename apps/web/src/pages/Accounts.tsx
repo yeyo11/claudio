@@ -145,8 +145,8 @@ export function Accounts() {
     });
   };
 
-  const addButton = (
-    <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+  const addButton = (primary: boolean) => (
+    <button type="button" className={primary ? 'btn btn-primary' : 'btn'} onClick={() => setAdding(true)}>
       <Plus {...ICON_SM} /> {t('page.add')}
     </button>
   );
@@ -170,7 +170,8 @@ export function Accounts() {
               <span className="accounts-action-text">{t('page.refresh')}</span>
               {reading && <span className="sr-only" role="status">{t('page.refreshing')}</span>}
             </button>
-            {addButton}
+            {/* With no account the empty state's button is the zone's primary */}
+            {addButton(accounts.length > 0)}
           </>
         }
       />
@@ -179,7 +180,7 @@ export function Accounts() {
       {signingAgain && <SignInAgainDialog key={signingAgain.id} account={signingAgain} onClose={closeSignIn} onDone={refresh} />}
 
       {accounts.length === 0 ? (
-        <Empty illustration="signed-out" tone="warn" title={t('page.none')} action={addButton}>
+        <Empty illustration="signed-out" tone="warn" title={t('page.none')} action={addButton(true)}>
           {t('page.noneHint')}
         </Empty>
       ) : (
