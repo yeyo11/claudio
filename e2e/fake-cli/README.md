@@ -219,6 +219,9 @@ with a `control_response`:
 - `interrupt` — the running command's tree gets SIGTERM, its `tool_result` is
   `The user interrupted this command.` (`is_error: true`), and the turn ends with a `result` of
   `subtype: "error_during_execution"`, `is_error: true`. The process stays up for the next message.
+- `initialize` — `{ commands: [], models, account }`: the models of a Max account's `/model` (`default`,
+  `opus`, `sonnet`, `haiku`; `default` resolves to the same model as `sonnet`), or the list under
+  `"@models"` in the scripts file, read on every handshake. It is the only model list Claudio offers.
 - `set_permission_mode` (also emits `system`/`status` with the mode) and `set_model` — success.
 - `get_context_usage` (`detail`: `summary` or `full`, `full` when absent; anything else is the recorded
   error `get_context_usage: detail must be 'summary' or 'full'`) — the answer recorded in
@@ -229,6 +232,13 @@ with a `control_response`:
   `claude.ai Calendar` (scope `claudeai`, `needs-auth`), or the list in `CLAUDIO_FAKE_CLI_MCP` (JSON).
 - `mcp_toggle` (`serverName`, `enabled`) — success, and the server reads `disabled` (or its old status
   again) in the next `mcp_status`, for this process only; an unknown name is an error.
+- `mcp_set_servers` (`servers`: `{ <name>: <config> }`) — replaces the servers pushed before, as CLI
+  2.1.302 does (`packages/core/test/fixtures/recordings/claude/mcp-set-servers.json`): answers
+  `{ added, removed, errors }`, and the next `mcp_status` lists each pushed server with the scope
+  `dynamic`, `connected` (no tools), or `failed` with its error when the config could not start (a
+  stdio server without `command`, an http one without `url`, an unknown `type`). A pushed server is
+  also one an `mcp:` step can call, its config taken as written (the CLI expands `${VAR}` in a file
+  only). The log gets `mcp-set-servers` with the names and the env keys, never their values.
 - anything else — `subtype: "error"`, never silence.
 
 **stdin closing** ends a running turn (its command is killed, a `result` with `is_error: true` is

@@ -177,6 +177,24 @@ test('an unknown control request gets an error answer, never silence', async () 
   await c.done();
 });
 
+test('initialize lists the models, and a scripts file can replace them', async () => {
+  const c = chat();
+  c.send({ type: 'control_request', request_id: 'r-init', request: { subtype: 'initialize' } });
+  const answer = await c.next((e) => e.type === 'control_response' && e.response.request_id === 'r-init');
+  assert.equal(answer.response.subtype, 'success');
+  assert.deepEqual(answer.response.response.models.map((m) => m.value), ['default', 'opus', 'sonnet', 'haiku']);
+  await c.done();
+
+  const scripts = join(mkdtempSync(join(tmpdir(), 'claudio-fake-cli-models-')), 'scripts.json');
+  writeFileSync(scripts, JSON.stringify({ '@models': [{ value: 'claude-e2e-5', displayName: 'E2E' }] }));
+  const d = chat({ CLAUDIO_FAKE_CLI_SCRIPTS: scripts });
+  d.send({ type: 'control_request', request_id: 'r-init', request: { subtype: 'initialize' } });
+  const set = await d.next((e) => e.type === 'control_response' && e.response.request_id === 'r-init');
+  assert.deepEqual(set.response.response.models, [{ value: 'claude-e2e-5', displayName: 'E2E' }]);
+  await d.done();
+  rmSync(dirname(scripts), { recursive: true, force: true });
+});
+
 test('say: lines are the assistant\'s own prose, in their place among the calls', async () => {
   const c = chat();
   c.say('say: Looking at the routes first.\nrun: echo routes\nsay: Two handlers, both tested.');
@@ -385,6 +403,34 @@ test('mcp_status lists the servers and mcp_toggle switches one, as the CLI does'
   c.send({ type: 'control_request', request_id: 'm-3', request: { subtype: 'mcp_status' } });
   const after = await c.next((e) => e.type === 'control_response' && e.response.request_id === 'm-3');
   assert.equal(after.response.response.mcpServers[0].status, 'disabled');
+  await c.done();
+});
+
+test('mcp_set_servers replaces the pushed servers and answers added, removed and errors, as the CLI does', async () => {
+  const c = chat();
+  const ask = async (id, request) => {
+    c.send({ type: 'control_request', request_id: id, request });
+    return (await c.next((e) => e.type === 'control_response' && e.response.request_id === id)).response;
+  };
+  const listed = async (id) => (await ask(id, { subtype: 'mcp_status' })).response.mcpServers.map((s) => [s.name, s.status, s.scope]);
+  const claudio = { type: 'stdio', command: 'node', args: ['mcp.mjs'], env: { CLAUDIO_CHAT_ID: 'chat-1' } };
+
+  const on = await ask('s-1', { subtype: 'mcp_set_servers', servers: { claudio } });
+  assert.deepEqual(on.response, { added: ['claudio'], removed: [], errors: {} });
+  assert.deepEqual((await listed('s-2')).at(-1), ['claudio', 'connected', 'dynamic']);
+  // The same set again changes nothing
+  assert.deepEqual((await ask('s-3', { subtype: 'mcp_set_servers', servers: { claudio } })).response, { added: [], removed: [], errors: {} });
+
+  const refused = await ask('s-4', { subtype: 'mcp_set_servers', servers: { claudio, broken: { type: 'stdio' } } });
+  assert.deepEqual(refused.response.added, ['broken']);
+  assert.match(refused.response.errors.broken, /iterable/);
+  assert.deepEqual((await listed('s-5')).at(-1), ['broken', 'failed', 'dynamic']);
+
+  const off = await ask('s-6', { subtype: 'mcp_set_servers', servers: {} });
+  assert.deepEqual(off.response, { added: [], removed: ['claudio', 'broken'], errors: {} });
+  assert.deepEqual(await listed('s-7'), [['docs', 'connected', 'user'], ['claude.ai Calendar', 'needs-auth', 'claudeai']]);
+  const logged = c.log().find((l) => l.event === 'mcp-set-servers');
+  assert.deepEqual(logged?.env, { claudio: ['CLAUDIO_CHAT_ID'] }, 'the log names the env keys, never their values');
   await c.done();
 });
 

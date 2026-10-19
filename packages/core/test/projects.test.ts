@@ -310,11 +310,13 @@ test('a project renamed or removed is remembered by the next start', async () =>
   const first = new Core(config);
   const { id } = await first.importProject({ path: dir });
   await first.updateProject(id, { name: 'Renamed' });
-  first.db.close();
+  // Shut down, not only the database closed: a core's boot reads its CLI, and one left running writes
+  // the CLI's config into the test's dir after it is removed
+  await first.shutdown();
 
   const second = new Core(config);
   assert.deepEqual((await second.projects()).map((p) => [p.id, p.name, p.chatCount]), [[id, 'Renamed', 0]]);
-  second.db.close();
+  await second.shutdown();
 });
 
 /** A v1 `projects.json` holding one project whose path lies inside a linked worktree, as the leak left them. */

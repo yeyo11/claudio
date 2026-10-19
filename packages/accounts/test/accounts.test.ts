@@ -452,6 +452,48 @@ describe('models from initialize', () => {
     assert.equal(count(), 4);
   });
 
+  it('counts a list read under another CLI version as none once the running version is known', async () => {
+    const dir = join(root, 'models-c');
+    mkdirSync(dir, { recursive: true });
+    const ref = { id: 'c', kind: 'login' as const, dir };
+    const at = (version: string): ModelCache => new ModelCache(join(root, 'model-cache-c'), { claude: FAKE, env: { ...env(), FAKE_CLAUDE_VERSION: version } });
+    await at('1.0.0').models(ref);
+    const updated = at('1.0.1');
+    assert.ok(updated.cached('c'), 'before the version is known, the stored list stands');
+    await updated.learnVersion();
+    assert.equal(updated.cached('c'), null, 'read under 1.0.0, it is not the list of 1.0.1');
+    await updated.models(ref);
+    assert.deepEqual(updated.cached('c')?.map((m) => m.value), ['default', 'opus', 'haiku']);
+  });
+
+  it('spawns one CLI for reads of the same account asked at once', async () => {
+    const dir = join(root, 'models-d');
+    mkdirSync(dir, { recursive: true });
+    const ref = { id: 'd', kind: 'login' as const, dir };
+    const cache = new ModelCache(join(root, 'model-cache-d'), { claude: FAKE, env: env() });
+    const [a, b] = await Promise.all([cache.models(ref), cache.models(ref)]);
+    assert.deepEqual(a, b);
+    assert.equal(readFileSync(join(dir, 'initialize-count'), 'utf8').length, 1);
+  });
+
+  it('warms the lists again after a CLI update when asked to check the version', async () => {
+    const root4 = join(root, 'warm-version');
+    const base = { ...env(), CLAUDE_CONFIG_DIR: defaultDir, FAKE_CLAUDE_VERSION: '3.0.0 (Claude Code)' };
+    const s = new AccountStore({ dataDir: root4, defaultDir, claude: FAKE, env: base });
+    const count = (): number => readFileSync(join(defaultDir, 'initialize-count'), 'utf8').length;
+    await s.warmModels({ checkVersion: true });
+    const before = count();
+    assert.ok(s.cachedModels('default'));
+    await s.warmModels({ checkVersion: true });
+    assert.equal(count(), before, 'nothing moved, nothing is read');
+    base.FAKE_CLAUDE_VERSION = '3.0.1 (Claude Code)';
+    await s.warmModels();
+    assert.equal(count(), before, 'without the check, the version is not asked');
+    await s.warmModels({ checkVersion: true });
+    assert.equal(count(), before + 1, 'the new CLI has its list read');
+    assert.ok(s.cachedModels('default'));
+  });
+
   it('refuses an answer that is not an object', () => {
     assert.throws(() => parseInitialize(null), /no object/);
     assert.deepEqual(parseInitialize({}).models, []);

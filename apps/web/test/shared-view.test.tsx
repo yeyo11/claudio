@@ -95,9 +95,9 @@ test.beforeEach(async () => {
   await i18n.changeLanguage('es');
 });
 
-test('the Shared tab is there only while Collaborators is on and a teammate shares this project', () => {
+test('the Shared tab is there while a teammate shares this project, whether or not Collaborators is on', () => {
   const catalog = [sharedProject()];
-  assert.deepEqual(sharedWith('p1', status(false), catalog), []);
+  assert.equal(sharedWith('p1', status(false), catalog).length, 1);
   assert.deepEqual(sharedWith('p1', status(true, true), catalog), []);
   assert.deepEqual(sharedWith('p1', status(true), undefined), []);
   assert.equal(sharedWith('p1', status(true), catalog).length, 1);

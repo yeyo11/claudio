@@ -5,6 +5,7 @@ import type {
   CancelCommandRequest,
   ChatInterruptRequest,
   ChatMcpToggle,
+  ChatClaudioMcpToggle,
   ChatMessageRequest,
   CompactChatRequest,
   ContextDetail,
@@ -210,6 +211,13 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     const enabled = req.body?.enabled;
     if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
     return chats.toggleMcpServer(req.params.id, req.params.name, enabled);
+  });
+
+  // Claudio's own server in a live chat, pushed to the process (`mcp_set_servers`) and kept on the chat for its next processes
+  app.put<{ Params: { id: string }; Body: ChatClaudioMcpToggle }>('/chats/:id/claudio-mcp', (req) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') throw new Error('enabled must be a boolean');
+    return chats.setClaudioMcp(req.params.id, enabled);
   });
 
   // What fills the chat's window, asked of the live process; no process or a CLI that cannot answer is a 200 that says so

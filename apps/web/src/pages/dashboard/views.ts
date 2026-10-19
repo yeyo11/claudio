@@ -17,12 +17,13 @@ export const VIEW_MODULE: Partial<Record<ProjectViewId, ProjectModule>> = { boar
 export const asProjectView = (value: string | null): ProjectViewId | null => PROJECT_VIEWS.find((id) => id === value) ?? null;
 
 /**
- * The teammates' projects shown in this project's Shared tab, while Collaborators is on. A project
+ * The teammates' projects shown in this project's Shared tab. Their copies stay readable while
+ * Collaborators is off (they read `paused`), so only an unavailable module hides the tab. A project
  * linked by hand shows in the project it was linked to and nowhere else; one that is not linked
  * shows in every local project whose default key is its share key (two clones show it twice).
  */
-export function sharedWith(projectId: string, status: Pick<CollaboratorsStatus, 'settings' | 'unavailable'> | undefined, catalog: readonly SharedProject[] | undefined): SharedProject[] {
-  if (!status?.settings.enabled || status.unavailable || !catalog) return [];
+export function sharedWith(projectId: string, status: Pick<CollaboratorsStatus, 'unavailable'> | undefined, catalog: readonly SharedProject[] | undefined): SharedProject[] {
+  if (!status || status.unavailable || !catalog) return [];
   return catalog.filter((shared) => (shared.linkedProjectId === null ? shared.matches.includes(projectId) : shared.linkedProjectId === projectId));
 }
 

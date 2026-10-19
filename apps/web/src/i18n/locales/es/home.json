@@ -173,7 +173,7 @@
       "defaultModel": "modelo predeterminado",
       "defaultMode": "modo predeterminado",
       "noPreset": "sin preset",
-      "mcpDefault": "MCP: el del CLI",
+      "mcpDefault": "MCP: los del CLI",
       "mcpChosen_one": "MCP: {{count}} servidor",
       "mcpChosen_other": "MCP: {{count}} servidores",
       "allOptions": "Todas las opciones",

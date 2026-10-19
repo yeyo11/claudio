@@ -226,6 +226,41 @@
   margin-left: auto;
   color: var(--accent);
 }
+/* A Combobox with no suggestions says why (loading, a failed read): a row's size, never an option */
+.combobox-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  /* The 24 px Retry and the padding: loading and failed are the same height */
+  min-height: 36px;
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.combobox-status > :not(button) {
+  min-width: 0;
+}
+.combobox-status .is-bad {
+  flex: none;
+  color: var(--bad);
+}
+.combobox-status .link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: auto;
+  flex: none;
+}
+@media (pointer: coarse) {
+  .combobox-status {
+    min-height: 44px;
+  }
+  .combobox-status .link-btn {
+    min-height: 44px;
+    padding: 0 8px;
+  }
+}
 
 @keyframes menu-in {
   from {
@@ -467,7 +502,8 @@
 
 .tooltip {
   z-index: 1200;
-  max-width: 320px;
+  /* Never wider than the room Radix measured beside the trigger, so a 320 px screen keeps it whole */
+  max-width: min(320px, var(--radix-tooltip-content-available-width, 320px));
   padding: 7px 10px;
   border-radius: var(--radius);
   background: var(--text);
@@ -475,6 +511,8 @@
   font-size: var(--fs-small);
   font-weight: var(--fw-regular);
   line-height: 1.4;
+  /* A path or a key has no spaces: it breaks inside the bubble instead of running out of it */
+  overflow-wrap: anywhere;
   box-shadow: var(--shadow-pop);
   transform-origin: var(--radix-tooltip-content-transform-origin);
   animation: tooltip-in var(--dur-fast) var(--ease-out);

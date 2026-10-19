@@ -223,7 +223,15 @@ export interface AuthStatus {
    * default with a signed-in login account beside it still runs chats. Null when no account can take work
    */
   inUse: AccountInUse | null;
+  /**
+   * Why `inUse` is null: `signed-out` when no enabled account has a usable credential, `limit` when
+   * one has and every such account is at its limit. Null while `inUse` is set. Absent on an old server.
+   */
+  inUseReason?: AccountInUseReason | null;
 }
+
+/** Why no account can take new work now. */
+export type AccountInUseReason = 'signed-out' | 'limit';
 
 /** A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent. */
 export interface PressureReading {
@@ -419,7 +427,7 @@ export type ToolResultDetail =
   /** `Edit`, `MultiEdit`, `Write`, `NotebookEdit`: the patch as unified text (`''` when the CLI kept none); `created` for a new file */
   | { kind: 'patch'; path: string; patch: string; created: boolean }
   /** `Bash`: the text is stdout; `backgroundTaskId` when the command was sent to the background */
-  | { kind: 'command'; stderr: string; interrupted: boolean; backgroundTaskId: string | null }
+  | { kind: 'command'; stderr: string; cwdReset: string | null; interrupted: boolean; backgroundTaskId: string | null }
   /** `Grep`, `Glob` */
   | { kind: 'matches'; mode: 'files' | 'content' | 'count'; total: number }
   /** `WebFetch` */
@@ -1539,6 +1547,12 @@ export interface ChatToolConfig {
   mcp: McpSelection | null;
   /** The policy the chat was started with, so a resume enforces the same one */
   policy?: ToolPolicy;
+  /**
+   * Claudio's own MCP server (all its tools, under the chat's permission mode), switched on from the
+   * chat's "+" or its start options: every process of the chat starts with it, a resume, a fork and
+   * Claudio's own respawns included. Absent reads off.
+   */
+  claudioMcp?: boolean;
 }
 
 /** What can be chosen when a process starts on a chat, whether it is new, resumed or a fork. */
@@ -1572,6 +1586,8 @@ export interface ChatStartOptions {
   toolPreset?: string | null;
   /** MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own */
   mcp?: McpSelection | null;
+  /** Claudio's own MCP server for this chat and the processes after it ({@link ChatToolConfig.claudioMcp}); absent keeps what it has */
+  claudioMcp?: boolean;
   /** Ceiling on what this execution may spend */
   maxBudgetUsd?: number;
   /** Ceiling on the agentic turns this execution may take (`--max-turns`); the CLI enforces it, a whole number of at least 1 */
@@ -4901,6 +4917,30 @@ export interface LiveMcpServer {
 export interface ChatMcpServers {
   live: boolean;
   servers: LiveMcpServer[];
+  /** Claudio's own server for the chat, beside the CLI's list; absent for a chat Claudio has no record of */
+  claudio?: ChatClaudioMcp;
+}
+
+/**
+ * Why Claudio's own server cannot be switched on in a chat. `assistant`: the assistant chat already
+ * has it, confined. `provider`: the chat does not run on Claude Code. `no-api`: the API's address is
+ * unknown, so the server could not reach it. `clash`: a server of the person's is already named `claudio`.
+ */
+export type ClaudioMcpUnavailable = 'assistant' | 'provider' | 'no-api' | 'clash';
+
+/** Claudio's own MCP server in one chat (`PUT /chats/:id/claudio-mcp`). */
+export interface ChatClaudioMcp {
+  /** The choice stored on the chat: its processes start with the server */
+  on: boolean;
+  /** Null when the switch can be used */
+  unavailable: ClaudioMcpUnavailable | null;
+  /** The CLI's own words when it refused the server at the last switch */
+  error: string | null;
+}
+
+/** Switches Claudio's own MCP server on or off in a chat. */
+export interface ChatClaudioMcpToggle {
+  enabled: boolean;
 }
 
 /** Switches one server of a live chat on or off. The CLI keeps the choice for the chat's folder. */
@@ -5581,9 +5621,10 @@ export interface ShareKeyInUseError {
  * - `live`: the owner is connected and the watch stream is open ("Up to date · syncing");
  * - `synced`: connected, between pulls ("Synced 3 min ago");
  * - `offline`: the owner is not reachable ("Owner offline · last synced 2 h ago");
- * - `pending`: nothing synced yet.
+ * - `pending`: nothing synced yet;
+ * - `paused`: Collaborators is off, so no copy is being synced, whatever the owner is doing.
  */
-export type SyncStateKind = 'live' | 'synced' | 'offline' | 'pending';
+export type SyncStateKind = 'live' | 'synced' | 'offline' | 'pending' | 'paused';
 
 export interface SyncState {
   state: SyncStateKind;

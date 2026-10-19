@@ -58,13 +58,6 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         // chat would be one row on disk and another here, so say so where the person can see it
         chat.push({ kind: 'notice', text: `The CLI reported session ${event.sessionId} for the chat ${chat.id}; its transcript is not where this chat expects it.` });
       }
-      // What the alias this process was started with stands for now: the cache of models labels
-      // none of the aliases, and this is the one place it says which model one is
-      try {
-        host.modelIds.record(chat.opts.model, event.model);
-      } catch {
-        // the picker only goes on showing the alias alone
-      }
       chat.setSettings({
         ...(event.permissionMode ? { permissionMode: event.permissionMode } : {}),
         ...(event.model ? { model: event.model } : {}),

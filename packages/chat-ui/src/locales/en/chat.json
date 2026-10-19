@@ -120,7 +120,25 @@
       "add": "Add",
       "account": "Account",
       "servers": "Servers"
-    }
+    },
+    "claudio": "Claudio",
+    "claudioSummary": "Edits projects, tasks, chats and orchestrations",
+    "claudioStatus": {
+      "connected": "Connected",
+      "pending": "Connecting",
+      "failed": "Failed",
+      "needs-auth": "Needs authorisation",
+      "disabled": "Off",
+      "unknown": "Unknown"
+    },
+    "claudioUnavailable": {
+      "no-api": "Not available: Claudio's API address isn't known yet.",
+      "clash": "There is already a server named claudio."
+    },
+    "claudioRefused": "The CLI couldn't start it:",
+    "claudioBypass": "With permission checks off, its changes apply without asking",
+    "claudioStart": "Claudio's server",
+    "claudioStartHint": "On, the chat starts with all of Claudio’s tools, under its permission mode."
   },
   "controls": {
     "permissionModeNew": "Permission mode for the new execution",
@@ -136,10 +154,10 @@
     "asBeforeNone": "As before (no preset)",
     "servers": "MCP servers",
     "serversHint": "Choosing servers starts the chat with only those: connectors from claude.ai and plugin servers are left out.",
-    "serversDefault": "As the CLI loads them",
+    "serversDefault": "The CLI's",
     "serversAsBeforeChosen_one": "As before ({{count}} chosen)",
     "serversAsBeforeChosen_other": "As before ({{count}} chosen)",
-    "serversAsBeforeDefault": "As before (as the CLI loads them)",
+    "serversAsBeforeDefault": "As before (the CLI's)",
     "serversChoose": "Only the ones I choose",
     "onlyThese": "Start with only these servers",
     "noServers": "No MCP servers are configured.",
@@ -151,7 +169,7 @@
       "disallowed": "Blocked",
       "none": "none",
       "noServers": "none: the chat started without any MCP server",
-      "serversDefault": "as the CLI loads them",
+      "serversDefault": "the CLI's",
       "strictNote": "Only these servers load.",
       "frozenNote": "Fixed at start or at the last resume."
     },
@@ -301,14 +319,18 @@
   },
   "status": {
     "noPreset": "no preset",
-    "mcpDefault": "MCP: CLI default",
+    "mcpDefault": "MCP: the CLI's",
+    "mcpLive": "MCP: {{on}} of {{total}} on",
+    "serversChosen_one": "{{count}} server",
+    "serversChosen_other": "{{count}} servers",
+    "viewRules": "View rules",
     "mcpChosen_one": "MCP: {{count}} server",
     "mcpChosen_other": "MCP: {{count}} servers",
     "open": "Run options",
     "liveTitle": "How this chat runs",
     "resumeTitle": "Resume with",
     "forkTitle": "Fork with",
-    "liveHint": "Permission mode and model switch at once, and the MCP servers and connectors switch on and off from the + of the box. The tool preset was fixed when the chat started; resuming it later can change it."
+    "liveHint": "The tool preset was fixed when the chat started; resuming it can change it."
   },
   "inspector": {
     "tabs": "Chat details",
@@ -418,6 +440,8 @@
       "showAll_one": "Show all {{count}} line",
       "showAll_other": "Show all {{count}} lines",
       "errors": "Errors",
+      "stderr": "Standard error",
+      "cwdReset": "The shell went back to <path/>",
       "interrupted": "interrupted",
       "background": "in the background",
       "launched": "Launched in the background",

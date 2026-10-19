@@ -28,6 +28,8 @@ export interface StartChoices {
   toolPreset?: string | null;
   /** `null` goes back to the servers the CLI loads on its own, an object picks exactly those */
   mcp?: McpSelection | null;
+  /** Claudio's own MCP server for the chat; absent keeps what it has */
+  claudioMcp?: boolean;
   permissionMode?: PermissionMode;
   model?: string;
 }
@@ -50,6 +52,8 @@ export interface ChatClient {
   chatMcp(id: string): Promise<ChatMcpServers>;
   /** Switches one of them on or off in the running process */
   toggleChatMcp(id: string, name: string, enabled: boolean): Promise<ChatMcpServers>;
+  /** Switches Claudio's own MCP server in the running process, and keeps the choice on the chat */
+  setChatClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers>;
   /** The accounts a chat could run on */
   accounts(): Promise<Account[]>;
   /** The models one account offers */
@@ -78,7 +82,11 @@ export interface ChatUiConfig {
   };
   slots: {
     StartOptions: ComponentType<{ chat: Chat; value: StartChoices; onChange(next: StartChoices): void; forking: boolean }>;
-    LiveOptions: ComponentType<{ chat: Chat }>;
+    /**
+     * `onOpenServers` opens the "+" menu's Servers panel and `onOpenEnvironment` the app's Environment
+     * tab, so the popover's rows lead to the real lists instead of repeating them
+     */
+    LiveOptions: ComponentType<{ chat: Chat; onOpenServers?: () => void; onOpenEnvironment?: () => void }>;
     /** A patch as the app's comparator draws it: the chat package must not import the app's diff (design system §5) */
     Diff: ComponentType<{ path: string; patch: string }>;
     /**

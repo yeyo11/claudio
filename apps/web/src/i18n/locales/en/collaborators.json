@@ -150,7 +150,8 @@
     "offline": "Owner offline · last synced {{ago}}",
     "offlineNever": "Owner offline · not synced yet",
     "pending": "Waiting for the first sync",
-    "failed": "The last sync failed: {{reason}}"
+    "failed": "The last sync failed: {{reason}}",
+    "paused": "Paused: Collaborators is off"
   },
   "kinds": {
     "chats_one": "{{count}} chat",
@@ -247,7 +248,9 @@
       "offline": "Owner offline · last synced {{ago}}",
       "offlineNever": "Owner offline · not synced yet",
       "pending": "Not synced yet",
-      "failed": "Last sync failed"
+      "failed": "Last sync failed",
+      "paused": "Paused",
+      "turnOn": "Turn Collaborators on"
     },
     "live": "Live",
     "allChats": "All chats",
@@ -276,6 +279,14 @@
       "chat": "Chat",
       "download": "Download",
       "downloadFailed": "Could not download the file"
+    },
+    "tabSync": {
+      "synced": "Synced",
+      "syncedAgo": "Synced · {{ago}}",
+      "pending": "Not synced yet",
+      "offline": "The owner is away",
+      "paused": "Paused: Collaborators is off",
+      "error": "The last sync failed"
     }
   },
   "readOnly": {

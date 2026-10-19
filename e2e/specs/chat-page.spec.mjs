@@ -105,7 +105,7 @@ export default async ({ page, api, check }) => {
 
     // ---- the status line under the composer opens what a resume may start with ----
     const status = await page.text('.composer-status');
-    check(status.includes('claude-sonnet-5') && status.includes('no preset') && status.includes('MCP: CLI default'), `the status line says what the next message runs with (${status})`);
+    check(status.includes('claude-sonnet-5') && status.includes('no preset') && status.includes("MCP: the CLI's"), `the status line says what the next message runs with (${status})`);
     await page.click('.composer-status');
     await page.waitFor(`return !!document.querySelector('.composer-options [aria-label="Permission mode for the new execution"]')`, { label: 'the run options' });
     await page.key('Escape');

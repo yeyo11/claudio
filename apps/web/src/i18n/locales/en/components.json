@@ -39,7 +39,15 @@
     "pageNotFound": "Page not found",
     "newChat": "New chat",
     "runWorkflow": "Run workflow",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "nearLimit": "Near the limit",
+    "limitReached": "Limit reached",
+    "limitBack": "Available again {{time}}",
+    "checkUsage": "Check usage in Accounts",
+    "rotatesAtLimit": "Accounts rotate at the limit",
+    "notCheckedShort": "Not checked",
+    "willRetry": "The CLI did not answer; Claudio will ask again",
+    "openClaudeSettings": "Open Claude Code settings"
   },
   "editors": {
     "add": "Add",
@@ -393,6 +401,11 @@
       "xhigh": "Extra high",
       "max": "Max"
     }
+  },
+  "models": {
+    "loading": "Loading models…",
+    "failed": "Couldn't read the CLI's list",
+    "retry": "Retry"
   },
   "spendCap": {
     "title": "The daily spend cap was reached",

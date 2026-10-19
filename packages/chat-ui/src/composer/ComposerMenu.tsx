@@ -1,10 +1,11 @@
 import type { Chat } from '@claudio/shared';
 import { Paperclip, Plug, Plus, Slash } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
+import { formatNumber } from '@claudio/ui/lib/format';
 import type { AttachmentsState } from '../components/Attachments';
 import { accountItem, useLooseT } from './account-menu';
 import { AccountPicker, useChatAccounts } from './AccountPicker';
@@ -31,6 +32,9 @@ export function ComposerMenu({
   hasCommands,
   onCommands,
   onChooseTools,
+  requestServers,
+  onServersRequested,
+  returnFocus,
 }: {
   chat: Chat;
   /** The chat's process is up: its servers can be read and switched now */
@@ -42,6 +46,12 @@ export function ComposerMenu({
   onCommands: () => void;
   /** Opens the run options, where a resume or a fork chooses its preset and servers */
   onChooseTools: () => void;
+  /** Set by the options popover to open the Servers panel from outside, as choosing the menu's row does */
+  requestServers?: boolean;
+  /** Where focus goes when the panel closes and what opened it is gone (the popover's link) */
+  returnFocus?: () => HTMLElement | null;
+  /** The request was taken: the owner clears it */
+  onServersRequested?: () => void;
 }) {
   const { t } = useTranslation('chat');
   const input = useRef<HTMLInputElement>(null);
@@ -50,11 +60,16 @@ export function ComposerMenu({
   const [panel, setPanel] = useState<Panel | null>(null);
   const accounts = useChatAccounts(chat, accountsOpen || panel === 'accounts');
   const servers = useLiveServers(chat.id, live && (menuOpen || panel === 'servers'));
-  const count = serversOn(servers.data?.servers);
+  const count = serversOn(servers.data);
 
   // The menu closes itself on a choice; the panel opens after it has handed the focus back
   const openPanel = (next: Panel) => setTimeout(() => setPanel(next), 0);
   const tr = useLooseT();
+  useEffect(() => {
+    if (!requestServers) return;
+    setPanel('servers');
+    onServersRequested?.();
+  }, [requestServers, onServersRequested]);
 
   const account = accountItem({
     rows: accounts.rows,
@@ -89,7 +104,7 @@ export function ComposerMenu({
           id: 'servers',
           icon: Plug,
           text: t('composerMenu.servers'),
-          label: count ? `${t('composerMenu.servers')} · ${t('composerMenu.serversOn', { on: count.on, total: count.total })}` : t('composerMenu.servers'),
+          label: count ? `${t('composerMenu.servers')} · ${t('composerMenu.serversOn', { on: formatNumber(count.on), total: formatNumber(count.total) })}` : t('composerMenu.servers'),
           meta: live ? undefined : t('composerMenu.serversAtStartShort'),
           onSelect: () => openPanel('servers'),
           detail: ({ close }) => <ServersPanel chat={chat} live={live} onChooseTools={onChooseTools} onDone={close} />,
@@ -122,6 +137,7 @@ export function ComposerMenu({
         }}
         title={panel === 'accounts' ? t('composerMenu.account.title') : t('composerMenu.servers')}
         side="auto"
+        returnFocus={returnFocus}
       >
         {panel === 'servers' && <ServersPanel chat={chat} live={live} onChooseTools={onChooseTools} onDone={() => setPanel(null)} />}
         {panel === 'accounts' && <AccountPicker chat={chat} state={accounts} onDone={() => setPanel(null)} />}

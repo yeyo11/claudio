@@ -39,7 +39,15 @@
     "pageNotFound": "Página no encontrada",
     "newChat": "Nuevo chat",
     "runWorkflow": "Ejecutar un workflow",
-    "skipToContent": "Saltar al contenido"
+    "skipToContent": "Saltar al contenido",
+    "nearLimit": "Cerca del límite",
+    "limitReached": "Límite alcanzado",
+    "limitBack": "Vuelve a estar disponible {{time}}",
+    "checkUsage": "Revisa el uso en Cuentas",
+    "rotatesAtLimit": "Las cuentas cambian solas al llegar al límite",
+    "notCheckedShort": "Sin comprobar",
+    "willRetry": "El CLI no ha respondido; Claudio volverá a preguntar",
+    "openClaudeSettings": "Abre los ajustes de Claude Code"
   },
   "editors": {
     "add": "Añadir",
@@ -393,6 +401,11 @@
       "xhigh": "Muy alto",
       "max": "Máximo"
     }
+  },
+  "models": {
+    "loading": "Cargando modelos…",
+    "failed": "No se ha podido leer la lista del CLI",
+    "retry": "Reintentar"
   },
   "spendCap": {
     "title": "Has alcanzado el tope de gasto diario",

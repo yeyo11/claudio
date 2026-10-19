@@ -543,6 +543,7 @@ export function ChatView() {
             history={sentHistory}
             onSending={onSending}
             writing={writing}
+            onOpenEnvironment={() => inspector.show('environment')}
             onSent={(sent) => {
               setFollow(true);
               // The server says whether it waits: a resume or a fork, or a message that starts a turn, does not

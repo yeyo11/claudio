@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, type ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ModelOption, ModelTier } from '@claudio/shared';
@@ -30,6 +30,8 @@ export interface ModelsOptions {
   claude?: string;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /** Hears of each CLI process as it starts (`ControlOptions.onSpawn`) */
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -85,11 +87,12 @@ export async function readInitialize(account: AccountRef, opts: ModelsOptions = 
 /** `claude --version`, the half of the cache key that moves with a CLI update. */
 export function cliVersion(opts: ModelsOptions = {}): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(opts.claude ?? 'claude', ['--version'], { env: opts.env ?? process.env, timeout: opts.timeoutMs ?? 20_000 }, (err, stdout) => {
+    const child = execFile(opts.claude ?? 'claude', ['--version'], { env: opts.env ?? process.env, timeout: opts.timeoutMs ?? 20_000 }, (err, stdout) => {
       const out = stdout.trim();
       if (out) resolve(out);
       else reject(err ?? new Error('claude --version printed nothing'));
     });
+    opts.onSpawn?.(child);
   });
 }
 
@@ -106,6 +109,11 @@ function samePlan(a: string, b: string): boolean {
 
 /** The per-account lists, one JSON file each under `<dir>/<account id>.json`. */
 export class ModelCache {
+  /** The running CLI's version, as the last `claude --version` said it; null before any was read. */
+  private version: string | null = null;
+  /** The reads in flight per account, so the boot warm-up and a picker asking at once spawn one CLI. */
+  private readonly reading = new Map<string, Promise<ModelsEntry>>();
+
   constructor(
     private readonly dir: string,
     private readonly opts: ModelsOptions = {},
@@ -127,21 +135,45 @@ export class ModelCache {
   }
 
   /**
-   * The models the account can run. Served from the cache while the CLI version and the plan are
-   * the ones it was read under; `plan` is the account's known `subscriptionType` (the accounts list
-   * carries it), and a different one refreshes. `refresh` forces a read.
+   * What the account can run according to the stored list, or null before it was read under the
+   * running CLI. Synchronous: `choose` runs in the launch path. A list read under another CLI version
+   * counts as none, as `entry` judges it: an update changes what `/model` offers.
    */
-  /** What the account can run according to the stored list, or null before it was ever read. Synchronous: `choose` runs in the launch path. */
   cached(id: string): ModelOption[] | null {
-    return this.read(id)?.models ?? null;
+    const hit = this.read(id);
+    if (!hit) return null;
+    if (this.version !== null && hit.cliVersion !== this.version) return null;
+    return hit.models;
+  }
+
+  /** Asks the CLI its version now, so `cached` judges the stored lists against the binary that runs today. */
+  async learnVersion(): Promise<string> {
+    this.version = await cliVersion(this.opts);
+    return this.version;
   }
 
   async models(account: AccountRef, opts: { plan?: string | null; refresh?: boolean } = {}): Promise<ModelOption[]> {
     return (await this.entry(account, opts)).models;
   }
 
-  async entry(account: AccountRef, opts: { plan?: string | null; refresh?: boolean } = {}): Promise<ModelsEntry> {
+  /**
+   * The models the account can run. Served from the cache while the CLI version and the plan are
+   * the ones it was read under; `plan` is the account's known `subscriptionType` (the accounts list
+   * carries it), and a different one refreshes. `refresh` forces a read.
+   */
+  entry(account: AccountRef, opts: { plan?: string | null; refresh?: boolean } = {}): Promise<ModelsEntry> {
+    const pending = opts.refresh ? undefined : this.reading.get(account.id);
+    if (pending) return pending;
+    const read = this.load(account, opts).finally(() => {
+      if (this.reading.get(account.id) === read) this.reading.delete(account.id);
+    });
+    this.reading.set(account.id, read);
+    return read;
+  }
+
+  private async load(account: AccountRef, opts: { plan?: string | null; refresh?: boolean }): Promise<ModelsEntry> {
     const version = await cliVersion({ ...this.opts, env: envFor(account, this.opts.env) });
+    this.version = version;
     const hit = this.read(account.id);
     const planMoved = !!opts.plan && !!hit?.account.subscriptionType && !samePlan(opts.plan, hit.account.subscriptionType);
     // The CLI signed in as someone else in this dir since the list was read (`claude auth login`

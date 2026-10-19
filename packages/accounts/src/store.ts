@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { ChildProcess } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -45,12 +46,13 @@ interface Stored {
 }
 
 /** `claude` is read when a call is made, not when the cache is built: the binary can change under a running server */
-function modelsOptions(claude: () => string, env: NodeJS.ProcessEnv): ModelsOptions {
+function modelsOptions(claude: () => string, env: NodeJS.ProcessEnv, onSpawn: ModelsOptions['onSpawn']): ModelsOptions {
   return {
     get claude() {
       return claude();
     },
     env,
+    ...(onSpawn ? { onSpawn } : {}),
   };
 }
 
@@ -77,6 +79,11 @@ export interface AccountStoreOptions {
    * absent. Its `ANTHROPIC_API_KEY` is the one a check judges.
    */
   defaultEnv?: () => NodeJS.ProcessEnv;
+  /**
+   * Hears of each CLI process the store starts (a models, usage or sign-in read), so its owner can end it
+   * on shutdown instead of letting it write the CLI's config into a data dir that is gone
+   */
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -160,7 +167,7 @@ export class AccountStore {
     this.claudeOf = typeof claude === 'function' ? claude : () => claude;
     this.file = join(opts.dataDir, 'accounts.json');
     this.readings = new Readings(join(opts.dataDir, 'accounts', 'limits.json'));
-    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), modelsOptions(() => this.claude, this.env));
+    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), modelsOptions(() => this.claude, this.env, opts.onSpawn));
     this.reload();
   }
 
@@ -358,7 +365,7 @@ export class AccountStore {
   async refresh(id: string): Promise<Account> {
     const ref = this.ref(id);
     let identity: Identity;
-    if (ref.kind === 'login') identity = await identify(ref, { claude: this.claude, env: this.env });
+    if (ref.kind === 'login') identity = await identify(ref, { claude: this.claude, env: this.env, ...(this.opts.onSpawn ? { onSpawn: this.opts.onSpawn } : {}) });
     else identity = { ...NO_IDENTITY, signedIn: true };
     const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
     entry.identity = identity;
@@ -474,13 +481,22 @@ export class AccountStore {
     });
   }
 
-  /** The stored list of an account without reading it, for the paths that cannot wait. */
+  /**
+   * The stored list of an account without reading it, for the paths that cannot wait. Null when
+   * there is none, or when it was read under another CLI version than the one last seen running.
+   */
   cachedModels(id: string): ModelOption[] | null {
     return this.modelCache.cached(id);
   }
 
-  /** Reads the lists of every signed-in, enabled account that has none yet; a failing one is skipped. */
-  async warmModels(): Promise<void> {
+  /**
+   * Reads the lists of every signed-in, enabled account that has none for the running CLI; a failing
+   * one is skipped. `checkVersion` asks the CLI its version first (one `claude --version`), which is
+   * what the server does at boot and when it sees the CLI change: a list read under the old version
+   * then counts as missing and is read again.
+   */
+  async warmModels(opts: { checkVersion?: boolean } = {}): Promise<void> {
+    if (opts.checkVersion) await this.modelCache.learnVersion().catch(() => undefined);
     const missing = this.list().filter((a) => a.enabled && a.signedIn && !this.modelCache.cached(a.id));
     await Promise.all(missing.map((a) => this.models(a.id).catch(() => undefined)));
   }
@@ -491,7 +507,7 @@ export class AccountStore {
    * A CLI that fails or times out rejects.
    */
   fetchUsage(id: string, opts: { timeoutMs?: number } = {}): Promise<Reading> {
-    return usageOf(this.ref(id), { claude: this.claude, env: this.env, ...opts });
+    return usageOf(this.ref(id), { claude: this.claude, env: this.env, ...(this.opts.onSpawn ? { onSpawn: this.opts.onSpawn } : {}), ...opts });
   }
 
   /** Records a reading from a run's stream or a failed turn. */

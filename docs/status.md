@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-19T17:00:00Z
+updated_at: 2026-10-19T18:00:00Z
 tags:
     - status
     - project-state
@@ -118,6 +118,14 @@ the desktop app since #40. Every full load, on the desktop, the web and the PWA,
 "Eat the code" splash since #42
 ([plans/splash-eat-the-code.md](plans/splash-eat-the-code.md)).
 
+On 2026-10-19 the owner's report was answered by six independent changes, each its own pull
+request ([plans/owner-report-fixes.md](plans/owner-report-fixes.md)): the shell's cwd notice is a note
+and red means a failed call; the CLI's `initialize` list is the only model list
+([accounts.md](accounts.md#models)); the status bar tells signed out, the limit and could-not-check
+apart; a chat's options show the live MCP state; the Shared tab stays while there is shared data
+([collaborators.md](collaborators.md)); and Claudio's MCP server is a switch in the "+" of any live
+chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
+
 ## What is open
 
 - **Collaborators, waiting on iroh.** The owner ran it between real machines on 2026-10-17 (three
@@ -180,6 +188,7 @@ the desktop app since #40. Every full load, on the desktop, the web and the PWA,
 | [`plans/chat-experience.md`](plans/chat-experience.md) | Built (2026-10-15); CHAT-19 (reading typography) closed by the owner on 2026-10-16, kept at 14px / 1.65 |
 | [`plans/claude-only-fork.md`](plans/claude-only-fork.md) | Built (2026-10-15): stages S (strip), A (`@claudio/accounts`) and R (rename) |
 | [`plans/models-per-account.md`](plans/models-per-account.md) | Built (2026-10-15): the model list per account from `initialize`, and the `account.model-fallback` point (ships off) |
+| [`plans/owner-report-fixes.md`](plans/owner-report-fixes.md) | Built (2026-10-19): the six changes, each its own pull request; the browser suite and `/ui-review` run on the merged branch, see its [Outcome](plans/owner-report-fixes.md#outcome) |
 | [`plans/container-polish.md`](plans/container-polish.md) | In PR #46 (built 2026-10-18; the image was built and run, CI and the owner's checks pending): in-app Claude sign-in (paste-code `auth login`, no OAuth token; `get_usage` only confirms, a key is checked free with `models.list`, an environment OAuth token reads **Not confirmed**), the `default` account only when it exists, a first-run owner token and the terminal default `any` in a container, the 421 page and claim, in-app updates inside the container (launcher, signed overlay, CLI install), the setup assistant's layout and the image's pins; its updates were extended to the desktop in [phase 2](plans/unified-updates.md). See [Outcome](plans/container-polish.md#outcome), [updates.md](updates.md) and the decisions [claude-sign-in-paste-code](decisions/claude-sign-in-paste-code.md), [container-owner-token](decisions/container-owner-token.md), [container-in-app-updates](decisions/container-in-app-updates.md) |
 | [`plans/sdk-driver-improvements.md`](plans/sdk-driver-improvements.md) | Built (2026-10-15): D1–D3 and point 9, connectors parts A and B (`POST /connectors/:id/authorise`) |
 | [`plans/project-docs.md`](plans/project-docs.md) | Built (2026-10-15) |

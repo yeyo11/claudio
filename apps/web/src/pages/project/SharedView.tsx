@@ -175,11 +175,19 @@ export function SyncLine({ sync }: { sync: SyncState }) {
   const { t } = useTranslation('collaborators');
   const ago = sync.lastSyncedAt ? timeAgo(sync.lastSyncedAt) : null;
   return (
-    <span className="inline-form small">
+    <span className="inline-form small sync-line">
       {sync.state === 'live' && <Tag tone="ok">{t('shared.sync.live')}</Tag>}
       {sync.state === 'synced' && <span className="muted">{ago ? t('shared.sync.synced', { ago }) : t('shared.sync.pending')}</span>}
       {sync.state === 'offline' && <Tag tone="idle">{ago ? t('shared.sync.offline', { ago }) : t('shared.sync.offlineNever')}</Tag>}
       {sync.state === 'pending' && <span className="muted">{t('shared.sync.pending')}</span>}
+      {sync.state === 'paused' && (
+        <>
+          <Tag tone="warn">{t('shared.sync.paused')}</Tag>
+          <Link to="/collaborators" className="link-btn">
+            {t('shared.sync.turnOn')}
+          </Link>
+        </>
+      )}
       {sync.error && <Tag tone="bad">{t('shared.sync.failed')}</Tag>}
     </span>
   );

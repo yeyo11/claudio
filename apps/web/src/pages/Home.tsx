@@ -21,6 +21,7 @@ import { PhoneAssistantRow, PhoneHead, PhoneViewHead, ProjectHead } from './home
 import { useProjectResourceCount } from './home/resources/data';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
 import { useSharedWith } from './project/shared-data';
+import { SyncTabIcon } from './project/SyncTabIcon';
 
 // The dashboard is what most visits are for; the project's other tabs load when opened
 const ProjectSettings = lazy(() => import('./home/ProjectSettings').then((m) => ({ default: m.ProjectSettings })));
@@ -285,6 +286,7 @@ function ProjectPage({ project }: { project: Project }) {
               <>
                 <Icon {...ICON_SM} />
                 {t(`tabs.${id}`)}
+                {id === 'shared' && <SyncTabIcon projects={shared.projects} />}
                 {count !== undefined && <TabCount id={id} count={count} />}
               </>
             );

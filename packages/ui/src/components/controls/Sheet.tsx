@@ -25,6 +25,7 @@ export function Sheet({
   side = 'auto',
   className = '',
   closeLabel,
+  returnFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,6 +39,8 @@ export function Sheet({
   className?: string;
   /** Names what the close button closes ("Close the log") where a bare "Close" would be vague */
   closeLabel?: string;
+  /** Where focus goes back when what opened the sheet is gone (a link inside a popover that closed) */
+  returnFocus?: () => HTMLElement | null;
 }) {
   const { t } = useTranslation('primitives');
   const narrow = useMediaQuery(NARROW);
@@ -84,8 +87,9 @@ export function Sheet({
             content.current?.focus({ preventScroll: true });
           }}
           onCloseAutoFocus={(event) => {
-            const back = opener.current;
+            const opened = opener.current;
             opener.current = null;
+            const back = opened?.isConnected && opened !== document.body ? opened : (returnFocus?.() ?? null);
             if (!back?.isConnected) return;
             event.preventDefault();
             back.focus();

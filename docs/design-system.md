@@ -228,7 +228,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kpi` | `.usage-tile`, `.usage-hero` (Usage on a phone), the widget headline figures | big-number tiles. A phone shows one figure, not a row of tiles |
 | `.bar`, `.segbar`, `.ring` | `.meter-*`, `.gauge*`, `.progress`, `.ring*`, `.ctx-bar`, `.slice-*`, `.board-task-fill` | see the thresholds below |
 | `.list-row`, `.sel` | `.crow`, `.list-row`, `.master-item`, `.now-row`, `.widget-row`, `.account-row`, `.rotation-cell`, `.settings-cell` | clickable rows. The selected row gets an accent inset. A cell that opens a screen of its own ends in a chevron |
-| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone |
+| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |
@@ -799,6 +799,20 @@ border of its own, the composer's card is the field. It grows with the text up t
   adds the link "Cómo autorizarlo" in `--accent`. The row ends with a `Switch`. A server switched off
   dims its name and icon to `--text-faint` (`.composer-server.is-off`). One sentence in `.small.muted`
   under the list says the switch also applies to new chats in the folder.
+- **Claudio's own server** (`.composer-servers-claudio`) comes first in the Servers panel, apart from
+  the CLI's list by a hairline, wherever the chat offers it (never the assistant's chat, never another
+  agent's): `BrandMark` at 16 px, "Claudio" in `--fs-body` `--fw-strong`
+  (`.composer-servers-claudio-name`), a one-line summary in `.small.muted`, then the status line
+  (`.composer-servers-claudio-status`): the tool count and a sentence-case `.tag` ("Conectado" ok,
+  "Conectando" muted with the braille spinner, "Falló" bad). The status line keeps a badge's height
+  while the switch is off, so switching it on shifts nothing. Under the row, only when the chat runs
+  with permission checks off, a `--warn` line with `TriangleAlert` (`.composer-servers-claudio-warn`).
+  Every summary of the panel (the "+" menu's Servers row, the status line's MCP chip and the options
+  popover) counts Claudio's row as one switch, on when it is on, so they never disagree with the panel.
+- **The options popover's link rows.** The live chat's popover shows the preset and the MCP servers as
+  `.link-btn` rows ("Sin preset · Ver reglas ›", "2 de 3 activos ›") that open the inspector's
+  Environment tab and the Servers panel; each is at least 24 px tall on a desktop and 44 px on a
+  coarse pointer. Closing the panel opened this way gives focus back to the status line's button.
 - Nothing in the menu moves: it is configuration, not something running.
 
 ### The streaming answer, the composer's place, and one composer everywhere
@@ -901,7 +915,11 @@ the classes are the last section of `claudio-ds.css`.
   headed by a section label in sans (`--fs-small`, `--fw-strong`; `.call-label`: "Llamada", "Resultado", or "Cambio" for an edit),
   and a quiet `.call-raw` ("En bruto") at the end that swaps the lens for the raw input and text. A
   `Bash` shows its command as shell code, its stdout as a terminal block (`.call-term`) and its stderr
-  as its own block headed "Errores" (`.call-stderr`); a `Read` shows the file as code from its start
+  as its own block, headed "Errores" in `--bad` (`.call-stderr`) only when the call failed and
+  "Salida de error" in neutral colours (`.call-stderr-neutral`) otherwise; the CLI's "Shell cwd was
+  reset" notice is not stderr but a muted `.call-note` line under the output ("La shell volvió a
+  {{path}}": the sentence in sans, only the path in mono, cut in the middle, its full text in a
+  `Tooltip` that wraps it inside the bubble), and the output never repeats the stderr tail; a `Read` shows the file as code from its start
   line; an `Edit` or `Write` shows the unified diff the CLI recorded, through the comparator (§5);
   `Grep` and `Glob` a list of paths (`.call-files`); `WebFetch` and `WebSearch` the answer as Markdown;
   an `Agent` its kind, model and "en segundo plano" as badges, its prompt behind a fold, and its
@@ -2689,8 +2707,15 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   `shared-chat`, `shared-board`, `shared-journal`, `shared-artifacts`, `shared-project`,
   `project-sharing`) have no styles; they reuse the chat list, transcript, journal, master-detail,
   documents and board styles.
-- The **Shared** tab sits after Memory in `PROJECT_VIEWS` and has its own gate (Collaborators on and a
-  teammate's project matching). A running chat there has the live rail and braille spinner, never
+- The **Shared** tab sits after Memory in `PROJECT_VIEWS` and stays while the install holds a
+  teammate's copy matching the project, Collaborators on or off. After its word it carries a 14 px
+  sync icon (`.tab-sync`, a `.collab-tone`) for the worst state of its copies: `CircleCheck` ok,
+  `RefreshCw` neutral while a pull is pending, `Moon` idle while the owner is away, `Pause` warn while
+  Collaborators is off, `TriangleAlert` bad when the last sync failed. The icon keeps its tone over
+  the tab's grey, never spins (a sync is not an agent working), and says its state in a `Tooltip` and
+  its label. The copy's sync line (`.sync-line`) shows, while paused, a warn "En pausa" tag and the
+  link "Activar Colaboradores" on one line (24 px tall; 44 px on a coarse pointer).
+- A running chat there has the live rail and braille spinner, never
   the energy border. The transcript is `Transcript` with `readOnly`, which drops the message menu,
   edit chips, subagent and branch links, and the composer's place takes `ReadOnlyBar`.
 - A shared project that is not cloned here shows "Not cloned here", **Link to a local project** and

@@ -17,7 +17,7 @@ import { Illustration } from '@claudio/ui/components/illustrations';
 import { useProjectScope } from '../lib/project-scope';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ErrorBox, Field, Segmented, usePageTitle } from '@claudio/ui/components/ui';
-import { PERMISSION_MODES, useModelOptions } from '../components/ui';
+import { ModelCombobox, PERMISSION_MODES } from '../components/ui';
 import { EffortField } from '../components/EffortPicker';
 import { useEffortUnavailable } from '../lib/provider-status';
 import { CLAUDE_CODE_ID } from '../lib/provider-state';
@@ -74,7 +74,6 @@ export function NewChat() {
   const hasMcp = !provider || provider.capabilities.includes('mcp');
   const effortUnavailable = useEffortUnavailable(CLAUDE_CODE_ID);
   const agent = provider?.label ?? tc('agent.generic');
-  const modelOptions = useModelOptions();
   const modes: readonly PermissionMode[] = provider?.permissionModes ?? PERMISSION_MODES;
   const known = (projects.data ?? []).find((p) => p.path === cwd.trim());
   // The servers offered are the ones the chat will see from its directory
@@ -92,6 +91,7 @@ export function NewChat() {
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
       if (tools.mcp) opts.mcp = tools.mcp;
+      if (tools.claudioMcp) opts.claudioMcp = true;
       return api.createChat(opts);
     },
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
@@ -151,7 +151,7 @@ export function NewChat() {
             />
           </Field>
           <Field label={t('new.model')} hint={t('new.modelHint')}>
-            <Combobox aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} options={modelOptions} />
+            <ModelCombobox account={account || null} aria-label={t('new.model')} placeholder={t('new.modelPlaceholder')} value={model} onChange={setModel} />
           </Field>
           <EffortField value={effort} onChange={setEffort} model={model} use="chat" unavailable={effortUnavailable} />
           <Field label={t('new.permissionMode')} hint={t('new.permissionModeHint')}>

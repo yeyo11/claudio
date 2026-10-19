@@ -33,6 +33,7 @@ import type {
   Overview,
   Account,
   AccountInUse,
+  AuthStatus,
   AccountsRefreshResult,
   AccountsSnapshot,
   PermissionDecision,
@@ -156,7 +157,7 @@ import { bareImportPath, coreConfigOf, normalizeRemote, RepoIndex, RepoPlaces, t
 import { lanesRoot } from './evals/lanes.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
-import { claudioMcp, claudioMcpSync, collabMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
+import { claudioMcp, claudioMcpSync, collabMcpSync, dynamicClaudioServer, assistantChatOptions, type ClaudioMcpIdentity, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
 import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
@@ -641,6 +642,8 @@ export class Core {
   private systemCache: { at: number; gen: number; value: SystemRead } | null = null;
   private systemPending: { gen: number; promise: Promise<SystemRead> } | null = null;
   private systemGen = 0;
+  /** The CLI version the last system read saw, so a change reads the model lists again */
+  private cliVersionSeen: string | null = null;
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
@@ -656,6 +659,8 @@ export class Core {
       dataDir: config.dataDir,
       defaultDir: config.configDir,
       claude: () => config.claudeBin,
+      // The boot read of the models list and the usage reads end with the core, like every probe
+      onSpawn: (child) => this.children.add(child),
       // What the CLI will see, the vault's credential included: a login with no file is still one
       defaultEnvCredential: () => {
         const env = childEnv('claude-code');
@@ -813,6 +818,7 @@ export class Core {
     this.runtime.permissions = this.permissions;
     this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
     this.runtime.agentReadsLaunch = (chat) => this.agentReadsLaunch(chat);
+    this.runtime.claudioServer = (chat) => this.claudioServer(chat);
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
@@ -1710,9 +1716,21 @@ export class Core {
 
   private withUptime(value: SystemRead): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
-    // half a minute, while this is a file the CLI writes, cached by its own mtime
+    // half a minute, while the models are the default account's stored `initialize` list
     // The account in use moves with rotation and sign-ins, faster than the system read is redone
-    return { ...value, auth: { ...value.auth, inUse: this.accountInUse() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    return { ...value, auth: { ...value.auth, ...this.accountInUseRead() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+  }
+
+  /**
+   * The CLI changed under the running server (an in-app update, a package upgrade): what `/model`
+   * offers may have changed with it, so every account's list is read again. The boot read is the
+   * accounts watch's, so the first version seen only sets the mark.
+   */
+  private noteCliVersion(version: string | null): void {
+    if (!version || version === this.cliVersionSeen) return;
+    const changed = this.cliVersionSeen !== null;
+    this.cliVersionSeen = version;
+    if (changed) void this.accounts.warmModels({ checkVersion: true }).catch(() => undefined);
   }
 
   private readSystem(join = true): Promise<SystemRead> {
@@ -1739,6 +1757,7 @@ export class Core {
       // A read that finished late never replaces a newer one
       if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) {
         this.systemCache = { at, gen, value };
+        this.noteCliVersion(cli.version);
         // The reading is already taken: the provider status is derived from it, not from a second spawn
         await this.providers.refresh({ only: ['claude-code'], claude: { cli, auth } }).catch(() => undefined);
       }
@@ -2094,15 +2113,29 @@ export class Core {
   }
 
   /**
-   * The reads of teammates' copies for a process of a chat that is not the assistant: offered when
-   * its project opted in and its mode asks before running commands, decided again at every process
-   * and checked again by the API at every call (docs/plans/collaborators-agent-access.md).
+   * Claudio's own server for a process of a chat that is not the assistant. The reads of teammates'
+   * copies are offered when its project opted in and its mode asks before running commands, decided
+   * again at every process and checked again by the API at every call
+   * (docs/plans/collaborators-agent-access.md); all of Claudio's tools when the person switched them
+   * on for the chat, which then obey the chat's permission mode.
    */
-  private agentReadsLaunch(chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null }): CollabMcpLaunch | null {
-    const projectId = this.projectOf(resolve(chat.dir)).project?.id ?? null;
-    const decision = this.collaborators.agentReadScope({ assistant: false, projectId, permissionMode: chat.permissionMode });
-    if (!('scope' in decision)) return null;
-    return collabMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION }, chat.mcpConfig);
+  private agentReadsLaunch(chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null; claudioMcp: boolean }): CollabMcpLaunch | null {
+    const toolsets = this.chatToolsets(chat.dir, chat.permissionMode, chat.claudioMcp);
+    if (!toolsets.length) return null;
+    return collabMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION, toolsets }, chat.mcpConfig);
+  }
+
+  /** The same server for a live process, handed over with `mcp_set_servers`; null when it gets none. */
+  private claudioServer(chat: { dir: string; permissionMode: PermissionMode; claudio: boolean } & ClaudioMcpIdentity): Record<string, unknown> | null {
+    const toolsets = this.chatToolsets(chat.dir, chat.permissionMode, chat.claudio);
+    if (!toolsets.length) return null;
+    return dynamicClaudioServer({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION, toolsets }, { chatId: chat.chatId, token: chat.token });
+  }
+
+  private chatToolsets(dir: string, permissionMode: PermissionMode, claudio: boolean): Array<'claudio' | 'collab'> {
+    const projectId = this.projectOf(resolve(dir)).project?.id ?? null;
+    const reads = 'scope' in this.collaborators.agentReadScope({ assistant: false, projectId, permissionMode });
+    return [...(claudio ? (['claudio'] as const) : []), ...(reads ? (['collab'] as const) : [])];
   }
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {
@@ -3577,6 +3610,15 @@ export class Core {
     return { accounts: this.accounts.listed(), failed };
   }
 
+  /** `inUse` with, when it is null, why: no credential at all, or every signed-in account at its limit */
+  private accountInUseRead(): Pick<AuthStatus, 'inUse' | 'inUseReason'> {
+    const inUse = this.accountInUse();
+    if (inUse) return { inUse, inUseReason: null };
+    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
+    const signedIn = this.accounts.list().some((a) => a.enabled && a.signedIn && !(ghost && a.id === DEFAULT_ID));
+    return { inUse: null, inUseReason: signedIn ? 'limit' : 'signed-out' };
+  }
+
   /** The account new work would start on, as Settings and the status bar name it; null when none can take work */
   private accountInUse(): AccountInUse | null {
     // The CLI's own login is assumed signed in until read: with no credential at all it is a ghost, not an account
@@ -3632,16 +3674,20 @@ export class Core {
         if (account.kind === 'login' && !account.signedIn) void this.accounts.refresh(account.id).catch(() => undefined);
       }
     };
-    const pass = (): void => {
+    // The CLI's `initialize` list is the only model list (no turn, no tokens). The first pass reads it
+    // at boot, in the background, after asking the CLI its version, so a list read under an older CLI
+    // is read again; the later ones read it for an account signed in since, or one whose read failed
+    const pass = (checkVersion = false): void => {
       try {
         refresh();
         identify();
       } catch {
         // No cache is no reading, and an account that cannot be read stays as it was
       }
+      void this.accounts.warmModels({ checkVersion }).catch(() => undefined);
     };
-    pass();
-    this.accountsTimer = setInterval(pass, ACCOUNTS_CACHE_MS);
+    pass(true);
+    this.accountsTimer = setInterval(() => pass(), ACCOUNTS_CACHE_MS);
     this.accountsTimer.unref();
   }
 

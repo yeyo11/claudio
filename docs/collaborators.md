@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T22:32:57.97745428Z
-updated_at: 2026-10-17T18:00:00Z
+updated_at: 2026-10-19T18:00:00Z
 tags:
     - collaborators
     - peer-to-peer
@@ -76,7 +76,11 @@ nobody's quota is spent: serving a copy never runs Claude.
 | `/collaborators/shared/:owner/:shareId` | the read-only view of a shared project not cloned here: its name, owner, share key and sync state, the same sub-tabs, and **Link to a local project** |
 | The bell | a join request waiting for the owner's answer, until it is answered |
 
-The Shared tab only appears when Collaborators is on and a teammate's project matches this one. A
+The Shared tab appears while a teammate's project matches this one, whether or not Collaborators is on:
+the copies stay readable, so the tab stays. Only an unavailable module hides it. While Collaborators
+is off every copy reads `paused` (the client is stopped, which is not the owner being away), and the
+tab's icon shows the worst state among the project's copies: failed, paused, owner away, syncing,
+synced. Inside the view the paused line links to Collaborators to turn it back on. A
 teammate's chats never mix into the person's own chat list, counts or badges. A chat that is running
 on the teammate's machine shows the live rail and the braille spinner, since an agent is working
 there now. A chat between turns is not running, even though its process waits for the next message:

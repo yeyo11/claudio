@@ -2,7 +2,7 @@ import type { Chat, ChatMessageReceipt, ChatPendingAttachment } from '@claudio/s
 import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, ArrowUp, GitFork, Play, Square } from 'lucide-react';
-import { Fragment, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AttachButton, AttachmentTray, useAttachments, type AttachmentsState } from '../components/Attachments';
@@ -15,6 +15,8 @@ import { chatKeys, useChatUi, type StartChoices } from '../lib/context';
 import { modeLabel } from '../lib/wire-words';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { ComposerMenu } from './ComposerMenu';
+import { serversOn, useLiveServers } from './ServersPanel';
+import { formatNumber } from '@claudio/ui/lib/format';
 import { draftKey, readDraft, writeDraft } from './drafts';
 import { RichEditor, type RichEditorHandle, type RichEditorProps, type SubmitKey } from './editor/RichEditor';
 import { historyStep, type HistoryIndex } from './history';
@@ -68,9 +70,17 @@ function useStatusWords(chat: Chat, kind: ComposerKind, choices: StartChoices): 
       : presetChoice !== undefined
         ? presetChoice
         : (chat.tools?.preset?.name ?? t('status.noPreset'));
+  const live = useLiveServers(chat.id, kind === 'send' && Boolean(chat.execution));
   const mcpChoice = starting ? choices.mcp : undefined;
   const servers = mcpChoice === undefined ? (chat.tools?.mcp ?? null) : mcpChoice;
-  const mcp = servers ? t('status.mcpChosen', { count: servers.servers.length }) : t('status.mcpDefault');
+  // On a running chat the chip counts what the "+" panel has switched since the start; the panel's own query
+  const liveCount = serversOn(live.data);
+  const mcp =
+    kind === 'send' && liveCount
+      ? t('status.mcpLive', { on: formatNumber(liveCount.on), total: formatNumber(liveCount.total) })
+      : servers
+        ? t('status.mcpChosen', { count: servers.servers.length })
+        : t('status.mcpDefault');
   return [model, mode, preset, mcp];
 }
 
@@ -87,6 +97,9 @@ function StatusLine({
   onChoices,
   open,
   setOpen,
+  buttonRef,
+  onOpenServers,
+  onOpenEnvironment,
 }: {
   chat: Chat;
   kind: ComposerKind;
@@ -95,6 +108,10 @@ function StatusLine({
   /** Held by the composer: the "+" menu opens it to choose the servers of a resume or a fork */
   open: boolean;
   setOpen: (open: boolean) => void;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+  /** The popover's links: each closes it and opens the real list */
+  onOpenServers: () => void;
+  onOpenEnvironment?: () => void;
 }) {
   const { t } = useTranslation('chat');
   const { slots } = useChatUi();
@@ -105,6 +122,7 @@ function StatusLine({
   const changed = kind !== 'send' && Object.values(choices).some((v) => v !== undefined);
   const trigger = (
     <button
+      ref={buttonRef}
       type="button"
       className={`composer-status ${changed ? 'is-changed' : ''}`.trim()}
       aria-expanded={open}
@@ -116,7 +134,22 @@ function StatusLine({
   return (
     <OptionsPanel trigger={trigger} title={title} open={open} onOpenChange={setOpen}>
       <Suspense fallback={null}>
-        {kind === 'send' ? <LiveOptions chat={chat} /> : <StartOptions chat={chat} value={choices} onChange={onChoices} forking={kind === 'fork'} />}
+        {kind === 'send' ? (
+          <LiveOptions
+            chat={chat}
+            onOpenServers={() => {
+              setOpen(false);
+              onOpenServers();
+            }}
+            onOpenEnvironment={
+              onOpenEnvironment &&
+              (() => {
+                setOpen(false);
+                onOpenEnvironment();
+              })
+            }
+          />
+        ) : <StartOptions chat={chat} value={choices} onChange={onChoices} forking={kind === 'fork'} />}
       </Suspense>
     </OptionsPanel>
   );
@@ -176,6 +209,7 @@ export function Composer({
   history = [],
   onSending,
   writing = false,
+  onOpenEnvironment,
 }: {
   chat: Chat;
   kind: ComposerKind;
@@ -194,6 +228,8 @@ export function Composer({
   onSending?: (message: { id: string | null; text: string; attachments: ChatPendingAttachment[] }) => (() => void) | void;
   /** The answer's text is streaming: the text is the live surface then, so the box drops its energy border */
   writing?: boolean;
+  /** Opens the app's Environment tab, where the tool preset's rules are: the options popover links to it */
+  onOpenEnvironment?: () => void;
 }) {
   const { t } = useTranslation('chat');
   const queryClient = useQueryClient();
@@ -207,6 +243,10 @@ export function Composer({
   const [recalled, setRecalled] = useState<HistoryIndex>(null);
   const [choices, setChoices] = useState<StartChoices>({});
   const [options, setOptions] = useState(false);
+  const [serversRequested, setServersRequested] = useState(false);
+  // The status line's button: the popover's Servers link is gone once the panel closes, so focus returns here
+  const statusButton = useRef<HTMLButtonElement>(null);
+  const clearServersRequest = useCallback(() => setServersRequested(false), []);
   const files = useAttachments();
   const editor = useRef<RichEditorHandle>(null);
   const working = chat.state === 'working';
@@ -380,6 +420,9 @@ export function Composer({
             hasCommands={(chat.environment?.slashCommands?.length ?? 0) > 0}
             onCommands={startCommand}
             onChooseTools={() => setOptions(true)}
+            requestServers={serversRequested}
+            onServersRequested={clearServersRequest}
+            returnFocus={() => statusButton.current}
           />
         }
         editorProps={{
@@ -406,7 +449,7 @@ export function Composer({
           )
         }
         send={sendable ? { name: sendName, icon: <Icon {...ICON_SM} />, disabled: empty || files.uploading || submit.isPending } : null}
-        status={<StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} open={options} setOpen={setOptions} />}
+        status={<StatusLine chat={chat} kind={kind} choices={choices} onChoices={setChoices} open={options} setOpen={setOptions} buttonRef={statusButton} onOpenServers={() => setServersRequested(true)} onOpenEnvironment={onOpenEnvironment} />}
         error={<ErrorBox error={submit.error} title={kind === 'send' ? t('runView.notSent') : kind === 'resume' ? t('composer.couldNotResume') : t('composer.couldNotFork')} />}
       />
     </AgentScope>
