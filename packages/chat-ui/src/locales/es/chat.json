@@ -138,7 +138,7 @@
     "claudioRefused": "El CLI no pudo iniciarlo:",
     "claudioBypass": "Con «Sin comprobar permisos» sus cambios se aplican sin preguntar",
     "claudioStart": "Servidor de Claudio",
-    "claudioStartHint": "Todas sus herramientas, con el modo de permisos del chat. Sigue activo al reanudar el chat."
+    "claudioStartHint": "Activado, el chat arranca con todas las herramientas de Claudio, con su modo de permisos."
   },
   "controls": {
     "permissionModeNew": "Modo de permisos de la nueva ejecución",

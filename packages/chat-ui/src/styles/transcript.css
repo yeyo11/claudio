@@ -562,13 +562,14 @@
 
 /* The CLI's note about the shell: a sentence, with only the path a literal. Two classes, so the
    sentence wins over `.call-meta`'s mono, which comes later in this file */
+/* The family only: the shorthand would reset the weight and line height the small size carries */
 .call-meta.call-note {
-  font: var(--fs-small) var(--sans);
+  font-family: var(--sans);
 }
 
 .call-meta.call-note code {
   /* literal: a path */
-  font: var(--fs-small) var(--mono);
+  font-family: var(--mono);
 }
 
 /* Stderr of a call that did not fail (progress, warnings): the terminal's own colours, never red */

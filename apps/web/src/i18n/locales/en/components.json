@@ -46,7 +46,7 @@
     "checkUsage": "Check usage in Accounts",
     "rotatesAtLimit": "Accounts rotate at the limit",
     "notCheckedShort": "Not checked",
-    "willRetry": "Couldn't check the CLI; it will retry",
+    "willRetry": "The CLI did not answer; Claudio will ask again",
     "openClaudeSettings": "Open Claude Code settings"
   },
   "editors": {

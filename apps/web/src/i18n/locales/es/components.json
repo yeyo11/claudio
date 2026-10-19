@@ -46,7 +46,7 @@
     "checkUsage": "Revisa el uso en Cuentas",
     "rotatesAtLimit": "Las cuentas cambian solas al llegar al límite",
     "notCheckedShort": "Sin comprobar",
-    "willRetry": "No se ha podido comprobar el CLI; se reintentará",
+    "willRetry": "El CLI no ha respondido; Claudio volverá a preguntar",
     "openClaudeSettings": "Abre los ajustes de Claude Code"
   },
   "editors": {

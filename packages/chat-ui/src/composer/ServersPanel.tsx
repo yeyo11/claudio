@@ -118,7 +118,7 @@ function LiveServers({ chat }: { chat: Chat }) {
                 <div className="composer-server-body">
                   <span className="composer-server-name ellipsis">{label}</span>
                   <span className="composer-server-meta small">
-                    <Tag tone={TONE[server.status]}>{server.status}</Tag>
+                    <Tag tone={TONE[server.status]}>{t(`composerMenu.claudioStatus.${server.status}`)}</Tag>
                     {connector && <span className="muted">{t('composerMenu.connector')}</span>}
                     {server.tools.length > 0 && <span className="muted tnum">{t('composerMenu.tools', { count: server.tools.length })}</span>}
                     {server.status === 'needs-auth' && (

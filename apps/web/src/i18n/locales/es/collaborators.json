@@ -283,7 +283,7 @@
     "tabSync": {
       "synced": "Sincronizado",
       "syncedAgo": "Sincronizado · {{ago}}",
-      "pending": "Sincronizando…",
+      "pending": "Aún sin sincronizar",
       "offline": "El propietario no está conectado",
       "paused": "En pausa: Colaboradores está desactivado",
       "error": "Falló la última sincronización"

@@ -245,6 +245,9 @@
   color: var(--bad);
 }
 .combobox-status .link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   margin-left: auto;
   flex: none;
 }

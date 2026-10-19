@@ -138,7 +138,7 @@
     "claudioRefused": "The CLI couldn't start it:",
     "claudioBypass": "With permission checks off, its changes apply without asking",
     "claudioStart": "Claudio's server",
-    "claudioStartHint": "All of its tools, under the chat’s permission mode. It stays on when the chat resumes."
+    "claudioStartHint": "On, the chat starts with all of Claudio’s tools, under its permission mode."
   },
   "controls": {
     "permissionModeNew": "Permission mode for the new execution",

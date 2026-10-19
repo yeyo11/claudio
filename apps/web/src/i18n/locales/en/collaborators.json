@@ -283,7 +283,7 @@
     "tabSync": {
       "synced": "Synced",
       "syncedAgo": "Synced · {{ago}}",
-      "pending": "Syncing…",
+      "pending": "Not synced yet",
       "offline": "The owner is away",
       "paused": "Paused: Collaborators is off",
       "error": "The last sync failed"
