@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-19T14:00:00Z
-updated_at: 2026-10-19T14:00:00Z
+updated_at: 2026-10-19T18:00:00Z
 tags:
     - plan
     - transcript
@@ -491,6 +491,42 @@ Each adds only its own field. The integrator regenerates the schemas once after 
 
 None. On 2026-10-19 the owner chose option A for the popover, the orchestration for the fixes,
 and all of Claudio's tools behind one switch for D6.
+
+## Outcome
+
+Built on 2026-10-19 by the nine tasks of the orchestration, each on its own branch and merged in
+dependency order. Each of the six changes ships as its own pull request; the pull request numbers
+are not known when this is written, so [status.md](../status.md) points at this plan. The browser
+suite and `/ui-review` run once, on the merged branch.
+
+- **D1, `shell-notice`.** `normalize.ts` lifts `Shell cwd was reset to …` out of stderr into
+  `cwdReset`; `BashLens` draws it as a muted note and shows stderr only when something is left:
+  "Errors" in `--bad` for a failed call, "Standard error" in neutral colours otherwise. One thing
+  differs from the plan: `ToolBody` renders a failed call through `ErrorResult` and gives the lens no
+  result, so the "Errors" branch is not reached today.
+- **D2, `models`.** The `initialize` list is the only list: no aliases, no `~/.claude.json` read, no
+  guessed labels. It is read at boot and on a CLI version change, per chat account, deduped on
+  `value` only, with loading and failed-read rows (the Retry works from the keyboard). Left open: a
+  keyboard user is not told Enter retries, and the failed-read message is announced only once the
+  list opens.
+- **D3, `status-bar`.** `SystemInfo.auth.inUseReason` and `connectionOf()` tell signed out, near the
+  limit, limit reached and could-not-check apart. One word differs from the plan: the reset time is
+  `{{time}}` and not "a las {{time}}", because it can be a date plus an hour. Provider states the plan
+  did not cover (`incompatible`, `used-before`, `not-installed`) show the provider's own word.
+  `ProviderCard` in the More sheet still builds its own limit word.
+- **D4, `chat-options`.** The chip and the popover row read the live MCP count; the two rows lead to
+  the Servers panel and the Environment tab. The plan names `btn-link`, which does not exist, so the
+  rows use `.link-btn`. `widgets.quickStart.mcpDefault` in `home.json` still has the old wording.
+  The strings snapshot fixture (`apps/web/test/fixtures/strings.json`) and the two other web fixtures
+  are regenerated after the merge, not by a task.
+- **D5, `shared-tab`.** The tab stays while there is shared data, with a worst-state icon and the new
+  `paused` state computed where the sync client is stopped.
+- **D6, `claudio-mcp`.** `PUT /chats/:id/claudio-mcp`, `mcp_set_servers` through the driver, the
+  choice kept in `ChatToolConfig.claudioMcp` across resumes and respawns, the Claudio row first in
+  the Servers panel and a switch in the start options. The fake CLI learned `mcp_set_servers`.
+- **`docs`.** [cli-surfaces.md](../cli-surfaces.md), [accounts.md](../accounts.md#models), a dated
+  note in [models-per-account.md](models-per-account.md), [collaborators.md](../collaborators.md)
+  and [status.md](../status.md).
 
 ## Related
 
