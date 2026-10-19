@@ -24,6 +24,7 @@ export const chatClient: ChatClient = {
   taskOutput: api.taskOutput,
   chatMcp: api.chatMcp,
   toggleChatMcp: api.toggleChatMcp,
+  setChatClaudioMcp: api.setChatClaudioMcp,
   accounts: () => api.accounts(),
   accountModels: (id) => api.accountModels(id),
   switchChatAccount: api.switchChatAccount,

@@ -11,6 +11,7 @@ import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { api, keys } from '../../api';
 import type { StartChoices } from '@claudio/chat-ui/lib/context';
+import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 
 /*
  * The controls built on Radix selects, in one module so the chat page can load them lazily.
@@ -136,7 +137,7 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
         inherited={last?.effort}
         unavailable={unavailable}
       />
-      <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} forking={forking} />
+      <ChatToolsPicker value={value} onChange={(tools) => onChange({ ...value, ...tools })} scope={{ projectId: chat.project?.id }} current={chat.tools ?? null} forking={forking} offerClaudio={!chat.claudioAssistant && chat.provider === CLAUDE_CODE_ID} />
     </div>
   );
 }

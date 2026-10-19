@@ -66,6 +66,7 @@ import type {
   ChatContextUsage,
   ChatMcpServers,
   ChatMcpToggle,
+  ChatClaudioMcpToggle,
   SwitchChatAccountRequest,
   SwitchChatAccountResponse,
   ChatSessionNote,
@@ -627,6 +628,8 @@ export const api = {
   chatMcp: (id: string) => request<ChatMcpServers>(`/chats/${enc(id)}/mcp`),
   toggleChatMcp: (id: string, name: string, enabled: boolean) =>
     request<ChatMcpServers>(`/chats/${enc(id)}/mcp/${enc(name)}`, { method: 'PUT', body: { enabled } satisfies ChatMcpToggle }),
+  setChatClaudioMcp: (id: string, enabled: boolean) =>
+    request<ChatMcpServers>(`/chats/${enc(id)}/claudio-mcp`, { method: 'PUT', body: { enabled } satisfies ChatClaudioMcpToggle }),
   switchChatAccount: (id: string, accountId: string) =>
     request<SwitchChatAccountResponse>(`/chats/${enc(id)}/account`, { method: 'POST', body: { accountId } satisfies SwitchChatAccountRequest }),
   deleteChat: (id: string) => request<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),

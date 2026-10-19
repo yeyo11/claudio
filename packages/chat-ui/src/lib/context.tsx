@@ -28,6 +28,8 @@ export interface StartChoices {
   toolPreset?: string | null;
   /** `null` goes back to the servers the CLI loads on its own, an object picks exactly those */
   mcp?: McpSelection | null;
+  /** Claudio's own MCP server for the chat; absent keeps what it has */
+  claudioMcp?: boolean;
   permissionMode?: PermissionMode;
   model?: string;
 }
@@ -50,6 +52,8 @@ export interface ChatClient {
   chatMcp(id: string): Promise<ChatMcpServers>;
   /** Switches one of them on or off in the running process */
   toggleChatMcp(id: string, name: string, enabled: boolean): Promise<ChatMcpServers>;
+  /** Switches Claudio's own MCP server in the running process, and keeps the choice on the chat */
+  setChatClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers>;
   /** The accounts a chat could run on */
   accounts(): Promise<Account[]>;
   /** The models one account offers */
