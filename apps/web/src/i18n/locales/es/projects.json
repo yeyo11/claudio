@@ -26,13 +26,27 @@
     "chats_other": "{{n}} chats",
     "last": " · última vez {{ago}}",
     "importNamed": "Importar {{name}}",
-    "firstTitle": "Empieza por los directorios en los que ya trabajas",
-    "firstBody": "Claude Code se ha ejecutado sobre todo en estos directorios. Importa los que sean proyectos: sus chats se unen a ellos y el resto se queda al margen. Puedes importar cualquier otro directorio a mano.",
+    "firstTitle": "Empieza por los repositorios en los que ya trabajas",
+    "firstBody": "Claude Code se ha ejecutado sobre todo en estos repositorios. Importa los que sean proyectos: sus chats y worktrees se unen a ellos.",
     "moreTitle_one": "{{n}} directorio más tiene chats",
     "moreTitle_other": "{{n}} directorios más tienen chats",
     "moreBody": "Impórtalos para agruparlos, verlos en Uso y lanzar chats desde aquí.",
     "review": "Revisar",
-    "hide": "Ocultar"
+    "collapse": "Ver menos",
+    "across_one": "{{chats}} en {{n}} worktree",
+    "across_other": "{{chats}} en {{n}} worktrees",
+    "otherClone": "Otro clon de «{{name}}»",
+    "hide": "Ocultar sugerencia",
+    "hideNamed": "Ocultar {{name}}",
+    "hidden": "Sugerencia oculta",
+    "undo": "Deshacer",
+    "hideFailed": "No se ha podido ocultar la sugerencia",
+    "unhideFailed": "No se ha podido recuperar la sugerencia",
+    "others": "Otros directorios · {{n}}",
+    "othersBody": "No son repositorios git. Impórtalos solo si son proyectos.",
+    "moreRepos_one": "{{n}} repositorio más tiene chats",
+    "moreRepos_other": "{{n}} repositorios más tienen chats",
+    "moreActions": "Más acciones de {{name}}"
   },
   "card": {
     "renameFailed": "No se ha podido renombrar el proyecto",
@@ -68,7 +82,18 @@
     "newChatHere": "Nuevo chat aquí",
     "newChatIn": "Nuevo chat aquí, en {{name}}",
     "emptyTitle": "Este proyecto no tiene worktrees",
-    "emptyBody": "Los worktrees creados con <mono>git worktree add</mono>, o por una tarea de orquestación, aparecen aquí."
+    "emptyBody": "Los worktrees creados con <mono>git worktree add</mono>, o por una tarea de orquestación, aparecen aquí.",
+    "main": "Principal",
+    "detached": "HEAD separado",
+    "locked": "Bloqueado",
+    "removed_one": "{{n}} worktree eliminado sigue en el historial de sus chats",
+    "removed_other": "{{n}} worktrees eliminados siguen en el historial de sus chats",
+    "notRepo": "Este proyecto no es un repositorio git",
+    "chatOnly": "Chat",
+    "chatsMeta_one": "{{n}} chat",
+    "chatsMeta_other": "{{n}} chats",
+    "creatorTask": "Tarea {{key}} · {{title}}",
+    "creatorChat": "Chat · {{title}}"
   },
   "settings": {
     "environmentHint": "lo que Claude cargó realmente en el último chat de aquí",
@@ -359,5 +384,36 @@
     "useGlobal": "Incluir las lecciones globales",
     "hint": "Las ejecuciones del flujo siempre reciben las lecciones del proyecto. Se guarda al momento.",
     "saveFailed": "No se han podido guardar los ajustes de lecciones"
+  },
+  "inspect": {
+    "repo_one": "Repositorio git · origin <mono>{{remote}}</mono> · {{n}} worktree",
+    "repo_other": "Repositorio git · origin <mono>{{remote}}</mono> · {{n}} worktrees",
+    "repoLocal_one": "Repositorio git · {{n}} worktree",
+    "repoLocal_other": "Repositorio git · {{n}} worktrees",
+    "linkedWorktree": "Es un worktree de {{name}}. Importa la copia de trabajo principal.",
+    "useMain": "Usar <mono>{{path}}</mono>",
+    "alreadyProject": "Ya es el proyecto «{{name}}»",
+    "otherClone": "Ya tienes otro clon de este repositorio: «{{name}}». Sus chats y tareas van por separado."
+  },
+  "repoint": {
+    "title": "Este proyecto apunta a un worktree",
+    "body": "Su ruta está dentro del worktree <mono>{{worktree}}</mono> de «{{repo}}». Apúntalo al repositorio principal para que sus worktrees y sugerencias se agrupen bien.",
+    "action": "Apuntar al repositorio principal",
+    "confirmTitle": "¿Apuntar «{{name}}» al repositorio principal?",
+    "confirmBody": "La ruta pasa de <mono>{{from}}</mono> a <mono>{{to}}</mono>. Sus chats, tareas y ajustes siguen con él, y el worktree no se toca.",
+    "confirm": "Apuntar",
+    "running": "Apuntando",
+    "done": "«{{name}}» apunta ahora a <mono>{{path}}</mono>.",
+    "doneLabel": "Apuntado al repositorio principal",
+    "failed": "No se ha podido apuntar el proyecto",
+    "error": {
+      "not-a-repository": "Este proyecto no está en un repositorio git, así que no hay repositorio principal al que apuntar.",
+      "not-a-directory": "Esa ruta no es un directorio.",
+      "linked-worktree": "Esa ruta está dentro de un worktree, no de la copia de trabajo principal.",
+      "other-repository": "Esa ruta pertenece a otro repositorio.",
+      "already-a-project": "Esa ruta ya es el proyecto «{{name}}».",
+      "other": "No se ha podido apuntar el proyecto ahí."
+    },
+    "openOther": "Abrir «{{name}}»"
   }
 }

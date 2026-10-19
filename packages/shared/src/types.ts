@@ -1153,6 +1153,8 @@ export interface ChatWorktree {
   path: string;
   name: string | null;
   branch: string | null;
+  /** False once the worktree is removed: history, never a place to start a chat */
+  exists: boolean;
 }
 
 /** What a chat does for the orchestration it works for. */
@@ -1686,13 +1688,40 @@ export interface CancelCommandResult {
   processes: number;
 }
 
-/** A git worktree of a project. */
+/** The git repository a project lives in. */
+export interface ProjectRepo {
+  /** git's common directory, real path: the repository's identity on this machine */
+  commonDir: string;
+  /** The main checkout's top level; null for a bare repository */
+  mainCheckout: string | null;
+  /** The project's directory relative to the checkout's top level, '' at the root */
+  subdir: string;
+  /** origin's URL with credentials stripped; null without an origin */
+  remote: string | null;
+  bare: boolean;
+}
+
+/** Who in Claudio made a worktree; one made by hand (`git worktree add`) has none. */
+export type WorktreeCreator =
+  | { kind: 'orchestration'; orchestrationId: string; orchestrationName: string; taskId: string; taskName: string }
+  | { kind: 'work-item'; key: string; title: string | null }
+  | { kind: 'chat'; chatId: string; title: string | null };
+
+/** A checkout of a project's repository: the main one, or a linked worktree. */
 export interface ProjectWorktree {
   path: string;
+  /** Where a chat for this project starts in it: `path` plus the project's subdir */
+  cwd: string;
   name: string | null;
   branch: string | null;
-  /** The orchestration task that created it, when one did */
-  createdBy: { orchestrationId: string; orchestrationName: string; taskId: string; taskName: string } | null;
+  main: boolean;
+  detached: boolean;
+  /** The lock's reason, '' when locked with none; null when not locked */
+  locked: string | null;
+  /** The project's chats placed in it */
+  chatCount: number;
+  lastActivity: string | null;
+  createdBy: WorktreeCreator | null;
 }
 
 /** A directory the person imported, with the worktrees that belong to it. */
@@ -1701,7 +1730,14 @@ export interface Project {
   id: string;
   name: string;
   path: string;
+  /** The repository it lives in; null for a directory that is in none */
+  repo: ProjectRepo | null;
+  /** The repository's checkouts that exist, the main one first; empty when it is not a repository */
   worktrees: ProjectWorktree[];
+  /** Worktrees git no longer has, still named by the chats that ran in them */
+  removedWorktrees: number;
+  /** The path lies inside a linked worktree: the main checkout plus subdir, else null */
+  insideWorktreeOf: string | null;
   /** The directory is still on disk */
   exists: boolean;
   /** Chats under the project and its worktrees */
@@ -1713,12 +1749,27 @@ export interface Project {
   modules: ProjectModule[];
 }
 
-/** A directory chats have run in that is not imported, offered on first start. */
+/** A repository, or a directory in none, that chats have run in and that is not a project: offered on first start. */
 export interface ProjectCandidate {
+  /** What hiding it records: the common dir, or the path for a directory */
+  key: string;
+  kind: 'repository' | 'directory';
+  /** A repository's main checkout (the folder holding `.bare` or `.git` for a bare one), or the directory itself */
   path: string;
   name: string;
+  /** origin's URL with credentials stripped; null without one, and always null for a directory */
+  remote: string | null;
   chatCount: number;
+  /** The linked worktrees the chats ran in; 0 for a directory */
+  worktreeCount: number;
   lastActivity: string | null;
+  /** A project that is another clone of the same remote */
+  sameRemoteAs: ChatProject | null;
+}
+
+/** Hides or shows again one suggestion: the `key` of a {@link ProjectCandidate}. */
+export interface CandidateKeyRequest {
+  key: string;
 }
 
 /** Imports a directory; every chat under it is adopted, retroactively. */
@@ -1739,6 +1790,27 @@ export interface UpdateProjectRequest {
   key?: string;
   /** The whole set of modules that are on afterwards; switching one off hides it and keeps its data */
   modules?: ProjectModule[];
+  /** Re-points the project inside its own repository (D12): the main checkout plus a subdir */
+  path?: string;
+}
+
+/** Why a path cannot be imported as it is. */
+export type ProjectPathConflict =
+  | { kind: 'linked-worktree'; importPath: string; repoName: string }
+  | { kind: 'already-a-project'; project: ChatProject };
+
+/** What a path is, answered before it is imported. */
+export interface ProjectPathInspection {
+  path: string;
+  exists: boolean;
+  repo: ProjectRepo | null;
+  /** What Import would record: the path itself, or the bare layout's root */
+  importPath: string;
+  conflict: ProjectPathConflict | null;
+  /** A project that is another clone of the same remote */
+  sameRemoteAs: ChatProject | null;
+  /** The repository's linked worktrees that exist */
+  worktreeCount: number;
 }
 
 // ---------- Project modules ----------
@@ -8032,9 +8104,9 @@ export interface ProjectRemovedEvent extends ClaudioEventBase {
 }
 
 /** What `project.updated` says changed; `settings` is anything else in the settings document. */
-export type ProjectChange = 'name' | 'key' | 'modules' | 'settings';
+export type ProjectChange = 'name' | 'key' | 'modules' | 'settings' | 'path';
 
-/** A project was renamed, its key prefix or its modules changed, or its settings document was replaced. */
+/** A project was renamed or re-pointed, its key prefix or its modules changed, or its settings document was replaced. */
 export interface ProjectUpdatedEvent extends ClaudioEventBase {
   type: 'project.updated';
   projectId: string;

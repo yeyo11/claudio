@@ -519,7 +519,15 @@ export function settingsChanges(before: ProjectSettings, after: ProjectSettings)
 export interface SettingsDoc {
   projectId: string;
   path: string;
+  /** The repository and subdir it was written for: a re-import from another checkout of it still finds it */
+  repo: { commonDir: string; subdir: string } | null;
   settings: unknown;
+}
+
+function repoOfDoc(raw: Record<string, unknown>): SettingsDoc['repo'] {
+  const repo = raw.repo;
+  if (!isObject(repo) || typeof repo.commonDir !== 'string' || !repo.commonDir || typeof repo.subdir !== 'string') return null;
+  return { commonDir: repo.commonDir, subdir: repo.subdir };
 }
 
 /**
@@ -580,10 +588,10 @@ export class ProjectSettingsStore {
     if (!existsSync(file)) return null;
     try {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as unknown;
-      if (!isObject(raw)) return { projectId, path: '', settings: null };
-      return { projectId, path: typeof raw.path === 'string' ? raw.path : '', settings: raw.settings };
+      if (!isObject(raw)) return { projectId, path: '', repo: null, settings: null };
+      return { projectId, path: typeof raw.path === 'string' ? raw.path : '', repo: repoOfDoc(raw), settings: raw.settings };
     } catch {
-      return { projectId, path: '', settings: null };
+      return { projectId, path: '', repo: null, settings: null };
     }
   }
 
@@ -603,9 +611,37 @@ export class ProjectSettingsStore {
   /**
    * The id a directory had when it was last a project, so importing it again brings back its
    * settings and work items. Ids in `active` are skipped: they belong to projects imported now.
+   *
+   * A repository's project is also found by its repository and subdir (D5), so importing it from
+   * the main checkout gives back the id it had while its path was a worktree. A document written
+   * before it recorded its repository is placed by `repoOfPath`, which knows removed directories too.
    */
-  idForPath(path: string, active: ReadonlySet<string>): string | null {
-    return this.allDocs().find((doc) => doc.path === path && !active.has(doc.projectId))?.projectId ?? null;
+  idForPath(
+    path: string,
+    active: ReadonlySet<string>,
+    repo: { commonDir: string; subdir: string } | null = null,
+    repoOfPath: (path: string) => { commonDir: string; subdir: string } | null = () => null,
+  ): string | null {
+    const docs = this.allDocs().filter((doc) => !active.has(doc.projectId));
+    const byPath = docs.find((doc) => doc.path === path);
+    if (byPath || !repo) return byPath?.projectId ?? null;
+    return (
+      docs.find((doc) => {
+        const of = doc.repo ?? (doc.path ? repoOfPath(doc.path) : null);
+        return !!of && of.commonDir === repo.commonDir && of.subdir === repo.subdir;
+      })?.projectId ?? null
+    );
+  }
+
+  /**
+   * Records the project's new path (and repository) in its document after a re-point, so a later
+   * re-import by path finds it. The settings are written back exactly as the file holds them.
+   */
+  async repath(project: ProjectRecord): Promise<void> {
+    await this.serialized(async () => {
+      const doc = this.readDoc(project.id);
+      if (doc) await this.writeDoc(project, doc.settings);
+    });
   }
 
   /** Whether a document exists for the project, removed projects included. */
@@ -814,7 +850,7 @@ export class ProjectSettingsStore {
   }
 
   private writeDoc(project: ProjectRecord, settings: unknown): Promise<void> {
-    const doc: SettingsDoc = { projectId: project.id, path: project.path, settings };
+    const doc: SettingsDoc = { projectId: project.id, path: project.path, repo: project.repo ? { commonDir: project.repo.commonDir, subdir: project.repo.subdir } : null, settings };
     return writeAtomic(this.file(project.id), `${JSON.stringify(doc, null, 2)}\n`);
   }
 

@@ -1263,3 +1263,8 @@ a.list-row:hover {
     min-height: 44px;
   }
 }
+
+/* A chat's worktree that is gone is history: said in words, quieter than its branch */
+.crow-tag-removed {
+  color: var(--fg-3);
+}

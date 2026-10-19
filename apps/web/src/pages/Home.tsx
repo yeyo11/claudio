@@ -16,6 +16,7 @@ import { HomeHero } from './dashboard/Hero';
 import { EditableDashboard } from './dashboard/DashboardEditor';
 import { useHomeLayout } from './dashboard/useHomeLayout';
 import { usePendingProposalCount } from './home/memory/Proposals';
+import { ProjectRepoint } from './home/ProjectRepoint';
 import { PhoneAssistantRow, PhoneHead, PhoneViewHead, ProjectHead } from './home/ProjectHead';
 import { useProjectResourceCount } from './home/resources/data';
 import { asProjectView, legacyTabRedirect, projectViews, type ProjectViewId } from './dashboard/views';
@@ -77,7 +78,7 @@ function useTabCounts(project: Project): Partial<Record<TabId, number>> {
     documents: documents || undefined,
     memory: proposals || undefined,
     resources: resources || undefined,
-    worktrees: project.worktrees.length || undefined,
+    worktrees: project.worktrees.filter((w) => !w.main).length || undefined,
   };
 }
 
@@ -224,6 +225,7 @@ function ProjectPage({ project }: { project: Project }) {
           <PhoneViewHead project={project} view={view} />
         )}
         <MissingAlert project={project} />
+        {view === 'settings' && <ProjectRepoint project={project} />}
         <div className="tab-panel">
           <TabBody project={project} tab={view} />
         </div>
@@ -232,6 +234,7 @@ function ProjectPage({ project }: { project: Project }) {
       <>
         <PhoneHead project={project} onEditHome={editing ? undefined : () => setEditing(true)} />
         <MissingAlert project={project} />
+        <ProjectRepoint project={project} />
         {/* The cells are how a phone reaches the board and the settings: under the whole dashboard
             they sat a dozen widgets down, where the reference has them near the top. While the
             Home is being arranged the screen is the list alone, as MobileInicioEditar draws it */}
@@ -269,6 +272,7 @@ function ProjectPage({ project }: { project: Project }) {
         onEditHome={tab === 'summary' && !editing ? () => setEditing(true) : undefined}
       />
       <MissingAlert project={project} />
+      {(tab === 'summary' || tab === 'settings') && <ProjectRepoint project={project} />}
       <div className="project-tabs">
         <Tabs
           label={t('page.sections')}

@@ -265,10 +265,10 @@ test('a row shows two tags at most, and never the resumable mode nearly every ch
   const busy = chat({
     control: { mode: 'readOnly', reason: 'held', action: 'fork' },
     derivedFrom: { chatId: 'x', at: '2026-01-01T00:00:00Z' },
-    worktree: { path: '/w', name: 'w', branch: 'b' },
+    worktree: { path: '/w', name: 'w', branch: 'b', exists: true },
   });
   assert.deepEqual(rowTags(busy), ['readOnly', 'fork']);
-  assert.deepEqual(rowTags(chat({ control: { mode: 'interactive' }, worktree: { path: '/w', name: 'w', branch: null } })), ['interactive', 'worktree']);
+  assert.deepEqual(rowTags(chat({ control: { mode: 'interactive' }, worktree: { path: '/w', name: 'w', branch: null, exists: true } })), ['interactive', 'worktree']);
 });
 
 test('bulk delete skips a chat something runs on or something else holds, and says which', () => {

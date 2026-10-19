@@ -11,12 +11,13 @@ import { monogramLetters } from '@claudio/ui/components/icons';
 import i18n from '../src/i18n';
 import { PhoneAssistantRow, PhoneHead, PhoneViewHead, phoneViewMore, ProjectHead } from '../src/pages/home/ProjectHead';
 import { projectViews } from '../src/pages/dashboard/views';
+import { WorktreesWidget } from '../src/pages/dashboard/widgets/project';
 
 // Gap 8 of orchestration 6: once a project had a team, nothing on its page led to its assistant.
 // The header carries it, a ghost before "New chat here" and "New task" (decision 3 of the design
 // review), on every tab but the two that are forms of their own, Ajustes and Recursos.
 
-const project: Project = { id: 'p 1', name: 'shop', path: '/tmp/shop', worktrees: [], exists: true, chatCount: 3, lastActivity: null, key: 'SHOP', modules: ['board', 'team'] };
+const project: Project = { id: 'p 1', name: 'shop', path: '/tmp/shop', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 3, lastActivity: null, key: 'SHOP', modules: ['board', 'team'] };
 
 const wrap = (children: ReactNode) =>
   renderToStaticMarkup(
@@ -89,4 +90,22 @@ test('a one-word project gets a two-letter monogram, as the references draw it; 
   assert.equal(monogramLetters('x', true), 'X');
   assert.equal(monogramLetters('yeyo'), 'Y');
   assert.match(wrap(<ProjectHead project={{ ...project, name: 'nodo' }} primaryTask={false} />), /class="monogram"[^>]*>NO</);
+});
+
+test("the worktrees widget counts and lists the linked worktrees, never the main checkout the list now starts with", () => {
+  const checkout = (path: string, branch: string, main: boolean) => ({ path, cwd: path, name: main ? null : branch, branch, main, detached: false, locked: null, chatCount: 0, lastActivity: null, createdBy: null });
+  const repo = { commonDir: '/tmp/shop/.git', mainCheckout: '/tmp/shop', subdir: '', remote: null, bare: false };
+  const mainOnly: Project = { ...project, repo, worktrees: [checkout('/tmp/shop', 'main', true)] };
+  assert.match(wrap(<WorktreesWidget project={mainOnly} size="s" title="Worktrees" id="w" />), /No hay worktrees\./);
+  const withOne: Project = { ...mainOnly, worktrees: [...mainOnly.worktrees, checkout('/tmp/shop/.claude/worktrees/fix', 'worktree-fix', false)] };
+  const html = wrap(<WorktreesWidget project={withOne} size="s" title="Worktrees" id="w" />);
+  assert.match(html, /worktree-fix/);
+  assert.equal(/>main</.test(html), false);
+  assert.match(html, /class="small muted tnum">1</);
+});
+
+test("the header counts the linked worktrees: the main checkout heading the list is the project itself", () => {
+  const checkout = { path: '/tmp/shop', cwd: '/tmp/shop', name: null, branch: 'main', main: true, detached: false, locked: null, chatCount: 0, lastActivity: null, createdBy: null };
+  const repo = { commonDir: '/tmp/shop/.git', mainCheckout: '/tmp/shop', subdir: '', remote: null, bare: false };
+  assert.match(wrap(<ProjectHead project={{ ...project, repo, worktrees: [checkout] }} primaryTask={false} />), /0 worktrees/);
 });

@@ -24,7 +24,7 @@ import { RoleAvatar } from '../src/pages/team/RoleAvatar';
 // Team activity as a third view (EquipoActividad), the Flow's one "Límites" card, `.model-pick`, and
 // failed runs said in the person's language wherever a member shows one.
 
-const project: Project = { id: 'p', name: 'shop', path: '/tmp/shop', worktrees: [], exists: true, chatCount: 0, lastActivity: null, key: 'SHOP', modules: ['team'] };
+const project: Project = { id: 'p', name: 'shop', path: '/tmp/shop', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 0, lastActivity: null, key: 'SHOP', modules: ['team'] };
 
 const minutesAgo = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const yesterdayAt = (hour: number, minute: number) => {

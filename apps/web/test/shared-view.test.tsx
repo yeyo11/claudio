@@ -25,7 +25,7 @@ import { SHARE_KEY_RE, SharingSection } from '../src/pages/project/SharingSectio
 // Shared tab, where teammates' copies are read and never continued, and never mixed with the
 // person's own chats.
 
-const project: Project = { id: 'p1', name: 'api', path: '/tmp/api', worktrees: [], exists: true, chatCount: 3, lastActivity: null, key: 'API', modules: ['board', 'memory'] };
+const project: Project = { id: 'p1', name: 'api', path: '/tmp/api', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 3, lastActivity: null, key: 'API', modules: ['board', 'memory'] };
 
 const status = (enabled: boolean, unavailable = false): CollaboratorsStatus => ({
   unavailable: unavailable ? { code: 'platform', reason: { code: 'platform', text: 'Not available on this platform' } as never } : null,
