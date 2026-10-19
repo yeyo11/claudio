@@ -19,7 +19,7 @@ KIND = {'agent': ('agent', 'Agente', 'agentes'), 'skill': ('skill', 'Skill', 'sk
 
 
 def mark(sm=False):
-  return f'<span class="ai-mark{" sm" if sm else ""}" aria-hidden="true">{ico("sparkle")}</span>'
+  return f'<span class="ai-mark{" sm" if sm else ""}" aria-hidden="true">{ico("claudio")}</span>'
 
 
 def facts(*items):
@@ -353,7 +353,7 @@ def sugg_row(x):
 def suggest_desktop():
   cols = ''.join(col(s, by_col(s)) for s, _ in COLS)
   hd = board_head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>', primary=False)
-  hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true">' + ico('sparkle') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
+  hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true">' + ico('claudio') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
   main = f'''<main class="page" style="gap: 16px; position: relative">
 {hd}
 {board_toolbar()}
@@ -441,7 +441,7 @@ def exist_list(limit=None):
 
 
 def res_actions():
-  return f'<button type="button" class="btn">{ico("sparkle")}Sugerir</button><a href="DesktopRecursoCrearIA.html" class="btn">{ico("edit")}Crear con IA</a><button type="button" class="btn btn-ghost">{ico("plus")}Nuevo</button>'
+  return f'<button type="button" class="btn">{ico("claudio")}Sugerir</button><a href="DesktopRecursoCrearIA.html" class="btn">{ico("edit")}Crear con IA</a><button type="button" class="btn btn-ghost">{ico("plus")}Nuevo</button>'
 
 
 def resources_main():
@@ -503,7 +503,7 @@ def code_ed(lines, caret=False, style='', size=None):
 
 def proposal_desktop():
   master = []
-  master.append(f'<div class="row" style="padding: 10px 12px 4px; gap: 6px">{ico("sparkle", "ico ico-sm fg-3")}<span class="t-label grow">Propuestas</span><span class="t-num t-xs fg-3">3</span></div>')
+  master.append(f'<div class="row" style="padding: 10px 12px 4px; gap: 6px">{ico("claudio", "ico ico-sm fg-3")}<span class="t-label grow">Propuestas</span><span class="t-num t-xs fg-3">3</span></div>')
   for i, x in enumerate(RPROP[:3]):
     icon, word, _ = KIND[x['k']]
     tag = f'<span class="row" style="margin-top: 3px"><span class="badge b-warn">{ico("warn", "ico", "width: 11px; height: 11px")}aún sin guardar</span></span>' if i == 0 else ''
@@ -602,7 +602,7 @@ def resources_mobile():
 </header>
 <div class="m-body stack" style="gap: 12px">
 {kinds_seg(True)}
-<div class="row" style="gap: 8px"><button type="button" class="btn btn-lg" style="flex: 1 1 0">{ico('sparkle', 'ico ico-lg')}Sugerir</button><a href="MobileRecursoCrearIA.html" class="btn btn-lg" style="flex: 1 1 0">{ico('edit', 'ico ico-lg')}Crear con IA</a></div>
+<div class="row" style="gap: 8px"><button type="button" class="btn btn-lg" style="flex: 1 1 0">{ico('claudio', 'ico ico-lg')}Sugerir</button><a href="MobileRecursoCrearIA.html" class="btn btn-lg" style="flex: 1 1 0">{ico('edit', 'ico ico-lg')}Crear con IA</a></div>
 <section class="card grad-border" style="overflow: hidden" aria-label="Propuestas del asistente">
 <div class="row" style="padding: 12px 14px 8px; gap: 10px">{mark(True)}<span class="col grow" style="gap: 2px"><span style="font-weight: var(--fw-strong); font-size: var(--fs-section)">Propuestas del asistente</span>{facts(f('3 por revisar'), f('0,07 US$', 'cost'), f('hace 2 min'))}</span></div>
 {''.join(pcell(x) for x in RPROP)}

@@ -115,10 +115,10 @@ def new_project_mobile():
 
 
 def proj_head(actions=True, task_primary=True):
-  # The assistant is an occasional visit, so it is the quiet one of the three: ghost, with its sparkle.
+  # The assistant is an occasional visit, so it is the quiet one of the three: ghost, with Claudio's glyph.
   # "Nueva tarea" is the primary only on the Summary; a tab with its own primary (Añadir miembro) lowers it.
   tp = ' btn-primary' if task_primary else ''
-  acts = f'<div class="row" style="gap: 8px"><a href="DesktopAsistentePropuestas.html" class="btn btn-ghost">{ico("sparkle")}Asistente</a><a href="DesktopNuevoChat.html" class="btn">{ico("chats")}Nuevo chat aquí</a><a href="DesktopNuevaTarea.html" class="btn{tp}">{ico("plus")}Nueva tarea</a></div>' if actions else ''
+  acts = f'<div class="row" style="gap: 8px"><a href="DesktopAsistentePropuestas.html" class="btn btn-ghost">{ico("claudio")}Asistente</a><a href="DesktopNuevoChat.html" class="btn">{ico("chats")}Nuevo chat aquí</a><a href="DesktopNuevaTarea.html" class="btn{tp}">{ico("plus")}Nueva tarea</a></div>' if actions else ''
   return f'''<div class="proj-head">
 <span class="proj monogram" style="--hue: 20">CW</span>
 <span class="col grow" style="gap: 4px"><span class="row" style="gap: 10px"><h1 class="t-h1">claude-wrapper</h1><span class="wi-key boxed">AGN</span><span class="badge">Software profesional</span></span><span class="t-num t-xs fg-3"><span class="mono">~/Escritorio/claude-wrapper</span> · 186 chats · 15 worktrees</span></span>
@@ -392,7 +392,7 @@ def project_page_mobile():
 <a href="MobileChatTarea.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 2px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-28</span><span class="t-sm" style="font-weight: var(--fw-regular)">Tablero con columnas fijas y límites</span></span><span class="row t-xs" style="gap: 6px"><span class="c-live">Ejecutando</span><span class="mono fg-3">pnpm test</span></span></span><span class="t-num t-xs fg-3">4:12</span></a>
 <a href="MobileOrquestacion.html" class="card row rail-live" style="padding: 12px 14px 12px 16px; gap: 10px; min-height: 56px"><span class="spin-ring"></span><span class="col grow" style="gap: 4px; min-width: 0"><span class="row" style="gap: 7px"><span class="wi-key">AGN-30</span><span class="t-sm" style="font-weight: var(--fw-regular)">API de tareas y del tablero</span></span><span class="segbar" style="height: 4px"><i class="ok"></i><i class="ok"></i><i class="live" style="--p: 55%"></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span><span class="t-num t-xs fg-3">3/9</span></a>
 </div>
-<a href="MobileAsistentePropuestas.html" class="card row" style="padding: 12px 14px; gap: 12px; min-height: 56px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">{ico('sparkle')}</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-regular)">Asistente del proyecto</span><span class="t-xs fg-3">3 propuestas por revisar</span></span>{ico('right', 'ico fg-3')}</a>
+<a href="MobileAsistentePropuestas.html" class="card row" style="padding: 12px 14px; gap: 12px; min-height: 56px"><span class="proj" style="background: var(--accent-soft); color: var(--accent)">{ico('claudio')}</span><span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-regular)">Asistente del proyecto</span><span class="t-xs fg-3">3 propuestas por revisar</span></span>{ico('right', 'ico fg-3')}</a>
 <nav aria-label="Secciones del proyecto" class="card" style="overflow: hidden">
 {cell('board', 'Tablero', '13 abiertas', 'MobileTablero.html')}
 {cell('team', 'Equipo', '5', 'MobileEquipo.html')}

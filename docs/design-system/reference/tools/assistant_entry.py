@@ -1,36 +1,84 @@
 # The Claudio assistant's entry (CW-30, CW-18 and CW-17): the global "Asistente" item, its /assistant screen with
-# the greeting, the starters and the composer, and one assistant chat holding a write behind the host prompt.
+# Claudio's illustration, the greeting, the composer, the starters and the recents, and one assistant chat holding a
+# write behind the host prompt (plans/assistant-mascot.md).
 # Writes DesktopAsistenteClaudio, DesktopAsistenteClaudioChat, MobileAsistenteClaudio, MobileAsistenteClaudioChat and
 # MobileAsistenteClaudioMas (the Más page with the new item, lifted from MobileMas.html).
 # Runs on its own; imports common.py.
 from common import *
 
 PROJECT = 'claude-wrapper'
-# The starters follow what the MCP server offers: reads first, then the writes that ask permission
+# The app's four starters (pages/claudio-assistant/model.ts), in its order
 STARTERS = [
-  ('tasks', 'Estado del tablero', '¿Cómo va AGN-12?', False),
-  ('orch', 'Orquestaciones', '¿Por qué ha fallado la última orquestación?', False),
-  ('flow', 'Flujos y equipo', '¿Qué tarjetas está esperando el equipo?', False),
-  ('usage', 'Uso y límites', '¿Cuánto he gastado hoy?', False),
-  ('edit', 'Crear una tarea', 'Crea una tarea en AGN para revisar los límites de las columnas', True),
-  ('retry', 'Reintentar un fallo', 'Reintenta la tarea que falló en ecosystem-foundation', True),
+  ('tasks', 'Estado del tablero', '¿Qué hay abierto en el tablero y qué está bloqueado?'),
+  ('orch', 'Orquestaciones', '¿Por qué ha fallado la última orquestación?'),
+  ('flow', 'Flujo y equipo', '¿Qué tarjetas está esperando el equipo?'),
+  ('usage', 'Uso y límites', '¿Cuánto he gastado hoy?'),
 ]
-GREETING = 'Hola, soy el asistente de Claudio'
-SUB = 'Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso. Antes de escribir nada, te pido permiso.'
+# The recents: the assistant's own chats, newest first. The word keeps its status colour and stands still; a chat
+# at rest says nothing (the app gives screen readers "Inactivo")
+RECENTS = [
+  ('Crea una tarea en AGN para revisar los límites de las columnas', ('is-idle', 'Esperándote'), 'hace 2 min'),
+  ('¿Por qué ha fallado la última orquestación?', ('is-bad', 'Fallida'), 'hace 1 h'),
+  ('¿Cuánto he gastado esta semana?', None, 'hace 3 h'),
+  ('¿Qué tarjetas está esperando el equipo?', None, 'hace 2 d'),
+  ('Estado del tablero de AGN', None, 'hace 4 d'),
+]
+GREETING = 'Hola, soy Claudio'
+SUB = 'Tu asistente. Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso.'
+HELLO_CHAT = 'Hola, soy Claudio, tu asistente. Pregúntame por tus proyectos, tareas, orquestaciones o el uso.'
+PLACEHOLDER = 'Pregúntale a Claudio…'
 ASK = 'Crea una tarea en AGN para revisar los límites de las columnas, prioridad media'
 
 
 def mark(sm=False):
-  return f'<span class="ai-mark{" sm" if sm else ""}" aria-hidden="true">{ico("sparkle")}</span>'
+  # The neutral tile with Claudio's glyph: the Más row and the chat's top bar, where the mark is an icon
+  return f'<span class="ai-mark{" sm" if sm else ""}" aria-hidden="true">{ico("claudio")}</span>'
+
+
+# The colour mark (the app's ClaudioMascot, illustrations/claudio-mark.svg): where the assistant speaks
+MASCOT = ('<svg class="mascot-mark" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">'
+          '<rect x="2.5" y="6.5" width="12.5" height="17" rx="3.5" class="mascot-body"></rect>'
+          '<ellipse cx="9.3" cy="12.2" rx="1.2" ry="1.65" class="mascot-eye"></ellipse><ellipse cx="12.5" cy="12.2" rx="1.2" ry="1.65" class="mascot-eye"></ellipse>'
+          '<path transform="translate(19.2 5) scale(0.235)" class="mascot-spark" d="M0 -19Q6 -6 19 0Q6 6 0 19Q-6 6 -19 0Q-6 -6 0 -19Z"></path></svg>')
+
+# The `claudio` illustration, as it is in illustrations/claudio.svg (the frame's defs, plus the logo's gradient)
+CLAUDIO_BODY = '''<rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<ellipse cx="94" cy="141" rx="54" ry="5" class="ln-soft"></ellipse>
+<g class="a-float"><rect x="83" y="74" width="32" height="54" rx="9" class="f-spark"></rect><g class="a-look"><ellipse cx="100.5" cy="90" rx="2.6" ry="3.6" class="f-eye"></ellipse><ellipse cx="109.5" cy="90" rx="2.6" ry="3.6" class="f-eye"></ellipse></g></g>
+<path transform="translate(31 14) scale(1.1)" class="f-logo cut" d="M41.76 14.24Q46 10 52 10L71 10Q74 10 76.12 12.12L93.88 29.88Q96 32 93 32L57 32Q54 32 51.88 34.12L34.83 51.17Q32 54 32 58L32 62Q32 66 34.83 68.83L51.88 85.88Q54 88 57 88L93 88Q96 88 93.88 90.12L76.12 107.88Q74 110 71 110L52 110Q46 110 41.76 105.76L14.24 78.24Q10 74 10 68L10 52Q10 46 14.24 41.76Z"></path>
+<g class="a-float-2"><path transform="translate(97 59) scale(0.4)" class="f-spark" d="M0 -19Q6 -6 19 0Q6 6 0 19Q-6 6 -19 0Q-6 -6 0 -19Z"></path></g>
+<g class="a-float-2"><rect x="146" y="56" width="48" height="26" rx="13" class="c2"></rect><text x="158" y="73.5" class="txt-big">›</text><rect x="168" y="63" width="7" height="12" rx="1.5" class="f-ink a-blink"></rect></g>'''
+
+
+def claudio_il(size):
+  g, lg, d, fg, fm = 'il-grad', 'il-logo', 'il-dots', 'il-fade-g', 'il-fade'
+  return (f'<svg class="il {size}" data-illustration="claudio" viewBox="0 0 240 160" aria-hidden="true"><defs><linearGradient id="{g}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient>'
+          f'<linearGradient id="{lg}" x1="0.35" y1="0" x2="0.6" y2="1"><stop offset="0" class="stop-logo-a"></stop><stop offset="0.5" class="stop-logo-a"></stop><stop offset="1" class="stop-logo-b"></stop></linearGradient>'
+          f'<pattern id="{d}" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="{fg}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="{fm}"><rect x="0" y="0" width="240" height="160" fill="url(#{fg})"></rect></mask></defs>{CLAUDIO_BODY}</svg>')
 
 
 def starter(s):
-  icon, title, ask, writes = s
-  badge = '<span class="badge b-warn">pide permiso</span>' if writes else ''
-  return f'<button type="button" class="as-starter">{ico(icon)}<span class="as-starter-body"><span class="as-starter-title">{title}</span><span class="as-starter-ask">«{ask}»</span></span>{badge}</button>'
+  icon, title, ask = s
+  return f'<button type="button" class="as-starter">{ico(icon)}<span class="as-starter-body"><span class="as-starter-title">{title}</span><span class="as-starter-ask">{ask}</span></span></button>'
 
 
-FIGURES = '<p class="as-figures" aria-label="Ahora mismo"><span><b class="live">2</b> chats en marcha</span><span><b class="live">1</b> orquestación</span><span>hoy <b>3,41 US$</b></span></p>'
+def recent(r):
+  title, word, when = r
+  if word:
+    meta = f'<span class="as-recent-word {word[0]}">{word[1]}</span><span class="as-recent-sep" aria-hidden="true"> · </span>'
+  else:
+    meta = '<span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap">Inactivo</span>'
+  return f'<li><a href="DesktopChat.html" class="as-recent"><span class="as-recent-title ellipsis">{title}</span><span class="as-recent-meta">{meta}<span class="as-recent-time">{when}</span></span></a></li>'
+
+
+def recents(n):
+  return (f'<section class="as-recents-section" aria-labelledby="as-recents-label"><div class="as-recents-head"><h2 id="as-recents-label" class="t-label">Recientes</h2>'
+          f'<a href="DesktopChats.html" class="as-recents-all" aria-label="Ver todas las conversaciones con el asistente">Ver todas</a></div>'
+          f'<ul class="as-recents">{"".join(recent(r) for r in RECENTS[:n])}</ul></section>')
+
+
+def starters_section(items):
+  return f'<section class="col" style="gap: 10px" aria-label="Para empezar"><span class="t-label">Para empezar</span><div class="as-starters">{"".join(starter(s) for s in items)}</div></section>'
 
 
 def context_chip():
@@ -41,32 +89,30 @@ def entry_composer(mobile=False):
   if mobile:
     return f'''<div class="col" style="flex-shrink: 0; padding: 10px 12px 12px; gap: 10px; border-top: 1px solid var(--line); background: var(--bg-1)">
 <div class="row" style="gap: 6px">{context_chip()}<button type="button" class="chip">Sonnet</button></div>
-<div class="card row" style="border-radius: var(--r-xl); padding: 4px; gap: 4px; align-items: flex-end">
-<label class="grow" style="display: flex; min-height: var(--touch); align-items: center; padding-left: 12px"><textarea rows="1" placeholder="Pregunta o pide algo…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--fs-input); padding: 0"></textarea></label>
+<div class="card grad-border row" style="border-radius: var(--r-xl); padding: 4px; gap: 4px; align-items: flex-end">
+<label class="grow" style="display: flex; min-height: var(--touch); align-items: center; padding-left: 12px"><textarea rows="1" placeholder="{PLACEHOLDER}" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--fs-input); padding: 0"></textarea></label>
 <button type="button" class="btn btn-primary btn-icon" aria-label="Enviar" style="width: var(--touch); height: var(--touch); border-radius: 50%">{ico("send", "ico ico-lg", "stroke-width: 2.2")}</button>
 </div>
 </div>'''
-  return f'''<div style="display: flex; justify-content: center; padding: 12px 32px 20px; flex-shrink: 0">
-<div class="col" style="width: 100%; max-width: 740px; gap: 8px">
-<div class="card" style="border-radius: var(--r-xl); padding: 10px; display: flex; align-items: flex-end; gap: 8px">
-<label class="grow" style="display: flex; min-height: 36px; align-items: center; padding-left: 8px"><textarea rows="1" placeholder="Pregunta por proyectos, tareas, orquestaciones o uso…" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--fs-body); padding: 0"></textarea></label>
+  # New chat's StartComposer: the card's hairline and Enviar are the page's gradient surfaces (the drawing's C is its own)
+  return f'''<div class="col" style="gap: 8px">
+<div class="card grad-border" style="border-radius: var(--r-xl); padding: 10px; display: flex; align-items: flex-end; gap: 8px">
+<label class="grow" style="display: flex; min-height: 36px; align-items: center; padding-left: 8px"><textarea rows="1" placeholder="{PLACEHOLDER}" aria-label="Mensaje" style="width: 100%; border: 0; outline: 0; resize: none; background: transparent; font-size: var(--fs-body); padding: 0"></textarea></label>
 <button type="button" class="btn btn-primary btn-icon" aria-label="Enviar">{ico("send", "ico", "stroke-width: 2.2")}</button>
 </div>
-<div class="row" style="gap: 6px">{context_chip()}<button type="button" class="chip">Sonnet</button><span class="grow"></span><span class="row t-xs fg-3 mono" style="gap: 6px">{ico("lock", "ico ico-sm")}Pide permiso antes de escribir</span></div>
-</div>
+<div class="row" style="gap: 6px">{context_chip()}<button type="button" class="chip">Sonnet</button></div>
 </div>'''
 
 
 def desktop_entry():
-  main = f'''<div class="col" style="flex: 1 1 auto; min-height: 0">
-<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 72px 32px 0">
+  # The page's column (.as-body): padding-top 28, 740 wide. Order: hello, the box, the starters, the recents
+  main = f'''<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; justify-content: center; padding: 28px 32px 0">
 <div class="col" style="width: 100%; max-width: 740px; gap: 28px">
-<div class="as-hello">{mark()}<h1 class="t-h1" style="font-size: var(--fs-title); line-height: 1.15">{GREETING}</h1><p class="as-hello-sub">{SUB}</p>{FIGURES}</div>
-<section class="col" style="gap: 10px" aria-label="Para empezar"><span class="t-label">Para empezar</span>
-<div class="as-starters">{"".join(starter(s) for s in STARTERS)}</div></section>
-</div>
-</div>
+<div class="as-hello">{claudio_il("")}<h1 class="t-h1" style="font-size: var(--fs-title); line-height: 1.15">{GREETING}</h1><p class="as-hello-sub">{SUB}</p></div>
 {entry_composer()}
+{starters_section(STARTERS)}
+{recents(5)}
+</div>
 </div>'''
   crumb = '<span style="font-weight: var(--fw-regular)">Asistente</span>'
   write('DesktopAsistenteClaudio.html', desktop('Asistente de Claudio', 'assistant', crumb, main, assistant=True))
@@ -103,7 +149,7 @@ def prompt_block(mobile=False):
 
 TOOLS = '<span class="badge">Tablero de AGN</span><span class="badge">AGN-12</span>'
 REPLY = 'No hay ninguna tarea abierta sobre los límites de las columnas. Voy a crear una en el Backlog de AGN. <b>Necesito tu permiso para escribir.</b>'
-GREET_MSG = f'<div class="as-greeting">{mark(True)}<span>{GREETING}. Pregúntame por tus proyectos, tareas, orquestaciones o el uso.</span></div>'
+GREET_MSG = f'<div class="as-greeting">{MASCOT}<p style="margin: 0">{HELLO_CHAT}</p></div>'
 
 
 def desktop_chat():
@@ -142,9 +188,9 @@ def desktop_chat():
 def mobile_entry():
   inner = f'''<header class="m-head"><h1 class="t-h1 grow">Asistente</h1></header>
 <div class="m-body" style="gap: 18px; padding-top: 8px">
-<div class="as-hello">{mark()}<h2 class="t-h1">{GREETING}</h2><p class="as-hello-sub" style="font-size: var(--fs-body)">{SUB}</p>{FIGURES}</div>
-<section class="col" style="gap: 8px" aria-label="Para empezar"><span class="t-label">Para empezar</span>
-<div class="as-starters">{"".join(starter(s) for s in (STARTERS[0], STARTERS[3], STARTERS[4]))}</div></section>
+<div class="as-hello">{claudio_il("il-sm")}<h2 class="t-h1">{GREETING}</h2><p class="as-hello-sub" style="font-size: var(--fs-body)">{SUB}</p></div>
+{starters_section((STARTERS[0], STARTERS[1], STARTERS[3]))}
+{recents(3)}
 </div>
 {entry_composer(True)}
 {tabbar('more')}'''
@@ -174,7 +220,7 @@ def mobile_chat():
 
 
 def mobile_mas():
-  # The Más page keeps its list; the assistant is the first row, with the sparkle on the neutral .ai-mark tile
+  # The Más page keeps its list; the assistant is the first row, with Claudio's glyph on the neutral .ai-mark tile
   s = open(os.path.join(OUT, 'MobileMas.html')).read()
   row = (f'<a href="MobileAsistenteClaudio.html" class="cell">{mark()}<span class="grow" style="font-weight: var(--fw-regular)">Asistente</span>'
          f'<span class="t-num t-xs fg-3">pregunta o pide</span>{ico("right", "ico fg-3")}</a>\n\n')
