@@ -1,5 +1,5 @@
 import type { PendingJoin, Project, SharedProject } from '@claudio/shared';
-import { ArrowRight, CircleCheck, CircleSlash, CircleX, Clock, Link2, Moon, TriangleAlert, Unlink, type LucideIcon } from 'lucide-react';
+import { ArrowRight, CircleCheck, CircleSlash, CircleX, Clock, Link2, Moon, Pause, TriangleAlert, Unlink, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -14,6 +14,7 @@ const SYNC_ICON: Partial<Record<SyncKey, LucideIcon>> = {
   'sync.live': CircleCheck,
   'sync.offline': Moon,
   'sync.offlineNever': Moon,
+  'sync.paused': Pause,
 };
 
 /** A copy's sync state in plain words. No live rail: syncing is not an agent working (§5.1). */
