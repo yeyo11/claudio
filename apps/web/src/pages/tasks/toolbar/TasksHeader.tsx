@@ -1,11 +1,11 @@
-import { Check, ChevronDown, Flag, Kanban, List, Plus, Sparkle, SquareCheck } from 'lucide-react';
+import { Check, ChevronDown, Flag, Kanban, List, Plus, SquareCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu } from '@claudio/ui/components/controls/Menu';
 import { ProjectSelector } from '../../../components/ProjectSelector';
 import { PhoneHeader } from '../../../components/shell/PhoneHeader';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { Segmented, usePageTitle } from '@claudio/ui/components/ui';
 import { MILESTONES_PATH, TASKS_PATH, VIEW_PARAM } from '../../../lib/work-items';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
@@ -66,13 +66,13 @@ export function SuggestButton({ onClick, icon = false }: { onClick: () => void; 
     return (
       <Tooltip content={t('suggest.button')}>
         <button type="button" className="icon-btn workitem-suggest-icon" aria-label={t('suggest.button')} onClick={onClick}>
-          <Sparkle {...ICON_SM} />
+          <ClaudioGlyph {...ICON_SM} />
         </button>
       </Tooltip>
     );
   return (
     <button type="button" className="btn workitem-suggest" onClick={onClick}>
-      <Sparkle {...ICON_SM} />
+      <ClaudioGlyph {...ICON_SM} />
       {t('suggest.button')}
     </button>
   );

@@ -1,12 +1,12 @@
 import type { AssistantRunDetail, AssistantWorkItemProposal, Project } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, RefreshCw, Search, Sparkle, X } from 'lucide-react';
+import { Plus, RefreshCw, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useAssistantRun, useAssistantRuns, useProjectSettings } from '../../../api';
 import { AssistantMark, LiveRunHead, RunFacts, RunSources, SuggestionWait } from '../../../components/assistant/run';
 import { Dialog } from '@claudio/ui/components/Dialog';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
@@ -142,7 +142,7 @@ export function SuggestTasks({ project, onClose }: { project: Pick<Project, 'id'
           disabled={start.isPending}
           onClick={() => start.mutate()}
         >
-          {latest ? <RefreshCw {...ICON_SM} /> : <Sparkle {...ICON_SM} />}
+          {latest ? <RefreshCw {...ICON_SM} /> : <ClaudioGlyph {...ICON_SM} />}
           {!phone && (latest ? t('suggest.again') : t('suggest.start'))}
         </button>
       )}
