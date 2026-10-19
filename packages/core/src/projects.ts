@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import type { ChatProject, ProjectCandidate, ProjectPathConflict } from '@claudio/shared';
+import type { ChatProject, ProjectPathConflict } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { bareImportPath, coreConfigOf, type Place } from './repos.ts';
@@ -38,8 +37,6 @@ export interface RepoLookup {
   remoteOf(commonDir: string): string | null;
 }
 
-/** How many directories are offered on the first start. */
-const CANDIDATES = 8;
 const DOCUMENT_VERSION = 2;
 
 const inside = (root: string, dir: string): boolean => dir === root || dir.startsWith(root.endsWith('/') ? root : `${root}/`);
@@ -80,41 +77,6 @@ export function attachProject(projects: readonly ProjectRecord[], dir: string, p
     }
   }
   return deepest(projects, dir) ?? null;
-}
-
-/**
- * Directories chats have run in that are not imported, the busiest first. A worktree counts for its
- * repository's main checkout, and scratch directories under the OS temp dir or that no longer exist
- * are left out.
- */
-export function projectCandidates(
-  projects: readonly ProjectRecord[],
-  chats: readonly ChatPlace[],
-  placeOf: (dir: string) => Place,
-  limit = CANDIDATES,
-): ProjectCandidate[] {
-  const byPath = new Map<string, { count: number; last: string | null }>();
-  for (const chat of chats) {
-    if (!chat.cwd) continue;
-    const place = placeOf(chat.cwd);
-    if (attachProject(projects, chat.cwd, place)) continue;
-    const path = place.repo?.mainCheckout ?? chat.cwd;
-    if (!path || isTemporaryPath(path)) continue;
-    const seen = byPath.get(path) ?? { count: 0, last: null };
-    seen.count += 1;
-    if (chat.updatedAt && (!seen.last || chat.updatedAt > seen.last)) seen.last = chat.updatedAt;
-    byPath.set(path, seen);
-  }
-  return [...byPath]
-    .filter(([path]) => isDirectory(path))
-    .map(([path, { count, last }]) => ({ path, name: basename(path) || path, chatCount: count, lastActivity: last }))
-    .sort((a, b) => b.chatCount - a.chatCount || (b.lastActivity ?? '').localeCompare(a.lastActivity ?? '') || a.path.localeCompare(b.path))
-    .slice(0, limit);
-}
-
-export function isTemporaryPath(path: string): boolean {
-  const tmp = tmpdir();
-  return path === tmp || path.startsWith(`${tmp}/`) || path.startsWith('/tmp/') || path.startsWith('/var/tmp/');
 }
 
 /** A path as the filesystem sees it, falling back to the literal path when it does not exist. */

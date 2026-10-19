@@ -16935,29 +16935,80 @@
   "ProjectCandidate": {
     "type": "object",
     "properties": {
+      "key": {
+        "type": "string",
+        "description": "What hiding it records: the common dir, or the path for a directory"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "repository",
+          "directory"
+        ]
+      },
       "path": {
-        "type": "string"
+        "type": "string",
+        "description": "A repository's main checkout (the folder holding `.bare` or `.git` for a bare one), or the directory itself"
       },
       "name": {
         "type": "string"
       },
+      "remote": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "origin's URL with credentials stripped; null without one, and always null for a directory"
+      },
       "chatCount": {
         "type": "number"
+      },
+      "worktreeCount": {
+        "type": "number",
+        "description": "The linked worktrees the chats ran in; 0 for a directory"
       },
       "lastActivity": {
         "type": [
           "string",
           "null"
         ]
+      },
+      "sameRemoteAs": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatProject"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A project that is another clone of the same remote"
       }
     },
     "required": [
+      "key",
+      "kind",
       "path",
       "name",
+      "remote",
       "chatCount",
-      "lastActivity"
+      "worktreeCount",
+      "lastActivity",
+      "sameRemoteAs"
     ],
-    "description": "A directory chats have run in that is not imported, offered on first start."
+    "description": "A repository, or a directory in none, that chats have run in and that is not a project: offered on first start."
+  },
+  "CandidateKeyRequest": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key"
+    ],
+    "description": "Hides or shows again one suggestion: the `key` of a  {@link  ProjectCandidate } ."
   },
   "ProjectPathInspection": {
     "type": "object",
