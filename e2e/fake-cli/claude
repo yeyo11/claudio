@@ -697,16 +697,19 @@ function mcpCall(own, text) {
     afterTool(own);
   };
   const configFile = flag('--mcp-config');
-  let def;
+  // A server handed over with `mcp_set_servers` wins over the file's of the same name, as in the CLI
+  const pushed = pushedServers.get(server);
+  let def = pushed;
   try {
-    def = configFile ? JSON.parse(readFileSync(configFile, 'utf8')).mcpServers?.[server] : undefined;
+    def ??= configFile ? JSON.parse(readFileSync(configFile, 'utf8')).mcpServers?.[server] : undefined;
   } catch {
     def = undefined;
   }
   if (!def) return finish(`<tool_use_error>Error: No such tool available: ${name}</tool_use_error>`, true);
   const allowed = (flag('--allowedTools') ?? '').split(',');
   if (!allowed.includes(name)) return finish(`Permission to use ${name} was denied`, true);
-  const expand = (v) => String(v).replace(/\$\{(\w+)\}/g, (_, n) => env[n] ?? '');
+  // The CLI expands `${VAR}` in a config file only: a pushed config reaches the server as written
+  const expand = (v) => (pushed ? String(v) : String(v).replace(/\$\{(\w+)\}/g, (_, n) => env[n] ?? ''));
   const serverEnv = { ...env, ...Object.fromEntries(Object.entries(def.env ?? {}).map(([k, v]) => [k, expand(v)])) };
   const child = spawn(def.command, (def.args ?? []).map(expand), { env: serverEnv, stdio: ['pipe', 'pipe', 'ignore'] });
   mcpChildren.add(child);
@@ -1004,9 +1007,48 @@ function endTurn({ result = '', error = false, structured = undefined }) {
   if (next !== undefined) setImmediate(() => startTurn(next.text, next.uuid));
 }
 
+/** The servers handed over with `mcp_set_servers`, by name, as they were given */
+const pushedServers = new Map();
+
+/**
+ * `mcp_set_servers`, as CLI 2.1.302 answers it (packages/core/test/fixtures/recordings/claude/mcp-set-servers.json):
+ * the set replaces the servers pushed before, each one listed by `mcp_status` with the scope `dynamic`.
+ * A config the CLI could not start is answered in `errors` and listed `failed` with the same words.
+ */
+function setServers(servers) {
+  const added = [];
+  const removed = [];
+  const errors = {};
+  for (const name of [...pushedServers.keys()]) {
+    if (Object.hasOwn(servers, name)) continue;
+    pushedServers.delete(name);
+    const at = mcpServers.findIndex((s) => s.name === name && s.scope === 'dynamic');
+    if (at !== -1) mcpServers.splice(at, 1);
+    removed.push(name);
+  }
+  for (const [name, config] of Object.entries(servers)) {
+    if (JSON.stringify(pushedServers.get(name)) === JSON.stringify(config)) continue;
+    pushedServers.set(name, config);
+    added.push(name);
+    const type = config?.type ?? 'stdio';
+    const error =
+      type === 'stdio' ? (typeof config?.command === 'string' && config.command ? null : 'Spread syntax requires ...iterable not be null or undefined')
+      : type === 'http' || type === 'sse' ? (typeof config?.url === 'string' ? null : 'Invalid URL')
+      : `Unknown server type: ${String(type)}`;
+    if (error) errors[name] = error;
+    const entry = { name, status: error ? 'failed' : 'connected', scope: 'dynamic', tools: [], ...(error ? { error } : {}) };
+    const at = mcpServers.findIndex((s) => s.name === name && s.scope === 'dynamic');
+    if (at === -1) mcpServers.push(entry);
+    else mcpServers[at] = entry;
+  }
+  log('mcp-set-servers', { names: Object.keys(servers), added, removed, env: Object.fromEntries(Object.entries(servers).map(([n, c]) => [n, Object.keys(c?.env ?? {})])) });
+  return { added, removed, errors };
+}
+
 /**
  * The MCP servers `mcp_status` reports: a local server and a claude.ai connector waiting for its
- * authorisation, or the list in CLAUDIO_FAKE_CLI_MCP (JSON). `mcp_toggle` switches one, for this process.
+ * authorisation, or the list in CLAUDIO_FAKE_CLI_MCP (JSON), and those `mcp_set_servers` pushed.
+ * `mcp_toggle` switches one, for this process.
  */
 const mcpServers = (() => {
   try {
@@ -1196,6 +1238,14 @@ function control(message) {
     }
     server.status = request.enabled === false ? 'disabled' : server.scope === 'claudeai' ? 'needs-auth' : 'connected';
     reply({});
+    return;
+  }
+  if (request.subtype === 'mcp_set_servers') {
+    if (!request.servers || typeof request.servers !== 'object' || Array.isArray(request.servers)) {
+      emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: 'servers must be an object' } });
+      return;
+    }
+    reply(setServers(request.servers));
     return;
   }
   emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: `the fake CLI does not handle ${String(request.subtype)}` } });

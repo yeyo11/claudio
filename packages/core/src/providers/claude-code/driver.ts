@@ -11,6 +11,7 @@ import type {
   DriverEvent,
   DriverSession,
   LaunchPlan,
+  McpSetServersResult,
   ProviderDriver,
   SessionInit,
   SessionIO,
@@ -20,7 +21,7 @@ import type {
 import { buildArgs } from './args.ts';
 import { ClaudeBranches } from './branches.ts';
 import { ControlChannel } from './control.ts';
-import { liveMcpServers } from './mcp.ts';
+import { liveMcpServers, mcpSetServersResult } from './mcp.ts';
 import { confirmClaudeInit } from './handshake.ts';
 import { claudeCodeManifest } from './manifest.ts';
 import { translateClaudePolicy } from './policy.ts';
@@ -84,6 +85,10 @@ class ClaudeCodeSession implements DriverSession {
   async mcpToggle(name: string, enabled: boolean): Promise<void> {
     // The CLI writes the choice to the folder's `disabledMcpServers`, as `/mcp` does in a terminal
     await this.control.request({ subtype: 'mcp_toggle', serverName: name, enabled });
+  }
+
+  async mcpSetServers(servers: Record<string, Record<string, unknown>>): Promise<McpSetServersResult> {
+    return mcpSetServersResult(await this.control.request({ subtype: 'mcp_set_servers', servers }));
   }
 
   answerPermission(requestId: string, decision: PermissionDecision): void {

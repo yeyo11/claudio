@@ -151,7 +151,7 @@ import { ProvidersSettingsStore } from './providers/settings.ts';
 import { Locator } from './locations.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
-import { claudioMcp, claudioMcpSync, collabMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
+import { claudioMcp, claudioMcpSync, collabMcpSync, dynamicClaudioServer, assistantChatOptions, type ClaudioMcpIdentity, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
 import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
 import { ChatTools, ToolPresetStore } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
@@ -803,6 +803,7 @@ export class Core {
     this.runtime.permissions = this.permissions;
     this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
     this.runtime.agentReadsLaunch = (chat) => this.agentReadsLaunch(chat);
+    this.runtime.claudioServer = (chat) => this.claudioServer(chat);
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
@@ -2079,15 +2080,29 @@ export class Core {
   }
 
   /**
-   * The reads of teammates' copies for a process of a chat that is not the assistant: offered when
-   * its project opted in and its mode asks before running commands, decided again at every process
-   * and checked again by the API at every call (docs/plans/collaborators-agent-access.md).
+   * Claudio's own server for a process of a chat that is not the assistant. The reads of teammates'
+   * copies are offered when its project opted in and its mode asks before running commands, decided
+   * again at every process and checked again by the API at every call
+   * (docs/plans/collaborators-agent-access.md); all of Claudio's tools when the person switched them
+   * on for the chat, which then obey the chat's permission mode.
    */
-  private agentReadsLaunch(chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null }): CollabMcpLaunch | null {
-    const projectId = this.projectOf(resolve(chat.dir)).project?.id ?? null;
-    const decision = this.collaborators.agentReadScope({ assistant: false, projectId, permissionMode: chat.permissionMode });
-    if (!('scope' in decision)) return null;
-    return collabMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION }, chat.mcpConfig);
+  private agentReadsLaunch(chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null; claudioMcp: boolean }): CollabMcpLaunch | null {
+    const toolsets = this.chatToolsets(chat.dir, chat.permissionMode, chat.claudioMcp);
+    if (!toolsets.length) return null;
+    return collabMcpSync({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION, toolsets }, chat.mcpConfig);
+  }
+
+  /** The same server for a live process, handed over with `mcp_set_servers`; null when it gets none. */
+  private claudioServer(chat: { dir: string; permissionMode: PermissionMode; claudio: boolean } & ClaudioMcpIdentity): Record<string, unknown> | null {
+    const toolsets = this.chatToolsets(chat.dir, chat.permissionMode, chat.claudio);
+    if (!toolsets.length) return null;
+    return dynamicClaudioServer({ dataDir: this.config.dataDir, apiUrl: this.runtime.apiUrl, version: CLAUDIO_VERSION, toolsets }, { chatId: chat.chatId, token: chat.token });
+  }
+
+  private chatToolsets(dir: string, permissionMode: PermissionMode, claudio: boolean): Array<'claudio' | 'collab'> {
+    const projectId = this.projectOf(resolve(dir)).project?.id ?? null;
+    const reads = 'scope' in this.collaborators.agentReadScope({ assistant: false, projectId, permissionMode });
+    return [...(claudio ? (['claudio'] as const) : []), ...(reads ? (['collab'] as const) : [])];
   }
 
   async setCredentials(credentials: StoredCredentials): Promise<SystemInfo> {

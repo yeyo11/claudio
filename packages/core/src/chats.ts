@@ -12,7 +12,10 @@ import {
   type ClaudioAssistantMarker,
   type ChatActivity,
   type Attachment,
+  type ChatClaudioMcp,
   type ChatMcpServers,
+  type ClaudioMcpUnavailable,
+  type LiveMcpServer,
   type ChatMessageReceipt,
   type ChatMessageTaken,
   type ChatToolConfig,
@@ -35,7 +38,8 @@ import {
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
-import type { AssistantChatOptions, CollabMcpLaunch } from './claudio-mcp.ts';
+import { CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import type { AssistantChatOptions, ClaudioMcpIdentity, CollabMcpLaunch } from './claudio-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
 import { RunEventPublisher } from './event-sources.ts';
@@ -111,7 +115,7 @@ export class AccountSwitchRefusal extends Error {
 export class ChatRefusal extends Error {
   constructor(
     message: string,
-    readonly statusCode: 400 | 404 | 409 = 400,
+    readonly statusCode: 400 | 404 | 409 | 503 = 400,
   ) {
     super(message);
   }
@@ -198,11 +202,18 @@ export class ChatManager extends EventEmitter {
    */
   assistantLaunch: ((marker: ClaudioAssistantMarker) => AssistantChatOptions) | null = null;
   /**
-   * Claudio's reads of teammates' copies for a chat that is not the assistant, decided at every
-   * process from its directory and its mode, or null when its scope allows none; Core sets it
-   * (docs/plans/collaborators-agent-access.md). `mcpConfig` is the file of the servers the chat chose.
+   * Claudio's own server for a process of a chat that is not the assistant, or null when it gets
+   * none: the reads of teammates' copies, decided at every process from its directory and its mode
+   * (docs/plans/collaborators-agent-access.md), and all of Claudio's tools when the person switched
+   * them on for the chat (`claudioMcp`). Core sets it. `mcpConfig` is the file of the servers the chat chose.
    */
-  agentReadsLaunch: ((chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null }) => CollabMcpLaunch | null) | null = null;
+  agentReadsLaunch: ((chat: { dir: string; permissionMode: PermissionMode; mcpConfig: string | null; claudioMcp: boolean }) => CollabMcpLaunch | null) | null = null;
+  /**
+   * The `claudio` server a live process is handed with `mcp_set_servers`: all of Claudio's tools when
+   * `claudio`, else the reads of teammates' copies alone when the chat's scope allows them, else null.
+   * Throws when the server cannot be built here (no API address). Core sets it.
+   */
+  claudioServer: ((chat: { dir: string; permissionMode: PermissionMode; claudio: boolean } & ClaudioMcpIdentity) => Record<string, unknown> | null) | null = null;
   /** Where chats with `permissionPrompts: 'host'` send what they ask; null means nobody answers */
   permissions: PermissionBroker | null = null;
   /** Files attached to messages; every chat may read them */
@@ -229,6 +240,12 @@ export class ChatManager extends EventEmitter {
   readonly environments = new Map<string, EffectiveEnvironment>();
 
   private readonly publisher = new RunEventPublisher((event) => this.bus?.emit(event));
+  /** The token each process was minted, for a server handed to it at run time, in which the CLI expands no reference */
+  private readonly procTokens = new WeakMap<ChildProcessWithoutNullStreams, string | null>();
+  /** The processes Claudio pushed its own server to: until then a `claudio` they list came from their `--mcp-config` */
+  private readonly claudioPushed = new WeakSet<ChildProcessWithoutNullStreams>();
+  /** What the CLI said when it last refused Claudio's server in a chat, by chat */
+  private readonly claudioRefusals = new Map<string, string>();
 
   private readonly file: string;
 
@@ -1142,12 +1159,92 @@ export class ChatManager extends EventEmitter {
     return session.contextUsage(detail);
   }
 
-  /** The MCP servers of the chat's live process, as it reports them now. */
+  /** The MCP servers of the chat's live process, as it reports them now, and Claudio's own server for it. */
   async mcpServers(id: string): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
     const session = chat?.alive ? chat.session : null;
-    if (!session?.mcpStatus) return { live: false, servers: [] };
-    return { live: true, servers: await session.mcpStatus() };
+    if (!session?.mcpStatus) return { live: false, servers: [], ...(chat ? { claudio: this.claudioState(chat, []) } : {}) };
+    const servers = await session.mcpStatus();
+    return { live: true, servers, ...(chat ? { claudio: this.claudioState(chat, servers) } : {}) };
+  }
+
+  private claudioState(chat: LiveChat, servers: readonly LiveMcpServer[]): ChatClaudioMcp {
+    return { on: chat.tools?.claudioMcp === true, unavailable: this.claudioUnavailable(chat, servers), error: this.claudioRefusals.get(chat.id) ?? null };
+  }
+
+  /**
+   * Why Claudio's own server cannot be switched on in this chat, or null. A `claudio` the process
+   * lists from the person's own settings, or one of the servers the chat chose by that name, is
+   * theirs: it is reported, never replaced. Ours is the one with the scope `dynamic`.
+   */
+  private claudioUnavailable(chat: LiveChat, servers: readonly LiveMcpServer[]): ClaudioMcpUnavailable | null {
+    if (chat.opts.claudioAssistant) return 'assistant';
+    if (chat.provider !== LEGACY_PROVIDER || chat.opts.confine || chat.opts.internal || chat.origin === 'internal') return 'provider';
+    if (servers.some((s) => s.name === CLAUDIO_MCP_SERVER && s.scope !== 'dynamic') || chat.opts.mcp?.servers.includes(CLAUDIO_MCP_SERVER)) return 'clash';
+    return this.claudioEntryOrNull(chat, { chatId: chat.id, token: null }) ? null : 'no-api';
+  }
+
+  private claudioEntry(chat: LiveChat, claudio: boolean, identity: ClaudioMcpIdentity): Record<string, unknown> | null {
+    if (!this.claudioServer) throw new Error("Claudio's MCP server is not available here");
+    return this.claudioServer({ dir: chat.workingDir ?? chat.cwd, permissionMode: chat.permissionMode, claudio, ...identity });
+  }
+
+  /** The server with all of Claudio's tools, or null when it cannot be built here */
+  private claudioEntryOrNull(chat: LiveChat, identity: ClaudioMcpIdentity): Record<string, unknown> | null {
+    try {
+      return this.claudioEntry(chat, true, identity);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Switches Claudio's own MCP server on or off in a live chat with the CLI's `mcp_set_servers`, and
+   * stores the choice on the chat, so every later process starts with it in its `--mcp-config`.
+   * Answers with the servers as they are after it; a server the CLI refused is in `claudio.error`.
+   */
+  async setClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers> {
+    const chat = this.chats.get(id);
+    if (!chat) throw new Error('chat not found');
+    const proc = chat.alive ? chat.proc : null;
+    const session = proc ? chat.session : null;
+    if (!proc || !session?.mcpSetServers || !session.mcpStatus) throw new ChatRefusal("This chat has no live process: choose Claudio's server when you resume it.");
+    const servers = await session.mcpStatus();
+    const unavailable = this.claudioUnavailable(chat, servers);
+    if (unavailable === 'assistant') throw new ChatRefusal("The Claudio assistant already has Claudio's server.");
+    if (unavailable === 'provider') throw new ChatRefusal("Claudio's server is offered to Claude Code chats only.");
+    if (unavailable === 'clash') throw new ChatRefusal("There is already a server named claudio: rename it to switch on Claudio's own.", 409);
+    const identity = { chatId: chat.id, token: this.procTokens.get(proc) ?? null };
+    let entry: Record<string, unknown> | null;
+    try {
+      // Off keeps the reads of teammates' copies the chat's scope gives it, as its next process would have
+      entry = this.claudioEntry(chat, enabled, identity);
+    } catch (err) {
+      if (enabled) throw new ChatRefusal(err instanceof Error ? err.message : String(err), 503);
+      entry = null;
+    }
+    // The CLI leaves a server of `--mcp-config` alone until a set names it: replaced by a pushed one
+    // first, the set after it removes it (checked against CLI 2.1.302)
+    if (!entry && !this.claudioPushed.has(proc) && servers.some((s) => s.name === CLAUDIO_MCP_SERVER && s.scope === 'dynamic')) {
+      const stand = this.claudioEntryOrNull(chat, identity);
+      if (stand) await session.mcpSetServers({ [CLAUDIO_MCP_SERVER]: stand });
+    }
+    const result = await session.mcpSetServers(entry ? { [CLAUDIO_MCP_SERVER]: entry } : {});
+    this.claudioPushed.add(proc);
+    const refused = result.errors[CLAUDIO_MCP_SERVER];
+    if (refused) this.claudioRefusals.set(chat.id, refused);
+    else {
+      this.claudioRefusals.delete(chat.id);
+      this.storeClaudioMcp(chat, enabled);
+    }
+    return this.mcpServers(id);
+  }
+
+  /** The choice goes on the chat's tool record, which is what a resume, a fork and a respawn start from. */
+  private storeClaudioMcp(chat: LiveChat, enabled: boolean): void {
+    const { claudioMcp: _was, ...rest } = chat.tools ?? { preset: null, allowedTools: [], disallowedTools: [], mcp: chat.opts.mcp ?? null };
+    chat.opts.toolConfig = enabled ? { ...rest, claudioMcp: true } : rest;
+    this.persist();
   }
 
   /**
@@ -1298,17 +1395,20 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * The reads of teammates' copies this process gets, or null. The assistant has its own launch, and
-   * housekeeping and confined chats get none; the rest is the scope's to say.
+   * Claudio's own server for this process, or null: the reads of teammates' copies when the scope
+   * says so, and all of its tools when the person switched it on for the chat. The assistant has its
+   * own launch, and housekeeping and confined chats get none.
    */
   private agentReads(chat: LiveChat): CollabMcpLaunch | null {
     const { opts } = chat;
     if (!this.agentReadsLaunch || opts.claudioAssistant || opts.confine || opts.internal || chat.origin === 'internal' || chat.provider !== LEGACY_PROVIDER) return null;
+    const claudioMcp = opts.toolConfig?.claudioMcp === true;
     try {
-      return this.agentReadsLaunch({ dir: chat.workingDir ?? chat.cwd, permissionMode: chat.permissionMode, mcpConfig: opts.mcp?.config ?? null });
+      return this.agentReadsLaunch({ dir: chat.workingDir ?? chat.cwd, permissionMode: chat.permissionMode, mcpConfig: opts.mcp?.config ?? null, claudioMcp });
     } catch (err) {
       // The chat runs without them rather than not at all
-      chat.push({ kind: 'notice', text: `This process cannot read what teammates share: ${err instanceof Error ? err.message : String(err)}` });
+      const why = err instanceof Error ? err.message : String(err);
+      chat.push({ kind: 'notice', text: claudioMcp ? `This process starts without Claudio's MCP server: ${why}` : `This process cannot read what teammates share: ${why}` });
       return null;
     }
   }
@@ -1587,6 +1687,7 @@ export class ChatManager extends EventEmitter {
       if (token) this.chatTokens.revoke(token);
     };
     if (token) this.chatTokens.attach(token, proc.pid);
+    this.procTokens.set(proc, token);
     chat.proc = proc;
     chat.released = false;
     chat.procClosed = false;
