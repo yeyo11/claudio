@@ -356,7 +356,8 @@ export class SyncClient {
   private readonly peers = new Map<string, PeerState>();
   private readonly shares = new Map<string, ShareState>();
   private readonly catalog: CatalogCache;
-  private stopped = false;
+  /** Until `setPeers` runs the client is not syncing: Collaborators is off, or has not started yet */
+  private stopped = true;
 
   constructor(private readonly deps: SyncDeps) {
     this.catalog = new CatalogCache(join(deps.dir, 'catalog.json'));
@@ -987,6 +988,8 @@ export class SyncClient {
     const lastSyncedAt = state?.lastSyncedAt ?? this.catalog.at(owner) ?? presence.lastSeenAt;
     const online = !!peer?.online;
     const error = state?.error ?? null;
+    // A stopped client reaches nobody, which is not the owner being away: it says so
+    if (this.stopped) return { state: 'paused', lastSyncedAt, path: null, error };
     if (!online) return { state: lastSyncedAt ? 'offline' : 'pending', lastSyncedAt, path: null, error };
     if (!state?.lastSyncedAt) return { state: 'pending', lastSyncedAt, path: presence.path, error };
     return { state: peer.watch ? 'live' : 'synced', lastSyncedAt, path: presence.path, error };
