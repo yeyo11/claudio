@@ -88,7 +88,7 @@ export function WorkOnDialog({ item, onClose }: { item: Pick<WorkItem, 'id' | 'k
         <Field label={tn('new.appendSystemPrompt')} hint={tn('new.optional')}>
           <textarea rows={2} value={appendSystemPrompt} onChange={(e) => setAppendSystemPrompt(e.target.value)} />
         </Field>
-        <ChatToolsPicker value={tools} onChange={setTools} scope={{ projectId: item.projectId }} />
+        <ChatToolsPicker value={tools} onChange={setTools} scope={{ projectId: item.projectId }} offerClaudio={false} />
         <Switch checked={askHere} onChange={setAskHere}>
           {tn('new.askHere')}
         </Switch>

@@ -1,4 +1,5 @@
 import type { LiveMcpServer } from '@claudio/shared';
+import type { McpSetServersResult } from '../driver.ts';
 
 const STATUSES: ReadonlySet<LiveMcpServer['status']> = new Set(['connected', 'failed', 'needs-auth', 'pending', 'disabled']);
 
@@ -39,4 +40,15 @@ export function liveMcpServers(response: Record<string, unknown>): LiveMcpServer
     });
   }
   return servers;
+}
+
+/**
+ * The CLI's answer to `mcp_set_servers` (`{ added, removed, errors }`, recorded on 2.1.302), read
+ * defensively: a name it did not list was neither added nor removed, and a refusal keeps its words.
+ */
+export function mcpSetServersResult(response: Record<string, unknown>): McpSetServersResult {
+  const names = (value: unknown) => (Array.isArray(value) ? value.filter((n): n is string => typeof n === 'string') : []);
+  const errors: Record<string, string> = {};
+  if (isRecord(response.errors)) for (const [name, message] of Object.entries(response.errors)) errors[name] = typeof message === 'string' ? message : JSON.stringify(message);
+  return { added: names(response.added), removed: names(response.removed), errors };
 }

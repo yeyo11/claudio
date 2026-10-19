@@ -88,18 +88,30 @@ export function claudioMcpSync(opts: ClaudioMcpOptions): ClaudioMcpLaunch {
   };
 }
 
-/** The `claudio` entry of a config file: how the CLI starts the server, and with what */
-function serverEntry(opts: ClaudioMcpOptions, toolsets: readonly ClaudioMcpToolset[]): Record<string, unknown> {
+/** The chat process a server pushed to it runs for: its id, and the token minted for that process. */
+export interface ClaudioMcpIdentity {
+  chatId: string;
+  /** Null when the process was given none, as a chat that never calls the API back is not */
+  token: string | null;
+}
+
+/**
+ * The `claudio` entry of a config file: how the CLI starts the server, and with what. In a file the
+ * chat's id and token are `${NAME}` references the CLI expands; a config pushed with
+ * `mcp_set_servers` is not expanded (checked against CLI 2.1.302), so `identity` carries them literally.
+ */
+function serverEntry(opts: ClaudioMcpOptions, toolsets: readonly ClaudioMcpToolset[], identity?: ClaudioMcpIdentity): Record<string, unknown> {
   if (!opts.apiUrl) throw new Error("Claudio's MCP server needs the API's address, and the API is not listening yet");
   const env = opts.env ?? process.env;
   const { command, args } = mcpCommand(env, opts.execPath ?? process.execPath);
   return {
+    ...(identity ? { type: 'stdio' } : {}),
     command,
     args,
     env: {
       CLAUDIO_API_URL: opts.apiUrl,
-      CLAUDIO_CHAT_ID: '${CLAUDIO_CHAT_ID}',
-      CLAUDIO_API_TOKEN: '${CLAUDIO_API_TOKEN}',
+      CLAUDIO_CHAT_ID: identity ? identity.chatId : '${CLAUDIO_CHAT_ID}',
+      ...(identity ? (identity.token ? { CLAUDIO_API_TOKEN: identity.token } : {}) : { CLAUDIO_API_TOKEN: '${CLAUDIO_API_TOKEN}' }),
       CLAUDIO_VERSION: opts.version,
       // Named only when it is not the default, so the assistant's file stays the one it always was
       ...(toolsets.length === 1 && toolsets[0] === 'claudio' ? {} : { [CLAUDIO_MCP_TOOLSETS_ENV]: toolsets.join(',') }),
@@ -128,13 +140,16 @@ export interface CollabMcpLaunch {
 }
 
 /**
- * Claudio's MCP server with only the reads of teammates' copies, for a chat of a project that opted
- * in (docs/plans/collaborators-agent-access.md). The caller decided the chat's scope allows it; the
- * API decides again at every call. `chosen` is the config file of the servers the chat picked, if
- * any: one `--mcp-config` file is all the CLI is ever given, so the server joins that file.
+ * Claudio's MCP server for a chat that is not the assistant, joined to the file of the servers it
+ * chose. By default it offers only the reads of teammates' copies, for a chat of a project that
+ * opted in (docs/plans/collaborators-agent-access.md); `toolsets` adds `claudio` when the person
+ * switched Claudio's server on for the chat. The caller decided the chat's scope allows the reads;
+ * the API decides again at every call. `chosen` is the config file of the servers the chat picked,
+ * if any: one `--mcp-config` file is all the CLI is ever given, so the server joins that file.
  */
 export function collabMcpSync(opts: ClaudioMcpOptions, chosen: string | null): CollabMcpLaunch {
-  const entry = serverEntry(opts, ['collab']);
+  const toolsets = opts.toolsets ?? ['collab'];
+  const entry = serverEntry(opts, toolsets);
   let servers: Record<string, Record<string, unknown>> = {};
   if (chosen) {
     const parsed: unknown = JSON.parse(readFileSync(chosen, 'utf8'));
@@ -144,7 +159,17 @@ export function collabMcpSync(opts: ClaudioMcpOptions, chosen: string | null): C
   }
   // Ours under its own name, over any server of the person's that took it: the tools' names say `claudio`
   servers[CLAUDIO_MCP_SERVER] = entry;
-  return { mcpConfig: writeMcpConfigSync(opts.dataDir, servers), adds: chosen === null, allowedTools: [...CLAUDIO_MCP_COLLAB_TOOLS] };
+  // Only the collab reads are allowed ahead of time: the rest of Claudio's tools ask as the chat's mode says
+  return { mcpConfig: writeMcpConfigSync(opts.dataDir, servers), adds: chosen === null, allowedTools: toolsets.includes('collab') ? [...CLAUDIO_MCP_COLLAB_TOOLS] : [] };
+}
+
+/**
+ * The `claudio` server as a live chat is handed it with the CLI's `mcp_set_servers`, built as the
+ * config file's entry is, with the toolsets of `opts` (`claudio` by default). Throws when the server
+ * could not reach the API or could not be started here, as the file's entry does.
+ */
+export function dynamicClaudioServer(opts: ClaudioMcpOptions, identity: ClaudioMcpIdentity): Record<string, unknown> {
+  return serverEntry(opts, opts.toolsets ?? ['claudio'], identity);
 }
 
 /**

@@ -1,0 +1,50 @@
+{
+  "about": "The control request mcp_set_servers on CLI 2.1.302 (Claude Code), in a -p --input-format stream-json session started with --mcp-config naming one stdio server, 'fromfile'; no turn sent, no tokens spent. Each step is the request's servers, the CLI's answer, and what mcp_status listed after it as [name, status, scope, tools]. The stdio servers were a stub answering initialize and tools/list with one tool. Recorded 2026-10-19.",
+  "findings": [
+    "A server of --mcp-config is listed with the scope 'dynamic', like a pushed one.",
+    "A set leaves a server of --mcp-config alone until a set names it; once named, it is replaced, and a later set without it removes it.",
+    "A pushed config is not expanded: an env value '${CLAUDIO_CHAT_ID}' reached the server as written, while the same value in the --mcp-config file reached it expanded. The CLI's own environment is passed through to a pushed server.",
+    "A config the CLI cannot start is answered in errors, by name, and listed as failed with the same words."
+  ],
+  "steps": [
+    {
+      "servers": {},
+      "note": "before any set",
+      "status": [["fromfile", "connected", "dynamic", 1]]
+    },
+    {
+      "servers": { "dyn": { "type": "stdio", "command": "node", "args": ["<stub>", "dyn"] } },
+      "response": { "added": ["dyn"], "removed": [], "errors": {} },
+      "status": [["fromfile", "connected", "dynamic", 1], ["dyn", "connected", "dynamic", 1]]
+    },
+    {
+      "servers": { "dyn": { "type": "stdio", "command": "node", "args": ["<stub>", "dyn"] }, "fromfile": { "command": "node", "args": ["<stub>", "fromfile"], "env": { "X": "${CLAUDIO_CHAT_ID}" } } },
+      "response": { "added": ["fromfile"], "removed": [], "errors": {} },
+      "status": [["dyn", "connected", "dynamic", 1], ["fromfile", "connected", "dynamic", 1]]
+    },
+    {
+      "servers": { "dyn": { "type": "stdio", "command": "node", "args": ["<stub>", "dyn"] }, "fromfile": { "command": "node", "args": ["<stub>", "fromfile"], "env": { "X": "${CLAUDIO_CHAT_ID}" } } },
+      "note": "the same set again",
+      "response": { "added": [], "removed": [], "errors": {} },
+      "status": [["dyn", "connected", "dynamic", 1], ["fromfile", "connected", "dynamic", 1]]
+    },
+    {
+      "servers": { "dyn": { "type": "stdio", "command": "node", "args": ["<stub>", "dyn"] }, "broken": { "type": "stdio", "command": "/nonexistent/bin" }, "weird": { "type": "nope" } },
+      "response": {
+        "added": ["broken", "weird"],
+        "removed": ["fromfile"],
+        "errors": {
+          "broken": "Spread syntax requires ...iterable not be null or undefined",
+          "weird": "Re.includes is not a function. (In 'Re.includes(\"timed out\")', 'Re.includes' is undefined)"
+        }
+      },
+      "status": [["dyn", "connected", "dynamic", 1], ["broken", "failed", "dynamic", 0], ["weird", "failed", "dynamic", 0]]
+    },
+    {
+      "servers": {},
+      "note": "from a fresh session where dyn and fromfile had both been pushed",
+      "response": { "added": [], "removed": ["dyn", "fromfile"], "errors": {} },
+      "status": []
+    }
+  ]
+}
