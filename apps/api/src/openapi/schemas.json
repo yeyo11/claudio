@@ -1040,12 +1040,17 @@
           "string",
           "null"
         ]
+      },
+      "exists": {
+        "type": "boolean",
+        "description": "False once the worktree is removed: history, never a place to start a chat"
       }
     },
     "required": [
       "path",
       "name",
-      "branch"
+      "branch",
+      "exists"
     ],
     "description": "The git worktree a chat works in, when it is not the project's own checkout."
   },
@@ -10591,7 +10596,7 @@
       "title",
       "type"
     ],
-    "description": "A project was renamed, its key prefix or its modules changed, or its settings document was replaced."
+    "description": "A project was renamed or re-pointed, its key prefix or its modules changed, or its settings document was replaced."
   },
   "ProjectChange": {
     "type": "string",
@@ -10599,7 +10604,8 @@
       "name",
       "key",
       "modules",
-      "settings"
+      "settings",
+      "path"
     ],
     "description": "What `project.updated` says changed; `settings` is anything else in the settings document."
   },
@@ -16668,11 +16674,34 @@
       "path": {
         "type": "string"
       },
+      "repo": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectRepo"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The repository it lives in; null for a directory that is in none"
+      },
       "worktrees": {
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/ProjectWorktree"
-        }
+        },
+        "description": "The repository's checkouts that exist, the main one first; empty when it is not a repository"
+      },
+      "removedWorktrees": {
+        "type": "number",
+        "description": "Worktrees git no longer has, still named by the chats that ran in them"
+      },
+      "insideWorktreeOf": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The path lies inside a linked worktree: the main checkout plus subdir, else null"
       },
       "exists": {
         "type": "boolean",
@@ -16704,7 +16733,10 @@
       "id",
       "name",
       "path",
+      "repo",
       "worktrees",
+      "removedWorktrees",
+      "insideWorktreeOf",
       "exists",
       "chatCount",
       "lastActivity",
@@ -16713,11 +16745,53 @@
     ],
     "description": "A directory the person imported, with the worktrees that belong to it."
   },
+  "ProjectRepo": {
+    "type": "object",
+    "properties": {
+      "commonDir": {
+        "type": "string",
+        "description": "git's common directory, real path: the repository's identity on this machine"
+      },
+      "mainCheckout": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The main checkout's top level; null for a bare repository"
+      },
+      "subdir": {
+        "type": "string",
+        "description": "The project's directory relative to the checkout's top level, '' at the root"
+      },
+      "remote": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "origin's URL with credentials stripped; null without an origin"
+      },
+      "bare": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "commonDir",
+      "mainCheckout",
+      "subdir",
+      "remote",
+      "bare"
+    ],
+    "description": "The git repository a project lives in."
+  },
   "ProjectWorktree": {
     "type": "object",
     "properties": {
       "path": {
         "type": "string"
+      },
+      "cwd": {
+        "type": "string",
+        "description": "Where a chat for this project starts in it: `path` plus the project's subdir"
       },
       "name": {
         "type": [
@@ -16731,45 +16805,132 @@
           "null"
         ]
       },
+      "main": {
+        "type": "boolean"
+      },
+      "detached": {
+        "type": "boolean"
+      },
+      "locked": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The lock's reason, '' when locked with none; null when not locked"
+      },
+      "chatCount": {
+        "type": "number",
+        "description": "The project's chats placed in it"
+      },
+      "lastActivity": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
       "createdBy": {
         "anyOf": [
           {
-            "type": "object",
-            "properties": {
-              "orchestrationId": {
-                "type": "string"
-              },
-              "orchestrationName": {
-                "type": "string"
-              },
-              "taskId": {
-                "type": "string"
-              },
-              "taskName": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "orchestrationId",
-              "orchestrationName",
-              "taskId",
-              "taskName"
-            ]
+            "$ref": "#/components/schemas/WorktreeCreator"
           },
           {
             "type": "null"
           }
-        ],
-        "description": "The orchestration task that created it, when one did"
+        ]
       }
     },
     "required": [
       "path",
+      "cwd",
       "name",
       "branch",
+      "main",
+      "detached",
+      "locked",
+      "chatCount",
+      "lastActivity",
       "createdBy"
     ],
-    "description": "A git worktree of a project."
+    "description": "A checkout of a project's repository: the main one, or a linked worktree."
+  },
+  "WorktreeCreator": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "orchestration"
+          },
+          "orchestrationId": {
+            "type": "string"
+          },
+          "orchestrationName": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "taskName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "orchestrationId",
+          "orchestrationName",
+          "taskId",
+          "taskName"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "work-item"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "key",
+          "title"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "chat"
+          },
+          "chatId": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "chatId",
+          "title"
+        ]
+      }
+    ],
+    "description": "Who in Claudio made a worktree; one made by hand (`git worktree add`) has none."
   },
   "ProjectCandidate": {
     "type": "object",
@@ -16797,6 +16958,107 @@
       "lastActivity"
     ],
     "description": "A directory chats have run in that is not imported, offered on first start."
+  },
+  "ProjectPathInspection": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string"
+      },
+      "exists": {
+        "type": "boolean"
+      },
+      "repo": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectRepo"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "importPath": {
+        "type": "string",
+        "description": "What Import would record: the path itself, or the bare layout's root"
+      },
+      "conflict": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ProjectPathConflict"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "sameRemoteAs": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ChatProject"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A project that is another clone of the same remote"
+      },
+      "worktreeCount": {
+        "type": "number",
+        "description": "The repository's linked worktrees that exist"
+      }
+    },
+    "required": [
+      "path",
+      "exists",
+      "repo",
+      "importPath",
+      "conflict",
+      "sameRemoteAs",
+      "worktreeCount"
+    ],
+    "description": "What a path is, answered before it is imported."
+  },
+  "ProjectPathConflict": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "linked-worktree"
+          },
+          "importPath": {
+            "type": "string"
+          },
+          "repoName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "importPath",
+          "repoName"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "already-a-project"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ChatProject"
+          }
+        },
+        "required": [
+          "kind",
+          "project"
+        ]
+      }
+    ],
+    "description": "Why a path cannot be imported as it is."
   },
   "ImportProjectRequest": {
     "type": "object",
@@ -16841,6 +17103,10 @@
           "$ref": "#/components/schemas/ProjectModule"
         },
         "description": "The whole set of modules that are on afterwards; switching one off hides it and keeps its data"
+      },
+      "path": {
+        "type": "string",
+        "description": "Re-points the project inside its own repository (D12): the main checkout plus a subdir"
       }
     },
     "description": "Every field is optional, so a rename alone (`{ name }`) keeps working as it always has."

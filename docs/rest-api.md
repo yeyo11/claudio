@@ -143,12 +143,13 @@ has any; it never sends the work to another vendor.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/projects` | The projects you imported, each with its worktrees and the number of chats under it |
+| GET | `/projects` | The projects you imported, each with its repository, its worktrees (the main checkout first, each with who made it; `createdBy` now carries a `kind`), `removedWorktrees`, `insideWorktreeOf` and the number of chats under it |
 | GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
 | GET | `/projects/templates` | The five built-in project templates: the modules each switches on, its board's work item types and column limits, and the team it offers |
-| POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A git worktree is refused. Without a template or modules every module is off; a directory that was a project before gets its settings back. Emits `project.created` |
+| GET | `/projects/inspect` | `?path=` — what a path is before it is imported: whether it exists, its git repository, the path Import would record, the conflict that would refuse it (`linked-worktree`, `already-a-project`), another clone of the same remote that is a project, and how many worktrees its repository has. 400 without `path` |
+| POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A path inside a linked worktree is refused (400 `linked-worktree`, `detail` is the main checkout plus subdir), and so is a repository and subdir that already is a project (409 `already-a-project`, `detail` is its id). Without a template or modules every module is off; a directory that was a project before gets its settings back. Emits `project.created` |
 | POST | `/projects` | `{ name, gitUrl?, template?, modules? }` — create an empty project in the workspace or clone a repository into it, and import it. Emits `project.created` |
-| PATCH | `/projects/:id` | `{ name?, key?, modules? }` — rename a project, change its work item key prefix or the modules that are on. Switching a module off hides it and keeps its data |
+| PATCH | `/projects/:id` | `{ name?, key?, modules?, path? }` — rename a project, change its work item key prefix or the modules that are on, or re-point it inside its own repository (`path`, a directory of the same repository's main checkout; 400 `not-a-repository`, `not-a-directory`, `linked-worktree`, `other-repository`, 409 `already-a-project`; the id stays and `project.updated` lists `path`). Switching a module off hides it and keeps its data |
 | GET | `/projects/:id/review-roles` | The review gate's reviewers for the project: file, `source` (`builtin` or `project`), `sha`, size and `problem`; `404` for an unknown project |
 | POST | `/projects/:id/review-roles/:role` | Write Claudio's default role file where none exists → `ReviewRoleInfo` (`201`); `409` `role-exists`, `404`. `403` to a chat token |
 | GET | `/projects/:id/settings` | The project's settings document (modules, template, key prefix, board). Created on first read with every module off |

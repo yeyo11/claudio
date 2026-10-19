@@ -16,6 +16,9 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // Also before `/projects/:id`, for the same reason
   app.get('/projects/templates', () => core.projectTemplates());
 
+  // What the import wizard shows before Import is pressed; also before `/projects/:id`
+  app.get<{ Querystring: { path?: string } }>('/projects/inspect', (req) => core.inspectProjectPath(req.query.path));
+
   app.post<{ Body: ImportProjectRequest }>('/projects/import', async (req, reply) =>
     reply.status(201).send(await core.importProject({ ...req.body, path: req.body?.path ?? '' })),
   );
