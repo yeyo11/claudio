@@ -4,7 +4,7 @@ import { ChevronRight, LogIn, SquareTerminal, TriangleAlert } from 'lucide-react
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { api, keys, useAccounts, useSpend } from '../../api';
-import { accountName, signInProblem, usagePct, windowRows } from '../../lib/accounts';
+import { accountName, connectionOf, signInProblem, usagePct, windowRows, type ConnectionKind } from '../../lib/accounts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
@@ -48,44 +48,48 @@ export interface Connection {
  * settings, where each of these is fixed.
  */
 export function useConnection(overview: Now['overview'], feedOpen: boolean): Connection {
-  const { t } = useTranslation('components');
+  const { t } = useTranslation(['components', 'providers']);
   const auth = overview.data?.system.auth;
   const cli = overview.data?.system.cli;
   // The account new work starts on, not the CLI's own login: a login account added beside an empty
   // default runs chats, and `auth status` alone says "signed in" for a credential that was refused
   const inUse = auth?.inUse ?? null;
   const claude = useProviders().data?.find((s) => s.id === CLAUDE_CODE_ID);
-  const expired = inUse?.signInState === 'expired';
-  const healthy = cli?.installed === true && inUse !== null && !expired && (claude ? claude.state === 'ready' : true);
+  const accounts = useAccounts().data ?? [];
+  const rotation = useQuery({ queryKey: keys.accountsSettings, queryFn: ({ signal }) => api.accountsSettings({ signal }) }).data?.rotateOnLimit;
+  const kind = connectionOf({
+    cliInstalled: cli?.installed === true,
+    inUse,
+    inUseReason: auth?.inUseReason,
+    accounts,
+    provider: claude ? { state: claude.state, reason: claude.reason } : null,
+  });
+  const healthy = kind === 'ready';
   const feedDown = !feedOpen && overview.data !== undefined;
-  const tone: DotTone = overview.isError ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
-  const title = overview.isError
-    ? t('shell.apiUnreachable')
-    : !overview.data
-      ? t('shell.connecting')
-      : healthy
-        ? t('shell.claudeCode', { version: cli?.version ?? '' })
-        : !cli?.installed
-          ? t('shell.cliNotDetected')
-          : expired
-            ? t('shell.signInExpired')
-            : t('shell.notLoggedIn');
-  const account = [auth?.subscriptionType ?? auth?.authMethod, inUse?.label].filter(Boolean).join(' · ') || t('shell.loggedIn');
-  const detail = healthy
-    ? feedDown
-      ? t('shell.liveUpdatesPaused')
-      : account
-    : overview.isError
-      ? t('shell.checkWrapper')
-      : !overview.data
-        ? ''
-        : !cli?.installed
-          ? t('shell.installCli')
-          : expired
-            ? t('shell.signInAgain')
-            : t('shell.addCredential');
+  const account = [auth?.subscriptionType ?? auth?.authMethod, inUse?.label].filter(Boolean).join(' · ') || t('components:shell.loggedIn');
+  const label = inUse?.label ?? null;
+  const resetsAt = limitReading(claude?.limit)?.resetsAt ?? null;
+  // A limit says when it ends, when that is known
+  const back = resetsAt ? t('components:shell.limitBack', { time: resetWhen(resetsAt) }) : t('components:shell.checkUsage');
+  const tone: DotTone = overview.isError ? 'bad' : kind === 'limit' ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
+  const words: Record<Exclude<ConnectionKind, 'ready'>, { title: string; detail: string; short: string }> = {
+    'no-cli': { title: t('components:shell.cliNotDetected'), detail: t('components:shell.installCli'), short: t('components:shell.cliNotDetected') },
+    expired: { title: t('components:shell.signInExpired'), detail: t('components:shell.signInAgain'), short: t('components:shell.signInExpired') },
+    'signed-out': { title: t('components:shell.notLoggedIn'), detail: t('components:shell.addCredential'), short: t('components:shell.notLoggedIn') },
+    limit: { title: t('components:shell.limitReached'), detail: back, short: t('components:shell.limitReached') },
+    near: {
+      title: t('components:shell.nearLimit'),
+      detail: rotation ? t('components:shell.rotatesAtLimit') : t('components:shell.checkUsage'),
+      short: [label, t('components:shell.nearLimit')].filter(Boolean).join(' · '),
+    },
+    unchecked: { title: t('components:shell.notChecked'), detail: t('components:shell.willRetry'), short: [label, t('components:shell.notCheckedShort')].filter(Boolean).join(' · ') },
+    unready: { title: t(`providers:state.${claude?.state ?? 'unknown'}`), detail: t('components:shell.openClaudeSettings'), short: t(`providers:state.${claude?.state ?? 'unknown'}`) },
+  };
+  const said = kind === 'ready' ? null : words[kind];
+  const title = overview.isError ? t('components:shell.apiUnreachable') : !overview.data ? t('components:shell.connecting') : (said?.title ?? t('components:shell.claudeCode', { version: cli?.version ?? '' }));
+  const detail = healthy ? (feedDown ? t('components:shell.liveUpdatesPaused') : account) : overview.isError ? t('components:shell.checkWrapper') : !overview.data ? '' : (said?.detail ?? '');
   // Healthy, the account is what a person looks for; otherwise the problem is
-  const short = healthy ? (feedDown ? t('shell.liveUpdatesPaused') : (inUse?.label ?? account)) : title;
+  const short = healthy ? (feedDown ? t('components:shell.liveUpdatesPaused') : (label ?? account)) : overview.data && !overview.isError && said ? said.short : title;
   return { tone, live: healthy && !feedDown, healthy, title, detail, short };
 }
 
