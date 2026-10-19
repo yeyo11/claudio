@@ -32,7 +32,7 @@
     "moreTitle_other": "{{n}} directorios más tienen chats",
     "moreBody": "Impórtalos para agruparlos, verlos en Uso y lanzar chats desde aquí.",
     "review": "Revisar",
-    "collapse": "Ocultar",
+    "collapse": "Ver menos",
     "across_one": "{{chats}} en {{n}} worktree",
     "across_other": "{{chats}} en {{n}} worktrees",
     "otherClone": "Otro clon de «{{name}}»",

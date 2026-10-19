@@ -1263,6 +1263,8 @@
   gap: 8px;
 }
 .repoint-sheet-foot {
+  /* The sheet's foot packs its children to the end; this one takes the whole row, so its buttons can */
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;

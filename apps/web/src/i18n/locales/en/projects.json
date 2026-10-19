@@ -32,7 +32,7 @@
     "moreTitle_other": "{{n}} more directories have chats",
     "moreBody": "Import them to group their chats, see them in Usage and start chats from here.",
     "review": "Review",
-    "collapse": "Hide",
+    "collapse": "Show less",
     "across_one": "{{chats}} across {{n}} worktree",
     "across_other": "{{chats}} across {{n}} worktrees",
     "otherClone": "Another clone of “{{name}}”",
