@@ -152,3 +152,14 @@ test('an unreachable peer that stays so is logged once, not on every retry', asy
   assert.deepEqual(logs, ['collab: sync with Ana failed: no route to the peer']);
   assert.equal(client.isRefused(owner), false);
 });
+
+test('a client that is not running reads paused, and syncs again once peers are set', async () => {
+  const { client } = setup({ now: 'ok' as Mode });
+  // Collaborators off at boot: setPeers never ran
+  assert.equal(client.state(owner, 'k1', { path: null, lastSeenAt: null }).state, 'paused');
+  client.setPeers([owner]);
+  await client.idle(owner);
+  assert.notEqual(client.state(owner, 'k1', { path: null, lastSeenAt: null }).state, 'paused');
+  client.stop();
+  assert.equal(client.state(owner, 'k1', { path: null, lastSeenAt: null }).state, 'paused');
+});
