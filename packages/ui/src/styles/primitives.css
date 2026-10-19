@@ -730,6 +730,17 @@ input.is-invalid {
   fill: var(--logo-spark);
 }
 
+/* Claudio, the assistant's mascot in colour (ClaudioMascot in components/icons.tsx). The eyes paint
+   with the page's --bg, so it stands on a page background, not on a raised card */
+.mascot-mark .mascot-body,
+.mascot-mark .mascot-spark {
+  fill: var(--logo-spark);
+}
+
+.mascot-mark .mascot-eye {
+  fill: var(--bg);
+}
+
 /* The agent a chat runs on: its monogram tinted from --hue like .monogram, never a status hue */
 /* The official mark of a program: the brand's own art on a tile that is light in both themes */
 .brand-mark {
