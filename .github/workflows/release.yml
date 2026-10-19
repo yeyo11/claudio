@@ -99,6 +99,8 @@ jobs:
       id-token: write
       attestations: write
     uses: ./.github/workflows/desktop.yml
+    # A called workflow sees its environment's secrets (the signing keys) only when the caller hands them on
+    secrets: inherit
     with:
       tag: ${{ inputs.tag || needs.please.outputs.tag }}
 
@@ -112,6 +114,8 @@ jobs:
       id-token: write
       attestations: write
     uses: ./.github/workflows/server-bundle.yml
+    # A called workflow sees its environment's secrets (the signing keys) only when the caller hands them on
+    secrets: inherit
     with:
       tag: ${{ inputs.tag || needs.please.outputs.tag }}
 
