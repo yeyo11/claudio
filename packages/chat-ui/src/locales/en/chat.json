@@ -120,7 +120,25 @@
       "add": "Add",
       "account": "Account",
       "servers": "Servers"
-    }
+    },
+    "claudio": "Claudio",
+    "claudioSummary": "Reads and changes projects, tasks, chats and orchestrations",
+    "claudioStatus": {
+      "connected": "connected",
+      "pending": "connecting",
+      "failed": "failed",
+      "needs-auth": "needs authorisation",
+      "disabled": "off",
+      "unknown": "unknown"
+    },
+    "claudioUnavailable": {
+      "no-api": "Not available: Claudio's API address isn't known yet.",
+      "clash": "There is already a server named claudio."
+    },
+    "claudioRefused": "The CLI couldn't start it:",
+    "claudioBypass": "With permission checks off, its changes apply without asking",
+    "claudioStart": "Claudio's server",
+    "claudioStartHint": "All of its tools, under the chat’s permission mode. It stays on when the chat resumes."
   },
   "controls": {
     "permissionModeNew": "Permission mode for the new execution",

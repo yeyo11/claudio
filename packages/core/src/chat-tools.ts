@@ -227,9 +227,12 @@ export class ChatTools {
   async resolve(request: ChatStartOptions, cwd: string, current: ChatToolConfig | null, opts: { fresh?: boolean } = {}): Promise<ToolChoice | null> {
     const toolsPicked = request.toolPreset !== undefined || request.allowedTools !== undefined || request.disallowedTools !== undefined;
     const mcpPicked = request.mcp !== undefined;
+    if (request.claudioMcp !== undefined && typeof request.claudioMcp !== 'boolean') throw new Error('claudioMcp must be a boolean');
+    // Saying what the chat already has changes nothing, so a resume that repeats it keeps the rest as it is
+    const claudioPicked = request.claudioMcp !== undefined && request.claudioMcp !== (current?.claudioMcp === true);
     const carried = opts.fresh === true && current !== null;
     const refreshed = !mcpPicked && Boolean(current?.mcp);
-    if (!toolsPicked && !mcpPicked && !carried && !refreshed) return null;
+    if (!toolsPicked && !mcpPicked && !carried && !refreshed && !claudioPicked) return null;
 
     let preset = current?.preset ?? null;
     let allowedTools = current?.allowedTools ?? [];
@@ -247,10 +250,13 @@ export class ChatTools {
     if (mcpPicked) mcp = request.mcp ? await this.selectServers(request.mcp, cwd) : null;
     else if (current?.mcp) mcp = await this.refreshServers(current.mcp, cwd);
 
+    const claudioMcp = request.claudioMcp ?? current?.claudioMcp === true;
+    // Only the switch changed: the rest of the record stands as it was, its policy included
+    const policy = !toolsPicked && !mcpPicked && !carried && !refreshed ? current?.policy : undefined;
     return {
       ...(toolsPicked || carried ? { allowedTools, disallowedTools } : {}),
       ...(mcpPicked || carried || refreshed ? { mcp } : {}),
-      toolConfig: { preset, allowedTools, disallowedTools, mcp },
+      toolConfig: { preset, allowedTools, disallowedTools, mcp, ...(claudioMcp ? { claudioMcp: true } : {}), ...(policy ? { policy } : {}) },
     };
   }
 

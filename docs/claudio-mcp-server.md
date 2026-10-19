@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T12:00:00Z
-updated_at: 2026-10-17T18:00:00Z
+updated_at: 2026-10-19T14:00:00Z
 tags:
     - mcp
     - assistant
@@ -184,12 +184,49 @@ The helper returns what a caller spreads into `runtime.start`:
 - `--tools=` (empty) hides the built-in tools but **not** the tools of `--mcp-config`: a tool named in
   `--allowedTools` is called under `dontAsk`. So the MCP names stay out of `--tools`.
 
+## On demand in any chat
+
+Since 2026-10-19 ([plans/owner-report-fixes.md](plans/owner-report-fixes.md), D6) any Claude Code
+chat can have the server, with **all** its tools, from one switch: the first row of the composer's "+"
+→ Servers panel, and the same switch in the start options of a resume, a fork or a new chat. Its
+tools obey the chat's permission mode like any other MCP tool: nothing is allowed ahead of time
+except the collab reads a project already gives, and with "Sin comprobar permisos" (bypass) a write
+runs without asking, which the row says under the switch. The API's audit records every call by
+`x-claudio-tool`, as for the assistant.
+
+| Where | How the server reaches the process |
+|---|---|
+| A live chat | `PUT /chats/:id/claudio-mcp` sends the CLI's `mcp_set_servers` with the `claudio` server (toolsets `claudio`, plus `collab` when the chat's project may read teammates' copies, as `collabMcpSync` decides). Off sends the set without it, keeping the collab-only server when the scope gives one |
+| Its next processes | The choice is stored on the chat as `tools.claudioMcp`. A resume, a fork, and Claudio's own respawns (account switch, rotation, limit resume) start with the server merged into their `--mcp-config` file, as the collab reads are; the file adds to the CLI's own servers when the chat chose none, and stays strict when it chose some |
+
+**Checked with the real CLI (2.1.302, no turn sent), recorded in
+`packages/core/test/fixtures/recordings/claude/mcp-set-servers.json`:**
+
+- A pushed config is **not** expanded: `${CLAUDIO_CHAT_ID}` reaches the server as written. So the
+  pushed entry carries the chat's id and the token minted for that process literally
+  (`dynamicClaudioServer`). They travel over the process's stdin and are never written to disk; the
+  file of a respawn keeps the `${NAME}` references.
+- A server of `--mcp-config` is listed with the scope `dynamic` too, and a set leaves it alone until
+  a set names it. Switching off a server the process was launched with therefore pushes it once
+  (replacing it), then sends the set without it.
+- A config the CLI cannot start comes back in the reply's `errors`, by name, and the server is listed
+  `failed` with the same words. The row shows them in mono; `GET /chats/:id/mcp` carries them in
+  `claudio.error`.
+
+Not offered in the assistant chat (it already has the server, confined), in a chat of another agent,
+or in housekeeping and confined chats. When the API's address is unknown the switch is disabled and
+says why (`claudio.unavailable: 'no-api'`, a 503 from the route). A server of the person's already
+named `claudio` (user, project or local scope, or one the chat chose) is reported as such
+(`'clash'`, a 409) and never overwritten. A work item's chat (`WorkOn`) does not offer it at start:
+the work links take no such choice; it can be switched on from the chat once it runs.
+
 ## How to try it
 
 - Tests: `pnpm --filter @claudio/mcp test` (the server, in process and over stdio),
   `packages/core/test/claudio-mcp.test.ts` (the helper) and `apps/api/test/claudio-mcp-chat.test.ts` (a
   confined chat that asks about AGN-12, through the fake CLI's `FAKE-MCP-CALL <server> <tool> <json>`
-  keyword).
+  keyword). The switch: `apps/api/test/claudio-mcp-switch.test.ts`, through the e2e fake CLI, which
+  answers `mcp_set_servers` as recorded.
 - By hand, against a running wrapper:
 
   ```bash
@@ -201,6 +238,7 @@ The helper returns what a caller spreads into `runtime.start`:
 ## Not here
 
 Stop, skip, rerun and delete tools, moving a card to Done, and listing `claudio` in the person's MCP
-settings: it is internal and given only to chats Claudio confines.
+settings: it is internal, given to the chats Claudio confines and to the chats a person switches it
+on for.
 
 Related: [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]], [[collaborators.md]], [[plans/collaborators-agent-access.md]]

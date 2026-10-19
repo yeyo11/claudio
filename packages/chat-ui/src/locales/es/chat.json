@@ -120,7 +120,25 @@
       "add": "Añadir",
       "account": "Cuenta",
       "servers": "Servidores"
-    }
+    },
+    "claudio": "Claudio",
+    "claudioSummary": "Lee y cambia proyectos, tareas, chats y orquestaciones",
+    "claudioStatus": {
+      "connected": "conectado",
+      "pending": "conectando",
+      "failed": "falló",
+      "needs-auth": "necesita autorización",
+      "disabled": "desactivado",
+      "unknown": "desconocido"
+    },
+    "claudioUnavailable": {
+      "no-api": "No disponible: aún no se conoce la dirección de la API de Claudio.",
+      "clash": "Ya hay un servidor llamado claudio."
+    },
+    "claudioRefused": "El CLI no pudo iniciarlo:",
+    "claudioBypass": "Con «Sin comprobar permisos» sus cambios se aplican sin preguntar",
+    "claudioStart": "Servidor de Claudio",
+    "claudioStartHint": "Todas sus herramientas, con el modo de permisos del chat. Sigue activo al reanudar el chat."
   },
   "controls": {
     "permissionModeNew": "Modo de permisos de la nueva ejecución",
