@@ -16,7 +16,7 @@ import { projectViews } from '../src/pages/dashboard/views';
 // The header carries it, a ghost before "New chat here" and "New task" (decision 3 of the design
 // review), on every tab but the two that are forms of their own, Ajustes and Recursos.
 
-const project: Project = { id: 'p 1', name: 'shop', path: '/tmp/shop', worktrees: [], exists: true, chatCount: 3, lastActivity: null, key: 'SHOP', modules: ['board', 'team'] };
+const project: Project = { id: 'p 1', name: 'shop', path: '/tmp/shop', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 3, lastActivity: null, key: 'SHOP', modules: ['board', 'team'] };
 
 const wrap = (children: ReactNode) =>
   renderToStaticMarkup(
