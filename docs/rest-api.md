@@ -144,7 +144,9 @@ has any; it never sends the work to another vendor.
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/projects` | The projects you imported, each with its repository, its worktrees (the main checkout first, each with who made it; `createdBy` now carries a `kind`), `removedWorktrees`, `insideWorktreeOf` and the number of chats under it |
-| GET | `/projects/candidates` | Directories chats have run in that are not projects yet, the busiest first: what a first start offers to import |
+| GET | `/projects/candidates` | Repositories chats have run in that are not projects yet (one per repository, with its remote, chats, worktrees and any other clone that is a project), then a few plain directories; never `$HOME`, a workspace root or what was hidden: what a first start offers to import |
+| POST | `/projects/candidates/hide` | `{ key }` — stops offering one suggestion (a candidate's `key`); 204, idempotent |
+| POST | `/projects/candidates/unhide` | `{ key }` — offers it again; 204, idempotent |
 | GET | `/projects/templates` | The five built-in project templates: the modules each switches on, its board's work item types and column limits, and the team it offers |
 | GET | `/projects/inspect` | `?path=` — what a path is before it is imported: whether it exists, its git repository, the path Import would record, the conflict that would refuse it (`linked-worktree`, `already-a-project`), another clone of the same remote that is a project, and how many worktrees its repository has. 400 without `path` |
 | POST | `/projects/import` | `{ path, name?, template?, modules? }` — import a directory; every chat under it is adopted, retroactively. A path inside a linked worktree is refused (400 `linked-worktree`, `detail` is the main checkout plus subdir), and so is a repository and subdir that already is a project (409 `already-a-project`, `detail` is its id). Without a template or modules every module is off; a directory that was a project before gets its settings back. Emits `project.created` |

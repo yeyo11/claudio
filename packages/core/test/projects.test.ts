@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { Core } from '../src/index.ts';
-import { attachProject, projectCandidates, ProjectPathError, ProjectStore, type ProjectRecord, type RepoLookup } from '../src/projects.ts';
+import { attachProject, ProjectPathError, ProjectStore, type ProjectRecord, type RepoLookup } from '../src/projects.ts';
 import { RepoIndex, type Place, type RepoFacts } from '../src/repos.ts';
 import { encodeProjectId } from '../src/workspace.ts';
 import { tempConfig } from './helpers.ts';
@@ -59,31 +59,6 @@ test('in a monorepo the project whose subdir holds the directory wins, and the r
   // `packages/corex` is not under `packages/core`; and a repository with a project never falls to a holder by path
   assert.equal(attachProject(all, '/work/mono/packages/corex', inRepo(common, 'packages/corex')), null);
   assert.equal(attachProject(all, '/work/mono/packages/web', inRepo(common, 'packages/web')), null);
-});
-
-test('candidates are the busiest directories not imported, worktrees counted for their main checkout, scratch and missing ones left out', () => {
-  // Real directories outside the OS temp dir, which is what marks a directory as scratch
-  const here = import.meta.dirname;
-  const parent = dirname(here);
-  const grand = dirname(parent);
-  const chat = (cwd: string, updatedAt: string) => ({ cwd, updatedAt });
-  const placeOf = (dir: string): Place =>
-    dir.startsWith('/tmp/parent-wt') ? { ...inRepo('/x/.git', '', '/tmp/parent-wt'), repo: { ...(inRepo('/x/.git', '').repo as RepoFacts), mainCheckout: parent, worktree: '/tmp/parent-wt' } } : loose;
-
-  const offered = projectCandidates(
-    [],
-    [chat(here, '2026-01-01'), chat(here, '2026-01-02'), chat(parent, '2026-01-03'), chat('/tmp/parent-wt/src', '2026-01-04'), chat('/does/not/exist', '2026-01-06')],
-    placeOf,
-  );
-  assert.deepEqual(
-    offered.map((c) => [c.path, c.chatCount, c.lastActivity]),
-    [
-      [parent, 2, '2026-01-04'],
-      [here, 2, '2026-01-02'],
-    ],
-  );
-  assert.deepEqual(projectCandidates([project('grand', grand)], [chat(here, 'a'), chat(parent, 'b')], () => loose), []);
-  assert.equal(projectCandidates([], [chat(here, 'a'), chat(parent, 'b')], () => loose, 1).length, 1);
 });
 
 test('the store keeps imported projects in a versioned JSON document, across restarts', async () => {
