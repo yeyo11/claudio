@@ -401,7 +401,7 @@ New keys in `apps/web/src/i18n/locales/{en,es}/projects.json` (and `chats.json` 
 | `candidates.othersBody` | They are not git repositories. Import them only if they are projects. | No son repositorios git. Impórtalos solo si son proyectos. |
 | `candidates.moreRepos_one/_other` | {{n}} more repository has chats / repositories have chats | {{n}} repositorio más tiene chats / repositorios más tienen chats |
 | `inspect.repo` | Git repository · {{remote}} · {{n}} worktrees | Repositorio git · {{remote}} · {{n}} worktrees |
-| `inspect.linkedWorktree` / `useMain` | It is a worktree of {{name}}. Import the main checkout. / Use {{path}} | Es un worktree de {{name}}. Importa el checkout principal. / Usar {{path}} |
+| `inspect.linkedWorktree` / `useMain` | It is a worktree of {{name}}. Import the main checkout. / Use {{path}} | Es un worktree de {{name}}. Importa la copia de trabajo principal. / Usar {{path}} |
 | `inspect.alreadyProject` | Already the project “{{name}}” | Ya es el proyecto «{{name}}» |
 | `inspect.otherClone` | You already have another clone of this repository: “{{name}}”. Their chats and tasks stay separate. | Ya tienes otro clon de este repositorio: «{{name}}». Sus chats y tareas van por separado. |
 | `worktrees.main` / `detached` / `locked` | main / detached HEAD / locked | principal / HEAD separado / bloqueado |
