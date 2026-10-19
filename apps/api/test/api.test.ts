@@ -713,6 +713,12 @@ test('a burst of readers costs one detection, and the open health route spawns n
   );
   let probeApp: FastifyInstance | null = null;
   try {
+    // The accounts read their model lists at boot, in the background (`--version`, then `initialize`,
+    // which this fake ends unanswered): that read is not a reader's, so it settles before the count
+    for (const deadline = Date.now() + 10_000; ran('-p') === 0; await new Promise((r) => setTimeout(r, 20))) {
+      if (Date.now() > deadline) throw new Error('the boot read of the model list never ran');
+    }
+    writeFileSync(log, '');
     // Nothing has been read yet: two hundred callers arriving at once still detect once between them
     const seen = await Promise.all(Array.from({ length: 200 }, () => probe.system()));
     assert.equal(ran('--version'), 1);

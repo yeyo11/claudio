@@ -24,6 +24,8 @@ export default async ({ page, api, check }) => {
   await page.focus('input[aria-label="Model"]');
   await page.key('ArrowDown');
   await page.waitFor(openListbox, { label: 'model suggestions open' });
+  // The list is the fake CLI's `initialize` (default, opus, sonnet, haiku); a "Loading models…" row stands in until it arrives
+  await page.waitFor(`return document.querySelectorAll('[role=listbox] [role=option]').length > 0`, { label: "the CLI's models listed" });
   await page.key('ArrowDown');
   await page.key('ArrowDown');
   await page.key('Enter');

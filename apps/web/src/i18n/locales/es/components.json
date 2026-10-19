@@ -394,6 +394,11 @@
       "max": "Máximo"
     }
   },
+  "models": {
+    "loading": "Cargando modelos…",
+    "failed": "No se ha podido leer la lista del CLI",
+    "retry": "Reintentar"
+  },
   "spendCap": {
     "title": "Has alcanzado el tope de gasto diario",
     "amounts": "{{spent}} de {{cap}} hoy, según el CLI.",

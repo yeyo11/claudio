@@ -226,6 +226,37 @@
   margin-left: auto;
   color: var(--accent);
 }
+/* A Combobox with no suggestions says why (loading, a failed read): a row's size, never an option */
+.combobox-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.combobox-status > :not(button) {
+  min-width: 0;
+}
+.combobox-status .is-bad {
+  flex: none;
+  color: var(--bad);
+}
+.combobox-status .link-btn {
+  margin-left: auto;
+  flex: none;
+}
+@media (pointer: coarse) {
+  .combobox-status {
+    min-height: 44px;
+  }
+  .combobox-status .link-btn {
+    min-height: 44px;
+    padding: 0 8px;
+  }
+}
 
 @keyframes menu-in {
   from {

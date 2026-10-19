@@ -23,6 +23,7 @@ export function Combobox({
   placeholder,
   autoFocus,
   className = '',
+  status,
   'aria-label': ariaLabel,
 }: {
   value: string;
@@ -31,6 +32,8 @@ export function Combobox({
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
+  /** Shown in the list while it has no suggestions: why there are none yet (loading, a failed read) */
+  status?: ReactNode;
   'aria-label'?: string;
 }) {
   const { t } = useTranslation('primitives');
@@ -42,7 +45,9 @@ export function Combobox({
   const needle = value.trim().toLowerCase();
   const exact = options.some((o) => o.value === value);
   const matches = !needle || exact ? options : options.filter((o) => o.value.toLowerCase().includes(needle));
-  const shown = open && matches.length > 0;
+  // With no suggestions at all, the status says why; typing goes on being accepted as it is
+  const telling = options.length === 0 && !!status;
+  const shown = open && (matches.length > 0 || telling);
 
   const pick = (option: ComboboxOption) => {
     onChange(option.value);
@@ -79,6 +84,7 @@ export function Combobox({
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault();
               if (!shown) return setOpen(true);
+              if (matches.length === 0) return;
               const step = e.key === 'ArrowDown' ? 1 : -1;
               setActive((i) => (i + step + matches.length) % matches.length);
             } else if (e.key === 'Enter' && shown && active >= 0 && matches[active]) {
@@ -117,6 +123,12 @@ export function Combobox({
           onInteractOutside={(e) => e.target === inputRef.current && e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
+          {telling && (
+            // Not an option of the list: keeps the input's focus, and a button in it still takes a click
+            <div className="combobox-status" role="status" onMouseDown={(e) => e.preventDefault()}>
+              {status}
+            </div>
+          )}
           <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel ?? placeholder ?? t('combobox.suggestions')}>
             {matches.map((option, i) => (
               <div

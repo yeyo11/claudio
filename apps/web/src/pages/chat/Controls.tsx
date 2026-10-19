@@ -16,6 +16,14 @@ import type { StartChoices } from '@claudio/chat-ui/lib/context';
  * The controls built on Radix selects, in one module so the chat page can load them lazily.
  */
 
+/**
+ * The account whose models a chat's pickers offer: the one it runs on (or was switched to), else the
+ * one its last process ran on. Null when it has none, and the default account's list stands in.
+ */
+export function chatAccount(chat: Pick<Chat, 'account' | 'executions'>): string | null {
+  return chat.account ?? chat.executions.at(-1)?.account ?? null;
+}
+
 /** Permission mode and model of a live execution, changed in place: it switches at once. */
 export function LiveSettings({ chat }: { chat: Chat }) {
   const { t } = useTranslation(['chat', 'components']);
@@ -50,7 +58,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
             if (model.trim()) update.mutate({ model: model.trim() });
           }}
         >
-          <ModelCombobox aria-label={t('chat:shared.model')} placeholder={current?.model ?? chat.model ?? t('chat:shared.default')} value={model} onChange={setModel} />
+          <ModelCombobox account={chatAccount(chat)} aria-label={t('chat:shared.model')} placeholder={current?.model ?? chat.model ?? t('chat:shared.default')} value={model} onChange={setModel} />
           {model.trim() && (
             <button type="submit" className="btn btn-small" disabled={update.isPending}>
               {t('components:runSettings.set')}
@@ -122,6 +130,7 @@ export function StartOptions({ chat, value, onChange, forking }: { chat: Chat; v
       <label>
         {t('chat:shared.model')}
         <ModelCombobox
+          account={chatAccount(chat)}
           aria-label={t('controls.modelNew')}
           placeholder={last?.model ?? chat.model ?? t('chat:shared.default')}
           value={value.model ?? ''}
