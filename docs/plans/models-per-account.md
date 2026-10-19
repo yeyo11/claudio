@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T16:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T18:00:00Z
 tags:
     - plan
     - accounts
@@ -43,6 +43,10 @@ account. Response fields used here:
 A recorded sample is in [reports/accounts-a0.md](../reports/accounts-a0.md). The list changes with a
 CLI update or a subscription change, so Claudio caches it per account and refreshes it when either
 moves.
+
+> **Update, 2026-10-19.** The fallback described below was removed: the `initialize` list is now the
+> only source, read at boot and when the CLI version changes, per chat account, with no invented
+> entries ([owner-report-fixes.md](owner-report-fixes.md), [accounts.md](../accounts.md#models)).
 
 ## What A2 builds
 

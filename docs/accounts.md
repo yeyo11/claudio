@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-19T18:00:00Z
 tags:
     - accounts
     - rotation
@@ -231,6 +231,30 @@ tell a refused credential from an unreachable network. The four raw answers are 
   rotation event with `reason: 'person'`. Only the person may do it; a chat's own token gets 403.
 
 Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
+
+## Models
+
+The CLI's own list is the only model list. It is the `models[]` of the `initialize` control response,
+which starts no turn and spends no tokens, cached per account under `<data>/accounts/models/<id>.json`
+with the CLI version it was read with.
+
+- **When it is read.** In the background at boot, for every enabled, signed-in account, with no
+  account action needed; and again when an entry's CLI version differs from the running CLI's
+  (`cachedModels` checks the stamp, as `entry()` does). A plan or account change refreshes it too, and
+  `GET /accounts/:id/models?refresh=true` forces a read.
+- **No fallback.** The hard-coded aliases, the `additionalModelOptionsCache` read in `~/.claude.json`
+  and the labels guessed from `model-aliases.json` are gone. While no list exists `system.models` is
+  `[]`: the picker shows a disabled "Loading models…" row and still accepts a free-text id. If the
+  read fails it says the list could not be read and offers Retry, which calls the refresh route.
+- **Per chat account.** A chat's popover and the resume and fork pickers read the list of the chat's
+  own account (`GET /accounts/:id/models`). The overview's `system.models` is the default account's
+  list, for the New chat form when no account is chosen.
+- **Dedup on `value` only.** The CLI's order, `displayName` and `description` are kept as given, so
+  `default` and `haiku` both show, as in `/model`.
+
+The status bar tells signed out from the limit with `SystemInfo.auth.inUseReason` (`signed-out`,
+`limit` or null), which the server sets when no account is in use: `limit` when an enabled account
+has a credential, `signed-out` otherwise. "Not signed in" is shown only for the second case.
 
 ## Where it shows
 
