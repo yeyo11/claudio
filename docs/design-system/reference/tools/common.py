@@ -82,8 +82,15 @@ COLS = [('backlog', 'Backlog'), ('todo', 'Por hacer'), ('in_progress', 'En curso
 COL_WORD = dict(COLS)
 
 
+# Claudio's glyph (the app's ClaudioGlyph, illustrations/claudio-glyph.svg): 16 units, filled, and it takes the slot's colour
+CLAUDIO_GLYPH = ('<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M3.75 3.75H7.0A2.25 2.25 0 0 1 9.25 6.0V13.25A2.25 2.25 0 0 1 7.0 15.5H3.75A2.25 2.25 0 0 1 1.5 13.25V6.0A2.25 2.25 0 0 1 3.75 3.75ZM4.75 8.4A0.8 1.15 0 1 0 6.35 8.4A0.8 1.15 0 1 0 4.75 8.4ZM6.95 8.4A0.8 1.15 0 1 0 8.55 8.4A0.8 1.15 0 1 0 6.95 8.4Z"></path>'
+                 '<path fill="currentColor" stroke="none" transform="translate(12.4 3.6) scale(0.1737)" d="M0 -19Q6 -6 19 0Q6 6 0 19Q-6 6 -19 0Q-6 -6 0 -19Z"></path>')
+
+
 def ico(name, cls='ico', style=''):
   st = f' style="{style}"' if style else ''
+  if name == 'claudio':
+    return f'<svg class="{cls}" viewBox="0 0 16 16" aria-hidden="true"{st}>{CLAUDIO_GLYPH}</svg>'
   return f'<svg class="{cls}" viewBox="0 0 24 24" aria-hidden="true"{st}><path d="{P[name]}"></path></svg>'
 
 
@@ -181,7 +188,7 @@ def sidebar(active, live=None, project='claude-wrapper', assistant=False):
 </div>
 <button type="button" class="field" style="width: 100%; cursor: pointer; justify-content: flex-start; background: var(--bg-2)">{ico('search')}<span class="grow t-sm" style="text-align: left">Buscar o ejecutar…</span><span class="kbd">⌘K</span></button>
 <div class="col" style="gap: 1px">
-{item('home', 'Main.html', 'home', 'Inicio')}{(chr(10) + item('assistant', 'DesktopAsistenteClaudio.html', 'sparkle', 'Asistente')) if assistant else ''}
+{item('home', 'Main.html', 'home', 'Inicio')}{(chr(10) + item('assistant', 'DesktopAsistenteClaudio.html', 'claudio', 'Asistente')) if assistant else ''}
 {item('chats', 'DesktopChats.html', 'chats', 'Chats', '<span class="count">197</span>')}
 {item('tasks', 'DesktopTablero.html', 'tasks', 'Tareas', f'<span class="count">{TASKS_OPEN[project]}</span>' if project in TASKS_OPEN else '')}
 {item('orch', 'DesktopOrquestaciones.html', 'orch', 'Orquestaciones', '<span class="count-pill live">1</span>')}
