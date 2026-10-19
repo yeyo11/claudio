@@ -71,7 +71,8 @@ export function Combobox({
           ref={inputRef}
           role="combobox"
           aria-label={ariaLabel}
-          aria-expanded={shown}
+          // Expanded only over a list: a status row (loading, a failed read) is described, not controlled
+          aria-expanded={shown && matches.length > 0}
           aria-controls={shown && matches.length > 0 ? listId : undefined}
           aria-describedby={shown && telling ? statusId : undefined}
           aria-autocomplete="list"
@@ -112,7 +113,7 @@ export function Combobox({
           type="button"
           className="combobox-toggle"
           aria-label={t('combobox.suggestions')}
-          aria-expanded={shown}
+          aria-expanded={shown && matches.length > 0}
           tabIndex={-1}
           // The input keeps focus: the list is its own, and picking from it types into it
           onMouseDown={(e) => e.preventDefault()}

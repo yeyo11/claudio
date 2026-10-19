@@ -565,6 +565,8 @@
 /* The family only: the shorthand would reset the weight and line height the small size carries */
 .call-meta.call-note {
   font-family: var(--sans);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-small);
 }
 
 .call-meta.call-note code {

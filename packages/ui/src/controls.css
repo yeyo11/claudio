@@ -232,7 +232,8 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 34px;
+  /* The 24 px Retry and the padding: loading and failed are the same height */
+  min-height: 36px;
   padding: 6px 10px;
   color: var(--text-muted);
   font-size: var(--fs-small);
