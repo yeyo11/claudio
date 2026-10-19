@@ -499,10 +499,11 @@ export function driverConformance(name: string, harness: DriverHarness): void {
     });
 
     // 12
-    test('models() is not empty, and every tier the driver claims resolves', () => {
+    // A driver whose list comes from the agent (Claude's `initialize`) has none before it was read,
+    // and an empty list beats a guessed one: the picker says it is loading
+    test('models() lists each value once, and every tier the driver claims resolves', () => {
       const driver = harness.driver(tempConfig());
       const models = driver.models();
-      assert.ok(models.length > 0, 'the picker has models');
       assert.equal(new Set(models.map((m) => m.value)).size, models.length, 'values are unique');
       for (const tier of new Set(models.flatMap((m) => (m.tier ? [m.tier] : [])))) {
         const choices = models.filter((m) => m.tier === tier && !m.disabled && m.value.length > 0);

@@ -177,6 +177,24 @@ test('an unknown control request gets an error answer, never silence', async () 
   await c.done();
 });
 
+test('initialize lists the models, and a scripts file can replace them', async () => {
+  const c = chat();
+  c.send({ type: 'control_request', request_id: 'r-init', request: { subtype: 'initialize' } });
+  const answer = await c.next((e) => e.type === 'control_response' && e.response.request_id === 'r-init');
+  assert.equal(answer.response.subtype, 'success');
+  assert.deepEqual(answer.response.response.models.map((m) => m.value), ['default', 'opus', 'sonnet', 'haiku']);
+  await c.done();
+
+  const scripts = join(mkdtempSync(join(tmpdir(), 'claudio-fake-cli-models-')), 'scripts.json');
+  writeFileSync(scripts, JSON.stringify({ '@models': [{ value: 'claude-e2e-5', displayName: 'E2E' }] }));
+  const d = chat({ CLAUDIO_FAKE_CLI_SCRIPTS: scripts });
+  d.send({ type: 'control_request', request_id: 'r-init', request: { subtype: 'initialize' } });
+  const set = await d.next((e) => e.type === 'control_response' && e.response.request_id === 'r-init');
+  assert.deepEqual(set.response.response.models, [{ value: 'claude-e2e-5', displayName: 'E2E' }]);
+  await d.done();
+  rmSync(dirname(scripts), { recursive: true, force: true });
+});
+
 test('say: lines are the assistant\'s own prose, in their place among the calls', async () => {
   const c = chat();
   c.say('say: Looking at the routes first.\nrun: echo routes\nsay: Two handlers, both tested.');

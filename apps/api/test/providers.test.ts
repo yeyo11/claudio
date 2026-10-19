@@ -139,9 +139,9 @@ test('every provider route is documented with a summary and the Providers tag', 
   }
 });
 
-test('a provider\'s catalog is served with its tiers, and one with no driver is 404', async () => {
+test('a provider\'s catalog is the CLI\'s own list, empty rather than guessed with no CLI to read, and one with no driver is 404', async () => {
+  // This host's CLI is a path that does not exist: its `initialize` list can never be read
   const models = (await app.inject('/api/providers/claude-code/models')).json<ModelOption[]>();
-  assert.deepEqual(models.map((m) => m.value).slice(0, 4), ['fable', 'opus', 'sonnet', 'haiku']);
-  assert.equal(models.find((m) => m.value === 'haiku')?.tier, 'fast');
+  assert.deepEqual(models, []);
   assert.equal((await app.inject('/api/providers/nope/models')).statusCode, 404);
 });

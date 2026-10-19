@@ -116,7 +116,8 @@ if (args[0] === 'agents') {
 // The same for what building the API asks first: unanswered, each waits out the 20 s timeout of
 // `execCli`, which a test file with the API in its `before` paid on its first test
 if (args[0] === '--version') {
-  process.stdout.write('2.1.0 (Claude Code)\n');
+  // $FAKE_CLAUDE_VERSION stands for a CLI updated under a running server
+  process.stdout.write(`${process.env.FAKE_CLAUDE_VERSION ?? '2.1.0 (Claude Code)'}\n`);
   process.exit(0);
 }
 if (args[0] === 'auth') {
@@ -212,11 +213,11 @@ let handled = false;
 lines.on('line', async (line) => {
   if (!line.trim()) return;
   // The handshake, no turn: the models the account offers. FAKE_CLAUDE_LITE_DIRS lists the config dirs
-  // of accounts without opus, as a Pro plan is
+  // of accounts without opus, as a Pro plan is; $FAKE_CLAUDE_INIT_MODELS replaces the whole list (JSON)
   const hello = line.includes('"initialize"') ? JSON.parse(line) : null;
   if (hello?.type === 'control_request' && hello.request?.subtype === 'initialize') {
     const lite = (process.env.FAKE_CLAUDE_LITE_DIRS ?? '').split(',').includes(process.env.CLAUDE_CONFIG_DIR ?? '');
-    const models = [
+    const models = process.env.FAKE_CLAUDE_INIT_MODELS ? JSON.parse(process.env.FAKE_CLAUDE_INIT_MODELS) : [
       { value: 'sonnet', resolvedModel: 'claude-sonnet-5-5', displayName: 'Sonnet', description: 'Sonnet 5.5', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] },
       ...(lite ? [] : [{ value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'max'] }]),
       { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5', supportsEffort: false },

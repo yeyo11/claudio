@@ -31,7 +31,6 @@ import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
 import type { BackgroundTask, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
-import type { ModelAliasIds } from './models.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, ProviderDriver } from './providers/driver.ts';
@@ -322,7 +321,6 @@ export const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined
  */
 export interface ChatHost {
   readonly db: Db;
-  readonly modelIds: ModelAliasIds;
   /** Latest `init` snapshot per working directory */
   readonly environments: Map<string, EffectiveEnvironment>;
   readonly permissions: PermissionBroker | null;
