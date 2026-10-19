@@ -13,7 +13,7 @@ const rootTag = (html: string) => html.match(/^<svg[^>]*>/)?.[0] ?? '';
 const rootClasses = (html: string) => (rootTag(html).match(/class="([^"]*)"/)?.[1] ?? '').split(' ');
 
 test('every illustration renders its drawing', () => {
-  assert.equal(ILLUSTRATION_NAMES.length, 17);
+  assert.equal(ILLUSTRATION_NAMES.length, 18);
   for (const name of ILLUSTRATION_NAMES) {
     const html = renderToStaticMarkup(<Illustration name={name} />);
     assert.match(rootTag(html), /viewBox="0 0 240 160"/, name);
@@ -32,7 +32,7 @@ test('two instances on one page share no id', () => {
     </div>,
   );
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1] ?? '');
-  assert.equal(ids.length, 12);
+  assert.equal(ids.length, 15);
   assert.equal(new Set(ids).size, ids.length);
   for (const id of ids) assert.match(id, /^[A-Za-z0-9_-]+$/);
   // Every reference points at a def of the same page
@@ -124,4 +124,19 @@ test('the redrawn board has the five fixed columns and the team the three roles,
     assert.doesNotMatch(html, /class="ln-white"/);
   }
   await i18n.changeLanguage('en');
+});
+
+test('claudio is the logo-derived drawing: the logo gradient, the spark colour, the cut and the eyes', () => {
+  const html = renderToStaticMarkup(<Illustration name="claudio" />);
+  assert.deepEqual(rootClasses(html), ['il']);
+  assert.match(rootTag(html), /data-illustration="claudio"/);
+  // The C paints with this instance's logo gradient, whose stops are classes, never hex
+  assert.match(rootTag(html), /--il-logo:url\(#il[A-Za-z0-9_-]+-logo\)/);
+  assert.match(html, /class="f-logo cut"/);
+  assert.equal(html.match(/class="f-eye"/g)?.length, 2);
+  assert.equal(html.match(/class="f-spark"/g)?.length, 2, 'the body and the spark');
+  // The eyes blink and the body bobs; the drawing has no halo and no app gradient element
+  assert.match(html, /class="a-look"/);
+  assert.match(html, /class="a-float"/);
+  assert.doesNotMatch(html, /halo|f-grad|a-pulse/);
 });
