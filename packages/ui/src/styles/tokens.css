@@ -41,8 +41,8 @@
   --glow-top: radial-gradient(60% 120% at 50% 0%, rgba(110, 155, 255, 0.16), transparent 70%);
   --ring: rgba(110, 155, 255, 0.3);
   --glow: rgba(110, 155, 255, 0.13);
-  /* Claudio's mark (BrandMark): the kit's own blue and violet, and the spark. The spark is the one
-     static cyan in the app; everywhere else cyan means live */
+  /* Claudio's mark (BrandMark): the kit's own blue and violet, and the spark. The spark and Claudio,
+     the assistant's mascot, are the one static cyan in the app; everywhere else cyan means live */
   --logo-blue: #246bfd;
   --logo-violet: #a78bfa;
   --logo-spark: #00e5ff;
@@ -187,6 +187,7 @@
   --il-pulse-cycle: 2200ms;
   --il-orbit-cycle: 24s;
   --il-orbit-rev-cycle: 36s;
+  --il-look-cycle: 6000ms;
 
   /* Layout */
   --topbar-h: 52px;
