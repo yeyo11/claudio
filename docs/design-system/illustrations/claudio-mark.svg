@@ -1,4 +1,4 @@
-<svg class="mascot-mark" xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-label="assistant-mark" viewBox="0 0 24 24" aria-hidden="true"><style>.mascot-mark .mascot-body, .mascot-mark .mascot-spark { fill: var(--logo-spark, #00e5ff); }
+<svg class="mascot-mark" xmlns="http://www.w3.org/2000/svg" width="24" height="24" role="img" aria-label="claudio-mark" viewBox="0 0 24 24" aria-hidden="true"><style>.mascot-mark .mascot-body, .mascot-mark .mascot-spark { fill: var(--logo-spark, #00e5ff); }
 .mascot-mark .mascot-eye { fill: var(--bg, #0b1020); }</style>
 <rect x="2.5" y="6.5" width="12.5" height="17" rx="3.5" class="mascot-body"></rect>
 <ellipse cx="9.3" cy="12.2" rx="1.2" ry="1.65" class="mascot-eye"></ellipse><ellipse cx="12.5" cy="12.2" rx="1.2" ry="1.65" class="mascot-eye"></ellipse>

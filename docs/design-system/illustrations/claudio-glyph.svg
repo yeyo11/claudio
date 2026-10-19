@@ -1,0 +1,3 @@
+<svg class="mascot-glyph" xmlns="http://www.w3.org/2000/svg" width="16" height="16" role="img" aria-label="claudio-glyph" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><style>.mascot-glyph { color: var(--fg-2, #a7b1c9); }</style>
+<path fill-rule="evenodd" d="M3.75 3.75H7.0A2.25 2.25 0 0 1 9.25 6.0V13.25A2.25 2.25 0 0 1 7.0 15.5H3.75A2.25 2.25 0 0 1 1.5 13.25V6.0A2.25 2.25 0 0 1 3.75 3.75ZM4.75 8.4A0.8 1.15 0 1 0 6.35 8.4A0.8 1.15 0 1 0 4.75 8.4ZM6.95 8.4A0.8 1.15 0 1 0 8.55 8.4A0.8 1.15 0 1 0 6.95 8.4Z"></path><path class="mascot-glyph-spark" transform="translate(12.4 3.6) scale(0.1737)" d="M0 -19Q6 -6 19 0Q6 6 0 19Q-6 6 -19 0Q-6 -6 0 -19Z"></path>
+</svg>

@@ -1,4 +1,4 @@
-<svg class="il" xmlns="http://www.w3.org/2000/svg" width="240" height="160" role="img" aria-label="assistant" viewBox="0 0 240 160" aria-hidden="true"><style>.il { display: block; width: 240px; height: 160px; overflow: visible; --il-tone: var(--accent, #6e9bff); }
+<svg class="il" xmlns="http://www.w3.org/2000/svg" width="240" height="160" role="img" aria-label="claudio" viewBox="0 0 240 160" aria-hidden="true"><style>.il { display: block; width: 240px; height: 160px; overflow: visible; --il-tone: var(--accent, #6e9bff); }
 .il-sm { width: 160px; height: 107px; }
 .il-lg { width: 300px; height: 200px; }
 .il-warn { --il-tone: var(--warn, #f0b95c); }
