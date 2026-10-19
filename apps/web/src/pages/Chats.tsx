@@ -28,7 +28,6 @@ import {
   formatPercent,
   formatUsd,
   groupByDay,
-  lastEnded,
   matchesFilters,
   listRequest,
   ORIGIN_LABEL,
@@ -53,6 +52,7 @@ import { useMinute } from '../lib/minute';
 import { useListParams } from '../lib/list-params';
 import { ALL_PROJECTS, useProjectScope } from '../lib/project-scope';
 import { chatBusy } from '@claudio/chat-ui/lib/liveness';
+import { badOutcome, chatStateWord } from '../lib/chat-state-word';
 import i18n from '../i18n';
 
 /*
@@ -65,7 +65,7 @@ const PAGE = 100;
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 const SORTS = Object.keys(SORT_LABEL) as ChatSort[];
 /** What the list keeps until it is reset; `project` is the top bar's, not the list's */
-const LIST_PARAMS = ['q', 'state', 'sort', 'origin', 'projects', 'models', 'workers', 'internal'] as const;
+const LIST_PARAMS = ['q', 'state', 'sort', 'origin', 'projects', 'models', 'workers', 'internal', 'assistant'] as const;
 /** Browsers let a page start a burst of downloads when they come a little apart. */
 const DOWNLOAD_GAP_MS = 250;
 
@@ -85,12 +85,6 @@ function originLabel(chat: ChatSummary): string {
   return `${chat.orchestration.name} · ${chat.orchestration.taskName ?? i18n.t(`chats:list.role.${roleOf(chat.orchestration)}`)}`;
 }
 
-/** How the last execution ended, when an idle chat's last run went wrong. */
-function badOutcome(chat: ChatSummary) {
-  const ended = chat.state === 'idle' && !chat.alive ? lastEnded(chat) : null;
-  return ended?.outcome && ended.outcome !== 'completed' ? ended.outcome : null;
-}
-
 /**
  * The first column: the braille spinner while an agent works, and otherwise a dot — a hollow violet
  * ring waiting for the person, a red one after a run that went wrong, a faint ring at rest. It is
@@ -104,14 +98,12 @@ function StateMark({ chat }: { chat: ChatSummary }) {
 
 /** The state in words, at the start of the line under the title. Idle, what most rows are, is said to a screen reader only. */
 function StateWord({ chat }: { chat: ChatSummary }) {
-  const { t } = useTranslation('chats');
-  const bad = badOutcome(chat);
+  const state = chatStateWord(chat);
   // A working chat with an activity has its ticker here instead, verb included
-  const busy = chatBusy(chat);
-  if (busy && chat.activity) return <ActivityTicker activity={chat.activity} className="crow-ticker" />;
-  if (busy) return <span className="crow-word is-live">{STATE_LABEL.working}</span>;
-  if (chat.state === 'waiting') return <span className="crow-word is-idle">{STATE_LABEL.waiting}</span>;
-  if (bad) return <span className="badge badge-bad crow-outcome">{t(`list.outcome.${bad}`)}</span>;
+  if (state?.tone === 'live' && chat.activity) return <ActivityTicker activity={chat.activity} className="crow-ticker" />;
+  if (state?.tone === 'live') return <span className="crow-word is-live">{state.word}</span>;
+  if (state?.tone === 'idle') return <span className="crow-word is-idle">{state.word}</span>;
+  if (state) return <span className="badge badge-bad crow-outcome">{state.word}</span>;
   return <span className="sr-only">{STATE_LABEL.idle}</span>;
 }
 
@@ -432,6 +424,7 @@ export function Chats() {
   const sort = SORTS.find((s) => s === params.get('sort')) ?? 'activity';
   const workers = params.get('workers') === '1';
   const internal = params.get('internal') === '1';
+  const assistant = params.get('assistant') === '1';
   const originParam = params.get('origin');
   const origins = useMemo(
     () => new Set<ChatOriginFilter>(originParam ? ALL_ORIGINS.filter((o) => originParam.split(',').includes(o)) : ALL_ORIGINS),
@@ -449,8 +442,8 @@ export function Chats() {
   const byProject = project === undefined;
 
   const filters: ChatFilters = useMemo(
-    () => ({ origins, state, workers, internal, search: deferredSearch, ...(byProject ? { projects } : {}), models }),
-    [origins, state, workers, internal, deferredSearch, byProject, projects, models],
+    () => ({ origins, state, workers, internal, assistant, search: deferredSearch, ...(byProject ? { projects } : {}), models }),
+    [origins, state, workers, internal, assistant, deferredSearch, byProject, projects, models],
   );
   const chats = useChats({
     ...listRequest(filters),
@@ -508,6 +501,7 @@ export function Chats() {
   }
   if (models.size > 0) chips.push({ id: 'models', label: t('list.chipModel', { values: labelsOf(modelOptions, models) }), onRemove: () => patch({ models: null }) });
   if (workers) chips.push({ id: 'workers', label: t('list.workers'), onRemove: () => patch({ workers: null }) });
+  if (assistant) chips.push({ id: 'assistant', label: t('list.filter.assistant'), onRemove: () => patch({ assistant: null }) });
   if (internal) chips.push({ id: 'internal', label: t('list.internal'), onRemove: () => patch({ internal: null }) });
   const filtersActive = Boolean(search.trim()) || state !== null || chips.length > 0 || sort !== 'activity';
 

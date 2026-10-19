@@ -2197,13 +2197,8 @@ a.cont-from:hover { color: var(--fg); }
 
 
 /* ---------- 22. The Claudio assistant (CW-30): the entry screen, its starters and the host prompt of a write ---------- */
-.as-hello { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.as-hello .ai-mark { width: 40px; height: 40px; border-radius: var(--r-lg); }
-.as-hello .ai-mark .ico { width: 20px; height: 20px; }
+.as-hello { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .as-hello-sub { margin: 0; font-size: var(--fs-section); line-height: 1.5; color: var(--fg-2); }
-.as-figures { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; }
-.as-figures b { font-weight: var(--fw-regular); color: var(--fg-2); }
-.as-figures .live { color: var(--live); }
 .as-starters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .as-starter { display: flex; align-items: flex-start; gap: 12px; min-height: 64px; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); text-align: left; cursor: pointer; }
 .as-starter:hover { border-color: var(--line-3); background: var(--bg-3); }
@@ -2212,6 +2207,27 @@ a.cont-from:hover { color: var(--fg); }
 .as-starter-title { font-size: var(--fs-body); font-weight: var(--fw-regular); }
 .as-starter-ask { font-size: var(--fs-small); line-height: 1.45; color: var(--fg-2); }
 .as-starter .badge { align-self: flex-start; }
+.as-recents-section { display: flex; flex-direction: column; gap: 6px; }
+.as-recents-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.as-recents-all { font-size: var(--fs-small); color: var(--accent); text-decoration: none; }
+.as-recents { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.as-recents li { border-bottom: 1px solid var(--line); }
+.as-recent { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px; color: var(--fg); text-decoration: none; }
+.as-recent:hover { background: var(--bg-hover); }
+.as-recent-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-body); font-weight: var(--fw-regular); }
+.as-recent-meta { display: flex; flex: none; align-items: baseline; gap: 12px; font-size: var(--fs-small); }
+.as-recent-sep { display: none; color: var(--fg-3); }
+.as-recent-word.is-live { color: var(--live); }
+.as-recent-word.is-idle { color: var(--idle); }
+.as-recent-word.is-bad { color: var(--bad); }
+.as-recent-time { min-width: 72px; text-align: right; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.as-recents-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: var(--fs-small); color: var(--fg-3); }
+.m-screen .as-recent { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; min-height: 56px; }
+.m-screen .as-recent-title { flex: none; max-width: 100%; }
+.m-screen .as-recent-meta { gap: 0; }
+.m-screen .as-recent-sep { display: inline; }
+.m-screen .as-recent-time { min-width: 0; text-align: left; }
+.m-screen .as-recents-all { display: inline-flex; align-items: center; min-height: var(--touch); padding: 0 8px; margin: -12px -8px -12px 0; }
 .as-context { gap: 4px; padding-right: 4px; }
 .as-context .x { display: inline-grid; padding: 0; border: 0; background: transparent; cursor: pointer; place-items: center; width: 20px; height: 20px; border-radius: var(--r-full); color: var(--fg-3); }
 .as-context .x:hover { background: var(--bg-4); color: var(--fg); }
