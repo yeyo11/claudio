@@ -1,7 +1,7 @@
 import type { AssistantResourceKind, AssistantResourceProposal, AssistantRunDetail, ConfigScopeKind, Project } from '@claudio/shared';
 import { RESOURCE_FORMATS } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Folder, RefreshCw, Sparkle, User, X } from 'lucide-react';
+import { AlertTriangle, Folder, RefreshCw, User, X } from 'lucide-react';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useAssistantRun, useAssistantRuns } from '../../../api';
@@ -9,7 +9,7 @@ import { AssistantMark, RunFacts, SuggestionWait, useElapsed } from '../../../co
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { CodeEditor } from '../../../components/CodeEditor';
 import { Dialog } from '@claudio/ui/components/Dialog';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Segmented } from '@claudio/ui/components/ui';
@@ -186,7 +186,7 @@ export function CreateWithAI({
       </button>
     ) : (
       <button type="button" className="btn btn-primary create-ai-start" disabled={!canStart} onClick={() => start.mutate()}>
-        <Sparkle {...ICON_SM} />
+        <ClaudioGlyph {...ICON_SM} />
         {t('resourcesAi.create')}
       </button>
     );

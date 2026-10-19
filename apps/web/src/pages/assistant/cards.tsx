@@ -1,9 +1,9 @@
 import type { AssistantRun, AssistantRunDetail, Project } from '@claudio/shared';
-import { CircleAlert, CircleX, Info, Sparkle } from 'lucide-react';
+import { CircleAlert, CircleX, Info } from 'lucide-react';
 import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { AssistantMark, LiveRunHead, RunFacts, RunFindings, RunSources, SuggestionWait } from '../../components/assistant/run';
-import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { ICON, ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { Empty, ErrorBox } from '@claudio/ui/components/ui';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
@@ -24,7 +24,7 @@ export function NoRun({ project, actions }: { project: Project; actions: RunActi
         title={t('none.title')}
         action={
           <button type="button" className="btn btn-primary" disabled={actions.start.isPending} onClick={() => actions.start.mutate({ kind: 'project' })}>
-            <Sparkle {...ICON_SM} />
+            <ClaudioGlyph {...ICON_SM} />
             {t('none.start')}
           </button>
         }
@@ -208,7 +208,7 @@ export function Describe({ project, following, tasksRun, actions, phone }: { pro
             </span>
           )}
           <button type="button" className="btn btn-primary" disabled={!text.trim() || running || actions.start.isPending} onClick={submit}>
-            <Sparkle {...ICON_SM} />
+            <ClaudioGlyph {...ICON_SM} />
             {t('empty.propose')}
           </button>
         </div>
