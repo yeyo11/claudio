@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0](https://github.com/yeyo11/claudio/compare/v0.7.0...v0.8.0) (2026-10-19)
+
+
+### Features
+
+* Claudio, the assistant's mascot, and its recent conversations ([#51](https://github.com/yeyo11/claudio/issues/51)) ([a2f5098](https://github.com/yeyo11/claudio/commit/a2f5098d329689d5e85b2a23f3da19b171903f05))
+* owner-report fixes and Claudio's MCP server on demand from the + of any chat ([#49](https://github.com/yeyo11/claudio/issues/49)) ([1ba9e8a](https://github.com/yeyo11/claudio/commit/1ba9e8a5cc7f56352d24b1431b334f3fe11258de))
+* projects are git repositories, with their worktrees as children ([#50](https://github.com/yeyo11/claudio/issues/50)) ([271e070](https://github.com/yeyo11/claudio/commit/271e0700b1009533a2ae3aaf49482e58cf80be8c))
+
 ## [0.7.0](https://github.com/yeyo11/claudio/compare/v0.6.1...v0.7.0) (2026-10-19)
 
 
