@@ -1157,14 +1157,15 @@ function finishCompact(own, text) {
 
 /**
  * What `initialize` lists, in the shape of a Max account's `/model` on CLI 2.1.30x: `default` resolves
- * to the same model as `sonnet` and both are listed, as they are there. A spec replaces it with
- * `"@models": [...]` in the scripts file, read on every handshake.
+ * to the same model as `sonnet` and both are listed, as they are there. Each resolves to the id this
+ * fake runs for its alias (`modelName`), so a chat's model is one its account offers, as with the real
+ * CLI. A spec replaces it with `"@models": [...]` in the scripts file, read on every handshake.
  */
 const INITIALIZE_MODELS = [
-  { value: 'default', resolvedModel: 'claude-sonnet-5-5', displayName: 'Default (recommended)', description: 'Sonnet 5.5 · Best for everyday tasks', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] },
-  { value: 'opus', resolvedModel: 'claude-opus-5-5', displayName: 'Opus', description: 'Opus 5.5 · Most capable for complex work', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
-  { value: 'sonnet', resolvedModel: 'claude-sonnet-5-5', displayName: 'Sonnet', description: 'Sonnet 5.5 · Best for everyday tasks', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] },
-  { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5 · Fastest for quick answers', supportsEffort: false },
+  { value: 'default', resolvedModel: 'claude-sonnet-5', displayName: 'Default (recommended)', description: 'Sonnet 5.5 · Best for everyday tasks', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] },
+  { value: 'opus', resolvedModel: 'claude-opus-5', displayName: 'Opus', description: 'Opus 5.5 · Most capable for complex work', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+  { value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet', description: 'Sonnet 5.5 · Best for everyday tasks', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] },
+  { value: 'haiku', resolvedModel: 'claude-haiku-5', displayName: 'Haiku', description: 'Haiku 5.5 · Fastest for quick answers', supportsEffort: false },
 ];
 
 function initializeModels() {
