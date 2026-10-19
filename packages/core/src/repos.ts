@@ -155,21 +155,39 @@ function factsOf(gitDirPath: string, top: string | null, dir: string): Parsed {
   return { commonDir, gitDir, mainCheckout: main, worktree: linked ? topLevel : null, topLevel, subdir, branch, detached, bare };
 }
 
+/**
+ * What a walk found for each directory it went through: the checkout's facts and the directory
+ * whose `.git` led there (null for none). Shared by the directories of one list, so a thousand
+ * directories in fifty repositories read fifty repositories, not a thousand.
+ */
+export type ParseMemo = Map<string, { facts: Parsed; top: string } | null>;
+
 /** The parser alone: walks up from `dir` to the first `.git` (or git dir), to the filesystem root. */
-export function parseRepo(dir: string): Parsed {
+export function parseRepo(dir: string, memo?: ParseMemo): Parsed {
   const start = resolve(dir);
+  const visited: string[] = [];
+  const answer = (found: { facts: Parsed; top: string } | null): Parsed => {
+    if (memo) for (const v of visited) memo.set(v, found);
+    if (!found || found.facts === null || found.facts === UNDECIDED) return found ? found.facts : null;
+    const { top } = found;
+    // The subdir is the only fact that differs between two directories of one checkout
+    const subdir = found.facts.topLevel !== null && start !== top ? start.slice(top.length + 1) : '';
+    return { ...found.facts, subdir };
+  };
   try {
     for (let current = start; ; ) {
+      if (memo?.has(current)) return answer(memo.get(current) ?? null);
+      visited.push(current);
       const dotGit = join(current, '.git');
       const info = statOf(dotGit);
-      if (info?.isDirectory()) return factsOf(dotGit, current, start);
+      if (info?.isDirectory()) return answer({ facts: factsOf(dotGit, current, current), top: current });
       if (info?.isFile()) {
         const pointer = /^gitdir:\s*(.+)$/m.exec(textOf(dotGit) ?? '')?.[1]?.trim();
-        return pointer ? factsOf(resolve(current, pointer), current, start) : UNDECIDED;
+        return answer({ facts: pointer ? factsOf(resolve(current, pointer), current, current) : UNDECIDED, top: current });
       }
-      if (!info && isGitDir(current)) return factsOf(current, null, start);
+      if (!info && isGitDir(current)) return answer({ facts: factsOf(current, null, current), top: current });
       const up = dirname(current);
-      if (up === current) return null;
+      if (up === current) return answer(null);
       current = up;
     }
   } catch {
@@ -345,6 +363,7 @@ export interface PlaceRow {
 }
 
 const SOURCES: readonly PlaceSource[] = ['disk', 'git', 'cli-record', 'layout'];
+const SOURCE_RANK: Record<PlaceSource, number> = { disk: 2, git: 2, 'cli-record': 1, layout: 0 };
 const rank = (column: string) => `CASE ${column} WHEN 'disk' THEN 2 WHEN 'git' THEN 2 WHEN 'cli-record' THEN 1 ELSE 0 END`;
 
 /**
@@ -353,12 +372,20 @@ const rank = (column: string) => `CASE ${column} WHEN 'disk' THEN 2 WHEN 'git' T
  * is how a chat in a removed worktree keeps its project.
  */
 export class RepoPlaces {
+  private readonly db: DatabaseSync;
   private readonly getStmt: StatementSync;
   private readonly upsertStmt: StatementSync;
   private readonly goneStmt: StatementSync;
   private readonly mainStmt: StatementSync;
+  /**
+   * Writes waiting for the next tick: a cold list places a thousand directories, and a commit each
+   * is a disk sync each (seconds). They go in one transaction, and reads see them before it.
+   */
+  private readonly pending = new Map<string, PlaceRow>();
+  private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(db: DatabaseSync) {
+    this.db = db;
     this.getStmt = db.prepare('SELECT * FROM repo_places WHERE dir = ?');
     // A weaker source never overwrites a stronger one: once a worktree is gone, a guess from the
     // path must not replace what its own files said while it was there
@@ -378,6 +405,8 @@ export class RepoPlaces {
   }
 
   get(dir: string): PlaceRow | null {
+    const waiting = this.pending.get(dir);
+    if (waiting) return waiting;
     const row = this.getStmt.get(dir) as Record<string, string | null> | undefined;
     if (!row) return null;
     const source = SOURCES.find((s) => s === row.source) ?? 'layout';
@@ -394,17 +423,57 @@ export class RepoPlaces {
     };
   }
 
+  /** Upserts on the next tick, with every other write of this one, in one transaction. */
   upsert(row: PlaceRow): void {
-    this.upsertStmt.run(row.dir, row.commonDir, row.mainCheckout, row.worktree, row.subdir, row.branch, row.source, row.seenAt, row.goneAt);
+    // The same rule the SQL applies, so what `get` answers before the flush is what it will hold after
+    const current = this.get(row.dir);
+    if (current && SOURCE_RANK[row.source] < SOURCE_RANK[current.source]) return;
+    this.pending.set(row.dir, row);
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => this.flush(), 0);
+      this.flushTimer.unref();
+    }
+  }
+
+  /** Writes what is waiting now; a failure is logged, never thrown at a list. */
+  flush(): void {
+    if (this.flushTimer) clearTimeout(this.flushTimer);
+    this.flushTimer = null;
+    if (!this.pending.size) return;
+    const rows = [...this.pending.values()];
+    this.pending.clear();
+    try {
+      this.db.exec('BEGIN');
+      try {
+        for (const row of rows) this.upsertStmt.run(row.dir, row.commonDir, row.mainCheckout, row.worktree, row.subdir, row.branch, row.source, row.seenAt, row.goneAt);
+        this.db.exec('COMMIT');
+      } catch (err) {
+        this.db.exec('ROLLBACK');
+        throw err;
+      }
+    } catch (err) {
+      // A placement is a cache of git's answer: the next list places these directories again
+      console.warn(`repo_places: ${rows.length} placements were not recorded: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   /** Records the first time a directory was found missing; a later look leaves that instant alone. */
   markGone(dir: string, at: string): void {
-    this.goneStmt.run(at, dir);
+    const waiting = this.pending.get(dir);
+    if (waiting) {
+      waiting.goneAt ??= at;
+      return;
+    }
+    try {
+      this.goneStmt.run(at, dir);
+    } catch {
+      /* the next look marks it */
+    }
   }
 
   /** The main checkout a repository was last seen with, for a layout whose files do not name it. */
   mainCheckoutOf(commonDir: string): string | null {
+    for (const row of this.pending.values()) if (row.commonDir === commonDir && !row.worktree && row.mainCheckout) return row.mainCheckout;
     return ((this.mainStmt.get(commonDir) as { main_checkout?: string } | undefined)?.main_checkout ?? null) || null;
   }
 }
@@ -450,6 +519,8 @@ export class RepoIndex {
   private readonly records = new Map<string, WorktreeRecord>();
   private readonly lists = new Map<string, { at: number; list: WorktreeInfo[] }>();
   private readonly remotes = new Map<string, { at: number; remote: string | null }>();
+  /** What the walks of the last minute found, shared by the directories of one list */
+  private memo: { at: number; walks: ParseMemo } | null = null;
 
   constructor(opts: { places?: RepoPlaces | null; now?: () => number } = {}) {
     this.places = opts.places ?? null;
@@ -476,9 +547,20 @@ export class RepoIndex {
     return best;
   }
 
+  private walks(): ParseMemo {
+    if (!this.memo || this.now() - this.memo.at >= PLACE_TTL_MS) this.memo = { at: this.now(), walks: new Map() };
+    return this.memo.walks;
+  }
+
   invalidate(): void {
     this.cache.clear();
+    this.memo = null;
     this.lists.clear();
+  }
+
+  /** Writes the placements still waiting, before the database closes. */
+  flush(): void {
+    this.places?.flush();
   }
 
   place(dir: string, record?: WorktreeRecord | null): Place {
@@ -496,7 +578,7 @@ export class RepoIndex {
   }
 
   private onDisk(dir: string): Place {
-    const parsed = parseRepo(dir);
+    const parsed = parseRepo(dir, this.walks());
     const source: PlaceSource = parsed === UNDECIDED ? 'git' : 'disk';
     const facts = parsed === UNDECIDED ? repoFromGit(dir) : parsed;
     // git would not say: an unknown is not written down as "no repository"

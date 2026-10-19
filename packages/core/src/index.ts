@@ -3678,6 +3678,7 @@ export class Core {
     void this.terminals.shutdown();
     void this.collaborators.dispose();
     this.runtime.stopAll();
+    this.repos.flush();
     this.db.close();
     return this.children.close();
   }

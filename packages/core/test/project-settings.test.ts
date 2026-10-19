@@ -288,7 +288,7 @@ test('updating a project renames it, changes its key or modules, and emits what 
     await assert.rejects(core.updateProject(b.id, { name: 'Other', key: 'SHOP' }), /already used by another project/);
     assert.equal((await core.projects()).find((p) => p.id === b.id)?.name, 'Beta');
 
-    await assert.rejects(core.updateProject(a.id, {}), /name, key or modules is required/);
+    await assert.rejects(core.updateProject(a.id, {}), /name, key, modules or path is required/);
     await assert.rejects(core.updateProject(a.id, { name: '  ' }), /name is required/);
     await assert.rejects(core.updateProject(a.id, { key: 'a' }), /key must be/);
     await assert.rejects(core.updateProject(a.id, { modules: ['wiki' as never] }), /unknown module/);

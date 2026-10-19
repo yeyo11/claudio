@@ -152,20 +152,23 @@ test('a worktree the CLI made from a sibling worktree belongs to the main checko
     gitIn(main, 'worktree', 'add', '-q', '-b', 'worktree-cabc7d9a-s1', made);
     const record = { path: made, parentPath: sibling, name: 'cabc7d9a-s1', branch: 'worktree-cabc7d9a-s1' };
 
-    const index = new RepoIndex({ places: new RepoPlaces(db.connection) });
+    // One store, as in core: what it placed is read back before its writes reach the database
+    const places = new RepoPlaces(db.connection);
+    const index = new RepoIndex({ places });
     const there = index.place(made, record);
     assert.equal(there.repo?.commonDir, join(main, '.git'));
     assert.equal(there.repo?.mainCheckout, main, 'never the sibling it was started from');
 
     // Removed before Claudio ever saw it: the record places it through where it was started
     const unseen = join(main, '.claude', 'worktrees', 'never-seen');
-    const gone = new RepoIndex({ places: new RepoPlaces(db.connection) }).place(join(unseen, 'src'), { path: unseen, parentPath: sibling, name: 'never-seen', branch: 'worktree-never-seen' });
+    const gone = new RepoIndex({ places }).place(join(unseen, 'src'), { path: unseen, parentPath: sibling, name: 'never-seen', branch: 'worktree-never-seen' });
     assert.deepEqual([gone.exists, gone.source, gone.repo?.commonDir, gone.repo?.mainCheckout, gone.repo?.worktree, gone.repo?.subdir, gone.repo?.branch], [false, 'cli-record', join(main, '.git'), main, unseen, 'src', 'worktree-never-seen']);
 
     // The sibling removed too: its own row still names the repository
     index.place(sibling);
     gitIn(main, 'worktree', 'remove', '--force', sibling);
     const elsewhere = `${main}-elsewhere`;
+    places.flush();
     const later = new RepoIndex({ places: new RepoPlaces(db.connection) }).place(elsewhere, { path: elsewhere, parentPath: sibling, name: 'x', branch: null });
     assert.equal(later.repo?.commonDir, join(main, '.git'));
   } finally {
