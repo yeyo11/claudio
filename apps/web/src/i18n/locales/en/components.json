@@ -39,7 +39,16 @@
     "pageNotFound": "Page not found",
     "newChat": "New chat",
     "runWorkflow": "Run workflow",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "nearLimit": "Near the limit",
+    "limitReached": "Limit reached",
+    "limitBack": "Available again {{time}}",
+    "checkUsage": "Check usage in Accounts",
+    "rotatesAtLimit": "Accounts rotate at the limit",
+    "notChecked": "Couldn't check the CLI",
+    "notCheckedShort": "Not checked",
+    "willRetry": "Couldn't check the CLI; it will retry",
+    "openClaudeSettings": "Open Claude Code settings"
   },
   "editors": {
     "add": "Add",

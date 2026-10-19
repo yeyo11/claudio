@@ -1,4 +1,4 @@
-import type { Account, AccountCredits, AccountLimit } from '@claudio/shared';
+import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
 import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
 
@@ -124,4 +124,37 @@ export function usageStale(accounts: readonly Account[], now = Date.now(), maxAg
     const at = toMs(a.limits?.cli?.observedAt);
     return at === null || now - at > maxAge;
   });
+}
+
+/**
+ * What the status bar and the phone's More sheet say about the CLI, as one kind. Signed in, at a
+ * limit and "could not check" are separate questions: a limit or a failed probe never reads as a
+ * missing sign-in, which only the credentials decide.
+ */
+export type ConnectionKind = 'ready' | 'no-cli' | 'signed-out' | 'expired' | 'limit' | 'near' | 'unchecked' | 'unready';
+
+export interface ConnectionFacts {
+  cliInstalled: boolean;
+  inUse: Pick<AccountInUse, 'signInState'> | null;
+  /** From the server when `inUse` is null; absent on an old one */
+  inUseReason?: AccountInUseReason | null;
+  /** `GET /accounts`, when read */
+  accounts: readonly Pick<Account, 'enabled' | 'signedIn'>[];
+  /** The default provider's state and reason, when read */
+  provider: { state: ProviderReadinessState; reason: ProviderReasonCode | null } | null;
+}
+
+export function connectionOf(facts: ConnectionFacts): ConnectionKind {
+  const { inUse, provider } = facts;
+  if (!facts.cliInstalled) return 'no-cli';
+  if (inUse?.signInState === 'expired') return 'expired';
+  // The server's reason wins; with none (an old server), the credentials alone decide
+  if (inUse === null && facts.inUseReason === 'limit') return 'limit';
+  const signedIn = inUse !== null || facts.accounts.some((a) => a.enabled && a.signedIn);
+  if (!signedIn || (inUse === null && facts.inUseReason === 'signed-out')) return 'signed-out';
+  if (!provider || provider.state === 'ready') return 'ready';
+  if (provider.state === 'degraded') return provider.reason === 'limit-reached' ? 'limit' : provider.reason === 'limit-near' ? 'near' : 'unready';
+  if (provider.state === 'unknown') return 'unchecked';
+  // Any other state is the provider's own word (`providers:state.*`), never "not signed in"
+  return 'unready';
 }

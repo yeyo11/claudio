@@ -122,6 +122,17 @@
           }
         ],
         "description": "The account new work would start on, which is not always the CLI's own login: a signed-out default with a signed-in login account beside it still runs chats. Null when no account can take work"
+      },
+      "inUseReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountInUseReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why `inUse` is null: `signed-out` when no enabled account has a usable credential, `limit` when one has and every such account is at its limit. Null while `inUse` is set. Absent on an old server."
       }
     },
     "required": [
@@ -192,6 +203,14 @@
       "unknown"
     ],
     "description": "How far an account's sign-in can be trusted."
+  },
+  "AccountInUseReason": {
+    "type": "string",
+    "enum": [
+      "signed-out",
+      "limit"
+    ],
+    "description": "Why no account can take new work now."
   },
   "PermissionMode": {
     "type": "string",
