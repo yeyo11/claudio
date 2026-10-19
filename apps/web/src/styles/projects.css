@@ -1163,3 +1163,92 @@
   .trk-map-row > .ico { display: none; }
   .trk-map-note { font-size: var(--fs-small); }
 }
+
+/* A neutral note: nothing failed and nothing is near a limit, so no status colour */
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  color: var(--fg-2);
+}
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+.callout-warn {
+  border-color: var(--warn-soft);
+  background: var(--warn-soft);
+}
+.callout-warn > svg {
+  color: var(--warn);
+}
+.wizard-inspect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.wizard-inspect-action {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wizard-inspect-callout {
+  margin-top: 4px;
+}
+
+/* A project that points at a worktree (D12): the sentence and its one action */
+.repoint-callout {
+  align-items: center;
+  margin-bottom: 14px;
+}
+.repoint-text {
+  flex: 1;
+  min-width: 0;
+}
+.repoint-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  color: var(--fg);
+}
+.repoint-body {
+  margin: 2px 0 0;
+}
+.repoint-action {
+  flex: none;
+}
+.repoint-refusal {
+  margin-top: 12px;
+}
+.repoint-confirm {
+  display: inline-grid;
+  justify-items: center;
+}
+.repoint-confirm-state {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .repoint-callout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .repoint-callout > svg {
+    display: none;
+  }
+  .repoint-action,
+  .wizard-inspect-action {
+    min-height: 44px;
+    width: 100%;
+  }
+}

@@ -137,3 +137,14 @@ export function moduleFigure(module: ProjectModule, figures: ModuleFigures): { k
   if (module === 'memory') return pick('journal', figures.journal);
   return null;
 }
+
+/** A remote as a person reads it: no scheme, no `user@`, no trailing `.git` (`github.com/yeyo11/claudio`). */
+export function shortRemote(remote: string): string {
+  return remote
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+    .replace(/^[^@/]+@/, '')
+    .replace(/^([^/:]+):(?!\d+\/)/, '$1/')
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '');
+}

@@ -71,7 +71,9 @@
       "context": "Contexto",
       "cost": "Coste",
       "activity": "Actividad"
-    }
+    },
+    "worktreeRemoved": "eliminado",
+    "chipWorktree": "Worktree: {{value}}"
   },
   "bulk": {
     "region": "Chats seleccionados",

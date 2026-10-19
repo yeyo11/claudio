@@ -86,7 +86,7 @@ test('Collaborators: the assistant switch follows assistantReads and leads to th
   assert.match(off, /role="switch" aria-checked="false"/);
 });
 
-const project: Project = { id: 'p1', name: 'api', path: '/tmp/api', worktrees: [], exists: true, chatCount: 3, lastActivity: null, key: 'API', modules: [] };
+const project: Project = { id: 'p1', name: 'api', path: '/tmp/api', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 3, lastActivity: null, key: 'API', modules: [] };
 
 const status = {
   unavailable: null,

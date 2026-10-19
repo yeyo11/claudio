@@ -22,7 +22,7 @@ import { causeLine, historyLine } from '../src/pages/tasks/item/model';
 // rounds" on the board and in its history, apart from the bounce limit, and the Flow screen holds
 // the switch that turns the stop on.
 
-const project: Project = { id: 'p', name: 'shop', path: '/tmp/shop', worktrees: [], exists: true, chatCount: 0, lastActivity: null, key: 'SHOP', modules: ['team'] };
+const project: Project = { id: 'p', name: 'shop', path: '/tmp/shop', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 0, lastActivity: null, key: 'SHOP', modules: ['team'] };
 const member: TeamMember = {
   role: 'developer',
   agent: 'developer',

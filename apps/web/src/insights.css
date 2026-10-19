@@ -248,6 +248,60 @@
   }
 }
 
+/* Suggestions: a repository is one row; the other directories fold under a disclosure */
+.candidate-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.candidate-clone {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.candidate-others {
+  margin-top: 6px;
+}
+.candidate-others-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.candidate-others-toggle:hover {
+  color: var(--fg);
+}
+.candidate-others-toggle[aria-expanded='true'] .candidate-others-chevron {
+  transform: rotate(90deg);
+}
+.candidate-others-body {
+  margin: 4px 0 0;
+}
+
+@media (max-width: 900px) {
+  .candidate-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .candidate-actions .btn:not(.icon-btn) {
+    flex: 1;
+    min-height: 44px;
+  }
+  .candidate-actions .icon-btn,
+  .candidate-others-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* ==== end Projects ==== */
 
 /* ==== Connectors (Night Shift) ==== */
