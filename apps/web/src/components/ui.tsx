@@ -73,7 +73,7 @@ export function useModelList(account?: string | null): ModelList {
   const listed = fromOverview?.length ? fromOverview : read.data;
   const models = useMemo(() => (listed?.length ? dedupeModels(listed.filter((model) => !model.disabled)) : NO_CATALOG), [listed]);
   // An overview that failed would leave the spinner turning with nothing at work: that is a failed read too
-  const overviewFailed = !account && overview.isError && !overview.data;
+  const overviewFailed = !account && overview.isError && !fromOverview?.length;
   const failed = !again.isPending && (again.isError || overviewFailed || (ask && (read.isError || (read.isSuccess && !read.data.length && !again.data?.length))));
   const state = models.length > 0 ? 'ready' : failed ? 'failed' : 'loading';
   return { models, state, retry: () => again.mutate() };
