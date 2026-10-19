@@ -136,10 +136,10 @@
     "asBeforeNone": "Como antes (sin preset)",
     "servers": "Servidores MCP",
     "serversHint": "Si eliges servidores, el chat arranca solo con esos: los conectores de claude.ai y los servidores de plugins quedan fuera.",
-    "serversDefault": "Como los carga el CLI",
+    "serversDefault": "Los del CLI",
     "serversAsBeforeChosen_one": "Como antes ({{count}} elegido)",
     "serversAsBeforeChosen_other": "Como antes ({{count}} elegidos)",
-    "serversAsBeforeDefault": "Como antes (como los carga el CLI)",
+    "serversAsBeforeDefault": "Como antes (los del CLI)",
     "serversChoose": "Solo los que elija",
     "onlyThese": "Arrancar solo con estos servidores",
     "noServers": "No hay servidores MCP configurados.",
@@ -151,7 +151,7 @@
       "disallowed": "Bloqueadas",
       "none": "ninguna",
       "noServers": "ninguno: el chat arrancó sin ningún servidor MCP",
-      "serversDefault": "como los carga el CLI",
+      "serversDefault": "los del CLI",
       "strictNote": "Solo se cargan estos servidores.",
       "frozenNote": "Fijado al arrancar o al reanudar."
     },
@@ -301,14 +301,18 @@
   },
   "status": {
     "noPreset": "sin preset",
-    "mcpDefault": "MCP: lo que cargue el CLI",
+    "mcpDefault": "MCP: los del CLI",
+    "mcpLive": "MCP: {{on}} de {{total}} activos",
+    "serversChosen_one": "{{count}} servidor",
+    "serversChosen_other": "{{count}} servidores",
+    "viewRules": "Ver reglas",
     "mcpChosen_one": "MCP: {{count}} servidor",
     "mcpChosen_other": "MCP: {{count}} servidores",
     "open": "Opciones de ejecución",
     "liveTitle": "Cómo se ejecuta este chat",
     "resumeTitle": "Reanudar con",
     "forkTitle": "Crear fork con",
-    "liveHint": "El modo de permisos y el modelo cambian al momento, y los servidores MCP y los conectores se activan y desactivan desde el + del cuadro. El preset de herramientas quedó fijado al empezar el chat; reanudarlo más tarde puede cambiarlo."
+    "liveHint": "El preset de herramientas quedó fijado al empezar el chat; reanudarlo puede cambiarlo."
   },
   "inspector": {
     "tabs": "Detalles del chat",
