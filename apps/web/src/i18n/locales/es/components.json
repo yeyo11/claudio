@@ -39,7 +39,16 @@
     "pageNotFound": "Página no encontrada",
     "newChat": "Nuevo chat",
     "runWorkflow": "Ejecutar un workflow",
-    "skipToContent": "Saltar al contenido"
+    "skipToContent": "Saltar al contenido",
+    "nearLimit": "Cerca del límite",
+    "limitReached": "Límite alcanzado",
+    "limitBack": "Vuelve a estar disponible {{time}}",
+    "checkUsage": "Revisa el uso en Cuentas",
+    "rotatesAtLimit": "Las cuentas cambian solas al llegar al límite",
+    "notChecked": "No se ha podido comprobar el CLI",
+    "notCheckedShort": "Sin comprobar",
+    "willRetry": "No se ha podido comprobar el CLI; se reintentará",
+    "openClaudeSettings": "Abre los ajustes de Claude Code"
   },
   "editors": {
     "add": "Añadir",
