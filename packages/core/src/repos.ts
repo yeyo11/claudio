@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
-import { git } from './git.ts';
+import { git, watchWorktrees } from './git.ts';
 
 /**
  * Which git repository a directory is in, read from git's own files (gitrepository-layout(5)) with
@@ -299,6 +299,24 @@ export function stripCredentials(url: string): string {
   return `${protocol}://${keep ? userinfo : ''}${rest}`;
 }
 
+/**
+ * A remote as `host/path`, so two clones of one repository compare equal however each was cloned:
+ * scheme, credentials, the SSH user, a trailing `.git` or `/` and the host's case dropped.
+ */
+export function normalizeRemote(url: string): string {
+  let rest = url.trim();
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\/(?:[^/@]*@)?(.*)$/i.exec(rest);
+  if (scheme) rest = scheme[1] ?? '';
+  else {
+    const scp = /^(?:[^@/:]+@)?([^/:]+):(.*)$/.exec(rest);
+    if (scp) rest = `${scp[1] ?? ''}/${scp[2] ?? ''}`;
+  }
+  rest = rest.replace(/\/+$/, '').replace(/\.git$/, '');
+  const slash = rest.indexOf('/');
+  const host = (slash < 0 ? rest : rest.slice(0, slash)).replace(/:\d+$/, '').toLowerCase();
+  return slash < 0 ? host : `${host}${rest.slice(slash)}`;
+}
+
 /** `remote.origin.url`, credentials stripped; null without an origin. One git process. */
 export function remoteOf(commonDir: string): string | null {
   try {
@@ -421,21 +439,6 @@ const MAX_HOPS = 4;
 
 const NOWHERE: Place = { repo: null, exists: false, source: null };
 
-const indexes = new Set<WeakRef<RepoIndex>>();
-
-/**
- * Says a worktree was added or removed: every index forgets its lists and placements, so the next
- * read sees it. Called wherever Claudio adds or removes one (orchestrator, work links, pull
- * requests, chats with `--worktree`).
- */
-export function worktreesChanged(): void {
-  for (const ref of indexes) {
-    const index = ref.deref();
-    if (index) index.invalidate();
-    else indexes.delete(ref);
-  }
-}
-
 /**
  * Placements, cached per directory and remembered in `repo_places` (D3, D4, D9): a list resolves
  * each distinct directory once, and a directory removed since keeps the repository it was in.
@@ -451,7 +454,8 @@ export class RepoIndex {
   constructor(opts: { places?: RepoPlaces | null; now?: () => number } = {}) {
     this.places = opts.places ?? null;
     this.now = opts.now ?? Date.now;
-    indexes.add(new WeakRef(this));
+    // Every place Claudio adds or removes a worktree says so (`worktreesChanged`), and the next read sees it
+    watchWorktrees(this);
   }
 
   /** Remembers a worktree the CLI recorded in a transcript. */
@@ -541,7 +545,8 @@ export class RepoIndex {
           worktree: top,
           topLevel: top,
           subdir: dir === top ? '' : dir.slice(top.length + 1),
-          branch: null,
+          // Removed without `git worktree remove`, git still lists it (prunable), branch and all
+          branch: this.worktreesOf(parent.commonDir, parent.mainCheckout).find((w) => w.path === top)?.branch ?? null,
           detached: false,
           bare: false,
         };

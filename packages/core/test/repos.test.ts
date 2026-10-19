@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
+import { Db } from '../src/db.ts';
 import { worktrees } from '../src/git.ts';
-import { bareImportPath, parseRepo, repoGit, repoOf, stripCredentials, worktreesOf } from '../src/repos.ts';
+import { bareImportPath, normalizeRemote, parseRepo, RepoIndex, RepoPlaces, repoGit, repoOf, stripCredentials, worktreesOf } from '../src/repos.ts';
+import { tempConfig } from './helpers.ts';
 
 /** git's answers for one fixture directory, as `fixtures/repos/make.sh` records them. */
 interface Expected {
@@ -127,10 +129,100 @@ test('what the parser cannot read is asked of git', () => {
   }
 });
 
+const gitIn = (dir: string, ...a: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=a', '-c', 'user.email=a@b', ...a], { stdio: 'pipe' });
+
+/** A repository with one commit under the run's temp dir, real path. */
+function fresh(): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'claudio-place-')));
+  gitIn(dir, 'init', '-q', '-b', 'main');
+  writeFileSync(join(dir, 'f'), 'x');
+  gitIn(dir, 'add', '-A');
+  gitIn(dir, 'commit', '-q', '-m', 'init');
+  return dir;
+}
+
+test('a worktree the CLI made from a sibling worktree belongs to the main checkout, there or removed', () => {
+  const db = new Db(tempConfig());
+  try {
+    const main = fresh();
+    const sibling = `${main}-stage`;
+    gitIn(main, 'worktree', 'add', '-q', '-b', 'stage', sibling);
+    // `claude --worktree` run in the sibling: the CLI puts the worktree under the main checkout
+    const made = join(main, '.claude', 'worktrees', 'cabc7d9a-s1');
+    gitIn(main, 'worktree', 'add', '-q', '-b', 'worktree-cabc7d9a-s1', made);
+    const record = { path: made, parentPath: sibling, name: 'cabc7d9a-s1', branch: 'worktree-cabc7d9a-s1' };
+
+    const index = new RepoIndex({ places: new RepoPlaces(db.connection) });
+    const there = index.place(made, record);
+    assert.equal(there.repo?.commonDir, join(main, '.git'));
+    assert.equal(there.repo?.mainCheckout, main, 'never the sibling it was started from');
+
+    // Removed before Claudio ever saw it: the record places it through where it was started
+    const unseen = join(main, '.claude', 'worktrees', 'never-seen');
+    const gone = new RepoIndex({ places: new RepoPlaces(db.connection) }).place(join(unseen, 'src'), { path: unseen, parentPath: sibling, name: 'never-seen', branch: 'worktree-never-seen' });
+    assert.deepEqual([gone.exists, gone.source, gone.repo?.commonDir, gone.repo?.mainCheckout, gone.repo?.worktree, gone.repo?.subdir, gone.repo?.branch], [false, 'cli-record', join(main, '.git'), main, unseen, 'src', 'worktree-never-seen']);
+
+    // The sibling removed too: its own row still names the repository
+    index.place(sibling);
+    gitIn(main, 'worktree', 'remove', '--force', sibling);
+    const elsewhere = `${main}-elsewhere`;
+    const later = new RepoIndex({ places: new RepoPlaces(db.connection) }).place(elsewhere, { path: elsewhere, parentPath: sibling, name: 'x', branch: null });
+    assert.equal(later.repo?.commonDir, join(main, '.git'));
+  } finally {
+    db.close();
+  }
+});
+
+test('a removed worktree nested in another one resolves to the repository that holds the outermost', () => {
+  const main = fresh();
+  const nested = join(main, '.claude', 'worktrees', 'outer', '.claude', 'worktrees', 'inner');
+  const placed = new RepoIndex().place(join(nested, 'src'));
+  assert.equal(placed.source, 'layout');
+  assert.equal(placed.repo?.commonDir, join(main, '.git'));
+  assert.equal(placed.repo?.worktree, nested, 'the worktree is the innermost');
+  assert.equal(placed.repo?.subdir, 'src');
+});
+
+test('a removed worktree with only its repo_places row keeps its repository, and a weaker guess never replaces the row', () => {
+  const config = tempConfig();
+  const db = new Db(config);
+  try {
+    const main = fresh();
+    const wt = `${main}-away`;
+    gitIn(main, 'worktree', 'add', '-q', '-b', 'away', wt);
+    const places = new RepoPlaces(db.connection);
+    assert.equal(new RepoIndex({ places }).place(wt).source, 'disk');
+    gitIn(main, 'worktree', 'remove', '--force', wt);
+
+    const placed = new RepoIndex({ places }).place(wt);
+    assert.deepEqual([placed.exists, placed.source, placed.repo?.commonDir, placed.repo?.worktree, placed.repo?.branch], [false, 'disk', join(main, '.git'), wt, 'away']);
+    const row = places.get(wt);
+    assert.ok(row?.goneAt, 'the first time it was found missing is recorded');
+    places.upsert({ ...row, commonDir: '/elsewhere/.git', source: 'layout', goneAt: row.goneAt });
+    assert.equal(places.get(wt)?.commonDir, join(main, '.git'));
+    // It comes back: the disk wins again and the gone mark is cleared
+    mkdirSync(wt);
+    gitIn(main, 'worktree', 'prune');
+    gitIn(main, 'worktree', 'add', '-q', '-f', wt, 'away');
+    new RepoIndex({ places }).place(wt);
+    assert.equal(places.get(wt)?.goneAt, null);
+  } finally {
+    db.close();
+  }
+});
+
 test('a remote never carries what signs in with it', () => {
   assert.equal(stripCredentials('https://user:secret@github.com/a/b.git'), 'https://github.com/a/b.git');
   assert.equal(stripCredentials('https://ghp_token@github.com/a/b.git'), 'https://github.com/a/b.git');
   assert.equal(stripCredentials('ssh://git@github.com/a/b.git'), 'ssh://git@github.com/a/b.git');
   assert.equal(stripCredentials('ssh://git:pw@github.com/a/b.git'), 'ssh://github.com/a/b.git');
   assert.equal(stripCredentials('git@github.com:a/b.git'), 'git@github.com:a/b.git');
+});
+
+test('two clones compare by host and path, however each was cloned', () => {
+  const one = normalizeRemote('git@GitHub.com:yeyo11/claudio.git');
+  assert.equal(one, 'github.com/yeyo11/claudio');
+  assert.equal(normalizeRemote('https://token@github.com/yeyo11/claudio/'), one);
+  assert.equal(normalizeRemote('ssh://git@github.com:22/yeyo11/claudio.git'), one);
+  assert.notEqual(normalizeRemote('https://github.com/yeyo11/other'), one);
 });

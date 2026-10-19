@@ -51,7 +51,7 @@ function project(name: string) {
   writeFileSync(join(path, 'docs', 'plan.md'), `# Plan of ${name}\n`);
   // On disk in the project, but in no shared record: its hash must never open it
   writeFileSync(join(path, 'secret.env'), `TOKEN=${name}-${randomUUID()}\n`);
-  return { id: randomUUID(), name, path };
+  return { id: randomUUID(), name, path, repo: null };
 }
 
 const shared = project('shared');
@@ -154,7 +154,7 @@ const byId = (id: string) => projects.find((p) => p.id === id) ?? shared;
 
 const sources: ReaderSources = {
   projects: () => projects,
-  worktreeOf: () => null,
+  place: () => ({ repo: null, exists: true, source: null }),
   chats: () => chats,
   liveChats: () => new Map<string, ChatActivity | null>([[liveChat, { kind: 'tool', tool: 'Edit', since: '2026-10-16T10:00:00.000Z' }]]),
   transcriptFile: async (id) => (chats.some((c) => c.id === id) ? join(transcripts, `${id}.jsonl`) : null),

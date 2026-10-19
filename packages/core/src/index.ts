@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ClaudioLanguage,
@@ -44,7 +44,10 @@ import type {
   ProjectSettings,
   ProjectTeamMember,
   ProjectTemplate,
+  ProjectPathInspection,
+  ProjectRepo,
   ProjectWorktree,
+  WorktreeCreator,
   RunWorkflowRequest,
   SetupState,
   SetupTool,
@@ -80,7 +83,7 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, workItemKey, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -148,7 +151,8 @@ import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
-import { Locator } from './locations.ts';
+import { bareImportPath, coreConfigOf, normalizeRemote, RepoIndex, RepoPlaces, type Place } from './repos.ts';
+import { lanesRoot } from './evals/lanes.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
 import { claudioMcp, claudioMcpSync, collabMcpSync, assistantChatOptions, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
@@ -571,7 +575,8 @@ export class Core {
   /** Claude Code installed in-app inside the container, under /data/cli */
   readonly cliInstaller: CliInstaller;
   readonly workspace: Workspace;
-  readonly locator = new Locator();
+  /** Which repository each directory is in, remembered in `repo_places` (docs/plans/projects-as-repositories.md) */
+  readonly repos: RepoIndex;
   private readonly projectStore: ProjectStore;
   /** What each project configures, one JSON document per project id, kept when the project is removed */
   private readonly projectSettingsStore: ProjectSettingsStore;
@@ -693,6 +698,7 @@ export class Core {
       youtrackCredentials: () => this.youtrackCredentials.get(),
     });
     this.db = new Db(config);
+    this.repos = new RepoIndex({ places: new RepoPlaces(this.db.connection) });
     this.reviewStore = new ReviewStore(this.db.connection);
     this.permissions = new PermissionBroker();
     this.credentials = new CredentialStore(config, this.vault);
@@ -782,7 +788,7 @@ export class Core {
         await this.system(true);
       },
     });
-    this.projectStore = new ProjectStore(config);
+    this.projectStore = new ProjectStore(config, this.repos);
     this.projectSettingsStore = new ProjectSettingsStore(config);
     this.team = new TeamService({
       dataDir: config.dataDir,
@@ -1606,7 +1612,7 @@ export class Core {
       log: (message) => console.warn(message),
       sources: {
         projects: () => this.projectStore.list(),
-        worktreeOf: (dir) => this.locator.worktreeOf(dir),
+        place: (dir) => this.repos.place(dir),
         chats: () => this.db.loadChats().map((stored) => stored.record),
         liveChats: () => liveChatsOf(this.runtime.list()),
         transcriptFile,
@@ -1740,8 +1746,16 @@ export class Core {
     return promise;
   }
 
-  private attach(dir: string) {
-    return attachProject(this.projectStore.list(), dir, (d) => this.locator.worktreeOf(d));
+  private attach(dir: string): { project: ProjectRecord | null; place: Place } {
+    const place = this.repos.place(dir);
+    return { project: attachProject(this.projectStore.list(), resolve(dir), place), place };
+  }
+
+  /** The linked worktree a placement is in, as a chat shows it; null in a main checkout or outside a repository. */
+  private chatWorktreeOf(place: Place): ChatWorktree | null {
+    const top = place.repo?.worktree;
+    if (!top) return null;
+    return { path: top, name: this.repos.recordOf(top)?.name ?? (basename(top) || null), branch: place.repo?.branch ?? null, exists: place.exists || existsSync(top) };
   }
 
   /**
@@ -1815,12 +1829,8 @@ export class Core {
   }
 
   projectOf(dir: string): { project: ChatProject | null; worktree: ChatWorktree | null } {
-    const attached = this.attach(dir);
-    const facts = attached ? attached.worktree : this.locator.worktreeOf(dir);
-    return {
-      project: attached ? { id: attached.project.id, name: attached.project.name } : null,
-      worktree: facts ? { path: facts.path, name: facts.name, branch: facts.branch } : null,
-    };
+    const { project, place } = this.attach(dir);
+    return { project: project ? { id: project.id, name: project.name } : null, worktree: this.chatWorktreeOf(place) };
   }
 
   /**
@@ -1852,11 +1862,12 @@ export class Core {
   }
 
   /**
-   * Where a chat belongs: its project, and the worktree when it works in one. The CLI's own record
-   * of the worktree it created wins over anything guessed from the path.
+   * Where a chat belongs: its project, and the worktree when it works in one. The CLI's record of
+   * the worktree it created places it once the worktree is gone; its `originalCwd` is only ever
+   * placed in turn, never taken as the repository (D3).
    */
   private place(dir: string, recorded: TranscriptSummary['worktree']): Placement {
-    if (recorded) this.locator.learn(recorded);
+    if (recorded) this.repos.learn(recorded);
     return this.projectOf(dir);
   }
 
@@ -2246,79 +2257,172 @@ export class Core {
   }
 
   /**
-   * The projects the person imported, each with the chats under it and its worktrees. Nothing is
-   * discovered here: a directory Claude Code has run in is a project only once it is imported.
+   * The projects the person imported, each with the chats under it and its repository's worktrees.
+   * Nothing is discovered here: a directory Claude Code has run in is a project only once it is
+   * imported.
+   *
+   * A repository's checkouts come from git's files (D6): the main one first, then every linked
+   * worktree that exists and git would not prune, each with who in Claudio made it. Removed ones
+   * are history in their chats, counted and never offered; eval lanes are Claudio's own scratch.
    */
   async projects(): Promise<Project[]> {
-    const places = await this.chatPlaces();
+    const sessions = await this.sessions.listSessions();
+    for (const s of sessions) if (s.worktree) this.repos.learn(s.worktree);
     // Counted from the chat list the project's page shows, so the figure agrees with it: a chat this
     // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its transcript
     const listed = await this.chats.list();
-    const worktrees = new Map<string, Map<string, ProjectWorktree>>();
-    const stats = new Map<string, { chatCount: number; lastActivity: string | null }>();
-    const addWorktree = (path: string, creator: ProjectWorktree['createdBy'] = null) => {
-      const attached = this.attach(path);
-      const facts = this.locator.worktreeOf(path);
-      if (!attached || facts?.path !== path) return;
-      const known = worktrees.get(attached.project.id) ?? new Map<string, ProjectWorktree>();
-      known.set(path, { path, name: facts.name, branch: facts.branch, createdBy: creator ?? known.get(path)?.createdBy ?? null });
-      worktrees.set(attached.project.id, known);
+    const records = this.projectStore.list();
+    const settings = await this.projectSettingsStore.readAll(records);
+    const real = (path: string) => {
+      try {
+        return realpathSync(path);
+      } catch {
+        return path;
+      }
     };
 
-    for (const place of places) {
-      const attached = this.attach(place.cwd);
-      if (attached?.worktree) addWorktree(attached.worktree.path);
-    }
-    for (const chat of listed) {
-      if (!chat.project) continue;
-      const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null };
-      stat.chatCount += 1;
-      if (chat.updatedAt && (!stat.lastActivity || chat.updatedAt > stat.lastActivity)) stat.lastActivity = chat.updatedAt;
-      stats.set(chat.project.id, stat);
-    }
-
-    // The orchestration task that created a worktree says more about it than its name does, and a
-    // worktree no chat has run in yet is only known from there
+    // Who made a worktree, the most specific maker first: what a run was for says more than a chat in it
+    const creators = new Map<string, WorktreeCreator>();
+    const made = (path: string | null | undefined, creator: WorktreeCreator) => {
+      if (path && !creators.has(real(path))) creators.set(real(path), creator);
+    };
     for (const orch of this.orchestrator.list()) {
       for (const task of orch.tasks) {
         if (!task.branch) continue;
         const path = task.worktree ?? join(orch.cwd, '.claude', 'worktrees', task.branch.replace(/^worktree-/, ''));
-        addWorktree(path, { orchestrationId: orch.id, orchestrationName: orch.name, taskId: task.id, taskName: task.name });
+        made(path, { kind: 'orchestration', orchestrationId: orch.id, orchestrationName: orch.name, taskId: task.id, taskName: task.name });
       }
     }
-
-    // Where the CLI puts the worktrees it makes, for those nothing above has met
-    for (const project of this.projectStore.list()) {
-      const root = join(project.path, '.claude', 'worktrees');
-      for (const name of await readdir(root).catch(() => [] as string[])) addWorktree(join(root, name));
+    const items = this.db.connection.prepare('SELECT project_id, number, title, worktree FROM work_items WHERE worktree IS NOT NULL').all() as Array<{
+      project_id: string;
+      number: number;
+      title: string | null;
+      worktree: string;
+    }>;
+    for (const item of items) {
+      const prefix = settings.get(item.project_id)?.keyPrefix;
+      if (prefix) made(item.worktree, { kind: 'work-item', key: workItemKey(prefix, item.number), title: item.title });
+    }
+    // The session that first ran in a worktree the CLI made for it
+    for (const s of [...sessions].sort((a, b) => (a.startedAt ?? '').localeCompare(b.startedAt ?? ''))) {
+      if (s.worktree) made(s.worktree.path, { kind: 'chat', chatId: s.id, title: s.title || null });
     }
 
-    const records = this.projectStore.list();
-    const settings = await this.projectSettingsStore.readAll(records);
-    return records.map((p) => ({
-      id: p.id,
-      name: p.name,
-      path: p.path,
-      key: settings.get(p.id)?.keyPrefix ?? '',
-      modules: settings.get(p.id)?.modules ?? [],
-      // A worktree removed from disk is history, kept in the chats that ran there, not a place to go
-      worktrees: [...(worktrees.get(p.id)?.values() ?? [])].filter((w) => existsSync(w.path)).sort((a, b) => a.path.localeCompare(b.path)),
-      exists: existsSync(p.path),
-      chatCount: stats.get(p.id)?.chatCount ?? 0,
-      lastActivity: stats.get(p.id)?.lastActivity ?? null,
-    }));
+    const MAIN = '';
+    type Tally = { chatCount: number; lastActivity: string | null };
+    const stats = new Map<string, Tally & { byWorktree: Map<string, Tally>; removed: Set<string> }>();
+    const bump = (tally: Tally, at: string | null) => {
+      tally.chatCount += 1;
+      if (at && (!tally.lastActivity || at > tally.lastActivity)) tally.lastActivity = at;
+    };
+    for (const chat of listed) {
+      if (!chat.project) continue;
+      const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null, byWorktree: new Map<string, Tally>(), removed: new Set<string>() };
+      bump(stat, chat.updatedAt);
+      const key = chat.worktree ? real(chat.worktree.path) : MAIN;
+      const of = stat.byWorktree.get(key) ?? { chatCount: 0, lastActivity: null };
+      bump(of, chat.updatedAt);
+      stat.byWorktree.set(key, of);
+      if (chat.worktree && !chat.worktree.exists) stat.removed.add(chat.worktree.path);
+      stats.set(chat.project.id, stat);
+    }
+
+    const lanes = lanesRoot(this.config.dataDir);
+    const underLanes = (path: string) => path === lanes || path.startsWith(`${lanes}/`);
+    return records.map((p): Project => {
+      const stat = stats.get(p.id);
+      const { repo, insideWorktreeOf } = this.projectRepo(p);
+      const worktrees: ProjectWorktree[] = [];
+      if (repo) {
+        for (const w of this.repos.worktreesOf(repo.commonDir, repo.mainCheckout)) {
+          if (!w.exists || w.prunable || w.bare || underLanes(w.path)) continue;
+          const chats = stat?.byWorktree.get(w.main ? MAIN : w.path);
+          worktrees.push({
+            path: w.path,
+            cwd: repo.subdir ? join(w.path, repo.subdir) : w.path,
+            name: w.main ? null : (this.repos.recordOf(w.path)?.name ?? w.id),
+            branch: w.branch,
+            main: w.main,
+            detached: w.detached,
+            locked: w.locked,
+            chatCount: chats?.chatCount ?? 0,
+            lastActivity: chats?.lastActivity ?? null,
+            createdBy: w.main ? null : (creators.get(w.path) ?? null),
+          });
+        }
+        worktrees.sort(
+          (a, b) => Number(b.main) - Number(a.main) || (b.lastActivity ?? '').localeCompare(a.lastActivity ?? '') || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
+        );
+      }
+      return {
+        id: p.id,
+        name: p.name,
+        path: p.path,
+        repo,
+        key: settings.get(p.id)?.keyPrefix ?? '',
+        modules: settings.get(p.id)?.modules ?? [],
+        worktrees,
+        removedWorktrees: stat?.removed.size ?? 0,
+        insideWorktreeOf,
+        exists: existsSync(p.path),
+        chatCount: stat?.chatCount ?? 0,
+        lastActivity: stat?.lastActivity ?? null,
+      };
+    });
+  }
+
+  /**
+   * A project's repository as the API shows it, from its record and where its path is now: the main
+   * checkout, whether it is bare, and the main checkout's path when the project's own lies inside a
+   * linked worktree (what re-pointing it, D12, would make of it).
+   */
+  private projectRepo(p: ProjectRecord): { repo: ProjectRepo | null; insideWorktreeOf: string | null } {
+    if (!p.repo) return { repo: null, insideWorktreeOf: null };
+    const facts = this.repos.place(p.path).repo;
+    const same = facts?.commonDir === p.repo.commonDir ? facts : null;
+    const bare = coreConfigOf(p.repo.commonDir).bare;
+    const mainCheckout = bare ? null : (same?.mainCheckout ?? this.repos.worktreesOf(p.repo.commonDir).find((w) => w.main)?.path ?? null);
+    const repo: ProjectRepo = { commonDir: p.repo.commonDir, mainCheckout, subdir: p.repo.subdir, remote: p.repo.remote, bare };
+    const insideWorktreeOf = same?.worktree ? (mainCheckout ? join(mainCheckout, same.subdir) : bareImportPath(p.repo.commonDir)) : null;
+    return { repo, insideWorktreeOf };
   }
 
   /** The worktrees the CLI recorded in its transcripts are what let a chat in one find its repository. */
   private async chatPlaces(): Promise<ChatPlace[]> {
     const sessions = await this.sessions.listSessions();
-    for (const s of sessions) if (s.worktree) this.locator.learn(s.worktree);
+    for (const s of sessions) if (s.worktree) this.repos.learn(s.worktree);
     return sessions.map(placeOf);
   }
 
   /** The directories with the most chats that are not projects yet: what a first start offers to import. */
   async projectCandidates(): Promise<ProjectCandidate[]> {
-    return projectCandidates(this.projectStore.list(), await this.chatPlaces(), (d) => this.locator.worktreeOf(d));
+    return projectCandidates(this.projectStore.list(), await this.chatPlaces(), (d) => this.repos.place(d));
+  }
+
+  /**
+   * What a path is before it is imported (D7): its repository, the path Import would record, why it
+   * cannot be imported as it is, another clone of the same remote that already is a project, and how
+   * many worktrees the repository has. Reads only.
+   */
+  inspectProjectPath(path: unknown): ProjectPathInspection {
+    if (typeof path !== 'string' || !path.trim()) throw new Error('path is required');
+    const target = this.projectStore.target(path.trim(), this.repos);
+    const facts = target.place.repo;
+    if (!facts) return { path: target.path, exists: target.exists, repo: null, importPath: target.importPath, conflict: target.conflict, sameRemoteAs: null, worktreeCount: 0 };
+    const remote = this.repos.remoteOf(facts.commonDir);
+    const repo: ProjectRepo = { commonDir: facts.commonDir, mainCheckout: target.mainCheckout, subdir: facts.bare ? '' : facts.subdir, remote, bare: target.bare };
+    const worktreeCount = this.repos.worktreesOf(facts.commonDir, target.mainCheckout).filter((w) => !w.main && w.exists && !w.prunable).length;
+    const normal = remote ? normalizeRemote(remote) : null;
+    const clone = normal ? this.projectStore.list().find((p) => p.repo && p.repo.commonDir !== facts.commonDir && p.repo.remote && normalizeRemote(p.repo.remote) === normal) : undefined;
+    return {
+      path: target.path,
+      exists: target.exists,
+      repo,
+      importPath: target.importPath,
+      conflict: target.conflict,
+      sameRemoteAs: clone ? { id: clone.id, name: clone.name } : null,
+      worktreeCount,
+    };
   }
 
   /**
@@ -2330,10 +2434,11 @@ export class Core {
     const setup = parseProjectSetup(req);
     const active = () => new Set(this.projectStore.list().map((p) => p.id));
     const imported = active();
-    const record = await this.projectStore.add(
-      { path: req.path, ...(req.name ? { name: req.name } : {}) },
-      (d) => this.locator.worktreeOf(d),
-      (path) => this.projectSettingsStore.idForPath(path, active()),
+    const record = await this.projectStore.add({ path: req.path, ...(req.name ? { name: req.name } : {}) }, this.repos, (path, repo) =>
+      this.projectSettingsStore.idForPath(path, active(), repo, (old) => {
+        const placed = this.repos.place(old).repo;
+        return placed ? { commonDir: placed.commonDir, subdir: placed.subdir } : null;
+      }),
     );
     const { settings, previous } = await this.projectSettingsStore.create(record, setup, this.projectStore.list());
     // A directory imported again can come back with other modules: whoever shows its tabs has to know
@@ -2359,17 +2464,20 @@ export class Core {
   }
 
   /**
-   * Renames a project, changes its key prefix or its modules. Everything is validated before
-   * anything is written, so a prefix another project holds does not leave a rename half done.
-   * Switching a module off only hides it: its data stays where it is.
+   * Renames a project, changes its key prefix or its modules, or re-points it inside its own
+   * repository (D12). Everything is validated before anything is written, so a prefix another
+   * project holds does not leave a rename half done. Switching a module off only hides it: its data
+   * stays where it is. Re-pointing keeps the id, so the chats, settings, work items and journal stay
+   * with the project; nothing on disk changes, the worktree it pointed at included.
    */
   async updateProject(id: string, req: UpdateProjectRequest): Promise<Project> {
     const record = this.requireProject(id);
     const body: Partial<Record<keyof UpdateProjectRequest, unknown>> = req && typeof req === 'object' ? req : {};
-    if (body.name === undefined && body.key === undefined && body.modules === undefined) throw new Error('name, key or modules is required');
+    if (body.name === undefined && body.key === undefined && body.modules === undefined && body.path === undefined) throw new Error('name, key, modules or path is required');
     if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim())) throw new Error('name is required');
     const key = body.key === undefined ? undefined : parseKeyPrefix(body.key);
     const modules = body.modules === undefined ? undefined : parseModules(body.modules);
+    const repointed = body.path === undefined ? null : await this.projectStore.planRepoint(id, body.path, this.repos);
 
     const active = this.projectStore.list();
     const { before, after } = await this.projectSettingsStore.update(record, (current) => ({ ...current, ...(key ? { keyPrefix: key } : {}), ...(modules ? { modules } : {}) }), active);
@@ -2378,6 +2486,13 @@ export class Core {
     if (typeof body.name === 'string' && body.name.trim() !== record.name) {
       current = await this.projectStore.rename(id, body.name);
       if (current.name !== record.name) changes.push('name');
+    }
+    if (repointed && (repointed.path !== current.path || repointed.repo?.subdir !== current.repo?.subdir)) {
+      current = { ...repointed, name: current.name };
+      await this.projectStore.replace(current);
+      // So a re-import by path finds it after a removal
+      await this.projectSettingsStore.repath(current);
+      changes.push('path');
     }
     this.projectUpdated(current, changes, after.modules);
     return this.projectView(id);
