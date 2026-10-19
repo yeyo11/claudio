@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: projects as git repositories, worktrees as their children
 
-Status: **planned** (2026-10-19). The owner set the model on 2026-10-19: **a project is a git
+Status: **built** (2026-10-19, see [Outcome](#outcome)); it was planned the same day. The owner set the model on 2026-10-19: **a project is a git
 repository, its worktrees are its children, and suggestions are grouped by repository and never
 include `$HOME` or a workspace root.** The work is one pull request on
 `feat/projects-as-repositories`, built by the orchestration in [Tasks](#tasks). `repo-model` and
@@ -698,6 +698,36 @@ The owner answered the four open questions of the first version on 2026-10-19:
 ## Open questions
 
 None for the owner. The spike in `repo-model` settles D2's parser and D11's import path.
+
+## Outcome
+
+Built on 2026-10-19 by the orchestration of [Tasks](#tasks), in the branches `repo-model`,
+`suggestions-core`, `web-projects` and `docs`, with `review` and `e2e-specs` still to land on the
+merged branch. What exists is described in [projects.md](projects.md#a-project-is-a-repository) and
+[decisions/project-identity-common-dir.md](decisions/project-identity-common-dir.md).
+
+- **Spike.** `packages/core/test/fixtures/repos/make.sh` builds the layouts and `expected.json` is
+  git 2.53's recording. From a linked worktree of a `--separate-git-dir` checkout nothing on disk
+  names the checkout, so `mainCheckout` is `null` until Claudio has a `repo_places` row for it; a
+  submodule's `core.worktree` gives its checkout; D11's import-path rule held for bare layouts.
+- **Core.** `repos.ts` (`repoOf`, `worktreesOf`, `remoteOf`, `RepoPlaces`, `RepoIndex`, which replaced
+  `locations.ts`), the `projects.json` v2 migration, the import refusals, `GET /projects/inspect`,
+  re-pointing (`PATCH /projects/:id` `path`, all five refusal codes), and
+  `project-suggestions.ts` with the hide store and routes.
+- **Web.** Grouped suggestions with Undo, the wizard's inspect line, the Worktrees tab, the
+  re-point callout and dialog, the chats tag and `?worktree=` filter, and six reference screens in
+  `docs/design-system/reference/` drawn by `projects.py`.
+- **Departures.** The D9 budget test checks no git process warm, at most one per repository cold,
+  and placement of 1,000 directories under 300 ms; it does not time the whole `projects()` call, which
+  is dominated by reading the transcripts. `--worktree` cache invalidation lives in `chat-fold.ts`,
+  where the CLI's start-up message is handled. The web renamed the old `candidates.hide` ("Hide") to
+  `candidates.collapse`, so `candidates.hide` is "Hide suggestion" as the copy table says, and the
+  Spanish copy says "copia de trabajo" for a checkout, per the glossary.
+- **Open.** The browser review (`/ui-review` of `/projects`, the wizard, the Worktrees tab and the
+  re-point callout in both themes at three sizes) and `pnpm e2e:remote projects-repositories
+  a11y-projects projects-wizard home chats ui-invariants` have not run. The re-point flow has no e2e:
+  the harness cannot seed a project inside a worktree under a running server, and core's tests cover
+  the logic.
 
 ## Related
 
