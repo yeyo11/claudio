@@ -46,8 +46,9 @@ export function useWizard(draft: Draft, templates: ProjectTemplate[] | undefined
   const typed = draft.source === 'local' ? draft.path.trim() : '';
   const asked = useDebounced(typed, INSPECT_DEBOUNCE_MS);
   const inspected = useQuery({ queryKey: keys.projectInspect(asked), queryFn: ({ signal }) => api.inspectProject(asked, { signal }), enabled: asked !== '' && asked === typed, retry: false });
-  // A stale answer for a path since edited says nothing about the one on screen
-  const inspection = typed !== '' && inspected.data?.path === typed ? inspected.data : null;
+  // A stale answer for a path since edited says nothing about the one on screen. Compared with what
+  // was asked, not the answer's `path`: the server resolves it, so a trailing slash would never match
+  const inspection = typed !== '' && asked === typed ? (inspected.data ?? null) : null;
   const taken = useMemo(() => new Set((projects ?? []).map((p) => p.key)), [projects]);
   const name = draft.name.trim() || baseName(draft.source === 'git' ? draft.gitUrl : draft.path);
   const prefix = draft.prefix ?? deriveKeyPrefix(name, taken);
