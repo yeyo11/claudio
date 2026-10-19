@@ -3,11 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { api, keys, type Scope } from '../api';
 import type { StartChoices } from '@claudio/chat-ui/lib/context';
-import { Checkbox, Select } from '@claudio/ui/components/controls';
+import { Checkbox, Select, Switch } from '@claudio/ui/components/controls';
 import { Tag } from '@claudio/ui/components/ui';
 
 /** What a start or a resume chooses about tools: the tool half of `StartChoices`. */
-export type ToolChoices = Pick<StartChoices, 'toolPreset' | 'mcp'>;
+export type ToolChoices = Pick<StartChoices, 'toolPreset' | 'mcp' | 'claudioMcp'>;
 
 type ServerMode = 'keep' | 'default' | 'choose';
 
@@ -24,6 +24,7 @@ export function ChatToolsPicker({
   scope,
   current,
   forking = false,
+  offerClaudio = true,
 }: {
   value: ToolChoices;
   onChange: (next: ToolChoices) => void;
@@ -33,6 +34,8 @@ export function ChatToolsPicker({
   current?: ChatToolConfig | null;
   /** A fork, which starts from its source's tools rather than from nothing */
   forking?: boolean;
+  /** Claudio's own server is offered; not to the assistant, which has it, nor to another agent's chat */
+  offerClaudio?: boolean;
 }) {
   const { t } = useTranslation('chat');
   const presets = useQuery({ queryKey: keys.toolPresets, queryFn: api.toolPresets });
@@ -121,6 +124,14 @@ export function ChatToolsPicker({
           )}
           {offered.length > 0 && chosen.length === 0 && <p className="small muted">{t('tools.noneChosen')}</p>}
         </fieldset>
+      )}
+      {offerClaudio && (
+        <div className="field">
+          <Switch checked={value.claudioMcp ?? current?.claudioMcp === true} onChange={(on) => onChange({ ...value, claudioMcp: on })}>
+            {t('composerMenu.claudioStart')}
+          </Switch>
+          <span className="field-hint">{t('composerMenu.claudioStartHint')}</span>
+        </div>
       )}
     </div>
   );

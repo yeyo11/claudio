@@ -406,6 +406,34 @@ test('mcp_status lists the servers and mcp_toggle switches one, as the CLI does'
   await c.done();
 });
 
+test('mcp_set_servers replaces the pushed servers and answers added, removed and errors, as the CLI does', async () => {
+  const c = chat();
+  const ask = async (id, request) => {
+    c.send({ type: 'control_request', request_id: id, request });
+    return (await c.next((e) => e.type === 'control_response' && e.response.request_id === id)).response;
+  };
+  const listed = async (id) => (await ask(id, { subtype: 'mcp_status' })).response.mcpServers.map((s) => [s.name, s.status, s.scope]);
+  const claudio = { type: 'stdio', command: 'node', args: ['mcp.mjs'], env: { CLAUDIO_CHAT_ID: 'chat-1' } };
+
+  const on = await ask('s-1', { subtype: 'mcp_set_servers', servers: { claudio } });
+  assert.deepEqual(on.response, { added: ['claudio'], removed: [], errors: {} });
+  assert.deepEqual((await listed('s-2')).at(-1), ['claudio', 'connected', 'dynamic']);
+  // The same set again changes nothing
+  assert.deepEqual((await ask('s-3', { subtype: 'mcp_set_servers', servers: { claudio } })).response, { added: [], removed: [], errors: {} });
+
+  const refused = await ask('s-4', { subtype: 'mcp_set_servers', servers: { claudio, broken: { type: 'stdio' } } });
+  assert.deepEqual(refused.response.added, ['broken']);
+  assert.match(refused.response.errors.broken, /iterable/);
+  assert.deepEqual((await listed('s-5')).at(-1), ['broken', 'failed', 'dynamic']);
+
+  const off = await ask('s-6', { subtype: 'mcp_set_servers', servers: {} });
+  assert.deepEqual(off.response, { added: [], removed: ['claudio', 'broken'], errors: {} });
+  assert.deepEqual(await listed('s-7'), [['docs', 'connected', 'user'], ['claude.ai Calendar', 'needs-auth', 'claudeai']]);
+  const logged = c.log().find((l) => l.event === 'mcp-set-servers');
+  assert.deepEqual(logged?.env, { claudio: ['CLAUDIO_CHAT_ID'] }, 'the log names the env keys, never their values');
+  await c.done();
+});
+
 const control = (c, id, request) => {
   c.send({ type: 'control_request', request_id: id, request });
   return c.next((e) => e.type === 'control_response' && e.response.request_id === id);

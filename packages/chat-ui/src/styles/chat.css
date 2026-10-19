@@ -872,6 +872,49 @@
   flex: none;
 }
 
+/* Claudio's own server, above the CLI's list and apart from it */
+.composer-servers-claudio {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.composer-servers-claudio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 4px;
+}
+
+.composer-servers-claudio-row > .logo-mark {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.composer-servers-claudio-name {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+}
+
+.composer-servers-claudio-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 0 4px;
+  color: var(--warn);
+}
+
+.composer-servers-claudio-warn > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 /* The one primary action of the box */
 .composer-send {
   display: inline-grid;

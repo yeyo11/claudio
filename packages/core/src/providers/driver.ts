@@ -159,6 +159,14 @@ export interface SessionIO {
   up(): boolean;
 }
 
+/** What the agent made of a set of run-time servers, by name. */
+export interface McpSetServersResult {
+  added: string[];
+  removed: string[];
+  /** A name the agent refused, with its own words */
+  errors: Record<string, string>;
+}
+
 /** A user turn: text and the files that go with it. */
 export interface UserTurn {
   /** Claudio's id for the message, which the driver hands the agent where its protocol takes one */
@@ -180,6 +188,12 @@ export interface DriverSession {
   contextUsage?(detail?: ContextDetail): Promise<Record<string, unknown>>;
   /** Switches one MCP server of the process on or off; the agent may keep the choice beyond the process */
   mcpToggle?(name: string, enabled: boolean): Promise<void>;
+  /**
+   * Replaces the servers the process was handed at run time (Claude Code's `mcp_set_servers`): the
+   * ones named are started or kept, the ones pushed before and missing now are stopped. Answers what
+   * the agent added, removed and refused, by name.
+   */
+  mcpSetServers?(servers: Record<string, Record<string, unknown>>): Promise<McpSetServersResult>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
   /** One line of stdout */
   readLine(line: string): void;

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { CLAUDIO_MCP_COLLAB_TOOLS, CLAUDIO_MCP_READ_TOOLS } from '@claudio/mcp';
 import type { PermissionMode } from '@claudio/shared';
-import { claudioMcpSync, collabMcpSync, MCP_ENTRY_ENV } from '../src/claudio-mcp.ts';
+import { claudioMcpSync, collabMcpSync, dynamicClaudioServer, MCP_ENTRY_ENV } from '../src/claudio-mcp.ts';
 import { Core } from '../src/index.ts';
 import { buildArgs } from '../src/providers/claude-code/args.ts';
 import { tempConfig } from './helpers.ts';
@@ -147,4 +147,30 @@ test('a chat outside the project is not offered the reads, and the assistant has
     assert.equal(flagged(none, '--allowedTools='), `--allowedTools=${CLAUDIO_MCP_READ_TOOLS.join(',')}`);
     assert.doesNotMatch(none.join(' '), /teammates/);
   });
+});
+
+test("Claudio's server switched on for a chat joins its file with every tool, and only the collab reads are allowed ahead of time", () => {
+  const { dataDir } = tempConfig();
+  const on = collabMcpSync({ ...base(dataDir), toolsets: ['claudio'] }, null);
+  assert.equal(on.adds, true);
+  assert.equal(serversOf(on.mcpConfig).claudio?.env.CLAUDIO_MCP_TOOLSETS, undefined, 'the default toolset is not named');
+  assert.equal(serversOf(on.mcpConfig).claudio?.env.CLAUDIO_CHAT_ID, '${CLAUDIO_CHAT_ID}');
+  assert.deepEqual(on.allowedTools, [], "its tools ask as the chat's mode says");
+  const both = collabMcpSync({ ...base(dataDir), toolsets: ['claudio', 'collab'] }, null);
+  assert.equal(serversOf(both.mcpConfig).claudio?.env.CLAUDIO_MCP_TOOLSETS, 'claudio,collab');
+  assert.deepEqual(both.allowedTools, [...CLAUDIO_MCP_COLLAB_TOOLS]);
+});
+
+test('the server pushed to a live chat carries its id and token written out, since the CLI expands no reference in it', () => {
+  const { dataDir } = tempConfig();
+  const entry = dynamicClaudioServer(base(dataDir), { chatId: 'chat-1', token: 'tok-1' }) as { type: string; command: string; env: Record<string, string> };
+  assert.equal(entry.type, 'stdio');
+  assert.equal(entry.command, '/usr/bin/node');
+  assert.equal(entry.env.CLAUDIO_CHAT_ID, 'chat-1');
+  assert.equal(entry.env.CLAUDIO_API_TOKEN, 'tok-1');
+  assert.equal(entry.env.CLAUDIO_API_URL, 'http://127.0.0.1:4321/api');
+  assert.equal(JSON.stringify(entry).includes('${'), false);
+  const tokenless = dynamicClaudioServer(base(dataDir), { chatId: 'chat-1', token: null }) as { env: Record<string, string> };
+  assert.equal('CLAUDIO_API_TOKEN' in tokenless.env, false);
+  assert.throws(() => dynamicClaudioServer({ ...base(dataDir), apiUrl: null }, { chatId: 'c', token: null }), /API's address/);
 });
