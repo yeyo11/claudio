@@ -288,7 +288,7 @@ def assistant_empty():
 <div class="card col" style="padding: 14px; gap: 10px">
 <span class="t-sm fg-2" style="line-height: 1.5">Cuéntame qué vas a construir y te propongo las primeras tareas. También puedes crearlas tú.</span>
 <label class="field field-area"><textarea rows="2" aria-label="Qué vas a construir" placeholder="Una app de notas con etiquetas y búsqueda…" style="font-size: var(--fs-input)"></textarea></label>
-<button type="button" class="btn btn-primary btn-lg">{ico('sparkle', 'ico')}Proponer tareas</button>
+<button type="button" class="btn btn-primary btn-lg">{ico('claudio', 'ico')}Proponer tareas</button>
 </div>
 </div>
 <div class="m-foot"><a href="MobileProyecto.html" class="btn btn-lg">{ico('right', 'ico ico-lg')}Ir al proyecto</a></div>'''
