@@ -1,5 +1,5 @@
 import type { AssistantFinding, AssistantRun, AssistantSource, ProposedWorkItem } from '@claudio/shared';
-import { Check, Circle, Clock, Copy, Sparkle, X } from 'lucide-react';
+import { Check, Circle, Clock, Copy, X } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { formatCost, formatDuration, formatNumber, timeAgo } from '@claudio/ui/l
 import { elapsedSince } from '@claudio/ui/lib/live';
 import { useClockTick } from '@claudio/ui/lib/motion';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { EpicLabel, PriorityMark, WorkItemTypeIcon } from '../work-item-icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 
@@ -19,11 +19,11 @@ import { Spinner } from '@claudio/ui/components/Spinner';
  * and resources with AI"). Their classes live in styles/suggestion.css.
  */
 
-/** The assistant's sparkle on a neutral tile; a live run's `.suggestion-run` turns it cyan. */
+/** Claudio's glyph on a neutral tile; a live run's `.suggestion-run` turns it cyan. */
 export function AssistantMark({ small = false }: { small?: boolean }) {
   return (
     <span className={`suggestion-mark ${small ? 'is-sm' : ''}`.trim()} aria-hidden>
-      <Sparkle strokeWidth={1.75} aria-hidden />
+      <ClaudioGlyph aria-hidden />
     </span>
   );
 }

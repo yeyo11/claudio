@@ -1,11 +1,11 @@
 import type { Project } from '@claudio/shared';
-import { FolderKanban, Plus, Settings, Sparkle } from 'lucide-react';
+import { FolderKanban, Plus, Settings } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjectSettings, useProjectTemplates, useTeam } from '../../api';
 import type { MenuEntry } from '@claudio/ui/components/controls';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
@@ -75,7 +75,7 @@ export function ProjectTeam({ project }: { project: Project }) {
   const more: MenuEntry[] = [
     assistantEntry(project, t('projects:head.assistant'), (path) => navigate(path)),
     { id: 'add', label: t('add.title'), icon: Plus, onSelect: () => setAdding({}) },
-    { id: 'propose', label: t('assistant:teamEmpty.propose'), icon: Sparkle, disabled: propose.isPending, onSelect: () => propose.mutate() },
+    { id: 'propose', label: t('assistant:teamEmpty.propose'), icon: ClaudioGlyph, disabled: propose.isPending, onSelect: () => propose.mutate() },
     { id: 'board', label: t('phone.board'), icon: FolderKanban, onSelect: () => navigate(`/tasks?project=${encodeURIComponent(project.id)}`) },
     { id: 'settings', label: t('phone.settings'), icon: Settings, onSelect: () => navigate(`/?project=${encodeURIComponent(project.id)}&view=settings`) },
   ];
