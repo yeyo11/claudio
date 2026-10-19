@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { AssistantMark } from '../../components/assistant/run';
+import { ClaudioMascot } from '@claudio/ui/components/icons';
 
 /**
  * The first message of every chat of the Claudio assistant, drawn from i18n and not a model turn:
@@ -9,7 +9,7 @@ export function AssistantGreeting() {
   const { t } = useTranslation('assistant');
   return (
     <div className="as-greeting">
-      <AssistantMark small />
+      <ClaudioMascot size={24} />
       <p>{t('claudio.greeting')}</p>
     </div>
   );
