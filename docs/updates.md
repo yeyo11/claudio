@@ -181,11 +181,21 @@ The Claude Code CLI updates in-app too, into `/data/cli/<version>/`
   (or `CLAUDIO_CLI_REGISTRY_URL`), checked against its `dist.integrity` (SHA-512). Only `package/claude`
   is extracted and no package script runs. The version must be inside the driver's range
   (`>=2.1 <3`) and newer than the image's pin, and `claude --version` must report it.
-- **Precedence.** The image puts `/data/cli/current/bin` first on `PATH`, and `current` is a symlink
-  swapped by rename: the next CLI process uses the new version and running chats keep theirs. At every
-  start the launcher removes `current` when it is not newer than the image's pin (a newer image
-  wins) and deletes versions nothing points at. A binary override in Settings → Claude Code still beats
-  both.
+- **Which binary runs.** One resolver (`packages/core/src/claude-bin.ts`) decides, on every launch:
+  the binary set in Settings → Claude Code; else `/data/cli/current` when it is valid (an executable
+  file, a version newer than the image's pin and inside the driver's range); else `claude` on the
+  server's own PATH. The overlay is used **by absolute path**: Claudio puts the login shell's PATH
+  first for what it starts, and that PATH leads to the image's CLI, so a lookup by name would keep
+  running the old one. Chats, accounts (sign-in, identity, usage, models), connectors, the setup
+  sign-in and the system read all go through it.
+- **When the switch applies.** `current` is a symlink swapped by rename. When an install finishes (or
+  *Use the image's version* removes the link) Claudio reads the CLI again, so the card, `/api/system`
+  and readiness show the new version at once. A running chat keeps its process; the next one starts
+  the new binary. At every start the launcher removes `current` when it is not newer than the image's
+  pin (a newer image wins) and deletes versions nothing points at.
+- **The terminal agrees.** The image's `~/.profile` ends by putting `/data/cli/current/bin` first
+  when it holds a binary, because a login shell rebuilds PATH and would otherwise put the image's
+  `~/.local/bin` ahead. The CI docker job checks it with a stand-in overlay.
 - Errors: `integrity`, `out-of-range`, `not-newer`, `version-mismatch`, `fetch-failed`,
   `download-interrupted` (retried as the bundle is), `disk`; and
   `cli.no-version` (400) when no newer version is known. *Use the image's version* removes the link.

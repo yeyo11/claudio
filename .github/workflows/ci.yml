@@ -157,3 +157,7 @@ jobs:
           TOKEN=$(docker exec claudio cat /data/first-run-token)
           curl -fsS -H "Authorization: Bearer $TOKEN" localhost:8797/api/system | grep -q '"installed":true'
           curl -fsS -o /dev/null -H "Authorization: Bearer $TOKEN" localhost:8797/docs/
+          # The terminal's login shell must reach an in-app Claude Code first, as Claudio itself does: with a
+          # fake overlay in place, `claude` there is the overlay's (nothing is downloaded)
+          docker exec claudio sh -c 'mkdir -p /data/cli/9.9.9/bin && printf "#!/bin/sh\necho overlay\n" > /data/cli/9.9.9/bin/claude && chmod +x /data/cli/9.9.9/bin/claude && ln -sfn 9.9.9 /data/cli/current'
+          test "$(docker exec claudio bash -lc 'command -v claude')" = /data/cli/current/bin/claude

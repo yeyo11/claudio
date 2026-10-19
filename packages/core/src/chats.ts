@@ -254,7 +254,7 @@ export class ChatManager extends EventEmitter {
   constructor(
     private readonly config: CoreConfig,
     private readonly db: Db,
-    drivers: readonly ProviderDriver[] = [new ClaudeCodeDriver(config.claudeBin)],
+    drivers: readonly ProviderDriver[] = [new ClaudeCodeDriver(() => config.claudeBin)],
   ) {
     super();
     this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);

@@ -124,6 +124,13 @@ RUN set -eu; cd /tmp \
 # run time; the server's writable state is /data, and an update lands in /data/app, never here.
 RUN mkdir -p /app /workspace /data /home/node/.claude \
  && chown -R node:node /workspace /data /home/node
+# The terminal's login shell rebuilds PATH from /etc/profile and ~/.profile, which puts the image's own
+# ~/.local/bin first and drops the ENV below: a CLI installed in-app would never be the terminal's
+# `claude`. The last line of ~/.profile runs after both, so the overlay (when it holds a binary) leads.
+# Claudio itself launches the CLI by absolute path (packages/core/src/claude-bin.ts)
+RUN printf '%s\n' '# Claudio: a Claude Code installed in-app (Settings > General > Updates) wins over the image'"'"'s' \
+      '[ -x /data/cli/current/bin/claude ] && PATH="/data/cli/current/bin:$PATH"' >> /home/node/.profile \
+ && chown node:node /home/node/.profile
 USER node
 # /data/cli/current/bin is where an in-app Claude Code install lands (a symlink the server swaps); it
 # comes first so a newer CLI wins over the image's pin, and the launcher removes it when the image's

@@ -31,7 +31,7 @@ export class AccountLogins {
 
   constructor(
     private readonly store: AccountStore,
-    private readonly claude: string,
+    private readonly claude: string | (() => string),
     /** Called once a sign-in succeeded, before it is announced (the default account's clears a saved token) */
     private readonly onSignedIn: (accountId: string) => Promise<void> = () => Promise.resolve(),
     private readonly opts: { expiresMs?: number } = {},
@@ -55,7 +55,7 @@ export class AccountLogins {
 
   private run(accountId: string, emailInput: string | undefined, existing: boolean): AccountLoginSession {
     const email = emailInput?.trim();
-    const cli = login(this.store.ref(accountId), { claude: this.claude, ...(email ? { email } : {}) });
+    const cli = login(this.store.ref(accountId), { claude: typeof this.claude === 'function' ? this.claude() : this.claude, ...(email ? { email } : {}) });
     const session: AccountLoginSession = {
       id: randomUUID(),
       accountId,

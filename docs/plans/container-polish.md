@@ -1497,6 +1497,13 @@ Phase 2 and the fixes after it, all in this pull request, changed or closed some
   The fixes (`withoutServerEnv`, `server.lock` with exit 73 which the launcher reads as neither a failed
   trial nor a restart, `tunnel.ruleRemoved`) are described in the same section.
 
+- **The installed CLI was never the one in use (2026-10-19, owner's container test).** The install
+  worked (`/data/cli/current` pointed at 2.1.303) but `/api/system` and every chat kept 2.1.302: the
+  login-shell PATH Claudio puts first for what it starts begins with the image's `~/.local/bin`, and
+  the CLI was looked up by name. A single resolver now picks the binary and every launcher uses it by
+  absolute path, the CLI is re-read after an install, and the image's `~/.profile` puts the overlay
+  first for the terminal ([updates.md](../updates.md#claude-code)).
+
 ### Known limits
 
 - **The agents' user can edit `/data/app/state.json`.** It can point `trial`, `active` or `previous` at

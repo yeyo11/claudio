@@ -113,6 +113,7 @@ import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
 import { ServerUpdates } from './updates/server-update.ts';
 import { CliInstaller } from './updates/cli-install.ts';
+import { resolveClaudeBin } from './claude-bin.ts';
 import { claudeCodeManifest } from './providers/claude-code/manifest.ts';
 import { storageReport } from './storage.ts';
 import { ConfigExplorer } from './config/explorer.ts';
@@ -289,6 +290,7 @@ export { summarizeOrchestration } from './orchestrator.ts';
 export { compareVersions } from './version-check.ts';
 export { ReleaseWatch, type ReleaseWatchOptions, type ReleaseAsset } from './release-watch.ts';
 export { ServerUpdates, ServerUpdateRefusal, type ServerUpdatesOptions } from './updates/server-update.ts';
+export { resolveClaudeBin, overlayBinary, type ClaudeBinOptions } from './claude-bin.ts';
 export { CliInstaller, CliInstallRefusal, type CliInstallerOptions } from './updates/cli-install.ts';
 export { RESTART_EXIT_CODE } from './launcher/protocol.ts';
 export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
@@ -638,13 +640,14 @@ export class Core {
     this.vault = new SecretVault(config);
     this.releaseVault = useVaultForChildren(this.vault);
     this.providersSettings = new ProvidersSettingsStore(config);
+    this.useResolvedClaudeBin(config);
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
     const drivers = this.sessionDrivers(config);
     this.accounts = new AccountStore({
       dataDir: config.dataDir,
       defaultDir: config.configDir,
-      claude: config.claudeBin,
+      claude: () => config.claudeBin,
       // What the CLI will see, the vault's credential included: a login with no file is still one
       defaultEnvCredential: () => {
         const env = childEnv('claude-code');
@@ -660,7 +663,8 @@ export class Core {
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
-      commandAliases: { 'claude-code': [config.claudeBin] },
+      // A getter: the binary can move under a running server (an in-app CLI update)
+      commandAliases: { get 'claude-code'() { return [config.claudeBin]; } },
       readClaude: async () => {
         const { cli, auth } = await this.system();
         // Beside the reading, never inside `/health`: a free check of the account in use, at most every 30 minutes
@@ -1819,9 +1823,32 @@ export class Core {
     };
   }
 
+  /**
+   * From here `config.claudeBin` is the binary Claudio runs, decided on every read (claude-bin.ts):
+   * everything that launches the CLI reads it by absolute path, so a CLI installed in-app is used by
+   * the next process without a restart, and the login shell's PATH never gets a say.
+   */
+  private useResolvedClaudeBin(config: CoreConfig): void {
+    const configured = config.claudeBin;
+    Object.defineProperty(config, 'claudeBin', {
+      enumerable: true,
+      configurable: true,
+      get: () =>
+        resolveClaudeBin({
+          configured,
+          dataDir: config.dataDir,
+          distribution: config.distribution,
+          override: () => this.providersSettings.get().providers['claude-code']?.binaryPath ?? null,
+          // Not built yet while the constructor wires the drivers; nothing runs the CLI before it is
+          pinned: () => (this.cliVersion as CliVersionWatch | undefined)?.pinned ?? null,
+          range: claudeCodeManifest.versions.range ?? '',
+        }),
+    });
+  }
+
   /** The one driver there is: Claude Code's. */
   private sessionDrivers(config: CoreConfig): ProviderDriver[] {
-    return [new ClaudeCodeDriver(config.claudeBin)];
+    return [new ClaudeCodeDriver(() => config.claudeBin)];
   }
 
   /**

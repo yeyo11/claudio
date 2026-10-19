@@ -75,7 +75,7 @@ const moment = (value: string | undefined, name: string): string | undefined => 
 };
 
 export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
-  const logins = new AccountLogins(core.accounts, core.config.claudeBin, (accountId) => (accountId === DEFAULT_ID ? core.defaultSignedIn() : Promise.resolve()));
+  const logins = new AccountLogins(core.accounts, () => core.config.claudeBin, (accountId) => (accountId === DEFAULT_ID ? core.defaultSignedIn() : Promise.resolve()));
   app.addHook('onClose', async () => logins.close());
 
   // The terminal's `claudio-accounts` shares the data dir and may have written since the last read

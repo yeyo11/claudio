@@ -10,7 +10,7 @@ import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { isRecord, writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
 import { apiKeyOf, checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
-import { ModelCache, offers } from './models.ts';
+import { ModelCache, offers, type ModelsOptions } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
@@ -44,6 +44,16 @@ interface Stored {
   policies: RotationPolicy[];
 }
 
+/** `claude` is read when a call is made, not when the cache is built: the binary can change under a running server */
+function modelsOptions(claude: () => string, env: NodeJS.ProcessEnv): ModelsOptions {
+  return {
+    get claude() {
+      return claude();
+    },
+    env,
+  };
+}
+
 const NO_IDENTITY: Identity = { signedIn: false, email: null, organization: null, plan: null };
 /** The CLI's own login is taken as usable until `refresh` learns it is not: a fresh install works with nothing to set up */
 const ASSUMED_IDENTITY: Identity = { ...NO_IDENTITY, signedIn: true };
@@ -54,7 +64,7 @@ export interface AccountStoreOptions {
   /** The CLI's own config dir; `CLAUDE_CONFIG_DIR` or `~/.claude` when absent */
   defaultDir?: string;
   /** The `claude` binary; `claude` on the PATH when absent */
-  claude?: string;
+  claude?: string | (() => string);
   /** The environment the `claude` subprocesses start from; `process.env` when absent */
   env?: NodeJS.ProcessEnv;
   /**
@@ -135,7 +145,10 @@ export class AccountStore {
   readonly readings: Readings;
   private readonly modelCache: ModelCache;
   private readonly file: string;
-  private readonly claude: string;
+  private readonly claudeOf: () => string;
+  private get claude(): string {
+    return this.claudeOf();
+  }
   private readonly env: NodeJS.ProcessEnv;
   private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
   private readonly listeners = new Set<() => void>();
@@ -143,10 +156,11 @@ export class AccountStore {
   constructor(private readonly opts: AccountStoreOptions) {
     this.env = opts.env ?? process.env;
     this.defaultDir = opts.defaultDir ?? this.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude');
-    this.claude = opts.claude ?? 'claude';
+    const claude = opts.claude ?? 'claude';
+    this.claudeOf = typeof claude === 'function' ? claude : () => claude;
     this.file = join(opts.dataDir, 'accounts.json');
     this.readings = new Readings(join(opts.dataDir, 'accounts', 'limits.json'));
-    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), { claude: this.claude, env: this.env });
+    this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), modelsOptions(() => this.claude, this.env));
     this.reload();
   }
 
