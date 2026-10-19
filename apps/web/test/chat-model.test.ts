@@ -148,6 +148,13 @@ test('internal chats need their own switch', () => {
   assert.deepEqual(originsToFetch({ internal: true }), ['claudio', 'external', 'orchestration', 'internal']);
 });
 
+test("assistant keeps only the Claudio assistant's chats", () => {
+  const mine = chat({ claudioAssistant: { projectId: null, language: 'en' } });
+  assert.equal(matchesFilters(mine, filters({ assistant: true })), true);
+  assert.equal(matchesFilters(chat(), filters({ assistant: true })), false);
+  assert.equal(matchesFilters(chat(), filters()), true, 'absent is every chat');
+});
+
 test('origin and state narrow the list', () => {
   const terminal = chat({ origin: 'external', state: 'working' });
   assert.equal(matchesFilters(terminal, filters({ origins: new Set(['claudio']) })), false);

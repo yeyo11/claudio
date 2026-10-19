@@ -136,14 +136,8 @@
   },
   "claudio": {
     "title": "Asistente",
-    "hello": "Hola, soy el asistente de Claudio",
-    "sub": "Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso.",
-    "figures": "Ahora mismo",
-    "chatsWorking_one": "{{n}} chat en marcha",
-    "chatsWorking_other": "{{n}} chats en marcha",
-    "orchestrations_one": "{{n}} orquestación",
-    "orchestrations_other": "{{n}} orquestaciones",
-    "today": "hoy {{cost}}",
+    "hello": "Hola, soy Claudio",
+    "sub": "Tu asistente. Te cuento cómo van tus proyectos, tareas, orquestaciones y el uso.",
     "starters": "Para empezar",
     "starter": {
       "board": {
@@ -172,6 +166,13 @@
     "model": "Modelo",
     "effort": "Esfuerzo",
     "startError": "No se ha podido iniciar el asistente",
-    "greeting": "Hola, soy el asistente de Claudio. Pregúntame por tus proyectos, tareas, orquestaciones o el uso."
+    "greeting": "Hola, soy Claudio, tu asistente. Pregúntame por tus proyectos, tareas, orquestaciones o el uso.",
+    "recent": {
+      "title": "Recientes",
+      "all": "Ver todas",
+      "allLabel": "Ver todas las conversaciones con el asistente",
+      "error": "No se han podido cargar las conversaciones recientes",
+      "retry": "Reintentar"
+    }
   }
 }

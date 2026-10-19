@@ -1,0 +1,72 @@
+<svg class="il" xmlns="http://www.w3.org/2000/svg" width="240" height="160" role="img" aria-label="claudio" viewBox="0 0 240 160" aria-hidden="true"><style>.il { display: block; width: 240px; height: 160px; overflow: visible; --il-tone: var(--accent, #6e9bff); }
+.il-sm { width: 160px; height: 107px; }
+.il-lg { width: 300px; height: 200px; }
+.il-warn { --il-tone: var(--warn, #f0b95c); }
+.il-bad { --il-tone: var(--bad, #f87b7f); }
+.il-live { --il-tone: var(--live, #00e5ff); }
+.il .s0 { fill: var(--bg-1, #0e1427); }
+.il .s1 { fill: var(--bg-2, #121a30); }
+.il .s2 { fill: var(--bg-3, #17233d); }
+.il .s3 { fill: var(--bg-4, #1f2d4d); }
+.il .ln { fill: none; stroke: var(--line-3, rgba(255, 255, 255, 0.2)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-soft { fill: none; stroke: var(--line-2, rgba(255, 255, 255, 0.12)); stroke-width: 1.5; stroke-linecap: round; }
+.il .ln-ink { fill: none; stroke: var(--fg-3, #8b96b1); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-grad { fill: none; stroke: url(#il-grad); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-tone { fill: none; stroke: var(--il-tone); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.il .f-grad { fill: url(#il-grad); }
+.il .f-tone { fill: var(--il-tone); }
+.il .f-tone-soft { fill: color-mix(in srgb, var(--il-tone) 16%, transparent); }
+.il .f-ink { fill: var(--fg-3, #8b96b1); }
+.il .f-fg { fill: var(--fg, #f4f7ff); }
+.il .f-live { fill: var(--live, #00e5ff); }
+.il .f-ok { fill: var(--ok, #4ade9a); }
+.il .f-white { fill: #fff; }
+.il .f-dots { fill: url(#il-dots); }
+.il .dot-fill { fill: var(--line-2, rgba(255, 255, 255, 0.12)); }
+.il .stop-a { stop-color: var(--accent, #6e9bff); }
+.il .stop-b { stop-color: var(--accent-2nd, #a78bfa); }
+.il .stop-in { stop-color: #fff; }
+.il .stop-out { stop-color: #000; }
+.il .txt { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 9px; fill: var(--fg-2, #a7b1c9); }
+.il .txt-tone { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 9px; fill: var(--il-tone); }
+.il .txt-big { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 13px; font-weight: 600; fill: var(--fg-3, #8b96b1); }
+.il .halo { fill: url(#il-grad); opacity: 0.22; filter: blur(14px); }
+.il .a-float { animation: il-float 4.8s ease-in-out infinite; }
+.il .a-float-2 { animation: il-float 5.6s ease-in-out 0.8s infinite; }
+.il .a-blink { animation: caret-blink 1s steps(1) infinite; }
+.il .a-dash { stroke-dasharray: 4 6; animation: il-dash 1.6s linear infinite; }
+.il .a-pulse { transform-box: fill-box; transform-origin: center; animation: il-pulse 2.2s ease-in-out infinite; }
+.il .a-orbit { transform-origin: 120px 80px; animation: spin 24s linear infinite; }
+.il .a-orbit-rev { transform-origin: 120px 80px; animation: spin 36s linear infinite reverse; }
+@keyframes il-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes il-dash { to { stroke-dashoffset: -20; } }
+@keyframes il-pulse { 0%, 100% { opacity: 0.55; transform: scale(0.92); } 50% { opacity: 1; transform: scale(1.08); } }
+[data-motion="subtle"] .il *, [data-motion="off"] .il * { animation: none !important; }
+.il .c0 { fill: var(--bg-1, #0e1427); stroke: var(--line-3, rgba(255, 255, 255, 0.2)); stroke-width: 1.5; }
+.il .c1 { fill: var(--bg-2, #121a30); stroke: var(--line-3, rgba(255, 255, 255, 0.2)); stroke-width: 1.5; }
+.il .c2 { fill: var(--bg-3, #17233d); stroke: var(--line-3, rgba(255, 255, 255, 0.2)); stroke-width: 1.5; }
+.il .cg { fill: var(--bg-2, #121a30); stroke: url(#il-grad); stroke-width: 1.75; }
+.il .ln-white { fill: none; stroke: #fff; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.il .ln-ok { fill: none; stroke: var(--ok, #4ade9a); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.il .trk { fill: none; stroke: var(--bg-4, #1f2d4d); stroke-linecap: round; }
+.il .w3 { stroke-width: 3; } .il .w4 { stroke-width: 4; } .il .w8 { stroke-width: 8; } .il .w12 { stroke-width: 12; }
+.il .dash { stroke-dasharray: 2 6; }
+.il .dash-lg { stroke-dasharray: 5 5; }
+.il .f-accent { fill: var(--accent, #6e9bff); }
+.il .glyph { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 17px; font-weight: 600; fill: url(#il-grad); }
+.il .glyph-white { font-family: var(--mono, 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace); font-size: 15px; font-weight: 600; fill: #fff; }
+@keyframes spin { to { transform: rotate(360deg); } } @keyframes caret-blink { 50% { opacity: 0; } } @media (prefers-reduced-motion: reduce) { .il * { animation: none !important; } }
+.il .f-spark { fill: var(--logo-spark, #00e5ff); }
+.il .f-eye { fill: var(--bg, #0b1020); }
+.il .f-logo { fill: url(#il-logo); }
+.il .cut { stroke: var(--bg, #0b1020); stroke-width: 3; stroke-linejoin: round; paint-order: stroke; }
+.il .stop-logo-a { stop-color: var(--logo-blue, #246bfd); }
+.il .stop-logo-b { stop-color: var(--logo-violet, #a78bfa); }
+.il .a-look { transform-box: fill-box; transform-origin: center; animation: il-look 6s ease-in-out infinite; }
+@keyframes il-look { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.12); } }</style><defs><linearGradient id="il-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="stop-a"></stop><stop offset="1" class="stop-b"></stop></linearGradient><linearGradient id="il-logo" x1="0.35" y1="0" x2="0.6" y2="1"><stop offset="0" class="stop-logo-a"></stop><stop offset="0.5" class="stop-logo-a"></stop><stop offset="1" class="stop-logo-b"></stop></linearGradient><pattern id="il-dots" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" class="dot-fill"></circle></pattern><radialGradient id="il-fade-g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" class="stop-in"></stop><stop offset="1" class="stop-out"></stop></radialGradient><mask id="il-fade"><rect x="0" y="0" width="240" height="160" fill="url(#il-fade-g)"></rect></mask></defs><rect x="0" y="0" width="240" height="160" class="f-dots" mask="url(#il-fade)"></rect>
+<ellipse cx="94" cy="141" rx="54" ry="5" class="ln-soft"></ellipse>
+<g class="a-float"><rect x="83" y="74" width="32" height="54" rx="9" class="f-spark"></rect><g class="a-look"><ellipse cx="100.5" cy="90" rx="2.6" ry="3.6" class="f-eye"></ellipse><ellipse cx="109.5" cy="90" rx="2.6" ry="3.6" class="f-eye"></ellipse></g></g>
+<path transform="translate(31 14) scale(1.1)" class="f-logo cut" d="M41.76 14.24Q46 10 52 10L71 10Q74 10 76.12 12.12L93.88 29.88Q96 32 93 32L57 32Q54 32 51.88 34.12L34.83 51.17Q32 54 32 58L32 62Q32 66 34.83 68.83L51.88 85.88Q54 88 57 88L93 88Q96 88 93.88 90.12L76.12 107.88Q74 110 71 110L52 110Q46 110 41.76 105.76L14.24 78.24Q10 74 10 68L10 52Q10 46 14.24 41.76Z"></path>
+<g class="a-float-2"><path transform="translate(97 59) scale(0.4)" class="f-spark" d="M0 -19Q6 -6 19 0Q6 6 0 19Q-6 6 -19 0Q-6 -6 0 -19Z"></path></g>
+<g class="a-float-2"><rect x="146" y="56" width="48" height="26" rx="13" class="c2"></rect><text x="158" y="73.5" class="txt-big">›</text><rect x="168" y="63" width="7" height="12" rx="1.5" class="f-ink a-blink"></rect></g>
+</svg>

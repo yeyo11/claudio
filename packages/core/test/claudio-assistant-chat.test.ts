@@ -75,7 +75,7 @@ function assertConfined(argv: string, language: 'English' | 'Spanish' = 'English
   assert.match(argv, /--permission-prompt-tool stdio/);
   assert.ok(!/bypassPermissions|acceptEdits|dontAsk/.test(argv));
   assert.ok(!args.some((a) => a.startsWith('--allowedTools=') && CLAUDIO_MCP_WRITE_TOOL_NAMES.some((n) => a.includes(n))), 'no write tool is allowed ahead of time');
-  assert.match(argv, /--append-system-prompt You are the Claudio assistant/);
+  assert.match(argv, /--append-system-prompt You are Claudio, the assistant built into the Claudio app/);
   assert.match(argv, new RegExp(`Answer in ${language}`));
   assert.ok(!argv.includes('ignore everything above'));
 }
@@ -213,6 +213,28 @@ test('an assistant chat thinks at the effort recommended for an assistant, or at
     const chosen = await core.startClaudioAssistantChat({ prompt: 'hi', effort: 'low' });
     assert.match(await spawned(spawns, (l) => l.includes(chosen.id), 'the chat to spawn'), /--effort low/);
     await assert.rejects(core.startClaudioAssistantChat({ prompt: 'hi', effort: 'extreme' }), /effort must be one of/);
+  } finally {
+    cleanup(core);
+  }
+});
+
+test('list({ assistant: true }) keeps only the chats that carry the assistant marker, and combines with limit', async () => {
+  const { config } = setup();
+  const core = new Core(config);
+  try {
+    core.runtime.apiUrl = API;
+    const first = await core.startClaudioAssistantChat({ prompt: 'one' });
+    await idle(core, first.id);
+    const second = await core.startClaudioAssistantChat({ prompt: 'two' });
+    await idle(core, second.id);
+    const plain = await core.chats.create({ prompt: 'plain' });
+    await idle(core, plain.id);
+
+    const ids = (await core.chats.list({ assistant: true })).map((c) => c.id);
+    assert.deepEqual([...ids].sort(), [first.id, second.id].sort());
+    assert.ok((await core.chats.list()).some((c) => c.id === plain.id), 'without the filter the plain chat is listed');
+    assert.equal((await core.chats.list({ assistant: true, limit: 1 })).length, 1);
+    assert.equal((await core.chats.list({ assistant: true, project: 'no-such-project' })).length, 0);
   } finally {
     cleanup(core);
   }

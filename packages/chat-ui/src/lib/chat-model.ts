@@ -107,6 +107,8 @@ export interface ChatFilters {
   workers: boolean;
   /** Housekeeping chats (the planner, the auth check) */
   internal: boolean;
+  /** Only the chats of the Claudio assistant; absent or false is every chat */
+  assistant?: boolean;
   search: string;
   /** Project ids, `loose` for the chats under none; empty or absent is every project */
   projects?: ReadonlySet<string>;
@@ -158,6 +160,7 @@ export function matchesFilters(chat: ChatSummary, filters: ChatFilters): boolean
     return false;
   }
   if (filters.state && chat.state !== filters.state) return false;
+  if (filters.assistant && chat.claudioAssistant == null) return false;
   if (filters.projects?.size && !filters.projects.has(projectKey(chat))) return false;
   if (filters.models?.size && (chat.model === null || !filters.models.has(chat.model))) return false;
   const needle = filters.search.trim().toLowerCase();

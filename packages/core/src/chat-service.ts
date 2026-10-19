@@ -249,6 +249,8 @@ export interface ChatFilter {
    */
   workers?: boolean;
   state?: ChatState;
+  /** Only the chats of the Claudio assistant, the ones whose runtime record carries its marker */
+  assistant?: boolean;
   limit?: number;
 }
 
@@ -467,6 +469,7 @@ export class ChatService {
     const out: ChatSummary[] = [];
     for (const id of ids) {
       const runtime = runtimes.get(id) ?? null;
+      if (filter.assistant && !runtime?.claudioAssistant) continue;
       // What is filtered out is never assembled: a sidebar asking for the few working chats would
       // otherwise pay for placing every chat on the machine
       const standing = this.standing(id, facts, runtime);

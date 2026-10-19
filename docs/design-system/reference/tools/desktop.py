@@ -156,7 +156,7 @@ SUGG_LIVE = TEAM_LIVE.replace('<span class="count-pill live">3</span>', '<span c
 def suggest_running_desktop():
   cols = ''.join(col(s, epics_first(by_col(s))) for s, _ in COLS)
   hd = board_head('claude-wrapper · 13 abiertas · clave <span class="mono">AGN</span>', primary=False)
-  hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true">' + ico('sparkle') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
+  hd = hd.replace('<a href="DesktopNuevaTarea.html"', '<button type="button" class="btn" aria-pressed="true">' + ico('claudio') + 'Sugerir tareas</button><a href="DesktopNuevaTarea.html"')
   main = f'''<main class="page" style="gap: 16px; position: relative">
 {hd}
 {board_toolbar()}
@@ -198,7 +198,7 @@ def assistant_empty_desktop():
 <div class="col" style="padding: 16px 18px 18px; gap: 12px">
 <p class="t-sm fg-2" style="margin: 0; line-height: 1.55">Sin código que leer, el asistente necesita saber qué vas a construir. Cuéntalo en una frase y te propone las primeras tareas, cada una con su porqué.</p>
 <label class="field field-area"><textarea rows="3" aria-label="Qué vas a construir" placeholder="Qué vas a construir…">Una app de notas en Markdown que se sincroniza con una carpeta de Git, con búsqueda y etiquetas.</textarea></label>
-<div class="row" style="gap: 10px"><span class="form-hint grow">Abre un chat del CLI con <span class="mono">--json-schema</span>; su coste cuenta en Uso, como el de cualquier chat.</span><button type="button" class="btn btn-primary">{ico('sparkle')}Proponer tareas</button></div>
+<div class="row" style="gap: 10px"><span class="form-hint grow">Abre un chat del CLI con <span class="mono">--json-schema</span>; su coste cuenta en Uso, como el de cualquier chat.</span><button type="button" class="btn btn-primary">{ico('claudio')}Proponer tareas</button></div>
 </div>
 </section>'''
   team_card = f'''<section class="card" aria-label="Equipo">

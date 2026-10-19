@@ -1,8 +1,8 @@
 import type { AssistantResourceKind, AssistantResourceProposal, ResourceKind } from '@claudio/shared';
-import { ChevronDown, Sparkle } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Menu } from '@claudio/ui/components/controls/Menu';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { Segmented, Tag } from '@claudio/ui/components/ui';
 import { AI_KINDS, isAiKind, OTHER_KINDS, type ResourceSection } from './model';
 
@@ -67,7 +67,7 @@ export function PendingProposalNav({ proposals, current, onOpen }: { proposals: 
   return (
     <div className="resources-group">
       <div className="resources-group-head">
-        <Sparkle {...ICON_SM} />
+        <ClaudioGlyph {...ICON_SM} />
         <span className="section-label grow">{t('resourcesAi.proposalsShort')}</span>
         <span className="small muted tnum">{proposals.length}</span>
       </div>

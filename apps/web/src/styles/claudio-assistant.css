@@ -1,12 +1,17 @@
 /*
  * The Claudio assistant (pages/claudio-assistant): the references `DesktopAsistenteClaudio` and
  * `MobileAsistenteClaudio`. The composer and the transcript are the chat's own; this lays out the
- * greeting, the starters and the context chip. The box under the greeting is New chat's start box.
+ * greeting, the starters, the recents and the context chip. The box under the greeting is New chat's start box.
  */
 
+/* The column starts at the top, never centred in the scroller: the recents arrive after the first
+   paint, and a centred column would jump up when they did. The gutter is kept, so a list long enough
+   to scroll does not narrow the column either */
 .as-entry .run-scroll {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: center;
+  scrollbar-gutter: stable;
 }
 
 .as-body {
@@ -15,25 +20,19 @@
   gap: 28px;
   width: 100%;
   max-width: 740px;
-  padding-top: 56px;
+  padding-top: 28px;
 }
 
 .as-hello {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
 }
 
-.as-hello .suggestion-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-lg);
-}
-
-.as-hello .suggestion-mark svg {
-  width: 20px;
-  height: 20px;
+.as-hello .il {
+  flex: none;
 }
 
 .as-hello-title {
@@ -49,21 +48,6 @@
   font-size: var(--fs-section);
   line-height: 1.5;
   color: var(--fg-2);
-}
-
-.as-figures {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
-  margin: 0;
-  font-size: var(--fs-small);
-  color: var(--fg-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.as-figures .live {
-  color: var(--live);
 }
 
 .as-starters-section {
@@ -121,6 +105,110 @@
   font-size: var(--fs-small);
   line-height: 1.45;
   color: var(--fg-2);
+}
+
+/* Recientes: the assistant's own chats under the starters. The word takes its status colour and stands
+   still; a row never moves. */
+.as-recents-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.as-recents-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.as-recents-all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: var(--fs-small);
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.as-recents-all:hover {
+  text-decoration: underline;
+}
+
+.as-recents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.as-recents li {
+  border-bottom: 1px solid var(--border);
+}
+
+.as-recent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 8px;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.as-recent:hover {
+  background: var(--bg-hover);
+}
+
+.as-recent-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+}
+
+.as-recent-meta {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 12px;
+  font-size: var(--fs-small);
+}
+
+.as-recent-sep {
+  display: none;
+  color: var(--text-faint);
+  /* Its spaces are its width: a flex item trims them otherwise, and "word·time" runs together */
+  white-space: pre;
+}
+
+.as-recent-word.is-live {
+  color: var(--live);
+}
+
+.as-recent-word.is-idle {
+  color: var(--idle);
+}
+
+.as-recent-word.is-bad {
+  color: var(--bad);
+}
+
+.as-recent-time {
+  min-width: 72px;
+  text-align: right;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.as-recents-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--fg-3);
 }
 
 /* The context, first in the start box's line of chips: a `.composer-status-word` of its own, beside
@@ -186,6 +274,52 @@
 
   .as-starter {
     min-height: var(--touch);
+  }
+
+  /* Three on a phone, as the reference has them, so the recents start above the composer's foot:
+     "Flow and team" is the one a phone asks least */
+  .as-starter:nth-child(3) {
+    display: none;
+  }
+
+  /* Two lines, the title and then "word · time", 56 px high; Ver todas is a 44 px target */
+  .as-recent {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    /* A title that wraps grows the row; the padding keeps it off the lines between rows */
+    padding-block: 8px;
+  }
+
+  /* The title wraps instead of being cut: a finger never opens the tooltip that holds the rest */
+  .as-recent-title.ellipsis {
+    flex: none;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .as-recent-meta {
+    gap: 0;
+  }
+
+  .as-recent-sep {
+    display: inline;
+  }
+
+  .as-recent-time {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .as-recents-all {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch);
+    padding: 0 8px;
+    margin: -12px -8px -12px 0;
   }
 
   /* The × is a 44 px target on touch, drawn over the chip's height */

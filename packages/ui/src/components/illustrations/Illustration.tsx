@@ -1,6 +1,7 @@
 import { type CSSProperties, type FunctionComponent, useId } from 'react';
 import { Board } from './board';
 import { Chats } from './chats';
+import { Claudio } from './claudio';
 import { CliMissing } from './cli-missing';
 import { Collaborators } from './collaborators';
 import { Connector } from './connector';
@@ -28,6 +29,7 @@ export type IllustrationSize = 'sm' | 'md' | 'lg';
 /** Each drawing with the tone it has in the catalogue (design system §4), used when none is asked for. */
 const ILLUSTRATIONS = {
   welcome: [Welcome, 'accent'],
+  claudio: [Claudio, 'accent'],
   chats: [Chats, 'accent'],
   orchestrations: [Orchestrations, 'accent'],
   schedules: [Schedules, 'accent'],
@@ -80,15 +82,20 @@ export function Illustration({
   if (SIZES.includes(size) && size !== 'md') classes.push(`il-${size}`);
   if (finalTone !== 'accent') classes.push(`il-${finalTone}`);
   if (className) classes.push(className);
-  // The stylesheet can't know this instance's ids, so the classes that paint with the gradient or
-  // the dot pattern read them from these properties.
-  const style = { '--il-grad': `url(#${id}-grad)`, '--il-dots': `url(#${id}-dots)` } as CSSProperties;
+  // The stylesheet can't know this instance's ids, so the classes that paint with the gradient, the
+  // logo's gradient or the dot pattern read them from these properties.
+  const style = { '--il-grad': `url(#${id}-grad)`, '--il-logo': `url(#${id}-logo)`, '--il-dots': `url(#${id}-dots)` } as CSSProperties;
   return (
     <svg className={classes.join(' ')} viewBox="0 0 240 160" aria-hidden="true" focusable="false" style={style} data-illustration={name}>
       <defs>
         <linearGradient id={`${id}-grad`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" className="stop-a" />
           <stop offset="1" className="stop-b" />
+        </linearGradient>
+        <linearGradient id={`${id}-logo`} x1="0.35" y1="0" x2="0.6" y2="1">
+          <stop offset="0" className="stop-logo-a" />
+          <stop offset="0.5" className="stop-logo-a" />
+          <stop offset="1" className="stop-logo-b" />
         </linearGradient>
         <pattern id={`${id}-dots`} width="12" height="12" patternUnits="userSpaceOnUse">
           <circle cx="2" cy="2" r="1" className="dot-fill" />

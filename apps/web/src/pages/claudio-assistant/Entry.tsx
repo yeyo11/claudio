@@ -6,24 +6,23 @@ import { useNavigate } from 'react-router-dom';
 import type { Effort } from '@claudio/shared';
 import { OptionsPanel, StartComposer, StatusChips } from '@claudio/chat-ui/composer/Composer';
 import type { RichEditorHandle } from '@claudio/chat-ui/composer/editor/RichEditor';
-import { api, useOverview } from '../../api';
-import { AssistantMark } from '../../components/assistant/run';
+import { api } from '../../api';
 import { EffortField, effortWords } from '../../components/EffortPicker';
 import { ModelPicker } from '../../components/ModelPicker';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
-import { useUsageNow } from '../../lib/usage-now';
 import { useProjectScope } from '../../lib/project-scope';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Illustration } from '@claudio/ui/components/illustrations';
 import { ErrorBox, Field, usePageTitle } from '@claudio/ui/components/ui';
-import { formatCost } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { STARTERS } from './model';
+import { Recents } from './Recents';
 
 /** The model a chat of the assistant starts with unless the person picks another (the core's default too) */
 const DEFAULT_MODEL = 'sonnet';
 
 /**
- * `/assistant`: the greeting, the box to ask in, and what the assistant can do as suggestions. The
+ * `/assistant`: Claudio's greeting, the box to ask in, what the assistant can do as suggestions, and its recent chats. The
  * box is New chat's (`StartComposer` with `layout="start"`), centred under the greeting, without what
  * the assistant cannot use: no files, commands, servers, account or permission mode, since the core starts it confined. The project in
  * scope is context and not a requirement: the chip clears it before the first prompt. Starting
@@ -81,7 +80,7 @@ export function ClaudioAssistant() {
         <div className="run-stage">
           <div className="run-scroll as-scroll glow-top" data-scroll-root>
             <div className="as-body">
-              <Hello />
+              <Hello narrow={narrow} />
               {/* New chat's order: the greeting, the box, then what to ask; on a phone the box sits at the foot */}
               {!narrow && composer}
               <section className="as-starters-section" aria-labelledby="as-starters-label">
@@ -108,6 +107,7 @@ export function ClaudioAssistant() {
                   ))}
                 </div>
               </section>
+              <Recents narrow={narrow} />
             </div>
           </div>
         </div>
@@ -152,31 +152,14 @@ function StartOptions({ model, onModel, effort, onEffort }: { model: string; onM
   );
 }
 
-/** The greeting block: the mark, the line, and the live figures, which are only what the shell already reads */
-function Hello() {
+/** The greeting block: Claudio, the title and the line. No live figures: Home and the status bar say what is running */
+function Hello({ narrow }: { narrow: boolean }) {
   const { t } = useTranslation('assistant');
-  const counts = useOverview().data?.counts;
-  const { todayCost } = useUsageNow();
-  const chats = counts?.chatsWorking ?? 0;
-  const orchestrations = counts?.orchestrationsRunning ?? 0;
-  const figures: Array<{ live: boolean; text: string }> = [];
-  if (chats > 0) figures.push({ live: true, text: t('claudio.chatsWorking', { count: chats, n: chats }) });
-  if (orchestrations > 0) figures.push({ live: true, text: t('claudio.orchestrations', { count: orchestrations, n: orchestrations }) });
-  if (todayCost != null) figures.push({ live: false, text: t('claudio.today', { cost: formatCost(todayCost) }) });
   return (
     <div className="as-hello">
-      <AssistantMark />
+      <Illustration name="claudio" size={narrow ? 'sm' : 'md'} />
       <h1 className="as-hello-title">{t('claudio.hello')}</h1>
       <p className="as-hello-sub">{t('claudio.sub')}</p>
-      {figures.length > 0 && (
-        <p className="as-figures" aria-label={t('claudio.figures')}>
-          {figures.map((figure) => (
-            <span key={figure.text} className={figure.live ? 'live' : undefined}>
-              {figure.text}
-            </span>
-          ))}
-        </p>
-      )}
     </div>
   );
 }

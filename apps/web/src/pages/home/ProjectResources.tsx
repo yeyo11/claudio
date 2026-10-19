@@ -1,10 +1,10 @@
 import type { AssistantResourceKind, ConfigResource, ConfigScopeKind, Project } from '@claudio/shared';
-import { ChevronLeft, Pencil, Plus, Sparkle } from 'lucide-react';
+import { ChevronLeft, Pencil, Plus } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { Menu } from '@claudio/ui/components/controls/Menu';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { ErrorBox } from '@claudio/ui/components/ui';
 import { useLeaveGuard } from '../../lib/dirty';
@@ -107,7 +107,7 @@ export function ProjectResources({ project }: { project: Project }) {
   const aiActions = (
     <div className="resources-ai-actions">
       <button type="button" className="btn resources-suggest" disabled={suggesting} aria-busy={suggesting || undefined} onClick={startSuggest}>
-        {suggesting ? <Spinner className="resources-suggest-spin" /> : <Sparkle {...ICON_SM} />}
+        {suggesting ? <Spinner className="resources-suggest-spin" /> : <ClaudioGlyph {...ICON_SM} />}
         {/* A phone's row holds two buttons and "+": the short label, as MobileRecursos draws it */}
         {suggesting ? t('resourcesAi.suggesting') : suggest && !phone ? t('resourcesAi.suggestAgain') : t('resourcesAi.suggest')}
       </button>

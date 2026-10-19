@@ -136,14 +136,8 @@
   },
   "claudio": {
     "title": "Assistant",
-    "hello": "Hi, I'm the Claudio assistant",
-    "sub": "I can tell you how your projects, tasks, orchestrations and usage are doing.",
-    "figures": "Right now",
-    "chatsWorking_one": "{{n}} chat running",
-    "chatsWorking_other": "{{n}} chats running",
-    "orchestrations_one": "{{n}} orchestration",
-    "orchestrations_other": "{{n}} orchestrations",
-    "today": "today {{cost}}",
+    "hello": "Hi, I'm Claudio",
+    "sub": "Your assistant. I can tell you how your projects, tasks, orchestrations and usage are doing.",
     "starters": "To get started",
     "starter": {
       "board": {
@@ -172,6 +166,13 @@
     "model": "Model",
     "effort": "Effort",
     "startError": "The assistant could not start",
-    "greeting": "Hi, I'm the Claudio assistant. Ask me about your projects, tasks, orchestrations or usage."
+    "greeting": "Hi, I'm Claudio, your assistant. Ask me about your projects, tasks, orchestrations or usage.",
+    "recent": {
+      "title": "Recent",
+      "all": "See all",
+      "allLabel": "See all conversations with the assistant",
+      "error": "The recent conversations could not load",
+      "retry": "Retry"
+    }
   }
 }
