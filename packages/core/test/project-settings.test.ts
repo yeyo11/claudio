@@ -288,7 +288,7 @@ test('updating a project renames it, changes its key or modules, and emits what 
     await assert.rejects(core.updateProject(b.id, { name: 'Other', key: 'SHOP' }), /already used by another project/);
     assert.equal((await core.projects()).find((p) => p.id === b.id)?.name, 'Beta');
 
-    await assert.rejects(core.updateProject(a.id, {}), /name, key or modules is required/);
+    await assert.rejects(core.updateProject(a.id, {}), /name, key, modules or path is required/);
     await assert.rejects(core.updateProject(a.id, { name: '  ' }), /name is required/);
     await assert.rejects(core.updateProject(a.id, { key: 'a' }), /key must be/);
     await assert.rejects(core.updateProject(a.id, { modules: ['wiki' as never] }), /unknown module/);
@@ -522,7 +522,7 @@ test('a team change rewrites only the team and the flow, keeping what a hand edi
 test('two changes made to one document at once both land', async () => {
   const config = tempConfig();
   const store = new ProjectSettingsStore(config);
-  const project = { id: 'p1', name: 'Claudio', path: dir() };
+  const project = { id: 'p1', name: 'Claudio', path: dir(), repo: null };
   await store.create(project, { template: 'software', modules: null }, [project]);
   const [first, second] = await Promise.all([
     store.update(project, (s) => ({ ...s, modules: s.modules.filter((m) => m !== 'documents') }), [project]),
@@ -545,7 +545,7 @@ test('listing the projects reads each settings document once', async () => {
     }
   }
   const store = new Counting(config);
-  const records = ['Alpha', 'Beta', 'Gamma', 'Delta'].map((name, i) => ({ id: `p${i}`, name, path: dir() }));
+  const records = ['Alpha', 'Beta', 'Gamma', 'Delta'].map((name, i) => ({ id: `p${i}`, name, path: dir(), repo: null }));
   for (const record of records) await store.create(record, { template: 'software', modules: null }, records);
   reads = 0;
   const settings = await store.readAll(records);
@@ -640,7 +640,7 @@ test('sharing is parsed: group ids once each, a printable key that keeps its cas
 test('a stored sharing part that does not validate is dropped on read, and the rest of the document kept', async () => {
   const config = tempConfig();
   const store = new ProjectSettingsStore(config);
-  const project = { id: 'p1', name: 'Shop', path: dir() };
+  const project = { id: 'p1', name: 'Shop', path: dir(), repo: null };
   await store.create(project, { template: 'software', modules: null }, [project]);
   const file = join(config.dataDir, 'project-settings', 'p1.json');
   const doc = JSON.parse(readFileSync(file, 'utf8')) as { settings: Record<string, unknown> };
@@ -653,8 +653,8 @@ test('a stored sharing part that does not validate is dropped on read, and the r
 test('a share key another project holds is refused with the holder named, and a key kept is not checked again', async () => {
   const config = tempConfig();
   const store = new ProjectSettingsStore(config);
-  const one = { id: 'p1', name: 'Shop', path: dir() };
-  const two = { id: 'p2', name: 'Shop clone', path: dir() };
+  const one = { id: 'p1', name: 'Shop', path: dir(), repo: null };
+  const two = { id: 'p2', name: 'Shop clone', path: dir(), repo: null };
   const active = [one, two];
   for (const p of active) await store.create(p, { template: 'software', modules: null }, active);
   const key = 'github.com/acme/shop';

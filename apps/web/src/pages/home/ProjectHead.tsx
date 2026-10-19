@@ -13,7 +13,15 @@ import { NEW_TASK_PATH } from '../../lib/work-items';
 import { assistantPath, pendingProposalCount, projectPath } from '../assistant/model';
 import type { ProjectViewId } from '../dashboard/views';
 
-const newChatPath = (project: Project) => `/chats/new?cwd=${encodeURIComponent(project.path)}`;
+/** The main checkout heads `worktrees`, but it is the project itself, not one of its worktrees. */
+const linkedWorktrees = (project: Project): number => project.worktrees.filter((w) => !w.main).length;
+
+/**
+ * Where "New chat" goes. A bare repository has no checkout of its own to start in, so its New chat
+ * opens the Worktrees tab to pick one (D11 of docs/plans/projects-as-repositories.md).
+ */
+const newChatPath = (project: Project) =>
+  project.repo?.bare ? `/?project=${encodeURIComponent(project.id)}&view=worktrees` : `/chats/new?cwd=${encodeURIComponent(project.path)}`;
 
 /**
  * The top of every tab: who the project is (its monogram, name, key and template), where it lives
@@ -55,7 +63,7 @@ export function ProjectHead({
           <span aria-hidden>·</span>
           <span>{t('projects:head.chats', { count: project.chatCount, n: formatNumber(project.chatCount) })}</span>
           <span aria-hidden>·</span>
-          <span>{t('projects:head.worktrees', { count: project.worktrees.length, n: formatNumber(project.worktrees.length) })}</span>
+          <span>{t('projects:head.worktrees', { count: linkedWorktrees(project), n: formatNumber(linkedWorktrees(project)) })}</span>
         </span>
       </div>
       {actions && (

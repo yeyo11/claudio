@@ -72,6 +72,8 @@
       "cost": "Coste",
       "activity": "Actividad"
     },
+    "worktreeRemoved": "eliminado",
+    "chipWorktree": "Worktree: {{value}}",
     "filter": {
       "assistant": "Del asistente"
     }

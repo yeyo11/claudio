@@ -50,7 +50,7 @@ const projectDir = join(root, 'api');
 mkdirSync(join(projectDir, 'docs'), { recursive: true });
 writeFileSync(join(projectDir, 'CLAUDE.md'), '# API\n');
 writeFileSync(join(projectDir, 'docs', 'plan.md'), '# The plan\n');
-const project: ProjectRecord = { id: randomUUID(), name: 'api', path: projectDir };
+const project: ProjectRecord = { id: randomUUID(), name: 'api', path: projectDir, repo: null };
 
 const chatId = randomUUID();
 const chatRecord = {
@@ -96,7 +96,7 @@ const anaEvent = (type: string): void => {
 
 const anaSources: ReaderSources = {
   projects: () => [project],
-  worktreeOf: () => null,
+  place: () => ({ repo: null, exists: true, source: null }),
   chats: () => [chatRecord],
   // An agent works in the chat: its transcript is pulled as it grows
   liveChats: () => new Map<string, ChatActivity | null>([[chatId, null]]),

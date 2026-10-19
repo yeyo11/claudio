@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { isLiveCliSession } from '../src/cli.ts';
-import { Locator } from '../src/locations.ts';
 import { SessionStore } from '../src/sessions.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -282,9 +281,6 @@ test('a CLI session\'s background agents are read from its files, with their rea
   // Each agent's own directory, not its parent session's
   assert.equal(byId.done?.cwd, '/work/agents');
   assert.equal(byId.busy?.cwd, '/work/agents/.claude/worktrees/agent-busy');
-  const where = new Locator().worktreeOf(byId.busy?.cwd ?? '');
-  assert.equal(where?.parentPath, '/work/agents');
-  assert.equal(where?.name, 'agent-busy');
   assert.deepEqual(await new SessionStore(config).subagents('no-such-session'), []);
 });
 

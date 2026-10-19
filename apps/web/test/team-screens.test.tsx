@@ -21,7 +21,7 @@ import { MemberGrid } from '../src/pages/team/Members';
 // responsibilities in the person's language (14) and the live line. The Flow limits and Team
 // activity, as the design review redrew them, are in team-design.test.tsx.
 
-const project: Project = { id: 'p', name: 'shop', path: '/tmp/shop', worktrees: [], exists: true, chatCount: 0, lastActivity: null, key: 'SHOP', modules: ['team'] };
+const project: Project = { id: 'p', name: 'shop', path: '/tmp/shop', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 0, lastActivity: null, key: 'SHOP', modules: ['team'] };
 
 const run = (id: string, over: Partial<FlowRun> = {}): FlowRun => ({
   id,

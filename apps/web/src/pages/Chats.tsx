@@ -236,7 +236,17 @@ const ChatRow = memo(function ChatRow({
                 return (
                   <span key={tag} className={`crow-tag is-${tag}`}>
                     <Icon size={11} strokeWidth={2} aria-hidden />
-                    {tag === 'worktree' ? (chat.worktree?.branch ?? chat.worktree?.name ? <span className="mono">{chat.worktree?.branch ?? chat.worktree?.name}</span> : t('list.worktree')) : tag === 'fork' ? t('list.fork') : t(`list.tag.${tag}`)}
+                    {tag === 'worktree' ? (
+                      <>
+                        {/* A removed worktree is history: said in words first, so a long branch is what the tag cuts */}
+                        {chat.worktree?.exists === false && <span className="crow-tag-removed">{t('list.worktreeRemoved')}</span>}
+                        {chat.worktree?.branch ?? chat.worktree?.name ? <span className="mono">{chat.worktree?.branch ?? chat.worktree?.name}</span> : t('list.worktree')}
+                      </>
+                    ) : tag === 'fork' ? (
+                      t('list.fork')
+                    ) : (
+                      t(`list.tag.${tag}`)
+                    )}
                   </span>
                 );
               })}
@@ -390,6 +400,9 @@ function exportMarkdown(chats: ChatSummary[]) {
   });
 }
 
+/** `removed` is the chats that ran in a worktree since deleted; anything else is one worktree's path. */
+const worktreeMatches = (chat: ChatSummary, filter: string): boolean => (filter === 'removed' ? chat.worktree?.exists === false : chat.worktree?.path === filter);
+
 export function Chats() {
   const { t } = useTranslation(['chats', 'chat']);
   const navigate = useNavigate();
@@ -460,8 +473,14 @@ export function Chats() {
   };
 
   const all = useMemo(() => chats.data ?? [], [chats.data]);
-  const visible = useMemo(() => all.filter((chat) => matchesFilters(chat, filters)).sort(SORTERS[sort]), [all, filters, sort]);
-  const counts = useMemo(() => stateCounts(all, filters), [all, filters]);
+  // `?worktree=<path>` (a worktree's chats) or `removed` (the ones that ran in a worktree since deleted), from the project's Worktrees tab
+  const worktreeFilter = address.get('worktree');
+  const visible = useMemo(
+    () => (worktreeFilter === null ? all : all.filter((chat) => worktreeMatches(chat, worktreeFilter))).filter((chat) => matchesFilters(chat, filters)).sort(SORTERS[sort]),
+    [all, filters, sort, worktreeFilter],
+  );
+  const inWorktree = useMemo(() => (worktreeFilter === null ? all : all.filter((chat) => worktreeMatches(chat, worktreeFilter))), [all, worktreeFilter]);
+  const counts = useMemo(() => stateCounts(inWorktree, filters), [inWorktree, filters]);
   const page = useMemo(() => visible.slice(0, shown), [visible, shown]);
   // The minute is a dependency so that rows move under "Yesterday" when the day turns over
   const groups = useMemo(() => (sort === 'activity' ? groupByDay(page, new Date(minute * 60_000)) : [{ group: null, chats: page }]), [sort, page, minute]);
@@ -500,6 +519,17 @@ export function Chats() {
     chips.push({ id: 'projects', label: t('list.chipProject', { values: labelsOf(projectOptions, projects) }), onRemove: () => patch({ projects: null }) });
   }
   if (models.size > 0) chips.push({ id: 'models', label: t('list.chipModel', { values: labelsOf(modelOptions, models) }), onRemove: () => patch({ models: null }) });
+  if (worktreeFilter !== null) {
+    chips.push({
+      id: 'worktree',
+      label: t('list.chipWorktree', { value: worktreeFilter === 'removed' ? t('list.worktreeRemoved') : (all.find((chat) => chat.worktree?.path === worktreeFilter)?.worktree?.branch ?? worktreeFilter.split('/').pop() ?? worktreeFilter) }),
+      onRemove: () => {
+        const next = new URLSearchParams(address);
+        next.delete('worktree');
+        navigate({ search: next.toString() ? `?${next.toString()}` : '' }, { replace: true });
+      },
+    });
+  }
   if (workers) chips.push({ id: 'workers', label: t('list.workers'), onRemove: () => patch({ workers: null }) });
   if (assistant) chips.push({ id: 'assistant', label: t('list.filter.assistant'), onRemove: () => patch({ assistant: null }) });
   if (internal) chips.push({ id: 'internal', label: t('list.internal'), onRemove: () => patch({ internal: null }) });

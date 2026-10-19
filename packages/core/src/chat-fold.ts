@@ -4,6 +4,7 @@ import { ChatActivityTracker } from './chat-activity.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
+import { worktreesChanged } from './git.ts';
 import { now, type ChatHost, type ContextSignal, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
 
@@ -69,6 +70,8 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         ...(event.model ? { model: event.model } : {}),
       });
       if (event.cwd) {
+        // Started with `--worktree`, the CLI has just made (or adopted) the worktree it reports
+        if (chat.opts.worktree && chat.workingDir !== event.cwd) worktreesChanged();
         chat.workingDir = event.cwd;
         chat.activity.setCwd(event.cwd);
       }

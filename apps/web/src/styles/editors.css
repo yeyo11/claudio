@@ -1895,3 +1895,47 @@ button.master-item-on:hover {
     min-height: 44px;
   }
 }
+
+/* The Worktrees tab: the main checkout first, then the linked ones */
+.worktree-branch {
+  flex-wrap: wrap;
+}
+.worktree-row.is-main {
+  border-left-color: var(--line-2);
+}
+/* Lone links on their own line: the accent says "link", and the box is big enough to hit (the
+   line's text alone is 17 px) */
+.worktree-chats,
+.worktree-removed > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+.worktree-chats {
+  color: var(--accent);
+}
+.worktree-removed {
+  margin: 12px 0 0;
+}
+@media (max-width: 900px), (pointer: coarse) {
+  .worktree-chats,
+  .worktree-removed > a {
+    min-height: var(--touch);
+  }
+}
+.worktree-locked-reason {
+  flex-basis: 100%;
+}
+
+@media (max-width: 900px) {
+  .worktree-new {
+    min-height: 44px;
+    width: 100%;
+  }
+  .worktree-tags {
+    flex: 1 1 100%;
+  }
+  .worktree-tags .btn {
+    width: 100%;
+  }
+}

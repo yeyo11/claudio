@@ -64,10 +64,12 @@ export function NewTerminal({
   }
 
   const open = (worktree?: string) => onOpen({ projectId: project.id, ...(worktree ? { worktree } : {}) });
-  const entries: MenuEntry[] = project.worktrees.length
+  // The main checkout is already the first entry
+  const linked = project.worktrees.filter((w) => !w.main);
+  const entries: MenuEntry[] = linked.length
     ? [
         { id: 'checkout', label: t('new.checkout'), onSelect: () => open() },
-        ...project.worktrees.map((worktree) => ({
+        ...linked.map((worktree) => ({
           id: worktree.path,
           label: <span className="mono">{worktree.name ?? worktree.branch ?? baseName(worktree.path)}</span>,
           onSelect: () => open(worktree.path),
