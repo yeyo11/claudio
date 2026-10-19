@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0](https://github.com/yeyo11/claudio/compare/v0.6.1...v0.7.0) (2026-10-19)
+
+
+### Features
+
+* Claudio in a container, polished, and one update architecture for desktop, container and Helm ([#46](https://github.com/yeyo11/claudio/issues/46)) ([659d0e7](https://github.com/yeyo11/claudio/commit/659d0e7bc7f3d1cfdab361987d2be816e553aee4))
+* **core:** re-check the failed check first after a verification fix ([#47](https://github.com/yeyo11/claudio/issues/47)) ([f748571](https://github.com/yeyo11/claudio/commit/f748571159a0bbd7d8bb0cf354649ff1a80a0f34))
+
+
+### Bug fixes
+
+* **terminal:** stop asking for terminals the server refuses or forgot ([659d0e7](https://github.com/yeyo11/claudio/commit/659d0e7bc7f3d1cfdab361987d2be816e553aee4))
+
 ## [0.6.1](https://github.com/yeyo11/claudio/compare/v0.6.0...v0.6.1) (2026-10-18)
 
 
