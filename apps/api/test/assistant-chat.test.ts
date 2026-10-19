@@ -110,3 +110,22 @@ test('an empty prompt is 400 and an unknown project 404', async () => {
   assert.equal(missing.statusCode, 404);
   assert.match(missing.json<{ error: string }>().error, /project not found/);
 });
+
+test('GET /chats?assistant=1 lists only the assistant chats, and anything but 1 is a 400', async () => {
+  const mine = (await app.inject({ method: 'POST', url: '/api/assistant/chats', ...json({ prompt: 'recent one' }) })).json<Chat>();
+  const plain = (await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'a plain chat' }) })).json<Chat>();
+
+  const only = (await app.inject('/api/chats?assistant=1')).json<Chat[]>();
+  assert.ok(only.some((c) => c.id === mine.id));
+  assert.ok(only.every((c) => c.claudioAssistant), 'every row carries the marker');
+  assert.ok(!only.some((c) => c.id === plain.id));
+  assert.equal((await app.inject('/api/chats?assistant=1&limit=1')).json<Chat[]>().length, 1);
+
+  // Leaving it out changes nothing
+  const all = (await app.inject('/api/chats')).json<Chat[]>().map((c) => c.id);
+  assert.ok(all.includes(mine.id) && all.includes(plain.id));
+
+  const bad = await app.inject('/api/chats?assistant=2');
+  assert.equal(bad.statusCode, 400);
+  assert.match(bad.json<{ error: string }>().error, /assistant must be 1/);
+});

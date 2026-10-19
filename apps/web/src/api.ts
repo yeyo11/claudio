@@ -606,6 +606,7 @@ export const api = {
         origin: filter.origin?.join(','),
         workers: filter.workers === false ? '0' : undefined,
         state: filter.state,
+        assistant: filter.assistant ? '1' : undefined,
         limit: num(filter.limit),
       })}`,
       o,
@@ -1581,6 +1582,8 @@ export interface ChatFilter {
   /** `false` leaves the workers of orchestrations out while keeping their syntheses */
   workers?: boolean;
   state?: ChatState;
+  /** Only the chats of the Claudio assistant */
+  assistant?: boolean;
   limit?: number;
   /** The query waits, e.g. until the project it depends on is known */
   enabled?: boolean;
