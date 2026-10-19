@@ -14,6 +14,8 @@ const CHAT_SCOPED = ['chat', 'primitives', 'changes', 'components', 'chats', 'ob
 const CLAUDE_ONLY: readonly string[] = [
   // The status bar's row for the Claude Code CLI itself: its version
   'components:shell.claudeCode',
+  // The status bar's row when the Claude Code provider itself is not ready: it opens its settings
+  'components:shell.openClaudeSettings',
   // The environment panel reads Claude's system/init
   'components:environment.empty',
   // Claude keeps its memory per project
