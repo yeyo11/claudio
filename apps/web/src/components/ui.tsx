@@ -72,7 +72,9 @@ export function useModelList(account?: string | null): ModelList {
   });
   const listed = fromOverview?.length ? fromOverview : read.data;
   const models = useMemo(() => (listed?.length ? dedupeModels(listed.filter((model) => !model.disabled)) : NO_CATALOG), [listed]);
-  const failed = !again.isPending && (again.isError || (ask && (read.isError || (read.isSuccess && !read.data.length && !again.data?.length))));
+  // An overview that failed would leave the spinner turning with nothing at work: that is a failed read too
+  const overviewFailed = !account && overview.isError && !overview.data;
+  const failed = !again.isPending && (again.isError || overviewFailed || (ask && (read.isError || (read.isSuccess && !read.data.length && !again.data?.length))));
   const state = models.length > 0 ? 'ready' : failed ? 'failed' : 'loading';
   return { models, state, retry: () => again.mutate() };
 }
@@ -134,8 +136,8 @@ export function ModelListStatus({ list }: { list: ModelList }) {
  * A model <Combobox>, filled from what the CLI offers `account` (the default account when none is
  * named); everything else is the Combobox's own, a typed model id included.
  */
-export function ModelCombobox({ account, ...props }: Omit<ComponentProps<typeof Combobox>, 'options' | 'status'> & { account?: string | null }) {
+export function ModelCombobox({ account, ...props }: Omit<ComponentProps<typeof Combobox>, 'options' | 'status' | 'onStatusAction'> & { account?: string | null }) {
   const list = useModelList(account);
   const options = useMemo(() => optionsOf(list.models), [list.models]);
-  return <Combobox {...props} options={options} status={<ModelListStatus list={list} />} />;
+  return <Combobox {...props} options={options} status={<ModelListStatus list={list} />} onStatusAction={list.state === 'failed' ? list.retry : undefined} />;
 }
