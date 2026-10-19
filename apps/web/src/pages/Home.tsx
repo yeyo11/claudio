@@ -78,7 +78,7 @@ function useTabCounts(project: Project): Partial<Record<TabId, number>> {
     documents: documents || undefined,
     memory: proposals || undefined,
     resources: resources || undefined,
-    worktrees: project.worktrees.length || undefined,
+    worktrees: project.worktrees.filter((w) => !w.main).length || undefined,
   };
 }
 

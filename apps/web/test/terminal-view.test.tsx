@@ -57,6 +57,9 @@ test('the new-terminal control opens in the chosen project at once, and offers a
   assert.equal(plain.includes('Elegir dónde abrir la terminal'), false);
   const withTrees = { ...project, worktrees: [{ path: '/work/shop-wt/fix', name: 'fix', branch: 'fix' }] } as unknown as Project;
   assert.match(renderToStaticMarkup(<NewTerminal project={withTrees} projects={[withTrees]} icon pending={false} onOpen={() => {}} />), /aria-label="Elegir dónde abrir la terminal"/);
+  // The main checkout heads the project's worktree list, but it is the project itself: no menu for it alone
+  const mainOnly = { ...project, worktrees: [{ path: '/work/shop', name: null, branch: 'main', main: true }] } as unknown as Project;
+  assert.equal(renderToStaticMarkup(<NewTerminal project={mainOnly} projects={[mainOnly]} icon pending={false} onOpen={() => {}} />).includes('Elegir dónde abrir la terminal'), false);
   // With All projects the button is the menu's trigger, named for what it does
   assert.match(renderToStaticMarkup(<NewTerminal project={null} projects={[project]} icon pending={false} onOpen={() => {}} />), /aria-label="Nueva terminal"/);
 });
