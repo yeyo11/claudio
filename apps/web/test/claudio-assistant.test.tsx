@@ -10,6 +10,7 @@ import { api } from '../src/api';
 import { phoneHeaderOf } from '../src/components/shell/phone-header';
 import i18n from '../src/i18n';
 import { ClaudioAssistant } from '../src/pages/claudio-assistant/Entry';
+import { Recents } from '../src/pages/claudio-assistant/Recents';
 import { AssistantGreeting } from '../src/pages/claudio-assistant/Greeting';
 import { CLAUDIO_ASSISTANT_PATH, STARTERS } from '../src/pages/claudio-assistant/model';
 import { ProjectScopeProvider } from '../src/lib/project-scope';
@@ -45,7 +46,7 @@ for (const language of ['en', 'es'] as const) {
     await i18n.changeLanguage(language);
     const html = wrap(<ClaudioAssistant />);
     const words = text(html);
-    assert.match(words, language === 'es' ? /Hola, soy el asistente de Claudio/ : /Hi, I'm the Claudio assistant/);
+    assert.match(words, language === 'es' ? /Hola, soy Claudio/ : /Hi, I'm Claudio/);
     assert.equal((html.match(/class="as-starter"/g) ?? []).length, STARTERS.length);
     for (const { key } of STARTERS) {
       assert.ok(words.includes(i18n.t(`assistant:claudio.starter.${key}.title`)), key);
@@ -54,8 +55,9 @@ for (const language of ['en', 'es'] as const) {
     // A starter only fills the composer: the one start button is disabled until there is text
     assert.match(html, /<button type="submit" class="btn btn-primary new-start"[^>]*disabled/);
     assert.doesNotMatch(html, /as-context/, 'with no project in scope there is no context chip');
-    // Never an Empty illustration: the gradient hairline is the box's, what the page is about
-    assert.doesNotMatch(html, /illustration/);
+    // Claudio is the page's face, always there; it is not an `Empty`, and no live figure sits beside it
+    assert.match(html, /<div class="as-hello"><svg class="il[^"]*"[^>]*data-illustration="claudio"/);
+    assert.doesNotMatch(html, /as-figures/);
   });
 
   test(`the entry's box is New chat's, centred under the greeting, without what the assistant cannot use (${language})`, async () => {
@@ -83,8 +85,70 @@ for (const language of ['en', 'es'] as const) {
     const html = wrap(<AssistantGreeting />);
     assert.match(html, /class="as-greeting"/);
     assert.ok(text(html).includes(i18n.t('assistant:claudio.greeting')));
+    assert.match(html, /class="mascot-mark"/, "Claudio's colour mark speaks the greeting");
   });
 }
+
+/** Renders the recents with the list already in the cache, as the page reads it */
+const recentsOf = (client: QueryClient, narrow = false) =>
+  renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <TooltipProvider>
+          <Recents narrow={narrow} />
+        </TooltipProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+const withRecents = (chats: unknown, narrow = false) => {
+  const client = new QueryClient();
+  client.setQueryData(['chats', { assistant: true, limit: 5 }], chats);
+  return recentsOf(client, narrow);
+};
+const summary = (over: Record<string, unknown>) => ({ id: 'c', title: 'T', firstPrompt: 'T', state: 'idle', alive: false, activity: null, updatedAt: null, executions: [], ...over });
+
+for (const language of ['en', 'es'] as const) {
+  test(`the recents list the assistant's chats with a word for working and waiting, and none for idle (${language})`, async () => {
+    await i18n.changeLanguage(language);
+    const html = withRecents([
+      summary({ id: 'a', title: 'Working one', state: 'working', alive: true }),
+      summary({ id: 'b', title: 'Waiting one', state: 'waiting', alive: true }),
+      summary({ id: 'c', title: 'Idle one' }),
+    ]);
+    assert.ok(text(html).includes(i18n.t('assistant:claudio.recent.title')));
+    assert.match(html, /href="\/chats\/a"/);
+    assert.match(html, /as-recent-word is-live/);
+    assert.match(html, /as-recent-word is-idle/);
+    assert.equal((html.match(/as-recent-word/g) ?? []).length, 2, 'an idle chat shows no word, only a screen reader line');
+    assert.match(html, /href="\/chats\?assistant=1"/, 'Ver todas opens Chats filtered to the assistant');
+    assert.doesNotMatch(html, /spinner|ticker|live-rail/);
+  });
+}
+
+test('a chat whose last run failed says it in the bad colour', async () => {
+  await i18n.changeLanguage('en');
+  const failed = summary({ id: 'f', executions: [{ id: 'e', outcome: 'failed', endedAt: '2026-01-01T00:00:00.000Z' }] });
+  const html = withRecents([failed]);
+  assert.match(html, /as-recent-word is-bad/);
+});
+
+test('the recents show three rows on a phone, and nothing at all for an empty list', () => {
+  const many = ['a', 'b', 'c', 'd', 'e'].map((id) => summary({ id }));
+  assert.equal((withRecents(many, true).match(/class="as-recent"/g) ?? []).length, 3);
+  assert.equal((withRecents(many).match(/class="as-recent"/g) ?? []).length, 5);
+  assert.equal(withRecents([]), '');
+});
+
+test('a failed read of the recents says so and offers Reintentar', async () => {
+  await i18n.changeLanguage('es');
+  const client = new QueryClient({ defaultOptions: { queries: { retryOnMount: false } } });
+  // A cached failure: a fresh observer would otherwise count as pending while it tries again
+  const key = ['chats', { assistant: true, limit: 5 }];
+  client.getQueryCache().build(client, { queryKey: key }).setState({ status: 'error', error: new Error('down'), fetchStatus: 'idle', errorUpdatedAt: Date.now() });
+  const html = recentsOf(client);
+  assert.match(html, /as-recents-error/);
+  assert.ok(text(html).includes('Reintentar'));
+});
 
 test('starting posts the prompt, the project and the model to /assistant/chats', async () => {
   const real = globalThis.fetch;

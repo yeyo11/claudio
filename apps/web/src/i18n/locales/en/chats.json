@@ -73,7 +73,10 @@
       "activity": "Activity"
     },
     "worktreeRemoved": "removed",
-    "chipWorktree": "Worktree: {{value}}"
+    "chipWorktree": "Worktree: {{value}}",
+    "filter": {
+      "assistant": "From the assistant"
+    }
   },
   "bulk": {
     "region": "Selected chats",

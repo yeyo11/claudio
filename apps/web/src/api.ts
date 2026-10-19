@@ -611,6 +611,7 @@ export const api = {
         origin: filter.origin?.join(','),
         workers: filter.workers === false ? '0' : undefined,
         state: filter.state,
+        assistant: filter.assistant ? '1' : undefined,
         limit: num(filter.limit),
       })}`,
       o,
@@ -1321,7 +1322,7 @@ export const keys = {
   projectCandidates: ['projects', 'candidates'] as const,
   projectInspect: (path: string) => ['projects', 'inspect', path] as const,
   chatList: (filter: ChatFilter) =>
-    ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
+    ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : '', filter.assistant ? 'assistant' : ''] as const,
   // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
   // (and the panel's timer while it works) refresh everything there
   chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
@@ -1587,6 +1588,8 @@ export interface ChatFilter {
   /** `false` leaves the workers of orchestrations out while keeping their syntheses */
   workers?: boolean;
   state?: ChatState;
+  /** Only the chats of the Claudio assistant */
+  assistant?: boolean;
   limit?: number;
   /** The query waits, e.g. until the project it depends on is known */
   enabled?: boolean;

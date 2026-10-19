@@ -300,7 +300,7 @@ Asistente".
   team beside it, and sits beside "Añadir miembro" on a team that has members. If a run is already
   going (409), it leads to that run's page.
 - **The project's header, on every tab** (orchestration 6, gap 8, and decision 3 of the design
-  review): a ghost "Asistente" with its sparkle, before "Nuevo chat aquí", since the gradient stays on
+  review): a ghost "Asistente" with Claudio's glyph (the sparkle gave way to it on 2026-10-19, [plans/assistant-mascot.md](plans/assistant-mascot.md)), before "Nuevo chat aquí", since the gradient stays on
   the tab's own primary. On a phone the project's screen has an "Asistente del proyecto" row above its
   sections, which says how many proposals wait ("3 propuestas por revisar") or what the assistant
   does, and every tab's screen offers "Asistente" first in its "⋯" sheet (`phoneViewMore` in

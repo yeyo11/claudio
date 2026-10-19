@@ -330,13 +330,14 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   // ---- Chats
   'GET /chats': d('Chats', 'Chats, newest first', {
     description:
-      'One entry per Claude Code conversation, whoever started it and however many times it was resumed: the id is the session id. Workers of an orchestration and housekeeping chats are left out unless asked for with `origin`. `state` says what is happening (`working`, `waiting` for a person, `idle`), `control` what can be done now and why not when it cannot.',
+      'One entry per Claude Code conversation, whoever started it and however many times it was resumed: the id is the session id. Workers of an orchestration and housekeeping chats are left out unless asked for with `origin`. `state` says what is happening (`working`, `waiting` for a person, `idle`), `control` what can be done now and why not when it cannot. `assistant=1` keeps only the chats of the Claudio assistant.',
     querystring: obj({
       project: str('Only chats of this project'),
       loose: str('`1` for chats under no project'),
       origin: str('Comma-separated origins to include: `claudio`, `external`, `orchestration`, `internal` (default `claudio,external`)'),
       workers: str('`0` leaves out the workers of orchestrations and keeps their syntheses, which share the `orchestration` origin', { enum: ['0', '1'] }),
       state: str('Only chats in this state', { enum: ['working', 'waiting', 'idle'] }),
+      assistant: str('`1` for the chats of the Claudio assistant only', { enum: ['1'] }),
       limit: str('Max chats to return'),
     }),
     ok: list('ChatSummary'),

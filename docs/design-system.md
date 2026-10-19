@@ -18,7 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/claudio-ds.css`](design-system/claudio-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 17 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 18 illustrations as standalone SVG, and Claudio's two marks | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 | Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
@@ -95,7 +95,7 @@ them is not part of the redesign.
 | `--glow-top` | radial accent 16 % from the top | the halo behind hero headers and featured cards |
 | `--accent` | `#6e9bff` (dark), `#1d58db` (light) | links, focus ring, active indicators |
 | `--accent-2nd` | `#a78bfa` (dark), `#6d28d9` (light) | the second stop of the brand gradient, the energy border. Only ever inside a gradient or beside `--accent`: solid violet is `--idle` |
-| `--logo-blue`, `--logo-violet`, `--logo-spark` | `#246bfd`, `#a78bfa`, `#00e5ff` (the spark is `#246bfd` in light) | Claudio's mark (`BrandMark`, `.logo-mark`), which stands on the page with no tile |
+| `--logo-blue`, `--logo-violet`, `--logo-spark` | `#246bfd`, `#a78bfa`, `#00e5ff` (the spark is `#246bfd` in light) | Claudio's mark (`BrandMark`, `.logo-mark`), which stands on the page with no tile. The spark and Claudio, the assistant's mascot (§4), are the one static cyan in the app; `ClaudioGlyph` is never cyan unless its slot is live |
 
 `--accent-2` is the tag and project tone, the same violet as `--idle`, as it was in Claudio. The
 gradient's second stop is `--accent-2nd` (it was `--accent-rose`; renamed when the rose became a
@@ -446,7 +446,7 @@ slot.
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.ai-mark` (`.sm`) | new `AssistantMark` | the assistant's sparkle on a neutral tile. Cyan only inside a live run; never the gradient |
+| `.ai-mark` (`.sm`) | new `AssistantMark` | Claudio's glyph on a neutral tile. Cyan only inside a live run; never the gradient |
 | `.ai-run` (`.live` + `.energy`, `.done`), `.ai-run-head`, `-title`, `-now` | new `.suggestion-run` | the run's header. Live: the verb with the braille spinner, the elapsed time and "Detener", and it takes the screen's energy border. Done: one still line with what it produced |
 | `.ai-facts` (`.cost`) | new `.suggestion-facts` | model · time · cost · chat link (the model id in mono, the rest sans). The cost is the one fact in `--fg-2`; while running it reads "0,03 US$ hasta ahora" |
 | `.ai-steps`, `.ai-step` (`.now`, `.todo`), `.ai-found` | new `.suggestion-steps` | what the assistant read, one line per source with a count; the one being read has the braille spinner. What it found are neutral `.wi-label` tags |
@@ -542,7 +542,7 @@ answer is drawn in the reference; the change note for development is
    before the words do: a role's squircle with its stage verb (Refinando, Implementando,
    Verificando), the person's round monogram with the chat's verb (Ejecutando), or the
    orchestration glyph with "nodo 3 de 9". Refine and verify are live like work (gap 1).
-3. **The project assistant.** A ghost "Asistente" with its sparkle in the project header, before
+3. **The project assistant.** A ghost "Asistente" with Claudio's glyph in the project header, before
    "Nuevo chat aquí"; also in the command palette. On a phone, an "Asistente del proyecto" row in
    the project card, above the sections.
 4. **Phone detail headers.** A screen pushed from another has a back arrow, its title and a "⋯"
@@ -1654,19 +1654,24 @@ confined chat, then CW-17, the write tools), by `reference/tools/assistant_entry
 `DesktopAsistenteClaudioChat`, `MobileAsistenteClaudio`, `MobileAsistenteClaudioChat` and `MobileAsistenteClaudioMas`. The
 decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
-- **Where it lives.** A sidebar item "Asistente" with the sparkle, in the first group under Inicio (route
+- **Where it lives.** A sidebar item "Asistente" with Claudio's glyph, in the first group under Inicio (route
   `/assistant`), and on a phone the same item as the first row of Más. The tab bar keeps its four tabs and Más is the one
-  lit while the screen is open. The palette's "Asistente de Claudio" action is always present and is not drawn. The sparkle is the
-  plain nav icon on desktop and the neutral `.ai-mark` tile (28 px inside a `.cell`) on the phone: never the gradient, so the entry
-  costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
-- **The entry screen is content, not an `Empty`.** The mark, the greeting (`--fs-title` on both), one line saying
-  what the assistant does and that it asks before writing, the live figures in sans and tabular (the counts of what is running in
-  `--live`, today's spend neutral: they are live things, and the line is optional if the build stays small), "Para
-  empezar" with the starters, and the composer, which is the chat's own (`StartComposer`, see "The streaming answer, the
-  composer's place, and one composer everywhere"): the same card, editor, chips and keys line, without the "+", the stop and
-  the permission chip; model and effort show as chips that open the chat's options popover. The page has one gradient surface, the send button. The composer is **not**
-  energy-bordered: nothing runs yet. Once the first turn runs it is the chat's working composer and takes the screen's one
-  energy border, as on any chat.
+  lit while the screen is open. The palette's "Asistente de Claudio" action is always present and is not drawn. The assistant's mark is Claudio. In
+  the nav, the palette and on the Más row it is `ClaudioGlyph`, in the slot's own colour. It is never the gradient, so the
+  entry costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
+- **The entry screen is content, with its mascot.** At the top, centred, is the `claudio` illustration (`md`, `sm`
+  on a phone): Claudio, the logo's prompt block, peeking out of the C. It is always there, in every state of the page,
+  because it is the assistant's face, not an empty state. Under it come the greeting ("Hola, soy Claudio", `--fs-title`)
+  and one line saying what the assistant does. Then come the composer (New chat's `StartComposer`, unchanged, see "The
+  streaming answer, the composer's place, and one composer everywhere"): the same card, editor, chips and keys line,
+  without the "+", the stop and the permission chip; model and effort show as chips that open the chat's options popover.
+  Then "Para empezar" with the starters, and "Recientes". Recientes lists up to five of the assistant's own chats (three
+  on a phone), each with its title, its state as a word and the time, and **Ver todas** opens Chats filtered to them. The
+  page shows no live figures: what is running is on Home and in the status bar. A recent row never moves. There is no
+  spinner, ticker or rail, only the word in its status colour. The gradient is on the composer's hairline, on Enviar, and
+  on the drawing's C, which is the drawing's own element (§4). There is no halo and no `.grad-text`. The composer is
+  **not** energy-bordered: nothing runs yet. Once the first turn runs it is the chat's working composer and takes the
+  screen's one energy border, as on any chat.
 - **Starters** are buttons that fill the composer, never send. Each shows what it is about and the sentence it fills in
   guillemets. The ones that write carry `.badge.b-warn` "pide permiso" (warn means needs authorisation, and says it in
   words). On a phone three starters show, one column, 44 px at least.
@@ -1687,12 +1692,15 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.as-hello`, `.as-hello-sub`, `.as-figures` (`.live`) | new, on `/assistant` | the greeting block. `.as-hello` makes the `.ai-mark` 40 px; the figures are sans, tabular, and only the live counts are cyan |
+| `.as-hello`, `.as-hello-sub` | new, on `/assistant` | the greeting block, centred: the `claudio` illustration, the title and the line; no live figures |
 | `.as-starters`, `.as-starter` (`-body`, `-title`, `-ask`) | new, the entry's suggestion chips | a two-column grid on desktop and one column on a phone; the button fills the composer. A `.badge.b-warn` on the right when it writes |
+| `.as-recents-section` (`.as-recents-head`, `.as-recents-all`) | new, last on `/assistant` | "Recientes" and the link **Ver todas** (`--fs-small`, `--accent`, a 44 px target on a phone); absent while loading and with no chats |
+| `.as-recent` (`-title`, `-meta`, `-word` with `.is-live`, `.is-idle`, `.is-bad`, `-time`) | new, a row of Recientes | a `Link` to the chat, 40 px (56 on a phone, two lines: the title, then "word · time"); the word in its status colour, idle said to a screen reader only; the time tabular and faint; hover is `--bg-hover`; nothing moves |
+| `.as-recents-error` | new | one `--fg-3` line and a `btn-ghost btn-sm` **Reintentar**; no `ErrorBox`, no illustration |
 | `.as-context` (`.x`) | `.chip` with a clear button | "Con <project> como contexto", first in the composer's `.composer-foot`; × is a 44 px target on a phone |
 | the entry's composer | `StartComposer` of `@claudio/chat-ui` (`.composer`, `.composer-editor`, `.composer-foot`) | the chat's composer, not a box of its own: no "+", stop or permission chip, no energy border; model and effort behind the chips |
-| `.as-greeting` | the first message of an assistant chat | the sparkle on `.ai-mark.sm` and one dimmed line; the same at the top of a reopened assistant chat |
-| `.cell > .ai-mark` | the Más row | the sparkle tile at the size of the other rows' `.proj` |
+| `.as-greeting` | the first message of an assistant chat | `ClaudioMascot` at 24 px and one dimmed line; the same at the top of a reopened assistant chat |
+| `.cell > .ai-mark` | the Más row | `ClaudioGlyph` on the tile at the size of the other rows' `.proj` |
 | `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |
 
 ### The editable Home: edit mode, the add-widget picker and the Documents and Flow widgets
@@ -2048,7 +2056,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Claudio has its own set of 17 SVG illustrations, drawn in the interface's language: hairline
+Claudio has its own set of 18 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
@@ -2058,6 +2066,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | Name | Use | Tone |
 |---|---|---|
 | `welcome` | New chat hero, first run, a compact Home when nothing is running | accent |
+| `claudio` | the Claudio assistant's entry (`/assistant`), always. Claudio, the logo's prompt block, peeks out of the C, with the spark above its head and a prompt card at the mouth. It is the one illustration with the logo's own gradient (`f-logo`) and its spark colour (`f-spark`) | accent |
 | `chats` | empty chat list, empty transcript | accent |
 | `orchestrations` | empty orchestration list, no templates | accent |
 | `schedules` | no schedules, a schedule that never fired | accent |
@@ -2086,9 +2095,13 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
   and duplicated ids break silently.
 - Sizes: `sm` 160 × 107 (phone, cards), `md` 240 × 160, `lg` 300 × 200 (full-page empty states).
 - Tone: `tone="warn" | "bad" | "live"` sets `--il-tone`.
-- Motion: `float` (4 px), `blink` (caret), `dash` (flowing links), `pulse` (the live node), and
-  `orbit` (24–36 s). Everything stops under `data-motion='subtle' | 'off'` and
-  `prefers-reduced-motion`.
+- `f-logo` paints with the logo's gradient (`--il-logo`, `--logo-blue` → `--logo-violet` in the
+  kit's direction, a def of every instance), and `f-spark` with `--logo-spark`. Only a drawing
+  derived from the logo uses them. `.cut` (a 3-unit `--bg` stroke) and `f-eye` paint with the
+  page's `--bg`, so such a drawing stands on a page background, never on a raised card.
+- Motion: `float` (4 px), `blink` (caret), `dash` (flowing links), `pulse` (the live node),
+  `look` (the eyes' blink, 6 s) and `orbit` (24–36 s). Everything stops under
+  `data-motion='subtle' | 'off'` and `prefers-reduced-motion`.
 - Always `aria-hidden`: the title and text next to it say everything.
 
 **The pattern.** An `Empty` with an illustration is:
@@ -2104,8 +2117,22 @@ to show.
 Rules:
 
 - At most one per screen.
-- Never next to live data.
-- Never decorative filler on a page that has content.
+- Never next to live data, and never decorative filler on a page that has content, **except the
+  assistant's entry**. There the `claudio` drawing is the assistant's identity and is shown always.
+  That page keeps the rule's intent: it shows no live figures, and the state words of its recents
+  stand still.
+- **An illustration's one gradient element is part of the drawing** (New chat's `welcome`, the
+  assistant's C). It does not count as one of the screen's two gradient surfaces (§2, "Gradients").
+  It takes a halo only where the screen has no other gradient surface, so `claudio` never has one.
+
+**Claudio's marks.** One character, two drawings, both derived from the logo's prompt block.
+`ClaudioMascot` (`illustrations/claudio-mark.svg`, 24 × 24, `packages/ui/src/components/icons.tsx`)
+is the colour mark: the block, its eyes looking up and the spark, in `--logo-spark` with the eyes in
+`--bg`. It reads from 20 px and is used where the assistant speaks (the first message of its chat).
+`ClaudioGlyph` (`illustrations/claudio-glyph.svg`, 16 × 16) is the one-colour glyph, with the eyes cut
+out, in `currentColor`: it takes the colour of its icon slot (nav items, palette entries, menu items,
+buttons and the run tile, at 14 and 16 px), so a live run's tile still turns it `--live`. It is typed
+as a `LucideIcon`, so slots that take one accept it, and it ignores `strokeWidth`.
 
 The one exception is the page that could not start (`apps/web/boot-guard.js`): its bundle never
 loaded, so neither React nor the illustrations exist. The guard writes the compact `Empty` by hand

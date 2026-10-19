@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-07T16:00:00Z
-updated_at: 2026-10-17T18:00:00Z
+updated_at: 2026-10-19T17:00:00Z
 tags:
     - assistant
     - mcp
@@ -30,11 +30,11 @@ which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call
 ## Where it lives
 
 - **Route:** `/assistant` (`apps/web/src/pages/claudio-assistant/Entry.tsx`).
-- **Sidebar:** "Asistente" / "Assistant", with the sparkle, under Inicio. On a phone the same item is
+- **Sidebar:** "Asistente" / "Assistant", with Claudio's glyph (the one-colour mark of the mascot, [plans/assistant-mascot.md](plans/assistant-mascot.md)), under Inicio. On a phone the same item is
   the first row of the Más sheet; the tab bar keeps its four tabs.
 - **Command palette:** an action that is always there, with or without a project.
-- **Entry screen:** the greeting, optional live figures (chats running, orchestrations, today's
-  spend), then the box, then four read-only starter chips. The box is New chat's own: `StartComposer`
+- **Entry screen:** Claudio (the `claudio` illustration) and its greeting, "Hola, soy Claudio", with no live
+  figures, then the box, then four read-only starter chips, then "Recientes". The box is New chat's own: `StartComposer`
   of `@claudio/chat-ui` with `layout="start"` (2026-10-17, at the owner's request that both start
   screens use the same input), centred under the greeting on a desktop and at the foot on a phone, as
   on New chat. It is New chat's card with its gradient hairline, the chips and the `Ctrl ↵` hint
@@ -46,8 +46,13 @@ which the CLI starts from the `--mcp-config` file Claudio wrote. No SDK, no call
   chip first in the line of chips, and an × (44 px on touch) clears it. Model and effort show as
   chips that open the chat's options popover (a sheet on a phone): the model defaults to `sonnet`,
   and the effort to the level recommended for an assistant (`medium` on Opus 5.5 and Sonnet 5.5, see
-  [effort.md](effort.md)). The box's hairline is the screen's gradient surface; there is no
-  illustration.
+  [effort.md](effort.md)). Above the greeting is Claudio, the `claudio` illustration
+  ([plans/assistant-mascot.md](plans/assistant-mascot.md)); it is always shown and its one gradient (the C) is
+  part of the drawing, so the box's hairline stays the screen's gradient surface. Under the starters,
+  "Recientes" lists the assistant's latest chats (five, three on a phone), each with its title, its state as a
+  word that never moves and the time; **Ver todas** opens Chats filtered to them (`/chats?assistant=1`, from
+  `GET /chats?assistant=1`). The list renders nothing while it loads and when there are no chats yet. In the
+  chat, the greeting carries the colour mark (`ClaudioMascot`).
 - **Starting:** `POST /assistant/chats` with `{ prompt, projectId?, model?, effort? }` and nothing else a chat
   could choose. The language comes from `Accept-Language`. The web then opens `/chats/:id`.
 - **Greeting:** drawn by `ChatView` from i18n (`AssistantGreeting`) for every chat that carries the
@@ -133,7 +138,7 @@ across processes, no suggestions, deny and timeout with the fake CLI), `apps/api
 and `assistant-writes.test.ts` (the route, the labelling and the history context),
 `apps/api/test/assistant-collab-reads.test.ts` (the assistant reading a teammate's copy through the
 fake CLI and the real MCP server, the guard and the audit) and
-`apps/web/test/claudio-assistant.test.tsx` (the entry).
+`apps/web/test/claudio-assistant.test.tsx` (the entry and its recents), and `e2e/specs/assistant.spec.mjs`.
 
 ## Known gaps
 
@@ -148,4 +153,4 @@ fake CLI and the real MCP server, the guard and the audit) and
 
 ## Related
 
-[[plans/claudio-assistant.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]
+[[plans/claudio-assistant.md]] · [[plans/assistant-mascot.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]

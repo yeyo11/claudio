@@ -11,7 +11,6 @@ import {
   PanelLeftOpen,
   Play,
   Settings2,
-  Sparkle,
   SquareCheck,
   SquareTerminal,
   Workflow,
@@ -25,7 +24,7 @@ import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORK
 import type { MenuItem } from '@claudio/ui/components/controls/Menu';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { DetailHost } from './components/DetailHost';
-import { BrandMark, ICON } from '@claudio/ui/components/icons';
+import { BrandMark, ICON, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from '@claudio/ui/components/motion';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
@@ -244,8 +243,8 @@ function Shell() {
   const updateAvailable = release.data?.updateAvailable === true;
 
   const home: NavItem = { to: '/', label: t('nav.home'), icon: House, count: { value: counts?.chatsWaiting, what: t('nav.badge.waiting') } };
-  // The global assistant: the sparkle is its mark, never the gradient, so the entry costs no gradient slot
-  const assistant: NavItem = { to: CLAUDIO_ASSISTANT_PATH, label: t('nav.assistant'), icon: Sparkle };
+  // The global assistant: Claudio's glyph is its mark, never the gradient, so the entry costs no gradient slot
+  const assistant: NavItem = { to: CLAUDIO_ASSISTANT_PATH, label: t('nav.assistant'), icon: ClaudioGlyph };
   const chats: NavItem = { to: '/chats', label: t('nav.chats'), icon: MessagesSquare, count: { value: counts?.chatsWorking, what: t('nav.badge.working'), live: true } };
   // The open items of the scope: neutral, since an item waiting in a column is not something running
   const tasks: NavItem = { to: TASKS_PATH, label: t('shell:nav.tasks'), icon: SquareCheck, count: { value: openTasks, what: t('shell:nav.open', { count: openTasks ?? 0 }) } };

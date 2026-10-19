@@ -488,6 +488,21 @@ a.part-of { color: inherit; text-decoration: none; }
 .il .f-accent { fill: var(--accent); }
 .il .glyph { font-family: var(--mono); font-size: 17px; font-weight: var(--fw-strong); fill: url(#il-grad); }
 .il .glyph-white { font-family: var(--mono); font-size: 15px; font-weight: var(--fw-strong); fill: #fff; }
+/* Claudio (`claudio`): a drawing derived from the logo. f-logo is the logo's own gradient (a def of
+   every instance, app: --il-logo); .cut and .f-eye paint with the page's --bg, so it stands on a page
+   background and never on a raised card. The eyes blink once per cycle. */
+.il .f-spark { fill: var(--logo-spark); }
+.il .f-eye { fill: var(--bg); }
+.il .f-logo { fill: url(#il-logo); }
+.il .cut { stroke: var(--bg); stroke-width: 3; stroke-linejoin: round; paint-order: stroke; }
+.il .stop-logo-a { stop-color: var(--logo-blue); }
+.il .stop-logo-b { stop-color: var(--logo-violet); }
+.il .a-look { transform-box: fill-box; transform-origin: center; animation: il-look 6s ease-in-out infinite; }
+@keyframes il-look { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.12); } }
+/* Claudio's colour mark (app: ClaudioMascot, .mascot-mark), where the assistant speaks. The glyph
+   (ClaudioGlyph) has no CSS: it is fill="currentColor" and takes its slot's colour. */
+.mascot-mark .mascot-body, .mascot-mark .mascot-spark { fill: var(--logo-spark); }
+.mascot-mark .mascot-eye { fill: var(--bg); }
 
 /* ---------- 15. Proyectos, tablero y tareas (proto-foundation) ----------
    The project ecosystem of docs/plans/project-ecosystem.md: module and template cards, the project
@@ -1153,8 +1168,8 @@ button.wi-mrow.sel { background: var(--sel-bg); }
    writes. A finished run and every proposal it left stand still. Classes start with ai- (a run) and
    sug- (a proposal). */
 
-/* The assistant's mark: a sparkle on a neutral tile, like .agent-mark. It turns cyan only while the
-   run works; the gradient stays on the actions. */
+/* The assistant's mark: Claudio's glyph on a neutral tile, like .agent-mark. It turns cyan only
+   while the run works; the gradient stays on the actions. */
 .ai-mark { flex-shrink: 0; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r); background: var(--bg-3); border: 1px solid var(--line-2); color: var(--fg-2); }
 .ai-mark .ico { width: 16px; height: 16px; }
 .ai-mark.sm { width: 24px; height: 24px; border-radius: var(--r-sm); }
@@ -2182,13 +2197,8 @@ a.cont-from:hover { color: var(--fg); }
 
 
 /* ---------- 22. The Claudio assistant (CW-30): the entry screen, its starters and the host prompt of a write ---------- */
-.as-hello { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.as-hello .ai-mark { width: 40px; height: 40px; border-radius: var(--r-lg); }
-.as-hello .ai-mark .ico { width: 20px; height: 20px; }
+.as-hello { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .as-hello-sub { margin: 0; font-size: var(--fs-section); line-height: 1.5; color: var(--fg-2); }
-.as-figures { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; }
-.as-figures b { font-weight: var(--fw-regular); color: var(--fg-2); }
-.as-figures .live { color: var(--live); }
 .as-starters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .as-starter { display: flex; align-items: flex-start; gap: 12px; min-height: 64px; padding: 12px 14px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--fg); text-align: left; cursor: pointer; }
 .as-starter:hover { border-color: var(--line-3); background: var(--bg-3); }
@@ -2197,6 +2207,27 @@ a.cont-from:hover { color: var(--fg); }
 .as-starter-title { font-size: var(--fs-body); font-weight: var(--fw-regular); }
 .as-starter-ask { font-size: var(--fs-small); line-height: 1.45; color: var(--fg-2); }
 .as-starter .badge { align-self: flex-start; }
+.as-recents-section { display: flex; flex-direction: column; gap: 6px; }
+.as-recents-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.as-recents-all { font-size: var(--fs-small); color: var(--accent); text-decoration: none; }
+.as-recents { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.as-recents li { border-bottom: 1px solid var(--line); }
+.as-recent { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 8px; color: var(--fg); text-decoration: none; }
+.as-recent:hover { background: var(--bg-hover); }
+.as-recent-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-body); font-weight: var(--fw-regular); }
+.as-recent-meta { display: flex; flex: none; align-items: baseline; gap: 12px; font-size: var(--fs-small); }
+.as-recent-sep { display: none; color: var(--fg-3); }
+.as-recent-word.is-live { color: var(--live); }
+.as-recent-word.is-idle { color: var(--idle); }
+.as-recent-word.is-bad { color: var(--bad); }
+.as-recent-time { min-width: 72px; text-align: right; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.as-recents-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: var(--fs-small); color: var(--fg-3); }
+.m-screen .as-recent { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; min-height: 56px; }
+.m-screen .as-recent-title { flex: none; max-width: 100%; }
+.m-screen .as-recent-meta { gap: 0; }
+.m-screen .as-recent-sep { display: inline; }
+.m-screen .as-recent-time { min-width: 0; text-align: left; }
+.m-screen .as-recents-all { display: inline-flex; align-items: center; min-height: var(--touch); padding: 0 8px; margin: -12px -8px -12px 0; }
 .as-context { gap: 4px; padding-right: 4px; }
 .as-context .x { display: inline-grid; padding: 0; border: 0; background: transparent; cursor: pointer; place-items: center; width: 20px; height: 20px; border-radius: var(--r-full); color: var(--fg-3); }
 .as-context .x:hover { background: var(--bg-4); color: var(--fg); }

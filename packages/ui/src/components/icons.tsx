@@ -19,7 +19,7 @@ import {
   type LucideIcon,
   type LucideProps,
 } from 'lucide-react';
-import { useId } from 'react';
+import { forwardRef, useId } from 'react';
 
 /** Every icon in the app uses this size/stroke unless a component says otherwise. */
 export const ICON: LucideProps = { size: 16, strokeWidth: 1.75, 'aria-hidden': true };
@@ -52,6 +52,46 @@ export function BrandMark({ size = 26 }: { size?: number }) {
     </svg>
   );
 }
+
+const SPARK_PATH = 'M0 -19Q6 -6 19 0Q6 6 0 19Q-6 6 -19 0Q-6 -6 0 -19Z';
+
+/**
+ * Claudio, the assistant's mascot in colour: the logo's prompt block as a small character with
+ * eyes looking up, and the spark above it, as in docs/design-system/illustrations/claudio-mark.svg.
+ * It speaks where the assistant speaks (the first message of its chat), from 20 px up. Colours come
+ * from `.mascot-mark` in styles/primitives.css; the eyes paint with the page's --bg.
+ */
+export function ClaudioMascot({ size = 24 }: { size?: number }) {
+  return (
+    <svg className="mascot-mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden focusable="false">
+      <rect className="mascot-body" x="2.5" y="6.5" width="12.5" height="17" rx="3.5" />
+      <ellipse className="mascot-eye" cx="9.3" cy="12.2" rx="1.2" ry="1.65" />
+      <ellipse className="mascot-eye" cx="12.5" cy="12.2" rx="1.2" ry="1.65" />
+      <path className="mascot-spark" transform="translate(19.2 5) scale(0.235)" d={SPARK_PATH} />
+    </svg>
+  );
+}
+
+/**
+ * Claudio in one colour (docs/design-system/illustrations/claudio-glyph.svg), for icon slots at 14
+ * and 16 px: it takes the slot's colour like the stroke icons beside it, so a live run's tile turns
+ * it --live and the sidebar shows no static cyan. Typed as a LucideIcon so NavItem, the palette and
+ * MenuItem accept it; it is a filled character, so `strokeWidth` does not apply and is ignored.
+ */
+export const ClaudioGlyph: LucideIcon = forwardRef<SVGSVGElement, Omit<LucideProps, 'ref'>>(function ClaudioGlyph(
+  { size = 16, color, strokeWidth: _strokeWidth, absoluteStrokeWidth: _absolute, ...rest },
+  ref,
+) {
+  return (
+    <svg ref={ref} width={size} height={size} viewBox="0 0 16 16" fill={color ?? 'currentColor'} focusable="false" {...rest}>
+      <path
+        fillRule="evenodd"
+        d="M3.75 3.75H7.0A2.25 2.25 0 0 1 9.25 6.0V13.25A2.25 2.25 0 0 1 7.0 15.5H3.75A2.25 2.25 0 0 1 1.5 13.25V6.0A2.25 2.25 0 0 1 3.75 3.75ZM4.75 8.4A0.8 1.15 0 1 0 6.35 8.4A0.8 1.15 0 1 0 4.75 8.4ZM6.95 8.4A0.8 1.15 0 1 0 8.55 8.4A0.8 1.15 0 1 0 6.95 8.4Z"
+      />
+      <path transform="translate(12.4 3.6) scale(0.1737)" d={SPARK_PATH} />
+    </svg>
+  );
+});
 
 const TOOL_ICONS: Array<[RegExp, LucideIcon]> = [
   [/^(bash|powershell|repl|monitor)/i, SquareTerminal],
