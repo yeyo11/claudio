@@ -93,7 +93,7 @@ export function WorktreesWidget({ project, title, id, config }: WidgetProps) {
                 <GitBranch size={12} strokeWidth={1.75} aria-hidden />
                 {worktree.branch ?? worktree.name ?? worktree.path}
               </span>
-              {worktree.createdBy && (
+              {worktree.createdBy?.kind === 'orchestration' && (
                 <span className="small muted ellipsis">
                   <Workflow size={12} strokeWidth={1.75} aria-hidden /> {worktree.createdBy.taskName}
                 </span>

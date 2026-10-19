@@ -8,7 +8,8 @@ import { Card, Empty } from '@claudio/ui/components/ui';
 /** One worktree of the project: its branch, who made it, and a way into a chat in it. */
 function WorktreeRow({ worktree }: { worktree: ProjectWorktree }) {
   const { t } = useTranslation('projects');
-  const creator = worktree.createdBy;
+  // Only an orchestration task's worktree is drawn here until the Worktrees tab shows every maker
+  const creator = worktree.createdBy?.kind === 'orchestration' ? worktree.createdBy : null;
   return (
     <li className="worktree-row">
       <div className="worktree-main">

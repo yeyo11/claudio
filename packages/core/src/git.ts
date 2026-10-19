@@ -95,18 +95,29 @@ export interface WorktreeEntry {
   branch: string | null;
   /** The reason it was locked with, `''` when locked with none; null when not locked */
   locked: string | null;
+  /** The bare repository itself, listed first where a main checkout would be */
+  bare: boolean;
+  detached: boolean;
+  /** Its directory is gone: git would prune it */
+  prunable: boolean;
 }
 
-/** Every worktree git knows of in `repo`'s repository, the main checkout first. */
+/**
+ * Every worktree git knows of in `repo`'s repository, the main checkout first. The list path reads
+ * git's files instead (`worktreesOf` in `repos.ts`); this is its oracle and its fallback.
+ */
 export function worktrees(repo: string): WorktreeEntry[] {
   const entries: WorktreeEntry[] = [];
   for (const line of git(repo, ['worktree', 'list', '--porcelain'], 10_000).split('\n')) {
-    if (line.startsWith('worktree ')) entries.push({ path: line.slice('worktree '.length), branch: null, locked: null });
+    if (line.startsWith('worktree ')) entries.push({ path: line.slice('worktree '.length), branch: null, locked: null, bare: false, detached: false, prunable: false });
     const last = entries[entries.length - 1];
     if (!last) continue;
     if (line.startsWith('branch ')) last.branch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
     else if (line === 'locked') last.locked = '';
     else if (line.startsWith('locked ')) last.locked = line.slice('locked '.length);
+    else if (line === 'bare') last.bare = true;
+    else if (line === 'detached') last.detached = true;
+    else if (line === 'prunable' || line.startsWith('prunable ')) last.prunable = true;
   }
   return entries;
 }
@@ -159,8 +170,32 @@ export function contains(dir: string, commit: string): boolean {
  */
 export function addWorktree(repo: string, path: string, branch: string, base: string): void {
   if (existsSync(path)) return;
-  if (branchExists(repo, branch)) git(repo, ['worktree', 'add', path, branch]);
-  else git(repo, ['worktree', 'add', '-b', branch, path, base]);
+  try {
+    if (branchExists(repo, branch)) git(repo, ['worktree', 'add', path, branch]);
+    else git(repo, ['worktree', 'add', '-b', branch, path, base]);
+  } finally {
+    worktreesChanged();
+  }
+}
+
+/** What caches a repository's worktrees (`RepoIndex`), held weakly so a finished Core is not kept alive. */
+const worktreeCaches = new Set<WeakRef<{ invalidate(): void }>>();
+
+export function watchWorktrees(cache: { invalidate(): void }): void {
+  worktreeCaches.add(new WeakRef(cache));
+}
+
+/**
+ * Says a worktree was added or removed, so every cache of worktree lists and placements reads them
+ * again. `addWorktree` and `removeWorktree` call it; so does anything else that makes or removes
+ * one (a chat the CLI starts with `--worktree`, a forced `git worktree remove`).
+ */
+export function worktreesChanged(): void {
+  for (const ref of worktreeCaches) {
+    const cache = ref.deref();
+    if (cache) cache.invalidate();
+    else worktreeCaches.delete(ref);
+  }
 }
 
 /** Paths git left unmerged, i.e. the ones someone has to resolve. */
@@ -259,7 +294,11 @@ export function removeWorktree(repo: string, path: string, force = false): void 
   } catch {
     /* not locked */
   }
-  git(repo, ['worktree', 'remove', ...(force ? ['--force'] : []), path]);
+  try {
+    git(repo, ['worktree', 'remove', ...(force ? ['--force'] : []), path]);
+  } finally {
+    worktreesChanged();
+  }
 }
 
 // ---------- what a branch has changed ----------

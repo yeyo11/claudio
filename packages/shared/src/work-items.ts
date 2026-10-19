@@ -55,7 +55,7 @@ export const PROJECT_MODULES = valuesOf<ProjectModule>()(['board', 'team', 'docu
 
 export const PROJECT_TEMPLATE_IDS = valuesOf<ProjectTemplateId>()(['simple', 'software', 'library', 'research', 'custom']);
 
-export const PROJECT_CHANGES = valuesOf<ProjectChange>()(['name', 'key', 'modules', 'settings']);
+export const PROJECT_CHANGES = valuesOf<ProjectChange>()(['name', 'key', 'modules', 'settings', 'path']);
 
 /** The board's columns, left to right */
 export const WORK_ITEM_STATUSES = valuesOf<WorkItemStatus>()(['backlog', 'todo', 'in_progress', 'in_review', 'done']);

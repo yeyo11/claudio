@@ -22,7 +22,7 @@ import {
 } from '@claudio/shared';
 import { isFromIssue } from './trackers/links.ts';
 import { pasted,PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION } from './prompt-rules.ts';
-import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees } from './git.ts';
+import { addWorktree, branchExists, git, headCommit, isGitRepo, isIgnored, lockWorktree, mainCheckout, topLevel, worktrees, worktreesChanged } from './git.ts';
 import { WorkItemError } from './work-item-validation.ts';
 import type { WorkItemService } from './work-items.ts';
 
@@ -251,6 +251,7 @@ export function itemWorktree(projectPath: string, item: Pick<WorkItem, 'key' | '
  */
 function forgetWorktree(repo: string, path: string): void {
   git(repo, ['worktree', 'remove', '--force', '--force', path], 30_000);
+  worktreesChanged();
 }
 
 // ---------- orchestrating a selection ----------

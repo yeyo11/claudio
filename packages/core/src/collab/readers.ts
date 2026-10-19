@@ -24,8 +24,8 @@ import type {
 } from '@claudio/shared';
 import { stateFromRun, type RunFacts } from '../chat-model.ts';
 import type { ChatRecord } from '../chat-records.ts';
-import type { WorktreeFacts } from '../locations.ts';
 import { attachProject, type ProjectRecord } from '../projects.ts';
+import type { Place } from '../repos.ts';
 
 /*
  * The serving side's only view of this install (docs/plans/collaborators.md §3.5): seven read-only
@@ -141,7 +141,8 @@ export interface OrchestrationResult {
 /** What the readers read from. Each member is a read of an existing store; nothing here writes. */
 export interface ReaderSources {
   projects(): readonly ProjectRecord[];
-  worktreeOf(dir: string): WorktreeFacts | null;
+  /** Which repository a directory is in, and whether it is still there */
+  place(dir: string): Place;
   /** Every chat record (`chats` rows) */
   chats(): readonly ChatRecord[];
   /** Chats an agent is working in now, with what it is doing */
@@ -226,9 +227,14 @@ function chatsOf(sources: ReaderSources, place: SharedPlace): Array<{ record: Ch
   for (const record of sources.chats()) {
     // Claudio's own internal chats (the assistant, judges) are not the project's work
     if (record.origin === 'internal' || record.claudioAssistant) continue;
-    const attached = attachProject(projects, record.workingDir ?? record.cwd, sources.worktreeOf) ?? attachProject(projects, record.cwd, sources.worktreeOf);
+    const at = (dir: string) => {
+      const placed = sources.place(dir);
+      const project = attachProject(projects, dir, placed);
+      return project ? { project, branch: placed.repo?.worktree ? placed.repo.branch : null } : null;
+    };
+    const attached = at(record.workingDir ?? record.cwd) ?? at(record.cwd);
     if (attached?.project.id !== place.projectId) continue;
-    out.push({ record, branch: attached.worktree?.branch ?? null });
+    out.push({ record, branch: attached.branch });
   }
   return out;
 }

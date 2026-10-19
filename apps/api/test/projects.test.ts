@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import type { ClaudioEvent, Board, Project, ProjectSettings, ProjectTemplate, WorkItem } from '@claudio/shared';
+import type { ClaudioEvent, Board, Project, ProjectPathInspection, ProjectSettings, ProjectTemplate, WorkItem } from '@claudio/shared';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
@@ -186,5 +187,82 @@ test('the Board switched off and on again keeps its work items, their keys, colu
     assert.equal((await create({ title: 'Refunds' })).number, second.number + 1);
   } finally {
     await app.inject({ method: 'DELETE', url: `/api/projects/${id}` });
+  }
+});
+
+/** A repository with one commit, a `sub/` directory and an origin with credentials, and a linked worktree beside it. */
+function repoWithWorktree(): { main: string; wt: string } {
+  const main = realpathSync(scratch());
+  const run = (...a: string[]) => execFileSync('git', ['-C', main, '-c', 'user.name=a', '-c', 'user.email=a@b', ...a], { stdio: 'pipe' });
+  run('init', '-q', '-b', 'main');
+  mkdirSync(join(main, 'sub'));
+  writeFileSync(join(main, 'sub', 'f'), 'x');
+  run('add', '-A');
+  run('commit', '-q', '-m', 'init');
+  run('remote', 'add', 'origin', 'https://user:secret@github.com/acme/shop.git');
+  const wt = `${main}-stage`;
+  run('worktree', 'add', '-q', '-b', 'stage', wt);
+  return { main, wt };
+}
+
+test('inspect says what a path is before import, and import refuses a worktree and a repository already imported', async () => {
+  const { main, wt } = repoWithWorktree();
+  assert.equal((await app.inject('/api/projects/inspect')).statusCode, 400);
+
+  const inWorktree = (await app.inject(`/api/projects/inspect?path=${encodeURIComponent(join(wt, 'sub'))}`)).json<ProjectPathInspection>();
+  assert.deepEqual(inWorktree.conflict, { kind: 'linked-worktree', importPath: join(main, 'sub'), repoName: basename(main) });
+  assert.equal(inWorktree.repo?.remote, 'https://github.com/acme/shop.git', 'credentials never leave core');
+  assert.equal(inWorktree.worktreeCount, 1);
+
+  const refused = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: join(wt, 'sub') }) });
+  assert.equal(refused.statusCode, 400);
+  assert.deepEqual([refused.json<{ code: string }>().code, refused.json<{ detail: string }>().detail], ['linked-worktree', join(main, 'sub')]);
+
+  const imported = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: main }) });
+  assert.equal(imported.statusCode, 201);
+  const project = imported.json<Project>();
+  try {
+    assert.deepEqual(
+      project.worktrees.map((w) => [w.path, w.main, w.cwd]),
+      [
+        [main, true, main],
+        [wt, false, wt],
+      ],
+    );
+    const again = await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: main }) });
+    assert.deepEqual([again.statusCode, again.json<{ code: string }>().code, again.json<{ detail: string }>().detail], [409, 'already-a-project', project.id]);
+    const inspected = (await app.inject(`/api/projects/inspect?path=${encodeURIComponent(main)}`)).json<ProjectPathInspection>();
+    assert.deepEqual(inspected.conflict, { kind: 'already-a-project', project: { id: project.id, name: project.name } });
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/projects/${project.id}` });
+  }
+});
+
+test('PATCH path re-points a project imported inside a worktree and answers each refusal with its code', async () => {
+  const { main, wt } = repoWithWorktree();
+  const other = repoWithWorktree().main;
+  // A projects.json from before the refusal: its one project lies inside the linked worktree
+  const dir = scratch();
+  mkdirSync(join(dir, 'data'), { recursive: true });
+  writeFileSync(join(dir, 'data', 'projects.json'), JSON.stringify({ projects: [{ id: 'in-wt', name: 'Stage', path: wt }] }));
+  const own = new Core(loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDE_CONFIG_DIR: join(dir, 'claude'), CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'), CLAUDIO_DATA_DIR: join(dir, 'data') }));
+  const server = await buildApp(own, { logLevel: 'silent', webDist: join(dir, 'no-ui') });
+  try {
+    assert.equal((await server.inject('/api/projects')).json<Project[]>()[0]?.insideWorktreeOf, main);
+    const patch = (path: string) => server.inject({ method: 'PATCH', url: '/api/projects/in-wt', ...json({ path }) });
+    for (const [path, status, code] of [
+      [other, 400, 'other-repository'],
+      [join(wt, 'sub'), 400, 'linked-worktree'],
+      [join(main, 'nope'), 400, 'not-a-directory'],
+    ] as const) {
+      const res = await patch(path);
+      assert.deepEqual([res.statusCode, res.json<{ code: string }>().code], [status, code], path);
+    }
+    const ok = await patch(main);
+    assert.equal(ok.statusCode, 200);
+    assert.deepEqual([ok.json<Project>().id, ok.json<Project>().path, ok.json<Project>().insideWorktreeOf], ['in-wt', main, null]);
+  } finally {
+    await server.close();
+    own.shutdown();
   }
 });
