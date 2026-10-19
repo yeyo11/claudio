@@ -207,7 +207,12 @@ on in its directory.
   where, not git's own error as a 400.
 - **Two projects of one repository** (its main checkout and a folder of it, say) can have the same
   key. The lock's reason names the project that made the worktree, and another project asking for
-  the same path gets a 409 asking for another key prefix.
+  the same path gets a 409 asking for another key prefix. A project is a repository and a
+  subdirectory ([projects.md](projects.md#a-project-is-a-repository)), so two projects of a
+  monorepo, or two clones of one remote, are distinct projects: a repository's worktrees are listed
+  under each project of it, but chats, items and counts stay each project's own. Re-pointing a
+  project at the main repository (`PATCH /projects/:id` `path`) keeps its items, and an item keeps
+  the branch and worktree path it recorded.
 
 Refused: an epic (400); an item in `done` (409: nothing an agent does may take an item out of
 `done`); an item a chat or a node is already working on (409). A draft and a launch that name the
