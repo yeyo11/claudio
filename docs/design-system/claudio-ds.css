@@ -1168,8 +1168,8 @@ button.wi-mrow.sel { background: var(--sel-bg); }
    writes. A finished run and every proposal it left stand still. Classes start with ai- (a run) and
    sug- (a proposal). */
 
-/* The assistant's mark: a sparkle on a neutral tile, like .agent-mark. It turns cyan only while the
-   run works; the gradient stays on the actions. */
+/* The assistant's mark: Claudio's glyph on a neutral tile, like .agent-mark. It turns cyan only
+   while the run works; the gradient stays on the actions. */
 .ai-mark { flex-shrink: 0; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r); background: var(--bg-3); border: 1px solid var(--line-2); color: var(--fg-2); }
 .ai-mark .ico { width: 16px; height: 16px; }
 .ai-mark.sm { width: 24px; height: 24px; border-radius: var(--r-sm); }

@@ -1316,7 +1316,7 @@ export const keys = {
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
   chatList: (filter: ChatFilter) =>
-    ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
+    ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : '', filter.assistant ? 'assistant' : ''] as const,
   // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
   // (and the panel's timer while it works) refresh everything there
   chatChanges: (id: string, scope: ChangeScope = {}) => ['chat', id, 'changes', scope.commit ?? '', scope.uncommitted ? 'uncommitted' : ''] as const,
