@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -265,4 +265,17 @@ test('PATCH path re-points a project imported inside a worktree and answers each
     await server.close();
     own.shutdown();
   }
+});
+
+test('a suggestion is hidden and shown again over the routes, and a missing key is refused', async () => {
+  const key = join(root, 'some', 'directory');
+  const hide = await app.inject({ method: 'POST', url: '/api/projects/candidates/hide', ...json({ key }) });
+  assert.equal(hide.statusCode, 204);
+  const file = join(root, 'data', 'project-suggestions.json');
+  assert.match(readFileSync(file, 'utf8'), /some/);
+  const unhide = await app.inject({ method: 'POST', url: '/api/projects/candidates/unhide', ...json({ key }) });
+  assert.equal(unhide.statusCode, 204);
+  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { hidden: [] });
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/candidates/hide', ...json({}) })).statusCode, 400);
+  assert.equal((await app.inject('/api/projects/candidates')).statusCode, 200);
 });
