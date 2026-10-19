@@ -1651,19 +1651,24 @@ confined chat, then CW-17, the write tools), by `reference/tools/assistant_entry
 `DesktopAsistenteClaudioChat`, `MobileAsistenteClaudio`, `MobileAsistenteClaudioChat` and `MobileAsistenteClaudioMas`. The
 decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
-- **Where it lives.** A sidebar item "Asistente" with the sparkle, in the first group under Inicio (route
+- **Where it lives.** A sidebar item "Asistente" with Claudio's glyph, in the first group under Inicio (route
   `/assistant`), and on a phone the same item as the first row of Más. The tab bar keeps its four tabs and Más is the one
-  lit while the screen is open. The palette's "Asistente de Claudio" action is always present and is not drawn. The sparkle is the
-  plain nav icon on desktop and the neutral `.ai-mark` tile (28 px inside a `.cell`) on the phone: never the gradient, so the entry
-  costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
-- **The entry screen is content, not an `Empty`.** The mark, the greeting (`--fs-title` on both), one line saying
-  what the assistant does and that it asks before writing, the live figures in sans and tabular (the counts of what is running in
-  `--live`, today's spend neutral: they are live things, and the line is optional if the build stays small), "Para
-  empezar" with the starters, and the composer, which is the chat's own (`StartComposer`, see "The streaming answer, the
-  composer's place, and one composer everywhere"): the same card, editor, chips and keys line, without the "+", the stop and
-  the permission chip; model and effort show as chips that open the chat's options popover. The page has one gradient surface, the send button. The composer is **not**
-  energy-bordered: nothing runs yet. Once the first turn runs it is the chat's working composer and takes the screen's one
-  energy border, as on any chat.
+  lit while the screen is open. The palette's "Asistente de Claudio" action is always present and is not drawn. The assistant's mark is Claudio. In
+  the nav, the palette and on the Más row it is `ClaudioGlyph`, in the slot's own colour. It is never the gradient, so the
+  entry costs no gradient slot on any screen. `.nav-item.on` keeps the shell's own rail.
+- **The entry screen is content, with its mascot.** At the top, centred, is the `claudio` illustration (`md`, `sm`
+  on a phone): Claudio, the logo's prompt block, peeking out of the C. It is always there, in every state of the page,
+  because it is the assistant's face, not an empty state. Under it come the greeting ("Hola, soy Claudio", `--fs-title`)
+  and one line saying what the assistant does. Then come the composer (New chat's `StartComposer`, unchanged, see "The
+  streaming answer, the composer's place, and one composer everywhere"): the same card, editor, chips and keys line,
+  without the "+", the stop and the permission chip; model and effort show as chips that open the chat's options popover.
+  Then "Para empezar" with the starters, and "Recientes". Recientes lists up to five of the assistant's own chats (three
+  on a phone), each with its title, its state as a word and the time, and **Ver todas** opens Chats filtered to them. The
+  page shows no live figures: what is running is on Home and in the status bar. A recent row never moves. There is no
+  spinner, ticker or rail, only the word in its status colour. The gradient is on the composer's hairline, on Enviar, and
+  on the drawing's C, which is the drawing's own element (§4). There is no halo and no `.grad-text`. The composer is
+  **not** energy-bordered: nothing runs yet. Once the first turn runs it is the chat's working composer and takes the
+  screen's one energy border, as on any chat.
 - **Starters** are buttons that fill the composer, never send. Each shows what it is about and the sentence it fills in
   guillemets. The ones that write carry `.badge.b-warn` "pide permiso" (warn means needs authorisation, and says it in
   words). On a phone three starters show, one column, 44 px at least.
@@ -1684,12 +1689,15 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.as-hello`, `.as-hello-sub`, `.as-figures` (`.live`) | new, on `/assistant` | the greeting block. `.as-hello` makes the `.ai-mark` 40 px; the figures are sans, tabular, and only the live counts are cyan |
+| `.as-hello`, `.as-hello-sub` | new, on `/assistant` | the greeting block, centred: the `claudio` illustration, the title and the line; no live figures |
 | `.as-starters`, `.as-starter` (`-body`, `-title`, `-ask`) | new, the entry's suggestion chips | a two-column grid on desktop and one column on a phone; the button fills the composer. A `.badge.b-warn` on the right when it writes |
+| `.as-recents-section` (`.as-recents-head`, `.as-recents-all`) | new, last on `/assistant` | "Recientes" and the link **Ver todas** (`--fs-small`, `--accent`, a 44 px target on a phone); absent while loading and with no chats |
+| `.as-recent` (`-title`, `-meta`, `-word` with `.is-live`, `.is-idle`, `.is-bad`, `-time`) | new, a row of Recientes | a `Link` to the chat, 40 px (56 on a phone, two lines: the title, then "word · time"); the word in its status colour, idle said to a screen reader only; the time tabular and faint; hover is `--bg-hover`; nothing moves |
+| `.as-recents-error` | new | one `--fg-3` line and a `btn-ghost btn-sm` **Reintentar**; no `ErrorBox`, no illustration |
 | `.as-context` (`.x`) | `.chip` with a clear button | "Con <project> como contexto", first in the composer's `.composer-foot`; × is a 44 px target on a phone |
 | the entry's composer | `StartComposer` of `@claudio/chat-ui` (`.composer`, `.composer-editor`, `.composer-foot`) | the chat's composer, not a box of its own: no "+", stop or permission chip, no energy border; model and effort behind the chips |
-| `.as-greeting` | the first message of an assistant chat | the sparkle on `.ai-mark.sm` and one dimmed line; the same at the top of a reopened assistant chat |
-| `.cell > .ai-mark` | the Más row | the sparkle tile at the size of the other rows' `.proj` |
+| `.as-greeting` | the first message of an assistant chat | `ClaudioMascot` at 24 px and one dimmed line; the same at the top of a reopened assistant chat |
+| `.cell > .ai-mark` | the Más row | `ClaudioGlyph` on the tile at the size of the other rows' `.proj` |
 | `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |
 
 ### The editable Home: edit mode, the add-widget picker and the Documents and Flow widgets

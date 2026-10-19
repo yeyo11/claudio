@@ -82,10 +82,12 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
         `return { forms: document.querySelectorAll('main form.composer').length, editor: !!f?.querySelector(':scope > .composer-editor[data-composer-input][contenteditable=true]'), textarea: !!document.querySelector('main textarea'),` +
         ` plus: !!w?.querySelector('.composer-plus'), attach: !!w?.querySelector('.composer-attach'), stop: !!w?.querySelector('.composer-stop'), status: !!f?.querySelector('.new-composer-foot .composer-status'), keys: !!f?.querySelector('.new-composer-foot .composer-keys kbd'),` +
         ` start: !!f?.querySelector('.new-composer-foot .new-start'), accent: !!w?.querySelector('.composer-status-word.is-accent'), energy: document.querySelectorAll('.live-energy').length, send: f?.querySelector('.new-start')?.disabled,` +
+        ` face: !!document.querySelector('.as-hello .il[data-illustration="claudio"]'), figures: document.querySelectorAll('.as-figures').length, recents: document.querySelectorAll('.as-recents-section').length,` +
         ` order: top(document.querySelector('.as-hello')) < top(f) && top(f) < top(document.querySelector('.as-starters-section')) }`,
     );
     check(box.forms === 1 && box.editor && !box.textarea, `one composer, New chat's card with the chat's editor and no textarea of its own (${JSON.stringify(box)})`);
     check(box.status && box.keys && box.start, `the chips, the key hint and the start button in the card's foot (${JSON.stringify(box)})`);
+    check(box.face && box.figures === 0, `Claudio's drawing is the greeting's, and no live figures (${JSON.stringify(box)})`);
     check(box.order, `the box sits under the greeting and over the starters (${JSON.stringify(box)})`);
     check(!box.plus && !box.attach && !box.stop && !box.accent, `no "+", no files, no stop and no permission chip: the assistant cannot use them (${JSON.stringify(box)})`);
     check(box.energy === 0 && box.send === true, `nothing runs yet, and Start waits for words (${JSON.stringify(box)})`);
@@ -110,6 +112,7 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     await page.waitFor(`return !!document.querySelector('main .composer-wrap form.composer > .composer-editor[data-composer-input]')`, { label: "the chat's composer" });
     // The greeting follows the chat's marker, which can land after the composer is drawn
     await page.waitFor(`return !!document.querySelector('.as-greeting')`, { label: "the chat opens with the assistant's greeting" });
+    check(await page.eval(`return !!document.querySelector('.as-greeting .mascot-mark')`), "the greeting carries Claudio's colour mark");
     // While the assistant works, its chat's composer is a working chat's: the "+", the stop, and the
     // screen's one energy border on the box
     await page.waitFor(`return !!document.querySelector('main form.composer.live-energy.is-working .composer-stop')`, { label: "the working assistant's composer", timeout: 20_000 });
@@ -124,6 +127,21 @@ export default async ({ page, api, check, dirs, fakeCli }) => {
     await settle();
     await page.shot('assistant-chat-working-light');
     await page.eval(`document.documentElement.setAttribute('data-theme', 'dark'); return true`);
+
+    // ---- back on the entry, the chat is the first of Recientes, and Ver todas filters Chats to it ----
+    await page.goto('/assistant', 1200);
+    await page.waitFor(`return !!document.querySelector('.as-recents-section .as-recent')`, { label: 'the recents list the chat' });
+    const recents = await page.eval(
+      `const top = (el) => el?.getBoundingClientRect().top ?? -1;` +
+        `const first = document.querySelector('.as-recents-section .as-recent');` +
+        `return { href: first?.getAttribute('href'), after: top(document.querySelector('.as-starters-section')) < top(document.querySelector('.as-recents-section')), energy: document.querySelectorAll('.live-energy').length, moving: document.querySelectorAll('.as-recents-section .spinner, .as-recents-section .crow-ticker').length }`,
+    );
+    check(recents.href === '/chats/' + made[made.length - 1].chat, `the first recent links to the chat just started (${JSON.stringify(recents)})`);
+    check(recents.after && recents.moving === 0, `the recents follow the starters and nothing in them moves (${JSON.stringify(recents)})`);
+    await page.shot('assistant-recents-dark');
+    await page.click('.as-recents-all', undefined, 600);
+    await page.waitFor(`return location.pathname === '/chats' && location.search.includes('assistant=1')`, { label: 'Ver todas opens Chats filtered' });
+    check(await page.eval(`return [...document.querySelectorAll('.filter-chip')].some((c) => /From the assistant|Del asistente/.test(c.textContent ?? ''))`), 'the "From the assistant" chip shows');
 
     // ---- the wizard hands a new, empty project to the assistant ----
     await page.goto('/projects/new', 1200);
