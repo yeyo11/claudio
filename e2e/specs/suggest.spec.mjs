@@ -67,7 +67,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // ---- Suggest tasks, on a desktop ----
     await page.viewport(1440, 1000);
     await page.goto(`/tasks?project=${projectId}`, 1500);
-    // A board worked by a team has the flow's button beside the views, and Suggest keeps its sparkle alone
+    // A board worked by a team has the flow's button beside the views, and Suggest keeps its Claudio glyph alone
     await page.click('.workitem-head .workitem-suggest-icon[aria-label="Suggest tasks"]', undefined, 800);
     await page.waitFor(`return location.search.includes('suggest=1') && !!document.querySelector('.dialog .suggest-body')`, { label: 'the dialog, in the address' });
     check((await page.text('.dialog')).includes('created in Backlog'), 'the dialog says where the tasks go');
