@@ -633,6 +633,8 @@ export class Core {
   private systemCache: { at: number; gen: number; value: SystemRead } | null = null;
   private systemPending: { gen: number; promise: Promise<SystemRead> } | null = null;
   private systemGen = 0;
+  /** The CLI version the last system read saw, so a change reads the model lists again */
+  private cliVersionSeen: string | null = null;
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
@@ -1700,9 +1702,21 @@ export class Core {
 
   private withUptime(value: SystemRead): SystemInfo {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
-    // half a minute, while this is a file the CLI writes, cached by its own mtime
+    // half a minute, while the models are the default account's stored `initialize` list
     // The account in use moves with rotation and sign-ins, faster than the system read is redone
     return { ...value, auth: { ...value.auth, inUse: this.accountInUse() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+  }
+
+  /**
+   * The CLI changed under the running server (an in-app update, a package upgrade): what `/model`
+   * offers may have changed with it, so every account's list is read again. The boot read is the
+   * accounts watch's, so the first version seen only sets the mark.
+   */
+  private noteCliVersion(version: string | null): void {
+    if (!version || version === this.cliVersionSeen) return;
+    const changed = this.cliVersionSeen !== null;
+    this.cliVersionSeen = version;
+    if (changed) void this.accounts.warmModels({ checkVersion: true }).catch(() => undefined);
   }
 
   private readSystem(join = true): Promise<SystemRead> {
@@ -1729,6 +1743,7 @@ export class Core {
       // A read that finished late never replaces a newer one
       if (gen === this.systemGen && (!this.systemCache || this.systemCache.at <= at)) {
         this.systemCache = { at, gen, value };
+        this.noteCliVersion(cli.version);
         // The reading is already taken: the provider status is derived from it, not from a second spawn
         await this.providers.refresh({ only: ['claude-code'], claude: { cli, auth } }).catch(() => undefined);
       }
@@ -3503,16 +3518,20 @@ export class Core {
         if (account.kind === 'login' && !account.signedIn) void this.accounts.refresh(account.id).catch(() => undefined);
       }
     };
-    const pass = (): void => {
+    // The CLI's `initialize` list is the only model list (no turn, no tokens). The first pass reads it
+    // at boot, in the background, after asking the CLI its version, so a list read under an older CLI
+    // is read again; the later ones read it for an account signed in since, or one whose read failed
+    const pass = (checkVersion = false): void => {
       try {
         refresh();
         identify();
       } catch {
         // No cache is no reading, and an account that cannot be read stays as it was
       }
+      void this.accounts.warmModels({ checkVersion }).catch(() => undefined);
     };
-    pass();
-    this.accountsTimer = setInterval(pass, ACCOUNTS_CACHE_MS);
+    pass(true);
+    this.accountsTimer = setInterval(() => pass(), ACCOUNTS_CACHE_MS);
     this.accountsTimer.unref();
   }
 

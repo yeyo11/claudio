@@ -394,6 +394,11 @@
       "max": "Max"
     }
   },
+  "models": {
+    "loading": "Loading models…",
+    "failed": "Couldn't read the CLI's list",
+    "retry": "Retry"
+  },
   "spendCap": {
     "title": "The daily spend cap was reached",
     "amounts": "{{spent}} of {{cap}} today, as the CLI reported it.",

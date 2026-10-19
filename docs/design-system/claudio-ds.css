@@ -278,6 +278,7 @@
 .menu-item { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--r-sm); border: 0; background: none; text-align: left; font-size: var(--fs-small); color: var(--fg); cursor: pointer; }
 .menu-item:hover, .menu-item.on { background: var(--bg-3); }
 .menu-item.danger { color: var(--bad); }
+.combobox-status { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 10px; font-size: var(--fs-small); color: var(--fg-3); }
 .tooltip { display: inline-flex; flex-direction: column; gap: 2px; background: var(--fg); color: var(--bg); border-radius: var(--r); padding: 7px 10px; font-size: var(--fs-small); box-shadow: var(--shadow-pop); }
 .toast { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-width: 320px; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); position: relative; overflow: hidden; }
 .toast::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--grad); transform-origin: left; animation: toast-drain 5s linear infinite; }

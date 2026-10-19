@@ -219,6 +219,9 @@ with a `control_response`:
 - `interrupt` — the running command's tree gets SIGTERM, its `tool_result` is
   `The user interrupted this command.` (`is_error: true`), and the turn ends with a `result` of
   `subtype: "error_during_execution"`, `is_error: true`. The process stays up for the next message.
+- `initialize` — `{ commands: [], models, account }`: the models of a Max account's `/model` (`default`,
+  `opus`, `sonnet`, `haiku`; `default` resolves to the same model as `sonnet`), or the list under
+  `"@models"` in the scripts file, read on every handshake. It is the only model list Claudio offers.
 - `set_permission_mode` (also emits `system`/`status` with the mode) and `set_model` — success.
 - `get_context_usage` (`detail`: `summary` or `full`, `full` when absent; anything else is the recorded
   error `get_context_usage: detail must be 'summary' or 'full'`) — the answer recorded in

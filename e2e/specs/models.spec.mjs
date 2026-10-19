@@ -1,48 +1,46 @@
-// The models a person may pick. Claudio keeps no list of its own: it reads the options the CLI
-// caches in its own state file, which the CLI has already filtered by what the account's
-// subscription allows, so a model added to a plan shows up without a release here.
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+// The models a person may pick. Claudio keeps no list of its own: the only list is the one the CLI
+// answers `initialize` with (no turn, no tokens), read per account at boot and when the CLI changes,
+// already filtered by what the account's subscription allows, in the order and with the names of
+// `/model`.
+import { writeFileSync } from 'node:fs';
 
 // The fake Claude is the one agent, so a New chat starts on Claude and its models
 export const fakeCli = true;
 
-const ALIASES = ['fable', 'opus', 'sonnet', 'haiku'];
+const LISTED = [
+  { value: 'default', resolvedModel: 'claude-e2e-5', displayName: 'Default (recommended)', description: 'E2E 5 · the one this account may run' },
+  { value: 'claude-e2e-5[1m]', resolvedModel: 'claude-e2e-5[1m]', displayName: 'E2E (1M)', description: 'E2E 5 with a million tokens' },
+  // Resolves to the same model as `default`: `/model` lists both, and so does the picker
+  { value: 'e2e', resolvedModel: 'claude-e2e-5', displayName: 'E2E', description: 'E2E 5' },
+];
 
-export default async ({ page, api, check, dirs }) => {
-  mkdirSync(dirs.configDir, { recursive: true });
-  writeFileSync(
-    join(dirs.configDir, '.claude.json'),
-    JSON.stringify({
-      additionalModelOptionsCache: [
-        { value: 'claude-e2e-5[1m]', label: 'E2E', description: 'The one this account may run' },
-        { value: 'cc-update-required-1', label: 'Later (disabled)', description: 'Update the CLI to use it', disabled: true },
-      ],
-    }),
-  );
-
-  // The overview is served from a reading kept for a while, so the file lands on the one after it
-  let models = [];
-  for (let i = 0; i < 20 && !models.some((m) => m.value === 'claude-e2e-5[1m]'); i++) {
-    await page.sleep(500);
-    models = (await api.get('/overview')).body?.system?.models ?? [];
+export default async ({ page, api, check, fakeCli: fake }) => {
+  // The fake answers `initialize` with the scripts file's `@models`; asking again reads it now
+  writeFileSync(fake.scripts, JSON.stringify({ '@models': LISTED }));
+  try {
+    await listed({ page, api, check });
+  } finally {
+    // The list is stored per account: the specs after this one read the fake's own again
+    writeFileSync(fake.scripts, '{}');
+    await api.get('/accounts/default/models?refresh=1');
   }
-  check(
-    ALIASES.every((alias) => models.some((m) => m.value === alias)),
-    'the aliases the CLI always takes are offered',
-  );
-  const added = models.find((m) => m.value === 'claude-e2e-5[1m]');
-  check(added?.label === 'E2E' && added?.description === 'The one this account may run', "what the account adds comes with the CLI's own name and line for it");
-  check(models.find((m) => m.value === 'cc-update-required-1')?.disabled === true, 'one the CLI cannot run is reported as disabled');
+};
+
+async function listed({ page, api, check }) {
+  const read = await api.get('/accounts/default/models?refresh=1');
+  check(read.status === 200, `the list is read from the CLI (${read.status})`);
+
+  const values = (models) => (models ?? []).map((m) => m.value).join(',');
+  check(values(read.body) === 'default,claude-e2e-5[1m],e2e', `the CLI's order, each value once, \`default\` beside the model it resolves to (got ${values(read.body)})`);
+  const overview = (await api.get('/overview')).body?.system?.models ?? [];
+  check(values(overview) === values(read.body), 'the overview carries the default account\'s list as it is');
+  check(!overview.some((m) => ['fable', 'opus', 'sonnet', 'haiku'].includes(m.value)), 'nothing Claudio made up stands beside it');
 
   await page.goto('/chats/new', 1500);
   await page.click('.composer-status', undefined, 500);
   await page.eval(`const i=[...document.querySelectorAll('input')].find(i=>/model/i.test(i.getAttribute('aria-label')||''));if(!i)return false;i.focus();i.click();return true;`);
-  await page.sleep(400);
+  await page.waitFor(`return document.querySelectorAll('[role=listbox] [role=option]').length > 0`, { label: 'the model suggestions' });
   const shown = await page.eval(`return [...document.querySelectorAll('[role=option]')].map(o=>o.innerText.replace(/\\s+/g,' ').trim())`);
-  check(
-    shown.some((option) => option.includes('E2E')),
-    'the picker offers what the CLI offers',
-  );
-  check(!shown.some((option) => option.includes('Later')), 'a model nobody can pick is not offered');
-};
+  check(shown.length === 3, `one row per value the CLI lists (got ${shown.join(' | ')})`);
+  check(shown[0]?.startsWith('Default (recommended)') && shown.some((o) => o.startsWith('E2E E2E 5')), "the picker shows the CLI's names and lines, `default` and `e2e` both");
+}

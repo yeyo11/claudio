@@ -61,7 +61,6 @@ import {
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
-import { ModelAliasIds } from './models.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
@@ -235,9 +234,6 @@ export class ChatManager extends EventEmitter {
   /** What the code that reads a chat's process needs of this manager */
   private readonly host: ChatHost;
 
-  /** The model id each alias last ran as, which names the aliases in the model picker */
-  readonly modelIds: ModelAliasIds;
-
   /**
    * CLI processes found at start still working on a restored chat's session, by chat id: a previous
    * wrapper went away without them (a crash, or `tsx watch` killing it mid-shutdown). Nothing here
@@ -264,17 +260,15 @@ export class ChatManager extends EventEmitter {
     // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
     this.on('chat-result', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
-    this.modelIds = new ModelAliasIds(config.dataDir);
     for (const driver of drivers) {
       if (driver instanceof ClaudeCodeDriver) {
-        driver.modelSource = { file: config.globalConfigFile, seen: () => this.modelIds.get(), listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
+        driver.modelSource = { listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
       }
     }
     for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
     const manager = this;
     this.host = {
       db,
-      modelIds: this.modelIds,
       environments: this.environments,
       // Set by Core after construction, so read as it is when asked
       get permissions() {

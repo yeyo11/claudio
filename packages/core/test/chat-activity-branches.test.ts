@@ -26,7 +26,6 @@ const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', 
 /** What the fold asks of the manager, none of which a ticker depends on. */
 const host = {
   db: {},
-  modelIds: { record: () => {} },
   environments: new Map(),
   permissions: null,
   emit: () => {},
