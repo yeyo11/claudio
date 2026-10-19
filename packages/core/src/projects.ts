@@ -71,7 +71,12 @@ export function attachProject(projects: readonly ProjectRecord[], dir: string, p
       let best: ProjectRecord | null = null;
       for (const p of same) {
         const sub = p.repo?.subdir ?? '';
-        if (subdirHolds(sub, repo.subdir) && sub.length > (best?.repo?.subdir.length ?? -1)) best = p;
+        if (!subdirHolds(sub, repo.subdir)) continue;
+        const longest = best?.repo?.subdir.length ?? -1;
+        // Two records of one repository and subdir (a v1 document that also held a project inside a
+        // worktree): the deepest whose path holds the directory keeps it, so neither is left empty
+        const deeper = !!best && inside(p.path, dir) && (!inside(best.path, dir) || p.path.length > best.path.length);
+        if (sub.length > longest || (sub.length === longest && deeper)) best = p;
       }
       return best;
     }
