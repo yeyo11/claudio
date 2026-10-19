@@ -48,9 +48,11 @@ function PathInspection({ set, wizard }: { set: (patch: Partial<Draft>) => void;
     <>
       {repo && (
         <span className="form-hint wizard-inspect">
-          {repo.remote
-            ? t('inspect.repo', { remote: shortRemote(repo.remote), count: found.worktreeCount, n: formatNumber(found.worktreeCount) })
-            : t('inspect.repoLocal', { count: found.worktreeCount, n: formatNumber(found.worktreeCount) })}
+          {repo.remote ? (
+            <Trans t={t} i18nKey="inspect.repo" count={found.worktreeCount} values={{ remote: shortRemote(repo.remote), n: formatNumber(found.worktreeCount) }} components={{ mono: <span className="mono" /> }} />
+          ) : (
+            t('inspect.repoLocal', { count: found.worktreeCount, n: formatNumber(found.worktreeCount) })
+          )}
         </span>
       )}
       {found.sameRemoteAs && (

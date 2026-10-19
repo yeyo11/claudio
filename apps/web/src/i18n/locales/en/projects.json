@@ -45,7 +45,8 @@
     "others": "Other directories · {{n}}",
     "othersBody": "They are not git repositories. Import them only if they are projects.",
     "moreRepos_one": "{{n}} more repository has chats",
-    "moreRepos_other": "{{n}} more repositories have chats"
+    "moreRepos_other": "{{n}} more repositories have chats",
+    "moreActions": "More actions for {{name}}"
   },
   "card": {
     "renameFailed": "Could not rename the project",
@@ -82,9 +83,9 @@
     "newChatIn": "New chat here, in {{name}}",
     "emptyTitle": "This project has no worktrees",
     "emptyBody": "Worktrees made with <mono>git worktree add</mono>, or by an orchestration task, show up here.",
-    "main": "main",
-    "detached": "detached HEAD",
-    "locked": "locked",
+    "main": "Main",
+    "detached": "Detached HEAD",
+    "locked": "Locked",
     "removed_one": "{{n}} removed worktree is still in its chats’ history",
     "removed_other": "{{n}} removed worktrees are still in their chats’ history",
     "notRepo": "This project is not a git repository",
@@ -385,8 +386,8 @@
     "saveFailed": "Could not save the lesson settings"
   },
   "inspect": {
-    "repo_one": "Git repository · origin {{remote}} · {{n}} worktree",
-    "repo_other": "Git repository · origin {{remote}} · {{n}} worktrees",
+    "repo_one": "Git repository · origin <mono>{{remote}}</mono> · {{n}} worktree",
+    "repo_other": "Git repository · origin <mono>{{remote}}</mono> · {{n}} worktrees",
     "repoLocal_one": "Git repository · {{n}} worktree",
     "repoLocal_other": "Git repository · {{n}} worktrees",
     "linkedWorktree": "It is a worktree of {{name}}. Import the main checkout.",

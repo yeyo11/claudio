@@ -91,7 +91,7 @@ function CandidateRow({ candidate: c, onHide }: { candidate: ProjectCandidate; o
         </Link>
         {narrow ? (
           <>
-            <button type="button" className="icon-btn" aria-label={hideLabel} onClick={() => setSheet(true)}>
+            <button type="button" className="icon-btn" aria-label={t('candidates.moreActions', { name: c.name })} aria-haspopup="dialog" onClick={() => setSheet(true)}>
               <Ellipsis {...ICON_SM} />
             </button>
             <Sheet open={sheet} onOpenChange={setSheet} title={c.name} side="bottom" className="project-sheet">

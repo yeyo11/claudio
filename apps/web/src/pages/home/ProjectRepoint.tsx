@@ -84,13 +84,12 @@ export function ProjectRepoint({ project }: { project: Project }) {
                 {t('common:actions.cancel')}
               </button>
               <button type="button" className="btn btn-primary repoint-confirm" data-autofocus disabled={repoint.isPending} onClick={() => repoint.mutate(target)}>
-                {repoint.isPending ? (
-                  <>
-                    <Spinner /> {t('repoint.running')}
-                  </>
-                ) : (
-                  t('repoint.confirm')
-                )}
+                <span className="repoint-confirm-state" style={repoint.isPending ? { visibility: 'hidden' } : undefined}>
+                  {t('repoint.confirm')}
+                </span>
+                <span className="repoint-confirm-state" style={repoint.isPending ? undefined : { visibility: 'hidden' }} aria-hidden={!repoint.isPending}>
+                  <Spinner /> {t('repoint.running')}
+                </span>
               </button>
             </>
           }

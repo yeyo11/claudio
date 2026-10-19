@@ -51,12 +51,13 @@ function WorktreeRow({ project, worktree }: { project: Project; worktree: Projec
           )}
           {worktree.main && <span className="badge badge-muted">{t('worktrees.main')}</span>}
           {worktree.locked !== null && (
-            <span className="badge badge-muted" title={worktree.locked || undefined}>
+            <span className="badge badge-muted">
               <Lock {...ICON_SM} aria-hidden /> {t('worktrees.locked')}
             </span>
           )}
         </span>
         <span className="small muted mono break">{worktree.path}</span>
+        {worktree.locked && <span className="small muted break worktree-locked-reason">{worktree.locked}</span>}
         {worktree.createdBy && (
           <span className="small muted meta">
             <Creator creator={worktree.createdBy} />

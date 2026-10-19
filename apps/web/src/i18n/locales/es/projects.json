@@ -45,7 +45,8 @@
     "others": "Otros directorios · {{n}}",
     "othersBody": "No son repositorios git. Impórtalos solo si son proyectos.",
     "moreRepos_one": "{{n}} repositorio más tiene chats",
-    "moreRepos_other": "{{n}} repositorios más tienen chats"
+    "moreRepos_other": "{{n}} repositorios más tienen chats",
+    "moreActions": "Más acciones de {{name}}"
   },
   "card": {
     "renameFailed": "No se ha podido renombrar el proyecto",
@@ -82,9 +83,9 @@
     "newChatIn": "Nuevo chat aquí, en {{name}}",
     "emptyTitle": "Este proyecto no tiene worktrees",
     "emptyBody": "Los worktrees creados con <mono>git worktree add</mono>, o por una tarea de orquestación, aparecen aquí.",
-    "main": "principal",
+    "main": "Principal",
     "detached": "HEAD separado",
-    "locked": "bloqueado",
+    "locked": "Bloqueado",
     "removed_one": "{{n}} worktree eliminado sigue en el historial de sus chats",
     "removed_other": "{{n}} worktrees eliminados siguen en el historial de sus chats",
     "notRepo": "Este proyecto no es un repositorio git",
@@ -385,11 +386,11 @@
     "saveFailed": "No se han podido guardar los ajustes de lecciones"
   },
   "inspect": {
-    "repo_one": "Repositorio git · origin {{remote}} · {{n}} worktree",
-    "repo_other": "Repositorio git · origin {{remote}} · {{n}} worktrees",
+    "repo_one": "Repositorio git · origin <mono>{{remote}}</mono> · {{n}} worktree",
+    "repo_other": "Repositorio git · origin <mono>{{remote}}</mono> · {{n}} worktrees",
     "repoLocal_one": "Repositorio git · {{n}} worktree",
     "repoLocal_other": "Repositorio git · {{n}} worktrees",
-    "linkedWorktree": "Es un worktree de {{name}}. Importa el checkout principal.",
+    "linkedWorktree": "Es un worktree de {{name}}. Importa la copia de trabajo principal.",
     "useMain": "Usar <mono>{{path}}</mono>",
     "alreadyProject": "Ya es el proyecto «{{name}}»",
     "otherClone": "Ya tienes otro clon de este repositorio: «{{name}}». Sus chats y tareas van por separado."
@@ -407,7 +408,7 @@
     "error": {
       "not-a-repository": "Este proyecto no está en un repositorio git, así que no hay repositorio principal al que apuntar.",
       "not-a-directory": "Esa ruta no es un directorio.",
-      "linked-worktree": "Esa ruta está dentro de un worktree, no del checkout principal.",
+      "linked-worktree": "Esa ruta está dentro de un worktree, no de la copia de trabajo principal.",
       "other-repository": "Esa ruta pertenece a otro repositorio.",
       "already-a-project": "Esa ruta ya es el proyecto «{{name}}».",
       "other": "No se ha podido apuntar el proyecto ahí."

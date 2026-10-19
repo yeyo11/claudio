@@ -279,93 +279,11 @@
 .candidate-others-toggle:hover {
   color: var(--fg);
 }
-.candidate-others-chevron {
-}
 .candidate-others-toggle[aria-expanded='true'] .candidate-others-chevron {
   transform: rotate(90deg);
 }
 .candidate-others-body {
   margin: 4px 0 0;
-}
-
-/* A neutral note: nothing failed and nothing is near a limit, so no status colour */
-.callout {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-1);
-  font-size: var(--fs-small);
-  line-height: 1.5;
-  color: var(--fg-2);
-}
-.callout > svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--fg-3);
-}
-.callout-warn {
-  border-color: var(--warn-soft);
-  background: var(--warn-soft);
-}
-.callout-warn > svg {
-  color: var(--warn);
-}
-.wizard-inspect {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.wizard-inspect-callout {
-  margin-top: 4px;
-}
-
-/* A project that points at a worktree (D12): the sentence and its one action */
-.repoint-callout {
-  align-items: center;
-  margin-bottom: 14px;
-}
-.repoint-text {
-  flex: 1;
-  min-width: 0;
-}
-.repoint-title {
-  margin: 0;
-  font-size: var(--fs-body);
-  font-weight: var(--fw-strong);
-  color: var(--fg);
-}
-.repoint-body {
-  margin: 2px 0 0;
-}
-.repoint-action {
-  flex: none;
-}
-.repoint-refusal {
-  margin-top: 12px;
-}
-.repoint-confirm {
-  min-width: 120px;
-}
-
-/* The Worktrees tab: the main checkout first, then the linked ones */
-.worktree-branch {
-  flex-wrap: wrap;
-}
-.worktree-row.is-main {
-  border-left-color: var(--line-2);
-}
-.worktree-chats {
-  color: inherit;
-}
-.worktree-removed {
-  margin: 12px 0 0;
-}
-.crow-tag-removed {
-  color: var(--fg-3);
 }
 
 @media (max-width: 900px) {
@@ -381,25 +299,6 @@
   .candidate-others-toggle {
     min-width: 44px;
     min-height: 44px;
-  }
-  .repoint-callout {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .repoint-callout > svg {
-    display: none;
-  }
-  .repoint-action,
-  .worktree-new,
-  .wizard-inspect-action {
-    min-height: 44px;
-    width: 100%;
-  }
-  .worktree-tags {
-    flex: 1 1 100%;
-  }
-  .worktree-tags .btn {
-    width: 100%;
   }
 }
 

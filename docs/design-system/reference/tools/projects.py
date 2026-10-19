@@ -462,9 +462,9 @@ def wt_row(branch, path, meta, creator='', main=False, locked=False, detached=Fa
   if detached:
     badges += '<span class="badge">HEAD separado</span>'
   if main:
-    badges += '<span class="badge">principal</span>'
+    badges += '<span class="badge">Principal</span>'
   if locked:
-    badges += f'<span class="badge" title="una orquestación sigue en él">{ico("lock", "ico ico-sm")}bloqueado</span>'
+    badges += f'<span class="badge" title="una orquestación sigue en él">{ico("lock", "ico ico-sm")}Bloqueado</span>'
   new = '' if main else (f'<a href="DesktopNuevoChat.html" class="btn btn-lg" style="width: 100%">Nuevo chat aquí</a>' if phone else '<a href="DesktopNuevoChat.html" class="btn btn-sm">Nuevo chat aquí</a>')
   head = f'<span class="row" style="gap: 8px; flex-wrap: wrap">{ico("branch", "ico ico-sm")}<span class="mono t-sm">{branch}</span>{badges}</span>'
   body = f'<span class="col grow" style="gap: 3px; min-width: 0">{head}<span class="mono t-xs fg-3 ellipsis">{path}</span>{creator}<span class="t-num t-xs fg-3">{meta}</span></span>'
