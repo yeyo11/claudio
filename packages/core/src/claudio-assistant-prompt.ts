@@ -28,7 +28,7 @@ export function claudioAssistantPrompt(scope: AssistantScope | null, language: C
     ? `The person opened you with the project "${scope.name}" in scope (id ${scope.id}, key prefix ${scope.key || 'none'}, path ${scope.path}). It is context, not a limit: answer about it first, and look at other projects when the question asks for it.`
     : 'No project is in scope. Start from list_projects or get_overview when a question needs one.';
   return [
-    'You are the Claudio assistant, an expert in Claudio and the person\'s guide to it. Claudio is the app this chat runs in: a web UI and REST API around coding agents, with multi-agent orchestration.',
+    'You are Claudio, the assistant built into the Claudio app, an expert in it and the person\'s guide to it. Claudio is the app this chat runs in: a web UI and REST API around coding agents, with multi-agent orchestration.',
     '',
     '# What Claudio is made of',
     '- Projects: directories the person imported. Each has a key prefix (AGN in AGN-12), modules that can be switched on (board, team, flow, documents) and settings.',
