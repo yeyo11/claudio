@@ -1,9 +1,10 @@
 import type { Project, ProjectCandidate } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Ellipsis, FolderOpen, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
+import { ChevronRight, Copy, Download, Ellipsis, EyeOff, FolderOpen, FolderPlus, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, keys, useChats, useProjectCandidates, useProjects } from '../api';
 import { Menu, Sheet, type MenuEntry } from '@claudio/ui/components/controls';
@@ -22,6 +23,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { GLOBAL_SCOPE, useListParams } from '../lib/list-params';
 import { useProjectScope } from '../lib/project-scope';
 import { NEW_PROJECT_PATH } from '../lib/work-items';
+import { shortRemote } from './projects/model';
 import { ModuleMarks } from './projects/parts';
 import '../insights.css';
 
@@ -58,29 +60,117 @@ function useRefreshProjects() {
   };
 }
 
-/** The directories with the most chats: what a first start offers instead of an empty screen. */
+/** What the row says about a repository: its chats, across how many worktrees, and when it was last used. */
+function candidateMeta(c: ProjectCandidate, t: TFunction<'projects'>): string {
+  const chats = t('candidates.chats', { count: c.chatCount, n: formatNumber(c.chatCount) });
+  const head = c.worktreeCount > 0 ? t('candidates.across', { chats, count: c.worktreeCount, n: formatNumber(c.worktreeCount) }) : chats;
+  return head + (c.lastActivity ? t('candidates.last', { ago: timeAgo(c.lastActivity) }) : '');
+}
+
+/** One suggestion: what it is, where it came from, and the two things to do with it (MobileProyectos). */
+function CandidateRow({ candidate: c, onHide }: { candidate: ProjectCandidate; onHide: (c: ProjectCandidate) => void }) {
+  const { t } = useTranslation(['projects', 'common']);
+  const narrow = useMediaQuery(NARROW);
+  const [sheet, setSheet] = useState(false);
+  const hideLabel = t('candidates.hideNamed', { name: c.name });
+  return (
+    <li className="candidate-row">
+      <div className="candidate-main" title={c.path}>
+        <strong className="break">{c.name}</strong>
+        <span className="mono small muted break">{c.remote ? shortRemote(c.remote) : c.path}</span>
+        <span className="small muted tnum">{candidateMeta(c, t)}</span>
+        {c.sameRemoteAs && (
+          <span className="small muted candidate-clone">
+            <Copy {...ICON_SM} aria-hidden /> {t('candidates.otherClone', { name: c.sameRemoteAs.name })}
+          </span>
+        )}
+      </div>
+      <div className="candidate-actions">
+        <Link to={`${NEW_PROJECT_PATH}?path=${encodeURIComponent(c.path)}`} className="btn btn-small" aria-label={t('candidates.importNamed', { name: c.name })}>
+          <Download {...ICON_SM} /> {t('importForm.import')}
+        </Link>
+        {narrow ? (
+          <>
+            <button type="button" className="icon-btn" aria-label={hideLabel} onClick={() => setSheet(true)}>
+              <Ellipsis {...ICON_SM} />
+            </button>
+            <Sheet open={sheet} onOpenChange={setSheet} title={c.name} side="bottom" className="project-sheet">
+              <div className="sheet-actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setSheet(false);
+                    onHide(c);
+                  }}
+                >
+                  <EyeOff {...ICON_SM} /> {t('candidates.hide')}
+                </button>
+              </div>
+            </Sheet>
+          </>
+        ) : (
+          <button type="button" className="icon-btn" aria-label={hideLabel} onClick={() => onHide(c)}>
+            <EyeOff {...ICON_SM} />
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * What chats have run in and no project holds: repositories first, one each, then the directories
+ * that are not repositories, folded. A first start shows them as a card; with projects they are a
+ * nudge that opens on request. Hiding takes one away at once and the toast brings it back.
+ */
 function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; first: boolean }) {
   const { t } = useTranslation(['projects', 'work', 'common', 'config']);
+  const queryClient = useQueryClient();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [othersOpen, setOthersOpen] = useState(false);
   const listId = useId();
+  const othersId = useId();
+  const repositories = candidates.filter((c) => c.kind === 'repository');
+  const directories = candidates.filter((c) => c.kind === 'directory');
+
+  const unhide = useMutation({
+    mutationFn: (key: string) => api.unhideProjectCandidate({ key }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.projectCandidates }),
+    onError: (error) => toast.error(t('candidates.unhideFailed'), error),
+  });
+  const hide = useMutation({
+    mutationFn: (c: ProjectCandidate) => api.hideProjectCandidate({ key: c.key }),
+    onMutate: (c) => {
+      queryClient.setQueryData<ProjectCandidate[]>(keys.projectCandidates, (list) => list?.filter((x) => x.key !== c.key));
+    },
+    onSuccess: (_done, c) =>
+      toast.show({ tone: 'ok', title: t('candidates.hidden'), detail: c.name, action: { label: t('candidates.undo'), onClick: () => unhide.mutate(c.key) } }),
+    onError: (error) => toast.error(t('candidates.hideFailed'), error),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.projectCandidates }),
+  });
+
+  const rows = (list: ProjectCandidate[]) => list.map((c) => <CandidateRow key={c.key} candidate={c} onHide={(x) => hide.mutate(x)} />);
+  const others = directories.length > 0 && (
+    <div className="candidate-others">
+      <button type="button" className="candidate-others-toggle" aria-expanded={othersOpen} aria-controls={othersOpen ? othersId : undefined} onClick={() => setOthersOpen(!othersOpen)}>
+        <ChevronRight {...ICON_SM} className="candidate-others-chevron" />
+        {t('candidates.others', { n: formatNumber(directories.length) })}
+      </button>
+      {othersOpen && (
+        <div id={othersId}>
+          <p className="small muted candidate-others-body">{t('candidates.othersBody')}</p>
+          <ul className="candidate-list">{rows(directories)}</ul>
+        </div>
+      )}
+    </div>
+  );
   const list = (
-    <ul className="candidate-list" id={listId}>
-      {candidates.map((c) => (
-        <li key={c.path} className="candidate-row">
-          <div className="candidate-main">
-            <strong className="break">{c.name}</strong>
-            <span className="mono small muted break">{c.path}</span>
-            <span className="small muted">
-              {t('candidates.chats', { count: c.chatCount, n: formatNumber(c.chatCount) })}
-              {c.lastActivity ? t('candidates.last', { ago: timeAgo(c.lastActivity) }) : ''}
-            </span>
-          </div>
-          <Link to={`${NEW_PROJECT_PATH}?path=${encodeURIComponent(c.path)}`} className="btn btn-small" aria-label={t('candidates.importNamed', { name: c.name })}>
-            <Download {...ICON_SM} /> {t('importForm.import')}
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div id={listId}>
+      {repositories.length > 0 && <ul className="candidate-list">{rows(repositories)}</ul>}
+      {others}
+    </div>
   );
   if (first) {
     return (
@@ -90,17 +180,20 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
       </Card>
     );
   }
-  // Once there are projects, the rest is a nudge rather than a list: it opens on request
   return (
     <section className="project-callout">
       <div className="project-callout-head">
         <FolderOpen {...ICON} className="project-callout-icon" />
         <div className="project-callout-text">
-          <h2 className="project-callout-title">{t('candidates.moreTitle', { count: candidates.length, n: formatNumber(candidates.length) })}</h2>
+          <h2 className="project-callout-title">
+            {repositories.length > 0
+              ? t('candidates.moreRepos', { count: repositories.length, n: formatNumber(repositories.length) })
+              : t('candidates.moreTitle', { count: directories.length, n: formatNumber(directories.length) })}
+          </h2>
           <p className="project-callout-body">{t('candidates.moreBody')}</p>
         </div>
         <button type="button" className="btn btn-small" aria-expanded={open} aria-controls={open ? listId : undefined} onClick={() => setOpen(!open)}>
-          {open ? t('candidates.hide') : t('candidates.review')}
+          {open ? t('candidates.collapse') : t('candidates.review')}
         </button>
       </div>
       {open && list}

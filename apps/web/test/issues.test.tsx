@@ -31,7 +31,7 @@ const listed = (key: string, over: Partial<TrackerIssue> = {}): TrackerIssue => 
 });
 
 const tracker: ProjectTrackerSettings = { id: 'github-issues', scope: 'acme/shop', query: '', statusMap: {} };
-const project = { id: 'p1', name: 'shop', path: '/tmp/shop', worktrees: [], exists: true, chatCount: 0, lastActivity: null, key: 'AGN', modules: ['board'] } as Project;
+const project = { id: 'p1', name: 'shop', path: '/tmp/shop', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 0, lastActivity: null, key: 'AGN', modules: ['board'] } as Project;
 
 function wrap(node: React.ReactNode, seed?: (qc: QueryClient) => void) {
   const qc = new QueryClient();

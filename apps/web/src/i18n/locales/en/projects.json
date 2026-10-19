@@ -26,13 +26,26 @@
     "chats_other": "{{n}} chats",
     "last": " · last {{ago}}",
     "importNamed": "Import {{name}}",
-    "firstTitle": "Start with the directories you already work in",
-    "firstBody": "Claude Code has run in these directories the most. Import the ones that are projects: their chats join them, and the rest stay out of the way. You can import any other directory by hand.",
+    "firstTitle": "Start with the repositories you already work in",
+    "firstBody": "Claude Code has run in these repositories the most. Import the ones that are projects: their chats and worktrees join them.",
     "moreTitle_one": "{{n}} more directory has chats",
     "moreTitle_other": "{{n}} more directories have chats",
     "moreBody": "Import them to group their chats, see them in Usage and start chats from here.",
     "review": "Review",
-    "hide": "Hide"
+    "collapse": "Hide",
+    "across_one": "{{chats}} across {{n}} worktree",
+    "across_other": "{{chats}} across {{n}} worktrees",
+    "otherClone": "Another clone of “{{name}}”",
+    "hide": "Hide suggestion",
+    "hideNamed": "Hide {{name}}",
+    "hidden": "Suggestion hidden",
+    "undo": "Undo",
+    "hideFailed": "Could not hide the suggestion",
+    "unhideFailed": "Could not bring the suggestion back",
+    "others": "Other directories · {{n}}",
+    "othersBody": "They are not git repositories. Import them only if they are projects.",
+    "moreRepos_one": "{{n}} more repository has chats",
+    "moreRepos_other": "{{n}} more repositories have chats"
   },
   "card": {
     "renameFailed": "Could not rename the project",
@@ -68,7 +81,18 @@
     "newChatHere": "New chat here",
     "newChatIn": "New chat here, in {{name}}",
     "emptyTitle": "This project has no worktrees",
-    "emptyBody": "Worktrees made with <mono>git worktree add</mono>, or by an orchestration task, show up here."
+    "emptyBody": "Worktrees made with <mono>git worktree add</mono>, or by an orchestration task, show up here.",
+    "main": "main",
+    "detached": "detached HEAD",
+    "locked": "locked",
+    "removed_one": "{{n}} removed worktree is still in its chats’ history",
+    "removed_other": "{{n}} removed worktrees are still in their chats’ history",
+    "notRepo": "This project is not a git repository",
+    "chatOnly": "Chat",
+    "chatsMeta_one": "{{n}} chat",
+    "chatsMeta_other": "{{n}} chats",
+    "creatorTask": "Task {{key}} · {{title}}",
+    "creatorChat": "Chat · {{title}}"
   },
   "settings": {
     "environmentHint": "what Claude actually loaded in the last chat here",
@@ -359,5 +383,34 @@
     "useGlobal": "Include global lessons",
     "hint": "Flow runs always get the project’s lessons. Saved at once.",
     "saveFailed": "Could not save the lesson settings"
+  },
+  "inspect": {
+    "repo_one": "Git repository · origin {{remote}} · {{n}} worktree",
+    "repo_other": "Git repository · origin {{remote}} · {{n}} worktrees",
+    "repoLocal_one": "Git repository · {{n}} worktree",
+    "repoLocal_other": "Git repository · {{n}} worktrees",
+    "linkedWorktree": "It is a worktree of {{name}}. Import the main checkout.",
+    "useMain": "Use <mono>{{path}}</mono>",
+    "alreadyProject": "Already the project “{{name}}”",
+    "otherClone": "You already have another clone of this repository: “{{name}}”. Their chats and tasks stay separate."
+  },
+  "repoint": {
+    "title": "This project points at a worktree",
+    "body": "Its path is inside the worktree <mono>{{worktree}}</mono> of “{{repo}}”. Point it at the main repository so its worktrees and suggestions group properly.",
+    "action": "Point at the main repository",
+    "confirmTitle": "Point “{{name}}” at the main repository?",
+    "confirmBody": "The path changes from <mono>{{from}}</mono> to <mono>{{to}}</mono>. Its chats, tasks and settings stay with it, and the worktree is not touched.",
+    "confirm": "Point",
+    "running": "Pointing",
+    "done": "“{{name}}” points at {{path}}",
+    "failed": "Could not point the project",
+    "error": {
+      "not-a-repository": "This project is not in a git repository, so there is no main repository to point at.",
+      "not-a-directory": "That path is not a directory.",
+      "linked-worktree": "That path is inside a linked worktree, not the main checkout.",
+      "other-repository": "That path belongs to another repository.",
+      "already-a-project": "That path is already the project “{{name}}”.",
+      "other": "The project could not be pointed there."
+    }
   }
 }

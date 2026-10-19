@@ -244,7 +244,17 @@ const ChatRow = memo(function ChatRow({
                 return (
                   <span key={tag} className={`crow-tag is-${tag}`}>
                     <Icon size={11} strokeWidth={2} aria-hidden />
-                    {tag === 'worktree' ? (chat.worktree?.branch ?? chat.worktree?.name ? <span className="mono">{chat.worktree?.branch ?? chat.worktree?.name}</span> : t('list.worktree')) : tag === 'fork' ? t('list.fork') : t(`list.tag.${tag}`)}
+                    {tag === 'worktree' ? (
+                      <>
+                        {chat.worktree?.branch ?? chat.worktree?.name ? <span className="mono">{chat.worktree?.branch ?? chat.worktree?.name}</span> : t('list.worktree')}
+                        {/* A removed worktree is history: said in words, and never somewhere to start a chat */}
+                        {chat.worktree?.exists === false && <span className="crow-tag-removed">{t('list.worktreeRemoved')}</span>}
+                      </>
+                    ) : tag === 'fork' ? (
+                      t('list.fork')
+                    ) : (
+                      t(`list.tag.${tag}`)
+                    )}
                   </span>
                 );
               })}
@@ -467,7 +477,16 @@ export function Chats() {
   };
 
   const all = useMemo(() => chats.data ?? [], [chats.data]);
-  const visible = useMemo(() => all.filter((chat) => matchesFilters(chat, filters)).sort(SORTERS[sort]), [all, filters, sort]);
+  // `?worktree=<path>` (a worktree's chats) or `removed` (the ones that ran in a worktree since deleted), from the project's Worktrees tab
+  const worktreeFilter = address.get('worktree');
+  const visible = useMemo(
+    () =>
+      all
+        .filter((chat) => matchesFilters(chat, filters))
+        .filter((chat) => (worktreeFilter === null ? true : worktreeFilter === 'removed' ? chat.worktree?.exists === false : chat.worktree?.path === worktreeFilter))
+        .sort(SORTERS[sort]),
+    [all, filters, sort, worktreeFilter],
+  );
   const counts = useMemo(() => stateCounts(all, filters), [all, filters]);
   const page = useMemo(() => visible.slice(0, shown), [visible, shown]);
   // The minute is a dependency so that rows move under "Yesterday" when the day turns over
@@ -507,6 +526,17 @@ export function Chats() {
     chips.push({ id: 'projects', label: t('list.chipProject', { values: labelsOf(projectOptions, projects) }), onRemove: () => patch({ projects: null }) });
   }
   if (models.size > 0) chips.push({ id: 'models', label: t('list.chipModel', { values: labelsOf(modelOptions, models) }), onRemove: () => patch({ models: null }) });
+  if (worktreeFilter !== null) {
+    chips.push({
+      id: 'worktree',
+      label: t('list.chipWorktree', { value: worktreeFilter === 'removed' ? t('list.worktreeRemoved') : worktreeFilter }),
+      onRemove: () => {
+        const next = new URLSearchParams(address);
+        next.delete('worktree');
+        navigate({ search: next.toString() ? `?${next.toString()}` : '' }, { replace: true });
+      },
+    });
+  }
   if (workers) chips.push({ id: 'workers', label: t('list.workers'), onRemove: () => patch({ workers: null }) });
   if (internal) chips.push({ id: 'internal', label: t('list.internal'), onRemove: () => patch({ internal: null }) });
   const filtersActive = Boolean(search.trim()) || state !== null || chips.length > 0 || sort !== 'activity';

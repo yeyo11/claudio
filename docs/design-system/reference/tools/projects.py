@@ -407,7 +407,154 @@ def project_page_mobile():
   write('MobileProyecto.html', mobile('Proyecto', inner))
 
 
+# ---------------------------------------------------------------- projects as repositories (plans/projects-as-repositories.md)
+# Suggestions grouped by repository, the Worktrees tab with the main checkout first, and the notice that a project
+# points at a worktree. No status colour says "another clone", "locked", "removed" or "inside a worktree": each is a
+# fact, not a problem, so they are neutral and carry a word or an icon.
+CANDIDATES = [
+  ('claudio', 'github.com/yeyo11/claudio', '312 chats en 14 worktrees · última vez hace 2 h', None),
+  ('claude-wrapper', 'github.com/yeyochico/claude-wrapper', '186 chats en 15 worktrees · última vez hace 5 h', 'claude-wrapper-2'),
+  ('agentry', 'git.inmoseo.net/yeyo/agentry', '41 chats en 3 worktrees · última vez hace 2 d', None),
+]
+
+
+def cand_rows(phone=False):
+  out = ''
+  for name, remote, meta, clone in CANDIDATES:
+    clone_line = f'<span class="row t-xs fg-3" style="gap: 5px">{ico("copy", "ico ico-sm")}Otro clon de «{clone}»</span>' if clone else ''
+    if phone:
+      acts = f'<div class="row" style="gap: 8px"><a href="MobileNuevoProyecto.html" class="btn btn-lg grow">Importar</a><button type="button" class="btn btn-ghost btn-icon btn-lg" aria-label="Ocultar {name}">{ico("more", "ico", "stroke-width: 3")}</button></div>'
+    else:
+      acts = f'<span class="row" style="gap: 6px"><a href="DesktopNuevoProyecto.html" class="btn btn-sm">Importar</a><button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Ocultar {name}">{ico("eyeoff")}</button></span>'
+    main = f'<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-strong)">{name}</span><span class="mono t-xs fg-3 ellipsis">{remote}</span><span class="t-num t-xs fg-3">{meta}</span>{clone_line}</span>'
+    out += (f'<li class="col" style="gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line)">{main}{acts}</li>' if phone
+            else f'<li class="row" style="gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line)">{main}{acts}</li>')
+  return out
+
+
+def project_suggestions_desktop():
+  main = f'''<main class="page" style="gap: 18px">
+<div class="page-head"><div class="col" style="gap: 6px"><h1 class="t-h1">Proyectos</h1><p class="fg-2 t-sm" style="margin: 0">0 repositorios importados. Sus worktrees les pertenecen.</p></div><button type="button" class="btn btn-primary">{ico('plus')}Importar directorio</button></div>
+<section class="card col" style="padding: 18px; gap: 6px"><h2 class="t-h2">Empieza por los repositorios en los que ya trabajas</h2>
+<p class="fg-2 t-sm" style="margin: 0">Claude Code se ha ejecutado sobre todo en estos repositorios. Importa los que sean proyectos: sus chats y worktrees se unen a ellos.</p>
+<ul class="col" style="list-style: none; margin: 8px 0 0; padding: 0">{cand_rows()}</ul>
+<button type="button" class="btn btn-ghost btn-sm" style="align-self: flex-start; gap: 6px; padding: 0 8px; color: var(--fg-2)">{ico('right', 'ico ico-sm')}Otros directorios · 3</button>
+</section>
+</main>'''
+  write('DesktopProyectosSugerencias.html', desktop('Proyectos: sugerencias', 'projects', '<span style="font-weight: var(--fw-regular)">Proyectos</span>', main, project='Todos los proyectos'))
+
+
+def project_suggestions_mobile():
+  inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px 8px 16px; gap: 4px"><h1 class="t-h1 grow">Proyectos</h1><a href="MobileNuevoProyecto.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Importar directorio">{ico('plus', 'ico ico-lg')}</a></header>
+<div class="m-body stack" style="gap: 14px">
+<section class="card col" style="padding: 16px; gap: 6px"><h2 class="t-h2">Empieza por los repositorios en los que ya trabajas</h2>
+<p class="fg-2 t-sm" style="margin: 0">Claude Code se ha ejecutado sobre todo en estos repositorios. Importa los que sean proyectos: sus chats y worktrees se unen a ellos.</p>
+<ul class="col" style="list-style: none; margin: 6px 0 0; padding: 0">{cand_rows(True)}</ul>
+<button type="button" class="btn btn-ghost btn-lg" style="justify-content: flex-start; gap: 6px; padding: 0 4px; min-height: 44px; color: var(--fg-2)">{ico('right', 'ico ico-sm')}Otros directorios · 3</button>
+</section>
+</div>
+{tabbar('more')}'''
+  write('MobileProyectosSugerencias.html', mobile('Proyectos: sugerencias', inner))
+
+
+def wt_row(branch, path, meta, creator='', main=False, locked=False, detached=False, phone=False):
+  badges = ''
+  if detached:
+    badges += '<span class="badge">HEAD separado</span>'
+  if main:
+    badges += '<span class="badge">principal</span>'
+  if locked:
+    badges += f'<span class="badge" title="una orquestación sigue en él">{ico("lock", "ico ico-sm")}bloqueado</span>'
+  new = '' if main else (f'<a href="DesktopNuevoChat.html" class="btn btn-lg" style="width: 100%">Nuevo chat aquí</a>' if phone else '<a href="DesktopNuevoChat.html" class="btn btn-sm">Nuevo chat aquí</a>')
+  head = f'<span class="row" style="gap: 8px; flex-wrap: wrap">{ico("branch", "ico ico-sm")}<span class="mono t-sm">{branch}</span>{badges}</span>'
+  body = f'<span class="col grow" style="gap: 3px; min-width: 0">{head}<span class="mono t-xs fg-3 ellipsis">{path}</span>{creator}<span class="t-num t-xs fg-3">{meta}</span></span>'
+  if phone:
+    return f'<li class="col" style="gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line)">{body}{new}</li>'
+  return f'<li class="row" style="gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line)">{body}{new}</li>'
+
+
+def wt_rows(phone=False):
+  def by(icon, text):
+    return f'<span class="row t-xs fg-3" style="gap: 5px">{ico(icon, "ico ico-sm")}{text}</span>'
+  return ''.join([
+    wt_row('main', '~/Escritorio/claude-wrapper', '48 chats · hace 5 h', main=True, phone=phone),
+    wt_row('worktree-a1b2c3d4-s2', '~/Escritorio/claude-wrapper/.claude/worktrees/a1b2c3d4-s2', '5 chats · hace 2 h', by('flow', 'Contrato de la API · Tarea 3'), locked=True, phone=phone),
+    wt_row('claudio-task/AGN-28', '~/Escritorio/claude-wrapper/.claude/worktrees/task-AGN-28', '2 chats · hace 4 h', by('board', 'Tarea AGN-28 · Tablero con columnas fijas y límites'), phone=phone),
+    wt_row('worktree-fix-pwa', '~/Escritorio/claude-wrapper/.claude/worktrees/fix-pwa', '1 chat · ayer', by('chats', 'Chat · Revisa la PWA y la app desktop'), phone=phone),
+    wt_row('HEAD separado', '~/Escritorio/claude-wrapper-eval', '', detached=True, phone=phone).replace('<span class="mono t-sm">HEAD separado</span>', '<span class="mono t-sm">9f02c1d</span>'),
+  ])
+
+
+def project_worktrees_desktop():
+  main = f'''<main class="page" style="gap: 18px">
+{proj_head(False)}
+{proj_tabs('worktrees')}
+<section class="card col" style="padding: 18px; gap: 6px"><div class="row"><h2 class="t-h2 grow">Worktrees</h2><a href="DesktopChats.html" class="btn btn-sm">{ico('chats')}Chats</a></div>
+<ul class="col" style="list-style: none; margin: 6px 0 0; padding: 0">{wt_rows()}</ul>
+<p class="t-xs fg-3" style="margin: 12px 0 0"><a href="DesktopChats.html" class="fg-2">12 worktrees eliminados siguen en el historial de sus chats</a></p>
+</section>
+</main>'''
+  write('DesktopProyectoWorktrees.html', desktop('Worktrees del proyecto', 'projects', pcrumb('claude-wrapper', ('Worktrees', '')), main))
+
+
+def project_worktrees_mobile():
+  inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
+<a href="MobileProyecto.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 6px"><h1 class="t-h1">Worktrees</h1><span class="t-xs fg-3">claude-wrapper</span></span>
+</header>
+<div class="m-body stack" style="gap: 14px">
+<section class="card col" style="padding: 16px; gap: 6px"><ul class="col" style="list-style: none; margin: 0; padding: 0">{wt_rows(True)}</ul>
+<p class="t-xs fg-3" style="margin: 8px 0 0"><a href="MobileChats.html" class="fg-2">12 worktrees eliminados siguen en el historial de sus chats</a></p></section>
+</div>
+{tabbar('more')}'''
+  write('MobileProyectoWorktrees.html', mobile('Worktrees del proyecto', inner))
+
+
+REPOINT_BODY = 'Su ruta está dentro del worktree <span class="mono">~/Escritorio/claudio-stage-a</span> de «claudio». Apúntalo al repositorio principal para que sus worktrees y sugerencias se agrupen bien.'
+
+
+def repoint_callout(phone=False):
+  action = '<button type="button" class="btn btn-lg" style="width: 100%">Apuntar al repositorio principal</button>' if phone else '<button type="button" class="btn btn-sm">Apuntar al repositorio principal</button>'
+  icon = '' if phone else ico('branch', 'ico fg-3')
+  cls = 'col' if phone else 'row'
+  return f'<section class="callout {cls}" style="gap: 12px; align-items: {"stretch" if phone else "center"}">{icon}<span class="col grow" style="gap: 2px; min-width: 0"><span style="font-weight: var(--fw-strong); color: var(--fg)">Este proyecto apunta a un worktree</span><span style="line-height: 1.5">{REPOINT_BODY}</span></span>{action}</section>'
+
+
+def project_repoint_desktop():
+  dialog = f'''<div class="scrim"><div class="dialog" role="dialog" aria-label="¿Apuntar «claudio» al repositorio principal?" style="width: 440px">
+<div class="dialog-head"><h2 class="t-h2 grow">¿Apuntar «claudio» al repositorio principal?</h2></div>
+<div class="dialog-body"><p class="fg-2" style="margin: 0; line-height: 1.5">La ruta pasa de <span class="mono">~/Escritorio/claudio-stage-a</span> a <span class="mono">~/Escritorio/claudio</span>. Sus chats, tareas y ajustes siguen con él, y el worktree no se toca.</p>
+<div class="callout callout-warn" role="alert">{ico('warn', 'ico c-warn')}<span style="line-height: 1.5">Esa ruta ya es el proyecto «claudio-2». <a href="DesktopProyecto.html" class="c-accent">Abrir</a></span></div></div>
+<div class="dialog-foot"><span class="grow"></span><button type="button" class="btn">Cancelar</button><button type="button" class="btn btn-primary">Apuntar</button></div>
+</div></div>'''
+  main = f'''<main class="page" style="gap: 18px">
+{proj_head()}
+{repoint_callout()}
+{proj_tabs('overview')}
+<div class="card" style="padding: 18px; min-height: 240px"><span class="t-h2">Resumen</span></div>
+</main>'''
+  write('DesktopProyectoApuntar.html', desktop('Proyecto dentro de un worktree', 'projects', pcrumb('claude-wrapper', ('Resumen', '')), main, overlay=dialog))
+
+
+def project_repoint_mobile():
+  inner = f'''<header class="row" style="flex-shrink: 0; padding: 8px 4px; gap: 4px">
+<a href="MobileProyecto.html" class="btn btn-ghost btn-icon btn-lg" aria-label="Volver">{ico('left', 'ico ico-lg', 'stroke-width: 2')}</a>
+<span class="col grow" style="gap: 1px; min-width: 0; padding-left: 6px"><h1 class="t-h1">Ajustes</h1><span class="t-xs fg-3">claudio</span></span>
+</header>
+<div class="m-body stack" style="gap: 14px">
+{repoint_callout(True)}
+<section class="card col" style="padding: 16px; gap: 12px"><h2 class="t-h2">General</h2>
+<div class="form-row"><span class="t-label">Nombre</span><label class="field"><input value="claudio" aria-label="Nombre"></label></div>
+<div class="form-row"><span class="t-label">Directorio</span><span class="mono t-sm fg-2">~/Escritorio/claudio-stage-a</span></div></section>
+</div>
+{tabbar('more')}'''
+  write('MobileProyectoApuntar.html', mobile('Proyecto dentro de un worktree', inner))
+
+
 if __name__ == '__main__':
   new_project_desktop(); new_project_mobile()
   project_settings_desktop(); project_settings_mobile(); project_decisions_mobile()
   project_page_desktop(); project_page_mobile()
+  project_suggestions_desktop(); project_suggestions_mobile()
+  project_worktrees_desktop(); project_worktrees_mobile()
+  project_repoint_desktop(); project_repoint_mobile()
