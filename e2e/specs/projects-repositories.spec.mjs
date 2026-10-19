@@ -10,10 +10,11 @@
 // that flow is covered by core's tests (repoint in packages/core/test/projects.test.ts) until a spec
 // can restart the server with a seeded document.
 //
-// It builds real repositories under the sandbox's workspace and seeds transcripts in its Claude
+// It builds real repositories under the home folder (the sandbox is scratch, never suggested) and seeds transcripts in its Claude
 // config directory, and removes everything at the end: other specs count what the sandbox holds.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const SESSION = 'e2e-repos-session';
@@ -60,7 +61,9 @@ function seedTranscript(configDir, { cli, sibling }) {
 }
 
 export default async ({ page, api, check, dirs }) => {
-  const root = join(dirs.workspaceDir, 'e2e-repos');
+  // Not under the sandbox: it lives in the temp dir, which suggestions never offer (D8). The server runs
+  // as the same user with the same $HOME, and everything is removed at the end.
+  const root = join(homedir(), `claudio-e2e-repos-${process.pid}`);
   rmSync(root, { recursive: true, force: true });
   mkdirSync(root, { recursive: true });
   const repo = seedRepo(root);
