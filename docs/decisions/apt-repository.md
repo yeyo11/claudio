@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T23:30:00Z
-updated_at: 2026-10-18T23:30:00Z
+updated_at: 2026-10-19T12:00:00Z
 tags:
     - decision
     - desktop
@@ -48,8 +48,11 @@ installed. The app never runs `pkexec`.
 - **When it is built** (`.github/workflows/apt-repo.yml`): in every release, from the draft's `.deb`
   and the newest three published ones, called by `desktop.yml` once the `.deb` exists; it is
   deployed by `release.yml`'s `pages` job only after `publish`, so apt never offers a version whose
-  release is not public. A monthly scheduled run, and `workflow_dispatch`, rebuild it from the
-  newest four published releases and deploy it, re-signing it long before `Valid-Until`.
+  release is not public. `apt-resign.yml`, monthly and by hand, calls the same build from the
+  newest four published releases and deploys it, re-signing it long before `Valid-Until`.
+  `apt-repo.yml` itself only builds: a called workflow may not ask for more than its caller grants,
+  and GitHub checks that before the run starts, skipped jobs included, so a deploy job inside it
+  kept `release.yml` from starting at all (2026-10-19, the 0.7.0 merge).
 
 ## The pool: the `.deb` files live on Pages (decision 3's fallback)
 
@@ -75,7 +78,7 @@ in `Packages` is what apt verifies either way. Pages' soft bandwidth limit (100 
 800 downloads of the `.deb`) is the cost; if it bites, the pool moves to a host that answers HTTP
 redirects and the next postinst rewrites `URIs:`. **Unverified until the first deployment**: whether
 a Pages artifact deployment takes a 120 MB file (the 100 MB limit is git's, which a deployment from
-an artifact does not go through). The first `workflow_dispatch` of `apt-repo.yml` on `main` answers
+an artifact does not go through). The first release, or the first run of `apt-resign.yml` on `main`, answers
 it.
 
 ## The AppImage's static runtime (D5's spike)

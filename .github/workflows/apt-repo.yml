@@ -5,10 +5,13 @@ name: apt repository
 # every time from release assets, so Pages holds no state to lose: the newest published .deb files,
 # plus the release being made when desktop.yml calls it with that build's artifact.
 #
-# - Called by desktop.yml during a release: builds the Pages artifact only. release.yml deploys it
-#   after `publish`, so apt never offers a version whose release is not public.
-# - Monthly (schedule) and by hand: rebuilds from published releases only and deploys, so the
-#   Release file is re-signed long before its 90-day Valid-Until ends.
+# It only builds and signs: it is called, never run on its own, and it asks for nothing beyond
+# `contents: read`, because GitHub checks a called workflow's permissions against its caller's before
+# the run starts, skipped jobs included (a deploy job here made release.yml fail to start).
+# - Called by desktop.yml during a release: builds the Pages artifact. release.yml deploys it after
+#   `publish`, so apt never offers a version whose release is not public.
+# - Called by apt-resign.yml, monthly and by hand: rebuilds from published releases only, and
+#   apt-resign.yml deploys it, so the Release file is re-signed long before its 90-day Valid-Until.
 #
 # GitHub Pages cannot answer an HTTP redirect, and apt follows only those (an HTML redirect fails
 # apt's size and hash check), so the pool holds the .deb files themselves (decision 3's fallback):
@@ -26,21 +29,6 @@ on:
         required: false
         default: ''
         type: string
-      deploy:
-        description: Deploy to Pages in this run; release.yml deploys after publish instead
-        required: false
-        default: false
-        type: boolean
-  workflow_dispatch:
-    inputs:
-      deploy:
-        description: Deploy the rebuilt repository to GitHub Pages
-        required: false
-        default: true
-        type: boolean
-  schedule:
-    # The 3rd of every month, off the hour
-    - cron: '23 5 3 * *'
 
 jobs:
   build:
@@ -116,22 +104,3 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: site
-
-  deploy:
-    needs: build
-    if: github.event_name == 'schedule' || inputs.deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Its branch policy allows `main` only
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    permissions:
-      pages: write
-      id-token: write
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

@@ -1,0 +1,34 @@
+name: apt repository re-sign
+# Rebuilds Claudio's apt repository from the published releases and deploys it to GitHub Pages, so its
+# Release file is re-signed long before the 90-day Valid-Until ends (docs/decisions/apt-repository.md).
+# The build is apt-repo.yml, the same one a release calls; the deploy lives here, beside the trigger
+# that wants it, because a called workflow may not ask for more than its caller grants.
+on:
+  workflow_dispatch:
+  schedule:
+    # The 3rd of every month, off the hour
+    - cron: '23 5 3 * *'
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/apt-repo.yml
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Its branch policy allows `main` only
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
