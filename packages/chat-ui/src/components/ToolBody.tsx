@@ -1,10 +1,12 @@
 import { Check, Circle, CircleDot } from 'lucide-react';
 import { Fragment, Suspense, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
+import { withoutStderrTail } from '@claudio/shared';
 import type { Highlighted } from '@claudio/ui/components/highlight';
 import { CodeBlock } from '@claudio/ui/components/CodeBlock';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { ICON_SM } from '@claudio/ui/components/icons';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { CopyButton, Tag } from '@claudio/ui/components/ui';
 import { formatBytes, formatDuration } from '@claudio/ui/lib/format';
 import { useRiskContext } from '../lib/agent';
@@ -242,11 +244,17 @@ function GenericLens({ call }: { call: StepCall }) {
   );
 }
 
+/** A long path keeps its start and its end; the full path is in the tooltip */
+function middleEllipsis(path: string, max = 48): string {
+  return path.length <= max ? path : `${path.slice(0, 18)}…${path.slice(path.length - (max - 19))}`;
+}
+
 function BashLens({ call }: { call: StepCall }) {
   const { t } = useTranslation('chat');
   const o = asInput(call.input);
   const timeout = typeof o.timeout === 'number' ? o.timeout : null;
   const detail = call.result?.detail?.kind === 'command' ? call.result.detail : null;
+  const failed = call.result?.isError === true;
   const background = Boolean(detail?.backgroundTaskId) || o.run_in_background === true;
   return (
     <>
@@ -267,7 +275,24 @@ function BashLens({ call }: { call: StepCall }) {
         ) : (
           <>
             <Zone label={t('transcript.call.output')}>
-              <Term text={call.result.content} />
+              <Term text={detail ? withoutStderrTail(call.result.content, detail.stderr) : call.result.content} />
+              {detail?.cwdReset && (
+                <div className="call-meta call-note">
+                  <span>
+                    <Trans
+                      t={t}
+                      i18nKey="transcript.call.cwdReset"
+                      components={{
+                        path: (
+                          <Tooltip content={detail.cwdReset}>
+                            <code tabIndex={0}>{middleEllipsis(detail.cwdReset)}</code>
+                          </Tooltip>
+                        ),
+                      }}
+                    />
+                  </span>
+                </div>
+              )}
               {detail?.interrupted && (
                 <span>
                   <Tag tone="warn">{t('transcript.call.interrupted')}</Tag>
@@ -275,8 +300,8 @@ function BashLens({ call }: { call: StepCall }) {
               )}
             </Zone>
             {detail?.stderr && (
-              <Zone label={t('transcript.call.errors')}>
-                <Term text={detail.stderr} className="call-stderr" />
+              <Zone label={failed ? t('transcript.call.errors') : t('transcript.call.stderr')}>
+                <Term text={detail.stderr} className={failed ? 'call-stderr' : 'call-stderr-neutral'} />
               </Zone>
             )}
           </>

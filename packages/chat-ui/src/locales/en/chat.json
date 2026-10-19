@@ -418,6 +418,8 @@
       "showAll_one": "Show all {{count}} line",
       "showAll_other": "Show all {{count}} lines",
       "errors": "Errors",
+      "stderr": "Standard error",
+      "cwdReset": "The shell went back to <path/>",
       "interrupted": "interrupted",
       "background": "in the background",
       "launched": "Launched in the background",

@@ -30,6 +30,27 @@ const lineCount = (v: unknown, fallback: number): number => {
 };
 
 /**
+ * The CLI appends this line to a Bash call's stderr when the command left the shell outside the
+ * project: a notice about the shell, not output of the command. If the CLI rewords it, nothing
+ * matches and the stderr is shown as it comes.
+ */
+const CWD_NOTICE = /^Shell cwd was reset to (.+)$/m;
+
+/** A command's stderr without the CLI's cwd notice, and the directory that notice named */
+export function splitCwdNotice(stderr: string): { stderr: string; cwdReset: string | null } {
+  const match = CWD_NOTICE.exec(stderr);
+  if (!match) return { stderr, cwdReset: null };
+  const rest = stderr.replace(CWD_NOTICE, '');
+  return { stderr: rest.trim(), cwdReset: (match[1] ?? '').trim() || null };
+}
+
+/** A command's result text without the notice line the CLI joined into it, and without its stderr tail */
+export function withoutStderrTail(content: string, stderr: string): string {
+  const bare = content.replace(CWD_NOTICE, '').trimEnd();
+  return stderr && bare.endsWith(stderr) ? bare.slice(0, bare.length - stderr.length).trimEnd() : bare;
+}
+
+/**
  * The patch of a writing call, held to the cap the result's text has: whole hunks while they fit,
  * so what reaches the page always parses; a new file is cut at a line, its header counting what is kept.
  */
@@ -78,9 +99,11 @@ export function toolResultDetail(raw: unknown): ToolResultDetail | null {
     return { kind: 'patch', path: r.filePath, patch: patchText(r, created), created };
   }
   if (typeof r.stdout === 'string') {
+    const { stderr, cwdReset } = splitCwdNotice(typeof r.stderr === 'string' ? r.stderr : '');
     return {
       kind: 'command',
-      stderr: typeof r.stderr === 'string' ? r.stderr : '',
+      stderr,
+      cwdReset,
       interrupted: r.interrupted === true,
       backgroundTaskId: typeof r.backgroundTaskId === 'string' && r.backgroundTaskId ? r.backgroundTaskId : null,
     };

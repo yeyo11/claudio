@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { normalizeMessage, toolResultDetail, type ContentBlock, type ToolResultDetail } from '../src/index.ts';
+import { normalizeMessage, splitCwdNotice, toolResultDetail, withoutStderrTail, type ContentBlock, type ToolResultDetail } from '../src/index.ts';
 
 /** One real transcript line per kind of result, from CLI 2.1.286–2.1.300, with personal paths replaced */
 const fixtures = new Map<string, Record<string, unknown>>(
@@ -59,8 +59,18 @@ test('a Write over a file carries its hunks', () => {
 });
 
 test('a Bash result is its stdout: the detail says stderr, interruption and the background task', () => {
-  assert.deepEqual(detailOf('bash'), { kind: 'command', stderr: '', interrupted: false, backgroundTaskId: null });
-  assert.deepEqual(detailOf('bash-background'), { kind: 'command', stderr: '', interrupted: false, backgroundTaskId: 'by5dpofq6' });
+  assert.deepEqual(detailOf('bash'), { kind: 'command', stderr: '', cwdReset: null, interrupted: false, backgroundTaskId: null });
+  assert.deepEqual(detailOf('bash-background'), { kind: 'command', stderr: '', cwdReset: null, interrupted: false, backgroundTaskId: 'by5dpofq6' });
+});
+
+test('the CLI\'s cwd notice leaves stderr and becomes cwdReset; other stderr stays', () => {
+  const recorded = { stdout: '/tmp', stderr: '\nShell cwd was reset to /tmp/g0/b-state/work', interrupted: false };
+  assert.deepEqual(toolResultDetail(recorded), { kind: 'command', stderr: '', cwdReset: '/tmp/g0/b-state/work', interrupted: false, backgroundTaskId: null });
+  assert.deepEqual(splitCwdNotice('warn: x\nShell cwd was reset to /w'), { stderr: 'warn: x', cwdReset: '/w' });
+  assert.deepEqual(splitCwdNotice('Shell is now elsewhere'), { stderr: 'Shell is now elsewhere', cwdReset: null });
+  assert.equal(withoutStderrTail('/tmp\nShell cwd was reset to /w', ''), '/tmp');
+  assert.equal(withoutStderrTail('out\nwarn: x\nShell cwd was reset to /w', 'warn: x'), 'out');
+  assert.equal(withoutStderrTail('out\nunrelated', 'warn: x'), 'out\nunrelated');
 });
 
 test('a failed call has no detail: the CLI writes its error as a string and the block is an error', () => {

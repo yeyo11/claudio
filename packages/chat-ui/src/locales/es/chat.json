@@ -418,6 +418,8 @@
       "showAll_one": "Mostrar la línea",
       "showAll_other": "Mostrar las {{count}} líneas",
       "errors": "Errores",
+      "stderr": "Salida de error",
+      "cwdReset": "La shell volvió a <path/>",
       "interrupted": "interrumpido",
       "background": "en segundo plano",
       "launched": "Lanzado en segundo plano",

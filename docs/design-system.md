@@ -898,7 +898,10 @@ the classes are the last section of `claudio-ds.css`.
   headed by a section label in sans (`--fs-small`, `--fw-strong`; `.call-label`: "Llamada", "Resultado", or "Cambio" for an edit),
   and a quiet `.call-raw` ("En bruto") at the end that swaps the lens for the raw input and text. A
   `Bash` shows its command as shell code, its stdout as a terminal block (`.call-term`) and its stderr
-  as its own block headed "Errores" (`.call-stderr`); a `Read` shows the file as code from its start
+  as its own block, headed "Errores" in `--bad` (`.call-stderr`) only when the call failed and
+  "Salida de error" in neutral colours (`.call-stderr-neutral`) otherwise; the CLI's "Shell cwd was
+  reset" notice is not stderr but a muted `.call-note` line under the output, and the output never
+  repeats the stderr tail; a `Read` shows the file as code from its start
   line; an `Edit` or `Write` shows the unified diff the CLI recorded, through the comparator (§5);
   `Grep` and `Glob` a list of paths (`.call-files`); `WebFetch` and `WebSearch` the answer as Markdown;
   an `Agent` its kind, model and "en segundo plano" as badges, its prompt behind a fold, and its
