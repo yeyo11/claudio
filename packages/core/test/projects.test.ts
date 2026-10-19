@@ -48,6 +48,19 @@ test("a directory in a repository belongs to that repository's project, wherever
   assert.equal(attachProject([app], '/tmp/solo', inRepo('/work/solo/.git', '', '/tmp/solo')), null);
 });
 
+test('two migrated records of one repository and subdir split its chats by path, so neither is left empty', () => {
+  // A v1 document held both the main checkout and a project inside one of its worktrees
+  const repo = { commonDir: '/work/app/.git', subdir: '', remote: null };
+  const main = project('main', '/work/app', repo);
+  const inWorktree = project('wt', '/work/app/.claude/worktrees/x', repo);
+  for (const order of [[main, inWorktree], [inWorktree, main]]) {
+    assert.equal(attachProject(order, '/work/app/.claude/worktrees/x/src', inRepo('/work/app/.git', 'src', '/work/app/.claude/worktrees/x'))?.id, 'wt');
+    assert.equal(attachProject(order, '/work/app/src', inRepo('/work/app/.git', 'src'))?.id, 'main');
+    // Elsewhere in the repository, the first record keeps it, as before
+    assert.equal(attachProject(order, '/tmp/other-wt', inRepo('/work/app/.git', '', '/tmp/other-wt'))?.id, order[0]?.id);
+  }
+});
+
 test('in a monorepo the project whose subdir holds the directory wins, and the rest of the repository stays loose', () => {
   const common = '/work/mono/.git';
   const core = project('core', '/work/mono/packages/core', { commonDir: common, subdir: 'packages/core', remote: null });

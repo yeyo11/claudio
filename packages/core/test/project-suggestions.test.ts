@@ -165,3 +165,13 @@ test('a hidden key stays hidden across a restart, and shows again once undone', 
   await restarted.unhide(common);
   assert.deepEqual(offered([], [chat(main), chat(plain)], restarted.hidden()).map((c) => c.key), [common]);
 });
+
+test('a directory the repository refuses to open (safe.directory) is not offered as a plain directory', () => {
+  const refused = dir('home', 'yeyo', 'refused');
+  places.set(refused, { repo: null, exists: true, source: null });
+  const plain = dir('home', 'yeyo', 'notes');
+  assert.deepEqual(
+    offered([], [chat(refused), chat(plain)]).map((c) => [c.kind, c.path]),
+    [['directory', plain]],
+  );
+});

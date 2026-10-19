@@ -383,7 +383,7 @@ function ProjectCard({ project, active, live }: { project: Project; active: bool
         </div>
         <div className="project-stat">
           <dt className="section-label">{t('card.stats.worktrees')}</dt>
-          <dd className="project-stat-value">{formatNumber(project.worktrees.length)}</dd>
+          <dd className="project-stat-value">{formatNumber(project.worktrees.filter((w) => !w.main).length)}</dd>
         </div>
         <div className="project-stat project-stat-activity">
           <dt className="section-label">{t('card.stats.activity')}</dt>
