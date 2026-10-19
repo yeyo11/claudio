@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-19T15:00:00Z
-updated_at: 2026-10-19T15:00:00Z
+updated_at: 2026-10-19T16:00:00Z
 tags:
     - plan
     - projects
@@ -15,8 +15,9 @@ Status: **planned** (2026-10-19). The owner set the model on 2026-10-19: **a pro
 repository, its worktrees are its children, and suggestions are grouped by repository and never
 include `$HOME` or a workspace root.** The work is one pull request on
 `feat/projects-as-repositories`, built by the orchestration in [Tasks](#tasks). `repo-model` and
-`review` run on `claude-opus-5-5`, every other task on `claude-sonnet-5-5`, never fable. Four
-[open questions](#open-questions) have a default the plan builds unless the owner says otherwise.
+`review` run on `claude-opus-5-5`, every other task on `claude-sonnet-5-5`, never fable. The
+owner answered the plan's four open questions the same day ([Owner's answers](#owners-answers)): a
+project imported inside a worktree can be re-pointed (D12), and the other three defaults stand.
 
 This plan is the source of truth for that orchestration, together with CLAUDE.md and
 CONTRIBUTING.md. Where a task prompt and this plan disagree, the plan wins. Workers never run the
@@ -175,7 +176,7 @@ placement, so a sibling or nested worktree resolves to the main checkout it belo
 - A removed worktree is **never offered as a place to work**: not in the Worktrees tab, not as a
   "New chat here" target. Its chats keep `Chat.worktree`, with `exists: false`.
 
-### D5. `projects.json` gains the repository, once, and never moves a path
+### D5. `projects.json` gains the repository, once, and never moves a path on its own
 
 - `ProjectRecord` gains `repo: { commonDir, subdir, remote } | null`. The document gains
   `"version": 2`.
@@ -183,8 +184,8 @@ placement, so a sibling or nested worktree resolves to the main checkout it belo
   the path is not in a repository or is missing) and the document is written once, atomically.
   A missing directory is re-resolved on a later load. An older Claudio reads the file unchanged: it
   keeps records with `id`, `name` and `path` and ignores the rest.
-- A project whose path lies inside a **linked worktree** keeps its path; its view says so and names
-  the main checkout ([open question 1](#open-questions)). Nothing moves on its own.
+- A project whose path lies inside a **linked worktree** keeps its path until the person re-points
+  it (D12); its view says so and names the main checkout. The migration never moves a path.
 - `idForPath` also matches a removed project by `(commonDir, subdir)`, so re-importing a repository
   from the main checkout gives its id back even if the old path was a worktree.
 
@@ -212,7 +213,7 @@ placement, so a sibling or nested worktree resolves to the main checkout it belo
   - a `(commonDir, subdir)` that is already a project: 409, code `already-a-project`, naming it.
 - A second clone (another `commonDir` with the same normalised `origin` URL) is imported, and the
   wizard says another clone is already a project. Rejected: refusing it (two clones are legitimate,
-  D1).
+  D1), and offering to merge them (owner, 2026-10-19: two projects with a notice).
 - `GET /projects/inspect?path=` answers what the wizard needs before the person presses Import:
   whether it exists, the repository facts, the path to import, the conflict if any, the same-remote
   project and the worktree count.
@@ -261,8 +262,32 @@ files and the `git` CLI. Nothing new talks to Claude. `docs/cli-surfaces.md` gai
   git dir when that is named `.bare` or `.git` (the common `<root>/.bare` layout), else the bare git
   dir itself; `mainCheckout` is `null`.
 - Its project has no "New chat here" at the root: the header's New chat opens on the Worktrees tab
-  to pick one. The spike confirms the layouts before this is built
-  ([open question 4](#open-questions)).
+  to pick one. The owner chose full import (2026-10-19); the spike confirms the layouts before
+  this is built, and if a layout the spike tries breaks the import path rule, the worker records it
+  in the commit body and the integrator asks the owner before going further.
+
+### D12. A project imported inside a worktree can be pointed at the main repository
+
+Set by the owner on 2026-10-19: a notice **and** an action, "Apuntar al repositorio principal".
+
+- `PATCH /projects/:id` accepts `path`. Core validates it with `repoOf`:
+  - the project must be in a repository: its `repo`, or for a path that no longer exists, its
+    placement (D3, the `repo_places` row or the CLI layout). Otherwise 400 `not-a-repository`;
+  - the new path must exist and be a directory (400 `not-a-directory`), lie in the **main checkout**,
+    not in a linked worktree (400 `linked-worktree`), and have the **same `commonDir`** (400
+    `other-repository`);
+  - its `(commonDir, subdir)` must not be another project's (409 `already-a-project`);
+  - the existing refusal of the Claude configuration directory applies (`projects.ts:177-179`).
+- On success the record's `path` and `repo.subdir` change, and so does the path the settings
+  document records, so `idForPath` finds it after a removal. The **id does not change**: the chats
+  (attached by `commonDir`), the settings, the work items and the journal stay with it. Nothing on
+  disk changes: the worktree it pointed at is not touched, and work items keep the branch and
+  worktree path they recorded.
+- It emits `project.updated` with the new change `path`.
+- The UI offers it only where `insideWorktreeOf` is set, prefilled with that path; the API accepts
+  any path that passes the checks.
+- Rejected: re-pointing during the migration (a silent move of something the person chose), and a
+  new route (`PATCH` already changes a project's own fields).
 
 ## Design
 
@@ -332,6 +357,27 @@ then the linked worktrees by last activity:
 
 On a phone each row stacks and "Nuevo chat aquí" is full width at ≥ 44 px.
 
+### A project inside a worktree (D12)
+
+- **Where.** On the project's Resumen and Ajustes tabs, at the top of the page body, under the
+  header: a neutral `.callout` (no status colour: nothing failed and nothing is near a limit), with
+  the `GitBranch` icon, the sentence and one action. It shows while `insideWorktreeOf` is set.
+- **Copy.** Title "Este proyecto apunta a un worktree"; body "Su ruta está dentro del worktree
+  `<worktree path>` de «<repo name>». Apúntalo al repositorio principal para que sus worktrees y
+  sugerencias se agrupen bien."; button "Apuntar al repositorio principal" (`.btn-small`, not the
+  gradient: the zone's primary stays the header's). The path is mono.
+- **Confirm dialog** (the app's `ConfirmDialog`): title "¿Apuntar «<name>» al repositorio
+  principal?"; body "La ruta pasa de `<old>` a `<new>`. Sus chats, tareas y ajustes siguen con él, y
+  el worktree no se toca."; buttons "Cancelar" and "Apuntar" (the dialog's `.btn-primary`).
+  Pressing it sends `PATCH { path }`; while it runs the button shows the braille spinner beside
+  "Apuntando".
+- **After.** The callout goes, a toast says "«<name>» apunta a `<new>`", and the header's path
+  changes. A refusal keeps the dialog open with the reason in a `callout-warn` above the buttons,
+  from the error code (`already-a-project` names the other project with "Abrir").
+- **Phone.** The callout spans the width and its button is full width at ≥ 44 px; the dialog is the
+  phone confirm (bottom sheet, buttons full width at ≥ 44 px). On a phone it also shows on the
+  project card's Ajustes screen.
+
 ### Chats
 
 The existing worktree tag (`apps/web/src/pages/Chats.tsx:247`) stays. When `chat.worktree.exists`
@@ -362,6 +408,14 @@ New keys in `apps/web/src/i18n/locales/{en,es}/projects.json` (and `chats.json` 
 | `worktrees.removed_one/_other` | {{n}} removed worktree is still in its chats' history / … | {{n}} worktree eliminado sigue en el historial de sus chats / {{n}} worktrees eliminados siguen en el historial de sus chats |
 | `worktrees.notRepo` | This project is not a git repository | Este proyecto no es un repositorio git |
 | `chats:list.worktreeRemoved` | removed | eliminado |
+| `repoint.title` | This project points at a worktree | Este proyecto apunta a un worktree |
+| `repoint.body` | Its path is inside the worktree <mono>{{worktree}}</mono> of “{{repo}}”. Point it at the main repository so its worktrees and suggestions group properly. | Su ruta está dentro del worktree <mono>{{worktree}}</mono> de «{{repo}}». Apúntalo al repositorio principal para que sus worktrees y sugerencias se agrupen bien. |
+| `repoint.action` | Point at the main repository | Apuntar al repositorio principal |
+| `repoint.confirmTitle` | Point “{{name}}” at the main repository? | ¿Apuntar «{{name}}» al repositorio principal? |
+| `repoint.confirmBody` | The path changes from <mono>{{from}}</mono> to <mono>{{to}}</mono>. Its chats, tasks and settings stay with it, and the worktree is not touched. | La ruta pasa de <mono>{{from}}</mono> a <mono>{{to}}</mono>. Sus chats, tareas y ajustes siguen con él, y el worktree no se toca. |
+| `repoint.confirm` / `running` | Point / Pointing | Apuntar / Apuntando |
+| `repoint.done` | “{{name}}” points at <mono>{{path}}</mono> | «{{name}}» apunta a <mono>{{path}}</mono> |
+| `repoint.error.*` | one per code: not-a-repository, not-a-directory, linked-worktree, other-repository, already-a-project | uno por código |
 
 ## Contracts
 
@@ -407,6 +461,12 @@ export interface ProjectWorktree {
   removedWorktrees: number;
   /** The path lies inside a linked worktree: the main checkout plus subdir, else null */
   insideWorktreeOf: string | null;
+
+// UpdateProjectRequest gains:
+  /** Re-points the project inside its own repository (D12): the main checkout plus a subdir */
+  path?: string;
+
+// ProjectChange gains 'path' (types.ts:8035)
 
 // ChatWorktree gains:
   /** False once the worktree is removed: history, never a place to start a chat */
@@ -457,6 +517,7 @@ client; `docs/rest-api.md` notes it.
 | `POST /projects/candidates/unhide` | new, body `CandidateKeyRequest`, 204 |
 | `GET /projects/inspect?path=` | new, `ProjectPathInspection`; 400 without `path` |
 | `POST /projects/import` | 400 `linked-worktree`, 409 `already-a-project` |
+| `PATCH /projects/:id` | accepts `path` (D12): 400 `not-a-repository`, `not-a-directory`, `linked-worktree`, `other-repository`; 409 `already-a-project`; its `docs/rest-api.md` row and OpenAPI description say so |
 
 The three new routes are registered **before** `/projects/:id` and need a summary and tag in
 `apps/api/src/openapi/routes.ts` and a row in `docs/rest-api.md` (`add-rest-route` skill). A chat's
@@ -491,9 +552,9 @@ The integrator launches this graph on `feat/projects-as-repositories`:
 
 | Id | Task | dependsOn | Owns | Checks |
 | --- | --- | --- | --- | --- |
-| `repo-model` (opus) | D1–D7, D9–D11: spike, `repos.ts`, `repo_places`, placement, migration, worktrees, import rules, inspect | – | `packages/core/src/repos.ts` (new), `packages/core/src/locations.ts` (removed or re-exported), `packages/core/src/projects.ts`, `packages/core/src/git.ts` (`worktrees()`), the `repo_places` migration in `db.ts`, the project and placement parts of `packages/core/src/index.ts`, `project-settings.ts` `idForPath`, `collab/readers.ts`, worktree-cache invalidation lines in `orchestrator.ts`, `work-links.ts`, `pull-requests.ts`, `live-chat.ts`, `Project`/`ProjectWorktree`/`ChatWorktree`/`ProjectRepo`/inspect types, `GET /projects/inspect`, the import errors in `apps/api/src/routes/projects.ts`, their `routes.ts` and `rest-api.md` rows, `packages/core/test/fixtures/repos/**` | `pnpm typecheck`, `pnpm test` (core, api), `openapi:schemas`, the D9 budget test |
+| `repo-model` (opus) | D1–D7, D9–D12: spike, `repos.ts`, `repo_places`, placement, migration, worktrees, import rules, inspect, re-point | – | `packages/core/src/repos.ts` (new), `packages/core/src/locations.ts` (removed or re-exported), `packages/core/src/projects.ts`, `packages/core/src/git.ts` (`worktrees()`), the `repo_places` migration in `db.ts`, the project and placement parts of `packages/core/src/index.ts`, `project-settings.ts` `idForPath`, `collab/readers.ts`, worktree-cache invalidation lines in `orchestrator.ts`, `work-links.ts`, `pull-requests.ts`, `live-chat.ts`, `Project`/`ProjectWorktree`/`ChatWorktree`/`ProjectRepo`/inspect types, `GET /projects/inspect`, the import errors and `PATCH` `path` in `apps/api/src/routes/projects.ts`, `UpdateProjectRequest.path` and `ProjectChange`, `Core.updateProject` (`index.ts:2366`), `ProjectSettingsStore`'s recorded path, their `routes.ts` and `rest-api.md` rows, `packages/core/test/fixtures/repos/**` | `pnpm typecheck`, `pnpm test` (core, api), `openapi:schemas`, the D9 budget test |
 | `suggestions-core` (sonnet) | D8: grouping, exclusions, hide store and routes | `repo-model` | `projectCandidates` in `projects.ts` (or `project-candidates.ts`, new), `packages/core/src/project-suggestions.ts` (new), `Core.projectCandidates`, `ProjectCandidate`/`CandidateKeyRequest` types, the two hide routes, their `routes.ts` and `rest-api.md` rows | `pnpm typecheck`, `pnpm test`, `openapi:schemas` |
-| `web-projects` (sonnet) | the Design section | `suggestions-core` | `apps/web/src/pages/Projects.tsx`, `apps/web/src/pages/projects/**` (Where step), `apps/web/src/pages/home/ProjectWorktrees.tsx`, `ProjectHead.tsx` (New chat on a bare project), `apps/web/src/pages/Chats.tsx` (tag and filter), `apps/web/src/insights.css` candidate rules, the project functions in `apps/web/src/api.ts`, `locales/{en,es}/projects.json`, `chats.json` key, `docs/design-system/reference/tools/projects.py` and the regenerated Proyectos references, `docs/design-system.md` §Projects, `e2e/specs/projects-repositories.spec.mjs` (new), `a11y-projects`, `projects-wizard`, `home`, `chats` specs and their fake transcripts | `pnpm typecheck`, `pnpm test` (web), design lint, `/ui-review` of `/projects`, the wizard and the Worktrees tab in both themes at 1600×950, 1280×720 and 390×844 |
+| `web-projects` (sonnet) | the Design section | `suggestions-core` | `apps/web/src/pages/Projects.tsx`, `apps/web/src/pages/projects/**` (Where step), `apps/web/src/pages/home/ProjectWorktrees.tsx`, `ProjectHead.tsx` (New chat on a bare project), `apps/web/src/pages/home/ProjectRepoint.tsx` (new, the D12 callout and dialog) and its placement on Resumen and `ProjectGeneral.tsx`, `apps/web/src/pages/Chats.tsx` (tag and filter), `apps/web/src/insights.css` candidate rules, the project functions in `apps/web/src/api.ts`, `locales/{en,es}/projects.json`, `chats.json` key, `docs/design-system/reference/tools/projects.py` and the regenerated Proyectos references, `docs/design-system.md` §Projects, `e2e/specs/projects-repositories.spec.mjs` (new), `a11y-projects`, `projects-wizard`, `home`, `chats` specs and their fake transcripts | `pnpm typecheck`, `pnpm test` (web), design lint, `/ui-review` of `/projects`, the wizard, the Worktrees tab and the re-point callout and dialog in both themes at 1600×950, 1280×720 and 390×844 |
 | `review` (opus) | design, conventions, one rule, migration safety | the three above | none (findings, or one-line fixes nobody owns) | reads; at most one test run |
 | `docs` (sonnet) | `docs/projects.md` (identity, worktrees, suggestions, import), `docs/cli-surfaces.md` row, `docs/rest-api.md` check, `docs/work-items.md` note on two projects of one repository, `docs/status.md`, this plan's Outcome, `docs/decisions/project-identity-common-dir.md` (new, D1–D4) | the three above | those files | `pnpm test` (docs tests) |
 
@@ -541,7 +602,13 @@ schemas once after merging.
 7. **`Core.projects()`** per D6; drop the `.claude/worktrees` `readdir`; invalidate `worktreesOf`
    where Claudio adds or removes a worktree.
 8. **`GET /projects/inspect`**.
-- **Tests:** the oracle test; placement of the leaked cases (a `worktree-state` whose `originalCwd`
+9. **Re-point** (D12): `ProjectStore.repoint(id, path)` and `PATCH /projects/:id` with `path`,
+   typed errors mapped to 400 and 409, the settings document's path, `project.updated` with `path`.
+- **Tests:** the oracle test; re-pointing a project from a linked worktree to the main checkout
+  keeps its id, its chats (from the old worktree and the main checkout) and its work items, and
+  `idForPath` finds it by the new path after a removal; each refusal code (another repository, a
+  linked worktree, a non-repository project, a path that is another project); re-pointing a project
+  whose old worktree was removed; placement of the leaked cases (a `worktree-state` whose `originalCwd`
   is a sibling worktree, existing and removed; a nested `.claude/worktrees` path; a removed worktree
   with only a `repo_places` row); migration of a v1 document, including a missing path and a path
   inside a linked worktree; import refusals; `idForPath` by repository; the D9 budget.
@@ -565,16 +632,19 @@ schemas once after merging.
 4. The references: `projects.py` draws the grouped suggestions (desktop and phone) and the
    Worktrees tab with a main checkout, a locked worktree, a work item's and the removed footer;
    regenerate, and update `docs/design-system.md` §Projects.
-5. e2e (written, not run): `projects-repositories.spec.mjs` seeds fake transcripts with a
+5. The re-point callout and dialog (D12) on Resumen and Ajustes, desktop and phone, with a
+   reference screen drawn by `projects.py`.
+6. e2e (written, not run): `projects-repositories.spec.mjs` seeds fake transcripts with a
    `worktree-state` from a sibling worktree and checks one suggestion per repository, hiding and
-   undo, the wizard's linked-worktree error and "Usar …", and the Worktrees tab; update
+   undo, the wizard's linked-worktree error and "Usar …", the Worktrees tab, and re-pointing a
+   project seeded inside a worktree (callout, dialog, the path after); update
    `a11y-projects`, `projects-wizard`, `home` and `chats` where their copy or selectors changed.
 
 ### `review` (opus)
 
 Review the merged design, not just the diff: the one rule (D10); no git spawn on the list path
 (read the budget test); the migration never drops or moves a record and an older reader still loads
-the file; `repo_places` upserts are safe with two processes; credentials never leave core in a
+the file; re-pointing (D12) keeps the id and refuses every case D12 lists; `repo_places` upserts are safe with two processes; credentials never leave core in a
 remote; D8's exclusions; the copy against the glossary; gradients, status colours (none is used for
 "another clone", "locked" or "removed") and mono only on paths, branches and remotes. Findings go
 to the integrator with file:line and the smallest fix.
@@ -608,21 +678,26 @@ Unit and API tests are listed per task. Across the graph:
 - **Containers.** Transcripts written on the host name host paths the container cannot see: they
   resolve as gone, through records and layout; repositories under `/data` or `/workspace` children
   work as anywhere. `/workspace` itself is excluded (D8).
+- **Re-pointing a project changes where its new chats start.** Chats already running in the old
+  worktree keep running there; the dialog says the worktree is not touched, and only the project's
+  path moves.
 - **`safe.directory`.** The parser places a repository git would refuse; later git operations there
   still fail with git's own message, as today.
 
+## Owner's answers
+
+The owner answered the four open questions of the first version on 2026-10-19:
+
+1. **A project imported inside a linked worktree** gets a notice **and** a re-point action,
+   "Apuntar al repositorio principal" / "Point at the main repository": D12, with `path` in
+   `PATCH /projects/:id`.
+2. **Two clones of one remote** stay two projects, with a notice (D7).
+3. **Folders that are not git repositories** stay as the collapsed second group (D8).
+4. **Bare repositories** get full import, after the spike (D11).
+
 ## Open questions
 
-Each has a default the plan builds.
-
-1. **A project imported inside a linked worktree** (possible before D7): only a notice naming the
-   main checkout (default), or an action that re-points the project's path (needs `path` in
-   `PATCH /projects/:id`)?
-2. **Two clones of one remote**: kept as two projects with a notice (default), or offered to merge?
-3. **"Other directories"**: keep the collapsed non-repository group (default), or suggest only
-   repositories?
-4. **Bare repositories**: build D11 now (default), or recognise them for grouping only and leave
-   import for later if the spike shows layouts vary too much?
+None for the owner. The spike in `repo-model` settles D2's parser and D11's import path.
 
 ## Related
 
