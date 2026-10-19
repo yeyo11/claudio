@@ -1895,3 +1895,33 @@ button.master-item-on:hover {
     min-height: 44px;
   }
 }
+
+/* The Worktrees tab: the main checkout first, then the linked ones */
+.worktree-branch {
+  flex-wrap: wrap;
+}
+.worktree-row.is-main {
+  border-left-color: var(--line-2);
+}
+.worktree-chats {
+  color: inherit;
+}
+.worktree-removed {
+  margin: 12px 0 0;
+}
+.worktree-locked-reason {
+  flex-basis: 100%;
+}
+
+@media (max-width: 900px) {
+  .worktree-new {
+    min-height: 44px;
+    width: 100%;
+  }
+  .worktree-tags {
+    flex: 1 1 100%;
+  }
+  .worktree-tags .btn {
+    width: 100%;
+  }
+}

@@ -1,6 +1,7 @@
 import type { ProjectTemplate, ProjectTemplateId } from '@claudio/shared';
 import { WORK_ITEM_TYPES } from '@claudio/shared';
 import { Check, Folder, GitBranch, MessageCircle, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Combobox, Switch } from '@claudio/ui/components/controls';
@@ -9,9 +10,59 @@ import { WorkItemKey, WorkItemTypeIcon } from '../../components/work-item-icons'
 import { Segmented } from '@claudio/ui/components/ui';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { columnMeta } from '../../lib/work-items';
-import { limitedColumns, normalizePrefix, PROJECT_MODULES, TEMPLATE_ORDER, toggleModule } from './model';
+import { limitedColumns, normalizePrefix, PROJECT_MODULES, shortRemote, TEMPLATE_ORDER, toggleModule } from './model';
 import { ModuleCard, TemplateCard } from './parts';
 import type { Draft, Wizard } from './wizard';
+
+/**
+ * What the typed directory is, said under the field before Import: a repository (its remote and
+ * worktrees), a worktree that is refused with the way out, a directory that already is a project, or
+ * another clone of a repository that is. A directory that is no repository says nothing.
+ */
+function PathInspection({ set, wizard }: { set: (patch: Partial<Draft>) => void; wizard: Wizard }) {
+  const { t } = useTranslation(['projects', 'common']);
+  const found = wizard.inspection;
+  if (!found) return null;
+  const { conflict, repo } = found;
+  if (conflict?.kind === 'linked-worktree') {
+    return (
+      <span className="field-error wizard-inspect" role="alert">
+        {t('inspect.linkedWorktree', { name: conflict.repoName })}
+        <button type="button" className="btn btn-small wizard-inspect-action" onClick={() => set({ path: conflict.importPath })}>
+          <Trans t={t} i18nKey="inspect.useMain" values={{ path: conflict.importPath }} components={{ mono: <span className="mono" /> }} />
+        </button>
+      </span>
+    );
+  }
+  if (conflict?.kind === 'already-a-project') {
+    return (
+      <span className="field-error wizard-inspect" role="alert">
+        {t('inspect.alreadyProject', { name: conflict.project.name })}
+        <Link to={`/?project=${encodeURIComponent(conflict.project.id)}`} className="btn btn-small wizard-inspect-action">
+          {t('common:actions.open')}
+        </Link>
+      </span>
+    );
+  }
+  return (
+    <>
+      {repo && (
+        <span className="form-hint wizard-inspect">
+          {repo.remote ? (
+            <Trans t={t} i18nKey="inspect.repo" count={found.worktreeCount} values={{ remote: shortRemote(repo.remote), n: formatNumber(found.worktreeCount) }} components={{ mono: <span className="mono" /> }} />
+          ) : (
+            t('inspect.repoLocal', { count: found.worktreeCount, n: formatNumber(found.worktreeCount) })
+          )}
+        </span>
+      )}
+      {found.sameRemoteAs && (
+        <span className="callout wizard-inspect-callout" role="note">
+          {t('inspect.otherClone', { name: found.sameRemoteAs.name })}
+        </span>
+      )}
+    </>
+  );
+}
 
 export function OriginFields({ draft, set, wizard, narrow }: { draft: Draft; set: (patch: Partial<Draft>) => void; wizard: Wizard; narrow: boolean }) {
   const { t } = useTranslation('projects');
@@ -72,6 +123,7 @@ export function OriginFields({ draft, set, wizard, narrow }: { draft: Draft; set
         ) : (
           <input className="mono" aria-label={t('wizard.git')} value={draft.gitUrl} placeholder="https://github.com/owner/repo.git" onChange={(e) => set({ gitUrl: e.target.value })} />
         )}
+        {draft.source === 'local' && <PathInspection set={set} wizard={wizard} />}
       </div>
       <label className="form-row wizard-prefix">
         <span className="section-label">{t('wizard.prefix')}</span>
