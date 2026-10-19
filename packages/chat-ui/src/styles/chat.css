@@ -2748,3 +2748,11 @@ a.attachment-chip:hover {
     min-height: 44px;
   }
 }
+
+/* The options popover's rows that open the real list are links: a phone gets a full-size target */
+@media (pointer: coarse) {
+  .kv-narrow .link-btn {
+    min-height: 44px;
+    text-align: start;
+  }
+}

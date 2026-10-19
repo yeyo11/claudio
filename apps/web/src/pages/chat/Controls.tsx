@@ -1,6 +1,6 @@
 import type { Chat, Effort, PermissionMode } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChatToolsPicker } from '../../components/ChatToolsPicker';
 import { EffortField } from '../../components/EffortPicker';
@@ -11,6 +11,8 @@ import { ModelCombobox, PERMISSION_MODES } from '../../components/ui';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { api, keys } from '../../api';
 import type { StartChoices } from '@claudio/chat-ui/lib/context';
+import { serversOn, useLiveServers } from '@claudio/chat-ui/composer/ServersPanel';
+import { formatNumber } from '@claudio/ui/lib/format';
 
 /*
  * The controls built on Radix selects, in one module so the chat page can load them lazily.
@@ -68,24 +70,54 @@ export function LiveSettings({ chat }: { chat: Chat }) {
 }
 
 /**
- * What the status line opens on a live chat: what can be switched in place, and the tools it was
- * started with, which a live process keeps until it is resumed.
+ * What the status line opens on a live chat: what can be switched in place, and two rows that lead
+ * to the real lists (the "+" menu's Servers panel and the inspector's Environment tab) rather than
+ * repeating them.
  */
-export function LiveOptions({ chat }: { chat: Chat }) {
+export function LiveOptions({ chat, onOpenServers, onOpenEnvironment }: { chat: Chat; onOpenServers?: () => void; onOpenEnvironment?: () => void }) {
   const { t } = useTranslation(['chat', 'work']);
   const { tools } = chat;
+  const servers = useLiveServers(chat.id, Boolean(chat.execution));
+  const count = serversOn(servers.data?.servers);
+  // The same words as the chip: the live count while the process is up, else what the chat started with
+  const serversWords = count
+    ? t('composerMenu.serversOn', { on: formatNumber(count.on), total: formatNumber(count.total) })
+    : tools?.mcp
+      ? tools.mcp.servers.length > 0
+        ? t('status.serversChosen', { count: tools.mcp.servers.length })
+        : t('tools.card.noServers')
+      : t('tools.card.serversDefault');
+  const presetWords = tools?.preset ? tools.preset.name : t('tools.card.noPreset');
   return (
     <div className="stack-tight">
       <dl className="kv kv-narrow">
         <LiveSettings chat={chat} />
         <dt>{t('tools.preset')}</dt>
-        <dd>{tools?.preset ? <Tag tone="info">{tools.preset.name}</Tag> : <span className="muted">{t('tools.card.noPreset')}</span>}</dd>
+        <dd>
+          <LinkRow onClick={onOpenEnvironment}>
+            {presetWords} · {t('status.viewRules')}
+          </LinkRow>
+        </dd>
         <dt>{t('tools.servers')}</dt>
-        {/* The servers' names are ids and keep their mono; the words for none or the default do not */}
-        <dd className={tools?.mcp && tools.mcp.servers.length > 0 ? 'mono' : undefined}>{tools?.mcp ? (tools.mcp.servers.length > 0 ? tools.mcp.servers.join(', ') : t('tools.card.noServers')) : t('tools.card.serversDefault')}</dd>
+        <dd>
+          <LinkRow onClick={onOpenServers}>
+            <span className="tnum">{serversWords}</span>
+          </LinkRow>
+        </dd>
       </dl>
       <p className="small muted">{t('status.liveHint')}</p>
     </div>
+  );
+}
+
+/** A row's value that opens the list it summarises; plain text when the page gave no way to open it. */
+function LinkRow({ onClick, children }: { onClick?: () => void; children: ReactNode }) {
+  if (!onClick) return <span>{children}</span>;
+  return (
+    <button type="button" className="link-btn" onClick={onClick}>
+      {children}
+      <span aria-hidden> ›</span>
+    </button>
   );
 }
 

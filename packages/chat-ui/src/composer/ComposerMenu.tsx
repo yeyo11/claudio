@@ -1,6 +1,6 @@
 import type { Chat } from '@claudio/shared';
 import { Paperclip, Plug, Plus, Slash } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
@@ -31,6 +31,8 @@ export function ComposerMenu({
   hasCommands,
   onCommands,
   onChooseTools,
+  requestServers,
+  onServersRequested,
 }: {
   chat: Chat;
   /** The chat's process is up: its servers can be read and switched now */
@@ -42,6 +44,10 @@ export function ComposerMenu({
   onCommands: () => void;
   /** Opens the run options, where a resume or a fork chooses its preset and servers */
   onChooseTools: () => void;
+  /** Set by the options popover to open the Servers panel from outside, as choosing the menu's row does */
+  requestServers?: boolean;
+  /** The request was taken: the owner clears it */
+  onServersRequested?: () => void;
 }) {
   const { t } = useTranslation('chat');
   const input = useRef<HTMLInputElement>(null);
@@ -55,6 +61,11 @@ export function ComposerMenu({
   // The menu closes itself on a choice; the panel opens after it has handed the focus back
   const openPanel = (next: Panel) => setTimeout(() => setPanel(next), 0);
   const tr = useLooseT();
+  useEffect(() => {
+    if (!requestServers) return;
+    setPanel('servers');
+    onServersRequested?.();
+  }, [requestServers, onServersRequested]);
 
   const account = accountItem({
     rows: accounts.rows,
