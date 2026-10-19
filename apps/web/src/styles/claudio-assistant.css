@@ -276,6 +276,12 @@
     min-height: var(--touch);
   }
 
+  /* Three on a phone, as the reference has them, so the recents start above the composer's foot:
+     "Flow and team" is the one a phone asks least */
+  .as-starter:nth-child(3) {
+    display: none;
+  }
+
   /* Two lines, the title and then "word · time", 56 px high; Ver todas is a 44 px target */
   .as-recent {
     flex-direction: column;
@@ -285,9 +291,12 @@
     min-height: 56px;
   }
 
-  .as-recent-title {
+  /* The title wraps instead of being cut: a finger never opens the tooltip that holds the rest */
+  .as-recent-title.ellipsis {
     flex: none;
     max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .as-recent-meta {

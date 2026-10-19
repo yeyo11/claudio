@@ -63,10 +63,12 @@ export function Recents({ narrow }: { narrow: boolean }) {
       <ul className="as-recents">
         {chats.map((chat) => {
           const state = chatStateWord(chat);
+          // The title is the prompt cut at a hundred characters; the tooltip has its whole first line
+          const full = chat.firstPrompt?.split('\n')[0]?.trim() || displayTitle(chat);
           return (
             <li key={chat.id}>
               {/* The title is cut to one line; the tooltip holds the whole of it (a link cannot carry `title=`) */}
-              <Tooltip content={displayTitle(chat)}>
+              <Tooltip content={full}>
                 <Link className="as-recent" to={`/chats/${chat.id}`}>
                   <span className="as-recent-title ellipsis">{displayTitle(chat)}</span>
                   <span className="as-recent-meta">
