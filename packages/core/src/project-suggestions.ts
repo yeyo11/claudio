@@ -117,6 +117,8 @@ export function projectCandidates(
     const repo = place.repo;
     if (repo?.mainCheckout) checkouts.add(repo.mainCheckout);
     if (attachProject(projects, chat.cwd, place)) continue;
+    // Git would not say (`safe.directory`): an unknown is neither a repository nor "not a git repository"
+    if (!repo && place.exists && place.source === null) continue;
     if (repo && owned.has(repo.commonDir)) continue;
 
     let group: Group | undefined;

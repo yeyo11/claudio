@@ -335,8 +335,44 @@ export function normalizeRemote(url: string): string {
   return slash < 0 ? host : `${host}${rest.slice(slash)}`;
 }
 
-/** `remote.origin.url`, credentials stripped; null without an origin. One git process. */
+/**
+ * `remote.origin.url` from `<commonDir>/config` itself, so a list starts no process for it; undefined
+ * when the file has includes or quoting git would read differently, and git has to answer.
+ */
+export function originUrlOf(commonDir: string): string | null | undefined {
+  let text: string | null;
+  try {
+    text = textOf(join(commonDir, 'config'));
+  } catch {
+    return undefined;
+  }
+  if (text === null) return null;
+  let inOrigin = false;
+  let url: string | null = null;
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('[')) {
+      if (/^\[\s*include(If)?\b/i.test(line)) return undefined;
+      inOrigin = /^\[\s*remote\s+"origin"\s*\]$/i.test(line);
+      continue;
+    }
+    if (!inOrigin) continue;
+    const pair = /^url\s*=\s*(.*)$/i.exec(line);
+    if (!pair) continue;
+    const value = (pair[1] ?? '').trim();
+    // A comment, a quote or an escape is git's syntax to read, not ours
+    if (/["\\#;]/.test(value)) return undefined;
+    // A key set more than once is git's to settle
+    if (url !== null) return undefined;
+    url = value || null;
+  }
+  return url;
+}
+
+/** `remote.origin.url`, credentials stripped; null without an origin. Read from the file, else one git process. */
 export function remoteOf(commonDir: string): string | null {
+  const read = originUrlOf(commonDir);
+  if (read !== undefined) return read ? stripCredentials(read) : null;
   try {
     const url = repoGit.run(commonDir, ['config', '--file', join(commonDir, 'config'), '--get', 'remote.origin.url']);
     return url ? stripCredentials(url) : null;
@@ -684,7 +720,7 @@ export class RepoIndex {
     return list;
   }
 
-  /** origin's URL, credentials stripped: one git process per repository every five minutes at most. */
+  /** origin's URL, credentials stripped: read from the config file, git asked only for what the file leaves to it. */
   remoteOf(commonDir: string): string | null {
     const hit = this.remotes.get(commonDir);
     if (hit && this.now() - hit.at < REMOTE_TTL_MS) return hit.remote;

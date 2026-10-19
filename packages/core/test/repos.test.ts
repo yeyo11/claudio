@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { Db } from '../src/db.ts';
 import { worktrees } from '../src/git.ts';
-import { bareImportPath, normalizeRemote, parseRepo, RepoIndex, RepoPlaces, repoGit, repoOf, stripCredentials, worktreesOf } from '../src/repos.ts';
+import { bareImportPath, normalizeRemote, originUrlOf, parseRepo, remoteOf, RepoIndex, RepoPlaces, repoGit, repoOf, stripCredentials, worktreesOf } from '../src/repos.ts';
 import { tempConfig } from './helpers.ts';
 
 /** git's answers for one fixture directory, as `fixtures/repos/make.sh` records them. */
@@ -220,6 +220,36 @@ test('a remote never carries what signs in with it', () => {
   assert.equal(stripCredentials('ssh://git@github.com/a/b.git'), 'ssh://git@github.com/a/b.git');
   assert.equal(stripCredentials('ssh://git:pw@github.com/a/b.git'), 'ssh://github.com/a/b.git');
   assert.equal(stripCredentials('git@github.com:a/b.git'), 'git@github.com:a/b.git');
+});
+
+test("origin's URL is read from the repository's config file, as git reads it, with no process", () => {
+  const repo = mkdtempSync(join(tmpdir(), 'claudio-remote-'));
+  try {
+    execFileSync('git', ['-C', repo, 'init', '-q']);
+    const commonDir = join(repo, '.git');
+    let spawns = 0;
+    const run = repoGit.run;
+    repoGit.run = (cwd, args) => {
+      spawns += 1;
+      return run(cwd, args);
+    };
+    try {
+      assert.equal(remoteOf(commonDir), null);
+      execFileSync('git', ['-C', repo, 'remote', 'add', 'upstream', 'https://example.com/up.git']);
+      execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://user:secret@github.com/a/b.git']);
+      assert.equal(originUrlOf(commonDir), execFileSync('git', ['-C', repo, 'config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim());
+      assert.equal(remoteOf(commonDir), 'https://github.com/a/b.git');
+      assert.equal(spawns, 0);
+    } finally {
+      repoGit.run = run;
+    }
+    // What the reader would have to interpret, git answers
+    writeFileSync(join(commonDir, 'config'), `${readFileSync(join(commonDir, 'config'), 'utf8')}[include]\n\tpath = other\n`);
+    assert.equal(originUrlOf(commonDir), undefined);
+    assert.equal(remoteOf(commonDir), 'https://github.com/a/b.git');
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test('two clones compare by host and path, however each was cloned', () => {
