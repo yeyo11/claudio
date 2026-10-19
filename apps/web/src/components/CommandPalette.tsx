@@ -29,7 +29,6 @@ import {
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkle,
   SquareCheck,
   SquarePlus,
   SquareTerminal,
@@ -38,6 +37,7 @@ import {
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
+import { ClaudioGlyph } from '@claudio/ui/components/icons';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -170,9 +170,9 @@ export function CommandPalette() {
       { id: 'act:new-orchestration', group: 'actions', title: t('palette.newOrchestration'), hint: t('palette.newOrchestrationHint'), keywords: 'agents dag plan', icon: Network, run: go(NEW_ORCHESTRATION_PATH) },
       { id: 'act:new-task', group: 'actions', title: t('shell:tasks.newTask'), hint: selected ? t('shell:tasks.newTaskIn', { name: selected.name }) : t('shell:tasks.newTaskHint'), keywords: 'work item board backlog issue ticket bug story epic', icon: SquarePlus, run: go(NEW_TASK_PATH) },
       // Always there, with or without a project: the project one below is another assistant, told apart by its title
-      { id: 'act:claudio-assistant', group: 'actions', title: t('palette.claudioAssistant'), hint: selected ? t('palette.claudioAssistantOf', { name: selected.name }) : t('palette.claudioAssistantHint'), keywords: 'assistant claudio ask help mcp asistente', icon: Sparkle, run: go(CLAUDIO_ASSISTANT_PATH) },
+      { id: 'act:claudio-assistant', group: 'actions', title: t('palette.claudioAssistant'), hint: selected ? t('palette.claudioAssistantOf', { name: selected.name }) : t('palette.claudioAssistantHint'), keywords: 'assistant claudio ask help mcp asistente', icon: ClaudioGlyph, run: go(CLAUDIO_ASSISTANT_PATH) },
       ...(selected
-        ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: Sparkle, run: go(assistantPath(selected.id)) }]
+        ? [{ id: 'act:assistant', group: 'actions' as const, title: t('palette.assistant'), hint: t('palette.assistantOf', { name: selected.name }), keywords: 'assistant ai suggest propose team resources tasks asistente', icon: ClaudioGlyph, run: go(assistantPath(selected.id)) }]
         : []),
       { id: 'act:new-project', group: 'actions', title: t('palette.newProject'), hint: t('palette.newProjectHint'), keywords: 'import git clone folder directory template modules', icon: FolderPlus, run: go(NEW_PROJECT_PATH) },
       { id: 'act:credential', group: 'actions', title: t('palette.credential'), hint: t('palette.credentialHint'), keywords: 'login auth token key', icon: KeyRound, run: go(settingsHref('claude-code', { section: 'sign-in' })) },
@@ -228,7 +228,7 @@ export function CommandPalette() {
       page('memory', Brain, 'facts');
       page('resources', Library, 'agents skills commands workflows');
       page('worktrees', GitBranch, 'branches');
-      list.push({ id: `project:assistant:${project.id}`, group: 'projects', title: t('palette.projectAssistant', { name: project.name }), hint, keywords: 'assistant ai suggest propose asistente', icon: Sparkle, run: go(assistantPath(project.id)) });
+      list.push({ id: `project:assistant:${project.id}`, group: 'projects', title: t('palette.projectAssistant', { name: project.name }), hint, keywords: 'assistant ai suggest propose asistente', icon: ClaudioGlyph, run: go(assistantPath(project.id)) });
       list.push({ id: `project:chats:${project.id}`, group: 'projects', title: t('palette.projectChats', { name: project.name }), hint, keywords: 'sessions history', icon: MessagesSquare, run: go(`/chats?project=${id}`) });
       if (project.exists) {
         list.push({ id: `project:new-chat:${project.id}`, group: 'projects', title: t('palette.projectNewChat', { name: project.name }), hint, keywords: 'start run', icon: Play, run: go(`/chats/new?cwd=${encodeURIComponent(project.path)}`) });

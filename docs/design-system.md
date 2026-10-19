@@ -443,7 +443,7 @@ slot.
 
 | Reference class | App class or component | Rule |
 |---|---|---|
-| `.ai-mark` (`.sm`) | new `AssistantMark` | the assistant's sparkle on a neutral tile. Cyan only inside a live run; never the gradient |
+| `.ai-mark` (`.sm`) | new `AssistantMark` | Claudio's glyph on a neutral tile. Cyan only inside a live run; never the gradient |
 | `.ai-run` (`.live` + `.energy`, `.done`), `.ai-run-head`, `-title`, `-now` | new `.suggestion-run` | the run's header. Live: the verb with the braille spinner, the elapsed time and "Detener", and it takes the screen's energy border. Done: one still line with what it produced |
 | `.ai-facts` (`.cost`) | new `.suggestion-facts` | model · time · cost · chat link (the model id in mono, the rest sans). The cost is the one fact in `--fg-2`; while running it reads "0,03 US$ hasta ahora" |
 | `.ai-steps`, `.ai-step` (`.now`, `.todo`), `.ai-found` | new `.suggestion-steps` | what the assistant read, one line per source with a count; the one being read has the braille spinner. What it found are neutral `.wi-label` tags |
@@ -539,7 +539,7 @@ answer is drawn in the reference; the change note for development is
    before the words do: a role's squircle with its stage verb (Refinando, Implementando,
    Verificando), the person's round monogram with the chat's verb (Ejecutando), or the
    orchestration glyph with "nodo 3 de 9". Refine and verify are live like work (gap 1).
-3. **The project assistant.** A ghost "Asistente" with its sparkle in the project header, before
+3. **The project assistant.** A ghost "Asistente" with Claudio's glyph in the project header, before
    "Nuevo chat aquí"; also in the command palette. On a phone, an "Asistente del proyecto" row in
    the project card, above the sections.
 4. **Phone detail headers.** A screen pushed from another has a back arrow, its title and a "⋯"

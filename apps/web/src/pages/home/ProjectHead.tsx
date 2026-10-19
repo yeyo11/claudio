@@ -1,11 +1,11 @@
 import type { Project } from '@claudio/shared';
-import { ChevronRight, MessageCircle, Pencil, Plus, Sparkle } from 'lucide-react';
+import { ChevronRight, MessageCircle, Pencil, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import type { TFunction } from 'i18next';
 import { useAssistantRuns, useDocuments, useProjectSettings } from '../../api';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
-import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
+import { ICON, ICON_SM, Monogram, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { WorkItemKey } from '../../components/work-item-icons';
 import { PhoneHeader } from '../../components/shell/PhoneHeader';
 import { formatNumber } from '@claudio/ui/lib/format';
@@ -72,7 +72,7 @@ export function ProjectHead({
             aria-disabled={!project.exists || undefined}
             aria-label={t('projects:head.assistantOf', { name: project.name })}
           >
-            <Sparkle {...ICON_SM} />
+            <ClaudioGlyph {...ICON_SM} />
             {t('projects:head.assistant')}
           </Link>
           <Link to={newChatPath(project)} className={board ? 'btn' : 'btn btn-primary'} aria-disabled={!project.exists || undefined} aria-label={t('projects:worktrees.newChatIn', { name: project.name })}>
@@ -127,7 +127,7 @@ export function PhoneAssistantRow({ project }: { project: Project }) {
   return (
     <Link to={assistantPath(project.id)} className="card project-assistant-row" aria-disabled={!project.exists || undefined}>
       <span className="project-tab-cell-icon is-accent" aria-hidden>
-        <Sparkle {...ICON} />
+        <ClaudioGlyph {...ICON} />
       </span>
       <span className="project-assistant-row-text">
         <span className="project-assistant-row-title">{t('head.assistantRow')}</span>
@@ -144,7 +144,7 @@ export function PhoneAssistantRow({ project }: { project: Project }) {
  * the assistant row, which a tab's screen does not show.
  */
 export function assistantEntry(project: Pick<Project, 'id' | 'exists'>, label: string, go: (path: string) => void): MenuEntry {
-  return { id: 'assistant', label, icon: Sparkle, disabled: !project.exists, onSelect: () => go(assistantPath(project.id)) };
+  return { id: 'assistant', label, icon: ClaudioGlyph, disabled: !project.exists, onSelect: () => go(assistantPath(project.id)) };
 }
 
 /**

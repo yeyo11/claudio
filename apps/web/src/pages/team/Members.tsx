@@ -1,12 +1,12 @@
 import type { ProjectTeamRole, Team, TeamMember, WorkItemStatus } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, FileWarning, Pencil, Plus, Sparkle, UserMinus } from 'lucide-react';
+import { ChevronRight, FileWarning, Pencil, Plus, UserMinus } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../api';
 import { MoreActions, type MenuEntry } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
-import { ICON_SM } from '@claudio/ui/components/icons';
+import { ICON_SM, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { EffortTag } from '../../components/EffortPicker';
 import { WorkItemStatusIcon } from '../../components/work-item-icons';
 import { useToast } from '@claudio/ui/components/Toast';
@@ -271,7 +271,7 @@ export function ProposeButton({ projectId }: { projectId: string }) {
   const propose = useProposeTeam(projectId);
   return (
     <button type="button" className="btn team-propose" disabled={propose.isPending} onClick={() => propose.mutate()}>
-      <Sparkle {...ICON_SM} />
+      <ClaudioGlyph {...ICON_SM} />
       {t('teamEmpty.propose')}
     </button>
   );
@@ -334,7 +334,7 @@ export function TeamEmpty({
           action={
             <div className="team-empty-actions">
               <button type="button" className="btn btn-primary team-empty-propose" disabled={propose.isPending} onClick={() => propose.mutate()}>
-                <Sparkle {...ICON_SM} />
+                <ClaudioGlyph {...ICON_SM} />
                 {t('assistant:teamEmpty.propose')}
               </button>
               <button type="button" className="btn team-empty-template" disabled={apply.isPending || roles.length === 0} onClick={() => apply.mutate()}>
