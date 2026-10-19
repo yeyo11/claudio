@@ -1185,3 +1185,149 @@
   .trk-map-row > .ico { display: none; }
   .trk-map-note { font-size: var(--fs-small); }
 }
+
+/* A neutral note: nothing failed and nothing is near a limit, so no status colour */
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  color: var(--fg-2);
+}
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+.callout-warn {
+  border-color: var(--warn-soft);
+  background: var(--warn-soft);
+}
+.callout-warn > svg {
+  color: var(--warn);
+}
+/* Held at its tallest while the step is open (wizard-parts.tsx), so the fields below never jump */
+.wizard-inspect-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.wizard-inspect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.wizard-inspect-action {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wizard-inspect-callout {
+  margin-top: 4px;
+}
+
+/* A project that points at a worktree (D12): the sentence and its one action */
+.repoint-callout {
+  margin-bottom: 14px;
+}
+/* The notice and what it says once pointed share one cell: the callout keeps its height, so nothing
+   under it moves when the re-point lands */
+.repoint-faces {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.repoint-face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.repoint-face > svg {
+  flex: none;
+  color: var(--fg-3);
+}
+.repoint-face > .repoint-done-icon {
+  color: var(--ok);
+}
+.repoint-text {
+  flex: 1;
+  min-width: 0;
+}
+.repoint-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-strong);
+  color: var(--fg);
+}
+.repoint-body {
+  margin: 2px 0 0;
+}
+.repoint-action {
+  flex: none;
+}
+.repoint-refusal {
+  margin-top: 12px;
+}
+.repoint-refusal-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.repoint-sheet-foot {
+  /* The sheet's foot packs its children to the end; this one takes the whole row, so its buttons can */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.repoint-sheet-foot > .btn {
+  width: 100%;
+  min-height: var(--touch);
+  justify-content: center;
+}
+.repoint-confirm {
+  display: inline-grid;
+  justify-items: center;
+}
+.repoint-confirm-state {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .repoint-face {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .repoint-face > .repoint-icon {
+    display: none;
+  }
+  .repoint-done {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .repoint-action,
+  .repoint-refusal-open,
+  .wizard-inspect-action {
+    min-height: 44px;
+    width: 100%;
+  }
+}
+@media (pointer: coarse) {
+  .repoint-refusal-open {
+    min-height: var(--touch);
+  }
+}

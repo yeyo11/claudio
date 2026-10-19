@@ -325,7 +325,7 @@ test('the empty board draws the five fixed columns with the project\'s first key
 
 test('on a phone the empty board is the page itself, with the shorter words', async () => {
   await i18n.changeLanguage('es');
-  const project = { id: 'p', name: 'pagos-api', path: '/tmp/p', worktrees: [], exists: true, chatCount: 0, lastActivity: null, key: 'PAG', modules: ['board' as const] };
+  const project = { id: 'p', name: 'pagos-api', path: '/tmp/p', worktrees: [], repo: null, removedWorktrees: 0, insideWorktreeOf: null, exists: true, chatCount: 0, lastActivity: null, key: 'PAG', modules: ['board' as const] };
   const phone = wrap(<EmptyBoard project={project} phone onNew={() => {}} />);
   assert.match(phone, /class="workitem-empty is-phone"/);
   assert.match(text(phone), /o desde un mensaje de cualquier chat\./);

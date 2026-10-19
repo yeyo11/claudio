@@ -483,7 +483,7 @@ test('projects are imported by hand, renamed and removed without touching anythi
   assert.equal(imported.statusCode, 201);
   const { id } = imported.json();
   assert.equal(imported.json().name, 'Imported');
-  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir }) })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: dir }) })).statusCode, 409, 'already a project');
   assert.equal((await app.inject({ method: 'POST', url: '/api/projects/import', ...json({ path: join(dir, 'missing') }) })).statusCode, 400);
 
   const renamed = await app.inject({ method: 'PATCH', url: `/api/projects/${id}`, ...json({ name: 'Shop' }) });

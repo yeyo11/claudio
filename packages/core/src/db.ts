@@ -1383,6 +1383,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      rss_mb        INTEGER,
      admitting     INTEGER NOT NULL
    );`,
+
+  // Which repository each directory a chat or a run used is in (docs/plans/projects-as-repositories.md,
+  // D4). Rows, because they accumulate and two processes write them; never deleted, because a
+  // removed worktree's chats keep their project only through the row it left.
+  `CREATE TABLE repo_places (
+     dir           TEXT PRIMARY KEY,
+     common_dir    TEXT,
+     main_checkout TEXT,
+     worktree      TEXT,
+     subdir        TEXT NOT NULL DEFAULT '',
+     branch        TEXT,
+     source        TEXT NOT NULL,
+     seen_at       TEXT NOT NULL,
+     gone_at       TEXT
+   );
+   CREATE INDEX repo_places_common ON repo_places (common_dir);`,
 ];
 
 /**

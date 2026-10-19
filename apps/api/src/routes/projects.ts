@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import { projectExportFilename, REVIEW_ROLES, type ReviewRole, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
 import { refuseWeakerProjectSettings } from './guards.ts';
-import type { CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
+import type { CandidateKeyRequest, CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
 export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -13,8 +13,21 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // would otherwise take "candidates" for an id.
   app.get('/projects/candidates', () => core.projectCandidates());
 
+  // Hiding is the answer to noise the rules miss; both are plain writes of one key, so a chat's token may call them
+  app.post<{ Body: CandidateKeyRequest }>('/projects/candidates/hide', async (req, reply) => {
+    await core.hideProjectCandidate(req.body?.key);
+    return reply.status(204).send();
+  });
+  app.post<{ Body: CandidateKeyRequest }>('/projects/candidates/unhide', async (req, reply) => {
+    await core.unhideProjectCandidate(req.body?.key);
+    return reply.status(204).send();
+  });
+
   // Also before `/projects/:id`, for the same reason
   app.get('/projects/templates', () => core.projectTemplates());
+
+  // What the import wizard shows before Import is pressed; also before `/projects/:id`
+  app.get<{ Querystring: { path?: string } }>('/projects/inspect', (req) => core.inspectProjectPath(req.query.path));
 
   app.post<{ Body: ImportProjectRequest }>('/projects/import', async (req, reply) =>
     reply.status(201).send(await core.importProject({ ...req.body, path: req.body?.path ?? '' })),

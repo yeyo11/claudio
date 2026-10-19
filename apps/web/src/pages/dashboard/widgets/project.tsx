@@ -71,12 +71,14 @@ export function WorktreesWidget({ project, title, id, config }: WidgetProps) {
   const { t } = useTranslation('home');
   if (!project) return null;
   const limit = configCount(config, 'limit', 4);
-  const shown = project.worktrees.slice(0, limit);
+  // The main checkout is the project itself, not one of its worktrees
+  const linked = project.worktrees.filter((w) => !w.main);
+  const shown = linked.slice(0, limit);
   return (
     <WidgetCard
       id={id}
       title={title}
-      aside={project.worktrees.length > 0 ? <span className="small muted tnum">{formatNumber(project.worktrees.length)}</span> : undefined}
+      aside={linked.length > 0 ? <span className="small muted tnum">{formatNumber(linked.length)}</span> : undefined}
       actions={
         <Link to="/?view=worktrees" className="link-more">
           {t('widgets.worktrees.all')}
@@ -93,7 +95,7 @@ export function WorktreesWidget({ project, title, id, config }: WidgetProps) {
                 <GitBranch size={12} strokeWidth={1.75} aria-hidden />
                 {worktree.branch ?? worktree.name ?? worktree.path}
               </span>
-              {worktree.createdBy && (
+              {worktree.createdBy?.kind === 'orchestration' && (
                 <span className="small muted ellipsis">
                   <Workflow size={12} strokeWidth={1.75} aria-hidden /> {worktree.createdBy.taskName}
                 </span>
@@ -102,8 +104,8 @@ export function WorktreesWidget({ project, title, id, config }: WidgetProps) {
           ))}
         </ul>
       )}
-      {project.worktrees.length > shown.length && (
-        <span className="small muted">{t('widgets.worktrees.more', { n: formatNumber(project.worktrees.length - shown.length) })}</span>
+      {linked.length > shown.length && (
+        <span className="small muted">{t('widgets.worktrees.more', { n: formatNumber(linked.length - shown.length) })}</span>
       )}
     </WidgetCard>
   );

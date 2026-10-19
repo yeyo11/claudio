@@ -46,6 +46,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
 | Guards on tool calls | `--settings <file>` with only Claudio's own hooks (a content-addressed file under `<data>/guards/`) and `--include-hook-events`, read for the guard's marker lines only ([docs/guards.md](guards.md)) |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
+| Where a chat ran, in which worktree | The `worktree-state` record the CLI writes into a transcript when it runs in a worktree it created (`--worktree`): `originalCwd`, `worktreePath`, `worktreeName`, `worktreeBranch`. `originalCwd` is where the person started, often a sibling or nested worktree, so it only names a repository through its own placement; the CLI's `<main checkout>/.claude/worktrees/<name>` layout is the fallback for a removed worktree. The rest is git's: `git rev-parse`, `git worktree list --porcelain`, `git config --file … remote.origin.url`, and the files `gitrepository-layout(5)` documents ([projects.md](projects.md#where-a-directory-belongs)) |
 | Stopping one command | The process tree under the CLI's own pid; the CLI writes the failed tool result itself |
 
 Two things Claudio reads about Claude Code are not the CLI, and both are the vendor's documented

@@ -98,6 +98,7 @@ import type {
   ConnectorsOverview,
   CreateJournalEntryRequest,
   CreateMilestoneRequest,
+  CandidateKeyRequest,
   CreateProjectRequest,
   CreateScheduleRequest,
   CreateWorkItemCommentRequest,
@@ -189,6 +190,7 @@ import type {
   PluginsOverview,
   Project,
   ProjectCandidate,
+  ProjectPathInspection,
   ProjectCodeHost,
   ProjectDocuments,
   ProjectDoc,
@@ -586,6 +588,9 @@ export const api = {
   verifyAuth: () => request<AuthVerification>('/auth/verify', { method: 'POST' }),
   projects: (o: ReadOptions = {}) => request<Project[]>('/projects', o),
   projectCandidates: (o: ReadOptions = {}) => request<ProjectCandidate[]>('/projects/candidates', o),
+  inspectProject: (path: string, o: ReadOptions = {}) => request<ProjectPathInspection>(`/projects/inspect${qs({ path })}`, o),
+  hideProjectCandidate: (req: CandidateKeyRequest) => request<null>('/projects/candidates/hide', { method: 'POST', body: req }),
+  unhideProjectCandidate: (req: CandidateKeyRequest) => request<null>('/projects/candidates/unhide', { method: 'POST', body: req }),
   importProject: (req: ImportProjectRequest) => request<Project>('/projects/import', { method: 'POST', body: req }),
   createProject: (req: CreateProjectRequest) => request<Project>('/projects', { method: 'POST', body: req }),
   renameProject: (id: string, name: string) => request<Project>(`/projects/${enc(id)}`, { method: 'PATCH', body: { name } }),
@@ -1321,6 +1326,7 @@ export const keys = {
   projectWebhooks: (id: string) => ['project-webhooks', id] as const,
   projects: ['projects'] as const,
   projectCandidates: ['projects', 'candidates'] as const,
+  projectInspect: (path: string) => ['projects', 'inspect', path] as const,
   chatList: (filter: ChatFilter) =>
     ['chats', filter.project === undefined ? 'all' : (filter.project ?? 'loose'), filter.origin?.join(',') ?? '', filter.state ?? '', filter.limit ?? 0, filter.workers === false ? 'no-workers' : ''] as const,
   // A chat's changes sit under its scope: `changes.updated` never names a chat, but its own events
