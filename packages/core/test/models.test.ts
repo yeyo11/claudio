@@ -1,167 +1,89 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { forgetModelOptions, ModelAliasIds, modelDisplayName, modelOptions } from '../src/models.ts';
+import type { ModelOption } from '@claudio/shared';
+import { Core } from '../src/index.ts';
+import { modelNames, modelOptions } from '../src/providers/claude-code/models.ts';
+import { tempConfig } from './helpers.ts';
 
-// The models a person may pick come from the CLI's own state file: it keeps there the options it
-// offers under /model, already filtered by what the account's subscription allows. The file is the
-// CLI's, written whenever it likes, so every shape it could hand back has to be survivable.
+// The CLI's `initialize` list is the only model list: what `/model` shows, in its order, with its
+// names. Before it has been read there is no list at all, never one of Claudio's own guesses.
 
-const file = (contents: string): string => {
-  const path = join(mkdtempSync(join(tmpdir(), 'claudio-models-')), '.claude.json');
-  writeFileSync(path, contents);
-  forgetModelOptions();
-  return path;
-};
+const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
 
-const aliases = ['fable', 'opus', 'sonnet', 'haiku'];
+/** Names the CLI never lists in the fake, which the old fallback (aliases, `.claude.json`) offered. */
+const GUESSES = ['fable', 'Fable 5.1', 'Opus 5.5', 'Haiku 5.5'];
 
-test('the aliases stand alone when the CLI has written nothing to read', () => {
-  forgetModelOptions();
-  assert.deepEqual(
-    modelOptions(join(tmpdir(), 'claudio-models-missing', '.claude.json')).map((m) => m.value),
-    aliases,
-  );
-  assert.deepEqual(
-    modelOptions(file('not json at all')).map((m) => m.value),
-    aliases,
-  );
-  assert.deepEqual(
-    modelOptions(file(JSON.stringify({ additionalModelOptionsCache: 'nonsense' }))).map((m) => m.value),
-    aliases,
-  );
-});
-
-test('what the account may run comes after the aliases, with the names and lines the CLI gives it', () => {
-  const options = modelOptions(
-    file(
-      JSON.stringify({
-        additionalModelOptionsCache: [
-          { value: 'claude-fable-5-1[1m]', label: 'Fable', description: 'Fable 5.1 · Most capable' },
-          { value: 'cc-update-required-1', label: 'Opus 5.5 (disabled)', description: 'Update to 2.1.280+ to use Opus 5.5', disabled: true },
-        ],
-      }),
-    ),
-  );
-  assert.deepEqual(options.slice(0, 4).map((m) => m.value), aliases);
-  assert.deepEqual(options[4], { value: 'claude-fable-5-1[1m]', label: 'Fable', description: 'Fable 5.1 · Most capable' });
-  assert.equal(options[5]?.disabled, true);
-});
-
-test('an entry without a usable name is not one, and one already offered is not offered twice', () => {
-  const options = modelOptions(
-    file(
-      JSON.stringify({
-        additionalModelOptionsCache: [
-          { label: 'no value' },
-          { value: 42 },
-          { value: 'has a space' },
-          { value: `${'x'.repeat(200)}` },
-          { value: 'opus' },
-          { value: 'claude-sonnet-5' },
-        ],
-      }),
-    ),
-  );
-  assert.deepEqual(options.map((m) => m.value), [...aliases, 'claude-sonnet-5']);
-});
-
-test('the file is read again once it changes, and not on every ask', () => {
-  const path = file(JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-opus-5' }] }));
-  assert.equal(modelOptions(path).length, 5);
-  // Same file, untouched: the same answer, which is what keeps the overview's polling cheap
-  assert.equal(modelOptions(path), modelOptions(path));
-  writeFileSync(path, JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-opus-5' }, { value: 'claude-haiku-4-5' }] }));
-  assert.deepEqual(
-    modelOptions(path).map((m) => m.value),
-    [...aliases, 'claude-opus-5', 'claude-haiku-4-5'],
-  );
-});
-
-test('a model id reads as its family and version: `claude-`, a release date and a variant are not part of the name', () => {
-  assert.equal(modelDisplayName('claude-sonnet-5'), 'Sonnet 5');
-  assert.equal(modelDisplayName('claude-opus-5-5'), 'Opus 5.5');
-  assert.equal(modelDisplayName('claude-haiku-4-5-20251001'), 'Haiku 4.5');
-  assert.equal(modelDisplayName('claude-fable-5-1[1m]'), 'Fable 5.1 (1M)');
-  assert.equal(modelDisplayName('claude-opus-5-5-20260101[1m]'), 'Opus 5.5 (1M)');
-  // The older scheme put the version first
-  assert.equal(modelDisplayName('claude-3-5-sonnet-20241022'), 'Sonnet 3.5');
-  // Anything off the scheme is left unnamed rather than guessed at
-  for (const id of ['sonnet', 'fake', 'claude-', 'claude-sonnet', 'claude-5', 'gpt-5', '<synthetic>', 'claude-sonnet_5', 'claude-sonnet-12345']) {
-    assert.equal(modelDisplayName(id), null, id);
+async function until<T>(read: () => T | null | undefined | false | Promise<T | null | undefined | false>, what: string, ms = 15_000): Promise<T> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    const value = await read();
+    if (value) return value;
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 25));
   }
+}
+
+const listed: ModelOption[] = [
+  { value: 'default', resolvedModel: 'claude-haiku-5-5', label: 'Default (recommended)', description: 'Haiku 5.5' },
+  { value: 'sonnet', resolvedModel: 'claude-sonnet-5-5', label: 'Sonnet', description: 'Sonnet 5.5' },
+  { value: 'haiku', resolvedModel: 'claude-haiku-5-5', label: 'Haiku', description: 'Haiku 5.5' },
+];
+
+test('with no list read yet there are no options, never guessed ones', () => {
+  assert.deepEqual(modelOptions(null), []);
+  assert.deepEqual(modelOptions([]), []);
 });
 
-test('an alias is named after the model a chat reported it as, and stands alone until one has', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'claudio-model-ids-'));
-  const ids = new ModelAliasIds(dir);
-  const cli = join(dir, 'missing', '.claude.json');
-  forgetModelOptions();
-  assert.equal(modelOptions(cli, ids.get()).find((m) => m.value === 'sonnet')?.label, undefined);
+test("the CLI's list is the answer as given: its order, its names, and `default` beside `haiku`", () => {
+  const options = modelOptions(listed);
+  assert.deepEqual(options, listed);
+  assert.notEqual(options, listed, 'a copy, so a caller cannot change the cache');
+});
 
-  assert.equal(ids.record('sonnet', 'claude-sonnet-5'), true);
-  assert.equal(ids.record('opus', 'claude-opus-5-5[1m]'), true);
-  // The same again changes nothing, and only an alias with a real model id is kept
-  assert.equal(ids.record('sonnet', 'claude-sonnet-5'), false);
-  for (const [requested, reported] of [
-    ['claude-sonnet-5', 'claude-sonnet-5'],
-    [undefined, 'claude-sonnet-5'],
-    ['haiku', 'haiku'],
-    ['haiku', '<synthetic>'],
-    ['haiku', 42],
-    ['my-model', 'claude-haiku-4-5'],
-  ] as const) {
-    assert.equal(ids.record(requested, reported), false, `${String(requested)} → ${String(reported)}`);
+test('an alias and the id it resolves to name the same model', () => {
+  assert.deepEqual(modelNames(listed, 'sonnet').sort(), ['claude-sonnet-5-5', 'sonnet']);
+  assert.deepEqual(modelNames(listed, 'claude-sonnet-5-5').sort(), ['claude-sonnet-5-5', 'sonnet']);
+  // Two options resolve to the same id: either is a name of it
+  assert.deepEqual(modelNames(listed, 'claude-haiku-5-5').sort(), ['claude-haiku-5-5', 'default', 'haiku']);
+  assert.deepEqual(modelNames(null, 'opus'), ['opus']);
+});
+
+test('the server reads the list at boot with no account action, and again when the CLI version changes', async () => {
+  const saved = { version: process.env.FAKE_CLAUDE_VERSION, models: process.env.FAKE_CLAUDE_INIT_MODELS };
+  process.env.FAKE_CLAUDE_VERSION = '2.1.0 (Claude Code)';
+  delete process.env.FAKE_CLAUDE_INIT_MODELS;
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const core = new Core(config);
+  try {
+    // Whatever moment the overview is read at, it holds the CLI's list or nothing
+    const early = core.runtime.providers.driverFor('claude-code')?.models() ?? [];
+    assert.ok(early.length === 0 || early.every((m) => ['sonnet', 'opus', 'haiku'].includes(m.value)), `no guess while loading (got ${early.map((m) => m.value).join(',')})`);
+    for (const guess of GUESSES) assert.ok(!early.some((m) => m.value === guess || m.label === guess), guess);
+
+    const first = await until(() => core.accounts.cachedModels('default'), 'the boot read of the default account');
+    assert.deepEqual(first.map((m) => m.value), ['sonnet', 'opus', 'haiku']);
+    assert.deepEqual((await core.system()).models.map((m) => m.value), ['sonnet', 'opus', 'haiku']);
+
+    // The CLI is updated under the server, and its `/model` now lists something else
+    await core.system(true);
+    process.env.FAKE_CLAUDE_VERSION = '2.2.0 (Claude Code)';
+    process.env.FAKE_CLAUDE_INIT_MODELS = JSON.stringify([
+      { value: 'default', resolvedModel: 'claude-haiku-5-5', displayName: 'Default (recommended)', description: 'Haiku 5.5' },
+      { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5' },
+    ]);
+    await core.system(true);
+    const next = await until(() => {
+      const models = core.accounts.cachedModels('default');
+      return models?.some((m) => m.value === 'default') && models;
+    }, 'the list read again under the new CLI');
+    assert.deepEqual(next.map((m) => m.value), ['default', 'haiku'], 'both survive, in the CLI order');
+    assert.deepEqual(next.map((m) => m.label), ['Default (recommended)', 'Haiku']);
+  } finally {
+    if (saved.version === undefined) delete process.env.FAKE_CLAUDE_VERSION;
+    else process.env.FAKE_CLAUDE_VERSION = saved.version;
+    if (saved.models === undefined) delete process.env.FAKE_CLAUDE_INIT_MODELS;
+    else process.env.FAKE_CLAUDE_INIT_MODELS = saved.models;
+    core.shutdown();
   }
-  const options = modelOptions(cli, ids.get());
-  assert.equal(options.find((m) => m.value === 'sonnet')?.label, 'Sonnet 5');
-  assert.equal(options.find((m) => m.value === 'opus')?.label, 'Opus 5.5 (1M)');
-  assert.equal(options.find((m) => m.value === 'haiku')?.label, undefined);
-  // The ids an alias stands for, so a suggestion that carries the id finds its row
-  assert.deepEqual(options.find((m) => m.value === 'sonnet')?.ids, ['claude-sonnet-5']);
-  assert.deepEqual(options.find((m) => m.value === 'opus')?.ids, ['claude-opus-5-5[1m]']);
-  assert.equal(options.find((m) => m.value === 'haiku')?.ids, undefined);
-
-  // Kept across a restart, in a document of its own
-  await ids.settled();
-  assert.deepEqual(JSON.parse(readFileSync(ids.file, 'utf8')), { sonnet: 'claude-sonnet-5', opus: 'claude-opus-5-5[1m]' });
-  assert.deepEqual(new ModelAliasIds(dir).get(), { sonnet: 'claude-sonnet-5', opus: 'claude-opus-5-5[1m]' });
-  // A newer release behind the alias replaces the name
-  ids.record('sonnet', 'claude-sonnet-5-1');
-  await ids.settled();
-  assert.equal(modelOptions(cli, new ModelAliasIds(dir).get()).find((m) => m.value === 'sonnet')?.label, 'Sonnet 5.1');
-});
-
-test("a label the CLI gives wins over the derived one, and a broken document of ours is only names lost", () => {
-  const dir = mkdtempSync(join(tmpdir(), 'claudio-model-ids-'));
-  writeFileSync(join(dir, 'model-aliases.json'), 'not json');
-  const broken = new ModelAliasIds(dir);
-  assert.deepEqual(broken.get(), {});
-  writeFileSync(join(dir, 'model-aliases.json'), JSON.stringify({ sonnet: 'claude-sonnet-5', nonsense: 'claude-x-1', opus: 12 }));
-  assert.deepEqual(new ModelAliasIds(dir).get(), { sonnet: 'claude-sonnet-5' });
-  const labelled = file(JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-fable-5-1[1m]', label: 'Fable' }] }));
-  const options = modelOptions(labelled, { sonnet: 'claude-sonnet-5', 'claude-fable-5-1[1m]': 'claude-fable-5-1[1m]' });
-  assert.equal(options.find((m) => m.value === 'claude-fable-5-1[1m]')?.label, 'Fable');
-  assert.equal(options.find((m) => m.value === 'sonnet')?.label, 'Sonnet 5');
-});
-
-test('the aliases carry the tier of their line, and fable has none', () => {
-  forgetModelOptions();
-  const tiers = Object.fromEntries(modelOptions(join(tmpdir(), 'claudio-models-missing', '.claude.json')).map((m) => [m.value, m.tier]));
-  assert.deepEqual(tiers, { fable: undefined, opus: 'strong', sonnet: 'balanced', haiku: 'fast' });
-});
-
-test('the CLI initialize list, when there is one, is the whole answer', () => {
-  forgetModelOptions();
-  const missing = join(tmpdir(), 'claudio-models-missing', '.claude.json');
-  const listed = [
-    { value: 'opus', label: 'Opus', resolvedModel: 'claude-opus-5-5', supportedEffortLevels: ['low', 'max'] },
-    { value: 'haiku', label: 'Haiku', resolvedModel: 'claude-haiku-5-5' },
-  ];
-  const options = modelOptions(missing, { sonnet: 'claude-sonnet-5' }, listed);
-  assert.deepEqual(options.map((m) => m.value), ['opus', 'haiku'], 'no alias is added beside it');
-  assert.deepEqual(options[0]?.supportedEffortLevels, ['low', 'max']);
-  assert.equal(modelOptions(missing, {}, []).length, 4, 'an empty list falls back to the aliases');
 });
