@@ -15,7 +15,7 @@ import i18n from '../src/i18n';
 import { collaboratorsKeys } from '../src/lib/api/collaborators';
 import { CollaboratorsView } from '../src/pages/Collaborators';
 import { InviteView } from '../src/pages/collaborators/dialogs';
-import { byPerson, connectionWord, kindCounts, localProjectOf, ownedGroups, presenceWord, shortId, syncWord } from '../src/pages/collaborators/model';
+import { byPerson, connectionWord, kindCounts, localProjectOf, ownedGroups, presenceWord, shortId, syncWord, worstSync } from '../src/pages/collaborators/model';
 import { PendingJoinRow } from '../src/pages/collaborators/SharedWithYou';
 
 // The Collaborators page (docs/plans/collaborators.md §5.1, task w1): off, unavailable and on; the
@@ -140,6 +140,17 @@ test('presence and sync are ok while connected and idle while waiting, never liv
   assert.equal(syncWord({ state: 'offline', lastSyncedAt: ago(1000), path: null, error: null }).key, 'sync.offline');
   assert.equal(syncWord({ state: 'offline', lastSyncedAt: null, path: null, error: null }).key, 'sync.offlineNever');
   assert.equal(syncWord({ state: 'pending', lastSyncedAt: null, path: null, error: null }).key, 'sync.pending');
+  assert.deepEqual(syncWord({ state: 'paused', lastSyncedAt: ago(1000), path: null, error: null }), { key: 'sync.paused', tone: 'warn', ago: null });
+});
+
+test('the Shared tab icon shows the worst state among the copies', () => {
+  const sync = (state: 'live' | 'synced' | 'offline' | 'pending' | 'paused', error = false) => ({ state, lastSyncedAt: null, path: null, error: error ? { code: 'x', text: 'x' } : null });
+  assert.equal(worstSync([]), null);
+  assert.equal(worstSync([sync('live'), sync('synced')])?.kind, 'synced');
+  assert.equal(worstSync([sync('live'), sync('pending')])?.kind, 'pending');
+  assert.equal(worstSync([sync('pending'), sync('offline')])?.kind, 'offline');
+  assert.equal(worstSync([sync('offline'), sync('paused')])?.kind, 'paused');
+  assert.equal(worstSync([sync('paused'), sync('live', true)])?.kind, 'error');
 });
 
 test('shared projects group by person, then by install, and two installs of one person stay apart', () => {

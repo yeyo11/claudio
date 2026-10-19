@@ -150,7 +150,8 @@
     "offline": "Propietario sin conexión · última sincronización {{ago}}",
     "offlineNever": "Propietario sin conexión · aún sin sincronizar",
     "pending": "Esperando la primera sincronización",
-    "failed": "La última sincronización ha fallado: {{reason}}"
+    "failed": "La última sincronización ha fallado: {{reason}}",
+    "paused": "En pausa: Colaboradores está desactivado"
   },
   "kinds": {
     "chats_one": "{{count}} chat",
@@ -247,7 +248,9 @@
       "offline": "Propietario sin conexión · última sincronización {{ago}}",
       "offlineNever": "Propietario sin conexión · aún sin sincronizar",
       "pending": "Aún sin sincronizar",
-      "failed": "La última sincronización ha fallado"
+      "failed": "La última sincronización ha fallado",
+      "paused": "En pausa",
+      "turnOn": "Activar Colaboradores"
     },
     "live": "En directo",
     "allChats": "Todos los chats",
@@ -276,6 +279,14 @@
       "chat": "Chat",
       "download": "Descargar",
       "downloadFailed": "No se ha podido descargar el archivo"
+    },
+    "tabSync": {
+      "synced": "Sincronizado",
+      "syncedAgo": "Sincronizado · {{ago}}",
+      "pending": "Sincronizando…",
+      "offline": "El propietario no está conectado",
+      "paused": "En pausa: Colaboradores está desactivado",
+      "error": "Falló la última sincronización"
     }
   },
   "readOnly": {
