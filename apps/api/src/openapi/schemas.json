@@ -1556,6 +1556,10 @@
       "policy": {
         "$ref": "#/components/schemas/ToolPolicy",
         "description": "The policy the chat was started with, so a resume enforces the same one"
+      },
+      "claudioMcp": {
+        "type": "boolean",
+        "description": "Claudio's own MCP server (all its tools, under the chat's permission mode), switched on from the chat's \"+\" or its start options: every process of the chat starts with it, a resume, a fork and Claudio's own respawns included. Absent reads off."
       }
     },
     "required": [
@@ -15001,6 +15005,10 @@
         ],
         "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
       },
+      "claudioMcp": {
+        "type": "boolean",
+        "description": "Claudio's own MCP server for this chat and the processes after it ( {@link  ChatToolConfig.claudioMcp } ); absent keeps what it has"
+      },
       "maxBudgetUsd": {
         "type": "number",
         "description": "Ceiling on what this execution may spend"
@@ -15122,6 +15130,10 @@
         ],
         "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
       },
+      "claudioMcp": {
+        "type": "boolean",
+        "description": "Claudio's own MCP server for this chat and the processes after it ( {@link  ChatToolConfig.claudioMcp } ); absent keeps what it has"
+      },
       "maxBudgetUsd": {
         "type": "number",
         "description": "Ceiling on what this execution may spend"
@@ -15230,6 +15242,10 @@
           }
         ],
         "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
+      },
+      "claudioMcp": {
+        "type": "boolean",
+        "description": "Claudio's own MCP server for this chat and the processes after it ( {@link  ChatToolConfig.claudioMcp } ); absent keeps what it has"
       },
       "maxBudgetUsd": {
         "type": "number",
@@ -15625,6 +15641,10 @@
         "items": {
           "$ref": "#/components/schemas/LiveMcpServer"
         }
+      },
+      "claudio": {
+        "$ref": "#/components/schemas/ChatClaudioMcp",
+        "description": "Claudio's own server for the chat, beside the CLI's list; absent for a chat Claudio has no record of"
       }
     },
     "required": [
@@ -15711,6 +15731,49 @@
     ],
     "description": "One MCP server as a chat's live process reports it (the CLI's `mcp_status`), the account's connectors included. `disabled` is a server switched off for the chat's folder."
   },
+  "ChatClaudioMcp": {
+    "type": "object",
+    "properties": {
+      "on": {
+        "type": "boolean",
+        "description": "The choice stored on the chat: its processes start with the server"
+      },
+      "unavailable": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ClaudioMcpUnavailable"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null when the switch can be used"
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The CLI's own words when it refused the server at the last switch"
+      }
+    },
+    "required": [
+      "on",
+      "unavailable",
+      "error"
+    ],
+    "description": "Claudio's own MCP server in one chat (`PUT /chats/:id/claudio-mcp`)."
+  },
+  "ClaudioMcpUnavailable": {
+    "type": "string",
+    "enum": [
+      "assistant",
+      "provider",
+      "no-api",
+      "clash"
+    ],
+    "description": "Why Claudio's own server cannot be switched on in a chat. `assistant`: the assistant chat already has it, confined. `provider`: the chat does not run on Claude Code. `no-api`: the API's address is unknown, so the server could not reach it. `clash`: a server of the person's is already named `claudio`."
+  },
   "ChatMcpToggle": {
     "type": "object",
     "properties": {
@@ -15722,6 +15785,18 @@
       "enabled"
     ],
     "description": "Switches one server of a live chat on or off. The CLI keeps the choice for the chat's folder."
+  },
+  "ChatClaudioMcpToggle": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "enabled"
+    ],
+    "description": "Switches Claudio's own MCP server on or off in a chat."
   },
   "ChatContextUsage": {
     "type": "object",
@@ -22814,6 +22889,10 @@
           }
         ],
         "description": "MCP servers this chat starts with; absent keeps what it has, `null` goes back to what the CLI loads on its own"
+      },
+      "claudioMcp": {
+        "type": "boolean",
+        "description": "Claudio's own MCP server for this chat and the processes after it ( {@link  ChatToolConfig.claudioMcp } ); absent keeps what it has"
       },
       "maxBudgetUsd": {
         "type": "number",

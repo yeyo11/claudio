@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { DEFAULT_TOOL_PRESETS } from '../src/chat-tools.ts';
+import { ChatTools, DEFAULT_TOOL_PRESETS } from '../src/chat-tools.ts';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -386,4 +386,31 @@ test('a resume that picks no servers starts them as they are defined now', async
   } finally {
     core.shutdown();
   }
+});
+
+test("Claudio's server switch rides on the tool record: picked, kept by a resume and a fork, and dropped on request", async () => {
+  const { config, core } = setup();
+  const tools = new ChatTools(config, core.mcp, core.toolPresets);
+  const cwd = config.workspaceDir;
+  const picked = await tools.resolve({ claudioMcp: true }, cwd, null);
+  assert.equal(picked?.toolConfig?.claudioMcp, true);
+  assert.equal(picked && 'mcp' in picked, false, 'the switch alone leaves the servers the chat takes as they were');
+
+  const current = {
+    preset: null,
+    allowedTools: ['Read'],
+    disallowedTools: [],
+    mcp: null,
+    claudioMcp: true,
+    policy: { read: { allow: true }, edit: { allow: 'none' as const }, commands: { allow: 'none' as const }, network: 'omit' as const, gitPush: 'deny' as const },
+  };
+  assert.equal(await tools.resolve({}, cwd, current), null, 'a resume that says nothing keeps the record as it is');
+  assert.equal(await tools.resolve({ claudioMcp: true }, cwd, current), null, 'saying what it has changes nothing');
+  assert.equal((await tools.resolve({ toolPreset: null }, cwd, current))?.toolConfig?.claudioMcp, true, 'picking tools again keeps the switch');
+  assert.equal((await tools.resolve({}, cwd, current, { fresh: true }))?.toolConfig?.claudioMcp, true, 'a fork carries it');
+  const off = await tools.resolve({ claudioMcp: false }, cwd, current);
+  assert.equal(off?.toolConfig && 'claudioMcp' in off.toolConfig, false);
+  assert.deepEqual(off?.toolConfig?.policy, current.policy, 'only the switch changed: the policy stands');
+  await assert.rejects(tools.resolve({ claudioMcp: 'yes' as never }, cwd, null), /claudioMcp must be a boolean/);
+  core.shutdown();
 });

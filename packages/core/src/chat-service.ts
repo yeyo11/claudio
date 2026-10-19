@@ -970,6 +970,12 @@ export class ChatService {
     return this.deps.runtime.toggleMcpServer(id, name, enabled);
   }
 
+  /** Switches Claudio's own MCP server in the live process, and keeps the choice on the chat for its next processes. */
+  async setClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers> {
+    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    return this.deps.runtime.setClaudioMcp(id, enabled);
+  }
+
   /** Deletes the chat: its transcript and sidecar files, and Claudio's record of it. */
   async remove(id: string): Promise<void> {
     if (!(await this.summaryOf(id, true))) throw new Error('chat not found');

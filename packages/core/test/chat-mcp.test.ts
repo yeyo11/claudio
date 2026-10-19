@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { ClaudeBranches } from '../src/providers/claude-code/branches.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
-import { liveMcpServers } from '../src/providers/claude-code/mcp.ts';
+import { liveMcpServers, mcpSetServersResult } from '../src/providers/claude-code/mcp.ts';
 
 /** The answer the CLI gave to `mcp_status` on 2.1.300, trimmed: a user server and a claude.ai connector. */
 const STATUS = {
@@ -75,4 +76,22 @@ test('the session sends mcp_status and mcp_toggle down stdin and reads their ans
   assert.deepEqual((written.at(-1) as { request: unknown }).request, { subtype: 'mcp_toggle', serverName: 'rea', enabled: true });
   answer();
   await toggled;
+});
+
+test("the session sends mcp_set_servers and reads the CLI's added, removed and errors", async () => {
+  const written: Array<Record<string, unknown>> = [];
+  const io = { write: (text: string) => void written.push(JSON.parse(text) as Record<string, unknown>), end: () => {}, up: () => true };
+  const session = new ClaudeCodeDriver('claude').attach(io, () => {}, new ClaudeBranches());
+  const servers = { claudio: { type: 'stdio', command: 'node', args: ['mcp.mjs'] } };
+  const pushed = session.mcpSetServers?.(servers);
+  const last = written.at(-1) as { request_id: string; request: unknown };
+  assert.deepEqual(last.request, { subtype: 'mcp_set_servers', servers });
+  // The answer CLI 2.1.302 gave for configs it could not start
+  const recording = JSON.parse(readFileSync(new URL('./fixtures/recordings/claude/mcp-set-servers.json', import.meta.url), 'utf8')) as { steps: Array<{ response?: Record<string, unknown> }> };
+  session.readLine(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: last.request_id, response: recording.steps[4]?.response } }));
+  const result = await pushed;
+  assert.deepEqual(result?.added, ['broken', 'weird']);
+  assert.deepEqual(result?.removed, ['fromfile']);
+  assert.match(result?.errors.broken ?? '', /iterable/);
+  assert.deepEqual(mcpSetServersResult({ added: 'x', errors: { a: { why: 1 } } }), { added: [], removed: [], errors: { a: '{"why":1}' } });
 });

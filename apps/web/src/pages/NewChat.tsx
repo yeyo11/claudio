@@ -91,6 +91,7 @@ export function NewChat() {
       if (appendSystemPrompt.trim()) opts.appendSystemPrompt = appendSystemPrompt.trim();
       if (tools.toolPreset !== undefined) opts.toolPreset = tools.toolPreset;
       if (tools.mcp) opts.mcp = tools.mcp;
+      if (tools.claudioMcp) opts.claudioMcp = true;
       return api.createChat(opts);
     },
     onSuccess: (chat) => navigate(`/chats/${chat.id}`),
