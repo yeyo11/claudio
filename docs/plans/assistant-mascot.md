@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-19T13:30:00Z
-updated_at: 2026-10-19T15:00:00Z
+updated_at: 2026-10-19T17:00:00Z
 tags:
     - plan
     - assistant
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: Claudio, the assistant's mascot, and its recent conversations
 
-Status: **designed, ready to launch** (2026-10-19). The owner chose the three decisions below on
+Status: **built, awaiting CI and the owner** (2026-10-19; see [Outcome](#outcome)). It was designed and launched the same day. The owner chose the three decisions below on
 2026-10-19 and answered the plan's open questions the same day ([The owner's answers](#the-owners-answers-2026-10-19)).
 This plan settles the design: the drawing and its two marks, the page, the copy, the amendments to
 the design system, the contract and the place of the mark across the app. The work is one pull
@@ -667,6 +667,37 @@ Findings go to the integrator, with file:line and the smallest fix.
 ## Open questions
 
 None. The owner answered all three on 2026-10-19 ([The owner's answers](#the-owners-answers-2026-10-19)).
+
+## Outcome
+
+Built by the orchestration in [Tasks](#tasks), one branch per task, merged into `feat/assistant-mascot`.
+
+- **core-api:** `GET /chats?assistant=1` (`ChatFilter.assistant`; any other value is a 400), its OpenAPI
+  entry, the `docs/rest-api.md` row and `api.chats`; the system prompt opens "You are Claudio, the assistant
+  built into the Claudio app".
+- **mascot-art:** the `claudio` illustration (18 drawings, 15 ids for three instances), `ClaudioMascot` and
+  `ClaudioGlyph`, `.mascot-mark`, the `a-look` loop and `--il-look-cycle`, §1 and §4 of the design system and
+  the catalogue.
+- **entry-web:** the entry with the illustration, "Hola, soy Claudio" and no live figures; `Recents.tsx`
+  ("Recientes", **Ver todas**, a retry on error); the state word factored out of Chats into
+  `lib/chat-state-word.ts`; the `assistant` Chats filter and its chip; the chat greeting's colour mark.
+- **mark-everywhere:** `ClaudioGlyph` in place of `Sparkle` in the sidebar and Más, the palette, the project
+  header, row and sheet, the run tile and the project assistant's buttons. The "why" sparks and other
+  features' `Sparkles` stay.
+- **references:** `ico("claudio")`, `assistant_entry.py` redrawn, and 23 screens regenerated (5 entry, 18
+  project assistant).
+
+**Left open**
+- **Checks:** no worker could run the full `pnpm typecheck` and `pnpm test` (the guard blocked them), and
+  none ran a browser. The e2e checks (`pnpm e2e:remote assistant motion suggest mobile`) and `/ui-review
+  /assistant` on the merged branch are still to run, at 1280×720, 1440×1024 and 390×844 in both themes.
+- **Fixtures:** `mark-everywhere` regenerated `class-names.json` and `module-graph.json`, though the class
+  inventory test says no task may. Check that on review.
+- **References:** the team, flow, documents, memory, connectors, review and checks screens and the
+  Decisions tab's Asistente group (`decision_parts.py`) still draw the sparkle. `projects.py` and its
+  `MobileProyectoAjustes.html` have parted (that row links to a page that no longer exists). The "Denegar"
+  button's contrast in the two dark chat screens is below 4.5, as before this work. The reference composer
+  has the gradient border but not the app's full chip row.
 
 ## Related
 
