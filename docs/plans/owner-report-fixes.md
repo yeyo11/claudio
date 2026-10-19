@@ -11,11 +11,12 @@ tags:
     - mcp
     - collaborators
 ---
-# Plan: five fixes from the owner's report of 2026-10-19
+# Plan: five fixes and Claudio's MCP on demand, from the owner's report of 2026-10-19
 
 Status: **settled, ready to build** (2026-10-19). The owner's decisions are taken. One orchestration
-on `fix/owner-report-fixes` builds five independent tasks. Tasks run on `claude-sonnet-5-5`, with
-`models` and `review` on `claude-opus-5-5`; never fable. The tasks share no files, so each one ships
+on `fix/owner-report-fixes` builds six independent tasks: the five fixes, and Claudio's MCP server
+switched on from the "+" of any chat (asked by the owner the same day). Tasks run on
+`claude-sonnet-5-5`, with `models`, `claudio-mcp` and `review` on `claude-opus-5-5`; never fable. The tasks share no files, so each one ships
 as **its own pull request** from its task branch, rebased on `main` (one concern per PR). The
 integration branch exists only for the review and one CI run over everything together.
 
@@ -141,6 +142,29 @@ are a guide; find the code by name.
     `syncWord` (`apps/web/src/pages/collaborators/model.ts`) show the state only inside the view and
     on the Collaborators page.
 
+### 6. Claudio's own MCP server only reaches the assistant and opted-in chats
+
+- `packages/mcp` is the `claudio` server: 16 read tools, nine write tools and seven `collab_*` reads,
+  chosen by `CLAUDIO_MCP_TOOLSETS` ([claudio-mcp-server.md](../claudio-mcp-server.md)).
+- It is handed over only at spawn, with `--mcp-config`:
+  - to the confined assistant chat (`claudioMcp`, `assistantChatOptions` in
+    `packages/core/src/claudio-mcp.ts`);
+  - to project chats that opted into teammates' copies, with the `collab` toolset alone
+    (`collabMcpSync`).
+- An ordinary chat cannot get it, and a live chat can only toggle servers it already loaded
+  (`mcp_toggle`, `PUT /chats/:id/mcp/:name`).
+- **Spike, 2026-10-19, real CLI 2.1.302, no turn sent, no tokens spent.** In a
+  `-p --input-format stream-json` session:
+  - The control request
+    `{"subtype":"mcp_set_servers","servers":{"claudio":{"type":"stdio","command":"node","args":[<tsx loader>, "packages/mcp/src/main.ts"],"env":{"CLAUDIO_API_URL":…,"CLAUDIO_API_TOKEN":…}}}}`
+    answered `{"added":["claudio"],"removed":[],"errors":{}}`.
+  - Six seconds later `mcp_status` listed `claudio` as `connected`, with scope `dynamic` and 25 tools.
+  - `mcp_set_servers` with `servers: {}` answered `removed: ["claudio"]`, and the server left
+    `mcp_status`. The user's own servers were untouched both times.
+- This is the documented surface the Agent SDK exposes as `Query.setMcpServers()`. It replaces the
+  set of *dynamic* servers only, and the reply carries `errors` per name: a reserved name or a
+  refused config shows there.
+
 ## Decisions
 
 ### D1. A CLI notice in stderr is a note, and red is only for failed calls
@@ -226,6 +250,45 @@ are a guide; find the code by name.
   - Inside the view, `SyncLine` gains the paused state and its action.
 - `docs/collaborators.md` and the test are changed to say the new rule.
 
+### D6. Claudio's MCP server is a switch in the "+" of any live chat
+
+- The owner chose: **all the tools** (read and write) behind one switch. The tools obey the chat's
+  permission mode, like any other MCP tool.
+  - With "Sin comprobar permisos" (bypass), a write runs without asking. The switch's hint says so.
+  - The API's audit already records every call by `x-claudio-tool`.
+- **On a live chat** the core sends `mcp_set_servers` with the `claudio` server. The server is built
+  by the existing `mcpCommand`/`claudioMcp` helper, with toolsets `claudio`, plus `collab` when the
+  chat's project may read teammates' copies, as `collabMcpSync` decides today.
+  - Switching off sends the dynamic set without it.
+  - `CLAUDIO_CHAT_ID` and `CLAUDIO_API_TOKEN` are literal values in the request's `env`, taken from
+    the chat process's own environment. They travel over the process's stdin and are never written
+    to disk.
+  - **First commit: check** whether the CLI expands `${NAME}` in a pushed config, as it does in a
+    file. If it does, use the references, as the config file does.
+- **The choice is stored on the chat**, as `ChatToolConfig.claudioMcp: boolean`. A resume or fork,
+  and Claudio's own respawns (account switch, rotation, limit resume), start the process with
+  the server in its `--mcp-config`, merged as `collabMcpSync` already merges. The switch therefore
+  survives a restart.
+- **Where it shows:**
+  - In the "+" menu's Servers panel, as the **first row**, "Claudio": the brand mark, the summary
+    "Lee y cambia proyectos, tareas, chats y orquestaciones", and a `Switch`.
+  - Once on, it also appears in the CLI's own list (status `connected`, n tools). The panel shows
+    it once: the row merges the CLI's entry named `claudio` with scope `dynamic`.
+  - For a chat that is not live, the start options (resume, fork, new chat) offer the same switch
+    beside the servers they already offer.
+- **Not offered:**
+  - in the assistant chat, which already has it, confined;
+  - in chats whose provider is not Claude Code;
+  - when the API URL is unknown (`claudioMcp` throws): there the switch is disabled with the reason.
+- **Errors:**
+  - A name in the reply's `errors`, or a server that ends `failed`, shows inline in the row, in
+    words, with the CLI's message in mono.
+  - A user server already named `claudio` is reported as such ("Ya hay un servidor llamado
+    claudio"), never overwritten.
+- **The fake CLI** (`e2e/fake-cli/claude`) learns `mcp_set_servers`. It adds or removes a dynamic
+  server in its `mcp_status` and answers `added`/`removed`/`errors` as recorded. The README lists it
+  beside `mcp_toggle`.
+
 ## Design
 
 Every visual change follows [docs/design-system.md](../design-system.md) and the `claudio-ui`
@@ -297,6 +360,27 @@ El preset de herramientas quedó fijado al empezar el chat; reanudarlo puede cam
 - The spinner follows the motion levels: it stops under subtle, off, reduced motion and a hidden
   tab, as every loop does.
 
+### The Claudio row in the "+" Servers panel (D6)
+
+```
+[◆] Claudio                                          [ ●— ]
+    Lee y cambia proyectos, tareas, chats y orquestaciones
+    25 herramientas · conectado
+```
+
+- `[◆]` is `BrandMark` at 16 px. It is the logo, so it is not counted as a gradient surface (it is
+  the logo's own use).
+- Title "Claudio", `--fs-body`, `--fw-strong`. Summary in `--fg-3`, `--fs-small`.
+- While on, the status line uses the panel's existing `Tag` tones: `connected` ok, `pending` muted
+  with the braille spinner, `failed` bad.
+- Hint under the row when the chat's mode is `bypassPermissions`, `--fs-small`, `--warn` with
+  `TriangleAlert`. es "Con «Sin comprobar permisos» sus cambios se aplican sin preguntar", en "With
+  permission checks off, its changes apply without asking".
+- A separator under the row, then the CLI's own servers as today. ≥ 44 px row on a phone, inside
+  the "+" sheet.
+- The panel's existing classes stay (`.composer-servers`). The row adds
+  `.composer-servers-claudio`.
+
 ## Contracts
 
 ### Shared types (`packages/shared/src/types.ts`)
@@ -304,12 +388,22 @@ El preset de herramientas quedó fijado al empezar el chat; reanudarlo puede cam
 - The `command` tool detail gains `cwdReset: string | null` (D1).
 - `SystemInfo.auth` gains `inUseReason: 'signed-out' | 'limit' | null` (D3).
 - `SyncStateKind` gains `'paused'` (D5).
+- `ChatToolConfig` gains `claudioMcp?: boolean` (D6). The start choices (`StartChoices`, the new-chat,
+  resume and fork bodies) gain `claudioMcp?: boolean`.
 
 Regenerate the schemas after each: `pnpm --filter @claudio/api openapi:schemas`.
 
 ### Routes
 
-No new route. `GET /accounts/:id/models` (with `?refresh=1`) and `GET /chats/:id/mcp` already
+- **New:** `PUT /chats/:id/claudio-mcp`, body `{ enabled: boolean }`, answers `ChatMcpServers` as
+  `PUT /chats/:id/mcp/:name` does.
+  - 400 when the chat has no live process.
+  - 409 when a user server already holds the name.
+  - 503 when Claudio's server cannot be built (no API URL).
+  - It needs a summary and the `Chats` tag in `apps/api/src/openapi/routes.ts`, a row in
+    `docs/rest-api.md`, and the `add-rest-route` skill.
+
+Otherwise, no new route. `GET /accounts/:id/models` (with `?refresh=1`) and `GET /chats/:id/mcp` already
 exist. Check that each is listed in `docs/rest-api.md`.
 
 ### i18n
@@ -319,9 +413,9 @@ New keys go in the namespace that owns the component, with `en`/`es` parity. The
 
 ## Tasks
 
-The integrator launches this graph on `fix/owner-report-fixes`. Five independent tasks, then the
+The integrator launches this graph on `fix/owner-report-fixes`. Six independent tasks, then the
 review and the docs:
-`shell-notice · models · status-bar · chat-options · shared-tab → review · docs`.
+`shell-notice · models · status-bar · chat-options · shared-tab · claudio-mcp → review · docs`.
 
 | Id | Model | Task | dependsOn | Owns | Checks |
 | --- | --- | --- | --- | --- | --- |
@@ -330,10 +424,13 @@ review and the docs:
 | `status-bar` | sonnet | D3 | – | `apps/web/src/components/shell/StatusBar.tsx` (`useConnection`), the More sheet's use of it, `apps/web/src/lib/accounts.ts`, `SystemInfo.auth.inUseReason` and its producer `accountInUse()` in `packages/core/src/index.ts`, `components.json` `shell.*` keys, tests | `pnpm typecheck`, `pnpm test` (core, web), `openapi:schemas`, design lint |
 | `chat-options` | sonnet | D4 | – | `apps/web/src/pages/chat/Controls.tsx` (`LiveOptions` only), `packages/chat-ui/src/composer/Composer.tsx` (`useStatusWords`, `StatusLine`), the open-panel hook into `ComposerMenu`/`ServersPanel` (no changes to their lists), the inspector tab opener, `chat.json` keys `status.*`, `tools.card.serversDefault`, tests | `pnpm typecheck`, `pnpm test` (chat-ui, web), design lint |
 | `shared-tab` | sonnet | D5 | – | `apps/web/src/pages/dashboard/views.ts`, `apps/web/src/pages/project/shared-data.ts`, the tab labels in `apps/web/src/pages/Home.tsx`, `apps/web/src/pages/project/SharedView.tsx` (`SyncLine`), `apps/web/src/pages/collaborators/model.ts` and `SharedWithYou.tsx`, `SyncStateKind` and `packages/core/src/collab/client.ts` (paused state), the collaborators i18n, `apps/web/test/shared-view.test.tsx`, `apps/web/test/collaborators-page.test.tsx`, `docs/collaborators.md` | `pnpm typecheck`, `pnpm test` (core, web), `openapi:schemas`, design lint |
-| `review` | opus | conventions, design, copy, the one rule, cross-task consistency; at most one test run | all five | none (findings, or one-line fixes nobody owns) | reads; at most one `pnpm test` |
-| `docs` | sonnet | `docs/cli-surfaces.md` (the notice, the `initialize` list as the only source), the models section of `docs/accounts.md`, `docs/plans/models-per-account.md` (dated note), `docs/collaborators.md` if `shared-tab` left it, `docs/status.md` (PR references, no versions), this plan's Outcome | all five | the listed docs | `pnpm test` (docs tests) |
+| `claudio-mcp` | opus | D6 | – | `packages/core/src/claudio-mcp.ts` (a `dynamicClaudioServer` builder beside the existing helpers), `packages/core/src/providers/claude-code/driver.ts` and `control.ts` (`mcp_set_servers` only), the chat start/respawn path that builds `--mcp-config` (the `claudioMcp` merge), `ChatToolConfig.claudioMcp` and the start choices in `types.ts`, the new route in `apps/api/src/routes/` beside `PUT /chats/:id/mcp/:name`, `routes.ts`, `docs/rest-api.md`, `packages/chat-ui/src/composer/ServersPanel.tsx` (the Claudio row; `chat-options` only imports its hooks), the start options' servers picker (`ChatToolsPicker`), the client method, `chat.json` keys under `composerMenu.claudio*`, `e2e/fake-cli/claude` and its README and test, `docs/claudio-mcp-server.md` (a section "On demand in any chat"), `docs/cli-surfaces.md` (the `mcp_set_servers` row), tests | `pnpm typecheck`, `pnpm test` (core, api, chat-ui, web, fake CLI), `openapi:schemas`, design lint; an API test through the fake CLI that switches it on, sees `claudio` connected, switches it off, and resumes with it kept |
+| `review` | opus | conventions, design, copy, the one rule, cross-task consistency; at most one test run | all six | none (findings, or one-line fixes nobody owns) | reads; at most one `pnpm test` |
+| `docs` | sonnet | `docs/cli-surfaces.md` (the notice, the `initialize` list as the only source), the models section of `docs/accounts.md`, `docs/plans/models-per-account.md` (dated note), `docs/collaborators.md` if `shared-tab` left it, `docs/status.md` (PR references, no versions), this plan's Outcome | all six | the listed docs | `pnpm test` (docs tests) |
 
-`shell-notice`, `status-bar` and `shared-tab` each change `types.ts` in a different interface.
+`shell-notice`, `status-bar`, `shared-tab` and `claudio-mcp` each change `types.ts` in a different interface.
+`chat-options` reads `useLiveServers`/`serversOn` from `ServersPanel.tsx` but does not edit it; `claudio-mcp`
+owns that file.
 Each adds only its own field. The integrator regenerates the schemas once after merging.
 
 ### Rules for every task
@@ -371,6 +468,13 @@ Each adds only its own field. The integrator regenerates the schemas once after 
   - The wording is the same in chip and popover, in both languages.
 - **shared-tab:** the tab shows with Collaborators off when the catalog has a matching project. The
   icon picks the worst state. `paused` comes from core when the client is stopped.
+- **claudio-mcp:**
+  - Through the fake CLI: switching it on sends `mcp_set_servers` with `claudio` and the chat's env,
+    and switching it off removes it.
+  - A name clash answers 409.
+  - A resume of a chat with `claudioMcp: true` carries it in `--mcp-config`.
+  - It is not offered in the assistant chat.
+  - The Claudio row renders first, and the bypass hint shows only in bypass mode.
 - After integration: `/ui-review` on a chat (`/chats/:id`), a project with a shared copy
   (`/projects/:id?view=shared`) and the status bar, in both themes, at 1280×720 and 390×844. Then
   `pnpm e2e:remote` on the integration branch, watched with fail-fast.
@@ -385,14 +489,15 @@ Each adds only its own field. The integrator regenerates the schemas once after 
 
 ## Open questions
 
-None. The owner chose option A for the popover and the orchestration for the fixes on
-2026-10-19.
+None. On 2026-10-19 the owner chose option A for the popover, the orchestration for the fixes,
+and all of Claudio's tools behind one switch for D6.
 
 ## Related
 
 - [models-per-account.md](models-per-account.md)
 - [container-polish.md](container-polish.md) (where D3's single fallback came from)
 - [collaborators.md](collaborators.md)
+- [docs/claudio-mcp-server.md](../claudio-mcp-server.md)
 - `projects-as-repositories.md` and `assistant-mascot.md`, the other two plans from the same report (their own branches)
 - [docs/chat-composer.md](../chat-composer.md)
 - [docs/design-system.md](../design-system.md)
