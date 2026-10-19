@@ -18,7 +18,7 @@ brings the app to it is planned in [plans/redesign-night-shift.md](plans/redesig
 | Reference stylesheet (tokens and every component class, as designed) | [`design-system/claudio-ds.css`](design-system/claudio-ds.css) |
 | Static prototypes of every screen (open `index.html`) | [`design-system/reference/`](design-system/reference/index.html) |
 | Screenshots, dark and light, 1440 px desktop and 390 px phone | [`design-system/reference/screenshots/`](design-system/reference/screenshots) |
-| The 17 illustrations as standalone SVG | [`design-system/illustrations/`](design-system/illustrations) |
+| The 18 illustrations as standalone SVG, and Claudio's two marks | [`design-system/illustrations/`](design-system/illustrations) |
 | The diff comparator: its rules, modes, pieces and states (§5) | `DSComparador` and the **Changes** section of the reference |
 | The tokens the app actually uses | `packages/ui/src/styles/tokens.css` |
 | Claudio's brand kit: logo, icons, palette, and the scripts that build them | [`design-system/claudio-brand-kit/`](design-system/claudio-brand-kit/README.md) |
@@ -95,7 +95,7 @@ them is not part of the redesign.
 | `--glow-top` | radial accent 16 % from the top | the halo behind hero headers and featured cards |
 | `--accent` | `#6e9bff` (dark), `#1d58db` (light) | links, focus ring, active indicators |
 | `--accent-2nd` | `#a78bfa` (dark), `#6d28d9` (light) | the second stop of the brand gradient, the energy border. Only ever inside a gradient or beside `--accent`: solid violet is `--idle` |
-| `--logo-blue`, `--logo-violet`, `--logo-spark` | `#246bfd`, `#a78bfa`, `#00e5ff` (the spark is `#246bfd` in light) | Claudio's mark (`BrandMark`, `.logo-mark`), which stands on the page with no tile |
+| `--logo-blue`, `--logo-violet`, `--logo-spark` | `#246bfd`, `#a78bfa`, `#00e5ff` (the spark is `#246bfd` in light) | Claudio's mark (`BrandMark`, `.logo-mark`), which stands on the page with no tile. The spark and Claudio, the assistant's mascot (§4), are the one static cyan in the app; `ClaudioGlyph` is never cyan unless its slot is live |
 
 `--accent-2` is the tag and project tone, the same violet as `--idle`, as it was in Claudio. The
 gradient's second stop is `--accent-2nd` (it was `--accent-rose`; renamed when the rose became a
@@ -2045,7 +2045,7 @@ Every loop respects the motion setting:
 
 ## 4. Illustrations
 
-Claudio has its own set of 17 SVG illustrations, drawn in the interface's language: hairline
+Claudio has its own set of 18 SVG illustrations, drawn in the interface's language: hairline
 strokes, nodes and graphs, terminal windows, and the brand gradient on one element. `board` and
 `team` are drawn for the project ecosystem and are not in the app yet. There is no library
 dependency and no third-party licence. The reference is `design-system/illustrations/*.svg` (each
@@ -2055,6 +2055,7 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 | Name | Use | Tone |
 |---|---|---|
 | `welcome` | New chat hero, first run, a compact Home when nothing is running | accent |
+| `claudio` | the Claudio assistant's entry (`/assistant`), always. Claudio, the logo's prompt block, peeks out of the C, with the spark above its head and a prompt card at the mouth. It is the one illustration with the logo's own gradient (`f-logo`) and its spark colour (`f-spark`) | accent |
 | `chats` | empty chat list, empty transcript | accent |
 | `orchestrations` | empty orchestration list, no templates | accent |
 | `schedules` | no schedules, a schedule that never fired | accent |
@@ -2083,9 +2084,13 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
   and duplicated ids break silently.
 - Sizes: `sm` 160 × 107 (phone, cards), `md` 240 × 160, `lg` 300 × 200 (full-page empty states).
 - Tone: `tone="warn" | "bad" | "live"` sets `--il-tone`.
-- Motion: `float` (4 px), `blink` (caret), `dash` (flowing links), `pulse` (the live node), and
-  `orbit` (24–36 s). Everything stops under `data-motion='subtle' | 'off'` and
-  `prefers-reduced-motion`.
+- `f-logo` paints with the logo's gradient (`--il-logo`, `--logo-blue` → `--logo-violet` in the
+  kit's direction, a def of every instance), and `f-spark` with `--logo-spark`. Only a drawing
+  derived from the logo uses them. `.cut` (a 3-unit `--bg` stroke) and `f-eye` paint with the
+  page's `--bg`, so such a drawing stands on a page background, never on a raised card.
+- Motion: `float` (4 px), `blink` (caret), `dash` (flowing links), `pulse` (the live node),
+  `look` (the eyes' blink, 6 s) and `orbit` (24–36 s). Everything stops under
+  `data-motion='subtle' | 'off'` and `prefers-reduced-motion`.
 - Always `aria-hidden`: the title and text next to it say everything.
 
 **The pattern.** An `Empty` with an illustration is:
@@ -2101,8 +2106,22 @@ to show.
 Rules:
 
 - At most one per screen.
-- Never next to live data.
-- Never decorative filler on a page that has content.
+- Never next to live data, and never decorative filler on a page that has content, **except the
+  assistant's entry**. There the `claudio` drawing is the assistant's identity and is shown always.
+  That page keeps the rule's intent: it shows no live figures, and the state words of its recents
+  stand still.
+- **An illustration's one gradient element is part of the drawing** (New chat's `welcome`, the
+  assistant's C). It does not count as one of the screen's two gradient surfaces (§2, "Gradients").
+  It takes a halo only where the screen has no other gradient surface, so `claudio` never has one.
+
+**Claudio's marks.** One character, two drawings, both derived from the logo's prompt block.
+`ClaudioMascot` (`illustrations/claudio-mark.svg`, 24 × 24, `packages/ui/src/components/icons.tsx`)
+is the colour mark: the block, its eyes looking up and the spark, in `--logo-spark` with the eyes in
+`--bg`. It reads from 20 px and is used where the assistant speaks (the first message of its chat).
+`ClaudioGlyph` (`illustrations/claudio-glyph.svg`, 16 × 16) is the one-colour glyph, with the eyes cut
+out, in `currentColor`: it takes the colour of its icon slot (nav items, palette entries, menu items,
+buttons and the run tile, at 14 and 16 px), so a live run's tile still turns it `--live`. It is typed
+as a `LucideIcon`, so slots that take one accept it, and it ignores `strokeWidth`.
 
 The one exception is the page that could not start (`apps/web/boot-guard.js`): its bundle never
 loaded, so neither React nor the illustrations exist. The guard writes the compact `Empty` by hand
