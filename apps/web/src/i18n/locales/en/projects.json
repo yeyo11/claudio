@@ -403,7 +403,8 @@
     "confirmBody": "The path changes from <mono>{{from}}</mono> to <mono>{{to}}</mono>. Its chats, tasks and settings stay with it, and the worktree is not touched.",
     "confirm": "Point",
     "running": "Pointing",
-    "done": "“{{name}}” points at {{path}}",
+    "done": "“{{name}}” now points at <mono>{{path}}</mono>.",
+    "doneLabel": "Pointed at the main repository",
     "failed": "Could not point the project",
     "error": {
       "not-a-repository": "This project is not in a git repository, so there is no main repository to point at.",
@@ -412,6 +413,7 @@
       "other-repository": "That path belongs to another repository.",
       "already-a-project": "That path is already the project “{{name}}”.",
       "other": "The project could not be pointed there."
-    }
+    },
+    "openOther": "Open “{{name}}”"
   }
 }

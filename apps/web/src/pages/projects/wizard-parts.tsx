@@ -2,8 +2,10 @@ import type { ProjectTemplate, ProjectTemplateId } from '@claudio/shared';
 import { WORK_ITEM_TYPES } from '@claudio/shared';
 import { Check, Folder, GitBranch, MessageCircle, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Combobox, Switch } from '@claudio/ui/components/controls';
 import { ICON, ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { WorkItemKey, WorkItemTypeIcon } from '../../components/work-item-icons';
@@ -21,6 +23,37 @@ import type { Draft, Wizard } from './wizard';
  */
 function PathInspection({ set, wizard }: { set: (patch: Partial<Draft>) => void; wizard: Wizard }) {
   const { t } = useTranslation(['projects', 'common']);
+  return <InspectionSlot>{inspectionOf(set, wizard, t)}</InspectionSlot>;
+}
+
+/**
+ * The room under the field only grows while the step is open. "Use <main checkout>" swaps a refusal
+ * of two lines for a summary of one, with a moment of nothing in between while the new path is
+ * inspected: if the room followed its content, the prefix field below would jump twice.
+ */
+function InspectionSlot({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [held, setHeld] = useState(0);
+  const shown = children !== null || held > 0;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const hold = () => setHeld((h) => Math.max(h, el.offsetHeight));
+    hold();
+    const observer = new ResizeObserver(hold);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [shown]);
+  // Nothing said yet: no empty box, which would add the row's gap under the field
+  if (!shown) return null;
+  return (
+    <div ref={ref} className="wizard-inspect-slot" style={{ minHeight: held }}>
+      {children}
+    </div>
+  );
+}
+
+function inspectionOf(set: (patch: Partial<Draft>) => void, wizard: Wizard, t: TFunction<['projects', 'common']>): ReactNode {
   const found = wizard.inspection;
   if (!found) return null;
   const { conflict, repo } = found;
@@ -44,6 +77,7 @@ function PathInspection({ set, wizard }: { set: (patch: Partial<Draft>) => void;
       </span>
     );
   }
+  if (!repo && !found.sameRemoteAs) return null;
   return (
     <>
       {repo && (

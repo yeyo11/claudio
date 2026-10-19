@@ -249,6 +249,18 @@
 }
 
 /* Suggestions: a repository is one row; the other directories fold under a disclosure */
+.project-candidates {
+  /* The title and its sentence read as one block (DesktopProyectosSugerencias): the card's own 14 px
+     would set them apart */
+  gap: 6px;
+}
+.project-candidates-body {
+  margin: 0;
+}
+/* A <strong> is 700 by the browser; the scale has two weights */
+.candidate-main > strong {
+  font-weight: var(--fw-strong);
+}
 .candidate-actions {
   flex: none;
   display: flex;

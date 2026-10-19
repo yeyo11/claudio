@@ -1903,11 +1903,25 @@ button.master-item-on:hover {
 .worktree-row.is-main {
   border-left-color: var(--line-2);
 }
+/* Lone links on their own line: the accent says "link", and the box is big enough to hit (the
+   line's text alone is 17 px) */
+.worktree-chats,
+.worktree-removed > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
 .worktree-chats {
-  color: inherit;
+  color: var(--accent);
 }
 .worktree-removed {
   margin: 12px 0 0;
+}
+@media (max-width: 900px), (pointer: coarse) {
+  .worktree-chats,
+  .worktree-removed > a {
+    min-height: var(--touch);
+  }
 }
 .worktree-locked-reason {
   flex-basis: 100%;

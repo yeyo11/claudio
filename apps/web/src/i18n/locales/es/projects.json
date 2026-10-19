@@ -403,7 +403,8 @@
     "confirmBody": "La ruta pasa de <mono>{{from}}</mono> a <mono>{{to}}</mono>. Sus chats, tareas y ajustes siguen con él, y el worktree no se toca.",
     "confirm": "Apuntar",
     "running": "Apuntando",
-    "done": "«{{name}}» apunta a {{path}}",
+    "done": "«{{name}}» apunta ahora a <mono>{{path}}</mono>.",
+    "doneLabel": "Apuntado al repositorio principal",
     "failed": "No se ha podido apuntar el proyecto",
     "error": {
       "not-a-repository": "Este proyecto no está en un repositorio git, así que no hay repositorio principal al que apuntar.",
@@ -412,6 +413,7 @@
       "other-repository": "Esa ruta pertenece a otro repositorio.",
       "already-a-project": "Esa ruta ya es el proyecto «{{name}}».",
       "other": "No se ha podido apuntar el proyecto ahí."
-    }
+    },
+    "openOther": "Abrir «{{name}}»"
   }
 }

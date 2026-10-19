@@ -175,7 +175,7 @@ function Candidates({ candidates, first }: { candidates: ProjectCandidate[]; fir
   if (first) {
     return (
       <Card title={t('candidates.firstTitle')} className="project-candidates">
-        <p className="muted">{t('candidates.firstBody')}</p>
+        <p className="small muted project-candidates-body">{t('candidates.firstBody')}</p>
         {list}
       </Card>
     );

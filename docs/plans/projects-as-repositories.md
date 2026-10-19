@@ -334,7 +334,9 @@ under the field:
   van por separado.";
 - not a repository: nothing extra (today's behaviour).
 
-Create stays disabled while there is a field error.
+Create stays disabled while there is a field error. The room under the field only grows while the
+step is open: "Usar …" swaps a two-line refusal for a one-line summary, and the fields below must
+not jump.
 
 ### Worktrees under a project
 
@@ -371,9 +373,13 @@ On a phone each row stacks and "Nuevo chat aquí" is full width at ≥ 44 px.
   el worktree no se toca."; buttons "Cancelar" and "Apuntar" (the dialog's `.btn-primary`).
   Pressing it sends `PATCH { path }`; while it runs the button shows the braille spinner beside
   "Apuntando".
-- **After.** The callout goes, a toast says "«<name>» apunta a `<new>`", and the header's path
-  changes. A refusal keeps the dialog open with the reason in a `callout-warn` above the buttons,
-  from the error code (`already-a-project` names the other project with "Abrir").
+- **After.** The callout stays in its place and says what happened, with the `Check` icon in `--ok`
+  and the sentence "«<name>» apunta ahora a `<new>`." (no toast: the answer is where the person is
+  looking). The notice and the answer share one grid cell, so the callout keeps its height and the
+  page under it does not move; it is gone on the next visit. The header's path changes. A refusal
+  keeps the dialog open with the reason in a `callout-warn` above the buttons, from the error code;
+  `already-a-project` names the other project and puts "Abrir «<name>»" as a small button after the
+  sentence (not a link inside it), and "Apuntar" stays disabled until the dialog is opened again.
 - **Phone.** The callout spans the width and its button is full width at ≥ 44 px; the dialog is the
   phone confirm (bottom sheet, buttons full width at ≥ 44 px). On a phone it also shows on the
   project card's Ajustes screen.
@@ -414,7 +420,8 @@ New keys in `apps/web/src/i18n/locales/{en,es}/projects.json` (and `chats.json` 
 | `repoint.confirmTitle` | Point “{{name}}” at the main repository? | ¿Apuntar «{{name}}» al repositorio principal? |
 | `repoint.confirmBody` | The path changes from <mono>{{from}}</mono> to <mono>{{to}}</mono>. Its chats, tasks and settings stay with it, and the worktree is not touched. | La ruta pasa de <mono>{{from}}</mono> a <mono>{{to}}</mono>. Sus chats, tareas y ajustes siguen con él, y el worktree no se toca. |
 | `repoint.confirm` / `running` | Point / Pointing | Apuntar / Apuntando |
-| `repoint.done` | “{{name}}” points at <mono>{{path}}</mono> | «{{name}}» apunta a <mono>{{path}}</mono> |
+| `repoint.done` / `doneLabel` | “{{name}}” now points at <mono>{{path}}</mono>. / Pointed at the main repository | «{{name}}» apunta ahora a <mono>{{path}}</mono>. / Apuntado al repositorio principal |
+| `repoint.openOther` | Open “{{name}}” | Abrir «{{name}}» |
 | `repoint.error.*` | one per code: not-a-repository, not-a-directory, linked-worktree, other-repository, already-a-project | uno por código |
 
 ## Contracts

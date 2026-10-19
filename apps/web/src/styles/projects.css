@@ -1189,6 +1189,13 @@
 .callout-warn > svg {
   color: var(--warn);
 }
+/* Held at its tallest while the step is open (wizard-parts.tsx), so the fields below never jump */
+.wizard-inspect-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
 .wizard-inspect {
   display: flex;
   flex-wrap: wrap;
@@ -1205,8 +1212,28 @@
 
 /* A project that points at a worktree (D12): the sentence and its one action */
 .repoint-callout {
-  align-items: center;
   margin-bottom: 14px;
+}
+/* The notice and what it says once pointed share one cell: the callout keeps its height, so nothing
+   under it moves when the re-point lands */
+.repoint-faces {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+}
+.repoint-face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.repoint-face > svg {
+  flex: none;
+  color: var(--fg-3);
+}
+.repoint-face > .repoint-done-icon {
+  color: var(--ok);
 }
 .repoint-text {
   flex: 1;
@@ -1227,6 +1254,24 @@
 .repoint-refusal {
   margin-top: 12px;
 }
+.repoint-refusal-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.repoint-sheet-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.repoint-sheet-foot > .btn {
+  width: 100%;
+  min-height: var(--touch);
+  justify-content: center;
+}
 .repoint-confirm {
   display: inline-grid;
   justify-items: center;
@@ -1239,16 +1284,26 @@
 }
 
 @media (max-width: 900px) {
-  .repoint-callout {
+  .repoint-face {
     flex-direction: column;
     align-items: stretch;
   }
-  .repoint-callout > svg {
+  .repoint-face > .repoint-icon {
     display: none;
   }
+  .repoint-done {
+    flex-direction: row;
+    align-items: flex-start;
+  }
   .repoint-action,
+  .repoint-refusal-open,
   .wizard-inspect-action {
     min-height: 44px;
     width: 100%;
+  }
+}
+@media (pointer: coarse) {
+  .repoint-refusal-open {
+    min-height: var(--touch);
   }
 }
