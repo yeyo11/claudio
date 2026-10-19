@@ -223,7 +223,15 @@ export interface AuthStatus {
    * default with a signed-in login account beside it still runs chats. Null when no account can take work
    */
   inUse: AccountInUse | null;
+  /**
+   * Why `inUse` is null: `signed-out` when no enabled account has a usable credential, `limit` when
+   * one has and every such account is at its limit. Null while `inUse` is set. Absent on an old server.
+   */
+  inUseReason?: AccountInUseReason | null;
 }
+
+/** Why no account can take new work now. */
+export type AccountInUseReason = 'signed-out' | 'limit';
 
 /** A kernel pressure reading (PSI): the share of the last 10 s in which some or every task waited, in percent. */
 export interface PressureReading {

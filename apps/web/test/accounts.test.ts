@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Account, AccountLimit } from '@claudio/shared';
-import { accountName, accountUsable, canSignInAgain, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
+import { accountName, accountUsable, canSignInAgain, connectionOf, type ConnectionFacts, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
 
 const limit = (state: AccountLimit['state'], utilization: number | null): AccountLimit => ({
   state,
@@ -64,4 +64,36 @@ test('an expired or incomplete sign-in is a problem to sign in again, and takes 
 test('only a login account can sign in again', () => {
   assert.equal(canSignInAgain(account('a')), true);
   assert.equal(canSignInAgain(account('b', { kind: 'token' })), false);
+});
+
+// ---------- the connection: signed in, at a limit and "could not check" are different words ----------
+
+const facts = (over: Partial<ConnectionFacts> = {}): ConnectionFacts => ({
+  cliInstalled: true,
+  inUse: { signInState: 'ok' },
+  accounts: [{ enabled: true, signedIn: true }],
+  provider: { state: 'ready', reason: null },
+  ...over,
+});
+
+test('connectionOf: ready, and a missing CLI before anything else', () => {
+  assert.equal(connectionOf(facts()), 'ready');
+  assert.equal(connectionOf(facts({ provider: null })), 'ready', 'before the providers are read');
+  assert.equal(connectionOf(facts({ cliInstalled: false, inUse: null, accounts: [] })), 'no-cli');
+});
+
+test('connectionOf: a limit or a failed probe never reads as signed out while an account is signed in', () => {
+  assert.equal(connectionOf(facts({ provider: { state: 'degraded', reason: 'limit-near' } })), 'near');
+  assert.equal(connectionOf(facts({ provider: { state: 'degraded', reason: 'limit-reached' } })), 'limit');
+  assert.equal(connectionOf(facts({ provider: { state: 'unknown', reason: 'probe-timeout' } })), 'unchecked');
+  assert.equal(connectionOf(facts({ inUse: null, inUseReason: 'limit' })), 'limit', 'every account exhausted: the server says why');
+  assert.equal(connectionOf(facts({ inUse: null, inUseReason: null, provider: { state: 'unknown', reason: 'spawn-failed' } })), 'unchecked', 'no reason, but an account has a credential');
+});
+
+test('connectionOf: signed out only when no account has a credential, or the sign-in expired', () => {
+  assert.equal(connectionOf(facts({ inUse: null, inUseReason: 'signed-out', accounts: [] })), 'signed-out');
+  assert.equal(connectionOf(facts({ inUse: null, accounts: [{ enabled: false, signedIn: true }] })), 'signed-out', 'a disabled account does not count');
+  assert.equal(connectionOf(facts({ inUse: null, accounts: [] })), 'signed-out', 'an old server gives no reason');
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'expired' } })), 'expired');
+  assert.equal(connectionOf(facts({ provider: { state: 'signed-out', reason: 'missing-credentials' } })), 'unready', "the provider's word is not the account's");
 });
