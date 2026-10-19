@@ -2459,6 +2459,12 @@
           "stderr": {
             "type": "string"
           },
+          "cwdReset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "interrupted": {
             "type": "boolean"
           },
@@ -2472,6 +2478,7 @@
         "required": [
           "kind",
           "stderr",
+          "cwdReset",
           "interrupted",
           "backgroundTaskId"
         ]

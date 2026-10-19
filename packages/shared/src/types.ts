@@ -419,7 +419,7 @@ export type ToolResultDetail =
   /** `Edit`, `MultiEdit`, `Write`, `NotebookEdit`: the patch as unified text (`''` when the CLI kept none); `created` for a new file */
   | { kind: 'patch'; path: string; patch: string; created: boolean }
   /** `Bash`: the text is stdout; `backgroundTaskId` when the command was sent to the background */
-  | { kind: 'command'; stderr: string; interrupted: boolean; backgroundTaskId: string | null }
+  | { kind: 'command'; stderr: string; cwdReset: string | null; interrupted: boolean; backgroundTaskId: string | null }
   /** `Grep`, `Glob` */
   | { kind: 'matches'; mode: 'files' | 'content' | 'count'; total: number }
   /** `WebFetch` */

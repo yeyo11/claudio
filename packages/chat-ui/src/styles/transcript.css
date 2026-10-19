@@ -560,6 +560,20 @@
   color: var(--bad);
 }
 
+/* The CLI's note about the shell: a sentence, with only the path a literal */
+.call-note {
+  font: var(--fs-small) var(--sans);
+}
+
+.call-note code {
+  font: var(--fs-small) var(--mono);
+}
+
+/* Stderr of a call that did not fail (progress, warnings): the terminal's own colours, never red */
+.call-stderr-neutral {
+  color: var(--text-muted);
+}
+
 .fold {
   min-width: 0;
 }
@@ -815,7 +829,8 @@
 
 /* What a command printed: the terminal's words, no syntax, wrapped so nothing scrolls sideways */
 .call-term,
-.call-stderr {
+.call-stderr,
+.call-stderr-neutral {
   margin: 0;
   padding: 10px 12px;
   border: 1px solid var(--border);
