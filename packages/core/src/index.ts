@@ -32,6 +32,7 @@ import type {
   Overview,
   Account,
   AccountInUse,
+  AuthStatus,
   AccountsRefreshResult,
   AccountsSnapshot,
   PermissionDecision,
@@ -1704,7 +1705,7 @@ export class Core {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while the models are the default account's stored `initialize` list
     // The account in use moves with rotation and sign-ins, faster than the system read is redone
-    return { ...value, auth: { ...value.auth, inUse: this.accountInUse() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    return { ...value, auth: { ...value.auth, ...this.accountInUseRead() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   /**
@@ -3461,6 +3462,15 @@ export class Core {
       }
     }
     return { accounts: this.accounts.listed(), failed };
+  }
+
+  /** `inUse` with, when it is null, why: no credential at all, or every signed-in account at its limit */
+  private accountInUseRead(): Pick<AuthStatus, 'inUse' | 'inUseReason'> {
+    const inUse = this.accountInUse();
+    if (inUse) return { inUse, inUseReason: null };
+    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
+    const signedIn = this.accounts.list().some((a) => a.enabled && a.signedIn && !(ghost && a.id === DEFAULT_ID));
+    return { inUse: null, inUseReason: signedIn ? 'limit' : 'signed-out' };
   }
 
   /** The account new work would start on, as Settings and the status bar name it; null when none can take work */

@@ -317,6 +317,10 @@ async function connection(auth: AuthStatus, state: ProviderReadinessState = 'rea
   const html = await render(<Reading auth={auth} claude={state} />, (client) => client.setQueryData(keys.providers, [provider('claude-code', 'Claude Code', state)]));
   return JSON.parse(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')) as { healthy: boolean; short: string; title: string };
 }
+async function connectionWith(auth: AuthStatus, claude: { state: ProviderReadinessState; reason: ProviderStatus['reason'] }) {
+  const html = await render(<Reading auth={auth} claude={claude.state} />, (client) => client.setQueryData(keys.providers, [{ ...provider('claude-code', 'Claude Code', claude.state), reason: claude.reason }]));
+  return JSON.parse(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')) as { healthy: boolean; short: string; title: string; tone: string };
+}
 const inUse = (patch: Partial<NonNullable<AuthStatus['inUse']>> = {}): NonNullable<AuthStatus['inUse']> => ({ id: 'work', label: 'work', kind: 'login', signInState: 'ok', checkedAt: null, ...patch });
 
 test('the status bar is healthy on the account in use, even when the CLI\'s own login is empty', async () => {
@@ -334,6 +338,22 @@ test('the status bar says so when no account can take work, or the one in use ex
   assert.equal(expired.title, 'Sign-in expired');
   const refused = await connection({ ...AUTH, inUse: inUse() }, 'signed-out');
   assert.equal(refused.healthy, false, 'a provider that is not ready is not healthy either');
+});
+
+test('the status bar words a limit and a failed probe, and keeps "Not signed in" for the credentials', async () => {
+  const near = await connectionWith({ ...AUTH, inUse: inUse() }, { state: 'degraded', reason: 'limit-near' });
+  assert.equal(near.healthy, false);
+  assert.equal(near.title, 'Near the limit');
+  assert.equal(near.short, 'work · Near the limit');
+  const reached = await connectionWith({ ...AUTH, inUse: null, inUseReason: 'limit' }, { state: 'degraded', reason: 'limit-reached' });
+  assert.equal(reached.title, 'Limit reached');
+  assert.equal(reached.tone, 'bad');
+  const unknown = await connectionWith({ ...AUTH, inUse: inUse() }, { state: 'unknown', reason: 'probe-timeout' });
+  assert.equal(unknown.title, 'Couldn&#x27;t check the CLI');
+  assert.equal(unknown.short, 'work · Not checked');
+  assert.equal(unknown.tone, 'warn');
+  const out = await connectionWith({ ...AUTH, inUse: null, inUseReason: 'signed-out' }, { state: 'signed-out', reason: 'missing-credentials' });
+  assert.equal(out.title, 'Not signed in');
 });
 
 test('GitHub\'s panel heads with Code / Key and asks for the host first', async () => {

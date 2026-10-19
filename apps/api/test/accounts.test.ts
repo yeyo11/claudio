@@ -60,6 +60,7 @@ test('the default account stays out of the list while it has no credential at al
   assert.deepEqual(await accounts(), []);
   const auth = (await app.inject('/api/auth')).json<AuthStatus>();
   assert.equal(auth.inUse, null, 'no account can take work');
+  assert.equal(auth.inUseReason, 'signed-out', 'and no credential is why');
 
   // Only a login account is signed in: it is the account in use, though the CLI's own login is empty
   const session = (await app.inject({ method: 'POST', url: '/api/accounts', ...json({ alias: 'work' }) })).json<AccountLoginSession>();
@@ -70,6 +71,7 @@ test('the default account stays out of the list while it has no credential at al
   const inUse = (await app.inject('/api/auth')).json<AuthStatus>().inUse;
   assert.equal(inUse?.id, session.accountId);
   assert.equal(inUse?.label, 'work');
+  assert.equal((await app.inject('/api/auth')).json<AuthStatus>().inUseReason, null, 'nothing to explain while an account is in use');
   assert.ok(inUse?.checkedAt, 'a sign-in that succeeded is a check');
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/${session.accountId}` })).statusCode, 200);
 });
