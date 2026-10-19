@@ -113,11 +113,17 @@ const catalog: ModelOption[] = [
   { value: 'claude-fable-5-1[1m]', resolvedModel: 'claude-fable-5-1', label: 'Fable (1M)' },
 ];
 
-test('a model is listed once, and its 1M variant stays its own row', () => {
+test('only an identical value is a repeat: every row the CLI lists stays, in its order', () => {
   assert.deepEqual(
-    dedupeModels(catalog).map((m) => m.value),
-    ['opus', 'haiku', 'fable', 'claude-fable-5-1[1m]'],
+    dedupeModels([...catalog, { value: 'opus', label: 'Opus again' }]).map((m) => m.value),
+    ['opus', 'haiku', 'fable', 'claude-fable-5-1', 'claude-fable-5-1[1m]'],
   );
+  // `/model` lists `default` and `haiku` even when they resolve to the same model
+  const listed: ModelOption[] = [
+    { value: 'default', resolvedModel: 'claude-haiku-5-5', label: 'Default (recommended)', description: 'Haiku 5.5' },
+    { value: 'haiku', resolvedModel: 'claude-haiku-5-5', label: 'Haiku', description: 'Haiku 5.5' },
+  ];
+  assert.deepEqual(dedupeModels(listed), listed);
 });
 
 test('the effort levels offered come from the CLI list for the model, by alias or id', () => {

@@ -1,7 +1,7 @@
 import { PERMISSION_MODES, type ContextDetail, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
-import { modelOptions } from './models.ts';
+import { modelNames, modelOptions } from './models.ts';
 import { SessionStoreTranscripts, type TranscriptStore } from '../transcripts.ts';
 import type { SessionStore } from '../../sessions.ts';
 import type {
@@ -118,8 +118,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
   /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
   transcripts: TranscriptStore | null = null;
 
-  /** Where the CLI lists what the account may run, and the names chats learned for the aliases; set by the manager */
-  modelSource: { file: string; seen: () => Readonly<Record<string, string>>; listed?: () => ModelOption[] | null } | null = null;
+  /** The default account's list from the CLI's `initialize`, null before it was read; set by the manager */
+  modelSource: { listed: () => ModelOption[] | null } | null = null;
 
   /** A function when the binary can change under a running server (an in-app CLI update) */
   constructor(private readonly claudeBin: string | (() => string)) {}
@@ -129,16 +129,11 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   models(): ModelOption[] {
-    return modelOptions(this.modelSource?.file ?? '', this.modelSource?.seen() ?? {}, this.modelSource?.listed?.() ?? null);
+    return modelOptions(this.modelSource?.listed() ?? null);
   }
 
   modelNames(model: string): string[] {
-    const seen = this.modelSource?.seen() ?? {};
-    const names = new Set([model]);
-    const resolved = seen[model];
-    if (resolved) names.add(resolved);
-    for (const [alias, id] of Object.entries(seen)) if (id === model) names.add(alias);
-    return [...names];
+    return modelNames(this.modelSource?.listed() ?? null, model);
   }
 
   /** Where the transcripts are read from; set by the manager, like `modelSource` */

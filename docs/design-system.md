@@ -228,7 +228,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kpi` | `.usage-tile`, `.usage-hero` (Usage on a phone), the widget headline figures | big-number tiles. A phone shows one figure, not a row of tiles |
 | `.bar`, `.segbar`, `.ring` | `.meter-*`, `.gauge*`, `.progress`, `.ring*`, `.ctx-bar`, `.slice-*`, `.board-task-fill` | see the thresholds below |
 | `.list-row`, `.sel` | `.crow`, `.list-row`, `.master-item`, `.now-row`, `.widget-row`, `.account-row`, `.rotation-cell`, `.settings-cell` | clickable rows. The selected row gets an accent inset. A cell that opens a screen of its own ends in a chevron |
-| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone |
+| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |

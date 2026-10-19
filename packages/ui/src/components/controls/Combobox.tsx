@@ -23,6 +23,8 @@ export function Combobox({
   placeholder,
   autoFocus,
   className = '',
+  status,
+  onStatusAction,
   'aria-label': ariaLabel,
 }: {
   value: string;
@@ -31,10 +33,18 @@ export function Combobox({
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
+  /** Shown in the list while it has no suggestions: why there are none yet (loading, a failed read) */
+  status?: ReactNode;
+  /**
+   * What Enter in an empty field does while the status stands in for the list (a Retry). The list
+   * closes when the input loses focus, so a button in it is out of reach of Tab: this is the keyboard's way
+   */
+  onStatusAction?: () => void;
   'aria-label'?: string;
 }) {
   const { t } = useTranslation('primitives');
   const listId = useId();
+  const statusId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -42,7 +52,9 @@ export function Combobox({
   const needle = value.trim().toLowerCase();
   const exact = options.some((o) => o.value === value);
   const matches = !needle || exact ? options : options.filter((o) => o.value.toLowerCase().includes(needle));
-  const shown = open && matches.length > 0;
+  // With no suggestions at all, the status says why; typing goes on being accepted as it is
+  const telling = options.length === 0 && !!status;
+  const shown = open && (matches.length > 0 || telling);
 
   const pick = (option: ComboboxOption) => {
     onChange(option.value);
@@ -60,7 +72,8 @@ export function Combobox({
           role="combobox"
           aria-label={ariaLabel}
           aria-expanded={shown}
-          aria-controls={shown ? listId : undefined}
+          aria-controls={shown && matches.length > 0 ? listId : undefined}
+          aria-describedby={shown && telling ? statusId : undefined}
           aria-autocomplete="list"
           aria-activedescendant={shown && active >= 0 ? `${listId}-${active}` : undefined}
           autoComplete="off"
@@ -79,11 +92,17 @@ export function Combobox({
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault();
               if (!shown) return setOpen(true);
+              if (matches.length === 0) return;
               const step = e.key === 'ArrowDown' ? 1 : -1;
               setActive((i) => (i + step + matches.length) % matches.length);
             } else if (e.key === 'Enter' && shown && active >= 0 && matches[active]) {
               e.preventDefault();
               pick(matches[active]);
+            } else if (e.key === 'Enter' && telling && onStatusAction && !value.trim()) {
+              // A typed value is still submitted as it is; an empty field has nothing else to do
+              e.preventDefault();
+              setOpen(true);
+              onStatusAction();
             } else if (e.key === 'Escape' && shown) {
               setOpen(false);
             }
@@ -117,28 +136,37 @@ export function Combobox({
           onInteractOutside={(e) => e.target === inputRef.current && e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel ?? placeholder ?? t('combobox.suggestions')}>
-            {matches.map((option, i) => (
-              <div
-                key={option.value}
-                id={`${listId}-${i}`}
-                role="option"
-                aria-selected={option.value === value}
-                data-highlighted={i === active ? '' : undefined}
-                className="menu-item"
-                // Keep focus in the input: picking must not blur it first
-                onMouseDown={(e) => e.preventDefault()}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => pick(option)}
-              >
-                <span className="menu-item-text">
-                  <span>{option.label ?? option.value}</span>
-                  {option.hint && <span className="menu-item-hint">{option.hint}</span>}
-                </span>
-                {option.value === value && <Check {...ICON_SM} className="menu-item-check" />}
-              </div>
-            ))}
-          </div>
+          {telling && (
+            // Not an option of the list: keeps the input's focus, and a button in it still takes a click
+            <div className="combobox-status" id={statusId} role="status" onMouseDown={(e) => e.preventDefault()}>
+              {status}
+            </div>
+          )}
+          {/* An empty listbox is not a list: it is left out while the status stands in for it */}
+          {matches.length > 0 && (
+            <div className="menu-viewport" role="listbox" id={listId} aria-label={ariaLabel ?? placeholder ?? t('combobox.suggestions')}>
+              {matches.map((option, i) => (
+                <div
+                  key={option.value}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={option.value === value}
+                  data-highlighted={i === active ? '' : undefined}
+                  className="menu-item"
+                  // Keep focus in the input: picking must not blur it first
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => pick(option)}
+                >
+                  <span className="menu-item-text">
+                    <span>{option.label ?? option.value}</span>
+                    {option.hint && <span className="menu-item-hint">{option.hint}</span>}
+                  </span>
+                  {option.value === value && <Check {...ICON_SM} className="menu-item-check" />}
+                </div>
+              ))}
+            </div>
+          )}
         </RadixPopover.Content>
       </RadixPopover.Portal>
     </RadixPopover.Root>

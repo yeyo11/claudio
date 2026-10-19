@@ -1193,6 +1193,8 @@ export const api = {
   accountsSettings: (o: ReadOptions = {}) => request<AccountsSettings>('/accounts/settings', o),
   putAccountsSettings: (body: Partial<AccountsSettings>) => request<AccountsSettings>('/accounts/settings', { method: 'PUT', body }),
   accountModels: (id: string, o: ReadOptions = {}) => request<ModelOption[]>(`/accounts/${enc(id)}/models`, o),
+  /** Asks the CLI again (`initialize`, no turn, no tokens) rather than serving the stored list */
+  refreshAccountModels: (id: string) => request<ModelOption[]>(`/accounts/${enc(id)}/models?refresh=1`),
   modelFallbacks: (o: ReadOptions = {}) => request<ModelFallback[]>('/accounts/model-fallbacks', o),
   putModelFallbacks: (body: ModelFallbacksRequest) => request<ModelFallback[]>('/accounts/model-fallbacks', { method: 'PUT', body }),
   suggestModelFallback: (model: string) => request<ModelFallbackSuggestion>('/accounts/model-fallbacks/suggest', { method: 'POST', body: { model } }),
@@ -1294,6 +1296,8 @@ export const keys = {
   modelFallbacks: ['accounts', 'model-fallbacks'] as const,
   accountEvents: ['accounts', 'events'] as const,
   accountLogin: (id: string) => ['accounts', 'login', id] as const,
+  /** The same key the chat package's account picker reads the list under, so the two share it */
+  accountModels: (id: string) => ['accounts', id, 'models'] as const,
   accountUsage: (account: string, window: string, since: string) => ['accounts', 'usage', account, window, since] as const,
   providers: ['providers'] as const,
   providerSettings: ['providers', 'settings'] as const,

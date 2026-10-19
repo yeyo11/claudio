@@ -474,13 +474,22 @@ export class AccountStore {
     });
   }
 
-  /** The stored list of an account without reading it, for the paths that cannot wait. */
+  /**
+   * The stored list of an account without reading it, for the paths that cannot wait. Null when
+   * there is none, or when it was read under another CLI version than the one last seen running.
+   */
   cachedModels(id: string): ModelOption[] | null {
     return this.modelCache.cached(id);
   }
 
-  /** Reads the lists of every signed-in, enabled account that has none yet; a failing one is skipped. */
-  async warmModels(): Promise<void> {
+  /**
+   * Reads the lists of every signed-in, enabled account that has none for the running CLI; a failing
+   * one is skipped. `checkVersion` asks the CLI its version first (one `claude --version`), which is
+   * what the server does at boot and when it sees the CLI change: a list read under the old version
+   * then counts as missing and is read again.
+   */
+  async warmModels(opts: { checkVersion?: boolean } = {}): Promise<void> {
+    if (opts.checkVersion) await this.modelCache.learnVersion().catch(() => undefined);
     const missing = this.list().filter((a) => a.enabled && a.signedIn && !this.modelCache.cached(a.id));
     await Promise.all(missing.map((a) => this.models(a.id).catch(() => undefined)));
   }

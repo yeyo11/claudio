@@ -34,8 +34,11 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
 const args = process.argv.slice(2);
+// Reading an account's model list (the `initialize` handshake and the version before it, which the
+// server does at boot) is not a chat's process: the log below is what chats spawn
+const probe = args[0] === '--version' || args.join(' ') === '-p --input-format stream-json --output-format stream-json --verbose';
 // $FAKE_CLAUDE_SPAWNS names a file each start appends `<pid> <argv>` to, so a test can read the flags a chat was given
-if (process.env.FAKE_CLAUDE_SPAWNS) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
+if (process.env.FAKE_CLAUDE_SPAWNS && !probe) appendFileSync(process.env.FAKE_CLAUDE_SPAWNS, `${process.pid} ${args.join(' ')}\n`);
 // Core lists the CLI's own sessions with this; without an answer it waits for stdin to close.
 // $FAKE_CLAUDE_AGENTS names a file holding what `agents --json` should report, which is how a test
 // puts a session in a terminal that Claudio knows nothing about
@@ -216,6 +219,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       out({ type: 'system', subtype: 'status', status: null, permissionMode: reported(mode), session_id: sessionId });
     } else if (request.subtype === 'set_model') {
       respond(msg.request_id, undefined);
+    } else if (request.subtype === 'initialize') {
+      // The account's model list, read with no turn: the only list the pickers offer
+      respond(msg.request_id, { commands: [], models: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet', description: 'Sonnet 5' }], account: { apiProvider: 'firstParty' } });
     } else if (request.subtype === 'get_context_usage') {
       // Recorded answers; `full` is what the CLI gives when no detail is asked for, and it refuses any other word
       if (request.detail === undefined || request.detail === 'full') respond(msg.request_id, fixture('recordings/claude/context-usage-full.json'));
