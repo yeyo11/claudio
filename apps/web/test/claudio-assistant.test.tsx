@@ -94,7 +94,9 @@ const recentsOf = (client: QueryClient, narrow = false) =>
   renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <Recents narrow={narrow} />
+        <TooltipProvider>
+          <Recents narrow={narrow} />
+        </TooltipProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );

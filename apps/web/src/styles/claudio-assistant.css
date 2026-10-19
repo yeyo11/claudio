@@ -4,9 +4,14 @@
  * greeting, the starters, the recents and the context chip. The box under the greeting is New chat's start box.
  */
 
+/* The column starts at the top, never centred in the scroller: the recents arrive after the first
+   paint, and a centred column would jump up when they did. The gutter is kept, so a list long enough
+   to scroll does not narrow the column either */
 .as-entry .run-scroll {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
+  align-items: center;
+  scrollbar-gutter: stable;
 }
 
 .as-body {
@@ -118,6 +123,9 @@
 }
 
 .as-recents-all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   font-size: var(--fs-small);
   color: var(--accent);
   text-decoration: none;
@@ -170,6 +178,8 @@
 .as-recent-sep {
   display: none;
   color: var(--text-faint);
+  /* Its spaces are its width: a flex item trims them otherwise, and "word·time" runs together */
+  white-space: pre;
 }
 
 .as-recent-word.is-live {

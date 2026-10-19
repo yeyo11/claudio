@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { displayTitle, STATE_LABEL } from '@claudio/chat-ui/lib/chat-model';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { api } from '../../api';
@@ -64,22 +65,25 @@ export function Recents({ narrow }: { narrow: boolean }) {
           const state = chatStateWord(chat);
           return (
             <li key={chat.id}>
-              <Link className="as-recent" to={`/chats/${chat.id}`}>
-                <span className="as-recent-title ellipsis">{displayTitle(chat)}</span>
-                <span className="as-recent-meta">
-                  {state ? (
-                    <>
-                      <span className={`as-recent-word is-${state.tone}`}>{state.word}</span>
-                      <span className="as-recent-sep" aria-hidden>
-                        {' · '}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="sr-only">{STATE_LABEL.idle}</span>
-                  )}
-                  <span className="as-recent-time">{timeAgo(chat.updatedAt)}</span>
-                </span>
-              </Link>
+              {/* The title is cut to one line; the tooltip holds the whole of it (a link cannot carry `title=`) */}
+              <Tooltip content={displayTitle(chat)}>
+                <Link className="as-recent" to={`/chats/${chat.id}`}>
+                  <span className="as-recent-title ellipsis">{displayTitle(chat)}</span>
+                  <span className="as-recent-meta">
+                    {state ? (
+                      <>
+                        <span className={`as-recent-word is-${state.tone}`}>{state.word}</span>
+                        <span className="as-recent-sep" aria-hidden>
+                          {' · '}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="sr-only">{STATE_LABEL.idle}</span>
+                    )}
+                    <span className="as-recent-time">{timeAgo(chat.updatedAt)}</span>
+                  </span>
+                </Link>
+              </Tooltip>
             </li>
           );
         })}
