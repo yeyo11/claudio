@@ -350,7 +350,7 @@ test('the status bar words a limit and a failed probe, and keeps "Not signed in"
   assert.equal(reached.tone, 'bad');
   const unknown = await connectionWith({ ...AUTH, inUse: inUse() }, { state: 'unknown', reason: 'probe-timeout' });
   assert.equal(unknown.title, 'Not checked');
-  assert.equal(unknown.detail, 'Couldn&#x27;t check the CLI; it will retry');
+  assert.equal(unknown.detail, 'The CLI did not answer; Claudio will ask again');
   assert.equal(unknown.short, 'work · Not checked');
   assert.equal(unknown.tone, 'warn');
   const out = await connectionWith({ ...AUTH, inUse: null, inUseReason: 'signed-out' }, { state: 'signed-out', reason: 'missing-credentials' });

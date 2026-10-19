@@ -110,7 +110,7 @@ export default async ({ page, api, dirs, check }) => {
     await page.waitFor(`return document.querySelectorAll('.composer-server').length === 2`, { label: 'the two servers in the menu' });
     const rows = await page.eval(`return [...document.querySelectorAll('.composer-server')].map((r) => r.innerText.replace(/\\s+/g, ' ').trim().toLowerCase())`);
     check(rows[0]?.startsWith('docs') && rows[0].includes('connected') && rows[0].includes('2 tools'), `the local server, connected with its tools (${rows[0]})`);
-    check(rows[1]?.startsWith('calendar') && rows[1].includes('needs-auth') && rows[1].includes('connector'), `the connector, waiting for its authorisation (${rows[1]})`);
+    check(rows[1]?.startsWith('calendar') && rows[1].includes('needs authorisation') && rows[1].includes('connector'), `the connector, waiting for its authorisation (${rows[1]})`);
     check(await page.eval(`return !!document.querySelector('.composer-server a[href="/settings/connections#connectors"]')`), 'a connector waiting for authorisation links to how to give it');
     await page.shot('composer-menu');
 
