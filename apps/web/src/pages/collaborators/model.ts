@@ -12,7 +12,7 @@ export type CollabTone = 'ok' | 'warn' | 'bad' | 'idle' | 'muted';
 /** The keys of `collaborators.json` the words below come from. */
 export type ConnectionKey = `connection.${'online' | 'relay' | 'starting' | 'noRelay' | 'offline' | 'off'}`;
 export type PresenceKey = `presence.${'direct' | 'relay' | 'lastSeen' | 'never'}`;
-export type SyncKey = `sync.${'live' | 'synced' | 'offline' | 'offlineNever' | 'pending'}`;
+export type SyncKey = `sync.${'live' | 'synced' | 'offline' | 'offlineNever' | 'pending' | 'paused'}`;
 
 /** What the page shows: off, unavailable (with the module's reason), or on. */
 export type PageState = 'unavailable' | 'off' | 'on';
@@ -63,7 +63,41 @@ export function syncWord(sync: SyncState): { key: SyncKey; tone: CollabTone; ago
       return sync.lastSyncedAt ? { key: 'sync.offline', tone: 'idle', ago: sync.lastSyncedAt } : { key: 'sync.offlineNever', tone: 'idle', ago: null };
     case 'pending':
       return { key: 'sync.pending', tone: 'muted', ago: null };
+    case 'paused':
+      return { key: 'sync.paused', tone: 'warn', ago: null };
   }
+}
+
+/** What the Shared tab's icon says: the worst state among a project's copies (error first). */
+export type SyncSummaryKind = 'error' | 'paused' | 'offline' | 'pending' | 'synced';
+
+export const SYNC_SUMMARY_ORDER: readonly SyncSummaryKind[] = ['error', 'paused', 'offline', 'pending', 'synced'];
+
+const summaryOf = (sync: SyncState): SyncSummaryKind => {
+  if (sync.error) return 'error';
+  switch (sync.state) {
+    case 'paused':
+      return 'paused';
+    case 'offline':
+      return 'offline';
+    case 'pending':
+      return 'pending';
+    case 'live':
+    case 'synced':
+      return 'synced';
+  }
+};
+
+/** The worst state among `syncs`, with when the freshest copy was pulled (for the synced words); null for none. */
+export function worstSync(syncs: readonly SyncState[]): { kind: SyncSummaryKind; ago: string | null } | null {
+  let kind: SyncSummaryKind | null = null;
+  for (const sync of syncs) {
+    const next = summaryOf(sync);
+    if (kind === null || SYNC_SUMMARY_ORDER.indexOf(next) < SYNC_SUMMARY_ORDER.indexOf(kind)) kind = next;
+  }
+  if (kind === null) return null;
+  const pulled = syncs.map((s) => s.lastSyncedAt).filter((at): at is string => at !== null).sort();
+  return { kind, ago: pulled.length > 0 ? (pulled[pulled.length - 1] ?? null) : null };
 }
 
 /** The groups this install owns: where Invite can make an invite. A frozen group signs nothing. */

@@ -5517,9 +5517,10 @@ export interface ShareKeyInUseError {
  * - `live`: the owner is connected and the watch stream is open ("Up to date · syncing");
  * - `synced`: connected, between pulls ("Synced 3 min ago");
  * - `offline`: the owner is not reachable ("Owner offline · last synced 2 h ago");
- * - `pending`: nothing synced yet.
+ * - `pending`: nothing synced yet;
+ * - `paused`: Collaborators is off, so no copy is being synced, whatever the owner is doing.
  */
-export type SyncStateKind = 'live' | 'synced' | 'offline' | 'pending';
+export type SyncStateKind = 'live' | 'synced' | 'offline' | 'pending' | 'paused';
 
 export interface SyncState {
   state: SyncStateKind;

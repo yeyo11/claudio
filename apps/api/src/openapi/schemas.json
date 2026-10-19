@@ -13395,9 +13395,10 @@
       "live",
       "synced",
       "offline",
-      "pending"
+      "pending",
+      "paused"
     ],
-    "description": "How current a shared project's copy is, in the words of §5.1:\n\n- `live`: the owner is connected and the watch stream is open (\"Up to date · syncing\");\n- `synced`: connected, between pulls (\"Synced 3 min ago\");\n- `offline`: the owner is not reachable (\"Owner offline · last synced 2 h ago\");\n- `pending`: nothing synced yet."
+    "description": "How current a shared project's copy is, in the words of §5.1:\n\n- `live`: the owner is connected and the watch stream is open (\"Up to date · syncing\");\n- `synced`: connected, between pulls (\"Synced 3 min ago\");\n- `offline`: the owner is not reachable (\"Owner offline · last synced 2 h ago\");\n- `pending`: nothing synced yet;\n- `paused`: Collaborators is off, so no copy is being synced, whatever the owner is doing."
   },
   "CollaboratorsJoinRequestEvent": {
     "type": "object",
