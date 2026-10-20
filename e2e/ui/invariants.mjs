@@ -109,6 +109,16 @@ export async function smallInputs(page) {
 }
 
 /**
+ * Closes the tooltips left open, one Escape at a time while one is up: a tooltip is the top layer, so
+ * the Escape is its own and never reaches a dialog or a sheet the page meant to have open. Waits until
+ * none is left (or a second has passed, so a tooltip that will not close cannot hang the pass).
+ */
+const CLOSE_TOOLTIPS =
+  `const closeTooltips=async()=>{const open=()=>document.querySelector('.tooltip,[data-radix-popper-content-wrapper] [role=tooltip]');` +
+  `const frame=()=>new Promise((r)=>requestAnimationFrame(()=>r()));` +
+  `for(let i=0;i<60&&open();i++){if(i%6===0)document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await frame()}};`;
+
+/**
  * I11: everything that takes focus shows it, with an outline or a ring. A field drawn inside a
  * bordered wrapper (search, number input) has its ring on the wrapper's :focus-within, so the
  * nearest ancestors count; `closest()` would return the focused element itself, which also matches
@@ -117,6 +127,7 @@ export async function smallInputs(page) {
 export async function invisibleFocus(page) {
   return page.eval(
     DESCRIBE +
+      CLOSE_TOOLTIPS +
       `const items=[...document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter((el)=>shown(el)&&!el.disabled&&!el.closest('[inert],[aria-hidden=true]'));` +
       `const look=(n)=>{const s=getComputedStyle(n);return s.boxShadow+'|'+(s.outlineStyle!=='none'&&parseFloat(s.outlineWidth)>0?s.outlineStyle+s.outlineWidth+s.outlineColor:'none')};` +
       `const out=[];const before=document.activeElement;for(const el of items.slice(0,120)){const up=[];for(let w=el.parentElement,i=0;w&&i<3;w=w.parentElement,i++)up.push(w);` +
@@ -127,7 +138,10 @@ export async function invisibleFocus(page) {
       // A wrapper's ring counts only when focus is what drew it, not a card's resting shadow
       `const wrapped=up.some((w,i)=>look(w)!==rest[i]);const took=document.activeElement===el;for(const [n,t] of held)n.style.transition=t;` +
       `if(took&&!ring&&!wrapped)out.push(describe(el))}` +
-      `before?.focus?.({preventScroll:true});return out.slice(0,20)`,
+      // Leave the page as it was found: every trigger the walk focused may have left its tooltip open,
+      // and axe (region) and the screenshots that come after would read those layers as the page
+      `document.activeElement?.blur?.();if(before&&before!==document.body)before.focus?.({preventScroll:true});` +
+      `await closeTooltips();return out.slice(0,20)`,
   );
 }
 

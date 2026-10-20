@@ -524,7 +524,9 @@ input.is-invalid {
   opacity: 0.5;
 }
 
-.segment:hover:not(:disabled) {
+/* Never on the chosen segment: it has its own colour, and a variant that fills it (the list toolbar's
+   strip) lost its text to this rule's --text on a touch screen, where the tapped pill stays :hover */
+.segment:not(.segment-on, :disabled):hover {
   color: var(--text);
 }
 
@@ -612,9 +614,9 @@ input.is-invalid {
 
 .chip-on,
 .chip-on:hover {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg);
+  background: var(--selected-fill);
+  border-color: var(--selected-fill);
+  color: var(--on-selected);
 }
 
 .chip-static {
@@ -1330,6 +1332,7 @@ button.step:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-height: 24px;
   padding: 2px 7px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
@@ -1357,6 +1360,13 @@ button.step:hover {
   color: var(--text-muted);
 }
 
+/* Reset beside the chips: a bare text link would be a 20 px target (I9), so it takes the chips' height */
+.list-toolbar-chips .link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
 /* A finger needs a target it can hit; a pointer does not need the room. */
 @media (pointer: coarse) {
   .filter-chip,
@@ -1365,6 +1375,10 @@ button.step:hover {
   }
   .list-toolbar-chips .filter-chip {
     padding-inline: 12px;
+  }
+  .list-toolbar-chips .link-btn {
+    min-height: var(--touch);
+    padding-inline: 8px;
   }
 }
 

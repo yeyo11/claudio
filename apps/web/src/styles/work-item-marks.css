@@ -174,3 +174,25 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* On a chosen chip (the board's filter sheet) the marks sit on --selected-fill: their own greys and
+   the accent fell to 2-3:1 there, and the empty bars read darker than the full ones. They take the
+   chip's own colour instead, with the empty bars a faint trace of it */
+.chip-on .workitem-type {
+  stroke: currentColor;
+}
+
+.chip-on .priority-mark > i {
+  background: color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.chip-on .priority-mark.p-low > i:nth-child(1),
+.chip-on .priority-mark.p-medium > i:nth-child(-n + 2),
+.chip-on .priority-mark.p-high > i {
+  background: currentColor;
+}
+
+.chip-on .priority-mark.p-urgent {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: inherit;
+}

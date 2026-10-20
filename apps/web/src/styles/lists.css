@@ -835,6 +835,9 @@ a.list-row:hover {
   --tone: var(--accent);
   --tone-soft: var(--accent-soft);
   border-color: transparent;
+  /* The tint over the card's own surface, not over the row: a selected row's fill under a translucent
+     tint took the light theme's accent text to 4.44:1 */
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-elev);
 }
 
 .crow-origin .badge {
@@ -1121,10 +1124,15 @@ a.list-row:hover {
 }
 
 .list-toolbar-strip .segment-on {
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--bg);
-  font-weight: var(--fw-strong);
+  border-color: var(--selected-fill);
+  background: var(--selected-fill);
+  color: var(--on-selected);
+}
+
+/* Nothing on the chosen fill keeps its own colour: the live dot takes the fill's text colour (1.44:1
+   in cyan on the dark fill) */
+.list-toolbar-strip .segment-on .list-toolbar-tab-dot {
+  background: var(--on-selected);
 }
 
 .list-toolbar-strip .segment-on .segment-count {

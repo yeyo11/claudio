@@ -860,7 +860,21 @@
 }
 
 .composer-server-link {
+  /* A target of 24 (44 on touch) on a line of --lh-small: the box grows upward, over the row's own
+     name line, and the negative margin gives the line back its height, so no row moves and nothing
+     overflows the list's bottom edge into a scrollbar */
+  display: inline-flex;
+  align-items: flex-end;
+  min-height: 24px;
+  margin-top: calc(var(--lh-small) - 24px);
   color: var(--accent);
+}
+
+@media (pointer: coarse) {
+  .composer-server-link {
+    min-height: var(--touch);
+    margin-top: calc(var(--lh-small) - var(--touch));
+  }
 }
 
 .composer-server-error {

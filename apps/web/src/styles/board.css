@@ -115,12 +115,12 @@
   border: 0;
   border-radius: var(--radius-pill);
   background: none;
-  color: var(--bg);
+  color: var(--on-selected);
   cursor: pointer;
 }
 
 .workitem-facet-x:hover {
-  background: color-mix(in srgb, var(--bg) 14%, transparent);
+  background: color-mix(in srgb, var(--on-selected) 14%, transparent);
 }
 
 .workitem-facet-pop {

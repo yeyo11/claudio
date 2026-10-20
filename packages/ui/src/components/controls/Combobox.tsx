@@ -5,6 +5,15 @@ import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../icons';
 import { LAYER_ATTR, layerCollisionPadding } from './layer';
 
+/**
+ * What the popup wrapper is to assistive tech. An editable combobox's popup is the listbox itself
+ * (WAI-ARIA APG); Radix's Popover gives the wrapper role="dialog", and an unnamed dialog around a
+ * listbox is both wrong and an axe failure (aria-dialog-name). The wrapper is presentational, and
+ * its tabindex goes too: a focusable element ignores role="presentation", and focus stays in the
+ * input anyway.
+ */
+export const COMBOBOX_POPUP_ATTRS = { role: 'presentation', tabIndex: undefined } as const;
+
 export interface ComboboxOption {
   value: string;
   /** Shown in the list instead of the value */
@@ -128,6 +137,7 @@ export function Combobox({
       <RadixPopover.Portal>
         <RadixPopover.Content
           {...LAYER_ATTR}
+          {...COMBOBOX_POPUP_ATTRS}
           className="menu combobox-menu"
           align="start"
           sideOffset={6}

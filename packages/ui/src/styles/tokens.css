@@ -97,6 +97,10 @@
   --term-bg: var(--bg-sunken);
   --term-fg: var(--text);
   --term-cursor: var(--text);
+  /* Selected text: opaque, so the pair holds on any surface (the gradient, an inverted pill, code):
+     a translucent tint kept the surface's own text colour and read white on white on light fills */
+  --selection-bg: #2c4a8f;
+  --selection-fg: #f4f7ff;
   --term-selection: rgba(147, 180, 219, 0.28);
   --term-ansi-0: #1b2238;
   --term-ansi-1: #e08a8f;
@@ -245,6 +249,10 @@
   --fg: var(--text);
   --fg-2: var(--text-muted);
   --fg-3: var(--text-faint);
+  /* The chosen pill or chip filled with the text colour, and what goes on it: the two always travel
+     together, and nothing inside the fill keeps a foreground token of its own */
+  --selected-fill: var(--text);
+  --on-selected: var(--bg);
   --grad: var(--gradient-accent);
   --shadow: var(--shadow-card);
   --shadow-pop: var(--shadow-lg);
@@ -323,6 +331,8 @@
   --term-bg: var(--bg-sunken);
   --term-fg: var(--text);
   --term-cursor: var(--text);
+  --selection-bg: #c4d4f8;
+  --selection-fg: #0b1020;
   --term-selection: rgba(45, 90, 147, 0.2);
   --term-ansi-0: #2a3350;
   --term-ansi-1: #a12a30;
@@ -405,6 +415,8 @@
     --term-bg: var(--bg-sunken);
     --term-fg: var(--text);
     --term-cursor: var(--text);
+    --selection-bg: #c4d4f8;
+    --selection-fg: #0b1020;
     --term-selection: rgba(45, 90, 147, 0.2);
     --term-ansi-0: #2a3350;
     --term-ansi-1: #a12a30;

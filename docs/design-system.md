@@ -80,6 +80,18 @@ sits on `[data-theme='light']`, and under `prefers-color-scheme: light` only whe
 | `--fg` | `--text` | `#f4f7ff` | `#0b1020` | primary text |
 | `--fg-2` | `--text-muted` | `#a7b1c9` | `#4a5470` | secondary text |
 | `--fg-3` | `--text-faint` | `#8b96b1` | `#5d6783` | tertiary text and labels, still ≥ 4.5:1 on `--bg-2` |
+| `--selected-fill` | new (`var(--text)`) | `#f4f7ff` | `#0b1020` | the chosen chip (`.chip-on`) and the chosen pill of the list toolbar's phone strip |
+| `--on-selected` | new (`var(--bg)`) | `#0b1020` | `#f7f8fc` | everything on `--selected-fill`: 17.7:1 dark, 17.8:1 light |
+| `--selection-bg` / `--selection-fg` | new | `#2c4a8f` / `#f4f7ff` | `#c4d4f8` / `#0b1020` | selected text (`::selection`), opaque so it reads on any surface: 7.9:1 dark, 12.7:1 light |
+
+**A chosen state filled with the text colour (2026-10-20).** It paints `--selected-fill` and its text
+`--on-selected`, always together, and nothing inside it keeps a foreground token of its own: counts
+inherit, the board's type and priority marks take `currentColor`, the × of a facet chip is
+`--on-selected`. A hover rule never reaches the chosen state (`.segment:not(.segment-on, :disabled):hover`):
+a tapped pill stays `:hover` on a touch screen, and the base hover's `--text` on a `--text` fill read
+white on white in the Chats state tabs on a phone. `apps/web/test/selected-fill.test.ts` holds this.
+Selected text is opaque (`--selection-bg`, `--selection-fg`) rather than a tint of the accent: a
+tint kept the surface's own text colour, so text on a light fill was selected white on white.
 
 Keep both names during the migration: the v1 names hold the values, and the v2 names are
 `var()` aliases of them. There are 10 000 lines of CSS written against the v1 names, and renaming
@@ -217,7 +229,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.btn`, `-primary`, `-ghost`, `-danger`, `-sm`, `-icon` | `.btn`, `.btn-primary`, `.btn-danger`, `.btn-small`, `.icon-btn`, `.link-btn`, `.split-btn` | one primary per zone. Destructive actions are danger and ask for confirmation |
 | `.kbd` | `.palette-kbd` | keyboard hints |
 | `.field`, `.select` | `.field`, `.select-trigger`, `.search-box`, `.list-toolbar-search` | focus shows the accent border and a 3 px `--accent-soft` ring |
-| `.chip`, `.on` | `.chip`, `.chip-on`, `.filter-chip`, `.chip-toggle` | filters, and the model/permission pickers under the composer |
+| `.chip`, `.on` | `.chip`, `.chip-on`, `.filter-chip`, `.chip-toggle` | filters, and the model/permission pickers under the composer. A `.filter-chip` (a filter in force) and the Reset `.link-btn` beside it in `.list-toolbar-chips` are at least 24 px tall on a desktop and 44 px on a coarse pointer (2026-10-20). The list toolbar's filters button keeps a space between "Filters" and its count, so its name ("Filters, 1 active") contains the words it shows (WCAG 2.5.3) |
 | `.badge`, `.b-live`, `.b-ok`, `.b-warn`, `.b-bad`, `.b-idle`, `.b-accent`, `.b-grad` | `.badge`, `.badge-active`, `.badge-ok`, `.badge-warn`, `.badge-bad`, `.badge-idle`, `.badge-info`, `.badge-project` | state labels: sans, `--fs-small`, sentence case, a word or icon with the colour |
 | `.dot`, `.dot-ping` | `.dot`, `StatusDot` (components/motion) | the ping is only for live presence |
 | `.count-pill` | `.nav-count`, `.count`, `.tabbar-badge` | nav counters. Live counts in `--live` |
@@ -228,8 +240,8 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kpi` | `.usage-tile`, `.usage-hero` (Usage on a phone), the widget headline figures | big-number tiles. A phone shows one figure, not a row of tiles |
 | `.bar`, `.segbar`, `.ring` | `.meter-*`, `.gauge*`, `.progress`, `.ring*`, `.ctx-bar`, `.slice-*`, `.board-task-fill` | see the thresholds below |
 | `.list-row`, `.sel` | `.crow`, `.list-row`, `.master-item`, `.now-row`, `.widget-row`, `.account-row`, `.rotation-cell`, `.settings-cell` | clickable rows. The selected row gets an accent inset. A cell that opens a screen of its own ends in a chevron |
-| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry |
-| `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar |
+| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry. Its popup is the listbox (WAI-ARIA APG editable combobox): the wrapper Radix renders is `role="presentation"` with no tabindex, never an unnamed dialog (2026-10-20) |
+| `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar. A `Tooltip` opens on hover and on keyboard focus only: a focus that follows Tab, an arrow, Home/End or PageUp/PageDown within a second, on a `:focus-visible` trigger. Focus the app places (a dialog autofocusing its first control, or giving focus back to its opener after Escape, Enter or a click) never opens one, so none is left open with nobody looking (2026-10-20) |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |
 | `.avatar` (initials) | `.monogram` | a soft tint of the name's hue with letters in that hue; the gradient only on the active one |
@@ -794,9 +806,11 @@ border of its own, the composer's card is the field. It grows with the text up t
 - **Servers and connectors** (`.composer-menu-section`, a `.section-label` heading over a hairline):
   one row per server (`.composer-server`, at least 44 px): a plug icon for a server and a cloud for a
   connector, the name in 13 px semibold, then a meta line with the status as a `.tag` (`ok` connected,
-  `warn` needs-auth, `bad` failed, `muted` pending and disabled; the CLI's own word, untranslated),
+  `warn` needs-auth, `bad` failed, `muted` pending and disabled; said in words, "Conectado", "Necesita autorización"),
   "conector" for a connector and the tool count. A connector waiting for its authorisation
-  adds the link "Cómo autorizarlo" in `--accent`. The row ends with a `Switch`. A server switched off
+  adds the link "Cómo autorizarlo" in `--accent` (`.composer-server-link`), a target of 24 px on a
+  desktop and 44 px on a coarse pointer. It wraps to a line of its own and its box grows upward over
+  the tag line above it (the tag is not a control), so the row keeps its height (2026-10-20). The row ends with a `Switch`. A server switched off
   dims its name and icon to `--text-faint` (`.composer-server.is-off`). One sentence in `.small.muted`
   under the list says the switch also applies to new chats in the folder.
 - **Claudio's own server** (`.composer-servers-claudio`) comes first in the Servers panel, apart from
