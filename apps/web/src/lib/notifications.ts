@@ -4,6 +4,7 @@ import {
   addNotifications,
   notificationsFor,
   parseStored,
+  resetPrefsOf,
   serializeStored,
   settle,
   settlesWaiting,
@@ -148,6 +149,8 @@ export function setPrefs(change: (prefs: NotificationPrefs) => NotificationPrefs
   const current = load();
   commit({ ...current, prefs: change(current.prefs) });
 }
+
+export const resetNotificationPrefs = (): void => setPrefs(resetPrefsOf);
 
 // ---------- browser notifications ----------
 

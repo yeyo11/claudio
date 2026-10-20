@@ -1088,7 +1088,8 @@
 .dp-field-control {
   display: flex;
   flex: 0 1 auto;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
   min-width: 0;
 }
 
@@ -1253,9 +1254,14 @@
   overflow-wrap: anywhere;
 }
 
-.dp-point > .segmented {
+.dp-point > .dp-point-mode {
   grid-row: 1;
   grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
 }
 
 .dp-evidence,
@@ -1368,13 +1374,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .dp-point > .segmented {
+  .dp-point > .dp-point-mode {
     grid-row: auto;
     grid-column: 1;
+    align-items: stretch;
+  }
+
+  .dp-point-mode > .segmented {
     display: flex;
   }
 
-  .dp-point > .segmented .segment {
+  .dp-point-mode > .segmented .segment {
     flex: 1 1 0;
     justify-content: center;
   }
@@ -1394,7 +1404,7 @@
 }
 
 @media (max-width: 900px) {
-  .dp-point > .segmented .segment,
+  .dp-point-mode > .segmented .segment,
   .dp-area-toggle,
   .dp-advanced > .collapsible-trigger {
     min-height: var(--touch);

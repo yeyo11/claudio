@@ -28,6 +28,7 @@
     "noLabel": "No label",
     "relay": "Relay URL",
     "relayHint": "A self-hosted iroh-relay, in place of n0's public relays. Leave it empty for the default ones.",
+    "relayDefault": "n0's public relays",
     "endpoint": "Endpoint id",
     "copyEndpoint": "Copy the endpoint id",
     "edit": "Edit",

@@ -1537,6 +1537,8 @@ export const keys = {
   pushSubscriptions: ['push', 'subscriptions'] as const,
   // Both are written whole from their events (lib/events.ts), never refetched for them
   appSettings: ['settings', 'app'] as const,
+  settingsState: ['settings', 'state'] as const,
+  settingOverrides: ['settings', 'overrides'] as const,
   // Read again on `spend.changed` (lib/events.ts)
   spend: ['spend'] as const,
   tunnel: ['tunnel'] as const,
@@ -1863,6 +1865,11 @@ export const useEvalGate = (runId: string, enabled: boolean) =>
   });
 
 /** Whether the Phase 2 switch (pressure levels, judged expectations, the gate, drafting) is on. */
+/** Which rows are changed and what their defaults are; refetched after any save while a row shows it */
+export const useSettingsState = () => useQuery({ queryKey: keys.settingsState, queryFn: ({ signal }) => api.settingsState({ signal }) });
+/** The projects that override each global setting, by setting id */
+export const useSettingOverrides = () => useQuery({ queryKey: keys.settingOverrides, queryFn: ({ signal }) => api.settingOverrides({ signal }) });
+
 export const useEvalsPhase2 = (): boolean => useQuery({ queryKey: keys.appSettings, queryFn: () => api.appSettings() }).data?.evalsPhase2 === true;
 
 export const useEvalSample = (runId: string, sampleId: string | null) =>

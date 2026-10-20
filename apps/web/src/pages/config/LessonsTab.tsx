@@ -1,4 +1,4 @@
-import type { Effort, LessonSettings } from '@claudio/shared';
+import type { Effort, LessonSettings, SettingDefault } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { useDirty } from '../../lib/dirty';
 import { LessonItems } from '../home/memory/Lessons';
+import { ServerSettingChange, useDefaultWording } from './SettingChange';
 
 /** What the settings accept, mirrored from the server so a bad number is said before saving */
 const LIMITS = {
@@ -83,11 +84,41 @@ export function GlobalLessons() {
   );
 }
 
-/** One setting of the document: its row carries the id settings search names (`lessons.<row>`). */
-function Row({ id, children }: { id: string; children: ReactNode }) {
+/** The document with the value at `path` replaced, the rest left as it is. */
+export function withValueAt(settings: LessonSettings, path: readonly string[], value: unknown): LessonSettings {
+  const put = (node: Record<string, unknown>, at: readonly string[]): Record<string, unknown> => {
+    const [head, ...rest] = at;
+    if (head === undefined) return node;
+    const child = node[head];
+    return { ...node, [head]: rest.length === 0 ? value : put(typeof child === 'object' && child !== null ? (child as Record<string, unknown>) : {}, rest) };
+  };
+  return put(settings as unknown as Record<string, unknown>, path) as unknown as LessonSettings;
+}
+
+/**
+ * One setting of the document: its row carries the id settings search names (`lessons.<row>`), and
+ * the "Changed · Reset" slot. A Reset puts the default into that field of the draft at once, so the
+ * edits around it stay and a later Save does not write the old value back.
+ */
+function Row({
+  id,
+  label,
+  path,
+  onDefault,
+  wording,
+  children,
+}: {
+  id: string;
+  label: string;
+  path: readonly string[];
+  onDefault: (path: readonly string[], value: SettingDefault) => void;
+  wording?: (value: SettingDefault) => string;
+  children: ReactNode;
+}) {
   return (
     <div className="lessons-row" data-setting={`lessons.${id}`}>
       {children}
+      <ServerSettingChange id={`lessons.${id}`} label={label} wording={wording} invalidate={[keys.lessonSettings]} onReset={(value) => onDefault(path, value)} />
     </div>
   );
 }
@@ -123,6 +154,10 @@ export function LessonSettingsRows() {
     if (draft) setDraft(patch(draft));
   };
   const num = (value: number | undefined, fallback: number) => value ?? fallback;
+  const generic = useDefaultWording();
+  const unsetEffort = (value: SettingDefault) => (value === null ? t('config:settings.changeSlot.automatic') : generic(value));
+  // Only a draft being edited needs the default put in; with none, the rows read the refetched document
+  const onDefault = (path: readonly string[], value: SettingDefault) => setDraft((held) => (held ? withValueAt(held, path, value) : held));
 
   return (
     <>
@@ -136,12 +171,12 @@ export function LessonSettingsRows() {
             if (!problem) save.mutate(draft);
           }}
         >
-          <Row id="miner-model">
+          <Row id="miner-model" label={t('config:lessons.model')} path={['miner', 'model']} onDefault={onDefault}>
             <Field label={t('config:lessons.model')} hint={t('config:lessons.modelHint')}>
               <ModelPicker value={draft.miner.model} onChange={(model) => set((d) => ({ ...d, miner: { ...d.miner, model } }))} aria-label={t('config:lessons.model')} />
             </Field>
           </Row>
-          <Row id="miner-effort">
+          <Row id="miner-effort" label={t('config:lessons.effort')} path={['miner', 'effort']} onDefault={onDefault} wording={unsetEffort}>
             <Field label={t('config:lessons.effort')} hint={t('config:lessons.effortHint')}>
               <EffortPicker
                 value={draft.miner.effort ?? ''}
@@ -152,58 +187,58 @@ export function LessonSettingsRows() {
               />
             </Field>
           </Row>
-          <Row id="max-cost">
+          <Row id="max-cost" label={t('config:lessons.maxCost')} path={['miner', 'maxCostUsd']} onDefault={onDefault}>
             <Field label={t('config:lessons.maxCost')} hint={t('config:lessons.maxCostHint')}>
               <NumberInput decimal step={0.01} min={LIMITS.maxCostUsd.min} max={LIMITS.maxCostUsd.max} value={draft.miner.maxCostUsd} onChange={(v) => set((d) => ({ ...d, miner: { ...d.miner, maxCostUsd: num(v, 0) } }))} aria-label={t('config:lessons.maxCost')} />
             </Field>
           </Row>
-          <Row id="project-daily">
+          <Row id="project-daily" label={t('config:lessons.projectDaily')} path={['caps', 'perProjectDailyUsd']} onDefault={onDefault}>
             <Field label={t('config:lessons.projectDaily')} hint={t('config:lessons.projectDailyHint')}>
               <NumberInput decimal step={0.1} min={LIMITS.projectDaily.min} max={LIMITS.projectDaily.max} value={draft.caps.perProjectDailyUsd} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, perProjectDailyUsd: num(v, 0) } }))} aria-label={t('config:lessons.projectDaily')} />
             </Field>
           </Row>
-          <Row id="global-daily">
+          <Row id="global-daily" label={t('config:lessons.globalDaily')} path={['caps', 'globalDailyUsd']} onDefault={onDefault}>
             <Field label={t('config:lessons.globalDaily')} hint={t('config:lessons.globalDailyHint')}>
               <NumberInput decimal step={0.1} min={LIMITS.globalDaily.min} max={LIMITS.globalDaily.max} value={draft.caps.globalDailyUsd} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, globalDailyUsd: num(v, 0) } }))} aria-label={t('config:lessons.globalDaily')} />
             </Field>
           </Row>
-          <Row id="chat-minutes">
+          <Row id="chat-minutes" label={t('config:lessons.chatMinutes')} path={['caps', 'perChatMinMinutes']} onDefault={onDefault}>
             <Field label={t('config:lessons.chatMinutes')} hint={t('config:lessons.chatMinutesHint')}>
               <NumberInput min={LIMITS.minutes.min} max={LIMITS.minutes.max} value={draft.caps.perChatMinMinutes} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, perChatMinMinutes: num(v, 0) } }))} aria-label={t('config:lessons.chatMinutes')} />
             </Field>
           </Row>
-          <Row id="jobs-daily">
+          <Row id="jobs-daily" label={t('config:lessons.jobsDaily')} path={['caps', 'perProjectDailyJobs']} onDefault={onDefault}>
             <Field label={t('config:lessons.jobsDaily')} hint={t('config:lessons.jobsDailyHint')}>
               <NumberInput min={LIMITS.jobs.min} max={LIMITS.jobs.max} value={draft.caps.perProjectDailyJobs} onChange={(v) => set((d) => ({ ...d, caps: { ...d.caps, perProjectDailyJobs: num(v, 0) } }))} aria-label={t('config:lessons.jobsDaily')} />
             </Field>
           </Row>
-          <Row id="approve-floor">
+          <Row id="approve-floor" label={t('config:lessons.approveFloor')} path={['confidence', 'approveFloor']} onDefault={onDefault}>
             <Field label={t('config:lessons.approveFloor')} hint={t('config:lessons.approveFloorHint')}>
               <NumberInput decimal step={0.05} min={LIMITS.floor.min} max={LIMITS.floor.max} value={draft.confidence.approveFloor} onChange={(v) => set((d) => ({ ...d, confidence: { ...d.confidence, approveFloor: num(v, 0) } }))} aria-label={t('config:lessons.approveFloor')} />
             </Field>
           </Row>
-          <Row id="deliver-at">
+          <Row id="deliver-at" label={t('config:lessons.deliverAt')} path={['confidence', 'deliverAt']} onDefault={onDefault}>
             <Field label={t('config:lessons.deliverAt')} hint={t('config:lessons.deliverAtHint')}>
               <NumberInput decimal step={0.05} min={LIMITS.deliver.min} max={LIMITS.deliver.max} value={draft.confidence.deliverAt} onChange={(v) => set((d) => ({ ...d, confidence: { ...d.confidence, deliverAt: num(v, 0) } }))} aria-label={t('config:lessons.deliverAt')} />
             </Field>
           </Row>
-          <Row id="budget">
+          <Row id="budget" label={t('config:lessons.budget')} path={['delivery', 'handoffBytes']} onDefault={onDefault}>
             <Field label={t('config:lessons.budget')} hint={t('config:lessons.budgetHint')}>
               <NumberInput step={256} min={LIMITS.bytes.min} max={LIMITS.bytes.max} value={draft.delivery.handoffBytes} onChange={(v) => set((d) => ({ ...d, delivery: { ...d.delivery, handoffBytes: num(v, 0) } }))} aria-label={t('config:lessons.budget')} />
             </Field>
           </Row>
           <div className="lessons-switches">
-            <Row id="loose-chats">
+            <Row id="loose-chats" label={t('config:lessons.looseChats')} path={['delivery', 'looseChats']} onDefault={onDefault}>
               <Switch checked={draft.delivery.looseChats} onChange={(looseChats) => set((d) => ({ ...d, delivery: { ...d.delivery, looseChats } }))}>
                 {t('config:lessons.looseChats')}
               </Switch>
             </Row>
-            <Row id="repeated-errors">
+            <Row id="repeated-errors" label={t('config:lessons.repeatedErrors')} path={['signals', 'repeatedErrorsTrigger']} onDefault={onDefault}>
               <Switch checked={draft.signals.repeatedErrorsTrigger} onChange={(repeatedErrorsTrigger) => set((d) => ({ ...d, signals: { ...d.signals, repeatedErrorsTrigger } }))}>
                 {t('config:lessons.repeatedErrors')}
               </Switch>
             </Row>
-            <Row id="manual-mining">
+            <Row id="manual-mining" label={t('config:lessons.manualMining')} path={['manualMining']} onDefault={onDefault}>
               <Switch checked={draft.manualMining} onChange={(manualMining) => set((d) => ({ ...d, manualMining }))}>
                 {t('config:lessons.manualMining')}
               </Switch>

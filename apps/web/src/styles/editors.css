@@ -1123,6 +1123,71 @@ button.master-item-on:hover {
   min-width: 0;
 }
 
+/*
+ * The "Changed · Reset" slot (SettingChange): a neutral dot, the word, and the Reset link. It keeps
+ * its room while nothing is changed (`visibility`, not `display`), so nothing moves when it appears.
+ */
+.pref-row-change {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--fs-small);
+}
+
+.pref-row-change-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--fg-2);
+}
+
+.pref-row-change-line.is-hidden {
+  visibility: hidden;
+}
+
+/* A change is not a status, so the dot is never ok, warn or bad */
+.pref-row-change-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--fg-3);
+}
+
+.pref-row-change-reset {
+  min-height: 24px;
+}
+
+.pref-row-change-error {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--bad);
+  overflow-wrap: anywhere;
+}
+
+.pref-row-overridden {
+  color: var(--fg-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (pointer: coarse) {
+  .pref-row-change-reset {
+    min-height: var(--touch);
+    min-width: var(--touch);
+  }
+}
+
+@container (max-width: 560px) {
+  .pref-row-change-reset {
+    min-height: var(--touch);
+  }
+}
+
 /* A stacked row's control is a block (a list, a form): it takes the row's width */
 .pref-row.is-stacked > .pref-row-control {
   align-items: stretch;
