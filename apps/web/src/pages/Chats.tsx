@@ -1,7 +1,7 @@
 import type { ChatState, ChatSummary } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, Download, GitBranch, GitFork, Lock, Plus, Trash2, Zap, type LucideIcon } from 'lucide-react';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, keys, useChats, useProjects } from '../api';
@@ -296,11 +296,14 @@ const ChatRow = memo(function ChatRow({
 function Facet({
   legend,
   options,
+  mono,
   chosen,
   onChange,
 }: {
   legend: string;
   options: ReadonlyArray<{ value: string; label: string; count?: number; hint?: string }>;
+  /** The labels are literals the machine reads (model ids) */
+  mono?: boolean;
   chosen: (value: string) => boolean;
   onChange: (value: string, on: boolean) => void;
 }) {
@@ -310,7 +313,7 @@ function Facet({
       <legend className="facet-legend">{legend}</legend>
       {options.map((option) => (
         <Checkbox key={option.value} checked={chosen(option.value)} onChange={(on) => onChange(option.value, on)} tooltip={option.hint}>
-          <span className="facet-label">{option.label}</span>
+          <span className={mono ? 'facet-label mono' : 'facet-label'}>{option.label}</span>
           {option.count !== undefined && <span className="facet-count">{formatNumber(option.count)}</span>}
         </Checkbox>
       ))}
@@ -518,7 +521,26 @@ export function Chats() {
   if (byProject && projects.size > 0) {
     chips.push({ id: 'projects', label: t('list.chipProject', { values: labelsOf(projectOptions, projects) }), onRemove: () => patch({ projects: null }) });
   }
-  if (models.size > 0) chips.push({ id: 'models', label: t('list.chipModel', { values: labelsOf(modelOptions, models) }), onRemove: () => patch({ models: null }) });
+  if (models.size > 0) {
+    // The ids are literals, so they are drawn in mono; the label keeps the whole phrase for the accessible name
+    const ids = [...models].map((v) => modelOptions.find((o) => o.value === v)?.label ?? v);
+    chips.push({
+      id: 'models',
+      label: t('list.chipModel', { values: labelsOf(modelOptions, models) }),
+      content: (
+        <>
+          {t('list.chipModelPrefix')}{' '}
+          {ids.map((id, i) => (
+            <Fragment key={id}>
+              {i > 0 && ', '}
+              <span className="mono">{id}</span>
+            </Fragment>
+          ))}
+        </>
+      ),
+      onRemove: () => patch({ models: null }),
+    });
+  }
   if (worktreeFilter !== null) {
     chips.push({
       id: 'worktree',
@@ -651,7 +673,7 @@ export function Chats() {
                 onChange={(v, on) => toggleOrigin(v as ChatOriginFilter, on)}
               />
               <Facet legend={t('list.projectLabel')} options={projectOptions} chosen={(v) => projects.has(v)} onChange={(v, on) => setFacet('projects', projects, v, on)} />
-              <Facet legend={t('list.modelLabel')} options={modelOptions} chosen={(v) => models.has(v)} onChange={(v, on) => setFacet('models', models, v, on)} />
+              <Facet legend={t('list.modelLabel')} options={modelOptions} mono chosen={(v) => models.has(v)} onChange={(v, on) => setFacet('models', models, v, on)} />
               <Facet
                 legend={t('list.includeLabel')}
                 options={[

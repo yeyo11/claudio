@@ -19,6 +19,7 @@ test('the lint catches what it is meant to catch', () => {
   assert.deepEqual(css('.a { font-size: 12px; }'), ['type-scale']);
   assert.deepEqual(css('.a { font: 500 11px var(--sans); }'), ['type-scale', 'type-weight']);
   assert.deepEqual(css('.a { font-weight: 700; }'), ['type-weight']);
+  assert.deepEqual(css('.a { font: var(--fs-small) var(--sans); }'), ['type-weight']);
   assert.deepEqual(css('.a { line-height: 18px; }'), ['type-scale']);
   assert.deepEqual(css('.a:hover { font-weight: var(--fw-strong); }'), ['weight-on-state']);
   assert.deepEqual(css('.a.active { font-weight: var(--fw-strong); }'), ['weight-on-state']);
@@ -33,6 +34,8 @@ test('the lint catches what it is meant to catch', () => {
   assert.deepEqual(css('.chat-id { font-family: var(--mono); font-size: var(--fs-small); line-height: var(--lh-small); }'), []);
   assert.deepEqual(css('.chat-head-id { /* literal: the chat id */ font-family: var(--mono); }'), []);
   assert.deepEqual(css('.title { font: var(--fw-strong) var(--fs-title) / var(--lh-title) var(--sans); letter-spacing: var(--tracking-title); }'), []);
+  assert.deepEqual(css('.a { font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans); }'), []);
+  assert.deepEqual(css('.a { font: inherit; }'), []);
   assert.deepEqual(css('.a { font-size: inherit; font-weight: inherit; line-height: 1.4; }'), []);
   assert.deepEqual(css('.a { font-size: 11px; /* design-lint-ok: the brand mark */ }'), []);
 
