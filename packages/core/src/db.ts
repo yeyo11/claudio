@@ -1399,6 +1399,11 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      gone_at       TEXT
    );
    CREATE INDEX repo_places_common ON repo_places (common_dir);`,
+
+  // The route each audited request matched, as `ROUTE_DOCS` keys it (`POST /chats/:id/stop`), so
+  // the web can word a row in the reader's language. Rows written before it, and the ones the
+  // wrapper writes itself, keep null and show their stored English summary
+  `ALTER TABLE audit ADD COLUMN route TEXT;`,
 ];
 
 /**
@@ -1489,6 +1494,9 @@ export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'st
 export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_records')) + 1;
 /** The migration that added the denied joins: a test starts a database from just before it */
 export const COLLAB_DENIALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_join_denials')) + 1;
+
+/** The migration that gave audit rows their route: a test starts a database from just before it */
+export const AUDIT_ROUTE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ALTER TABLE audit ADD COLUMN route')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -2024,13 +2032,17 @@ export class Db {
 
   // ---------- audit log ----------
 
-  /** Appends one mutating request. The caller builds the summary from the route, never from the body. */
-  appendAudit(entry: Omit<AuditEntry, 'id'>): AuditEntry {
+  /**
+   * Appends one mutating request. The caller builds the summary from the route, never from the body.
+   * `route` is left out by what the wrapper records on its own, whose summary is a sentence of its own.
+   */
+  appendAudit(entry: Omit<AuditEntry, 'id' | 'route'> & { route?: string | null }): AuditEntry {
+    const route = entry.route ?? null;
     const result = this.db
-      .prepare('INSERT INTO audit (at, actor, method, path, status, summary) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(entry.at, entry.actor, entry.method, entry.path, entry.status, entry.summary);
+      .prepare('INSERT INTO audit (at, actor, method, path, status, summary, route) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(entry.at, entry.actor, entry.method, entry.path, entry.status, entry.summary, route);
     if (++this.auditWrites % AUDIT_PRUNE_EVERY === 0) this.pruneAudit();
-    return { ...entry, id: String(result.lastInsertRowid) };
+    return { ...entry, route, id: String(result.lastInsertRowid) };
   }
 
   /**
@@ -2063,9 +2075,9 @@ export class Db {
     const totalRow = this.db.prepare(`SELECT COUNT(*) AS n FROM audit ${where}`).get(...params) as { n: number } | undefined;
     const rows = this.db
       .prepare(`SELECT * FROM audit ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
-      .all(...params, limit, from) as unknown as Array<{ id: number; at: string; actor: string; method: string; path: string; status: number; summary: string }>;
+      .all(...params, limit, from) as unknown as Array<{ id: number; at: string; actor: string; method: string; path: string; status: number; summary: string; route: string | null }>;
     return {
-      entries: rows.map((row) => ({ ...row, id: String(row.id) })),
+      entries: rows.map((row) => ({ ...row, id: String(row.id), route: row.route ?? null })),
       total: totalRow?.n ?? 0,
       from,
     };

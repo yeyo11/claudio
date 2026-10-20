@@ -275,7 +275,17 @@
       },
       "openAll": "Ver todo el registro",
       "count_one": "{{formatted}} entrada",
-      "count_other": "{{formatted}} entradas"
+      "count_other": "{{formatted}} entradas",
+      "actors": {
+        "local": "Acceso local",
+        "desktop": "Aplicación de escritorio",
+        "env": "Entorno",
+        "claudio": "Claudio",
+        "anonymous": "Anónimo"
+      },
+      "showPath": "Mostrar la ruta completa",
+      "hidePath": "Ocultar la ruta completa",
+      "noRoute": "Ninguna ruta coincide con esta petición"
     }
   },
   "scope": {

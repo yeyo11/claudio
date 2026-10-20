@@ -5094,16 +5094,20 @@ export interface AuditEntry {
   id: string;
   at: string;
   /**
-   * `token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own
-   * token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself; `local` when no
-   * authentication is configured
+   * Who made it: `token:<id>` for the owner's token, the OIDC subject, `desktop` for the desktop
+   * app's own credential, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or
+   * `claudio` for what the wrapper did itself, `local` when no authentication is configured, and
+   * `anonymous` for a request refused before it was identified (no valid credential, or a host the
+   * wrapper does not serve)
    */
   actor: string;
   method: string;
   path: string;
   status: number;
-  /** One line about what it did, built from the route, not from the payload */
+  /** One line about what it did, in English, built from the route, not from the payload */
   summary: string;
+  /** `METHOD /pattern` as `ROUTE_DOCS` keys it (`POST /chats/:id/mcp/:name`); null for rows written before it, or no matched route */
+  route: string | null;
 }
 
 /** The query of `GET /audit`; every field narrows the page and its `total`. */
