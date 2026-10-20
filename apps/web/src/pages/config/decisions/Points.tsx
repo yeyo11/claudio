@@ -1,7 +1,7 @@
 import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointStats, DecisionProviderId, DecisionSettings } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -24,8 +24,7 @@ import {
   areaOf,
   evidenceOf,
   groupSummary,
-  isLimited,
-  needsConsent,
+  offUntilConsent,
   supervisorMeaning,
   type AreaId,
   type Draft,
@@ -77,6 +76,7 @@ export function PointsSection({
   onBulk,
   bulkNote,
   onThreshold,
+  onReviewConsent,
 }: {
   catalogue: DecisionPointInfo[];
   settings: DecisionSettings;
@@ -88,6 +88,8 @@ export function PointsSection({
   onBulk: (ids: readonly DecisionPointId[], mode: DecisionMode) => void;
   bulkNote: BulkNote | null;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
+  /** Opens the consent dialog for a point that is not off and has no consent, in its current mode */
+  onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
 }) {
   const { t } = useTranslation('decisions');
   const queryClient = useQueryClient();
@@ -178,6 +180,7 @@ export function PointsSection({
                           onMode={onMode}
                           onThreshold={onThreshold}
                           onWithdraw={() => withdraw.mutate(info)}
+                          {...(onReviewConsent ? { onReviewConsent } : {})}
                         />
                       )
                     );
@@ -205,6 +208,7 @@ export function PointRow({
   onMode,
   onThreshold,
   onWithdraw,
+  onReviewConsent,
 }: {
   info: DecisionPointInfo;
   settings: DecisionSettings;
@@ -215,6 +219,7 @@ export function PointRow({
   onMode: (id: DecisionPointId, mode: DecisionMode) => void;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
   onWithdraw?: () => void;
+  onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
 }) {
   const { t } = useTranslation('decisions');
   const name = pointName(t, info.id);
@@ -243,12 +248,12 @@ export function PointRow({
       />
       <p className="dp-evidence">
         <EvidenceLine id={info.id} stats={stats} />
-        {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} />}
+        {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} {...(onReviewConsent ? { onReviewConsent } : {})} />}
       </p>
-      {/* Active without consent runs as shadow: the line says what it does, not what was asked */}
+      {/* Without consent a point is off whatever its mode: the line says what it does, not what was asked */}
       {supervisor && (
         <p className="dp-point-line">
-          {t(`supervisor.${supervisorMeaning(isLimited(info, settings.points[info.id]?.consent ?? null, point.mode, provider) ? 'shadow' : point.mode, provider)}`)}
+          {t(`supervisor.${supervisorMeaning(offUntilConsent(info, settings.points[info.id]?.consent ?? null, point.mode, provider) ? 'off' : point.mode, provider)}`)}
         </p>
       )}
       {showThreshold && (
@@ -298,12 +303,14 @@ function ConsentPart({
   mode,
   provider,
   onWithdraw,
+  onReviewConsent,
 }: {
   info: DecisionPointInfo;
   settings: DecisionSettings;
   mode: DecisionMode;
   provider: DecisionProviderId;
   onWithdraw?: () => void;
+  onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
 }) {
   const { t } = useTranslation('decisions');
   const consent = settings.points[info.id]?.consent ?? null;
@@ -313,7 +320,20 @@ function ConsentPart({
       <span className={`dp-evidence-consent ${state === 'given' ? '' : 'is-none'}`} {...(state === 'stale' ? { title: t('points.consent.staleHint') } : {})}>
         {state === 'given' && consent ? t('evidence.consentedOn', { date: formatDate(consent.at) }) : state === 'stale' ? t('points.consent.stale') : t('points.consent.none')}
       </span>
-      {isLimited(info, consent, mode, provider) && needsConsent(info, consent, provider) && <span className="dp-evidence-consent is-none">{t('points.limited')}</span>}
+      {/* The engine gates on consent before it splits shadow from active (engine.ts), so any point that is not off and has none is off in fact */}
+      {mode !== 'off' && offUntilConsent(info, consent, mode, provider) && (
+        <>
+          <span className="dp-evidence-consent is-none dp-consent-off">
+            <TriangleAlert size={14} strokeWidth={2} aria-hidden />
+            {t('points.offUntilConsent')}
+          </span>
+          {onReviewConsent && (
+            <button type="button" className="link-btn" onClick={() => onReviewConsent(info.id, mode)}>
+              {t('points.reviewConsent')}
+            </button>
+          )}
+        </>
+      )}
       {consent && onWithdraw && (
         <button type="button" className="link-btn" aria-label={t('consent.withdrawPoint', { point: info.id })} onClick={onWithdraw}>
           {t('consent.withdrawAction')}
