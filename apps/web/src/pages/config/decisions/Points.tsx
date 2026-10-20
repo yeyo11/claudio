@@ -11,6 +11,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Segmented } from '@claudio/ui/components/ui';
 import { formatDate, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { settingsHref } from '../settingsGroups';
+import { Overridden, ServerSettingChange } from '../SettingChange';
 import { pointAnchor } from '../settingsIndex';
 import { BulkMode } from './BulkMode';
 import {
@@ -77,6 +78,7 @@ export function PointsSection({
   bulkNote,
   onThreshold,
   onReviewConsent,
+  onReset,
 }: {
   catalogue: DecisionPointInfo[];
   settings: DecisionSettings;
@@ -90,6 +92,8 @@ export function PointsSection({
   onThreshold: (id: DecisionPointId, threshold: number) => void;
   /** Opens the consent dialog for a point that is not off and has no consent, in its current mode */
   onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
+  /** A point went back to its default on the server: the draft takes its mode and threshold from the saved document */
+  onReset?: (setting: string) => void;
 }) {
   const { t } = useTranslation('decisions');
   const queryClient = useQueryClient();
@@ -180,6 +184,7 @@ export function PointsSection({
                           onMode={onMode}
                           onThreshold={onThreshold}
                           onWithdraw={() => withdraw.mutate(info)}
+                          {...(onReset ? { onReset } : {})}
                           {...(onReviewConsent ? { onReviewConsent } : {})}
                         />
                       )
@@ -209,6 +214,7 @@ export function PointRow({
   onThreshold,
   onWithdraw,
   onReviewConsent,
+  onReset,
 }: {
   info: DecisionPointInfo;
   settings: DecisionSettings;
@@ -220,6 +226,7 @@ export function PointRow({
   onThreshold: (id: DecisionPointId, threshold: number) => void;
   onWithdraw?: () => void;
   onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
+  onReset?: (setting: string) => void;
 }) {
   const { t } = useTranslation('decisions');
   const name = pointName(t, info.id);
@@ -236,18 +243,28 @@ export function PointRow({
         <span>{name}</span>
         <span className="dp-id">{info.id}</span>
       </div>
-      <Segmented
-        label={t('points.mode', { point: info.id })}
-        value={point.mode}
-        onChange={(mode) => onMode(info.id, mode)}
-        options={MODES.map((mode) => ({
-          value: mode,
-          label: t(`points.modes.${mode}`),
-          ...(mode === 'active' && blocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
-        }))}
-      />
+      <div className="dp-point-mode">
+        <Segmented
+          label={t('points.mode', { point: info.id })}
+          value={point.mode}
+          onChange={(mode) => onMode(info.id, mode)}
+          options={MODES.map((mode) => ({
+            value: mode,
+            label: t(`points.modes.${mode}`),
+            ...(mode === 'active' && blocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
+          }))}
+        />
+        <ServerSettingChange
+          id={anchor}
+          label={name}
+          wording={(value) => t(`points.modes.${MODES.find((mode) => typeof value === 'object' && value !== null && !Array.isArray(value) && value.mode === mode) ?? 'off'}`)}
+          invalidate={[keys.decisionSettings]}
+          onReset={() => onReset?.(anchor)}
+        />
+      </div>
       <p className="dp-evidence">
         <EvidenceLine id={info.id} stats={stats} />
+        <Overridden id={anchor} bare />
         {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} {...(onReviewConsent ? { onReviewConsent } : {})} />}
       </p>
       {/* Without consent a point is off whatever its mode: the line says what it does, not what was asked */}

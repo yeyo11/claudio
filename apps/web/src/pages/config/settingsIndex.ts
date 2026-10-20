@@ -158,8 +158,17 @@ add('access', 'access', { mode: {}, token: {}, 'read-only': { consequence: true 
 add('access', 'hosts', { allowed: { consequence: true } });
 add('access', 'remote', { tunnel: { consequence: true } });
 add('access', 'secrets', { storage: {} });
-add('access', 'guards', { rules: {} });
-add('access', 'terminal', { enabled: {} });
+add('access', 'guards', {
+  rules: {},
+  mode: {},
+  automated: {},
+  'rule.no-verify': {},
+  'rule.push': {},
+  'rule.destructive': {},
+  'rule.secrets': {},
+  'rule.protect-configs': {},
+});
+add('access', 'terminal', { enabled: {}, remote: {}, 'max-terminals': {}, 'idle-minutes': {}, scrollback: {}, shell: {} });
 add('access', 'audit', { log: { detail: 'audit' } });
 add('access', 'agent-reads', { log: { detail: 'agent-reads' } });
 

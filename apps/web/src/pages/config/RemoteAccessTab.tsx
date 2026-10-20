@@ -16,6 +16,7 @@ import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
 import { SignOutButton } from '../../components/setup/SignOutButton';
+import { ServerSettingChange } from './SettingChange';
 import { settingsHref } from './settingsGroups';
 
 /** Where Tailscale is downloaded, and where a tailnet turns MagicDNS and HTTPS certificates on. */
@@ -126,6 +127,7 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
             {t('remote.startWith.label')}
           </Switch>
           <p className="small muted">{t('remote.startWith.hint')}</p>
+          <ServerSettingChange id="remote.tunnel" label={t('remote.startWith.label')} invalidate={[keys.tunnel]} />
         </div>
       )}
       <p className="small muted">{t('remote.footnote')}</p>
