@@ -38,6 +38,7 @@
   "DELETE /push/subscriptions": "Unregister a subscription",
   "DELETE /schedules/:id": "Delete a schedule and its history",
   "DELETE /security/token": "Remove the bearer token",
+  "DELETE /settings/state/:setting": "Reset a setting to its default",
   "DELETE /setup/credentials/:tool": "Sign a tool out",
   "DELETE /setup/logins/:id": "Cancel a sign-in",
   "DELETE /system/cli-version/install": "Go back to the image's Claude Code",

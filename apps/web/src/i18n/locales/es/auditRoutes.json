@@ -38,6 +38,7 @@
   "DELETE /push/subscriptions": "Dar de baja una suscripción",
   "DELETE /schedules/:id": "Eliminar una programación y su historial",
   "DELETE /security/token": "Quitar el token bearer",
+  "DELETE /settings/state/:setting": "Restablecer un ajuste a su valor predeterminado",
   "DELETE /setup/credentials/:tool": "Cerrar la sesión de una herramienta",
   "DELETE /setup/logins/:id": "Cancelar un inicio de sesión",
   "DELETE /system/cli-version/install": "Volver al Claude Code de la imagen",
