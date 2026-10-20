@@ -177,6 +177,7 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
           focus={focus}
           onMode={onMode}
           onBulk={onBulk}
+          onReviewConsent={(id, mode) => setAsking({ id, mode })}
           bulkNote={bulkNote}
           onThreshold={(id, threshold) => setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), threshold } } }))}
         />

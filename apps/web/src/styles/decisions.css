@@ -1297,6 +1297,14 @@
   color: var(--fg-3);
 }
 
+/* Off until it has consent: a warning, so it carries its icon as well as the word */
+.dp-evidence-consent.dp-consent-off {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+}
+
 .dp-evidence-wait {
   visibility: hidden;
 }
