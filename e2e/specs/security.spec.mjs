@@ -142,14 +142,15 @@ export default async ({ page, api, check }) => {
       check(spanish.includes('Acceso local'), 'the open install writes as a word, in Spanish');
 
       await page.viewport(390, 844);
-      await page.waitFor(`const r=document.querySelector('[role=tabpanel] .audit-rows');return !!r&&r.offsetParent!==null&&document.querySelectorAll('[role=tabpanel] .audit-row').length>0`, { label: 'the audit rows at 390' });
-      check(!(await page.eval(`return document.querySelector('[role=tabpanel] .audit-log > .table-wrap').offsetParent !== null`)), 'at 390 the table is not displayed, so only the rows are read');
+      // A phone draws the group as a screen of its own, with no tab panel around it, so the rows are found by their class
+      await page.waitFor(`const r=document.querySelector('.audit-rows');return !!r&&r.offsetParent!==null&&document.querySelectorAll('.audit-row').length>0`, { label: 'the audit rows at 390' });
+      check(!(await page.eval(`return document.querySelector('.audit-log > .table-wrap').offsetParent !== null`)), 'at 390 the table is not displayed, so only the rows are read');
       const sideways = await page.eval(
-        `const el=document.scrollingElement;const rows=[...document.querySelectorAll('[role=tabpanel] .audit-row')];return el.scrollWidth>el.clientWidth+1||rows.some(r=>r.scrollWidth>r.clientWidth+1)`,
+        `const el=document.scrollingElement;const rows=[...document.querySelectorAll('.audit-row')];return el.scrollWidth>el.clientWidth+1||rows.some(r=>r.scrollWidth>r.clientWidth+1)`,
       );
       check(!sideways, 'the audit rows at 390 never scroll sideways');
-      check((await page.text('[role=tabpanel] .audit-rows')).includes('Cambiar el modo de autenticación'), 'the rows say what each write did, in Spanish');
-      const fold = '[role=tabpanel] .audit-row-path';
+      check((await page.text('.audit-rows')).includes('Cambiar el modo de autenticación'), 'the rows say what each write did, in Spanish');
+      const fold = '.audit-row-path';
       if (await page.eval(`return !!document.querySelector('${fold}')`)) {
         await page.click(fold, undefined, 300);
         check((await page.eval(`return document.querySelector('${fold}').getAttribute('aria-expanded')`)) === 'true', 'a tap on a folded path shows all of it');
