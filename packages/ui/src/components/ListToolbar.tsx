@@ -87,6 +87,9 @@ export function ListToolbar<T extends string>({
     >
       <ListFilter {...ICON_SM} />
       <span>{t('toolbar.filters')}</span>
+      {/* The space keeps "Filters" and the count two words in the visible text, which the name
+          ("Filters, 1 active") then contains (WCAG 2.5.3); joined, they read as "Filters1" */}
+      {filters && filters.count > 0 && ' '}
       {filters && filters.count > 0 && (
         <span className="list-toolbar-count" aria-hidden>
           {filters.count}

@@ -217,7 +217,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.btn`, `-primary`, `-ghost`, `-danger`, `-sm`, `-icon` | `.btn`, `.btn-primary`, `.btn-danger`, `.btn-small`, `.icon-btn`, `.link-btn`, `.split-btn` | one primary per zone. Destructive actions are danger and ask for confirmation |
 | `.kbd` | `.palette-kbd` | keyboard hints |
 | `.field`, `.select` | `.field`, `.select-trigger`, `.search-box`, `.list-toolbar-search` | focus shows the accent border and a 3 px `--accent-soft` ring |
-| `.chip`, `.on` | `.chip`, `.chip-on`, `.filter-chip`, `.chip-toggle` | filters, and the model/permission pickers under the composer |
+| `.chip`, `.on` | `.chip`, `.chip-on`, `.filter-chip`, `.chip-toggle` | filters, and the model/permission pickers under the composer. A `.filter-chip` (a filter in force) and the Reset `.link-btn` beside it in `.list-toolbar-chips` are at least 24 px tall on a desktop and 44 px on a coarse pointer (2026-10-20). The list toolbar's filters button keeps a space between "Filters" and its count, so its name ("Filters, 1 active") contains the words it shows (WCAG 2.5.3) |
 | `.badge`, `.b-live`, `.b-ok`, `.b-warn`, `.b-bad`, `.b-idle`, `.b-accent`, `.b-grad` | `.badge`, `.badge-active`, `.badge-ok`, `.badge-warn`, `.badge-bad`, `.badge-idle`, `.badge-info`, `.badge-project` | state labels: sans, `--fs-small`, sentence case, a word or icon with the colour |
 | `.dot`, `.dot-ping` | `.dot`, `StatusDot` (components/motion) | the ping is only for live presence |
 | `.count-pill` | `.nav-count`, `.count`, `.tabbar-badge` | nav counters. Live counts in `--live` |
