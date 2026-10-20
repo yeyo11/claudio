@@ -6,9 +6,12 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { LanguageMenu } from '../../components/LanguageMenu';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Segmented } from '@claudio/ui/components/ui';
-import { setMotionPreference, useMotionPreference, useReducedMotionForced, type MotionLevel } from '@claudio/ui/lib/motion';
-import { setThemePreference, useThemePreference, type ThemePreference } from '../../lib/theme';
+import { defaultLanguage, LANGUAGES } from '@claudio/ui/i18n/language';
+import { DEFAULT_MOTION, resetMotionPreference, setMotionPreference, useMotionPreference, useReducedMotionForced, type MotionLevel } from '@claudio/ui/lib/motion';
+import { DEFAULT_THEME, resetThemePreference, setThemePreference, useThemePreference, type ThemePreference } from '../../lib/theme';
+import { setLanguage } from '../../i18n';
 import { PrefRow, PrefRows } from './PrefRow';
+import { SettingChange } from './SettingChange';
 
 const THEMES: ThemePreference[] = ['system', 'light', 'dark'];
 const MOTION: MotionLevel[] = ['full', 'subtle', 'off'];
@@ -111,25 +114,47 @@ function MotionPreview() {
  * server, and changing one takes effect at once.
  */
 export function AppearanceTab() {
-  const { t } = useTranslation(['shell', 'common']);
+  const { t, i18n } = useTranslation(['shell', 'common']);
   const motion = useMotionPreference();
   const forced = useReducedMotionForced();
+  const theme = useThemePreference();
+  const language = i18n.resolvedLanguage === 'es' ? 'es' : 'en';
+  const languageDefault = defaultLanguage();
+  // Browser settings never reach the server, so their state is read here: "changed" is a stored choice that differs from the default
+  const slot = (setting: string, label: string, changed: boolean, defaultText: string, reset: () => void) => (
+    <SettingChange setting={setting} label={label} state={{ changed, source: 'stored' }} defaultText={defaultText} onReset={reset} />
+  );
 
   return (
     // Not a named region of its own: the section that holds it already carries its heading
     <div className="appearance">
       <PrefRows>
-        <PrefRow id="appearance-theme" setting="appearance.theme" title={t('appearance.theme')} hint={t('appearance.themeHint')}>
+        <PrefRow id="appearance-theme" setting="appearance.theme" title={t('appearance.theme')}
+          hint={t('appearance.themeHint')}
+          change={slot('appearance.theme', t('appearance.theme'), theme !== DEFAULT_THEME, t(`appearance.themeOptions.${DEFAULT_THEME}`), resetThemePreference)}
+        >
           <ThemeCards />
         </PrefRow>
 
-        <PrefRow id="appearance-language" setting="appearance.language" title={t('appearance.language')} hint={t('appearance.languageHint')}>
+        <PrefRow id="appearance-language" setting="appearance.language" title={t('appearance.language')}
+          hint={t('appearance.languageHint')}
+          change={slot(
+            'appearance.language',
+            t('appearance.language'),
+            language !== languageDefault,
+            LANGUAGES.find(({ code }) => code === languageDefault)?.name ?? languageDefault,
+            () => setLanguage(languageDefault),
+          )}
+        >
           <div className="appearance-language">
             <LanguageMenu />
           </div>
         </PrefRow>
 
-        <PrefRow id="appearance-motion" setting="appearance.motion" title={t('appearance.motion')} hint={t('appearance.motionHint')}>
+        <PrefRow id="appearance-motion" setting="appearance.motion" title={t('appearance.motion')}
+          hint={t('appearance.motionHint')}
+          change={slot('appearance.motion', t('appearance.motion'), motion !== DEFAULT_MOTION, t(`appearance.motionOptions.${DEFAULT_MOTION}`), resetMotionPreference)}
+        >
           <Segmented
             label={t('appearance.motion')}
             value={motion}

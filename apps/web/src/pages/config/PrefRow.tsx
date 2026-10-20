@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
  * One setting as `settings-patterns.md` draws it: the label with its consequence under it, the
  * control beside them, stacked under the label when the container is narrow. `setting` is the id
  * the search registry (`settingsIndex.ts`) names, so a result lands on this row. A row whose control
- * is a whole block (a list, a form) is `stacked`: the label over it at every width.
+ * is a whole block (a list, a form) is `stacked`: the label over it at every width. `change` is the
+ * `[● Changed · Reset]` slot (`SettingChange`).
  */
 export function PrefRow({
   id,
@@ -12,6 +13,7 @@ export function PrefRow({
   title,
   hint,
   stacked = false,
+  change,
   children,
 }: {
   id: string;
@@ -19,6 +21,8 @@ export function PrefRow({
   title: ReactNode;
   hint?: ReactNode;
   stacked?: boolean;
+  /** The row's `SettingChange` slot, under the control; it keeps its room while nothing is changed */
+  change?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -29,7 +33,10 @@ export function PrefRow({
         </span>
         {hint !== undefined && <div className="pref-row-hint">{hint}</div>}
       </div>
-      <div className="pref-row-control">{children}</div>
+      <div className="pref-row-control">
+        {children}
+        {change}
+      </div>
     </div>
   );
 }

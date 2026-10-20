@@ -10,6 +10,7 @@ import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format'
 import { PERMISSION_MODES } from '../../components/ui';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { SaveButton, SettingsReveal, SettingsRow } from './groups/Block';
+import { ServerSettingChange } from './SettingChange';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
@@ -155,6 +156,7 @@ export function EvalsCard({ saved }: { saved: AppSettings }) {
       <Switch checked={on} onChange={setOn} disabled={fromEnv}>
         {t('appSettings.evals.switch')}
       </Switch>
+      <ServerSettingChange id="evals.phase-2" label={t('appSettings.evals.switch')} invalidate={[keys.appSettings]} />
       {fromEnv ? (
         <EnvNote setting="evalsPhase2" />
       ) : (
@@ -287,6 +289,12 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
               options={PERMISSION_MODES.map((value) => ({ value, label: modeLabel(value) }))}
             />
           </Field>
+          <ServerSettingChange
+            id="runs.permission-mode"
+            label={t('appSettings.runs.mode')}
+            wording={(value) => modeLabel(PERMISSION_MODES.find((mode) => mode === value) ?? mode)}
+            invalidate={[keys.appSettings]}
+          />
         </div>
         <div data-setting="runs.concurrent">
           <Field
@@ -302,6 +310,7 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
           >
             <NumberInput aria-label={t('appSettings.runs.concurrent')} value={runs} onChange={setRuns} min={MIN_RUNS} max={MAX_RUNS} disabled={runsFromEnv} />
           </Field>
+          <ServerSettingChange id="runs.concurrent" label={t('appSettings.runs.concurrent')} invalidate={[keys.appSettings]} />
         </div>
       </div>
       {!(modeFromEnv && runsFromEnv) && (
@@ -400,6 +409,7 @@ export function SpendCard({ saved }: { saved: AppSettings }) {
     >
       <SourceTag settings={saved} keys={['dailySpendCapUsd']} />
       <SpendFields on={on} amount={amount} fromEnv={fromEnv} invalid={invalid} spentUsd={spend?.spentUsd ?? null} onToggle={setOn} onAmount={setAmount} />
+      <ServerSettingChange id="spend-cap.daily" label={t('appSettings.spend.switch')} wording={(value) => (typeof value === 'number' ? formatCost(value) : t('settings.changeSlot.noCap'))} invalidate={[keys.appSettings]} />
       {fromEnv ? (
         <EnvNote setting="dailySpendCapUsd" />
       ) : (
