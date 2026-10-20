@@ -291,13 +291,15 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     // The history in Settings is wrapping rows on a phone, never a table that scrolls sideways
     await page.viewport(390, 900);
     await page.goto('/settings/access#terminal', 1500);
-    await page.waitFor(`return !!document.querySelector('.term-history-row')`, { label: 'the terminal history rows', timeout: 30_000 });
-    const rows = await page.eval(`const row = document.querySelector('.term-history-row'); const table = document.querySelector('.term-history-table'); const cwd = row?.querySelector('.term-history-cwd'); return { rows: !!row, tableShown: !!table && table.getClientRects().length > 0, sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth, cwdHeight: cwd ? cwd.getBoundingClientRect().height : 0, expanded: cwd?.getAttribute('aria-expanded') }`);
+    // Only a path too long to show whole is a button: a refused attempt has no directory and a short one is
+    // plain text, so the newest row need not carry one; the spec's own sessions open in a long workspace path
+    await page.waitFor(`return !!document.querySelector('.term-history-rows .term-history-cwd')`, { label: 'a shortened directory in the terminal history rows', timeout: 30_000 });
+    const rows = await page.eval(`const row = document.querySelector('.term-history-row'); const table = document.querySelector('.term-history-table'); const cwd = document.querySelector('.term-history-rows .term-history-cwd'); return { rows: !!row, tableShown: !!table && table.getClientRects().length > 0, sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth, cwdHeight: cwd ? cwd.getBoundingClientRect().height : 0, expanded: cwd?.getAttribute('aria-expanded') }`);
     check(rows.rows && !rows.tableShown, 'the history is rows and not the table at 390');
     check(!rows.sideways, 'the history does not scroll sideways at 390');
     check(rows.cwdHeight >= 44 - 1, `the directory is a 44 px touch target (${rows.cwdHeight})`);
-    await page.click('.term-history-cwd', undefined, 300);
-    check((await page.eval(`return document.querySelector('.term-history-cwd')?.getAttribute('aria-expanded')`)) === 'true', 'a tap on the directory shows the whole path');
+    await page.click('.term-history-rows .term-history-cwd', undefined, 300);
+    check((await page.eval(`return document.querySelector('.term-history-rows .term-history-cwd')?.getAttribute('aria-expanded')`)) === 'true', 'a tap on the directory shows the whole path');
     await page.viewport(420, 900);
 
     // ---- 7. the light theme paints the terminal with the light --term-bg ----

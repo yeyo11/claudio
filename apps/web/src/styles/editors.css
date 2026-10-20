@@ -1180,7 +1180,10 @@ button.master-item-on:hover {
   text-underline-offset: 3px;
 }
 
-@media (pointer: coarse) {
+/* A phone and a touch screen both take the whole target. The viewport is read as well as the row's
+   container, because not every card sets its rows in `PrefRows` (Guards does not), and a row with no
+   container would keep the 24 px desktop target on a phone */
+@media (pointer: coarse), (max-width: 900px) {
   .pref-row-change-reset {
     min-height: var(--touch);
     min-width: var(--touch);

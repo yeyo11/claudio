@@ -130,12 +130,14 @@ export default async ({ page, api, check }) => {
     await page.click('[role=tabpanel] button', 'Clear filters', 600);
     try {
       await page.eval(`localStorage.setItem('claudio-language', 'es'); return true`);
+      // The table's accessible name is translated too, so the Spanish page is found by its class
+      const auditTableEs = `[role=tabpanel] .audit-log > .table-wrap table.audit-table`;
       await page.goto('/settings/access/audit', 0);
       await page.waitFor(
-        `const t=document.querySelector('${auditTable}');return !!t&&t.textContent.includes('Cambiar el modo de autenticación o el modo de solo lectura')`,
+        `const t=document.querySelector('${auditTableEs}');return !!t&&t.textContent.includes('Cambiar el modo de autenticación o el modo de solo lectura')`,
         { label: 'the audit log in Spanish', timeout: 60_000 },
       );
-      const spanish = await page.eval(`return document.querySelector('${auditTable}').textContent`);
+      const spanish = await page.eval(`return document.querySelector('${auditTableEs}').textContent`);
       check(!spanish.includes('Change the auth mode or read-only'), 'a row with a route is not left in English');
       check(spanish.includes('Acceso local'), 'the open install writes as a word, in Spanish');
 
