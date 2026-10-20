@@ -122,6 +122,45 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       "one link opens every decision",
     );
 
+    // ---- a Shadow point with no consent is off: the row says so and opens the consent ----
+    await reset(api, "shadow");
+    await page.goto("/settings/decisions", 1200);
+    await expandGroups(page);
+    const waiting = await page.text(onPoint(".dp-evidence"));
+    check(
+      waiting.includes("Off until it has consent."),
+      `a Shadow point with no consent says it is off (${waiting})`,
+    );
+    check(
+      !waiting.includes("Runs as shadow"),
+      "the row no longer claims to run as shadow",
+    );
+    await page.click(onPoint(".dp-evidence .link-btn"), "Review and consent", 600);
+    await page.waitFor(
+      `return !!document.querySelector('[role=dialog] .dp-preview')`,
+      { label: "the consent dialog opens from the row" },
+    );
+    check(
+      (await page.text("[role=dialog]")).includes("Before moving to shadow"),
+      "the dialog opens in the point's current mode",
+    );
+    await page.click("[role=dialog] button", "Consent and move to shadow", 600);
+    await page.waitFor(
+      `return !document.querySelector('[role=dialog] .dp-preview')`,
+      { label: "the dialog closes after consenting" },
+    );
+    await page.waitFor(
+      `return document.querySelector('[data-point="${POINT}"] .dp-evidence-consent')?.textContent?.includes('Consented')`,
+      { label: "the row says Consented" },
+    );
+    check(
+      !(await page.text(onPoint(".dp-evidence"))).includes("Off until it has consent."),
+      "the warning is gone once it has consent",
+    );
+    await reset(api);
+    await page.goto("/settings/decisions", 1200);
+    await expandGroups(page);
+
     // ---- a point moves to shadow through the consent dialog ----
     check((await modeOf(api)) === "off", `${POINT} starts off`);
     await page.click(onPoint("[role=radio]"), "Shadow", 600);
