@@ -332,13 +332,17 @@ function ConsentPart({
   const { t } = useTranslation('decisions');
   const consent = settings.points[info.id]?.consent ?? null;
   const state = !consent ? 'none' : consent.stateVersion === info.stateVersion ? 'given' : 'stale';
+  // The engine gates on consent before it splits shadow from active (engine.ts), so any point that is not off and has none is off in fact
+  const offInFact = mode !== 'off' && offUntilConsent(info, consent, mode, provider);
   return (
     <>
-      <span className={`dp-evidence-consent ${state === 'given' ? '' : 'is-none'}`} {...(state === 'stale' ? { title: t('points.consent.staleHint') } : {})}>
-        {state === 'given' && consent ? t('evidence.consentedOn', { date: formatDate(consent.at) }) : state === 'stale' ? t('points.consent.stale') : t('points.consent.none')}
-      </span>
-      {/* The engine gates on consent before it splits shadow from active (engine.ts), so any point that is not off and has none is off in fact */}
-      {mode !== 'off' && offUntilConsent(info, consent, mode, provider) && (
+      {/* "Not consented" and "Off until it has consent" would say one fact twice */}
+      {!(offInFact && state === 'none') && (
+        <span className={`dp-evidence-consent ${state === 'given' ? '' : 'is-none'}`} {...(state === 'stale' ? { title: t('points.consent.staleHint') } : {})}>
+          {state === 'given' && consent ? t('evidence.consentedOn', { date: formatDate(consent.at) }) : state === 'stale' ? t('points.consent.stale') : t('points.consent.none')}
+        </span>
+      )}
+      {mode !== 'off' && offInFact && (
         <>
           <span className="dp-evidence-consent is-none dp-consent-off">
             <TriangleAlert size={14} strokeWidth={2} aria-hidden />

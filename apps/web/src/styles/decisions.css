@@ -1257,9 +1257,11 @@
   grid-row: 1;
   grid-column: 2;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  /* The Changed · Reset slot keeps its room beside the modes, in the free space of the first line,
+     not as an empty band under them on every point */
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -1376,7 +1378,9 @@
   .dp-point > .dp-point-mode {
     grid-row: auto;
     grid-column: 1;
+    flex-direction: column;
     align-items: stretch;
+    gap: 4px;
   }
 
   .dp-point-mode > .segmented {
