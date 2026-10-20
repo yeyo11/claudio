@@ -1170,6 +1170,11 @@ button.master-item-on:hover {
 }
 
 .pref-row-overridden {
+  /* A link inside a line of text still takes a whole target, 24 px here and 44 px on a phone; the
+     negative margin gives the room back, so the line does not grow */
+  display: inline-block;
+  padding-block: 2px;
+  margin-block: -2px;
   color: var(--fg-3);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -1185,6 +1190,13 @@ button.master-item-on:hover {
 @container (max-width: 560px) {
   .pref-row-change-reset {
     min-height: var(--touch);
+  }
+}
+
+@media (pointer: coarse), (max-width: 900px) {
+  .pref-row-overridden {
+    padding-block: 12px;
+    margin-block: -12px;
   }
 }
 

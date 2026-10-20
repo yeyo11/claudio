@@ -1,6 +1,6 @@
 import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useSpend } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
@@ -111,8 +111,9 @@ export function RunsSettings() {
     <WithAppSettings rows={3}>
       {(saved) => (
         <RunsCard
-          // Only whether a field is the environment's decides if it can be edited; a Reset moves a source from file to default and must not remount
-          key={`runs:${saved.sources.maxConcurrentRuns === 'env'}:${saved.sources.defaultPermissionMode === 'env'}`}
+          // Not keyed by the values or their sources (a Reset turns `file` into `default`): a remount
+          // would drop the other row's unsaved edit and the slot's announcement; the card takes a new
+          // saved value into that one field instead, and reads the sources on every render
           saved={saved}
         />
       )}
@@ -253,18 +254,9 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
   const [mode, setMode] = useState<PermissionMode>(saved.defaultPermissionMode);
   const [runs, setRuns] = useState<number | undefined>(saved.maxConcurrentRuns);
-  // The card is not remounted when a saved value moves (a Reset on one row must not drop an unsaved edit
-  // in the other): a field that was untouched follows the saved value, an edited one stays
-  const before = useRef(saved);
-  useEffect(() => {
-    const was = before.current;
-    before.current = saved;
-    if (was.defaultPermissionMode !== saved.defaultPermissionMode) setMode((now) => (now === was.defaultPermissionMode ? saved.defaultPermissionMode : now));
-    if (was.maxConcurrentRuns !== saved.maxConcurrentRuns) setRuns((now) => (now === was.maxConcurrentRuns ? saved.maxConcurrentRuns : now));
-  }, [saved]);
-  // A Reset puts that field's default into the draft, edited or not; the other field's draft stays
-  const queryClient = useQueryClient();
-  const freshSaved = () => queryClient.getQueryData<AppSettings>(keys.appSettings);
+  // A value saved elsewhere, or reset to its default, replaces that field's draft and leaves the other's
+  useEffect(() => setMode(saved.defaultPermissionMode), [saved.defaultPermissionMode]);
+  useEffect(() => setRuns(saved.maxConcurrentRuns), [saved.maxConcurrentRuns]);
   const modeFromEnv = saved.sources.defaultPermissionMode === 'env';
   const runsFromEnv = saved.sources.maxConcurrentRuns === 'env';
   const runsValid = runs !== undefined && Number.isInteger(runs) && runs >= MIN_RUNS && runs <= MAX_RUNS;
@@ -307,10 +299,6 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
             label={t('appSettings.runs.mode')}
             wording={(value) => modeLabel(PERMISSION_MODES.find((mode) => mode === value) ?? mode)}
             invalidate={[keys.appSettings]}
-            onReset={() => {
-              const fresh = freshSaved();
-              if (fresh) setMode(fresh.defaultPermissionMode);
-            }}
           />
         </div>
         <div data-setting="runs.concurrent">
@@ -327,15 +315,7 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
           >
             <NumberInput aria-label={t('appSettings.runs.concurrent')} value={runs} onChange={setRuns} min={MIN_RUNS} max={MAX_RUNS} disabled={runsFromEnv} />
           </Field>
-          <ServerSettingChange
-            id="runs.concurrent"
-            label={t('appSettings.runs.concurrent')}
-            invalidate={[keys.appSettings]}
-            onReset={() => {
-              const fresh = freshSaved();
-              if (fresh) setRuns(fresh.maxConcurrentRuns);
-            }}
-          />
+          <ServerSettingChange id="runs.concurrent" label={t('appSettings.runs.concurrent')} invalidate={[keys.appSettings]} />
         </div>
       </div>
       {!(modeFromEnv && runsFromEnv) && (

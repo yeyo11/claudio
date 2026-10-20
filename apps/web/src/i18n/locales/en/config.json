@@ -559,7 +559,7 @@
       "on": "On",
       "off": "Off",
       "noCap": "No cap",
-      "composite": "Every rule's default",
+      "composite": "each rule's own",
       "automatic": "Automatic",
       "more": "and {{count}} more"
     },

@@ -549,8 +549,8 @@
       "line_other": "{{count}} proyectos guardan memoria",
       "none": "Ningún proyecto guarda memoria todavía"
     },
-    "overridden_one": "Cambiado en {{count}} proyecto",
-    "overridden_other": "Cambiado en {{count}} proyectos",
+    "overridden_one": "Con otro valor en {{count}} proyecto",
+    "overridden_other": "Con otro valor en {{count}} proyectos",
     "changeSlot": {
       "changed": "Cambiado",
       "default": "Predeterminado: {{value}}",
@@ -559,7 +559,7 @@
       "on": "Activado",
       "off": "Desactivado",
       "noCap": "Sin límite",
-      "composite": "Los predeterminados de cada regla",
+      "composite": "los de cada regla",
       "automatic": "Automático",
       "more": "y {{count}} más"
     },
@@ -773,7 +773,7 @@
         }
       },
       "terminal": {
-        "enabled": "Acceso al terminal",
+        "enabled": "Acceso a la terminal",
         "remote": "Desde otros dispositivos",
         "max-terminals": "Terminales a la vez",
         "idle-minutes": "Cerrar tras minutos sin atender",
