@@ -23,6 +23,8 @@ export interface ListFilterChip {
   id: string;
   /** Reads as "Origin: Terminal", so it says which facet it belongs to */
   label: string;
+  /** What the chip draws in place of `label`, e.g. literals in mono; `label` stays its accessible name */
+  content?: ReactNode;
   onRemove: () => void;
 }
 
@@ -185,7 +187,7 @@ export function ListToolbar<T extends string>({
         <div className="list-toolbar-chips" aria-label={t('toolbar.activeFilters')} role="group">
           {chips.map((chip) => (
             <button key={chip.id} type="button" className="filter-chip" onClick={chip.onRemove} aria-label={t('toolbar.removeFilter', { filter: chip.label })}>
-              <span>{chip.label}</span>
+              <span>{chip.content ?? chip.label}</span>
               <X size={12} strokeWidth={2} aria-hidden />
             </button>
           ))}

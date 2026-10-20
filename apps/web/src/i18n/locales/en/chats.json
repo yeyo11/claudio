@@ -40,6 +40,7 @@
     "includeLabel": "Also show",
     "chipOrigin": "Origin: {{values}}",
     "chipProject": "Project: {{values}}",
+    "chipModelPrefix": "Model:",
     "chipModel": "Model: {{values}}",
     "selectChat": "Select {{title}}",
     "worktree": "worktree",
