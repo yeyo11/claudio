@@ -516,7 +516,8 @@
   cursor: pointer;
 }
 
-.term-history-path {
+.term-history-row .term-history-path {
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--mono);
   overflow-wrap: anywhere;
 }
 
