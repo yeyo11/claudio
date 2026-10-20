@@ -226,6 +226,21 @@ export class TerminalService {
     return this.status();
   }
 
+  /** The settings' defaults on this distribution, for the rows' Reset (`GET /settings/state`) */
+  settingDefaults(): TerminalSettings {
+    return this.deps.settings.defaultSettings();
+  }
+
+  /** Removes the stored value of each key, then tells the pages as `updateSettings` does */
+  async resetSettings(paths: readonly (readonly string[])[]): Promise<TerminalStatus> {
+    const before = this.deps.settings.get();
+    await this.deps.settings.resetKeys(paths);
+    const after = this.deps.settings.get();
+    if (before.enabled && !after.enabled) await this.closeAll('disabled');
+    this.changed();
+    return this.status();
+  }
+
   history(limit = 50, offset = 0): TerminalHistoryPage {
     return this.deps.store.history(Math.min(Math.max(limit, 1), 200), Math.max(offset, 0));
   }

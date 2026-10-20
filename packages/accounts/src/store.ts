@@ -93,6 +93,16 @@ function parseIdentity(v: unknown): Identity {
   return { signedIn: v.signedIn === true, email: str(v.email), organization: str(v.organization), plan: str(v.plan) };
 }
 
+const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof AccountsSettings)[];
+
+function checkSettings(next: AccountsSettings): void {
+  if (typeof next.rotateOnLimit !== 'boolean') throw new Error('rotateOnLimit must be a boolean');
+  if (!(next.threshold >= THRESHOLD_MIN && next.threshold <= THRESHOLD_MAX)) throw new Error(`threshold must be between ${THRESHOLD_MIN} and ${THRESHOLD_MAX}`);
+  if (!(next.hysteresis >= 0 && next.hysteresis < next.threshold)) throw new Error('hysteresis must be between 0 and the threshold');
+  if (!(next.cooldownSeconds >= 0)) throw new Error('cooldownSeconds must not be negative');
+  if (next.strategy !== 'order' && next.strategy !== 'least-used') throw new Error('strategy must be order or least-used');
+}
+
 function parseSettings(v: unknown): AccountsSettings {
   const d = DEFAULT_SETTINGS;
   if (!isRecord(v)) return { ...d };
@@ -159,6 +169,8 @@ export class AccountStore {
   private readonly env: NodeJS.ProcessEnv;
   private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
   private readonly listeners = new Set<() => void>();
+  /** The settings keys the file names: what the person stored, as opposed to what the defaults fill in */
+  private settingKeys = new Set<keyof AccountsSettings>();
 
   constructor(private readonly opts: AccountStoreOptions) {
     this.env = opts.env ?? process.env;
@@ -176,7 +188,11 @@ export class AccountStore {
     if (!existsSync(this.file)) return;
     try {
       const doc: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      if (isRecord(doc)) this.stored = parse(doc);
+      if (isRecord(doc)) {
+        this.stored = parse(doc);
+        const settings = isRecord(doc.settings) ? doc.settings : {};
+        this.settingKeys = new Set(SETTING_KEYS.filter((key) => settings[key] !== undefined));
+      }
     } catch {
       // Overwriting a document that does not parse would drop the accounts in it
       throw new Error(`${this.file} is not valid JSON; fix or remove it`);
@@ -184,7 +200,9 @@ export class AccountStore {
   }
 
   private async save(): Promise<void> {
-    await writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, 0o600);
+    // Only the settings the person stored: a key left out reads as its default, today's or a later one
+    const settings = Object.fromEntries(SETTING_KEYS.filter((key) => this.settingKeys.has(key)).map((key) => [key, this.stored.settings[key]]));
+    await writeAtomic(this.file, `${JSON.stringify({ ...this.stored, settings }, null, 2)}\n`, 0o600);
     this.changed();
   }
 
@@ -534,12 +552,34 @@ export class AccountStore {
 
   async setSettings(patch: Partial<AccountsSettings>): Promise<AccountsSettings> {
     const next = { ...this.stored.settings, ...patch };
-    if (typeof next.rotateOnLimit !== 'boolean') throw new Error('rotateOnLimit must be a boolean');
-    if (!(next.threshold >= THRESHOLD_MIN && next.threshold <= THRESHOLD_MAX)) throw new Error(`threshold must be between ${THRESHOLD_MIN} and ${THRESHOLD_MAX}`);
-    if (!(next.hysteresis >= 0 && next.hysteresis < next.threshold)) throw new Error('hysteresis must be between 0 and the threshold');
-    if (!(next.cooldownSeconds >= 0)) throw new Error('cooldownSeconds must not be negative');
-    if (next.strategy !== 'order' && next.strategy !== 'least-used') throw new Error('strategy must be order or least-used');
+    checkSettings(next);
     this.stored.settings = next;
+    for (const key of SETTING_KEYS) if (patch[key] !== undefined) this.settingKeys.add(key);
+    await this.save();
+    return this.settings();
+  }
+
+  /** The settings `accounts.json` holds, the ones the defaults do not fill in */
+  storedSettingKeys(): ReadonlySet<keyof AccountsSettings> {
+    return new Set(this.settingKeys);
+  }
+
+  /**
+   * Removes the stored value of each key (one key per path), so the default applies again; the
+   * result is held to the rules of `setSettings`. Told to the listeners like any other save.
+   */
+  async resetSettings(paths: readonly (readonly string[])[]): Promise<AccountsSettings> {
+    const keys = paths.map((path) => {
+      const key = SETTING_KEYS.find((known) => known === path[0]);
+      if (path.length !== 1 || key === undefined) throw new Error(`unknown accounts setting: ${path.join('.')}`);
+      return key;
+    });
+    if (!keys.some((key) => this.settingKeys.has(key))) return this.settings();
+    const next: AccountsSettings = { ...this.stored.settings };
+    for (const key of keys) Object.assign(next, { [key]: DEFAULT_SETTINGS[key] });
+    checkSettings(next);
+    this.stored.settings = next;
+    for (const key of keys) this.settingKeys.delete(key);
     await this.save();
     return this.settings();
   }
