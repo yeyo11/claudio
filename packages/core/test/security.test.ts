@@ -410,7 +410,7 @@ test('mutating requests are rows, newest first, filterable and never carrying a 
   assert.equal(filtered.total, 5);
   assert.ok(filtered.entries.every((entry) => entry.path.startsWith('/api/chats')));
   // The shape is the contract: no body, no query string
-  assert.deepEqual(Object.keys(filtered.entries[0] ?? {}).sort(), ['actor', 'at', 'id', 'method', 'path', 'status', 'summary']);
+  assert.deepEqual(Object.keys(filtered.entries[0] ?? {}).sort(), ['actor', 'at', 'id', 'method', 'path', 'route', 'status', 'summary']);
 
   db.close();
   const reopened = new Db(config);

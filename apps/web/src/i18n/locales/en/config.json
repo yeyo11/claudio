@@ -275,7 +275,17 @@
       },
       "openAll": "See the whole log",
       "count_one": "{{formatted}} entry",
-      "count_other": "{{formatted}} entries"
+      "count_other": "{{formatted}} entries",
+      "actors": {
+        "local": "Local access",
+        "desktop": "Desktop app",
+        "env": "Environment",
+        "claudio": "Claudio",
+        "anonymous": "Anonymous"
+      },
+      "showPath": "Show the full path",
+      "hidePath": "Hide the full path",
+      "noRoute": "No route matched this request"
     }
   },
   "scope": {
