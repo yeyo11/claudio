@@ -806,11 +806,11 @@ border of its own, the composer's card is the field. It grows with the text up t
 - **Servers and connectors** (`.composer-menu-section`, a `.section-label` heading over a hairline):
   one row per server (`.composer-server`, at least 44 px): a plug icon for a server and a cloud for a
   connector, the name in 13 px semibold, then a meta line with the status as a `.tag` (`ok` connected,
-  `warn` needs-auth, `bad` failed, `muted` pending and disabled; the CLI's own word, untranslated),
+  `warn` needs-auth, `bad` failed, `muted` pending and disabled; said in words, "Conectado", "Necesita autorización"),
   "conector" for a connector and the tool count. A connector waiting for its authorisation
   adds the link "Cómo autorizarlo" in `--accent` (`.composer-server-link`), a target of 24 px on a
-  desktop and 44 px on a coarse pointer that grows upward over the name line, so the row keeps its
-  height (2026-10-20). The row ends with a `Switch`. A server switched off
+  desktop and 44 px on a coarse pointer. It wraps to a line of its own and its box grows upward over
+  the tag line above it (the tag is not a control), so the row keeps its height (2026-10-20). The row ends with a `Switch`. A server switched off
   dims its name and icon to `--text-faint` (`.composer-server.is-off`). One sentence in `.small.muted`
   under the list says the switch also applies to new chats in the folder.
 - **Claudio's own server** (`.composer-servers-claudio`) comes first in the Servers panel, apart from
