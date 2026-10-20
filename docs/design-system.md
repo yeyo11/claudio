@@ -2031,6 +2031,13 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   no status bar and no panel: More → Terminals is a list of rows (`.term-list`, `.term-row`, 44 px tall) with
   "Nueva terminal", and a row opens the terminal full screen. The panel is the only desktop entry point: no page,
   project button, palette command or chat header button opens a terminal.
+- **History on a phone.** In Settings, the history is a four-column table from 560 px of the card's own width (a
+  container query on `.term-history`, not the viewport's) and wrapping rows below it: `ul.term-history-rows` >
+  `li.term-history-row`, the `.guard-event` pattern, never a sideways scroll at 390 or 320. A row has three
+  lines: the time (tabular sans), "·" and the actor; the directory in mono through `shortPath(cwd, 40)` as a
+  44 px `.term-history-cwd` button (`aria-expanded`) that shows the whole path in place; and the end reason with
+  the refusal `Tag` (warn). Only one of the two is displayed, so only one is in the accessibility tree. `owner`
+  and `anonymous` are words in sans ("Propietario", "Anónimo"); any other actor is an id, in mono.
 - **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
   chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
   fit follows the host's box only.
