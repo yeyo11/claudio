@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-10-20T12:00:00Z
 tags:
     - providers
     - detection
@@ -28,8 +28,10 @@ the code wins and this document is stale.
 
 The app reaches Claude Code **only through the interface its vendor ships for programs**: CLI flags
 and subcommands, the `stream-json` protocol, the control protocol, the files the CLI writes and its
-documented environment variables. No SDK, no HTTP call to Anthropic, no OAuth flow of its own, no
-terminal scraping. The rule is stated in [CLAUDE.md](../CLAUDE.md) and
+documented environment variables. The rule allows the vendor's official SDK as part of "the interface
+its vendor ships for programs"; for Claude Code, Claudio uses the CLI and takes no SDK dependency, as
+D8 of the [process isolation study](plans/process-isolation.md) settled. No HTTP call to Anthropic,
+no OAuth flow of its own, no terminal scraping. The rule is stated in [CLAUDE.md](../CLAUDE.md) and
 [CONTRIBUTING.md](../CONTRIBUTING.md); the decision engine's bounded exception for typed decision
 services is unchanged ([decision-engine.md](decision-engine.md)).
 
