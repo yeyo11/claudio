@@ -1,6 +1,6 @@
 import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useSpend } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
@@ -111,7 +111,9 @@ export function RunsSettings() {
     <WithAppSettings rows={3}>
       {(saved) => (
         <RunsCard
-          key={`runs:${saved.maxConcurrentRuns}:${saved.defaultPermissionMode}:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
+          // Not keyed by the values: a Reset of one row would remount the card and drop the other's
+          // unsaved edit; the card takes a new saved value into that one field instead
+          key={`runs:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
           saved={saved}
         />
       )}
@@ -252,6 +254,9 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
   const [mode, setMode] = useState<PermissionMode>(saved.defaultPermissionMode);
   const [runs, setRuns] = useState<number | undefined>(saved.maxConcurrentRuns);
+  // A value saved elsewhere, or reset to its default, replaces that field's draft and leaves the other's
+  useEffect(() => setMode(saved.defaultPermissionMode), [saved.defaultPermissionMode]);
+  useEffect(() => setRuns(saved.maxConcurrentRuns), [saved.maxConcurrentRuns]);
   const modeFromEnv = saved.sources.defaultPermissionMode === 'env';
   const runsFromEnv = saved.sources.maxConcurrentRuns === 'env';
   const runsValid = runs !== undefined && Number.isInteger(runs) && runs >= MIN_RUNS && runs <= MAX_RUNS;

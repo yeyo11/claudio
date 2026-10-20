@@ -9,13 +9,20 @@ import { Tooltip } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { errorMessage, formatNumber } from '@claudio/ui/lib/format';
 
-/** What can take focus in a row's control column; the change cell itself is left out. */
-const CONTROL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [role="combobox"], [role="switch"], [role="radio"][tabindex="0"]';
+/**
+ * What can take focus in a row's control column; the change cell itself is left out. A button out of
+ * the tab order is skipped: a number field's steppers, and the options a roving radio group does not
+ * have selected (the theme's cards), come before the control a keyboard reaches.
+ */
+const CONTROL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([tabindex="-1"]), [role="combobox"], [role="switch"], [role="radio"][tabindex="0"]';
 
 /** Puts focus on the row's control, so a Reset that hides its own button does not leave it on `<body>`. */
 export function focusSettingControl(setting: string): void {
   const row = document.querySelector<HTMLElement>(`[data-setting="${setting}"]`);
-  const control = Array.from(row?.querySelectorAll<HTMLElement>(CONTROL) ?? []).find((el) => !el.closest('.pref-row-change'));
+  // The slot sits beside its own control: where `data-setting` marks a whole block (the tunnel's,
+  // whose first buttons start and stop it), the slot's parent is the narrower scope
+  const scope = row?.querySelector<HTMLElement>('.pref-row-change')?.parentElement ?? row;
+  const control = Array.from(scope?.querySelectorAll<HTMLElement>(CONTROL) ?? []).find((el) => !el.closest('.pref-row-change'));
   control?.focus();
 }
 
@@ -62,6 +69,8 @@ export function SettingChange({
   const reset = async () => {
     setPending(true);
     setError(null);
+    // A second Reset on the same row says the same words: the region must change to be read again
+    setSaid('');
     try {
       await onReset();
       setSaid(t('settings.changeSlot.restored'));
