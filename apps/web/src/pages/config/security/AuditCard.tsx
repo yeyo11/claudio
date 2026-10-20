@@ -176,15 +176,18 @@ function Actor({ actor }: { actor: string }) {
 /**
  * What a row did, in the reader's language: the route's line from `auditRoutes`, or the English
  * summary the server stored when the row has no route (older rows, the wrapper's own) or names one
- * this build does not know.
+ * this build does not know. A request no route matched has only its method and path for a summary,
+ * which the request beside it already shows as a literal, so it says that in words instead.
  */
 function useWhat(): (entry: AuditEntry) => string {
-  const { t } = useTranslation('auditRoutes');
-  return (entry) =>
-    entry.route === null
-      ? entry.summary
-      : // The keys hold `:` and `/`, so neither separator may split them
-        t(entry.route as keyof (typeof en)['auditRoutes'], { keySeparator: false, nsSeparator: false, defaultValue: entry.summary });
+  const { t } = useTranslation(['auditRoutes', 'config']);
+  return (entry) => {
+    if (entry.route !== null) {
+      // The keys hold `:` and `/`, so neither separator may split them
+      return t(entry.route as keyof (typeof en)['auditRoutes'], { keySeparator: false, nsSeparator: false, defaultValue: entry.summary });
+    }
+    return entry.summary === `${entry.method} ${entry.path}` ? t('config:security.audit.noRoute') : entry.summary;
+  };
 }
 
 function Result({ status }: { status: number }) {

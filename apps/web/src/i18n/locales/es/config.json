@@ -284,7 +284,8 @@
         "anonymous": "Anónimo"
       },
       "showPath": "Mostrar la ruta completa",
-      "hidePath": "Ocultar la ruta completa"
+      "hidePath": "Ocultar la ruta completa",
+      "noRoute": "Ninguna ruta coincide con esta petición"
     }
   },
   "scope": {

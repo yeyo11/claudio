@@ -62,6 +62,12 @@ test('a row with a route reads in Spanish; one without keeps the English the ser
   assert.deepEqual(texts(html, 'p', 'audit-row-what'), expected);
 });
 
+test('a request no route matched says so in words, not as its path again', async () => {
+  const unmatched = entry({ route: null, method: 'POST', path: '/api/nowhere', summary: 'POST /api/nowhere' });
+  assert.deepEqual(texts(await render([unmatched]), 'td', 'audit-summary'), ['No route matched this request']);
+  assert.deepEqual(texts(await render([unmatched], 'es'), 'td', 'audit-summary'), ['Ninguna ruta coincide con esta petición']);
+});
+
 test('English reads the route line, which is the summary', async () => {
   const html = await render([entry()]);
   assert.deepEqual(texts(html, 'td', 'audit-summary'), ["Switch Claudio's own MCP server on or off in a live chat"]);
