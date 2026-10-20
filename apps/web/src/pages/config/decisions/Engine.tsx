@@ -1,4 +1,4 @@
-import type { DecisionProviderId, DecisionSettings, DecisionTestResult, DecisionUnavailableReason } from '@claudio/shared';
+import type { DecisionProviderId, DecisionSettings, DecisionTestResult, DecisionUnavailableReason, SettingDefault } from '@claudio/shared';
 import { isEffort } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cpu, KeyRound, TriangleAlert } from 'lucide-react';
@@ -12,8 +12,9 @@ import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Segmented, Tag } from '@claudio/ui/components/ui';
 import { formatCost, formatNumber, timeAgo } from '@claudio/ui/lib/format';
-import { EffortPicker } from '../../../components/EffortPicker';
+import { EffortPicker, effortLabel } from '../../../components/EffortPicker';
 import { ModelCombobox } from '../../../components/ui';
+import { Overridden, ServerSettingChange } from '../SettingChange';
 import { settingsHref } from '../settingsGroups';
 import { SettingsReveal } from '../groups/Block';
 import { capConsequence, type Draft } from './model';
@@ -32,7 +33,22 @@ export const ADVANCED_SETTINGS: readonly string[] = ['engine.cli-model', 'engine
  * One row of the engine (settings-patterns.md): the label and its control on one baseline, the
  * consequence under the label. An error takes the consequence's place, so nothing below moves.
  */
-function Field({ setting, label, line, error, children }: { setting: string; label: ReactNode; line?: ReactNode; error?: ReactNode; children: ReactNode }) {
+function Field({
+  setting,
+  label,
+  line,
+  error,
+  change,
+  children,
+}: {
+  setting: string;
+  label: ReactNode;
+  line?: ReactNode;
+  error?: ReactNode;
+  /** The row's "Changed · Reset" slot, under its control */
+  change?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="dp-field" data-setting={setting}>
       <div className="dp-field-text">
@@ -46,7 +62,10 @@ function Field({ setting, label, line, error, children }: { setting: string; lab
           line !== undefined && <span className="dp-field-line">{line}</span>
         )}
       </div>
-      <div className="dp-field-control">{children}</div>
+      <div className="dp-field-control">
+        {children}
+        {change}
+      </div>
     </div>
   );
 }
@@ -65,6 +84,7 @@ export function EngineSection({
   advancedOpen,
   onAdvanced,
   onExample,
+  onReset,
 }: {
   saved: DecisionSettings;
   draft: Draft;
@@ -76,9 +96,16 @@ export function EngineSection({
   advancedOpen: boolean;
   onAdvanced: (open: boolean) => void;
   onExample: () => void;
+  /** A row went back to its default on the server: the draft takes that field from the saved document */
+  onReset: (setting: string) => void;
 }) {
   const { t } = useTranslation('decisions');
+  const { t: tc } = useTranslation('components');
   const jev = draft.provider === 'jev';
+  const invalidate = [keys.decisionSettings];
+  const change = (setting: string, label: string, wording?: (value: SettingDefault) => string) => (
+    <ServerSettingChange id={setting} label={label} {...(wording ? { wording } : {})} invalidate={invalidate} onReset={() => onReset(setting)} />
+  );
 
   return (
     <>
@@ -104,7 +131,9 @@ export function EngineSection({
           ) : (
             t('consequence.cli')
           )}
+          <Overridden id="engine.who-answers" />
         </p>
+        {change('engine.who-answers', t('whoAnswers'), (value) => (value === 'jev' ? t('engine.jev') : t('engine.cli')))}
       </div>
       <SettingsReveal open={jev}>
         <p className="dp-field-line dp-model-hint">
@@ -117,6 +146,7 @@ export function EngineSection({
         label={t('cap.label')}
         line={<CapLine cap={draft.cli.maxCostUsd} decisions={decisions} days={saved.historyDays} />}
         error={costValid ? undefined : t('engine.maxCostInvalid', { max: MAX_COST })}
+        change={change('engine.cap', t('cap.label'), (value) => (typeof value === 'number' ? formatCost(value) : ''))}
       >
         <div className="dp-cost">
           <NumberInput
@@ -133,12 +163,18 @@ export function EngineSection({
       <Collapsible className="dp-advanced" title={t('advanced')} open={advancedOpen} onOpenChange={onAdvanced}>
         {!jev && (
           <>
-            <Field setting="engine.cli-model" label={t('engine.cliModel')} error={draft.cli.model.trim() === '' ? t('engine.cliModelEmpty') : undefined}>
+            <Field setting="engine.cli-model" label={t('engine.cliModel')} error={draft.cli.model.trim() === '' ? t('engine.cliModelEmpty') : undefined}
+              change={change('engine.cli-model', t('engine.cliModel'))}
+            >
               <div className="dp-model">
                 <ModelCombobox aria-label={t('engine.cliModel')} value={draft.cli.model} onChange={(model) => patch({ cli: { ...draft.cli, model } })} />
               </div>
             </Field>
-            <Field setting="engine.cli-effort" label={t('engine.effort')}>
+            <Field
+              setting="engine.cli-effort"
+              label={t('engine.effort')}
+              change={change('engine.cli-effort', t('engine.effort'), (value) => (typeof value === 'string' ? effortLabel(tc, value) : ''))}
+            >
               <EffortPicker
                 aria-label={t('engine.effort')}
                 value={isEffort(draft.cli.effort) ? draft.cli.effort : ''}
@@ -155,6 +191,7 @@ export function EngineSection({
           label={t('engine.historyDays')}
           line={t('engine.historyDaysHint')}
           error={daysValid ? undefined : t('engine.historyDaysInvalid', { max: MAX_HISTORY_DAYS })}
+          change={change('engine.history-days', t('engine.historyDays'))}
         >
           <div className="dp-cost">
             <NumberInput

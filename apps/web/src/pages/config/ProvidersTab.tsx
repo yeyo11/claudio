@@ -16,6 +16,7 @@ import { actionsFor, CLAUDE_CODE_ID, providerLink, STATE_TONE, stateLabelKey } f
 import { entryOf, latestCheck, orderedIds, withEntry } from '../../lib/provider-settings';
 import { useProviders, useRefreshProviders } from '../../lib/providers';
 import { LimitBars } from './providers/LimitBars';
+import { Overridden, ServerSettingChange } from './SettingChange';
 
 /**
  * Claude Code: its state, the account it signs in with, the binary Claudio runs and the usage
@@ -108,6 +109,9 @@ export function ProvidersTab() {
     <>
       <div className="prov-limit-wrap" data-setting="provider.limits">
         <LimitBars status={status} />
+        <span className="small muted">
+          <Overridden id="provider.limits" bare />
+        </span>
       </div>
       <span className="prov-checked tnum">{checkedAt ? t('checkedAgo', { time: timeAgo(checkedAt) }) : t('notChecked')}</span>
     </>
@@ -143,6 +147,13 @@ export function ProvidersTab() {
       <div className="prov-item" data-setting="provider.binary" aria-busy={checking}>
         {row}
         {!narrow && binaryOpen && editor(false)}
+        <ServerSettingChange
+          id="provider.binary"
+          label={t('bin.title', { name: status.label })}
+          wording={() => t('bin.usePath')}
+          invalidate={[keys.providerSettings]}
+          onReset={() => void refresh.mutateAsync().catch(() => undefined)}
+        />
       </div>
       {narrow && binaryOpen && (
         <Sheet open onOpenChange={setBinaryOpen} title={status.label} className="prov-sheet">
