@@ -8,7 +8,8 @@ import { Combobox, Select, type SelectOption } from '@claudio/ui/components/cont
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { FullText } from '@claudio/ui/components/FullText';
-import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
+import { formatDateTime, formatNumber, shortPath } from '@claudio/ui/lib/format';
+import type { en } from '../../../i18n/resources';
 import { GLOBAL_SCOPE, useListParams } from '../../../lib/list-params';
 import { SettingsDetailRow } from '../groups/Section';
 import { settingsHref } from '../settingsGroups';
@@ -156,43 +157,139 @@ export function AuditCard() {
   );
 }
 
-/** The rows themselves: the same on the group's screen and in the detail, so the two never disagree. */
-function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
-  const { t } = useTranslation(['config', 'common']);
+/** The actors that are words rather than ids: anything else (a token, a chat, an OIDC subject) is a literal */
+const ACTOR_WORDS = ['local', 'desktop', 'env', 'claudio', 'anonymous'] as const;
+type ActorWord = (typeof ACTOR_WORDS)[number];
+const isActorWord = (actor: string): actor is ActorWord => (ACTOR_WORDS as readonly string[]).includes(actor);
+/** How long a path may run on a phone row before it folds to its tail */
+const PHONE_PATH = 40;
+
+function Actor({ actor }: { actor: string }) {
+  const { t } = useTranslation('config');
+  return isActorWord(actor) ? (
+    <span className="audit-actor">{t(`security.audit.actors.${actor}`)}</span>
+  ) : (
+    <FullText className="mono audit-literal">{actor}</FullText>
+  );
+}
+
+/**
+ * What a row did, in the reader's language: the route's line from `auditRoutes`, or the English
+ * summary the server stored when the row has no route (older rows, the wrapper's own) or names one
+ * this build does not know.
+ */
+function useWhat(): (entry: AuditEntry) => string {
+  const { t } = useTranslation('auditRoutes');
+  return (entry) =>
+    entry.route === null
+      ? entry.summary
+      : // The keys hold `:` and `/`, so neither separator may split them
+        t(entry.route as keyof (typeof en)['auditRoutes'], { keySeparator: false, nsSeparator: false, defaultValue: entry.summary });
+}
+
+function Result({ status }: { status: number }) {
+  const { t } = useTranslation('config');
+  const result = outcome(status);
   return (
-    // The log outgrows its box as requests pile up: a keyboard has to be able to scroll it
-    <div className="table-wrap" role="group" aria-label={t('config:security.audit.title')} tabIndex={0}>
-      <table className="table audit-table" aria-label={t('config:security.audit.title')}>
-        <thead>
-          <tr>
-            <th scope="col">{t('config:security.audit.when')}</th>
-            <th scope="col">{t('config:security.audit.actor')}</th>
-            <th scope="col">{t('config:security.audit.request')}</th>
-            <th scope="col">{t('config:security.audit.result')}</th>
-            <th scope="col">{t('config:security.audit.what')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry) => {
-            const result = outcome(entry.status);
-            return (
+    <Tag tone={result.tone}>
+      {status} · {t(`security.audit.outcome.${result.key}`)}
+    </Tag>
+  );
+}
+
+/** The method and path of a phone row: a long path folds to its tail, and a tap shows all of it in place */
+function RequestLine({ entry }: { entry: AuditEntry }) {
+  const { t } = useTranslation('config');
+  const [open, setOpen] = useState(false);
+  const short = shortPath(entry.path, PHONE_PATH);
+  if (short === entry.path) {
+    return (
+      <span className="mono audit-row-request">
+        {entry.method} {entry.path}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="mono audit-row-request audit-row-path"
+      aria-expanded={open}
+      aria-label={`${entry.method} ${open ? entry.path : short} · ${t(open ? 'security.audit.hidePath' : 'security.audit.showPath')}`}
+      onClick={() => setOpen(!open)}
+    >
+      {entry.method} {open ? entry.path : short}
+    </button>
+  );
+}
+
+/**
+ * The rows themselves: the same on the group's screen and in the detail, so the two never disagree.
+ * A table where the card is wide enough and, below 560 px of it, the same entries as rows that wrap.
+ * The stylesheet shows one of the two, so only one is ever in the accessibility tree.
+ */
+export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
+  const { t } = useTranslation(['config', 'common']);
+  const what = useWhat();
+  return (
+    <div className="audit-log">
+      {/* Paged, so it needs no cap on its height; a keyboard can still scroll it */}
+      <div className="table-wrap is-paged" role="group" aria-label={t('config:security.audit.title')} tabIndex={0}>
+        <table className="table audit-table" aria-label={t('config:security.audit.title')}>
+          <thead>
+            <tr>
+              <th scope="col" className="audit-col-when">
+                {t('config:security.audit.when')}
+              </th>
+              <th scope="col" className="audit-col-actor">
+                {t('config:security.audit.actor')}
+              </th>
+              <th scope="col" className="audit-col-request">
+                {t('config:security.audit.request')}
+              </th>
+              <th scope="col" className="audit-col-result">
+                {t('config:security.audit.result')}
+              </th>
+              <th scope="col">{t('config:security.audit.what')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
               <tr key={entry.id}>
-                <td className="small muted nowrap">{formatDateTime(entry.at)}</td>
-                <td className="small"><FullText className="mono audit-literal">{entry.actor}</FullText></td>
-                <td>
-                  <span className="strong">{entry.method}</span> <FullText className="small mono audit-literal">{entry.path}</FullText>
+                <td className="small muted tnum audit-when">{formatDateTime(entry.at)}</td>
+                <td className="small audit-who">
+                  <Actor actor={entry.actor} />
                 </td>
-                <td className="nowrap">
-                  <Tag tone={result.tone}>
-                    {entry.status} · {t(`config:security.audit.outcome.${result.key}`)}
-                  </Tag>
+                <td className="small audit-request">
+                  <span className="mono audit-method">{entry.method}</span>{' '}
+                  <FullText className="mono audit-literal audit-path">{entry.path}</FullText>
                 </td>
-                <td className="small audit-summary">{entry.summary}</td>
+                <td className="audit-result">
+                  <Result status={entry.status} />
+                </td>
+                <td className="small audit-summary">{what(entry)}</td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="audit-rows" aria-label={t('config:security.audit.title')}>
+        {entries.map((entry) => (
+          <li key={entry.id} className="audit-row">
+            <div className="audit-row-head">
+              <span className="small muted tnum">{formatDateTime(entry.at)}</span>
+              <span className="small muted" aria-hidden>
+                ·
+              </span>
+              <span className="small audit-row-actor">
+                <Actor actor={entry.actor} />
+              </span>
+              <Result status={entry.status} />
+            </div>
+            <p className="audit-row-what">{what(entry)}</p>
+            <RequestLine entry={entry} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

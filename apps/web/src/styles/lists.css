@@ -130,18 +130,164 @@ a.list-row:hover {
   border-bottom: 0;
 }
 
-.audit-table .audit-summary {
-  min-width: 16ch;
+/* A table that pages needs no cap on its height: the pager is what keeps it short */
+.table-wrap.is-paged {
+  max-height: none;
+}
+
+/*
+ * The audit log: a table that fits the settings column, and below 560 px of its card the same
+ * entries as rows that wrap (the Guards' recent blocks pattern). Only one of the two is displayed,
+ * so only one is in the accessibility tree.
+ */
+.audit-log {
+  container: audit-log / inline-size;
+  min-width: 0;
+}
+
+/* Fixed columns: the request and what it did take what the three narrow ones leave */
+.audit-table {
+  table-layout: fixed;
+}
+
+.audit-table th,
+.audit-table td {
+  padding-inline: 10px;
+}
+
+.audit-table .audit-col-when {
+  width: calc(11ch + 20px);
+}
+
+.audit-table .audit-col-actor {
+  width: calc(16ch + 20px);
+}
+
+.audit-table .audit-col-request {
+  width: 28%;
+}
+
+.audit-table .audit-col-result {
+  width: calc(18ch + 20px);
+}
+
+.audit-table .audit-who,
+.audit-table .audit-request {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.audit-table .audit-who .audit-actor {
+  white-space: normal;
+}
+
+.audit-method {
+  color: var(--fg-2);
 }
 
 /* A path or an actor is a literal: it ends in an ellipsis (its full text is the title), never mid-word wraps */
 .audit-table .audit-literal {
   display: inline-block;
-  max-width: 24ch;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
+}
+
+/* Room for the widest method and the space after it */
+.audit-table .audit-path {
+  max-width: calc(100% - 7ch);
+}
+
+/* A long outcome ("refused, read-only") wraps inside its tag rather than leave the column */
+.audit-table .audit-result .badge {
+  max-width: 100%;
+}
+
+.audit-table .audit-summary {
+  overflow-wrap: anywhere;
+}
+
+.audit-rows {
+  display: none;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  min-width: 0;
+}
+
+.audit-row + .audit-row {
+  border-top: 1px solid var(--line);
+}
+
+.audit-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.audit-row-actor {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The result closes the first line */
+.audit-row-head > .badge {
+  margin-inline-start: auto;
+}
+
+.audit-row-what {
+  margin: 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.audit-row-request {
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+
+/* The folded path is the tap that shows all of it: the whole line, at a finger's height */
+.audit-row-path {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: var(--fw-regular);
+  text-align: start;
+  cursor: pointer;
+}
+
+.audit-row-path:hover {
+  color: var(--fg-2);
+}
+
+@container audit-log (max-width: 559px) {
+  .audit-log > .table-wrap {
+    display: none;
+  }
+
+  .audit-rows {
+    display: flex;
+  }
 }
 
 .row-actions {

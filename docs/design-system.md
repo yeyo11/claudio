@@ -1982,6 +1982,30 @@ card sits beside other content.
   scroll sideways. A block is warn; `missing`, `unarmed` and `error` are bad; `observed` and `allowed-once` are neutral.
 - Nothing moves: a block is not a live state.
 
+### Audit log
+
+Settings → Access & safety → Audit log (`AuditTable` in `pages/config/security/AuditCard.tsx`): the latest writes on the
+group's screen and every write, filtered and paged, on its detail (`/settings/access/audit`). One `.audit-log` container
+holds the same entries twice, and its container query displays one of them, so only one is in the accessibility tree
+([plans/settings-reset-and-polish.md](plans/settings-reset-and-polish.md), D5).
+
+- **What it did** is worded in the reader's language: the row's `route` (`PUT /chats/:id/claudio-mcp`) is a key of the
+  `auditRoutes` namespace, generated from the route docs (`pnpm --filter @claudio/api audit:strings`). A row with no route,
+  or a route this build does not know, shows the English summary the server stored.
+- **Who** is a word in sans when it is one (`local` "Local access", `desktop` "Desktop app", `env` "Environment", `claudio`,
+  `anonymous` "Anonymous"); a token id, a chat id or an OIDC subject stays a literal in mono, cut by an ellipsis with its
+  full text as the title.
+- **The request** is the method in mono and `--fg-2`, never bold, then the path in mono, cut by an ellipsis.
+- **The result** is the status code and its word in a `Tag`: ok done, warn not allowed / read-only / rejected, bad failed.
+- **At 560 px of the card and wider**, `.audit-table` has `table-layout: fixed` and fits the settings column with no
+  sideways scroll at 1280: When about 11ch (the date and the time break onto two lines), Who 16ch, Request 28 %, Result 18ch,
+  and What takes the rest and wraps. Its `.table-wrap.is-paged` drops the shared 72vh cap: the pager keeps it short.
+- **Below 560 px**, `ul.audit-rows` > `li.audit-row`, the `.guard-event` pattern with a `--line` hairline between rows and no
+  card: time · who, with the result closing the line; what it did in sans; the method and the path folded by `shortPath(path,
+  40)` in mono, `--fs-small`, `--fg-3`. A folded path is a `.audit-row-path` button (`aria-expanded`, the whole line, at
+  `--touch` height) that shows the full path in place, wrapping anywhere.
+- Nothing moves.
+
 ### Terminal: the person's own shell
 
 The terminal ([plans/terminal.md](plans/terminal.md), §4) is the person's own shell, not an agent working. The
