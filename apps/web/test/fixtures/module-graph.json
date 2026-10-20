@@ -300,7 +300,7 @@
   "TeamCrumbs [TeamCrumbs]",
   "TeammateName [TeammateName, teammateLabel]",
   "TeammateReadsTag [TeammateReadsTag]",
-  "TerminalCard [TerminalCard, changedNumbers]",
+  "TerminalCard [HistoryRows, HistoryTable, TerminalCard, changedNumbers]",
   "TerminalDock [TerminalDock]",
   "TerminalPanel [TerminalPanel]",
   "TerminalStatus [TerminalStatus]",
