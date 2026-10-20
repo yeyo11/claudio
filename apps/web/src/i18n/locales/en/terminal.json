@@ -147,6 +147,10 @@
     "where": "Directory",
     "how": "How it went",
     "running": "Running",
+    "actors": {
+      "owner": "Owner",
+      "anonymous": "Anonymous"
+    },
     "refused_one": "{{count}} attempt refused: {{reasons}}",
     "refused_other": "{{count}} attempts refused: {{reasons}}",
     "refusedReason": {
