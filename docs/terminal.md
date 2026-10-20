@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T20:00:00Z
-updated_at: 2026-10-18T18:00:00Z
+updated_at: 2026-10-20T18:00:00Z
 tags:
     - terminal
     - pty
@@ -98,7 +98,13 @@ Shells survive a page reload and an idle socket (idle timeout, cap per actor), s
 attach to one shell, and every shell ends when the server stops. The server keeps a headless copy of
 the screen only to repaint a client that reattaches; it is never searched, logged or stored.
 Scrollback, input and output are written nowhere. Sessions and attachments (no content) are SQLite
-rows, shown in the card's history table.
+rows, shown in the card's history table. On a phone (below 560 px of the card's own width) the same
+entries are wrapping rows instead of a table, the pattern of the Guards recent blocks: the time and the
+actor, the directory (a long one folds behind a 44 px button that shows the whole path on tap), then the
+end reason and a warn tag for a refusal. It never scrolls sideways at 390 or 320 px. `owner` and
+`anonymous` read as words ("Propietario", "Anónimo") and any other actor stays an id in mono; see the
+[design system](design-system.md#terminal-the-persons-own-shell) and the
+[plan](plans/settings-reset-and-polish.md) (D4).
 
 ## Where it is in the UI
 

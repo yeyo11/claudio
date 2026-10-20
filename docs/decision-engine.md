@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-20T18:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -260,6 +260,11 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
   locally and not sent), its size and the provider it goes to. Consent records the state version and
   the providers it covers: a state that changes shape asks again, and consent given on `cli` does not
   cover `jev`. A point without consent stays off whatever an override says.
+  The point's row in Settings says so, for Shadow and Active alike: "Off until it has consent." with
+  the warn icon, and a **Review and consent** button that opens this dialog in the point's current
+  mode, so a person never has to move the point to Off and back to be asked
+  ([settings.md](settings.md#a-decision-point-without-consent-is-off)). The engine itself did not
+  change: it was right, and the row used to say the point ran.
 - **With `cli` nothing leaves the machine** beyond what Claude Code already sends, and the dialog
   says so.
 - **With `jev`** titles, comments, error text and journal lines go to TypeSafe. Zero retention exists
