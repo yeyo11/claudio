@@ -5198,6 +5198,23 @@ export interface AppSettings extends AppSettingValues {
   allowedHostLayers: AllowedHostLayers;
 }
 
+/** Where a setting's value comes from: the environment (read-only here), what the person stored, or the default */
+export type SettingSource = 'env' | 'stored' | 'default';
+/** A setting's default, as the store defines it; the web words it */
+export type SettingDefault = string | number | boolean | null | string[] | { [key: string]: string | number | boolean | null | string[] };
+export interface SettingState {
+  /** The stored value differs from the default: the row shows "Changed · Reset" */
+  changed: boolean;
+  source: SettingSource;
+  default: SettingDefault;
+}
+/** `GET /settings/state`: every server-side setting a row can reset, by its `data-setting` id */
+export interface SettingsState {
+  settings: Record<string, SettingState>;
+}
+/** `GET /settings/overrides`: the projects that override each global setting, sorted by project name; only ids with one or more */
+export type SettingOverrides = Record<string, string[]>;
+
 /**
  * `PUT /settings/app`: the settings to change, and only those. A setting the environment set is
  * refused rather than written to the file, where it would do nothing until the variable goes away

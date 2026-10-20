@@ -94,6 +94,7 @@ import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
+import { createSettingsRegistry, type SettingsRegistry } from './settings-registry.ts';
 import { GuardLauncher } from './guards/launch.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 import { GuardSettingsStore } from './guards/settings.ts';
@@ -287,6 +288,7 @@ export { decide as decideGuard } from './guards/decide.ts';
 export { DEFAULT_LIMITS as GUARD_DEFAULT_LIMITS, type GuardRulesFile } from './guards/input.ts';
 export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
+export { createSettingsRegistry, SettingsError, type SettingsRegistry, type SettingsRegistryDeps } from './settings-registry.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
 export { AccountSwitchRefusal, ChatRefusal } from './chats.ts';
@@ -541,6 +543,8 @@ export class Core {
    * hosts answered beside the allowlist. What applies now is read here, never from `config`
    */
   readonly appSettings: AppSettingsStore;
+  /** Every server-side setting a row can reset, by its `data-setting` id, and the projects that override them */
+  readonly settings: SettingsRegistry;
   /** The global guard settings, `guards.json` (docs/plans/guards.md); the same store is `core.guards` */
   readonly guards: GuardSettingsStore;
   /** Resolves, checks and writes the guard of every launch path (docs/plans/guards.md) */
@@ -600,7 +604,7 @@ export class Core {
   readonly memoryProposals: MemoryProposalService;
   readonly lessons: LessonService;
   /** `lessons.json`: read and changed through here so the queue and the service see the change at once */
-  readonly lessonSettings: { get(): Promise<LessonSettings>; update(patch: unknown): Promise<LessonSettings> };
+  readonly lessonSettings: Pick<LessonSettingsStore, 'get' | 'update' | 'stored' | 'resetKeys'>;
   /** The flow by column: a team member's run when a card enters the column its role answers for */
   readonly flow: FlowService;
   /** Approved items' pull requests: opened with git and gh on the person's request, and watched until merged */
@@ -1114,15 +1118,17 @@ export class Core {
       }
       return lessonSettings;
     };
+    const lessonSettingsChanged = (next: LessonSettings): LessonSettings => {
+      lessonSettings = next;
+      lessonSettingsAt = Date.now();
+      this.lessons.invalidate();
+      return next;
+    };
     this.lessonSettings = {
       get: () => lessonSettingsFile.get(),
-      update: async (patch) => {
-        const next = await lessonSettingsFile.update(patch);
-        lessonSettings = next;
-        lessonSettingsAt = Date.now();
-        this.lessons.invalidate();
-        return next;
-      },
+      update: async (patch) => lessonSettingsChanged(await lessonSettingsFile.update(patch)),
+      stored: () => lessonSettingsFile.stored(),
+      resetKeys: async (paths) => lessonSettingsChanged(await lessonSettingsFile.resetKeys(paths)),
     };
     const lessonStore = new LessonStore({ db: this.db, settings: currentLessonSettings });
     this.lessonQueue = new LessonMiningQueue({
@@ -1646,6 +1652,24 @@ export class Core {
       },
     });
     void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${error instanceof Error ? error.message : String(error)}`));
+    this.settings = createSettingsRegistry({
+      appSettings: this.appSettings,
+      providers: this.providersSettings,
+      // As `PUT /providers/settings` does: the answer does not wait for the probes, `providers.changed` tells the pages
+      providersChanged: () => void this.providers.settingsChanged().catch((error: unknown) => console.warn(`providers: re-detection after a reset failed: ${error instanceof Error ? error.message : String(error)}`)),
+      lessons: this.lessonSettings,
+      decisions: this.decisionSettings,
+      guards: this.guards,
+      terminals: this.terminals,
+      tunnel: this.tunnel,
+      accounts: this.accounts,
+      collaborators: this.collaborators,
+      projects: async () => {
+        const records = this.projectStore.list();
+        const settings = await this.projectSettingsStore.readAll(records);
+        return records.map((record) => ({ id: record.id, name: record.name, settings: settings.get(record.id) }));
+      },
+    });
   }
 
   /** The run, task or item a chat works for: what makes its limit the rotation's. Null for a person's chat. */

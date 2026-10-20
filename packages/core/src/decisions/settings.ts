@@ -1,15 +1,17 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type {
-  DecisionMode,
-  DecisionPointId,
-  DecisionPointSettings,
-  DecisionProviderId,
-  DecisionSettings,
-  ModelFallback,
-  ProjectDecisionSettings,
+import {
+  DECISION_POINT_IDS,
+  type DecisionMode,
+  type DecisionPointId,
+  type DecisionPointSettings,
+  type DecisionProviderId,
+  type DecisionSettings,
+  type ModelFallback,
+  type ProjectDecisionSettings,
 } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
+import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
 
 /*
@@ -18,37 +20,8 @@ import type { CoreConfig } from '../paths.ts';
  * in the project's own settings document and are parsed here so both sides share one set of rules.
  */
 
-export const DECISION_POINT_IDS: readonly DecisionPointId[] = [
-  'flow.refine-needed',
-  'flow.bounce',
-  'orchestration.retry',
-  'supervisor.intervene',
-  'memory.triage',
-  'assistant.rerank',
-  'assistant.sources',
-  'journal.relevance',
-  'lesson.mine',
-  'board.triage',
-  'team.assign',
-  'flow.scope-drift',
-  'flow.criteria-precheck',
-  'flow.criteria-merge',
-  'flow.restart',
-  'context.compact',
-  'run.continuation',
-  'orchestration.model',
-  'orchestration.fixer',
-  'health.semantic-loop',
-  'health.test-weakening',
-  'changes.unexplained-hunk',
-  'palette.intent',
-  'notification.urgency',
-  'checks.fix',
-  'review.triage',
-  'issue.triage',
-  'account.model-fallback',
-  'review.depth',
-];
+/** Kept in shared, where the setting ids are built from it; re-exported for the catalogue */
+export { DECISION_POINT_IDS };
 
 /** The provider points of the multi-vendor days, which an old `project.json` may still carry */
 const REMOVED_POINTS: ReadonlySet<string> = new Set(['provider.on-limit', 'provider.pick', 'provider.model-map']);
@@ -348,8 +321,11 @@ export class DecisionSettingsStore {
     // typo does not switch every point off (or on)
     const merged = defaults();
     for (const key of ['provider', 'cli', 'historyDays'] as const) {
+      // `cli` is read field by field over its defaults: a reset removes one field and keeps the others
+      const value = key === 'cli' && isObject(raw.cli) ? { ...defaults().cli, ...raw.cli } : raw[key];
+      if (value === undefined) continue;
       try {
-        Object.assign(merged, { [key]: parseDecisionSettings({ ...defaults(), [key]: raw[key] })[key] });
+        Object.assign(merged, { [key]: parseDecisionSettings({ ...defaults(), [key]: value })[key] });
       } catch {
         // keep the default for this field
       }
@@ -393,6 +369,35 @@ export class DecisionSettingsStore {
       : null;
     stored.points[point] = { ...current, consent };
     await this.write(stored);
+    return this.get();
+  }
+
+  /** The document as stored, before the defaults fill it in; null when there is none or it does not parse */
+  stored(): Record<string, unknown> | null {
+    return this.readRaw();
+  }
+
+  /**
+   * Removes the values at `paths` (`['cli', 'model']`, `['points', id, 'mode']`), so their defaults
+   * apply again. A point keeps its consent: that is the owner's grant, withdrawn on its own, and a
+   * point left with nothing but no consent goes. The migration's mark is kept with everything else
+   * that is not on a path. A document that does not parse is refused rather than overwritten.
+   */
+  async resetKeys(paths: readonly SettingPath[]): Promise<DecisionSettings> {
+    if (paths.some((path) => path[0] === 'points' && path[2] === 'consent')) throw new Error('consent is withdrawn on its own, not reset');
+    if (!existsSync(this.file)) return this.get();
+    const raw = this.readRaw();
+    if (!raw) throw new Error(`${this.file} is not valid JSON; fix or remove it`);
+    const next = withoutPaths(raw, paths);
+    const points = next.points;
+    if (isObject(points)) {
+      for (const [id, point] of Object.entries(points)) {
+        const empty = isObject(point) && Object.entries(point).every(([key, value]) => key === 'consent' && (value === null || value === undefined));
+        if (empty) delete points[id];
+      }
+      if (Object.keys(points).length === 0) delete next.points;
+    }
+    await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
     return this.get();
   }
 
