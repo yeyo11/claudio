@@ -501,7 +501,8 @@
 }
 
 /* The full path wraps where it must: never a scroll, never a clipped tail */
-.term-history-cwd {
+/* Two classes, so the shorthand outranks `.mono:not(input…)`'s inherited size and the path is 13 px like its row */
+.term-history-row .term-history-cwd {
   display: flex;
   align-items: center;
   min-height: var(--touch);
@@ -509,9 +510,14 @@
   border: 0;
   background: none;
   color: var(--fg);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--mono);
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.term-history-path {
+  overflow-wrap: anywhere;
 }
 
 .term-history-cwd:focus-visible {

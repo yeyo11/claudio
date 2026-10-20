@@ -144,6 +144,8 @@ export function HistoryTable({ entries }: { entries: readonly HistoryEntry[] }) 
 function Cwd({ cwd }: { cwd: string }) {
   const [open, setOpen] = useState(false);
   if (!cwd) return <span className="small muted">—</span>;
+  // A path that fits whole has nothing to expand, so it is text and not a button that changes nothing
+  if (shortPath(cwd, 40) === cwd) return <span className="mono small term-history-path">{cwd}</span>;
   return (
     <button type="button" className="term-history-cwd mono small" aria-expanded={open} onClick={() => setOpen(!open)}>
       {open ? cwd : shortPath(cwd, 40)}
