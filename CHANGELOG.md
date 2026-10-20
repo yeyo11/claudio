@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/yeyo11/claudio/compare/v0.8.0...v0.8.1) (2026-10-20)
+
+
+### Bug fixes
+
+* **web:** stuck tooltips, unreadable selected pills, and the ui-review follow-ups ([#53](https://github.com/yeyo11/claudio/issues/53)) ([146131d](https://github.com/yeyo11/claudio/commit/146131df737617d60fe993f1b6ceb40ec7f78979))
+
 ## [0.8.0](https://github.com/yeyo11/claudio/compare/v0.7.0...v0.8.0) (2026-10-19)
 
 
