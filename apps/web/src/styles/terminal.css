@@ -465,3 +465,71 @@
 .term-history .table-wrap {
   max-height: none;
 }
+
+/* On a phone the history is rows, as Guards' recent blocks are: the card's own width decides, not the
+   viewport's, because Settings sits beside a sidebar on a tablet. Only one of the two is displayed, so
+   only one is in the accessibility tree. */
+.term-history {
+  container-type: inline-size;
+}
+
+.term-history-rows {
+  display: none;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.term-history-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  min-width: 0;
+}
+
+.term-history-row + .term-history-row {
+  border-top: 1px solid var(--line);
+}
+
+.term-history-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+
+/* The full path wraps where it must: never a scroll, never a clipped tail */
+.term-history-cwd {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.term-history-cwd:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.term-history-row .term-history-how {
+  min-width: 0;
+}
+
+@container (max-width: 559px) {
+  .term-history-table {
+    display: none;
+  }
+
+  .term-history-rows {
+    display: flex;
+  }
+}

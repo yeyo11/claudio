@@ -288,6 +288,18 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     check(true, 'Esc from the key bar reached the shell as the Esc byte');
     await page.shot('terminal-phone');
 
+    // The history in Settings is wrapping rows on a phone, never a table that scrolls sideways
+    await page.viewport(390, 900);
+    await page.goto('/settings/access#terminal', 1500);
+    await page.waitFor(`return !!document.querySelector('.term-history-row')`, { label: 'the terminal history rows', timeout: 30_000 });
+    const rows = await page.eval(`const row = document.querySelector('.term-history-row'); const table = document.querySelector('.term-history-table'); const cwd = row?.querySelector('.term-history-cwd'); return { rows: !!row, tableShown: !!table && table.getClientRects().length > 0, sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth, cwdHeight: cwd ? cwd.getBoundingClientRect().height : 0, expanded: cwd?.getAttribute('aria-expanded') }`);
+    check(rows.rows && !rows.tableShown, 'the history is rows and not the table at 390');
+    check(!rows.sideways, 'the history does not scroll sideways at 390');
+    check(rows.cwdHeight >= 44 - 1, `the directory is a 44 px touch target (${rows.cwdHeight})`);
+    await page.click('.term-history-cwd', undefined, 300);
+    check((await page.eval(`return document.querySelector('.term-history-cwd')?.getAttribute('aria-expanded')`)) === 'true', 'a tap on the directory shows the whole path');
+    await page.viewport(420, 900);
+
     // ---- 7. the light theme paints the terminal with the light --term-bg ----
     await page.viewport(1440, 900);
     await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);

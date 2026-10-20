@@ -147,6 +147,10 @@
     "where": "Directorio",
     "how": "Cómo acabó",
     "running": "En marcha",
+    "actors": {
+      "owner": "Propietario",
+      "anonymous": "Anónimo"
+    },
     "refused_one": "{{count}} intento rechazado: {{reasons}}",
     "refused_other": "{{count}} intentos rechazados: {{reasons}}",
     "refusedReason": {
