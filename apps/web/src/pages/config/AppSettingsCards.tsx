@@ -262,6 +262,9 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
     if (was.defaultPermissionMode !== saved.defaultPermissionMode) setMode((now) => (now === was.defaultPermissionMode ? saved.defaultPermissionMode : now));
     if (was.maxConcurrentRuns !== saved.maxConcurrentRuns) setRuns((now) => (now === was.maxConcurrentRuns ? saved.maxConcurrentRuns : now));
   }, [saved]);
+  // A Reset puts that field's default into the draft, edited or not; the other field's draft stays
+  const queryClient = useQueryClient();
+  const freshSaved = () => queryClient.getQueryData<AppSettings>(keys.appSettings);
   const modeFromEnv = saved.sources.defaultPermissionMode === 'env';
   const runsFromEnv = saved.sources.maxConcurrentRuns === 'env';
   const runsValid = runs !== undefined && Number.isInteger(runs) && runs >= MIN_RUNS && runs <= MAX_RUNS;
@@ -304,6 +307,10 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
             label={t('appSettings.runs.mode')}
             wording={(value) => modeLabel(PERMISSION_MODES.find((mode) => mode === value) ?? mode)}
             invalidate={[keys.appSettings]}
+            onReset={() => {
+              const fresh = freshSaved();
+              if (fresh) setMode(fresh.defaultPermissionMode);
+            }}
           />
         </div>
         <div data-setting="runs.concurrent">
@@ -320,7 +327,15 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
           >
             <NumberInput aria-label={t('appSettings.runs.concurrent')} value={runs} onChange={setRuns} min={MIN_RUNS} max={MAX_RUNS} disabled={runsFromEnv} />
           </Field>
-          <ServerSettingChange id="runs.concurrent" label={t('appSettings.runs.concurrent')} invalidate={[keys.appSettings]} />
+          <ServerSettingChange
+            id="runs.concurrent"
+            label={t('appSettings.runs.concurrent')}
+            invalidate={[keys.appSettings]}
+            onReset={() => {
+              const fresh = freshSaved();
+              if (fresh) setRuns(fresh.maxConcurrentRuns);
+            }}
+          />
         </div>
       </div>
       {!(modeFromEnv && runsFromEnv) && (
