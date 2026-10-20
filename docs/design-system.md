@@ -80,6 +80,18 @@ sits on `[data-theme='light']`, and under `prefers-color-scheme: light` only whe
 | `--fg` | `--text` | `#f4f7ff` | `#0b1020` | primary text |
 | `--fg-2` | `--text-muted` | `#a7b1c9` | `#4a5470` | secondary text |
 | `--fg-3` | `--text-faint` | `#8b96b1` | `#5d6783` | tertiary text and labels, still ≥ 4.5:1 on `--bg-2` |
+| `--selected-fill` | new (`var(--text)`) | `#f4f7ff` | `#0b1020` | the chosen chip (`.chip-on`) and the chosen pill of the list toolbar's phone strip |
+| `--on-selected` | new (`var(--bg)`) | `#0b1020` | `#f7f8fc` | everything on `--selected-fill`: 17.7:1 dark, 17.8:1 light |
+| `--selection-bg` / `--selection-fg` | new | `#2c4a8f` / `#f4f7ff` | `#c4d4f8` / `#0b1020` | selected text (`::selection`), opaque so it reads on any surface: 7.9:1 dark, 12.7:1 light |
+
+**A chosen state filled with the text colour (2026-10-20).** It paints `--selected-fill` and its text
+`--on-selected`, always together, and nothing inside it keeps a foreground token of its own: counts
+inherit, the board's type and priority marks take `currentColor`, the × of a facet chip is
+`--on-selected`. A hover rule never reaches the chosen state (`.segment:not(.segment-on, :disabled):hover`):
+a tapped pill stays `:hover` on a touch screen, and the base hover's `--text` on a `--text` fill read
+white on white in the Chats state tabs on a phone. `apps/web/test/selected-fill.test.ts` holds this.
+Selected text is opaque (`--selection-bg`, `--selection-fg`) rather than a tint of the accent: a
+tint kept the surface's own text colour, so text on a light fill was selected white on white.
 
 Keep both names during the migration: the v1 names hold the values, and the v2 names are
 `var()` aliases of them. There are 10 000 lines of CSS written against the v1 names, and renaming

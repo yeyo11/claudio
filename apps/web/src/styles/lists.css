@@ -1121,9 +1121,9 @@ a.list-row:hover {
 }
 
 .list-toolbar-strip .segment-on {
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--bg);
+  border-color: var(--selected-fill);
+  background: var(--selected-fill);
+  color: var(--on-selected);
   font-weight: var(--fw-strong);
 }
 

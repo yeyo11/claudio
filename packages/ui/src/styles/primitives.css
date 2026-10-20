@@ -524,7 +524,9 @@ input.is-invalid {
   opacity: 0.5;
 }
 
-.segment:hover:not(:disabled) {
+/* Never on the chosen segment: it has its own colour, and a variant that fills it (the list toolbar's
+   strip) lost its text to this rule's --text on a touch screen, where the tapped pill stays :hover */
+.segment:not(.segment-on, :disabled):hover {
   color: var(--text);
 }
 
@@ -612,9 +614,9 @@ input.is-invalid {
 
 .chip-on,
 .chip-on:hover {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg);
+  background: var(--selected-fill);
+  border-color: var(--selected-fill);
+  color: var(--on-selected);
 }
 
 .chip-static {
