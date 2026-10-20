@@ -150,9 +150,15 @@ a.list-row:hover {
   table-layout: fixed;
 }
 
+/* A cell keeps what it holds: nothing spills into the next column or makes the wrapper scroll */
 .audit-table th,
 .audit-table td {
   padding-inline: 10px;
+  overflow: hidden;
+}
+
+.audit-table th {
+  text-overflow: ellipsis;
 }
 
 .audit-table .audit-col-when {
@@ -160,15 +166,15 @@ a.list-row:hover {
 }
 
 .audit-table .audit-col-actor {
-  width: calc(16ch + 20px);
+  width: calc(12ch + 20px);
 }
 
 .audit-table .audit-col-request {
-  width: 28%;
+  width: 22%;
 }
 
 .audit-table .audit-col-result {
-  width: calc(18ch + 20px);
+  width: calc(13ch + 20px);
 }
 
 .audit-table .audit-who,
@@ -204,6 +210,7 @@ a.list-row:hover {
 /* A long outcome ("refused, read-only") wraps inside its tag rather than leave the column */
 .audit-table .audit-result .badge {
   max-width: 100%;
+  white-space: normal;
 }
 
 .audit-table .audit-summary {
@@ -254,7 +261,8 @@ a.list-row:hover {
   overflow-wrap: anywhere;
 }
 
-.audit-row-request {
+/* Through the row: `.mono` inherits its size, and that rule would win over a lone class */
+.audit-row .audit-row-request {
   font-size: var(--fs-small);
   line-height: var(--lh-small);
   color: var(--fg-3);

@@ -1998,8 +1998,8 @@ holds the same entries twice, and its container query displays one of them, so o
 - **The request** is the method in mono and `--fg-2`, never bold, then the path in mono, cut by an ellipsis.
 - **The result** is the status code and its word in a `Tag`: ok done, warn not allowed / read-only / rejected, bad failed.
 - **At 560 px of the card and wider**, `.audit-table` has `table-layout: fixed` and fits the settings column with no
-  sideways scroll at 1280: When about 11ch (the date and the time break onto two lines), Who 16ch, Request 28 %, Result 18ch,
-  and What takes the rest and wraps. Its `.table-wrap.is-paged` drops the shared 72vh cap: the pager keeps it short.
+  sideways scroll at 1280: When about 11ch (the date and the time break onto two lines), Who 12ch, Request 22 %, Result 13ch
+  (a long outcome wraps inside its tag), and What takes the rest and wraps. Every cell clips what it holds. Its `.table-wrap.is-paged` drops the shared 72vh cap: the pager keeps it short.
 - **Below 560 px**, `ul.audit-rows` > `li.audit-row`, the `.guard-event` pattern with a `--line` hairline between rows and no
   card: time · who, with the result closing the line; what it did in sans; the method and the path folded by `shortPath(path,
   40)` in mono, `--fs-small`, `--fg-3`. A folded path is a `.audit-row-path` button (`aria-expanded`, the whole line, at

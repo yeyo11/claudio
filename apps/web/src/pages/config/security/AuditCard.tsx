@@ -277,10 +277,11 @@ export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
           <li key={entry.id} className="audit-row">
             <div className="audit-row-head">
               <span className="small muted tnum">{formatDateTime(entry.at)}</span>
-              <span className="small muted" aria-hidden>
-                ·
-              </span>
+              {/* The separator travels with the actor, so a wrap never leaves it alone at a line's end */}
               <span className="small audit-row-actor">
+                <span className="muted" aria-hidden>
+                  ·{' '}
+                </span>
                 <Actor actor={entry.actor} />
               </span>
               <Result status={entry.status} />
