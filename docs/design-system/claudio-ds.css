@@ -2670,6 +2670,13 @@ a.cont-from:hover { color: var(--fg); }
 .guard-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 24px; }
 .guard-event { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 0; min-width: 0; font-variant-numeric: tabular-nums; }
 .guard-event + .guard-event { border-top: 1px solid var(--line); }
+/* Terminal history: rows below 560 px of the card, the table from there */
+.term-history { container-type: inline-size; }
+.term-history-rows { display: none; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.term-history-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; min-width: 0; }
+.term-history-row + .term-history-row { border-top: 1px solid var(--line); }
+.term-history-cwd { display: flex; align-items: center; min-height: var(--touch); padding: 0; border: 0; background: none; color: var(--fg); text-align: left; overflow-wrap: anywhere; }
+@container (max-width: 559px) { .term-history-table { display: none; } .term-history-rows { display: flex; } }
 /* ---------- end of Guards: the Settings card ---------- */
 
 /* ---------- Guards: the row, the rules sheet, the header tag and the "N blocked" chip (plans/guards.md) ---------- */

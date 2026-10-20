@@ -3,12 +3,12 @@ import { ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TerminalRemote, TerminalSettings, TerminalStatus, UpdateTerminalSettingsRequest } from '@claudio/shared';
+import type { TerminalHistoryEntry, TerminalRemote, TerminalSettings, TerminalStatus, UpdateTerminalSettingsRequest } from '@claudio/shared';
 import { NumberInput, Select, Switch, type SelectOption } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
+import { formatDateTime, formatNumber, shortPath } from '@claudio/ui/lib/format';
 import { api, ApiRequestError, keys } from '../../../api';
 import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs';
 import { terminalRefusal, type TerminalRefusal, type TerminalRefusalAction } from '../../../components/terminal/terminal-model';
@@ -77,6 +77,104 @@ function useSaveTerminal(saved: string, onRefused?: (refusal: TerminalRefusal | 
   });
 }
 
+type HistoryEntry = TerminalHistoryEntry;
+
+/** The words for a known actor stay sans; any other value is an id the machine wrote, so it is mono. */
+function Actor({ actor }: { actor: string }) {
+  const { t } = useTranslation('terminal');
+  return actor === 'owner' || actor === 'anonymous' ? <>{t(`history.actors.${actor}`)}</> : <span className="mono">{actor}</span>;
+}
+
+/** The end reason, then the refusal tag: the same words in the table and in the rows. */
+function How({ entry }: { entry: HistoryEntry }) {
+  const { t } = useTranslation('terminal');
+  const refused = entry.attachments.filter((attachment) => attachment.refused !== null);
+  return (
+    <>
+      {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
+      {refused.length > 0 && (
+        <Tag tone="warn">
+          {t('history.refused', {
+            count: refused.length,
+            // A code the copy does not know yet still reads as words, never as the server's code
+            // Deduplicated as words, so two codes the copy does not know read once, not twice
+            reasons: [...new Set(refused.map((attachment) => t(`history.refusedReason.${attachment.refused}`, { defaultValue: t('history.refusedReason.unknown') })))].join(', '),
+          })}
+        </Tag>
+      )}
+    </>
+  );
+}
+
+/** From 560 px of the card: four columns. */
+export function HistoryTable({ entries }: { entries: readonly HistoryEntry[] }) {
+  const { t } = useTranslation('terminal');
+  return (
+    <div className="table-wrap term-history-table" role="group" aria-label={t('history.title')} tabIndex={0}>
+      <table className="table" aria-label={t('history.title')}>
+        <thead>
+          <tr>
+            <th scope="col">{t('history.when')}</th>
+            <th scope="col">{t('history.actor')}</th>
+            <th scope="col">{t('history.where')}</th>
+            <th scope="col">{t('history.how')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry, index) => (
+            <tr key={`${entry.id}-${index}`}>
+              <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
+              {/* An actor id is short and read whole (`token:…`): it never breaks mid-word */}
+              <td className="small nowrap">
+                <Actor actor={entry.actor} />
+              </td>
+              <td className="small mono break">{entry.cwd || '—'}</td>
+              <td className="small term-history-how">
+                <How entry={entry} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** The directory, shortened; a tap shows the whole path in place, because a `title` does not exist on touch. */
+function Cwd({ cwd }: { cwd: string }) {
+  const [open, setOpen] = useState(false);
+  if (!cwd) return <span className="small muted">—</span>;
+  // A path that fits whole has nothing to expand, so it is text and not a button that changes nothing
+  if (shortPath(cwd, 40) === cwd) return <span className="mono small term-history-path">{cwd}</span>;
+  return (
+    <button type="button" className="term-history-cwd mono small" aria-expanded={open} onClick={() => setOpen(!open)}>
+      {open ? cwd : shortPath(cwd, 40)}
+    </button>
+  );
+}
+
+/** Below 560 px of the card: wrapping rows, like Guards' recent blocks, so nothing scrolls sideways. */
+export function HistoryRows({ entries }: { entries: readonly HistoryEntry[] }) {
+  const { t } = useTranslation('terminal');
+  return (
+    <ul className="term-history-rows" aria-label={t('history.title')}>
+      {entries.map((entry, index) => (
+        <li key={`${entry.id}-${index}`} className="term-history-row">
+          <span className="small term-history-who">
+            <span className="muted nowrap tnum">{formatDateTime(entry.startedAt)}</span>
+            <span aria-hidden="true">·</span>
+            <Actor actor={entry.actor} />
+          </span>
+          <Cwd cwd={entry.cwd} />
+          <span className="small term-history-how">
+            <How entry={entry} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function History() {
   const { t } = useTranslation('terminal');
   const [from, setFrom] = useState(0);
@@ -95,44 +193,9 @@ function History() {
         <Empty title={t('history.none')}>{t('history.noneHint')}</Empty>
       ) : (
         <>
-          <div className="table-wrap" role="group" aria-label={t('history.title')} tabIndex={0}>
-            <table className="table" aria-label={t('history.title')}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('history.when')}</th>
-                  <th scope="col">{t('history.actor')}</th>
-                  <th scope="col">{t('history.where')}</th>
-                  <th scope="col">{t('history.how')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry, index) => {
-                  const refused = entry.attachments.filter((attachment) => attachment.refused !== null);
-                  return (
-                    <tr key={`${entry.id}-${index}`}>
-                      <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
-                      {/* An actor id is short and read whole (`token:…`, `owner`, `anonymous`): it never breaks mid-word */}
-                      <td className="small mono nowrap">{entry.actor}</td>
-                      <td className="small mono break">{entry.cwd || '—'}</td>
-                      <td className="small term-history-how">
-                        {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
-                        {refused.length > 0 && (
-                          <Tag tone="warn">
-                            {t('history.refused', {
-                              count: refused.length,
-                              // A code the copy does not know yet still reads as words, never as the server's code
-                              // Deduplicated as words, so two codes the copy does not know read once, not twice
-                              reasons: [...new Set(refused.map((attachment) => t(`history.refusedReason.${attachment.refused}`, { defaultValue: t('history.refusedReason.unknown') })))].join(', '),
-                            })}
-                          </Tag>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {/* Both are in the markup; the container query in terminal.css shows one, and the other is display: none */}
+          <HistoryTable entries={entries} />
+          <HistoryRows entries={entries} />
           <div className="form-actions">
             <button type="button" className="btn btn-small" disabled={from === 0} onClick={() => setFrom(Math.max(0, from - PAGE))}>
               <ChevronLeft {...ICON_SM} aria-hidden />
