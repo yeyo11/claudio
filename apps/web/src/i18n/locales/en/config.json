@@ -551,6 +551,18 @@
     },
     "overridden_one": "Overridden in {{count}} project",
     "overridden_other": "Overridden in {{count}} projects",
+    "changeSlot": {
+      "changed": "Changed",
+      "default": "Default: {{value}}",
+      "resetLabel": "Reset {{setting}} to its default ({{value}})",
+      "restored": "Restored to the default",
+      "on": "On",
+      "off": "Off",
+      "noCap": "No cap",
+      "composite": "Every rule's default",
+      "automatic": "Automatic",
+      "more": "and {{count}} more"
+    },
     "groups": {
       "general": "General",
       "claude-code": "Claude Code",
@@ -749,10 +761,24 @@
         "storage": "Where secrets are kept"
       },
       "guards": {
-        "rules": "Guard rules"
+        "rules": "Guard rules",
+        "mode": "Observe only",
+        "automated": "Orchestration and flow workers",
+        "rule": {
+          "no-verify": "No skipping checks",
+          "push": "No pushing",
+          "destructive": "No destructive commands",
+          "secrets": "No secrets in files",
+          "protect-configs": "Protect lint and CI configs"
+        }
       },
       "terminal": {
-        "enabled": "Terminal access"
+        "enabled": "Terminal access",
+        "remote": "From other devices",
+        "max-terminals": "Terminals at once",
+        "idle-minutes": "Close after minutes unattended",
+        "scrollback": "Lines kept for a reload",
+        "shell": "Shell"
       },
       "audit": {
         "log": "Audit log"
@@ -929,11 +955,25 @@
       },
       "guards": {
         "section": "block rules dangerous commands",
-        "rules": "block deny"
+        "rules": "block deny",
+        "mode": "observe log only false positive",
+        "automated": "workers orchestration flow",
+        "rule": {
+          "no-verify": "verify hooks skip",
+          "push": "push upload",
+          "destructive": "delete rm force",
+          "secrets": "secrets keys env",
+          "protect-configs": "lint ci config protect"
+        }
       },
       "terminal": {
         "section": "shell pty console",
-        "enabled": "shell pty"
+        "enabled": "shell pty",
+        "remote": "remote devices tunnel",
+        "max-terminals": "terminals limit",
+        "idle-minutes": "idle close timeout",
+        "scrollback": "scrollback history reload",
+        "shell": "shell path"
       },
       "audit": {
         "section": "writes requests history",

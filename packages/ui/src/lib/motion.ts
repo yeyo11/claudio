@@ -75,6 +75,13 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+export const DEFAULT_MOTION: MotionLevel = 'full';
+
+/** Back to the default: forgets the stored level. */
+export function resetMotionPreference(): void {
+  setMotionPreference(DEFAULT_MOTION);
+}
+
 /** What is stored, which is what the Appearance setting shows as chosen. */
 export function useMotionPreference(): MotionLevel {
   return useSyncExternalStore(subscribe, () => preference);

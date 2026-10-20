@@ -275,6 +275,39 @@ export class AppSettingsStore implements RunDefaults {
     return settings;
   }
 
+  /**
+   * Removes the stored value of each key, so the default applies again (and a default that changes
+   * later, or differs by distribution, too). A key the environment sets is refused: there is
+   * nothing of the person's to remove, and the environment would win anyway. Each path is one key
+   * of this flat document. Emits `settings.changed`, as `update` does.
+   */
+  async resetKeys(paths: readonly (readonly string[])[]): Promise<AppSettings> {
+    const keys = paths.map((path) => {
+      const key = path[0];
+      if (path.length !== 1 || key === undefined || !(KEYS as string[]).includes(key)) throw new Error(`unknown app setting: ${path.join('.')}`);
+      return key as keyof AppSettingValues;
+    });
+    for (const key of keys) {
+      if (this.fromEnv.has(key)) throw new Error(`${key} is set by the environment (${APP_SETTING_ENV[key]}) and cannot be reset here`);
+    }
+    if (this.broken) throw new Error(this.broken);
+    if (!keys.some((key) => this.stored[key] !== undefined)) return this.get();
+
+    const write = this.writing.then(async () => {
+      const next = { ...this.stored };
+      for (const key of keys) delete next[key];
+      await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
+      this.stored = next;
+      this.current = this.resolve();
+    });
+    this.writing = write.catch(() => undefined);
+    await write;
+    const settings = this.get();
+    this.deps.emit?.({ type: 'settings.changed', title: 'Settings changed', settings });
+    if (keys.includes('dailySpendCapUsd')) this.onSpendCapChange?.();
+    return settings;
+  }
+
   /** The hosts a file layer adds: without the ones the environment names already */
   private notFromEnv(hosts: readonly string[]): string[] {
     const fixed = new Set(this.fromEnv.has('allowedHosts') ? this.env.allowedHosts : []);

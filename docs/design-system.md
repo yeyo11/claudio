@@ -2556,7 +2556,19 @@ Claude Code are built from it ([settings IA plan](plans/settings-ia.md) §6.0).
 | `.pref-actions` | a line of buttons in the control column, with the answer they bring, wrapping on a phone |
 | `.reserved-label` (`ReservedLabel`) | a busy button's states ("Check for updates" → "Checking…") in one grid cell, so the button keeps the width of the longest (AP10) |
 | `.settings-detail-body`, `.settings-detail-tools` | a detail screen's content (Behaviour, Files) without a card: the detail's header names it |
+| `.pref-row-change` (`SettingChange`) | the `[● Changed · Reset]` slot under a row's control: a 6 px `--fg-3` dot (a change is not a status, so never ok, warn or bad), "Changed" in `--fg-2` at `--fs-small`, "·", and the `link-btn small` Reset. The line keeps its room while nothing is changed (`.pref-row-change-line.is-hidden`, `visibility: hidden`, `aria-hidden`), so nothing shifts when it appears |
+| `.pref-row-change-reset` | Reset: 24 px high on a desktop, `--touch` on a coarse pointer and below 560 px of the row. Its tooltip reads "Default: {value}" and its `aria-label` names the row and the default |
+| `.pref-row-change-error` | a failed Reset: the server's message in `--bad` with its icon, in the slot; the value stays |
+| `.pref-row-overridden` | "Overridden in N projects", appended to the consequence line after "·": `--fg-3`, a link to the first project's settings, the names in a tooltip |
 | `.prov-bare` | Claude Code → Provider: the one provider row on the screen, not in a card, its padding hanging outside the column so its mark lines up with the section heading |
+
+A row whose value has a default carries a `SettingChange` (`PrefRow`'s `change` prop, or placed by
+the screen where the row is a field, a switch or a decision point). A server setting reads its state
+from `GET /settings/state` and resets through `DELETE /settings/state/:setting`; Appearance and
+Notifications reset the browser's own keys with the same slot. After Reset the control shows the
+default, the slot hides, focus moves to the row's control and a polite live region says "Restored to
+the default"; there is no toast. A value the environment sets keeps its `EnvNote` and gets no Reset.
+A row the person builds item by item, an identity, a credential or a log has no Reset.
 
 Every row carries the `data-setting` id that `settingsIndex.ts` names, so a search result lands on
 it. A signed-out account is `warn` everywhere (it needs authorisation), in the Sign-in section and

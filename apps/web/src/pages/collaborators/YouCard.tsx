@@ -1,9 +1,12 @@
 import type { CollaboratorsStatus, Group, UpdateCollaboratorsRequest } from '@claudio/shared';
 import { CircleCheck, CloudOff, Loader, Pencil, Radio, TriangleAlert, WifiOff, type LucideIcon } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, CopyButton, Field } from '@claudio/ui/components/ui';
+import { collaboratorsKeys } from '../../lib/api/collaborators';
+import { ServerSettingChange } from '../config/SettingChange';
 import { connectionWord, initialOf, shortId, type CollabTone, type ConnectionKey } from './model';
 
 const CONNECTION_ICON: Record<ConnectionKey, LucideIcon> = {
@@ -49,6 +52,7 @@ export function YouCard({
   const [label, setLabel] = useState(settings.label);
   const [relay, setRelay] = useState(settings.relayUrl ?? '');
   const connection = connectionWord(status, groups);
+  const queryClient = useQueryClient();
 
   const startEditing = () => {
     setName(settings.displayName);
@@ -95,9 +99,18 @@ export function YouCard({
           <Field label={t('you.label')} hint={t('you.labelHint')}>
             <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} />
           </Field>
-          <Field label={t('you.relay')} hint={t('you.relayHint')}>
-            <input className="mono" value={relay} onChange={(e) => setRelay(e.target.value)} type="url" inputMode="url" placeholder="https://" spellCheck={false} />
-          </Field>
+          <div data-setting="collaborators.relay">
+            <Field label={t('you.relay')} hint={t('you.relayHint')}>
+              <input className="mono" value={relay} onChange={(e) => setRelay(e.target.value)} type="url" inputMode="url" placeholder="https://" spellCheck={false} />
+            </Field>
+            <ServerSettingChange
+              id="collaborators.relay"
+              label={t('you.relay')}
+              wording={(value) => (typeof value === 'string' && value ? value : t('you.relayDefault'))}
+              invalidate={[collaboratorsKeys.status]}
+              onReset={() => setRelay(queryClient.getQueryData<CollaboratorsStatus>(collaboratorsKeys.status)?.settings.relayUrl ?? '')}
+            />
+          </div>
           <div className="collab-form-actions">
             <button type="button" className="btn" onClick={() => setEditing(false)}>
               {t('you.cancel')}

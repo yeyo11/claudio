@@ -14,6 +14,7 @@ import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs
 import { terminalRefusal, type TerminalRefusal, type TerminalRefusalAction } from '../../../components/terminal/terminal-model';
 import { useTerminalStatus } from '../../../components/terminal/use-terminals';
 import { SaveButton, SettingsReveal } from '../groups/Block';
+import { ServerSettingChange } from '../SettingChange';
 import { settingsHref } from '../settingsGroups';
 
 const REMOTE_FIELD = 'terminal-remote';
@@ -22,6 +23,9 @@ const REMOTE: TerminalRemote[] = ['off', 'tunnel', 'any'];
 // The server's own bounds (core's terminal settings); a value outside them is refused with a 400
 const BOUNDS = { maxTerminals: [1, 32], idleMinutes: [5, 1440], scrollbackLines: [500, 10_000] } as const;
 const PAGE = 10;
+
+/** The id each number's row answers to in settings search, Reset and the overrides */
+const NUMBER_ROW = { maxTerminals: 'max-terminals', idleMinutes: 'idle-minutes', scrollbackLines: 'scrollback' } as const;
 
 type Numbers = Pick<TerminalSettings, 'maxTerminals' | 'idleMinutes' | 'scrollbackLines'>;
 
@@ -245,17 +249,28 @@ function Form({ status }: { status: TerminalStatus }) {
 
   const field = (key: keyof Numbers) => {
     const [min, max] = BOUNDS[key];
+    const id = `terminal.${NUMBER_ROW[key]}`;
     return (
-      <Field label={t(`settings.${key}`)} hint={fromEnv(key) ? t('settings.fromEnv') : consequence(key)}>
-        <NumberInput
-          aria-label={t(`settings.${key}`)}
-          value={merged[key]}
-          onChange={(value) => setNumber((now) => ({ ...now, [key]: value }))}
-          min={min}
-          max={max}
-          disabled={fromEnv(key)}
-        />
-      </Field>
+      <div data-setting={id}>
+        <Field label={t(`settings.${key}`)} hint={fromEnv(key) ? t('settings.fromEnv') : consequence(key)}>
+          <NumberInput
+            aria-label={t(`settings.${key}`)}
+            value={merged[key]}
+            onChange={(value) => setNumber((now) => ({ ...now, [key]: value }))}
+            min={min}
+            max={max}
+            disabled={fromEnv(key)}
+          />
+        </Field>
+        {/* A reset drops the edit in this field; the others stay */}
+        <ServerSettingChange id={id} label={t(`settings.${key}`)} invalidate={[keys.terminalStatus]} onReset={() =>
+            setNumber((now) => {
+              const next = { ...now };
+              delete next[key];
+              return next;
+            })
+          } />
+      </div>
     );
   };
 
@@ -278,16 +293,18 @@ function Form({ status }: { status: TerminalStatus }) {
       )}
 
       {/* Chosen before the switch is on: in a container it is the first thing a person may need to set */}
-      <Field label={t('settings.remoteLabel')} hint={fromEnv('remote') ? t('settings.fromEnv') : t('settings.remoteHint')}>
-        <Select<TerminalRemote>
-          id={REMOTE_FIELD}
-          aria-label={t('settings.remoteLabel')}
-          value={settings.remote}
-          options={options}
-          disabled={fromEnv('remote') || toggle.isPending}
-          onChange={(remote) => toggle.mutate({ remote })}
-        />
-      </Field>
+      <div data-setting="terminal.remote">
+        <Field label={t('settings.remoteLabel')} hint={fromEnv('remote') ? t('settings.fromEnv') : t('settings.remoteHint')}>
+          <Select<TerminalRemote>
+            id={REMOTE_FIELD}
+            aria-label={t('settings.remoteLabel')}
+            value={settings.remote}
+            options={options}
+            disabled={fromEnv('remote') || toggle.isPending}
+            onChange={(remote) => toggle.mutate({ remote })}
+          />
+        </Field>
+      </div>
       {settings.remote === 'any' && (
         <p className="term-note">
           <TriangleAlert {...ICON_SM} aria-hidden />
@@ -313,10 +330,18 @@ function Form({ status }: { status: TerminalStatus }) {
             />
         </div>
 
-        <Field label={t('settings.shell')} hint={t('settings.shellHint')}>
-          {/* Mono only for the path the machine reads; the fallback is words */}
-          {settings.shell ? <span className="mono">{settings.shell}</span> : <span>{t('settings.loginShell')}</span>}
-        </Field>
+        <div data-setting="terminal.shell">
+          <Field label={t('settings.shell')} hint={t('settings.shellHint')}>
+            {/* Mono only for the path the machine reads; the fallback is words */}
+            {settings.shell ? <span className="mono">{settings.shell}</span> : <span>{t('settings.loginShell')}</span>}
+          </Field>
+          <ServerSettingChange
+            id="terminal.shell"
+            label={t('settings.shell')}
+            wording={(value) => (typeof value === 'string' && value ? value : t('settings.loginShell'))}
+            invalidate={[keys.terminalStatus]}
+          />
+        </div>
         <p className="small muted">{status.peerCheck === 'on' ? t('settings.peerOn') : t('settings.peerUnknown')}</p>
         <Switch checked={screenReader} onChange={setScreenReader} aria-label={t('settings.screenReader')}>
           <span>{t('settings.screenReader')}</span>

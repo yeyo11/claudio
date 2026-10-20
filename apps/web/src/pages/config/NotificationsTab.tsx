@@ -10,7 +10,10 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { disablePush, usePushState } from '../../lib/push';
+import { prefsChanged } from '../../lib/notifications-model';
+import { resetNotificationPrefs, useNotificationPrefs } from '../../lib/notifications';
 import { PrefRow, PrefRows } from './PrefRow';
+import { SettingChange } from './SettingChange';
 
 /**
  * What reaches a person, and where.
@@ -22,10 +25,26 @@ import { PrefRow, PrefRows } from './PrefRow';
  */
 export function NotificationsTab() {
   const { t } = useTranslation('config');
+  const prefs = useNotificationPrefs();
 
   return (
     <PrefRows>
-      <PrefRow id="notifications-kinds" setting="notifications.kinds" title={t('settings.rows.notifications.kinds')} hint={t('notifications.intro')} stacked>
+      <PrefRow
+        id="notifications-kinds"
+        setting="notifications.kinds"
+        title={t('settings.rows.notifications.kinds')}
+        hint={t('notifications.intro')}
+        stacked
+        change={
+          <SettingChange
+            setting="notifications.kinds"
+            label={t('settings.rows.notifications.kinds')}
+            state={{ changed: prefsChanged(prefs), source: 'stored' }}
+            defaultText={t('settings.changeSlot.on')}
+            onReset={resetNotificationPrefs}
+          />
+        }
+      >
         <NotificationPreferences />
       </PrefRow>
       <DevicesCard />

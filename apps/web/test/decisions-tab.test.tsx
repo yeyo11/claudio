@@ -95,6 +95,7 @@ const engine = (saved: DecisionSettings, decisions: number | null = 0) =>
       advancedOpen={false}
       onAdvanced={() => undefined}
       onExample={() => undefined}
+      onReset={() => undefined}
     />,
   );
 

@@ -290,6 +290,14 @@
   flex-direction: column;
 }
 
+.rotation-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
 .rotation-head {
   display: flex;
   align-items: center;

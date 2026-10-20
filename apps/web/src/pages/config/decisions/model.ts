@@ -1,3 +1,4 @@
+import { DECISION_POINT_IDS, pointSettingId } from '@claudio/shared';
 import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionPointStats, DecisionProviderId, DecisionRecord, DecisionSettings } from '@claudio/shared';
 
 /** Rough size of a request in tokens: the consent dialog says "about", so four bytes a token is enough. */
@@ -281,6 +282,32 @@ export const draftOf = (saved: DecisionSettings): Draft => ({
   historyDays: saved.historyDays,
   points: Object.fromEntries(Object.entries(saved.points).map(([id, point]) => [id, { mode: point.mode, threshold: point.threshold }])),
 });
+
+/**
+ * The draft with one row's field taken from `source` (the draft of the saved document after a Reset),
+ * so the row shows its default while every other unsaved edit stays. An unknown row changes nothing.
+ */
+export function withSettingFrom(draft: Draft, source: Draft, setting: string): Draft {
+  switch (setting) {
+    case 'engine.who-answers':
+      return { ...draft, provider: source.provider };
+    case 'engine.cap':
+      return { ...draft, cli: { ...draft.cli, maxCostUsd: source.cli.maxCostUsd } };
+    case 'engine.cli-model':
+      return { ...draft, cli: { ...draft.cli, model: source.cli.model } };
+    case 'engine.cli-effort':
+      return { ...draft, cli: { ...draft.cli, effort: source.cli.effort } };
+    case 'engine.history-days':
+      return { ...draft, historyDays: source.historyDays };
+  }
+  const id = DECISION_POINT_IDS.find((point) => pointSettingId(point) === setting);
+  if (!id) return draft;
+  const points = { ...draft.points };
+  const saved = source.points[id];
+  if (saved) points[id] = saved;
+  else delete points[id];
+  return { ...draft, points };
+}
 
 export const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 

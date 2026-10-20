@@ -10,6 +10,7 @@ import {
   type UpdateGuardSettingsRequest,
 } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
+import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 
 /** The switchable rules, from the defaults, so a new rule needs no second list here. */
 export const SWITCHABLE_RULE_IDS = Object.keys(DEFAULT_GUARD_SETTINGS.rules) as GuardSwitchableRuleId[];
@@ -161,6 +162,8 @@ export interface GuardSettingsDeps {
 export class GuardSettingsStore {
   readonly file: string;
   private current: GuardSettings;
+  /** What the file holds, before the defaults fill it in: which keys the person stored */
+  private raw: Record<string, unknown> = {};
   /** Why the file could not be read; every write is refused until someone fixes or removes it */
   private readonly broken: string | null = null;
   private writing: Promise<void> = Promise.resolve();
@@ -173,7 +176,9 @@ export class GuardSettingsStore {
     this.current = defaultGuardSettings();
     if (existsSync(this.file)) {
       try {
-        this.current = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));
+        const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
+        this.current = sanitize(raw);
+        if (isObject(raw)) this.raw = raw;
       } catch {
         this.broken = `${this.file} is not valid JSON; fix or remove it`;
       }
@@ -200,6 +205,32 @@ export class GuardSettingsStore {
       const next = apply(this.current, update);
       await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
       this.current = next;
+      this.raw = structuredClone(next) as unknown as Record<string, unknown>;
+    });
+    this.writing = write.catch(() => undefined);
+    await write;
+    const settings = this.get();
+    this.deps.onChange?.(settings);
+    return settings;
+  }
+
+  /** The document as stored, before the defaults fill it in; empty when there is no file */
+  stored(): Record<string, unknown> {
+    return structuredClone(this.raw);
+  }
+
+  /**
+   * Removes the values at `paths` (`['mode']`, `['rules', 'push']`), so their defaults apply again.
+   * Chained with `update`, and told as `guards.changed` like it.
+   */
+  async resetKeys(paths: readonly SettingPath[]): Promise<GuardSettings> {
+    if (this.broken) throw new Error(this.broken);
+    const write = this.writing.then(async () => {
+      const raw = withoutPaths(this.raw, paths);
+      const settings = sanitize(raw);
+      await writeAtomic(this.file, `${JSON.stringify(raw, null, 2)}\n`);
+      this.raw = raw;
+      this.current = settings;
     });
     this.writing = write.catch(() => undefined);
     await write;
@@ -208,3 +239,4 @@ export class GuardSettingsStore {
     return settings;
   }
 }
+

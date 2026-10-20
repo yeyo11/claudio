@@ -27465,6 +27465,108 @@
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
   },
+  "SettingsState": {
+    "type": "object",
+    "properties": {
+      "settings": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SettingState"
+        }
+      }
+    },
+    "required": [
+      "settings"
+    ],
+    "description": "`GET /settings/state`: every server-side setting a row can reset, by its `data-setting` id"
+  },
+  "SettingState": {
+    "type": "object",
+    "properties": {
+      "changed": {
+        "type": "boolean",
+        "description": "The stored value differs from the default: the row shows \"Changed · Reset\""
+      },
+      "source": {
+        "$ref": "#/components/schemas/SettingSource"
+      },
+      "default": {
+        "$ref": "#/components/schemas/SettingDefault"
+      }
+    },
+    "required": [
+      "changed",
+      "source",
+      "default"
+    ]
+  },
+  "SettingSource": {
+    "type": "string",
+    "enum": [
+      "env",
+      "stored",
+      "default"
+    ],
+    "description": "Where a setting's value comes from: the environment (read-only here), what the person stored, or the default"
+  },
+  "SettingDefault": {
+    "anyOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "number"
+      },
+      {
+        "type": "boolean"
+      },
+      {
+        "type": "null"
+      },
+      {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "description": "A setting's default, as the store defines it; the web words it"
+  },
+  "SettingOverrides": {
+    "type": "object",
+    "additionalProperties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "description": "`GET /settings/overrides`: the projects that override each global setting, sorted by project name; only ids with one or more"
+  },
   "StoredDashboardLayout": {
     "type": "object",
     "properties": {

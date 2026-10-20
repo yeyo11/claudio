@@ -377,6 +377,26 @@ export class CollaboratorsService {
       throw new CollaboratorsError('invalid', error instanceof Error ? error.message : String(error));
     }
     const { before, after } = await this.settings.update(patch);
+    return this.settingsChanged(before, after);
+  }
+
+  /** The settings as the person stored them, before the defaults fill them in (`GET /settings/state`) */
+  storedSettings(): Record<string, unknown> | null {
+    return this.settings.stored();
+  }
+
+  /** What the settings read now, defaults included */
+  currentSettings(): CollaboratorsSettings {
+    return this.settings.read();
+  }
+
+  /** Removes the stored value of each key, then binds again where `update` would (`DELETE /settings/state/:setting`) */
+  async resetSettings(paths: readonly (readonly string[])[]): Promise<CollaboratorsStatus> {
+    const { before, after } = await this.settings.resetKeys(paths);
+    return this.settingsChanged(before, after);
+  }
+
+  private async settingsChanged(before: CollaboratorsSettings, after: CollaboratorsSettings): Promise<CollaboratorsStatus> {
     if (after.enabled && !before.enabled) await this.bind();
     else if (!after.enabled && before.enabled) await this.unbind();
     else if (after.enabled && after.relayUrl !== before.relayUrl) await this.bind();
