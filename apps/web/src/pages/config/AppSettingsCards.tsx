@@ -111,7 +111,8 @@ export function RunsSettings() {
     <WithAppSettings rows={3}>
       {(saved) => (
         <RunsCard
-          key={`runs:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
+          // Only whether a field is the environment's decides if it can be edited; a Reset moves a source from file to default and must not remount
+          key={`runs:${saved.sources.maxConcurrentRuns === 'env'}:${saved.sources.defaultPermissionMode === 'env'}`}
           saved={saved}
         />
       )}
