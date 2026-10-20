@@ -140,7 +140,7 @@ from Intl and never disagree on one screen (AP8). `toFixed()` is not used to sho
 | I8 | axe: no violations | already `a11y-*.spec.mjs`; `ui-check` runs it too |
 | I9 | Targets ≥ 44 px under 768, ≥ 24 px above | same |
 | I10 | Inputs ≥ 16 px under 768 | same |
-| I11 | Visible focus on everything focusable | same |
+| I11 | Visible focus on everything focusable. The walk leaves the page as it found it (2026-10-20): it blurs what it focused, gives focus back, and closes with Escape every tooltip still open, so axe (`region`) and the screenshots that follow never read those layers | same |
 | I12 | Keyboard reach, Escape closes overlays | already `a11y-shell.spec.mjs` |
 | I13 | Motion stops under reduced motion | already `motion.spec.mjs` |
 | I14 | Token pairs meet contrast | already `a11y-shared.mjs` (theme tokens) |
