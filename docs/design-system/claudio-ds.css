@@ -2678,6 +2678,22 @@ a.cont-from:hover { color: var(--fg); }
 .term-history-cwd { display: flex; align-items: center; min-height: var(--touch); padding: 0; border: 0; background: none; color: var(--fg); text-align: left; overflow-wrap: anywhere; }
 @container (max-width: 559px) { .term-history-table { display: none; } .term-history-rows { display: flex; } }
 /* ---------- end of Guards: the Settings card ---------- */
+/* ---------- Audit log: a fixed table, rows below 560 px of its card (plans/settings-reset-and-polish.md, D5) ---------- */
+.table-wrap.is-paged { max-height: none; }
+.audit-log { container: audit-log / inline-size; min-width: 0; }
+.audit-table { table-layout: fixed; }
+.audit-table th, .audit-table td { padding-inline: 10px; overflow: hidden; }
+.audit-method { color: var(--fg-2); }
+.audit-rows { display: none; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.audit-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; min-width: 0; }
+.audit-row + .audit-row { border-top: 1px solid var(--line); }
+.audit-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; font-variant-numeric: tabular-nums; }
+.audit-row-head > .badge { margin-inline-start: auto; }
+.audit-row-what { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
+.audit-row .audit-row-request { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--fg-3); overflow-wrap: anywhere; }
+.audit-row-path { display: flex; align-items: center; width: 100%; min-height: var(--touch); padding: 0; border: 0; background: none; text-align: start; }
+@container audit-log (max-width: 559px) { .audit-log > .table-wrap { display: none; } .audit-rows { display: flex; } }
+/* ---------- end of Audit log ---------- */
 
 /* ---------- Guards: the row, the rules sheet, the header tag and the "N blocked" chip (plans/guards.md) ---------- */
 .guard-row { display: flex; flex-direction: column; gap: 6px; }

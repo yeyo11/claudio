@@ -18622,7 +18622,7 @@
       },
       "actor": {
         "type": "string",
-        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself; `local` when no authentication is configured"
+        "description": "Who made it: `token:<id>` for the owner's token, the OIDC subject, `desktop` for the desktop app's own credential, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself, `local` when no authentication is configured, and `anonymous` for a request refused before it was identified (no valid credential, or a host the wrapper does not serve)"
       },
       "method": {
         "type": "string"
@@ -18635,7 +18635,14 @@
       },
       "summary": {
         "type": "string",
-        "description": "One line about what it did, built from the route, not from the payload"
+        "description": "One line about what it did, in English, built from the route, not from the payload"
+      },
+      "route": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`METHOD /pattern` as `ROUTE_DOCS` keys it (`POST /chats/:id/mcp/:name`); null for rows written before it, or no matched route"
       }
     },
     "required": [
@@ -18645,7 +18652,8 @@
       "method",
       "path",
       "status",
-      "summary"
+      "summary",
+      "route"
     ],
     "description": "One mutating request. Never the body: prompts and secrets live there."
   },
