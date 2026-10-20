@@ -111,9 +111,9 @@ export function RunsSettings() {
     <WithAppSettings rows={3}>
       {(saved) => (
         <RunsCard
-          // Not keyed by the values: a Reset of one row would remount the card and drop the other's
-          // unsaved edit; the card takes a new saved value into that one field instead
-          key={`runs:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
+          // Not keyed by the values or their sources (a Reset turns `file` into `default`): a remount
+          // would drop the other row's unsaved edit and the slot's announcement; the card takes a new
+          // saved value into that one field instead, and reads the sources on every render
           saved={saved}
         />
       )}
