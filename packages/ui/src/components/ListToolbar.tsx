@@ -171,7 +171,7 @@ export function ListToolbar<T extends string>({
             <RadixPopover.Root open={open} onOpenChange={setOpen}>
               <RadixPopover.Trigger asChild>{filterButton()}</RadixPopover.Trigger>
               <RadixPopover.Portal>
-                <RadixPopover.Content className="popover list-toolbar-popover" align="start" sideOffset={6} collisionPadding={layerCollisionPadding()} {...LAYER_ATTR}>
+                <RadixPopover.Content className="popover list-toolbar-popover" aria-label={filters.title ?? t('toolbar.filters')} align="start" sideOffset={6} collisionPadding={layerCollisionPadding()} {...LAYER_ATTR}>
                   {filters.children}
                 </RadixPopover.Content>
               </RadixPopover.Portal>
