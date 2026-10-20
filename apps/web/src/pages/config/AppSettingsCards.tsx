@@ -1,6 +1,6 @@
 import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useSpend } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
@@ -111,7 +111,7 @@ export function RunsSettings() {
     <WithAppSettings rows={3}>
       {(saved) => (
         <RunsCard
-          key={`runs:${saved.maxConcurrentRuns}:${saved.defaultPermissionMode}:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
+          key={`runs:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
           saved={saved}
         />
       )}
@@ -252,6 +252,15 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
   const [mode, setMode] = useState<PermissionMode>(saved.defaultPermissionMode);
   const [runs, setRuns] = useState<number | undefined>(saved.maxConcurrentRuns);
+  // The card is not remounted when a saved value moves (a Reset on one row must not drop an unsaved edit
+  // in the other): a field that was untouched follows the saved value, an edited one stays
+  const before = useRef(saved);
+  useEffect(() => {
+    const was = before.current;
+    before.current = saved;
+    if (was.defaultPermissionMode !== saved.defaultPermissionMode) setMode((now) => (now === was.defaultPermissionMode ? saved.defaultPermissionMode : now));
+    if (was.maxConcurrentRuns !== saved.maxConcurrentRuns) setRuns((now) => (now === was.maxConcurrentRuns ? saved.maxConcurrentRuns : now));
+  }, [saved]);
   const modeFromEnv = saved.sources.defaultPermissionMode === 'env';
   const runsFromEnv = saved.sources.maxConcurrentRuns === 'env';
   const runsValid = runs !== undefined && Number.isInteger(runs) && runs >= MIN_RUNS && runs <= MAX_RUNS;
