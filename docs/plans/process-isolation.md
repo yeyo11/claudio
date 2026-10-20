@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T19:45:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-20T12:00:00Z
 tags:
     - plan
     - study
@@ -12,9 +12,9 @@ tags:
 ---
 # Process isolation: where agents and their commands run
 
-**Status: study, interrupted 2026-10-17 by a reboot and completed from its transcript the same day
-(#32); parked on 2026-10-17. D1 is decided (no host limits for now), D3 is parked, D4 to D8 wait for
-the owner's review and D2 stays his (§7).**
+**Status: study (#32), parked 2026-10-17. Decided: D1 no host limits for now (2026-10-17), D3
+parked (2026-10-17), D2 and D4–D8 decided by the owner on 2026-10-20 (§7).** The study was interrupted
+on 2026-10-17 by a reboot and completed from its transcript the same day.
 
 The study ran as one chat (`e40f4e8c-2fd4-4ead-8764-448d7f0975d5`, 2026-10-17 10:57–12:59 UTC, the
 owner writing in Spanish) until a reboot of the machine cut it during a measurement. Its export is
@@ -172,6 +172,21 @@ so: "Claudio cannot cap what the CLI starts without a cgroup"); refusals are pol
 the stop is pid-based. Each of those is a piece of the target in §5 (admission queue, per-sandbox
 budget, cgroup or sandbox destruction), not something to discard.
 
+**Since the study (added 2026-10-20).** Four pieces now exist that the text above predates:
+
+- **`InteractiveHold`** (`packages/core/src/admission-queue.ts`, #38): the admission queue lets the
+  chats a person is typing into go first, ahead of queued background work.
+- **`server.lock`** (`packages/core/src/data-dir-lock.ts`): one server per data directory, so a
+  second Claudio on the same data fails fast instead of racing on SQLite and the JSON documents.
+- **The `CLAUDIO_*` allow-list** (`packages/shared/src/server-env.ts`): the environment a server
+  reads is a named set of variables, not whatever the shell holds.
+- **The terminal peer check** (`packages/core/src/terminals/peer.ts`): a terminal connection is
+  accepted only from the peer it was opened for.
+
+None of them changes the target in §5. `InteractiveHold` is the first form of the admission queue
+that D5 settles, and the lock and the allow-list are what a runner or a second provider will have to
+respect.
+
 **What remains.**
 
 - **Agents' own commands.** Unit tests, the type check and the build still run here (the e2e
@@ -247,7 +262,7 @@ agent-sandbox): a **control plane** and an **execution plane**, separated.
 | **Interactive chat** | A sandbox of class "chat" inside a shared budget for chats (the owner: chats get limits, not containers). Locally, the host-scope provider. |
 | **Orchestration** | A **budget** (a slice per orchestration, `claudio-orch-<id>.slice`) holding **one sandbox per task**, not one box per orchestration: work items' worktrees are created mid-orchestration (`packages/core/src/work-links.ts`), and a running container cannot gain bind mounts. Containers join the orchestration's slice with `--cgroup-parent`. This keeps the owner's "the unit is the orchestration" as the unit of budget. |
 | **Worktrees** | Locally the sandbox sees them where they are (`<main checkout>/.claude/worktrees/…`). In a container the main repository's `.git` must be mounted read-write **at the same absolute path**, because a worktree's `.git` file holds an absolute `gitdir:` (or `worktree.useRelativePaths`, which older git refuses). Remotely, git is the content protocol: the worker clones or fetches the branch and pushes back; a bare mirror served by Claudio over iroh avoids pushing half-done branches to GitHub. A shared volume (NFS/PVC) was rejected: git and SQLite locks misbehave on NFS. |
-| **Credentials** | Out of the sandbox: a proxy outside the boundary injects them (`ANTHROPIC_BASE_URL`, or a Unix socket mounted into a `--network none` container), as Docker Sandboxes, CubeEgress and OpenSandbox do and Anthropic's secure-deployment guide recommends. Remotely, the owner chose a long-lived token (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`). Sharing one config dir between processes races on OAuth refresh (one process ends signed out), which the proxy also avoids. Accounts and `limit-resume`'s switch are resolved when each task's sandbox starts. Subject to D2 and D7. |
+| **Credentials** | Out of the sandbox: a proxy outside the boundary injects them (`ANTHROPIC_BASE_URL`, or a Unix socket mounted into a `--network none` container), as Docker Sandboxes, CubeEgress and OpenSandbox do and Anthropic's secure-deployment guide recommends. Remotely, the owner chose, at the time of the study, a long-lived token (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`); since #46 Claudio's sign-in is the in-app `claude auth login`, not a long-lived token, and D2 (§7) now decides the remote case. Sharing one config dir between processes races on OAuth refresh (one process ends signed out), which the proxy also avoids. Accounts and `limit-resume`'s switch are resolved when each task's sandbox starts. Subject to D2 and D7. |
 | **MCP and guards** | Today both are host paths: the guards' hooks are a `node <host path>/guard.mjs` command (`buildSettings` in `packages/core/src/guards/files.ts`) and Claudio's MCP server is a stdio `node mcp.mjs` (`packages/core/src/claudio-mcp.ts`, `CLAUDIO_MCP_ENTRY`). Inside a sandbox they come from a read-only **runtime bundle** (node, `guard.mjs`, `mcp.mjs`, the CLI) that the runner provides, since a project's environment may have no node. |
 | **The API from inside** | `CLAUDIO_API_URL` is the host's loopback today (`packages/core/src/chats.ts`); inside a container loopback is the container. The runner's channel (or a mounted socket or `host-gateway`) carries it, with the chat token as today. |
 | **Event stream** | The runner relays the CLI's stream-json with sequence numbers and keeps a buffer; Claudio folds it exactly as now and serves its existing SSE feeds (`GET /api/events`, `GET /api/chats/:id/stream`, [api-wire.md](../api-wire.md)). Transcripts the CLI writes come back to Claudio (the one rule allows reading them; the Agent SDK's SessionStore, or a JSONL sync of our own). |
@@ -344,7 +359,8 @@ document.
   [sessions](https://code.claude.com/docs/en/agent-sdk/sessions))
 - **`claude agents --json`** is the supported way to read local background sessions (already a row
   in [cli-surfaces.md](../cli-surfaces.md)).
-- **Headless credentials.** `claude setup-token` makes a one-year OAuth token for
+- **Headless credentials** (at the time of the study; since #46 Claudio signs in with the in-app
+  `claude auth login` and does not use this token). `claude setup-token` makes a one-year OAuth token for
   `CLAUDE_CODE_OAUTH_TOKEN` that "can only make model requests" and is not read under `--bare`;
   `apiKeyHelper` re-runs after a 5-minute TTL or on 401/403; precedence is cloud provider,
   `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `apiKeyHelper`, `CLAUDE_CODE_OAUTH_TOKEN`, profiles,
@@ -392,6 +408,7 @@ Anthropic". The runner can implement `spawnClaudeCodeProcess`'s contract without
 SDK, and the `initialize` re-send is the CLI's control protocol, which both texts allow. A
 credentials proxy on `ANTHROPIC_BASE_URL` would put a Claudio process in the CLI's HTTP path to
 Anthropic, which providers.md's wording does not foresee. See D2 and D8.
+On 2026-10-20 the text of providers.md was reconciled with CLAUDE.md per D8: the rule allows the SDK, and Claudio takes no SDK dependency.
 
 **The policy risk the research found.** Anthropic's text, as quoted: "Unless previously approved,
 Anthropic does not allow third party developers to offer claude.ai login or rate limits for their
@@ -402,7 +419,25 @@ and that the decision is the owner's, not a technical one; the owner said it is 
 
 ## 7. Open decisions for the owner
 
-**Owner, 2026-10-17:** D1 — no host limits for now. D3 — parked: the study stays documented here and is taken up later. D4 to D8 — the owner reviews them in this pull request. D2 stays his, unanswered.
+**Owner, 2026-10-17:** D1 — no host limits for now. D3 — parked: the study stays documented here and is taken up later.
+
+**Owner, 2026-10-20:**
+
+- **D2.** Subscriptions go through the credential proxy: the claude.ai accounts reach isolated and
+  remote workers through the proxy. This is the owner's choice. The study's caveat stays beside it:
+  Anthropic's consumer terms (the text quoted in §6) may limit using a claude.ai login from a
+  third-party program, so re-check them before the proxy is built. The proxy must also be designed
+  against the one rule: it may only carry what the CLI sends through a documented surface, and it
+  needs its row in [cli-surfaces.md](../cli-surfaces.md) before it is built (D8).
+- **D4.** (b): the devcontainer is optional, an attribute of the container provider.
+- **D5.** (a): one queue for chats and orchestrations. The `InteractiveHold` priority for people
+  stays (`packages/core/src/admission-queue.ts`, #38).
+- **D6.** (a): native with systemd for the host-scope provider. The container image and Helm (the
+  signed bundle overlay, no Docker socket, #46) are first-class supported forms too, not leftovers.
+- **D7.** (a): only installs of the same owner for the first remote provider.
+- **D8.** (a): implement the runner contract (stdin, stdout, kill, exit) with no SDK dependency.
+
+The questions below are kept as they were asked.
 
 **D1. Host limits now?** Apply the measures of §4 to his session's systemd configuration?
 Options: (a) approve the CPU-side measures (`CPUQuota` and `CPUWeight` on the scope Claudio runs in)
@@ -416,7 +451,7 @@ claude.ai subscriptions on several accounts; the credentials proxy and remote wo
 that. The chat quoted Anthropic's text (§6) and left the decision to him; he took it as his. Options
 the chat had on the table: keep subscription accounts as today and decide whether the proxy and
 remote workers may carry them; use `setup-token` tokens for workers (the owner's earlier choice for
-remote credentials); use API keys for sandboxed and remote work; or ask Anthropic for the prior
+remote credentials, at the time of the study); use API keys for sandboxed and remote work; or ask Anthropic for the prior
 approval the text mentions. **No recommendation on the policy itself**, as agreed. Technically:
 record the decision before spike S3, and run S3 with an API key so it does not depend on the answer.
 
@@ -609,4 +644,4 @@ agents**:
 
 ## Related
 
-[[resource-control.md]] · [[plans/resource-control.md]] · [[decisions/e2e-on-github.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[accounts.md]] · [[guards.md]] · [[security-model.md]] · [[chat-environment.md]] · [[claudio-mcp-server.md]] · [[terminal.md]] · [[api-wire.md]] · [[orchestrations.md]] · [[work-items.md]] · [[collaborators.md]] · [[plans/collaborators.md]] · [[deploy.md]] · [[plans/verify-faster.md]] · [[plans/ci-e2e-shards.md]] · [[plans/e2e-flakes-under-load.md]] · [[status.md]]
+[[resource-control.md]] · [[plans/resource-control.md]] · [[decisions/e2e-on-github.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[accounts.md]] · [[guards.md]] · [[security-model.md]] · [[chat-environment.md]] · [[claudio-mcp-server.md]] · [[terminal.md]] · [[api-wire.md]] · [[orchestrations.md]] · [[work-items.md]] · [[collaborators.md]] · [[plans/collaborators.md]] · [[deploy.md]] · [[plans/verify-faster.md]] · [[plans/container-polish.md]] · [[plans/ci-e2e-shards.md]] · [[plans/e2e-flakes-under-load.md]] · [[status.md]]
