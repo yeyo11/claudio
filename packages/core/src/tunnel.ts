@@ -509,6 +509,36 @@ export class TunnelManager {
     return this.status();
   }
 
+  /** Whether `tunnel-settings.json` holds `startWithClaudio`, under its name of today or of before the rename */
+  startStored(): boolean {
+    if (!existsSync(this.settingsFile)) return false;
+    try {
+      const raw: unknown = JSON.parse(readFileSync(this.settingsFile, 'utf8'));
+      return !!raw && typeof raw === 'object' && !Array.isArray(raw) && (('startWithClaudio' in raw) || (LEGACY_START_KEY in raw));
+    } catch {
+      return false;
+    }
+  }
+
+  /** The value `startWithClaudio` reads when nothing is stored */
+  defaultSettings(): TunnelSettings {
+    return { ...DEFAULT_SETTINGS };
+  }
+
+  /**
+   * Removes `startWithClaudio` (and its old name) from the file, so the default applies again.
+   * Tells the pages as `updateSettings` does. The tunnel that is open stays open: the setting is
+   * about the next start.
+   */
+  async resetSettings(): Promise<TunnelStatus> {
+    if (!this.startStored()) return this.status();
+    await writeAtomic(this.settingsFile, '{}\n');
+    this.settings = { ...DEFAULT_SETTINGS };
+    await this.refresh();
+    this.changed();
+    return this.status();
+  }
+
   /**
    * Synchronous, for the process that is going away: there is no later to wait in. The Serve rule
    * outlives the process unless it is taken away now; when that fails, the record stays for the
