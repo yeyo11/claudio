@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-20T12:00:00Z
-updated_at: 2026-10-20T12:00:00Z
+updated_at: 2026-10-20T18:00:00Z
 tags:
     - plan
     - settings
@@ -953,7 +953,62 @@ not a question.
 
 ## Outcome
 
-To be written by the `docs` task.
+Built by the orchestration's ten tasks on 2026-10-20, as one pull request. What was verified, and
+what was not: the worker checks were the type checks and the unit suites of the packages each task
+touched (web 1879 of 1879 on the audit branch, api 510 of 510); the browser suite, `/ui-review` and
+the pull request's CI run after integration and are not recorded here yet.
+
+**Built, as settled**
+
+- **D1.** Escape on the notifications panel gives focus back to the bell, and only Escape does: an
+  outside click or a link leaves focus where it put it.
+- **D2.** All 22 `font:` shorthands name their weight and line height. `scripts/design-lint.mjs`
+  flags a shorthand with a size and a family but no weight (`type-weight`).
+- **D3.** The Chats model chip and facet draw ids in mono (`ListFilterChip.content`, `Facet`
+  `mono`); the chip's accessible name is still its label.
+- **D4.** The terminal history is wrapping rows below 560 px of the card and the table above it. A
+  path that fits is text; a shortened one is a 44 px button that shows the whole path on tap.
+- **D5.** `audit.route` (a migration; old rows read `null`), `AuditEntry.route`, the `auditRoutes`
+  namespace in `en` and `es`, the generator (`audit:strings`) and its test, actors in words, and a
+  table that fits the settings column at 1280 and wraps into rows on a phone.
+- **D6 and D7.** `packages/core/src/settings-registry.ts`, the three routes, the `SettingChange`
+  slot on every row of the inventory, the browser settings resetting by removing their key, and
+  "Overridden in N projects".
+- **D8.** A point that is not Off and has no consent says "Off until it has consent." and offers
+  Review and consent. The engine did not change.
+- **D9.** The owner's answers to D2 and D4–D8 are recorded in
+  [process-isolation.md](process-isolation.md), and `docs/providers.md` is reconciled with the one
+  rule.
+
+**Where the build departed from the plan**
+
+- **266 write routes, not 286.** The plan counted 286 from the route docs; the real count of
+  POST/PUT/PATCH/DELETE routes the generator found on the audit branch is 266, and all of them are
+  translated. `DELETE /settings/state/:setting` came in with `settings-core`, so `review` adds its
+  Spanish line ("Restablecer un ajuste a su valor predeterminado") and runs `audit:strings` on the
+  merged tree.
+- **Audit table.** "When" puts the date and the time on two lines, "Who" is 12 characters wide
+  rather than 16, a long result tag wraps inside its column, and on a phone the path is a button
+  only when it was actually shortened. "Start a chat" reads "Crear un chat", as the plan's example.
+- **Terminal history.** "Owner" and "Anonymous" are words in sans, as planned; the history rows
+  use a container query, so they follow the card's width and not the viewport's.
+- **Jsdom.** The repo has no jsdom, so D1's unit test is checks in `e2e/specs/a11y-shell.spec.mjs`
+  instead; the web tests for the consent row render static markup, and the dialog opening and the
+  refresh after a grant are covered by `e2e/specs/decisions.spec.mjs`.
+
+**Left open**
+
+- The browser specs written here (`a11y-shell`, `chats`, `terminal`, `security`, `decisions`,
+  `settings-reset`) have not run: `pnpm e2e:remote` runs them on the branch.
+- `/ui-review` on the screens listed under Tests, in both themes, at 1280, 390 and 320.
+- Small notes from the reviews, none blocking: a shortened terminal path at 320 px can leave its
+  last word alone on a second line; the 1280 table still breaks a long terminal path by character;
+  the desktop audit path is cut at its end rather than in the middle; a row from a route missing
+  from the route docs reads "No route matched"; the Spanish "400 · rechazado" tag wraps at 1280;
+  `scripts/ui-check.mjs` captures dark screenshots for a route with a `#hash` even in its light
+  pass; "token bearer" is not in the Spanish glossary.
+- The credential proxy of D9 is the owner's choice, still caveated by Anthropic's consumer terms;
+  nothing here builds it.
 
 ## Related
 

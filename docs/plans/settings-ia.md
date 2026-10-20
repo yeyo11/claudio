@@ -505,6 +505,13 @@ drift, design lint, every test, the build and the whole e2e suite.
 - "Overridden in N projects" on a global row.
 - Granting consent from a Shadow row.
 
+**Note, 2026-10-20.** All three are built, with the audit's and the terminal's phone fixes, in
+[plans/settings-reset-and-polish.md](settings-reset-and-polish.md): §6.0's changed dot and Reset are
+the `[● Changed · Reset]` slot on every row with a default (`GET /settings/state`,
+`DELETE /settings/state/:setting`), "Overridden in N projects" reads `GET /settings/overrides`, and a
+Shadow point without consent says it is off and opens the consent dialog from its row. Nothing in
+this list is open any more. See [settings.md](../settings.md#changed-reset-and-overridden).
+
 ## Related
 
 [[reports/settings-ia-audit.md]] · [[plans/claudio-designer.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[design-system.md]] · [[decisions/e2e-on-github.md]]
