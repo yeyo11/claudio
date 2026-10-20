@@ -317,6 +317,9 @@ import type {
   SignOutResult,
   StartLoginRequest,
   SaveDashboardLayoutRequest,
+  SettingOverrides,
+  SettingState,
+  SettingsState,
   StoredDashboardLayout,
 } from '@claudio/shared';
 import i18n from './i18n';
@@ -883,6 +886,12 @@ export const api = {
   /** Lets a flow card's queued run start past today's cap */
   grantItemSpendPass: (itemId: string) => request<FlowSpendPass>(`/work-items/${enc(itemId)}/spend-pass`, { method: 'POST' }),
   updateAppSettings: (body: UpdateAppSettingsRequest) => request<AppSettings>('/settings/app', { method: 'PUT', body }),
+  /** Every server-side setting a row can reset, by its `data-setting` id: changed, where it comes from, and its default */
+  settingsState: (o: ReadOptions = {}) => request<SettingsState>('/settings/state', o),
+  /** Removes the stored value of one row, so its default applies again; answers the row's state after it */
+  resetSetting: (id: string) => request<SettingState>(`/settings/state/${enc(id)}`, { method: 'DELETE' }),
+  /** The projects that override each global setting, sorted by project name */
+  settingOverrides: (o: ReadOptions = {}) => request<SettingOverrides>('/settings/overrides', o),
   guardSettings: (o: ReadOptions = {}) => request<GuardSettingsView>('/settings/guards', o),
   updateGuardSettings: (body: UpdateGuardSettingsRequest) => request<GuardSettingsView>('/settings/guards', { method: 'PUT', body }),
   /** `project` is a project id, or `all` for All projects' Home; `layout` is null while the default applies */
