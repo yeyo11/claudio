@@ -21,7 +21,7 @@
   "AppearanceTab [AppearanceTab]",
   "Assistant [AssistantPage]",
   "Attachments [AttachButton, AttachedFile, AttachedFiles, AttachmentTray, AttachmentsState, MediaBlock, splitAttached, useAttachments]",
-  "AuditCard [AUDIT_LATEST, AuditCard, AuditLatest]",
+  "AuditCard [AUDIT_LATEST, AuditCard, AuditLatest, AuditTable]",
   "AutoMergeNote [AutoMergeNote]",
   "BackButton [BackButton]",
   "BarChart [Bar, BarChart]",
