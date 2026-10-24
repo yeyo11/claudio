@@ -1,0 +1,11 @@
+# How Shipcast announces claudio (https://github.com/yeyo11/shipcast). Read at each release's tag.
+enabled: true
+brand: personal
+language: en
+
+assets:
+  # Every launch needs a demo; Instagram gets it as a Reel
+  demo: docs/media/tour.gif
+
+reddit:
+  subreddits: [ClaudeAI, selfhosted, SideProject, opensource]
