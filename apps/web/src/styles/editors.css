@@ -1264,8 +1264,10 @@ button.master-item-on:hover {
     align-self: flex-start;
   }
 
-  /* Out of the flow and out of sight, but still in the tree: its live region says "Restored" */
-  .pref-row-change[data-shown='false'] {
+  /* Out of the flow and out of sight, but still in the tree: its live region says "Restored". Just
+     after a Reset (`data-held`) the line keeps its room instead, hidden by `.is-hidden`, until the
+     person's next change, so the rows below do not move when the server's answer lands */
+  .pref-row-change[data-shown='false']:not([data-held]) {
     position: absolute;
     width: 1px;
     height: 1px;

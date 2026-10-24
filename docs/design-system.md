@@ -2571,9 +2571,11 @@ Claude Code are built from it ([settings IA plan](plans/settings-ia.md) §6.0).
 
 A row whose value has a default carries a `SettingChange` (`PrefRow`'s `change` prop, or placed by
 the screen where the row is a field, a switch or a decision point, inside a `.setting-change-row`).
-On a phone the slot's line appears and goes with the person's own edit or Reset, a shift within
-500 ms of their input that layout-shift scoring does not count; a field a Reset closes (the spend
-cap's amount) keeps its room hidden (`.settings-reveal.is-held`) until their next toggle. A server setting reads its state
+On a phone the slot's line appears with the person's own edit, a shift within 500 ms of their input
+that layout-shift scoring does not count. A Reset does not take it away: the line goes when the
+server answers, which on a phone over the LAN or the tunnel is long after the tap, so it keeps its
+room hidden (`.pref-row-change[data-held]`) until the person's next change, as a field a Reset closes
+(the spend cap's amount) keeps its room (`.settings-reveal.is-held`) until their next toggle. A server setting reads its state
 from `GET /settings/state` and resets through `DELETE /settings/state/:setting`; Appearance and
 Notifications reset the browser's own keys with the same slot. After Reset the control shows the
 default, the slot hides, focus moves to the row's control and a polite live region says "Restored to

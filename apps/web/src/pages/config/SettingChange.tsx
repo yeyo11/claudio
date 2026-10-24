@@ -64,7 +64,12 @@ export function SettingChange({
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState('');
   const [pending, setPending] = useState(false);
+  // Set by a Reset, until the value is changed again: on a phone the line keeps its room, hidden,
+  // because it goes when the server answers, which on a slow link is long after the tap and so a shift
+  const [held, setHeld] = useState(false);
   const shown = state?.changed === true && state.source !== 'env';
+  // While the Reset is on its way the old value still reads as changed: only a change after it ends the hold
+  if (held && shown && !pending) setHeld(false);
 
   const reset = async () => {
     setPending(true);
@@ -72,11 +77,13 @@ export function SettingChange({
     // A second Reset on the same row says the same words: the region must change to be read again
     setSaid('');
     try {
+      setHeld(true);
       await onReset();
       setSaid(t('settings.changeSlot.restored'));
       // After the row has re-rendered with the default, which can remount the whole section
       requestAnimationFrame(() => requestAnimationFrame(() => focusSettingControl(setting)));
     } catch (err) {
+      setHeld(false);
       setError(errorMessage(err));
     } finally {
       setPending(false);
@@ -84,7 +91,7 @@ export function SettingChange({
   };
 
   return (
-    <div className="pref-row-change" data-shown={shown}>
+    <div className="pref-row-change" data-shown={shown} data-held={held && !shown ? true : undefined}>
       <span className={shown ? 'pref-row-change-line' : 'pref-row-change-line is-hidden'} aria-hidden={shown ? undefined : true}>
         <span className="pref-row-change-dot" aria-hidden />
         <span className="pref-row-change-word">{t('settings.changeSlot.changed')}</span>
