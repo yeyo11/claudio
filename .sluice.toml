@@ -1,0 +1,50 @@
+# Sluice repository configuration, written by `sluice init`.
+# Commit it: the gates are shared by everyone who works on this repository.
+# weight: a number is a ceiling in budget units (roughly the CPU threads the
+# gate uses); "auto" starts at half the daemon budget and learns a lower
+# weight from measured runs (needs Sluice 0.4.0). An omitted weight means 1.
+version = 1
+
+[defaults]
+agent_hook_policy = "fail-fast"   # fail-fast | wait | run-unqueued
+human_hook_policy = "wait"        # wait | run-unqueued
+tail_lines = 40
+
+# Detected at the root: node (pnpm).
+# Projects below the root are not configured; add their gates by hand:
+#   apps/api (package.json)
+#   apps/desktop (package.json)
+#   apps/web (package.json)
+#   packages/accounts (package.json)
+#   packages/chat-ui (package.json)
+#   packages/core (package.json)
+#   packages/mcp (package.json)
+#   packages/shared (package.json)
+#   packages/ui (package.json)
+
+[gates.lint]
+# Detected from package.json.
+cmd = "pnpm run lint"
+weight = 2
+timeout = "10m"
+hooks = ["pre-commit"]
+key_inputs = ["node --version", "pnpm --version"]
+
+[gates.typecheck]
+# Detected from package.json.
+cmd = "pnpm run typecheck"
+weight = 2
+timeout = "10m"
+hooks = ["pre-commit"]
+key_inputs = ["node --version", "pnpm --version"]
+
+[gates.test]
+# Detected from package.json.
+cmd = "pnpm test"
+weight = "auto"
+timeout = "30m"
+hooks = ["pre-push"]
+key_inputs = ["node --version", "pnpm --version"]
+# One package at a time: four at once, each running its files in parallel, pushed the load past
+# 30 on 12 threads and failed timing tests (a boot trial, an invite's expiry) that pass alone
+env = { CI = "1", npm_config_workspace_concurrency = "1" }
