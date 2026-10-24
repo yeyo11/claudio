@@ -7,5 +7,9 @@ assets:
   # Every launch needs a demo; Instagram gets it as a Reel
   demo: docs/media/tour.gif
 
+# Every channel keeps Shipcast's default except the newsletter, which is off unless a project asks
+publishing:
+  newsletter: approval
+
 reddit:
   subreddits: [ClaudeAI, selfhosted, SideProject, opensource]
