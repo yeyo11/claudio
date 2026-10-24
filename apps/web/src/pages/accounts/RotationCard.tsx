@@ -20,44 +20,35 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
   const queryClient = useQueryClient();
   const toast = useToast();
   const id = useId();
-  const [draft, setDraft] = useState(settings);
-  // Not remounted on a new saved copy (a remount would drop a Reset's announcement and its focus):
-  // a field the person has not touched takes the new saved value, and an unsaved edit stays. Done
-  // while rendering, not in an effect: an effect let one frame paint the new saved copy against the
-  // old draft, and Discard flashed into the actions and wrapped them (the fourth PR #55 review)
-  const [seen, setSeen] = useState(settings);
-  if (seen !== settings) {
-    const before = seen;
-    setSeen(settings);
-    setDraft((now) => {
-      const next = { ...now };
-      for (const field of Object.keys(settings) as (keyof AccountsSettings)[]) {
-        if (JSON.stringify(now[field]) === JSON.stringify(before[field])) Object.assign(next, { [field]: settings[field] });
-      }
-      return next;
-    });
-  }
+  // Only the person's unsaved edits are state; what the card shows is the saved copy with them on
+  // top. A new saved copy (after a Reset or a Save elsewhere) is then shown at once for every field
+  // nobody edited, with nothing to keep in step: two writers of a whole draft raced in the PR #55
+  // reviews, and either flashed Discard or kept a stale value that Save wrote back
+  const [edits, setEdits] = useState<Partial<AccountsSettings>>({});
+  const draft: AccountsSettings = { ...settings, ...edits };
+  const edit = (patch: Partial<AccountsSettings>) => setEdits((now) => ({ ...now, ...patch }));
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
 
   const mutation = useMutation({
     mutationFn: (next: Partial<AccountsSettings>) => api.putAccountsSettings(next),
     onSuccess: (saved) => {
-      setDraft(saved);
+      // The saved copy first, so dropping the edits never shows the old values for a frame
+      queryClient.setQueryData(keys.accountsSettings, saved);
+      setEdits({});
       toast.success(t('rotation.updated'));
       void queryClient.invalidateQueries({ queryKey: keys.accountsSettings });
     },
     onError: (err) => toast.error(t('rotation.updateFailed'), err),
   });
 
-  // A Reset puts that field of the saved document into the draft, so the other unsaved edits stay
-  // Only over an unsaved edit of that field: an untouched one takes the default while rendering, with
-  // the saved copy, and writing it here first painted a draft ahead of the copy (Discard flashed)
-  const takeFromSaved = (field: keyof AccountsSettings) => () => {
-    const fresh = queryClient.getQueryData<AccountsSettings>(keys.accountsSettings);
-    if (fresh) setDraft((now) => (JSON.stringify(now[field]) === JSON.stringify(settings[field]) ? now : { ...now, [field]: fresh[field] }));
-  };
+  // A Reset drops that field's unsaved edit, if any, so it shows the saved default; the other edits stay
+  const dropEdit = (field: keyof AccountsSettings) => () =>
+    setEdits((now) => {
+      const { [field]: _dropped, ...rest } = now;
+      return rest;
+    });
   const change = (setting: string, label: string, field: keyof AccountsSettings, wording?: (value: SettingDefault) => string) => (
-    <ServerSettingChange id={`accounts.${setting}`} label={label} {...(wording ? { wording } : {})} invalidate={[keys.accountsSettings]} onReset={takeFromSaved(field)} />
+    <ServerSettingChange id={`accounts.${setting}`} label={label} {...(wording ? { wording } : {})} invalidate={[keys.accountsSettings]} onReset={dropEdit(field)} />
   );
 
   return (
@@ -75,7 +66,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
             <span className="muted small">{t('rotation.subtitle')}</span>
           </span>
           <div className="rotation-switch setting-change-row" data-setting="accounts.rotate-on-limit">
-            <Switch checked={draft.rotateOnLimit} onChange={(rotateOnLimit) => setDraft({ ...draft, rotateOnLimit })} tooltip={t('rotation.rotateHint')}>
+            <Switch checked={draft.rotateOnLimit} onChange={(rotateOnLimit) => edit({ rotateOnLimit })} tooltip={t('rotation.rotateHint')}>
               {t('rotation.rotateOnLimit')}
             </Switch>
             {change('rotate-on-limit', t('rotation.rotateOnLimit'), 'rotateOnLimit')}
@@ -85,7 +76,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
         <div className="rotation-grid">
           <div className="rotation-field setting-change-row" data-setting="accounts.threshold">
             <span className="section-label">{t('rotation.threshold')}</span>
-            <Slider aria-label={t('rotation.threshold')} min={50} max={99} value={draft.threshold} onChange={(threshold) => setDraft({ ...draft, threshold })} />
+            <Slider aria-label={t('rotation.threshold')} min={50} max={99} value={draft.threshold} onChange={(threshold) => edit({ threshold })} />
             <span className="field-hint">{t('rotation.thresholdAt', { percent: formatPercent(draft.threshold) })}</span>
             {change('threshold', t('rotation.threshold'), 'threshold', (value) => (typeof value === 'number' ? formatPercent(value) : ''))}
           </div>
@@ -94,7 +85,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
             <Segmented<AccountsSettings['strategy']>
               label={t('rotation.strategy')}
               value={draft.strategy}
-              onChange={(strategy) => setDraft({ ...draft, strategy })}
+              onChange={(strategy) => edit({ strategy })}
               options={STRATEGIES.map((s) => ({ value: s, label: t(`rotation.strategies.${s}`) }))}
             />
             {change('strategy', t('rotation.strategy'), 'strategy', (value) => t(`rotation.strategies.${STRATEGIES.find((s) => s === value) ?? 'order'}`))}
@@ -108,7 +99,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
               max={50}
               step={1}
               value={draft.hysteresis}
-              onChange={(hysteresis) => setDraft({ ...draft, hysteresis: hysteresis ?? 0 })}
+              onChange={(hysteresis) => edit({ hysteresis: hysteresis ?? 0 })}
             />
             <span className="field-hint">{t('rotation.hysteresisHint')}</span>
             {change('hysteresis', t('rotation.hysteresis'), 'hysteresis')}
@@ -121,7 +112,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
               max={86_400}
               step={60}
               value={draft.cooldownSeconds}
-              onChange={(cooldownSeconds) => setDraft({ ...draft, cooldownSeconds: cooldownSeconds ?? 0 })}
+              onChange={(cooldownSeconds) => edit({ cooldownSeconds: cooldownSeconds ?? 0 })}
             />
             <span className="field-hint">{t('rotation.cooldownHint')}</span>
             {change('cooldown', t('rotation.cooldown'), 'cooldownSeconds')}
@@ -132,7 +123,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
           <span className="muted small">{t('rotation.offHint')}</span>
           <span className="rotation-actions">
             {dirty && (
-              <button type="button" className="btn btn-small" onClick={() => setDraft(settings)}>
+              <button type="button" className="btn btn-small" onClick={() => setEdits({})}>
                 {t('config:shared.discard')}
               </button>
             )}
