@@ -10,6 +10,7 @@
 [![Latest release](https://img.shields.io/github/v/release/yeyo11/claudio?sort=semver)](https://github.com/yeyo11/claudio/releases/latest)
 [![Image](https://img.shields.io/badge/ghcr.io-yeyo11%2Fclaudio-2496ed?logo=docker&logoColor=white)](https://github.com/yeyo11/claudio/pkgs/container/claudio)
 [![License: MIT](https://img.shields.io/github/license/yeyo11/claudio)](LICENSE)
+[![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
 
 <img src="docs/media/tour.gif" alt="A tour of Claudio in the Night Shift design: a project's dashboard with what is working now, the command palette, a working chat with its activity and the inspector's changes, an orchestration followed as steps through to its verification, and the accounts with their usage" width="100%">
 
