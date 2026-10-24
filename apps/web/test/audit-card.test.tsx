@@ -5,6 +5,7 @@ import test from 'node:test';
 import type { AuditEntry } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
+import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { AuditTable } from '../src/pages/config/security/AuditCard';
 
 const entry = (over: Partial<AuditEntry> = {}): AuditEntry => ({
@@ -22,7 +23,11 @@ const entry = (over: Partial<AuditEntry> = {}): AuditEntry => ({
 async function render(entries: AuditEntry[], language = 'en'): Promise<string> {
   await i18n.changeLanguage(language);
   try {
-    return renderToStaticMarkup(<AuditTable entries={entries} />);
+    return renderToStaticMarkup(
+      <TooltipProvider>
+        <AuditTable entries={entries} />
+      </TooltipProvider>,
+    );
   } finally {
     await i18n.changeLanguage('en');
   }
@@ -100,4 +105,16 @@ test('a phone row folds a long path to its tail behind a button, and leaves a sh
   assert.deepEqual(texts(short, 'span', 'audit-row-request'), ['POST /api/tunnel/stop']);
   // Time, actor and result share the first line
   assert.match(long, /<div class="audit-row-head">.*Desktop app.*class="badge/);
+});
+
+test('the table cuts a long path in the middle, keeps its end, and lets a keyboard reach the whole of it', async () => {
+  const html = await render([entry(), entry({ id: '2', path: '/api/tunnel/stop', route: 'POST /tunnel/stop', method: 'POST' })]);
+  const paths = texts(html, 'span', 'mono', 'audit-path');
+  assert.equal(paths.length, 2);
+  const [long = '', short = ''] = paths;
+  assert.ok(long.startsWith('/api/') && long.endsWith('/claudio-mcp') && long.includes('…'), long);
+  assert.equal(short, '/api/tunnel/stop');
+  // Only the cut one is a stop of its own, the tooltip with the whole path hanging from it
+  assert.match(html, /<span class="mono audit-literal audit-path" tabindex="0"[^>]*>[^<]*…/);
+  assert.doesNotMatch(html, /<span class="mono audit-literal audit-path" tabindex="0"[^>]*>\/api\/tunnel\/stop/);
 });

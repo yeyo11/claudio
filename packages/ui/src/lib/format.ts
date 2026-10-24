@@ -177,6 +177,16 @@ export function shortPath(path: string, max = 48): string {
   return `…/${out}`;
 }
 
+/**
+ * A literal cut in the middle, so its start and its end both stay: what tells two paths, ids or
+ * emails apart is usually at the end. Two fifths of the room go to the start.
+ */
+export function middleEllipsis(text: string, max = 48): string {
+  if (text.length <= max) return text;
+  const head = Math.floor((max - 1) * 0.4);
+  return `${text.slice(0, head)}…${text.slice(text.length - (max - 1 - head))}`;
+}
+
 export function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }

@@ -4,14 +4,14 @@ import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
-import { Combobox, Select, type SelectOption } from '@claudio/ui/components/controls';
+import { Combobox, Select, Tooltip, type SelectOption } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { FullText } from '@claudio/ui/components/FullText';
-import { formatDateTime, formatNumber, shortPath } from '@claudio/ui/lib/format';
+import { formatDateTime, formatNumber, middleEllipsis, shortPath } from '@claudio/ui/lib/format';
 import type { en } from '../../../i18n/resources';
 import { GLOBAL_SCOPE, useListParams } from '../../../lib/list-params';
 import { SettingsDetailRow } from '../groups/Section';
+import { ActorName } from './ActorName';
 import { settingsHref } from '../settingsGroups';
 
 const AUDIT_PAGE = 25;
@@ -157,20 +157,13 @@ export function AuditCard() {
   );
 }
 
-/** The actors that are words rather than ids: anything else (a token, a chat, an OIDC subject) is a literal */
-const ACTOR_WORDS = ['local', 'desktop', 'env', 'claudio', 'anonymous'] as const;
-type ActorWord = (typeof ACTOR_WORDS)[number];
-const isActorWord = (actor: string): actor is ActorWord => (ACTOR_WORDS as readonly string[]).includes(actor);
 /** How long a path may run on a phone row before it folds to its tail */
 const PHONE_PATH = 40;
+/** What the table's Request column holds of a path, on its own line under the method */
+const TABLE_PATH = 20;
 
 function Actor({ actor }: { actor: string }) {
-  const { t } = useTranslation('config');
-  return isActorWord(actor) ? (
-    <span className="audit-actor">{t(`security.audit.actors.${actor}`)}</span>
-  ) : (
-    <FullText className="mono audit-literal">{actor}</FullText>
-  );
+  return <ActorName actor={actor} wordClassName="audit-actor" literalClassName="mono audit-literal" />;
 }
 
 /**
@@ -197,6 +190,22 @@ function Result({ status }: { status: number }) {
     <Tag tone={result.tone}>
       {status} · {t(`security.audit.outcome.${result.key}`)}
     </Tag>
+  );
+}
+
+/**
+ * The table's path, cut in the middle so the end that tells two routes apart stays (every path
+ * starts `/api/`); a cut one takes focus and shows the whole path in a tooltip, for a keyboard too.
+ */
+function TablePath({ path }: { path: string }) {
+  const short = middleEllipsis(path, TABLE_PATH);
+  if (short === path) return <span className="mono audit-literal audit-path">{path}</span>;
+  return (
+    <Tooltip content={path}>
+      <span className="mono audit-literal audit-path" tabIndex={0}>
+        {short}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -264,7 +273,7 @@ export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
                 </td>
                 <td className="small audit-request">
                   <span className="mono audit-method">{entry.method}</span>{' '}
-                  <FullText className="mono audit-literal audit-path">{entry.path}</FullText>
+                  <TablePath path={entry.path} />
                 </td>
                 <td className="audit-result">
                   <Result status={entry.status} />

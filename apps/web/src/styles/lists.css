@@ -170,7 +170,7 @@ a.list-row:hover {
 }
 
 .audit-table .audit-col-request {
-  width: 22%;
+  width: 26%;
 }
 
 .audit-table .audit-col-result {
@@ -202,9 +202,16 @@ a.list-row:hover {
   vertical-align: bottom;
 }
 
-/* Room for the widest method and the space after it */
-.audit-table .audit-path {
-  max-width: calc(100% - 7ch);
+/* The method on the first line, the path on its own under it: the row is two lines high anyway (the
+   date wraps), and the path gets the column's whole width. Its middle is cut in the markup
+   (`middleEllipsis`); the end ellipsis is only what a narrower table still needs */
+.audit-table .audit-method {
+  display: block;
+}
+
+/* The cell clips what leaves it, so the global focus ring is drawn inside the path */
+.audit-table .audit-path:focus-visible {
+  outline-offset: -2px;
 }
 
 /* A long outcome ("refused, read-only") wraps inside its tag rather than leave the column */
