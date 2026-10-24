@@ -14,7 +14,7 @@
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@anthropic-ai/sdk": "^1.0.0",
     "@claudio/shared": "workspace:*"
   },
   "devDependencies": {
