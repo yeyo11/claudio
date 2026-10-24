@@ -173,49 +173,56 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
 
       <div className="guard-switches">
         <div className="guard-row" data-setting="guards.automated">
-          <Switch checked={settings.automated} disabled={locked} onChange={(automated) => onSave({ automated })}>
-            {t('security.guards.automated.label')}
-          </Switch>
-          <p className="small muted">{t('security.guards.automated.hint')}</p>
-          {change('guards.automated', t('security.guards.automated.label'))}
+          <div className="setting-change-row">
+            <Switch checked={settings.automated} disabled={locked} onChange={(automated) => onSave({ automated })}>
+              {t('security.guards.automated.label')}
+            </Switch>
+            <p className="small muted">{t('security.guards.automated.hint')}</p>
+            {change('guards.automated', t('security.guards.automated.label'))}
+          </div>
         </div>
 
         <ul className="guard-rules" aria-label={t('security.guards.rulesLabel')}>
           {GUARD_RULES.map((rule) => (
             <li key={rule.id} className={`guard-rule ${rule.switchable ? '' : 'is-locked'}`} data-rule={rule.id} {...(rule.switchable ? { 'data-setting': `guards.rule.${rule.id}` } : {})}>
-              <div className="guard-rule-head">
-                {rule.switchable ? (
-                  <Switch
-                    checked={settings.rules[rule.id as GuardSwitchableRuleId]}
-                    disabled={locked}
-                    onChange={(on) => onSave({ rules: { [rule.id]: on } })}
-                  >
-                    {t(`security.guards.rules.${rule.id}.name`)}
-                  </Switch>
-                ) : (
-                  <span className="guard-rule-locked">
-                    <Lock {...ICON_SM} aria-hidden />
-                    <span className="strong">{t(`security.guards.rules.${rule.id}.name`)}</span>
-                    <Tag>{t('security.guards.alwaysOn')}</Tag>
-                  </span>
-                )}
-                <code className="mono small muted">{rule.id}</code>
+              {/* The head line, the description under it at the same start on every rule, and the slot at the head line's end */}
+              <div className="setting-change-row">
+                <div className="guard-rule-head">
+                  {rule.switchable ? (
+                    <Switch
+                      checked={settings.rules[rule.id as GuardSwitchableRuleId]}
+                      disabled={locked}
+                      onChange={(on) => onSave({ rules: { [rule.id]: on } })}
+                    >
+                      {t(`security.guards.rules.${rule.id}.name`)}
+                    </Switch>
+                  ) : (
+                    <span className="guard-rule-locked">
+                      <Lock {...ICON_SM} aria-hidden />
+                      <span className="strong">{t(`security.guards.rules.${rule.id}.name`)}</span>
+                      <Tag>{t('security.guards.alwaysOn')}</Tag>
+                    </span>
+                  )}
+                  <code className="mono small muted">{rule.id}</code>
+                </div>
+                <p className="small muted">
+                  {t(`security.guards.rules.${rule.id}.description`)}
+                  {rule.switchable && <Overridden id={`guards.rule.${rule.id}`} />}
+                </p>
+                {rule.switchable && change(`guards.rule.${rule.id}`, t(`security.guards.rules.${rule.id}.name`))}
               </div>
-              <p className="small muted">
-                {t(`security.guards.rules.${rule.id}.description`)}
-                {rule.switchable && <Overridden id={`guards.rule.${rule.id}`} />}
-              </p>
-              {rule.switchable && change(`guards.rule.${rule.id}`, t(`security.guards.rules.${rule.id}.name`))}
             </li>
           ))}
         </ul>
 
         <div className="guard-row" data-setting="guards.mode">
-          <Switch checked={settings.mode === 'observe'} disabled={locked} onChange={(observe) => onSave({ mode: observe ? 'observe' : 'enforce' })}>
-            {t('security.guards.observe.label')}
-          </Switch>
-          <p className="small text-warn">{t('security.guards.observe.hint')}</p>
-          {change('guards.mode', t('security.guards.observe.label'), (value) => t(value === 'observe' ? 'settings.changeSlot.on' : 'settings.changeSlot.off'))}
+          <div className="setting-change-row">
+            <Switch checked={settings.mode === 'observe'} disabled={locked} onChange={(observe) => onSave({ mode: observe ? 'observe' : 'enforce' })}>
+              {t('security.guards.observe.label')}
+            </Switch>
+            <p className="small text-warn">{t('security.guards.observe.hint')}</p>
+            {change('guards.mode', t('security.guards.observe.label'), (value) => t(value === 'observe' ? 'settings.changeSlot.on' : 'settings.changeSlot.off'))}
+          </div>
         </div>
       </div>
 

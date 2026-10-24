@@ -45,7 +45,7 @@ function Field({
   label: ReactNode;
   line?: ReactNode;
   error?: ReactNode;
-  /** The row's "Changed · Reset" slot, under its control */
+  /** The row's "Changed · Reset" slot: before the control on its line on a desktop, under it on a phone */
   change?: ReactNode;
   children: ReactNode;
 }) {
@@ -62,7 +62,7 @@ function Field({
           line !== undefined && <span className="dp-field-line">{line}</span>
         )}
       </div>
-      <div className="dp-field-control">
+      <div className={change === undefined ? 'dp-field-control' : 'dp-field-control has-change'}>
         {children}
         {change}
       </div>
@@ -111,29 +111,31 @@ export function EngineSection({
     <>
       <JevUnavailable provider={draft.provider} />
       <div className="dp-who" data-setting="engine.who-answers">
-        <Segmented
-          label={t('whoAnswers')}
-          value={draft.provider}
-          onChange={(provider) => patch({ provider })}
-          options={[
-            { value: 'cli', label: t('engine.cli') },
-            { value: 'jev', label: <JevLabel /> },
-          ]}
-        />
-        <p className="dp-field-line">
-          {jev ? (
-            <>
-              {t('consequence.jev')}{' '}
-              <button type="button" className="link-btn" onClick={onExample}>
-                {t('examplePayload')}
-              </button>
-            </>
-          ) : (
-            t('consequence.cli')
-          )}
-          <Overridden id="engine.who-answers" />
-        </p>
-        {change('engine.who-answers', t('whoAnswers'), (value) => (value === 'jev' ? t('engine.jev') : t('engine.cli')))}
+        <div className="setting-change-row">
+          <Segmented
+            label={t('whoAnswers')}
+            value={draft.provider}
+            onChange={(provider) => patch({ provider })}
+            options={[
+              { value: 'cli', label: t('engine.cli') },
+              { value: 'jev', label: <JevLabel /> },
+            ]}
+          />
+          <p className="dp-field-line">
+            {jev ? (
+              <>
+                {t('consequence.jev')}{' '}
+                <button type="button" className="link-btn" onClick={onExample}>
+                  {t('examplePayload')}
+                </button>
+              </>
+            ) : (
+              t('consequence.cli')
+            )}
+            <Overridden id="engine.who-answers" />
+          </p>
+          {change('engine.who-answers', t('whoAnswers'), (value) => (value === 'jev' ? t('engine.jev') : t('engine.cli')))}
+        </div>
       </div>
       <SettingsReveal open={jev}>
         <p className="dp-field-line dp-model-hint">
@@ -220,7 +222,7 @@ export function CapLine({ cap, decisions, days, dailyCapUsd }: { cap: number; de
       {withinDaily !== null && (
         <>
           {' · '}
-          <Link to={settingsHref('runs', { section: 'spend-cap' })} className="tnum">
+          <Link to={settingsHref('runs', { section: 'spend-cap' })} className="tnum dp-cap-link">
             {t('cap.withinDaily', { count: withinDaily, formatted: formatNumber(withinDaily) })}
           </Link>
         </>

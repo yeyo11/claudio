@@ -16,7 +16,7 @@ export function AgentsCard({ settings, busy, onSave }: { settings: Collaborators
   const { t } = useTranslation('collaborators');
   return (
     <Card className="collab-agents" title={t('agents.title')}>
-      <div data-setting="collaborators.assistant-reads">
+      <div className="setting-change-row" data-setting="collaborators.assistant-reads">
         <Switch checked={settings.assistantReads} disabled={busy} onChange={(assistantReads) => void onSave({ assistantReads })}>
           <span>{t('agents.assistant')}</span>
         </Switch>

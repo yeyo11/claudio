@@ -575,6 +575,20 @@ Up to 12 chats and workers at once                ● Changed · Reset
     ({{value}})".
 - **Space.** The cell keeps its room when nothing is changed (`visibility: hidden`, and
   `aria-hidden` on the hidden content). Nothing shifts when it appears (I4).
+  - **Revised 2026-10-24** (the PR #55 `/ui-review`, R4: the reserved slot made every row 28 px
+    taller at 1280 and left a ~62 px blank band on a phone). On a desktop the slot sits **inline on
+    the row's head line** (the end of the label's line or of the control's line, a
+    `.setting-change-row` grid column), takes no extra height and never wraps inside itself; its
+    width stays reserved there, so nothing shifts sideways. On a phone (≤ 900 px or a coarse
+    pointer) nothing is reserved: the slot appears only while the value differs from the default,
+    on its own line under the consequence, left aligned, with a 44 px Reset. That line comes and
+    goes with the person's own edit or Reset; a shift within 500 ms of their input is not
+    cumulative layout shift. A field a Reset closes (the spend cap's amount) keeps its room hidden
+    until the person's next toggle, so the Reset moves nothing on a desktop. Row heights, before →
+    after: Runs at once 114 → 90 px at 1280 (142 → 148 at 390, slot shown), the spend cap 268 → 232
+    (324 → 316), Evals 136 → 100 (204 → 196), a changed decision point 81 → 81 (227 → 260, its
+    evidence links now on lines 26 px apart so their 44 px targets do not overlap), an unchanged
+    one 78 → 78 (182 → 134).
 - **Env.** A value set by the environment keeps its `EnvNote` in the same cell and gets no Reset.
 - **After Reset.**
   - The control shows the default.
@@ -584,8 +598,8 @@ Up to 12 chats and workers at once                ● Changed · Reset
   - No toast.
 - **Errors.** A failed reset shows the server's message in the cell's reserved line, in `--bad`
   with its icon. The value stays.
-- **Phone (< 560 px of the row's container).** The cell wraps under the consequence line, left
-  aligned. Reset is ≥ 44 px tall (`--touch`).
+- **Phone (≤ 900 px or a coarse pointer, revised 2026-10-24).** The cell wraps under the
+  consequence line, left aligned, only once the value is changed. Reset is ≥ 44 px tall (`--touch`).
 - **Project rows.** They keep their own "Use global" (`ProjectDecisions.tsx:238-245`) and do not
   get `SettingChange`.
 
@@ -602,6 +616,11 @@ Uses your Claude Code quota · Overridden in 2 projects
 - Its `Tooltip` lists the project names (at most 5, then "and {{count}} more" / "y {{count}} más").
 - Shown on `engine.who-answers`, each `point-<id>`, `provider.limits`, each `guards.rule.<id>` row,
   and the Provider section's head line (for `provider.order`).
+  - **Revised 2026-10-24.** The provider has no row of its own for its limits: they are the
+    section's, so `provider.limits` is said on the Provider section's head line
+    (`SettingsSection`'s `aside`, `.settings-section-head`), not in the provider item's status
+    column. `provider.order` is not shown yet: with Claude Code the only provider that runs, there
+    is no order to override.
 
 ### Terminal history rows (D4)
 

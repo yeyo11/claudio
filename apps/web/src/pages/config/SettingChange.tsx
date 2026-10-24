@@ -14,7 +14,7 @@ import { errorMessage, formatNumber } from '@claudio/ui/lib/format';
  * the tab order is skipped: a number field's steppers, and the options a roving radio group does not
  * have selected (the theme's cards), come before the control a keyboard reaches.
  */
-const CONTROL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([tabindex="-1"]), [role="combobox"], [role="switch"], [role="radio"][tabindex="0"]';
+const CONTROL = 'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([tabindex="-1"]), [role="combobox"], [role="switch"], [role="slider"], [role="radio"][tabindex="0"]';
 
 /** Puts focus on the row's control, so a Reset that hides its own button does not leave it on `<body>`. */
 export function focusSettingControl(setting: string): void {

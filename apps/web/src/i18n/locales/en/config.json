@@ -1864,8 +1864,8 @@
     "saveFailed": "Could not save the tunnel setting"
   },
   "appSettings": {
-    "fromEnv": "set by the environment",
-    "envHint": "Set by the environment ({{variable}}): change it where Claudio is deployed.",
+    "fromEnv": "Set by the environment",
+    "envHint": "Set by the environment (<mono>{{variable}}</mono>): change it where Claudio is deployed.",
     "saveFailed": "Could not save the setting",
     "hosts": {
       "title": "Allowed hosts",

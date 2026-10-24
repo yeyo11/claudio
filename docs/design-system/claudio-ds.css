@@ -2696,15 +2696,30 @@ a.cont-from:hover { color: var(--fg); }
 /* ---------- end of Audit log ---------- */
 
 /* ---------- The Changed · Reset slot of a settings row (plans/settings-reset-and-polish.md, D6) ---------- */
-.pref-row-change { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--fs-small); }
-.pref-row-change-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; color: var(--fg-2); }
+.pref-row-change { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--fs-small); line-height: var(--lh-small); }
+.pref-row-change-line { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--fg-2); white-space: nowrap; }
 .pref-row-change-line.is-hidden { visibility: hidden; }
 .pref-row-change-dot { flex: none; width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--fg-3); }
-.pref-row-change-reset { min-height: 24px; }
-.pref-row-change-error { display: inline-flex; align-items: flex-start; gap: 6px; color: var(--bad); overflow-wrap: anywhere; }
-.pref-row-overridden { color: var(--fg-3); text-decoration: underline; text-underline-offset: 3px; }
-@media (pointer: coarse) { .pref-row-change-reset { min-height: var(--touch); min-width: var(--touch); } }
-@container (max-width: 560px) { .pref-row-change-reset { min-height: var(--touch); } }
+.pref-row-change-reset { padding-block: 3px; margin-block: -3px; }
+.pref-row-change-error { display: inline-flex; align-items: flex-start; gap: 6px; max-width: 36ch; color: var(--bad); overflow-wrap: anywhere; }
+.pref-row-overridden { display: inline-block; line-height: var(--lh-small); padding-block: 3px; margin-block: -3px; color: var(--fg-3); text-decoration: underline; text-underline-offset: 3px; }
+/* Desktop: the slot inline on the row's head line, its column reserved; no extra height */
+.setting-change-row { display: grid; grid-template-columns: minmax(0, 1fr) max-content; column-gap: 16px; row-gap: var(--change-row-gap, 4px); align-items: start; min-width: 0; }
+.setting-change-row > *, .setting-change-row > :is(.field, .settings-row) > * { grid-column: 1 / -1; min-width: 0; }
+.setting-change-row > :is(.field, .settings-row) { display: contents; }
+.setting-change-row > :first-child, .setting-change-row > :is(.field, .settings-row) > :first-child { grid-column: 1; grid-row: 1; }
+.setting-change-row > .pref-row-change { grid-column: 2; grid-row: 1; align-self: center; }
+.settings-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.settings-reveal.is-held { grid-template-rows: 1fr; margin-top: 0; visibility: hidden; transition: none; }
+/* Phone: nothing reserved; the slot shows only when changed, on its own line, with a finger's Reset */
+@media (pointer: coarse), (max-width: 900px) {
+  .setting-change-row { display: flex; flex-direction: column; gap: var(--change-row-gap, 4px); }
+  .setting-change-row > :is(.field, .settings-row) { display: flex; }
+  .setting-change-row > .pref-row-change { align-self: flex-start; }
+  .pref-row-change[data-shown='false'] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .pref-row-change-reset { min-height: var(--touch); min-width: var(--touch); padding-block: 0; margin-block: 0; }
+  .pref-row-overridden { padding-block: 13px; margin-block: -13px; }
+}
 /* ---------- end of the Changed · Reset slot ---------- */
 
 /* ---------- Guards: the row, the rules sheet, the header tag and the "N blocked" chip (plans/guards.md) ---------- */

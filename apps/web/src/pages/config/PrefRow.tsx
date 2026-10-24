@@ -21,7 +21,7 @@ export function PrefRow({
   title: ReactNode;
   hint?: ReactNode;
   stacked?: boolean;
-  /** The row's `SettingChange` slot, under the control; it keeps its room while nothing is changed */
+  /** The row's `SettingChange` slot: beside the control on a desktop, under it on a phone once the value is changed */
   change?: ReactNode;
   children: ReactNode;
 }) {
@@ -33,7 +33,7 @@ export function PrefRow({
         </span>
         {hint !== undefined && <div className="pref-row-hint">{hint}</div>}
       </div>
-      <div className="pref-row-control">
+      <div className={change === undefined ? 'pref-row-control' : 'pref-row-control setting-change-row'}>
         {children}
         {change}
       </div>

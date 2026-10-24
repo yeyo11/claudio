@@ -1864,8 +1864,8 @@
     "saveFailed": "No se ha podido guardar el ajuste del túnel"
   },
   "appSettings": {
-    "fromEnv": "fijado por el entorno",
-    "envHint": "Lo fija el entorno ({{variable}}): cámbialo donde se despliega Claudio.",
+    "fromEnv": "Fijado por el entorno",
+    "envHint": "Lo fija el entorno (<mono>{{variable}}</mono>): cámbialo donde se despliega Claudio.",
     "saveFailed": "No se ha podido guardar el ajuste",
     "hosts": {
       "title": "Hosts permitidos",

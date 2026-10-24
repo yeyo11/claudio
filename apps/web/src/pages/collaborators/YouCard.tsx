@@ -99,7 +99,7 @@ export function YouCard({
           <Field label={t('you.label')} hint={t('you.labelHint')}>
             <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} />
           </Field>
-          <div data-setting="collaborators.relay">
+          <div className="setting-change-row" data-setting="collaborators.relay">
             <Field label={t('you.relay')} hint={t('you.relayHint')}>
               <input className="mono" value={relay} onChange={(e) => setRelay(e.target.value)} type="url" inputMode="url" placeholder="https://" spellCheck={false} />
             </Field>

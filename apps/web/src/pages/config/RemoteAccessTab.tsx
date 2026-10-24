@@ -119,15 +119,17 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
       />
       {status.enabled && status.tailscale.state === 'ready' && (
         <div className="settings-block">
-          <Switch
-            checked={status.settings.startWithClaudio}
-            disabled={settings.isPending}
-            onChange={(startWithClaudio) => settings.mutate({ startWithClaudio })}
-          >
-            {t('remote.startWith.label')}
-          </Switch>
-          <p className="small muted">{t('remote.startWith.hint')}</p>
-          <ServerSettingChange id="remote.tunnel" label={t('remote.startWith.label')} invalidate={[keys.tunnel]} />
+          <div className="setting-change-row">
+            <Switch
+              checked={status.settings.startWithClaudio}
+              disabled={settings.isPending}
+              onChange={(startWithClaudio) => settings.mutate({ startWithClaudio })}
+            >
+              {t('remote.startWith.label')}
+            </Switch>
+            <p className="small muted">{t('remote.startWith.hint')}</p>
+            <ServerSettingChange id="remote.tunnel" label={t('remote.startWith.label')} invalidate={[keys.tunnel]} />
+          </div>
         </div>
       )}
       <p className="small muted">{t('remote.footnote')}</p>

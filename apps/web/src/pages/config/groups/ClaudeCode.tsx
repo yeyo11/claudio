@@ -4,6 +4,7 @@ import { FilesTab } from '../FilesTab';
 import { ProvidersTab } from '../ProvidersTab';
 import { SettingsTab } from '../SettingsTab';
 import { detailLabel, sectionLabel, settingsHref } from '../settingsGroups';
+import { Overridden } from '../SettingChange';
 import { SignInSection } from '../SignInSection';
 import { SettingsDetailRow, SettingsSection, type GroupScreenProps } from './Section';
 
@@ -24,7 +25,8 @@ export function ClaudeCode({ detail }: GroupScreenProps<'claude-code'>) {
       <SettingsSection id="sign-in" title={t(sectionLabel('sign-in'))}>
         <SignInSection />
       </SettingsSection>
-      <SettingsSection id="provider" title={t(sectionLabel('provider'))}>
+      {/* Projects override the provider's limits as a whole: the section says so on its head line (plan D7) */}
+      <SettingsSection id="provider" title={t(sectionLabel('provider'))} aside={<Overridden id="provider.limits" bare />}>
         <ProvidersTab />
       </SettingsSection>
       <SettingsSection id="behaviour" title={t(sectionLabel('behaviour'))}>

@@ -254,13 +254,6 @@ export function PointRow({
             ...(mode === 'active' && blocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
           }))}
         />
-        <ServerSettingChange
-          id={anchor}
-          label={name}
-          wording={(value) => t(`points.modes.${MODES.find((mode) => typeof value === 'object' && value !== null && !Array.isArray(value) && value.mode === mode) ?? 'off'}`)}
-          invalidate={[keys.decisionSettings]}
-          onReset={() => onReset?.(anchor)}
-        />
       </div>
       <p className="dp-evidence">
         <EvidenceLine id={info.id} stats={stats} />
@@ -273,6 +266,14 @@ export function PointRow({
           {t(`supervisor.${supervisorMeaning(offUntilConsent(info, settings.points[info.id]?.consent ?? null, point.mode, provider) ? 'off' : point.mode, provider)}`)}
         </p>
       )}
+      {/* Beside the modes on a desktop (the point's grid), and on a phone a line of its own under the consequence */}
+      <ServerSettingChange
+        id={anchor}
+        label={name}
+        wording={(value) => t(`points.modes.${MODES.find((mode) => typeof value === 'object' && value !== null && !Array.isArray(value) && value.mode === mode) ?? 'off'}`)}
+        invalidate={[keys.decisionSettings]}
+        onReset={() => onReset?.(anchor)}
+      />
       {showThreshold && (
         <div className="dp-thr dp-point-thr">
           <span className="dp-point-line">{t('points.thresholdLine')}</span>
