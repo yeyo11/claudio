@@ -1279,6 +1279,9 @@ button.master-item-on:hover {
      what depends on the value, such as a decision point's consent line, leaves room instead of a shift */
   [data-change-held] {
     min-height: var(--held-height);
+    /* A grid row (a decision point) would spread the room between its rows and slide its own
+       content down; the room stays at the bottom */
+    align-content: start;
   }
 
   .pref-row-change-reset {

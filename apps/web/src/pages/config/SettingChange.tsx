@@ -85,7 +85,11 @@ export function SettingChange({
   const [hold, setHold] = useState<ResetHold>('off');
   const shown = state?.changed === true && state.source !== 'env';
   const next = nextResetHold(hold, shown);
-  if (next !== hold) setHold(next);
+  if (next !== hold) {
+    setHold(next);
+    // A new change ends the hold: "Restored to the default" would be stale beside a "Changed" row
+    if (next === 'off') setSaid('');
+  }
   const held = hold !== 'off' && !shown;
 
   // The row keeps the height it had at the tap, so content that depends on the value (a decision

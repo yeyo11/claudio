@@ -1,6 +1,6 @@
 import type { AccountsSettings, SettingDefault } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatPercent } from '@claudio/ui/lib/format';
 import { api, keys } from '../../api';
@@ -22,12 +22,13 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
   const id = useId();
   const [draft, setDraft] = useState(settings);
   // Not remounted on a new saved copy (a remount would drop a Reset's announcement and its focus):
-  // a field the person has not touched takes the new saved value, and an unsaved edit stays
-  const seen = useRef(settings);
-  useEffect(() => {
-    const before = seen.current;
-    seen.current = settings;
-    if (before === settings) return;
+  // a field the person has not touched takes the new saved value, and an unsaved edit stays. Done
+  // while rendering, not in an effect: an effect let one frame paint the new saved copy against the
+  // old draft, and Discard flashed into the actions and wrapped them (the fourth PR #55 review)
+  const [seen, setSeen] = useState(settings);
+  if (seen !== settings) {
+    const before = seen;
+    setSeen(settings);
     setDraft((now) => {
       const next = { ...now };
       for (const field of Object.keys(settings) as (keyof AccountsSettings)[]) {
@@ -35,7 +36,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
       }
       return next;
     });
-  }, [settings]);
+  }
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
 
   const mutation = useMutation({
