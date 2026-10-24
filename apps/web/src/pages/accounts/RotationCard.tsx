@@ -122,11 +122,10 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
         <div className="rotation-foot">
           <span className="muted small">{t('rotation.offHint')}</span>
           <span className="rotation-actions">
-            {dirty && (
-              <button type="button" className="btn btn-small" onClick={() => setEdits({})}>
-                {t('config:shared.discard')}
-              </button>
-            )}
+            {/* Always there, like Save: one that came and went re-wrapped the actions and moved the cards below */}
+            <button type="button" className="btn btn-small" onClick={() => setEdits({})} disabled={!dirty || mutation.isPending}>
+              {t('config:shared.discard')}
+            </button>
             <button type="submit" className="btn btn-small btn-primary" disabled={!dirty || mutation.isPending}>
               {t('config:shared.save')}
             </button>
