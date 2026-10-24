@@ -16,6 +16,7 @@ import { useTerminalStatus } from '../../../components/terminal/use-terminals';
 import { SaveButton, SettingsReveal } from '../groups/Block';
 import { ServerSettingChange } from '../SettingChange';
 import { settingsHref } from '../settingsGroups';
+import { ActorName } from './ActorName';
 
 const REMOTE_FIELD = 'terminal-remote';
 
@@ -83,12 +84,6 @@ function useSaveTerminal(saved: string, onRefused?: (refusal: TerminalRefusal | 
 
 type HistoryEntry = TerminalHistoryEntry;
 
-/** The words for a known actor stay sans; any other value is an id the machine wrote, so it is mono. */
-function Actor({ actor }: { actor: string }) {
-  const { t } = useTranslation('terminal');
-  return actor === 'owner' || actor === 'anonymous' ? <>{t(`history.actors.${actor}`)}</> : <span className="mono">{actor}</span>;
-}
-
 /** The end reason, then the refusal tag: the same words in the table and in the rows. */
 function How({ entry }: { entry: HistoryEntry }) {
   const { t } = useTranslation('terminal');
@@ -130,7 +125,7 @@ export function HistoryTable({ entries }: { entries: readonly HistoryEntry[] }) 
               <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
               {/* An actor id is short and read whole (`token:…`): it never breaks mid-word */}
               <td className="small nowrap">
-                <Actor actor={entry.actor} />
+                <ActorName actor={entry.actor} />
               </td>
               <td className="small mono break">{entry.cwd || '—'}</td>
               <td className="small term-history-how">
@@ -146,12 +141,19 @@ export function HistoryTable({ entries }: { entries: readonly HistoryEntry[] }) 
 
 /** The directory, shortened; a tap shows the whole path in place, because a `title` does not exist on touch. */
 function Cwd({ cwd }: { cwd: string }) {
+  const { t } = useTranslation('terminal');
   const [open, setOpen] = useState(false);
   if (!cwd) return <span className="small muted">—</span>;
   // A path that fits whole has nothing to expand, so it is text and not a button that changes nothing
   if (shortPath(cwd, 40) === cwd) return <span className="mono small term-history-path">{cwd}</span>;
   return (
-    <button type="button" className="term-history-cwd mono small" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <button
+      type="button"
+      className="term-history-cwd mono small"
+      aria-expanded={open}
+      aria-label={`${open ? cwd : shortPath(cwd, 40)} · ${t(open ? 'history.hidePath' : 'history.showPath')}`}
+      onClick={() => setOpen(!open)}
+    >
       {open ? cwd : shortPath(cwd, 40)}
     </button>
   );
@@ -167,7 +169,7 @@ export function HistoryRows({ entries }: { entries: readonly HistoryEntry[] }) {
           <span className="small term-history-who">
             <span className="muted nowrap tnum">{formatDateTime(entry.startedAt)}</span>
             <span aria-hidden="true">·</span>
-            <Actor actor={entry.actor} />
+            <ActorName actor={entry.actor} />
           </span>
           <Cwd cwd={entry.cwd} />
           <span className="small term-history-how">
@@ -251,7 +253,7 @@ function Form({ status }: { status: TerminalStatus }) {
     const [min, max] = BOUNDS[key];
     const id = `terminal.${NUMBER_ROW[key]}`;
     return (
-      <div data-setting={id}>
+      <div className="setting-change-row" data-setting={id}>
         <Field label={t(`settings.${key}`)} hint={fromEnv(key) ? t('settings.fromEnv') : consequence(key)}>
           <NumberInput
             aria-label={t(`settings.${key}`)}
@@ -330,7 +332,7 @@ function Form({ status }: { status: TerminalStatus }) {
             />
         </div>
 
-        <div data-setting="terminal.shell">
+        <div className="setting-change-row" data-setting="terminal.shell">
           <Field label={t('settings.shell')} hint={t('settings.shellHint')}>
             {/* Mono only for the path the machine reads; the fallback is words */}
             {settings.shell ? <span className="mono">{settings.shell}</span> : <span>{t('settings.loginShell')}</span>}

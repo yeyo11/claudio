@@ -147,10 +147,8 @@
     "where": "Directory",
     "how": "How it went",
     "running": "Running",
-    "actors": {
-      "owner": "Owner",
-      "anonymous": "Anonymous"
-    },
+    "showPath": "Show the full path",
+    "hidePath": "Hide the full path",
     "refused_one": "{{count}} attempt refused: {{reasons}}",
     "refused_other": "{{count}} attempts refused: {{reasons}}",
     "refusedReason": {

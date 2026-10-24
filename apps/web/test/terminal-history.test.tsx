@@ -12,7 +12,7 @@ const entry = (over: Partial<TerminalHistoryEntry> = {}): TerminalHistoryEntry =
   scope: { kind: 'workspace' },
   cwd: '/home/yeyo/Escritorio/claudio/.claude/worktrees/some-long-worktree-name/apps/web/src',
   shell: '/bin/bash',
-  actor: 'owner',
+  actor: 'local',
   client: 'web',
   startedAt: '2026-10-20T10:00:00Z',
   endedAt: '2026-10-20T10:05:00Z',
@@ -40,22 +40,29 @@ test('an entry with no directory shows a dash and no button', async () => {
   assert.match(html, /—/);
 });
 
-test('the actor words are sans and an id is mono, in the rows and in the table', async () => {
-  const html = await rows([entry({ actor: 'owner' }), entry({ id: 't2', actor: 'anonymous' }), entry({ id: 't3', actor: 'token:abc123' })]);
-  assert.match(html, /Owner/);
+test('the actor words are the audit log\'s, in sans, and an id is mono, in the rows and in the table', async () => {
+  const html = await rows([entry({ actor: 'local' }), entry({ id: 't2', actor: 'anonymous' }), entry({ id: 't4', actor: 'desktop' }), entry({ id: 't3', actor: 'token:abc123' })]);
+  assert.match(html, /Local access/);
   assert.match(html, /Anonymous/);
-  assert.doesNotMatch(html, /<span class="mono">owner<\/span>/);
+  assert.match(html, /Desktop app/);
+  assert.doesNotMatch(html, /<span class="mono">local<\/span>/);
   assert.match(html, /<span class="mono">token:abc123<\/span>/);
   const table = renderToStaticMarkup(<HistoryTable entries={[entry(), entry({ id: 't3', actor: 'token:abc123' })]} />);
-  assert.match(table, /Owner/);
+  assert.match(table, /Local access/);
+  assert.doesNotMatch(table, /<span class="mono">local<\/span>/);
   assert.match(table, /<span class="mono">token:abc123<\/span>/);
 });
 
 test('the actor words are Spanish in es', async () => {
-  const html = await rows([entry({ actor: 'owner' }), entry({ id: 't2', actor: 'anonymous' })], 'es');
-  assert.match(html, /Propietario/);
+  const html = await rows([entry({ actor: 'local' }), entry({ id: 't2', actor: 'anonymous' })], 'es');
+  assert.match(html, /Acceso local/);
   assert.match(html, /Anónimo/);
   await i18n.changeLanguage('en');
+});
+
+test('the shortened directory names itself and what a tap does', async () => {
+  const html = await rows([entry()]);
+  assert.match(html, /<button[^>]*aria-label="…\/[^"]* · Show the full path"/);
 });
 
 test('a refused attempt keeps its warn tag in the rows', async () => {
