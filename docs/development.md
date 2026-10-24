@@ -86,6 +86,17 @@ and one headless Chrome; what it seeds, its targets and its limits are in CONTRI
 (`board.png`, `board-mobile.png` and `work-item.png`) are not part of it yet: they were captured the
 same way, with a one-off script against the same kind of sandbox.
 
+## Checks through Sluice
+
+The repository's checks run through [Sluice](https://github.com/josegarridodigio/sluice), the verification
+queue and cache the agents on a machine share (`.sluice.toml`, 0.5.0 or later). Three gates: `lint`
+and `typecheck` before each commit, and `test` (`pnpm test` with `CI=1`) before each push, through
+the hooks in `.githooks/` (`git config core.hooksPath .githooks` once per clone; `sluice init` sets
+it). A tree that already passed is answered from the cache, so several agents verifying the same
+commit run it once. Without `sluice` on the `PATH` the hooks do nothing. The e2e suite is not a
+gate: it runs on GitHub ([decisions/e2e-on-github.md](decisions/e2e-on-github.md)). An agent
+verifies with Sluice's `verify` tool instead of running the commands itself.
+
 ## Monorepo layout
 
 ```

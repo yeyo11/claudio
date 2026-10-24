@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+command -v sluice >/dev/null 2>&1 || exit 0
+sluice run --hook pre-push test
