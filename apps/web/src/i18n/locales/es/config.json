@@ -275,7 +275,17 @@
       },
       "openAll": "Ver todo el registro",
       "count_one": "{{formatted}} entrada",
-      "count_other": "{{formatted}} entradas"
+      "count_other": "{{formatted}} entradas",
+      "actors": {
+        "local": "Acceso local",
+        "desktop": "Aplicación de escritorio",
+        "env": "Entorno",
+        "claudio": "Claudio",
+        "anonymous": "Anónimo"
+      },
+      "showPath": "Mostrar la ruta completa",
+      "hidePath": "Ocultar la ruta completa",
+      "noRoute": "Ninguna ruta coincide con esta petición"
     }
   },
   "scope": {
@@ -539,8 +549,20 @@
       "line_other": "{{count}} proyectos guardan memoria",
       "none": "Ningún proyecto guarda memoria todavía"
     },
-    "overridden_one": "Cambiado en {{count}} proyecto",
-    "overridden_other": "Cambiado en {{count}} proyectos",
+    "overridden_one": "Con otro valor en {{count}} proyecto",
+    "overridden_other": "Con otro valor en {{count}} proyectos",
+    "changeSlot": {
+      "changed": "Cambiado",
+      "default": "Predeterminado: {{value}}",
+      "resetLabel": "Restablecer {{setting}} a su valor predeterminado ({{value}})",
+      "restored": "Valor predeterminado restablecido",
+      "on": "Activado",
+      "off": "Desactivado",
+      "noCap": "Sin límite",
+      "composite": "los de cada regla",
+      "automatic": "Automático",
+      "more": "y {{count}} más"
+    },
     "groups": {
       "general": "General",
       "claude-code": "Claude Code",
@@ -739,10 +761,24 @@
         "storage": "Dónde se guardan los secretos"
       },
       "guards": {
-        "rules": "Reglas de las guardas"
+        "rules": "Reglas de las guardas",
+        "mode": "Solo observar",
+        "automated": "Workers de orquestación y flujo",
+        "rule": {
+          "no-verify": "Sin saltarse comprobaciones",
+          "push": "Sin push",
+          "destructive": "Sin comandos destructivos",
+          "secrets": "Sin secretos en archivos",
+          "protect-configs": "Proteger la configuración de lint y CI"
+        }
       },
       "terminal": {
-        "enabled": "Acceso al terminal"
+        "enabled": "Acceso a la terminal",
+        "remote": "Desde otros dispositivos",
+        "max-terminals": "Terminales a la vez",
+        "idle-minutes": "Cerrar tras minutos sin atender",
+        "scrollback": "Líneas guardadas para recargar",
+        "shell": "Shell"
       },
       "audit": {
         "log": "Registro de auditoría"
@@ -919,11 +955,25 @@
       },
       "guards": {
         "section": "bloquear reglas comandos peligrosos",
-        "rules": "bloquear denegar"
+        "rules": "bloquear denegar",
+        "mode": "observar registrar falso positivo",
+        "automated": "workers orquestación flujo",
+        "rule": {
+          "no-verify": "verificar hooks saltar",
+          "push": "push subir",
+          "destructive": "borrar rm forzar",
+          "secrets": "secretos claves env",
+          "protect-configs": "lint ci configuración proteger"
+        }
       },
       "terminal": {
         "section": "shell pty consola",
-        "enabled": "shell pty"
+        "enabled": "shell pty",
+        "remote": "remoto dispositivos túnel",
+        "max-terminals": "terminales límite",
+        "idle-minutes": "inactividad cerrar tiempo",
+        "scrollback": "historial recargar líneas",
+        "shell": "shell ruta"
       },
       "audit": {
         "section": "escrituras peticiones historial",
@@ -1814,8 +1864,8 @@
     "saveFailed": "No se ha podido guardar el ajuste del túnel"
   },
   "appSettings": {
-    "fromEnv": "fijado por el entorno",
-    "envHint": "Lo fija el entorno ({{variable}}): cámbialo donde se despliega Claudio.",
+    "fromEnv": "Fijado por el entorno",
+    "envHint": "Lo fija el entorno (<mono>{{variable}}</mono>): cámbialo donde se despliega Claudio.",
     "saveFailed": "No se ha podido guardar el ajuste",
     "hosts": {
       "title": "Hosts permitidos",

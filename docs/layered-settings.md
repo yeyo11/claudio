@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-20T18:00:00Z
 tags:
     - settings
     - configuration
@@ -129,6 +129,33 @@ their owner adds and removes while Claudio runs. The only owner so far is the
   host, the key stays the peer's address and any such header is ignored, so nobody on the machine can
   forge their way into another bucket.
 
+## Reset: back to the default
+
+Every row whose value is a preference with a default has a **Reset** beside its control, after a
+"Changed" dot ([the plan](plans/settings-reset-and-polish.md), D6). One registry in core answers for
+all of them, keyed by the ids the rows already carry in `data-setting` (and in the settings search):
+
+- `GET /api/settings/state` returns `{ settings: { [id]: { changed, source, default } } }`.
+  - `changed` is true when the store holds a value **and** it differs from the default. A value
+    equal to the default is "not changed", even when it is stored.
+  - `source` is `env`, `stored` or `default`. A row whose value the environment sets is never
+    `changed`: it keeps its "set by the environment" note and has no Reset.
+  - `default` is this install's: the image's permission mode and the container's terminal `remote`
+    differ from a desktop's, which is why the web never hard-codes one.
+- `DELETE /api/settings/state/:setting` **removes** the person's stored value instead of writing the
+  default, so the row follows a default that changes later. It goes through the store's own chained
+  write and emits the event the store's `PUT` emits. An unknown id answers `404 setting-unknown`, a
+  value from the environment `409 setting-from-env`, and a chat's token `403` for every id: a Reset
+  is the person's action, like the spend cap. A decision point's reset removes its mode and
+  threshold and keeps its consent, which is withdrawn on its own.
+- `GET /api/settings/overrides` answers which projects override a global row, for "Overridden in N
+  projects" (see [settings.md](settings.md#changed-reset-and-overridden)).
+
+What has no Reset: identity, credentials, lists a person builds item by item, security state that
+decides who can reach the server or the shell, actions, status and logs. The browser's own settings
+(theme, language, motion, the notification kinds) reset in the web with the same slot and remove
+their `localStorage` key; they never reach the server.
+
 ## Where it lives in the code
 
 - `AppSettingsStore` and `RuntimeHosts` in `packages/core/src/app-settings.ts`, as `core.appSettings`
@@ -143,6 +170,11 @@ their owner adds and removes while Claudio runs. The only owner so far is the
   Allowed hosts in Settings → Access & safety (`groups/Access.tsx`). The hosts block lists the
   environment's and the runtime hosts, each with a tag, above a field that holds only the UI's hosts;
   `changedSettings` compares that field with `allowedHostLayers.file`.
+- The registry is `packages/core/src/settings-registry.ts` (`core.settings`): each id knows where its
+  value lives in its store's document, its default, and how to remove it through the store's own
+  write. The ids are `SERVER_SETTING_IDS` in `packages/shared/src/setting-ids.ts`; the routes are in
+  `apps/api/src/routes/settings-state.ts`; the row's slot is `SettingChange`
+  (`apps/web/src/pages/config/SettingChange.tsx`), placed by `PrefRow`'s `change` prop.
 - The contract is `AppSettings` and `AllowedHostLayers` in `packages/shared/src/types.ts`.
 
 ## Related

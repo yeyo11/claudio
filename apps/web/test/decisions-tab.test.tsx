@@ -12,7 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, capConsequence, draftOf, examplePoint, isLimited, supervisorMeaning } from '../src/pages/config/decisions/model';
+import { activeBlocked, capConsequence, draftOf, examplePoint, isLimited, offUntilConsent, supervisorMeaning } from '../src/pages/config/decisions/model';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
@@ -95,6 +95,7 @@ const engine = (saved: DecisionSettings, decisions: number | null = 0) =>
       advancedOpen={false}
       onAdvanced={() => undefined}
       onExample={() => undefined}
+      onReset={() => undefined}
     />,
   );
 
@@ -186,13 +187,53 @@ test("the Supervisor's point can be active on the CLI, and its row says what eac
   // Active on the CLI without consent is Active in full for the Supervisor, as the engine has it
   const unconsented = (provider: 'cli' | 'jev') =>
     row(supervisor, settings({ 'supervisor.intervene': { mode: 'active', threshold: 0.85, consent: null } }), provider, null);
-  assert.doesNotMatch(unconsented('cli'), /Funciona como sombra/);
-  assert.match(unconsented('jev'), /Funciona como sombra hasta que tenga consentimiento/);
-  assert.match(unconsented('jev'), /Propone pistas para que las envíes tú/);
+  assert.doesNotMatch(unconsented('cli'), /Apagado hasta que tenga consentimiento/);
+  assert.match(unconsented('jev'), /Apagado hasta que tenga consentimiento/);
+  // Without consent the engine does nothing: the Supervisor's line says it is off, not that it proposes
+  assert.match(unconsented('jev'), /No vigila/);
   assert.match(unconsented('cli'), /Envía cada pista por su cuenta/);
   assert.equal(isLimited(supervisor, null, 'active', 'cli'), false);
   assert.equal(isLimited(supervisor, null, 'active', 'jev'), true);
   assert.equal(isLimited(info(), null, 'shadow', 'jev'), false);
+});
+
+test('a point that is not off and has no consent says it is off, and offers the way out', () => {
+  const unconsented = (mode: 'off' | 'shadow' | 'active', onReview = true) => {
+    const saved = settings({ 'flow.refine-needed': { mode, threshold: 0.85, consent: null } });
+    return html(
+      <PointRow
+        info={info()}
+        settings={saved}
+        provider="jev"
+        draft={{ ...draftOf(saved), provider: 'jev' }}
+        stats={null}
+        onMode={() => undefined}
+        onThreshold={() => undefined}
+        {...(onReview ? { onReviewConsent: () => undefined } : {})}
+      />,
+    );
+  };
+  for (const mode of ['shadow', 'active'] as const) {
+    const out = unconsented(mode);
+    assert.match(out, /Apagado hasta que tenga consentimiento\./);
+    assert.match(out, />Revisar y consentir</);
+    assert.doesNotMatch(out, /Funciona como sombra/);
+  }
+  const off = unconsented('off');
+  assert.doesNotMatch(off, /Apagado hasta que tenga consentimiento/);
+  assert.doesNotMatch(off, /Revisar y consentir/);
+  // A row with nobody to open the dialog keeps the warning but draws no dead link
+  assert.doesNotMatch(unconsented('shadow', false), /Revisar y consentir/);
+
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['jev' as const] };
+  const given = row(info(), settings({ 'flow.refine-needed': { mode: 'shadow', threshold: 0.85, consent } }), 'jev', null);
+  assert.match(given, /Consentido el/);
+  assert.doesNotMatch(given, /Apagado hasta que tenga consentimiento/);
+
+  assert.equal(offUntilConsent(info(), null, 'shadow', 'cli'), true);
+  assert.equal(offUntilConsent(info(), null, 'off', 'cli'), false);
+  assert.equal(offUntilConsent(info({ id: 'supervisor.intervene', kind: 'act' }), null, 'active', 'cli'), false);
+  assert.equal(offUntilConsent(info({ id: 'supervisor.intervene', kind: 'act' }), null, 'shadow', 'cli'), true);
 });
 
 test("the example payload is the first consented point's, or the Supervisor's when none is", () => {

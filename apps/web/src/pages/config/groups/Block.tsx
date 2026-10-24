@@ -30,9 +30,11 @@ export function SettingsRow({ children }: { children: ReactNode }) {
  * mounted, opened with `grid-template-rows: 0fr → 1fr` so the rows below glide instead of jumping,
  * and `inert` while closed so nobody tabs into what cannot be seen.
  */
-export function SettingsReveal({ open, children }: { open: boolean; children: ReactNode }) {
+export function SettingsReveal({ open, hold = false, children }: { open: boolean; hold?: boolean; children: ReactNode }) {
+  // `hold`: closed by something other than the person's hand (a Reset), it keeps its room, hidden and
+  // inert, until their next change: a collapse they did not start would move everything under it
   return (
-    <div className={open ? 'settings-reveal is-open' : 'settings-reveal'} inert={!open}>
+    <div className={`settings-reveal${open ? ' is-open' : hold ? ' is-held' : ''}`} inert={!open}>
       <div className="settings-reveal-body">{children}</div>
     </div>
   );

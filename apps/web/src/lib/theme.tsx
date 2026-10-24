@@ -69,13 +69,24 @@ osLight?.addEventListener('change', () => {
 export function setThemePreference(next: ThemePreference): void {
   preference = next;
   try {
-    // 'system' is stored too: nothing stored now means dark
-    localStorage.setItem(THEME_STORAGE_KEY, next);
+    // The default is not stored: a person who picks it follows the default again, as after Reset
+    if (next === DEFAULT_THEME) localStorage.removeItem(THEME_STORAGE_KEY);
+    else localStorage.setItem(THEME_STORAGE_KEY, next);
   } catch {
     // not persisted; still applied for this visit
   }
   apply();
   listeners.forEach((l) => l());
+}
+
+/** Back to the default: forgets the stored choice, so a later default applies too. */
+export function resetThemePreference(): void {
+  setThemePreference(DEFAULT_THEME);
+}
+
+/** The Appearance row's "Changed": the choice differs from the default. */
+export function useThemeChanged(): boolean {
+  return useThemePreference() !== DEFAULT_THEME;
 }
 
 function subscribe(listener: () => void): () => void {

@@ -146,12 +146,14 @@ test('the settings section shows off, on, set by the environment and invalid', (
   // The consequence, against the amount: today's spend and its share, then what the cap does
   assert.ok(text(on).includes(`Today $8.00 of $20.00, ${formatPercent(40)}.`));
   assert.match(text(on), /Over the cap, automatic work waits and chats ask first\./);
-  assert.doesNotMatch(on, /set by the environment/);
+  assert.doesNotMatch(on, /Set by the environment/);
 
   const env = wrap(<SpendCard saved={settings(50, 'env')} />);
   assert.match(env, /disabled=""/);
-  assert.match(text(env), /set by the environment/);
+  assert.match(text(env), /Set by the environment/);
   assert.match(text(env), /CLAUDIO_DAILY_SPEND_CAP_USD/);
+  // The variable is a literal the person types where Claudio runs: mono, inside a sans sentence
+  assert.match(env, /<span class="mono">CLAUDIO_DAILY_SPEND_CAP_USD<\/span>/);
   assert.doesNotMatch(env, /type="submit"/, 'nothing to save: only the environment can change it');
 
   const invalid = wrap(<SpendFields on amount={-3} fromEnv={false} invalid spentUsd={null} onToggle={() => {}} onAmount={() => {}} />);

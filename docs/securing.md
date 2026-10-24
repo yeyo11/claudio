@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-20T18:00:00Z
 tags:
     - security
     - authentication
@@ -100,10 +100,15 @@ directory it wins over the environment).
   open. No prompt text, no tool arguments, no secrets. The VAPID private key lives in `push.json`
   (mode 600, in the mode 700 data directory) and no route returns it; `GET /push/subscriptions`
   truncates every endpoint, because a full push endpoint URL is a capability to notify that install.
-- **Audit log.** Every mutating request is a row: when, who (a token id, an OIDC subject, or `local`
-  when nothing guards the API), method, path, status and a one-line summary taken from the route's
-  documentation. Bodies are never recorded, because they hold prompts and secrets. `GET /audit`, or
-  Settings → Access & safety.
+- **Audit log.** Every mutating request is a row: when, who (`token:<id>`, a `chat:<id>`, an OIDC
+  subject, `local` when nothing guards the API, or `desktop`, `env`, `claudio` and `anonymous`),
+  method, path, status, the **route** that matched (`METHOD /pattern`, or none) and a one-line English
+  summary taken from the route's documentation. Bodies are never recorded, because they hold prompts
+  and secrets. `GET /audit`, or Settings → Access & safety. The screen words "what it did" in the
+  reader's language from the route (every write route has an English and a Spanish line, built by
+  `pnpm --filter @claudio/api audit:strings`), and falls back to the stored summary for a row from
+  before the route column or from a route this build does not know. Actors that are words show as
+  words; ids stay literals. On a phone the entries are wrapping rows, not a table.
 - **The bundle is served locked down.** The UI (and the SPA fallback) carries `X-Frame-Options: DENY`,
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and a Content-Security-Policy that
   names the SHA-256 of its one inline script instead of allowing inline script at all. `style-src`

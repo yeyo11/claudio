@@ -2,7 +2,7 @@ import type { PermissionDecision } from '@claudio/shared';
 import * as Popover from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, CircleAlert, CircleCheck, CircleHelp, Gauge, GitMerge, Timer, TriangleAlert, Trash2, UserPlus, X, type LucideIcon } from 'lucide-react';
-import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, keys } from '../api';
@@ -152,6 +152,10 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
     next.focus();
   };
 
+  // The panel has no Radix trigger to hand focus back to, so Escape returns it to the bell by hand;
+  // an outside click or a link leaves focus where that action put it, as with a trigger
+  const closedBy = useRef<'escape' | null>(null);
+
   return (
     <Popover.Root open onOpenChange={(next) => !next && onClose()}>
       <Popover.Anchor virtualRef={anchor} />
@@ -168,6 +172,13 @@ export function NotificationPanel({ id, anchor, onClose }: { id: string; anchor:
           // A click on the bell is "outside" for the popover, which would close it just before the
           // bell's own click reopens it
           onInteractOutside={(e) => anchor.current?.contains(e.target as Node) && e.preventDefault()}
+          onEscapeKeyDown={() => {
+            closedBy.current = 'escape';
+          }}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            if (closedBy.current === 'escape') anchor.current?.focus();
+          }}
           // The panel takes focus itself: its first control is an icon with a tooltip, which would
           // open on arrival and swallow the first Escape meant for the panel
           onOpenAutoFocus={(e) => {

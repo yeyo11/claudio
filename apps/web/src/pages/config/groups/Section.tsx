@@ -19,15 +19,26 @@ export const SectionLevel = createContext<2 | 3>(3);
  * One section of a group's screen (docs/plans/settings-ia.md §6.0): its heading carries the anchor
  * `#<id>` scrolls to, and takes the focus when it does. Space separates sections, never a border.
  */
-export function SettingsSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+export function SettingsSection({ id, title, aside, children }: { id: string; title: string; aside?: ReactNode; children: ReactNode }) {
   const level = useContext(SectionLevel);
   const Heading = level === 2 ? 'h2' : 'h3';
+  const heading = (
+    <Heading id={`${id}-title`} className="settings-section-title" tabIndex={-1} data-section-heading>
+      {title}
+    </Heading>
+  );
   return (
     // Not a named region: a tab moved in whole may be one already, and two of one name confuse a reader
     <section id={id} className="settings-section">
-      <Heading id={`${id}-title`} className="settings-section-title" tabIndex={-1} data-section-heading>
-        {title}
-      </Heading>
+      {/* `aside`: a fact about the whole section, on its head line (the Provider's "Overridden in N projects") */}
+      {aside === undefined ? (
+        heading
+      ) : (
+        <div className="settings-section-head">
+          {heading}
+          {aside}
+        </div>
+      )}
       {children}
     </section>
   );

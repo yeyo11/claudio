@@ -311,7 +311,7 @@
 .live-row-count {
   flex: none;
   color: var(--fg-3);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -322,7 +322,7 @@
   min-width: 0;
   padding-left: calc(1ch + 7px);
   color: var(--fg-3);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
 }
 
 .live-row .ticker {
@@ -366,7 +366,7 @@
 .live-more {
   padding: 3px 10px 3px 14px;
   color: var(--fg-3);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
 }
 
 .live-more:hover {
@@ -404,7 +404,7 @@
   margin-left: auto;
   padding-left: 12px;
   color: var(--fg-2);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
 }
 
 /* Icon rail. The labels are still the links' names, so they are visually hidden, never display:none */
@@ -660,7 +660,7 @@
   border-top: 1px solid var(--line);
   background: var(--bg-1);
   color: var(--fg-3);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -1218,7 +1218,7 @@ a.link-more {
   align-items: center;
   gap: 6px;
   color: var(--fg-3);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
 }
 
 .more-account-alert {
@@ -1231,7 +1231,7 @@ a.link-more {
   border-radius: var(--radius-sm);
   background: var(--bad-soft);
   color: var(--text);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
   text-decoration: none;
 }
 
@@ -1266,7 +1266,7 @@ a.link-more {
   display: flex;
   justify-content: space-between;
   color: var(--fg);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1342,7 +1342,7 @@ a.link-more {
 .more-cell-note {
   flex: none;
   color: var(--fg-3);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 

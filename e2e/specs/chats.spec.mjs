@@ -81,6 +81,8 @@ export default async ({ page, api, check }) => {
   // The facet legends are set in capitals by CSS too
   const facets = await page.eval(`return document.querySelector('.list-toolbar-popover')?.textContent ?? ''`);
   check(facets.includes('Origin') && facets.includes('Project') && facets.includes('Model') && facets.includes('claude-sonnet-5'), 'the popover offers origin, project and the models the chats used');
+  // A model id is a literal the machine reads, so the facet draws it in mono
+  check(await page.eval(`return [...document.querySelectorAll('.list-toolbar-popover .facet-label.mono')].some((e) => e.textContent.includes('claude-sonnet-5'))`), 'the model facet draws ids in mono');
   await toggle(page, 'Internal');
   await page.waitFor(`return location.search.includes('internal=1')`, { label: 'internal in the URL' });
   await toggle(page, 'Internal');

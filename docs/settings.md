@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T20:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-20T18:00:00Z
 tags:
     - settings
     - information-architecture
@@ -97,10 +97,42 @@ Each point shows its mode and its evidence: how many decisions, how often it agr
 many disagreements (a link to History filtered by the point). The threshold shows only under Jev,
 where it acts. **See every decision** opens History. One save bar saves it all together.
 
+## Changed, Reset and Overridden
+
+A row whose value is a preference with a default shows a small neutral dot and **Changed** when the
+value differs from the default, and **Reset** beside it. Reset removes the stored value, so the
+control shows the default and follows a later one; the slot hides, focus moves to the row's control
+and a polite line says "Restored to the default" (there is no toast). Its tooltip names the default.
+The slot keeps its room while nothing is changed, so a row never shifts when it appears.
+
+- **Where it is.** Appearance, Notifications (the kinds), Provider (binary, limits), Lessons, the
+  Decisions engine and each point, Runs & spend (permission mode, concurrent runs, daily spend cap,
+  Evals), Remote access, Guards (mode, automated, each rule), the Terminal's limits, the account
+  rotation on Accounts, and the relay and agent reads on Collaborators.
+- **Where it is not.** A value the environment sets (it keeps "set by the environment"), identity,
+  credentials, lists, who can reach the server or a shell, actions, status and logs.
+- **A form that saves as a whole** (Decisions, the rotation form) takes the default into that field
+  at once and keeps your other unsaved edits, so a later Save does not write the old value back.
+- **A decision point's Reset keeps its consent.** Withdrawing consent is its own action.
+- **Overridden in N projects.** On a global row that a project can override (who answers, a point's
+  mode or threshold, the limits, a guard rule), the consequence line ends with "Overridden in N
+  projects", a link to the first project's settings; the others are named in its tooltip. The
+  projects are sorted by name. A setting that only exists per project (Lessons, Guards in chats) is
+  not counted, because the global row of the same name would say something false.
+
+The routes are `GET /settings/state`, `DELETE /settings/state/:setting` and `GET /settings/overrides`
+([REST API](rest-api.md)); the contract is explained in [layered-settings.md](layered-settings.md#reset-back-to-the-default).
+
+## A decision point without consent is off
+
+A point that is not Off but has no consent yet runs as nothing: the engine keeps it off until the
+person consents. Its row says so ("Off until it has consent.", with the warn icon and the word) and
+offers **Review and consent**, which opens the same dialog as moving the point out of Off, in the
+point's current mode. This holds for Shadow and Active alike; see [decision-engine.md](decision-engine.md).
+
 ## Where the rules for the screen live
 
-How a row is drawn (label and consequence; a changed dot and a Reset per row are reserved in the
-plan but not built), the group screen, the detail and the search are in the design system: [Settings](design-system.md#settings-groups-rows-details-and-search).
+How a row is drawn (label, consequence, and the Changed and Reset slot), the group screen, the detail and the search are in the design system: [Settings](design-system.md#settings-groups-rows-details-and-search).
 
 ## Related
 

@@ -163,6 +163,33 @@ export class TerminalSettingsStore {
     return this.get();
   }
 
+  /** What a key reads when neither the environment nor the file says otherwise, for this distribution */
+  defaultSettings(): TerminalSettings {
+    return { ...this.defaults };
+  }
+
+  /**
+   * Removes the stored value of each key (one key per path), so the default applies again. `enabled`
+   * is pinned by the environment when `CLAUDIO_TERMINAL` is set, and refused then, as `update`
+   * refuses it. The result is held to the rule `update` holds a patch to.
+   */
+  async resetKeys(paths: readonly (readonly string[])[]): Promise<TerminalSettings> {
+    const keys = paths.map((path) => {
+      const key = path[0];
+      if (path.length !== 1 || key === undefined || !(KEYS as string[]).includes(key)) throw new TerminalError('terminal.bad-settings', `${path.join('.')} is not a terminal setting`, 400);
+      return key;
+    });
+    if (keys.includes('enabled') && envSwitch(this.env) !== null) throw new TerminalError('terminal.env-locked', `${TERMINAL_ENV} decides whether the terminal is on`, 409);
+    if (!keys.some((key) => key in this.stored)) return this.get();
+    const next: Partial<TerminalSettings> = { ...this.stored };
+    for (const key of keys) delete next[key as keyof TerminalSettings];
+    const merged = { ...this.defaults, ...next };
+    if (merged.replayLines > merged.scrollbackLines) throw new TerminalError('terminal.bad-settings', 'replayLines cannot exceed scrollbackLines', 400);
+    await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
+    this.stored = next;
+    return this.get();
+  }
+
   private read(): Partial<TerminalSettings> {
     if (!existsSync(this.file)) return {};
     try {

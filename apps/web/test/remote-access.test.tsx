@@ -375,11 +375,11 @@ test('a setting the environment set is shown read-only, naming its variable', ()
   const client = new QueryClient();
   client.setQueryData(keys.appSettings, layered({ allowedHosts: 'env', defaultPermissionMode: 'env' }, { env: ['*.devtunnels.ms'], file: ['claudio.example.com'] }));
   const html = wrap(<AppSettingsSections />, client);
-  assert.ok(text(html).includes('set by the environment'));
+  assert.ok(text(html).includes('Set by the environment'));
   assert.ok(html.includes('CLAUDIO_ALLOWED_HOSTS'));
   assert.ok(html.includes('CLAUDIO_DEFAULT_PERMISSION_MODE'));
   // The environment's hosts are a tagged list; the ones added here stay editable beside them
-  assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text">set by the environment/);
+  assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text">Set by the environment/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>claudio.example.com<\/textarea>/);
   assert.ok(text(html).includes('beside the ones from the environment'));
   // The mode's picker is disabled; the run limit stays editable
@@ -400,7 +400,7 @@ test('settings nobody pinned are editable', () => {
   const client = new QueryClient();
   client.setQueryData(keys.appSettings, layered());
   const html = wrap(<AppSettingsSections />, client);
-  assert.doesNotMatch(html, /set by the environment/);
+  assert.doesNotMatch(html, /Set by the environment/);
   assert.doesNotMatch(html, /fixed-hosts/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>claudio.example.com<\/textarea>/);
 });

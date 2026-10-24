@@ -3,18 +3,20 @@ import { ChevronLeft, ChevronRight, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TerminalRemote, TerminalSettings, TerminalStatus, UpdateTerminalSettingsRequest } from '@claudio/shared';
+import type { TerminalHistoryEntry, TerminalRemote, TerminalSettings, TerminalStatus, UpdateTerminalSettingsRequest } from '@claudio/shared';
 import { NumberInput, Select, Switch, type SelectOption } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { formatDateTime, formatNumber } from '@claudio/ui/lib/format';
+import { formatDateTime, formatNumber, shortPath } from '@claudio/ui/lib/format';
 import { api, ApiRequestError, keys } from '../../../api';
 import { useScreenReaderMode } from '../../../components/terminal/terminal-prefs';
 import { terminalRefusal, type TerminalRefusal, type TerminalRefusalAction } from '../../../components/terminal/terminal-model';
 import { useTerminalStatus } from '../../../components/terminal/use-terminals';
 import { SaveButton, SettingsReveal } from '../groups/Block';
+import { ServerSettingChange } from '../SettingChange';
 import { settingsHref } from '../settingsGroups';
+import { ActorName } from './ActorName';
 
 const REMOTE_FIELD = 'terminal-remote';
 
@@ -22,6 +24,9 @@ const REMOTE: TerminalRemote[] = ['off', 'tunnel', 'any'];
 // The server's own bounds (core's terminal settings); a value outside them is refused with a 400
 const BOUNDS = { maxTerminals: [1, 32], idleMinutes: [5, 1440], scrollbackLines: [500, 10_000] } as const;
 const PAGE = 10;
+
+/** The id each number's row answers to in settings search, Reset and the overrides */
+const NUMBER_ROW = { maxTerminals: 'max-terminals', idleMinutes: 'idle-minutes', scrollbackLines: 'scrollback' } as const;
 
 type Numbers = Pick<TerminalSettings, 'maxTerminals' | 'idleMinutes' | 'scrollbackLines'>;
 
@@ -77,6 +82,105 @@ function useSaveTerminal(saved: string, onRefused?: (refusal: TerminalRefusal | 
   });
 }
 
+type HistoryEntry = TerminalHistoryEntry;
+
+/** The end reason, then the refusal tag: the same words in the table and in the rows. */
+function How({ entry }: { entry: HistoryEntry }) {
+  const { t } = useTranslation('terminal');
+  const refused = entry.attachments.filter((attachment) => attachment.refused !== null);
+  return (
+    <>
+      {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
+      {refused.length > 0 && (
+        <Tag tone="warn">
+          {t('history.refused', {
+            count: refused.length,
+            // A code the copy does not know yet still reads as words, never as the server's code
+            // Deduplicated as words, so two codes the copy does not know read once, not twice
+            reasons: [...new Set(refused.map((attachment) => t(`history.refusedReason.${attachment.refused}`, { defaultValue: t('history.refusedReason.unknown') })))].join(', '),
+          })}
+        </Tag>
+      )}
+    </>
+  );
+}
+
+/** From 560 px of the card: four columns. */
+export function HistoryTable({ entries }: { entries: readonly HistoryEntry[] }) {
+  const { t } = useTranslation('terminal');
+  return (
+    <div className="table-wrap term-history-table" role="group" aria-label={t('history.title')} tabIndex={0}>
+      <table className="table" aria-label={t('history.title')}>
+        <thead>
+          <tr>
+            <th scope="col">{t('history.when')}</th>
+            <th scope="col">{t('history.actor')}</th>
+            <th scope="col">{t('history.where')}</th>
+            <th scope="col">{t('history.how')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry, index) => (
+            <tr key={`${entry.id}-${index}`}>
+              <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
+              {/* An actor id is short and read whole (`token:…`): it never breaks mid-word */}
+              <td className="small nowrap">
+                <ActorName actor={entry.actor} />
+              </td>
+              <td className="small mono break">{entry.cwd || '—'}</td>
+              <td className="small term-history-how">
+                <How entry={entry} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** The directory, shortened; a tap shows the whole path in place, because a `title` does not exist on touch. */
+function Cwd({ cwd }: { cwd: string }) {
+  const { t } = useTranslation('terminal');
+  const [open, setOpen] = useState(false);
+  if (!cwd) return <span className="small muted">—</span>;
+  // A path that fits whole has nothing to expand, so it is text and not a button that changes nothing
+  if (shortPath(cwd, 40) === cwd) return <span className="mono small term-history-path">{cwd}</span>;
+  return (
+    <button
+      type="button"
+      className="term-history-cwd mono small"
+      aria-expanded={open}
+      aria-label={`${open ? cwd : shortPath(cwd, 40)} · ${t(open ? 'history.hidePath' : 'history.showPath')}`}
+      onClick={() => setOpen(!open)}
+    >
+      {open ? cwd : shortPath(cwd, 40)}
+    </button>
+  );
+}
+
+/** Below 560 px of the card: wrapping rows, like Guards' recent blocks, so nothing scrolls sideways. */
+export function HistoryRows({ entries }: { entries: readonly HistoryEntry[] }) {
+  const { t } = useTranslation('terminal');
+  return (
+    <ul className="term-history-rows" aria-label={t('history.title')}>
+      {entries.map((entry, index) => (
+        <li key={`${entry.id}-${index}`} className="term-history-row">
+          <span className="small term-history-who">
+            <span className="muted nowrap tnum">{formatDateTime(entry.startedAt)}</span>
+            <span aria-hidden="true">·</span>
+            <ActorName actor={entry.actor} />
+          </span>
+          <Cwd cwd={entry.cwd} />
+          <span className="small term-history-how">
+            <How entry={entry} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function History() {
   const { t } = useTranslation('terminal');
   const [from, setFrom] = useState(0);
@@ -95,44 +199,9 @@ function History() {
         <Empty title={t('history.none')}>{t('history.noneHint')}</Empty>
       ) : (
         <>
-          <div className="table-wrap" role="group" aria-label={t('history.title')} tabIndex={0}>
-            <table className="table" aria-label={t('history.title')}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('history.when')}</th>
-                  <th scope="col">{t('history.actor')}</th>
-                  <th scope="col">{t('history.where')}</th>
-                  <th scope="col">{t('history.how')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((entry, index) => {
-                  const refused = entry.attachments.filter((attachment) => attachment.refused !== null);
-                  return (
-                    <tr key={`${entry.id}-${index}`}>
-                      <td className="small muted nowrap">{formatDateTime(entry.startedAt)}</td>
-                      {/* An actor id is short and read whole (`token:…`, `owner`, `anonymous`): it never breaks mid-word */}
-                      <td className="small mono nowrap">{entry.actor}</td>
-                      <td className="small mono break">{entry.cwd || '—'}</td>
-                      <td className="small term-history-how">
-                        {entry.endReason ? t(`history.ended.${entry.endReason}`) : entry.id ? t('history.running') : ''}
-                        {refused.length > 0 && (
-                          <Tag tone="warn">
-                            {t('history.refused', {
-                              count: refused.length,
-                              // A code the copy does not know yet still reads as words, never as the server's code
-                              // Deduplicated as words, so two codes the copy does not know read once, not twice
-                              reasons: [...new Set(refused.map((attachment) => t(`history.refusedReason.${attachment.refused}`, { defaultValue: t('history.refusedReason.unknown') })))].join(', '),
-                            })}
-                          </Tag>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {/* Both are in the markup; the container query in terminal.css shows one, and the other is display: none */}
+          <HistoryTable entries={entries} />
+          <HistoryRows entries={entries} />
           <div className="form-actions">
             <button type="button" className="btn btn-small" disabled={from === 0} onClick={() => setFrom(Math.max(0, from - PAGE))}>
               <ChevronLeft {...ICON_SM} aria-hidden />
@@ -182,17 +251,28 @@ function Form({ status }: { status: TerminalStatus }) {
 
   const field = (key: keyof Numbers) => {
     const [min, max] = BOUNDS[key];
+    const id = `terminal.${NUMBER_ROW[key]}`;
     return (
-      <Field label={t(`settings.${key}`)} hint={fromEnv(key) ? t('settings.fromEnv') : consequence(key)}>
-        <NumberInput
-          aria-label={t(`settings.${key}`)}
-          value={merged[key]}
-          onChange={(value) => setNumber((now) => ({ ...now, [key]: value }))}
-          min={min}
-          max={max}
-          disabled={fromEnv(key)}
-        />
-      </Field>
+      <div className="setting-change-row" data-setting={id}>
+        <Field label={t(`settings.${key}`)} hint={fromEnv(key) ? t('settings.fromEnv') : consequence(key)}>
+          <NumberInput
+            aria-label={t(`settings.${key}`)}
+            value={merged[key]}
+            onChange={(value) => setNumber((now) => ({ ...now, [key]: value }))}
+            min={min}
+            max={max}
+            disabled={fromEnv(key)}
+          />
+        </Field>
+        {/* A reset drops the edit in this field; the others stay */}
+        <ServerSettingChange id={id} label={t(`settings.${key}`)} invalidate={[keys.terminalStatus]} onReset={() =>
+            setNumber((now) => {
+              const next = { ...now };
+              delete next[key];
+              return next;
+            })
+          } />
+      </div>
     );
   };
 
@@ -215,16 +295,18 @@ function Form({ status }: { status: TerminalStatus }) {
       )}
 
       {/* Chosen before the switch is on: in a container it is the first thing a person may need to set */}
-      <Field label={t('settings.remoteLabel')} hint={fromEnv('remote') ? t('settings.fromEnv') : t('settings.remoteHint')}>
-        <Select<TerminalRemote>
-          id={REMOTE_FIELD}
-          aria-label={t('settings.remoteLabel')}
-          value={settings.remote}
-          options={options}
-          disabled={fromEnv('remote') || toggle.isPending}
-          onChange={(remote) => toggle.mutate({ remote })}
-        />
-      </Field>
+      <div data-setting="terminal.remote">
+        <Field label={t('settings.remoteLabel')} hint={fromEnv('remote') ? t('settings.fromEnv') : t('settings.remoteHint')}>
+          <Select<TerminalRemote>
+            id={REMOTE_FIELD}
+            aria-label={t('settings.remoteLabel')}
+            value={settings.remote}
+            options={options}
+            disabled={fromEnv('remote') || toggle.isPending}
+            onChange={(remote) => toggle.mutate({ remote })}
+          />
+        </Field>
+      </div>
       {settings.remote === 'any' && (
         <p className="term-note">
           <TriangleAlert {...ICON_SM} aria-hidden />
@@ -250,10 +332,18 @@ function Form({ status }: { status: TerminalStatus }) {
             />
         </div>
 
-        <Field label={t('settings.shell')} hint={t('settings.shellHint')}>
-          {/* Mono only for the path the machine reads; the fallback is words */}
-          {settings.shell ? <span className="mono">{settings.shell}</span> : <span>{t('settings.loginShell')}</span>}
-        </Field>
+        <div className="setting-change-row" data-setting="terminal.shell">
+          <Field label={t('settings.shell')} hint={t('settings.shellHint')}>
+            {/* Mono only for the path the machine reads; the fallback is words */}
+            {settings.shell ? <span className="mono">{settings.shell}</span> : <span>{t('settings.loginShell')}</span>}
+          </Field>
+          <ServerSettingChange
+            id="terminal.shell"
+            label={t('settings.shell')}
+            wording={(value) => (typeof value === 'string' && value ? value : t('settings.loginShell'))}
+            invalidate={[keys.terminalStatus]}
+          />
+        </div>
         <p className="small muted">{status.peerCheck === 'on' ? t('settings.peerOn') : t('settings.peerUnknown')}</p>
         <Switch checked={screenReader} onChange={setScreenReader} aria-label={t('settings.screenReader')}>
           <span>{t('settings.screenReader')}</span>

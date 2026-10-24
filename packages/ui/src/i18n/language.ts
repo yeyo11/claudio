@@ -42,7 +42,12 @@ function readStored(): Language | null {
   return null;
 }
 
-let current: Language = readStored() ?? detectLanguage(browserLanguages());
+/** What the language is until the person picks one: the browser's, or English. */
+export function defaultLanguage(): Language {
+  return detectLanguage(browserLanguages());
+}
+
+let current: Language = readStored() ?? defaultLanguage();
 
 export function currentLanguage(): Language {
   return current;
@@ -52,7 +57,9 @@ export function currentLanguage(): Language {
 export function storeLanguage(next: Language): void {
   current = next;
   try {
-    localStorage.setItem(STORAGE_KEY, next);
+    // The browser's own language is not stored: the choice then follows the browser, as after Reset
+    if (next === defaultLanguage()) localStorage.removeItem(STORAGE_KEY);
+    else localStorage.setItem(STORAGE_KEY, next);
   } catch {
     // not persisted; still applied for this visit
   }

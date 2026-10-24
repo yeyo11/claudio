@@ -28,6 +28,7 @@
     "noLabel": "Sin etiqueta",
     "relay": "URL del relay",
     "relayHint": "Un iroh-relay propio, en lugar de los relays públicos de n0. Déjalo vacío para usar los predeterminados.",
+    "relayDefault": "los relays públicos de n0",
     "endpoint": "Id del endpoint",
     "copyEndpoint": "Copiar el id del endpoint",
     "edit": "Editar",
