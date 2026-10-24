@@ -2574,9 +2574,9 @@ the screen where the row is a field, a switch or a decision point, inside a `.se
 On a phone the slot's line appears with the person's own edit, a shift within 500 ms of their input
 that layout-shift scoring does not count. A Reset does not take it away: the line goes when the
 server answers, which on a phone over the LAN or the tunnel is long after the tap, so it keeps its
-room hidden (`.pref-row-change[data-held]`) until the person's next change, and so does the whole
-row (`[data-change-held]`, the height it had at the tap), so what depends on the value (a decision
-point's consent line) leaves room too; a field a Reset closes (the spend cap's amount) keeps its room
+room hidden (`.pref-row-change[data-held]`) until the person's next change, and so do the row and
+each of its parts (`[data-change-held]`, the heights they had at the tap), so what depends on the
+value (a decision point's consent line) leaves room instead of moving what follows it; a field a Reset closes (the spend cap's amount) keeps its room
 (`.settings-reveal.is-held`) until their next toggle. A server setting reads its state
 from `GET /settings/state` and resets through `DELETE /settings/state/:setting`; Appearance and
 Notifications reset the browser's own keys with the same slot. After Reset the control shows the

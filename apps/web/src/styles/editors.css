@@ -1275,8 +1275,9 @@ button.master-item-on:hover {
     clip-path: inset(50%);
   }
 
-  /* The whole row keeps the height it had when Reset was tapped (`SettingChange` measures it), so
-     what depends on the value, such as a decision point's consent line, leaves room instead of a shift */
+  /* The row and each of its parts keep the height they had when Reset was tapped (`SettingChange`
+     measures them), so what depends on the value, such as a decision point's consent line, leaves
+     room instead of moving what follows it */
   [data-change-held] {
     min-height: var(--held-height);
     /* A grid row (a decision point) would spread the room between its rows and slide its own

@@ -602,8 +602,9 @@ Up to 12 chats and workers at once                ● Changed · Reset
   consequence line, left aligned, only once the value is changed. Reset is ≥ 44 px tall (`--touch`).
   After a Reset the line keeps its room, hidden (`data-held`), until the next change: the second
   `/ui-review` measured a 0.027 shift with `hadRecentInput: false` when the answer took 700 ms. The
-  third one found a decision point's consent line going with the mode, so the whole row keeps the
-  height it had at the tap (`data-change-held`), and the hold ends only on a change read after the
+  third one found a decision point's consent line going with the mode, so the row and each of its
+  parts keep the heights they had at the tap (`data-change-held`, the fifth review: the row alone let
+  what followed the shrinking part move up), and the hold ends only on a change read after the
   default (`nextResetHold`).
 - **Project rows.** They keep their own "Use global" (`ProjectDecisions.tsx:238-245`) and do not
   get `SettingChange`.

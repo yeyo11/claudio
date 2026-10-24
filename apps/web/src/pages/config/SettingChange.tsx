@@ -26,6 +26,31 @@ export function focusSettingControl(setting: string): void {
   control?.focus();
 }
 
+/** The row of a setting and its direct parts, which a Reset holds at their height. */
+function heldParts(setting: string): HTMLElement[] {
+  const row = document.querySelector<HTMLElement>(`[data-setting="${setting}"]`);
+  return row ? [row, ...Array.from(row.children).filter((el): el is HTMLElement => el instanceof HTMLElement)] : [];
+}
+
+/**
+ * Pins the row and each of its parts at the height they have now. A part only: a row holds its
+ * parts' heights, so one that shrinks (a decision point's evidence once its consent part goes) keeps
+ * its room instead of pulling what follows it up.
+ */
+function holdRow(setting: string): void {
+  for (const el of heldParts(setting)) {
+    el.style.setProperty('--held-height', `${el.getBoundingClientRect().height}px`);
+    el.setAttribute('data-change-held', '');
+  }
+}
+
+function releaseRow(setting: string): void {
+  for (const el of heldParts(setting)) {
+    el.removeAttribute('data-change-held');
+    el.style.removeProperty('--held-height');
+  }
+}
+
 /** Where a row stands after a Reset: not held, waiting for the default to be read, or held until the next change. */
 export type ResetHold = 'off' | 'awaiting' | 'on';
 
@@ -92,15 +117,11 @@ export function SettingChange({
   }
   const held = hold !== 'off' && !shown;
 
-  // The row keeps the height it had at the tap, so content that depends on the value (a decision
-  // point's consent line) does not pull the rows below up either; only a phone's rules read it
+  // The row and each of its parts keep the height they had at the tap, so what depends on the value
+  // (a decision point's consent line) moves neither the parts after it nor the rows below; only a
+  // phone's rules read it
   useLayoutEffect(() => {
-    const row = document.querySelector<HTMLElement>(`[data-setting="${setting}"]`);
-    if (!row) return;
-    if (hold === 'off') {
-      row.removeAttribute('data-change-held');
-      row.style.removeProperty('--held-height');
-    }
+    if (hold === 'off') releaseRow(setting);
   }, [hold, setting]);
 
   const reset = async () => {
@@ -109,11 +130,7 @@ export function SettingChange({
     // A second Reset on the same row says the same words: the region must change to be read again
     setSaid('');
     try {
-      const row = document.querySelector<HTMLElement>(`[data-setting="${setting}"]`);
-      if (row) {
-        row.style.setProperty('--held-height', `${row.getBoundingClientRect().height}px`);
-        row.setAttribute('data-change-held', '');
-      }
+      holdRow(setting);
       setHold('awaiting');
       await onReset();
       setSaid(t('settings.changeSlot.restored'));

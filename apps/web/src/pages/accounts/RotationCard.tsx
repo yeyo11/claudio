@@ -50,9 +50,11 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
   });
 
   // A Reset puts that field of the saved document into the draft, so the other unsaved edits stay
+  // Only over an unsaved edit of that field: an untouched one takes the default while rendering, with
+  // the saved copy, and writing it here first painted a draft ahead of the copy (Discard flashed)
   const takeFromSaved = (field: keyof AccountsSettings) => () => {
     const fresh = queryClient.getQueryData<AccountsSettings>(keys.accountsSettings);
-    if (fresh) setDraft((now) => ({ ...now, [field]: fresh[field] }));
+    if (fresh) setDraft((now) => (JSON.stringify(now[field]) === JSON.stringify(settings[field]) ? now : { ...now, [field]: fresh[field] }));
   };
   const change = (setting: string, label: string, field: keyof AccountsSettings, wording?: (value: SettingDefault) => string) => (
     <ServerSettingChange id={`accounts.${setting}`} label={label} {...(wording ? { wording } : {})} invalidate={[keys.accountsSettings]} onReset={takeFromSaved(field)} />
