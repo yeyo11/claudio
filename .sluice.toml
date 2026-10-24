@@ -39,8 +39,10 @@ hooks = ["pre-commit"]
 key_inputs = ["node --version", "pnpm --version"]
 
 [gates.test]
-# Detected from package.json.
-cmd = "pnpm test"
+# Detected from package.json. It installs first: a merge train runs its gates in a fresh worktree
+# with no node_modules, where `pnpm test` failed at once (spawn tsx ENOENT, josegarridodigio/sluice#3).
+# Where the dependencies are there, the install is a no-op of a few seconds from pnpm's store
+cmd = "pnpm install --frozen-lockfile --prefer-offline && pnpm test"
 weight = "auto"
 timeout = "30m"
 hooks = ["pre-push"]
