@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
 import { defaultPrefs, prefsChanged, resetPrefsOf } from '../src/lib/notifications-model';
 import { draftOf, withSettingFrom } from '../src/pages/config/decisions/model';
-import { SettingChange, overriddenLine } from '../src/pages/config/SettingChange';
+import { SettingChange, nextResetHold, overriddenLine, type ResetHold } from '../src/pages/config/SettingChange';
 import { SETTINGS_INDEX } from '../src/pages/config/settingsIndex';
 
 test.beforeEach(async () => {
@@ -37,6 +37,23 @@ test('the slot keeps its room while nothing is changed: it is in the markup, hid
     assert.match(html, /class="pref-row-change-line is-hidden" aria-hidden="true"/);
     assert.match(html, /tabindex="-1"/);
   }
+});
+
+test('a Reset holds the row until the default is read and then until the next change, whatever renders come between', () => {
+  // The request is done while the old value still reads as changed: the hold must not end there
+  assert.equal(nextResetHold('awaiting', true), 'awaiting');
+  assert.equal(nextResetHold('awaiting', false), 'on');
+  assert.equal(nextResetHold('on', false), 'on');
+  assert.equal(nextResetHold('on', true), 'off');
+  assert.equal(nextResetHold('off', true), 'off');
+  assert.equal(nextResetHold('off', false), 'off');
+  // Walked as the review's failing trace: changed, changed after the request, default, a new change
+  let hold: ResetHold = 'awaiting';
+  for (const shown of [true, true, false, false, true]) hold = nextResetHold(hold, shown);
+  assert.equal(hold, 'off');
+  hold = 'awaiting';
+  for (const shown of [true, true, false]) hold = nextResetHold(hold, shown);
+  assert.equal(hold, 'on');
 });
 
 test('a value the environment sets never offers Reset', () => {

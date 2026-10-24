@@ -1,7 +1,7 @@
 import type { SettingDefault, SettingSource } from '@claudio/shared';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { CircleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useProjects, useSettingOverrides, useSettingsState } from '../../api';
@@ -24,6 +24,20 @@ export function focusSettingControl(setting: string): void {
   const scope = row?.querySelector<HTMLElement>('.pref-row-change')?.parentElement ?? row;
   const control = Array.from(scope?.querySelectorAll<HTMLElement>(CONTROL) ?? []).find((el) => !el.closest('.pref-row-change'));
   control?.focus();
+}
+
+/** Where a row stands after a Reset: not held, waiting for the default to be read, or held until the next change. */
+export type ResetHold = 'off' | 'awaiting' | 'on';
+
+/**
+ * The hold's next step for what the row reads now. Only a change read after the default ends it:
+ * the old value can still read as changed for a render once the request is done, and ending the
+ * hold then let the line go when the default landed (the third PR #55 review, one Reset in three).
+ */
+export function nextResetHold(hold: ResetHold, shown: boolean): ResetHold {
+  if (hold === 'awaiting' && !shown) return 'on';
+  if (hold === 'on' && shown) return 'off';
+  return hold;
 }
 
 /** How a default reads in the Reset tooltip when the row has no worded options of its own. */
@@ -64,12 +78,26 @@ export function SettingChange({
   const [error, setError] = useState<string | null>(null);
   const [said, setSaid] = useState('');
   const [pending, setPending] = useState(false);
-  // Set by a Reset, until the value is changed again: on a phone the line keeps its room, hidden,
-  // because it goes when the server answers, which on a slow link is long after the tap and so a shift
-  const [held, setHeld] = useState(false);
+  // A Reset holds the row's room on a phone until the value is changed again: what it takes away goes
+  // when the server answers, which on a slow link is long after the tap and so counts as a shift.
+  // `awaiting` until the default is read (the old value still reads as changed for a render or two,
+  // even once the request is done), then `on` until the value reads changed again
+  const [hold, setHold] = useState<ResetHold>('off');
   const shown = state?.changed === true && state.source !== 'env';
-  // While the Reset is on its way the old value still reads as changed: only a change after it ends the hold
-  if (held && shown && !pending) setHeld(false);
+  const next = nextResetHold(hold, shown);
+  if (next !== hold) setHold(next);
+  const held = hold !== 'off' && !shown;
+
+  // The row keeps the height it had at the tap, so content that depends on the value (a decision
+  // point's consent line) does not pull the rows below up either; only a phone's rules read it
+  useLayoutEffect(() => {
+    const row = document.querySelector<HTMLElement>(`[data-setting="${setting}"]`);
+    if (!row) return;
+    if (hold === 'off') {
+      row.removeAttribute('data-change-held');
+      row.style.removeProperty('--held-height');
+    }
+  }, [hold, setting]);
 
   const reset = async () => {
     setPending(true);
@@ -77,13 +105,18 @@ export function SettingChange({
     // A second Reset on the same row says the same words: the region must change to be read again
     setSaid('');
     try {
-      setHeld(true);
+      const row = document.querySelector<HTMLElement>(`[data-setting="${setting}"]`);
+      if (row) {
+        row.style.setProperty('--held-height', `${row.getBoundingClientRect().height}px`);
+        row.setAttribute('data-change-held', '');
+      }
+      setHold('awaiting');
       await onReset();
       setSaid(t('settings.changeSlot.restored'));
       // After the row has re-rendered with the default, which can remount the whole section
       requestAnimationFrame(() => requestAnimationFrame(() => focusSettingControl(setting)));
     } catch (err) {
-      setHeld(false);
+      setHold('off');
       setError(errorMessage(err));
     } finally {
       setPending(false);
@@ -91,7 +124,7 @@ export function SettingChange({
   };
 
   return (
-    <div className="pref-row-change" data-shown={shown} data-held={held && !shown ? true : undefined}>
+    <div className="pref-row-change" data-shown={shown} data-held={held ? true : undefined}>
       <span className={shown ? 'pref-row-change-line' : 'pref-row-change-line is-hidden'} aria-hidden={shown ? undefined : true}>
         <span className="pref-row-change-dot" aria-hidden />
         <span className="pref-row-change-word">{t('settings.changeSlot.changed')}</span>

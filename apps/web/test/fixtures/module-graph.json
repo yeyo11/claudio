@@ -260,7 +260,7 @@
   "SelectionBar [PhoneSelectionFoot, SelectionBar, SelectionNote, useOrchestrateSelection]",
   "ServersPanel [ServersPanel, mcpKey, offersClaudio, serversOn, useLiveServers]",
   "SessionNotes [JournalForm, SessionNotes, SessionNotesView, SessionNotesViewProps]",
-  "SettingChange [Overridden, ServerSettingChange, SettingChange, focusSettingControl, overriddenLine, useDefaultWording]",
+  "SettingChange [Overridden, ResetHold, ServerSettingChange, SettingChange, focusSettingControl, nextResetHold, overriddenLine, useDefaultWording]",
   "Settings [Settings]",
   "SettingsGuided [SettingsGuided]",
   "SettingsSearch [SettingsSearchField, SettingsSearchResults, SettingsSearchState, useSettingsSearch]",

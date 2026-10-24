@@ -1275,6 +1275,12 @@ button.master-item-on:hover {
     clip-path: inset(50%);
   }
 
+  /* The whole row keeps the height it had when Reset was tapped (`SettingChange` measures it), so
+     what depends on the value, such as a decision point's consent line, leaves room instead of a shift */
+  [data-change-held] {
+    min-height: var(--held-height);
+  }
+
   .pref-row-change-reset {
     min-height: var(--touch);
     min-width: var(--touch);
