@@ -65,7 +65,7 @@ export interface EffectiveDecision {
   threshold: number;
   provider: DecisionProviderId;
   consent: NonNullable<DecisionSettings['points'][DecisionPointId]>['consent'];
-  /** Active in name only: an act point on `cli` never clears a threshold (`supervisor.intervene` aside), and a point without consent asks nothing */
+  /** Active in name only: an act point on `cli` never clears a threshold (`supervisor.intervene` aside), and a point without consent is off, not shadow (the engine gates on consent first) */
   limited: boolean;
 }
 

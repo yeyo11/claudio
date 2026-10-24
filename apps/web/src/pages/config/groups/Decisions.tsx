@@ -13,7 +13,7 @@ import { BulkConsentDialog } from '../decisions/BulkConsentDialog';
 import { ConsentDialog, ExamplePayloadDialog } from '../decisions/ConsentDialog';
 import { DecisionHistory } from '../decisions/DecisionHistory';
 import { ADVANCED_SETTINGS, EngineSection, MAX_COST, MAX_HISTORY_DAYS } from '../decisions/Engine';
-import { type BulkPlan, THRESHOLD_MIN, draftOf, examplePoint, needsConsent, planBulk, pointOf, sameDraft } from '../decisions/model';
+import { type BulkPlan, THRESHOLD_MIN, draftOf, examplePoint, needsConsent, planBulk, pointOf, sameDraft, withSettingFrom } from '../decisions/model';
 import { type BulkNote, PointsSection, pointName } from '../decisions/Points';
 import { settingsHref } from '../settingsGroups';
 import { DECISION_POINTS, pointAnchor } from '../settingsIndex';
@@ -123,6 +123,12 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
     setExample(catalogue.find((info) => info.id === id) ?? null);
   };
 
+  // A row reset on the server: its field in the draft becomes what the saved document now holds
+  const onReset = (setting: string) => {
+    const fresh = queryClient.getQueryData<DecisionSettings>(keys.decisionSettings);
+    if (fresh) setDraft((current) => withSettingFrom(current, draftOf(fresh), setting));
+  };
+
   const patch = (next: Partial<typeof draft>) => setDraft((current) => ({ ...current, ...next }));
 
   const costValid = Number.isFinite(draft.cli.maxCostUsd) && draft.cli.maxCostUsd > 0 && draft.cli.maxCostUsd <= MAX_COST;
@@ -166,6 +172,7 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
           advancedOpen={advancedOpen}
           onAdvanced={setAdvancedOpen}
           onExample={showExample}
+          onReset={onReset}
         />
       </SettingsSection>
       <SettingsSection id="points" title={t('points.title')}>
@@ -177,6 +184,8 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
           focus={focus}
           onMode={onMode}
           onBulk={onBulk}
+          onReviewConsent={(id, mode) => setAsking({ id, mode })}
+          onReset={onReset}
           bulkNote={bulkNote}
           onThreshold={(id, threshold) => setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), threshold } } }))}
         />

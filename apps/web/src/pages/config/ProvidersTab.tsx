@@ -16,6 +16,7 @@ import { actionsFor, CLAUDE_CODE_ID, providerLink, STATE_TONE, stateLabelKey } f
 import { entryOf, latestCheck, orderedIds, withEntry } from '../../lib/provider-settings';
 import { useProviders, useRefreshProviders } from '../../lib/providers';
 import { LimitBars } from './providers/LimitBars';
+import { ServerSettingChange } from './SettingChange';
 
 /**
  * Claude Code: its state, the account it signs in with, the binary Claudio runs and the usage
@@ -140,9 +141,16 @@ export function ProvidersTab() {
   // Signing in is the Sign-in section's: the row's Sign in links there (ProviderRow), so the panel lives in one place
   return (
     <div className="prov-page prov-bare">
-      <div className="prov-item" data-setting="provider.binary" aria-busy={checking}>
+      <div className="prov-item setting-change-row" data-setting="provider.binary" aria-busy={checking}>
         {row}
         {!narrow && binaryOpen && editor(false)}
+        <ServerSettingChange
+          id="provider.binary"
+          label={t('bin.title', { name: status.label })}
+          wording={() => t('bin.usePath')}
+          invalidate={[keys.providerSettings]}
+          onReset={() => void refresh.mutateAsync().catch(() => undefined)}
+        />
       </div>
       {narrow && binaryOpen && (
         <Sheet open onOpenChange={setBinaryOpen} title={status.label} className="prov-sheet">

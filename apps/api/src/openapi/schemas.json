@@ -18622,7 +18622,7 @@
       },
       "actor": {
         "type": "string",
-        "description": "`token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself; `local` when no authentication is configured"
+        "description": "Who made it: `token:<id>` for the owner's token, the OIDC subject, `desktop` for the desktop app's own credential, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself, `local` when no authentication is configured, and `anonymous` for a request refused before it was identified (no valid credential, or a host the wrapper does not serve)"
       },
       "method": {
         "type": "string"
@@ -18635,7 +18635,14 @@
       },
       "summary": {
         "type": "string",
-        "description": "One line about what it did, built from the route, not from the payload"
+        "description": "One line about what it did, in English, built from the route, not from the payload"
+      },
+      "route": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`METHOD /pattern` as `ROUTE_DOCS` keys it (`POST /chats/:id/mcp/:name`); null for rows written before it, or no matched route"
       }
     },
     "required": [
@@ -18645,7 +18652,8 @@
       "method",
       "path",
       "status",
-      "summary"
+      "summary",
+      "route"
     ],
     "description": "One mutating request. Never the body: prompts and secrets live there."
   },
@@ -27456,6 +27464,108 @@
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."
+  },
+  "SettingsState": {
+    "type": "object",
+    "properties": {
+      "settings": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SettingState"
+        }
+      }
+    },
+    "required": [
+      "settings"
+    ],
+    "description": "`GET /settings/state`: every server-side setting a row can reset, by its `data-setting` id"
+  },
+  "SettingState": {
+    "type": "object",
+    "properties": {
+      "changed": {
+        "type": "boolean",
+        "description": "The stored value differs from the default: the row shows \"Changed · Reset\""
+      },
+      "source": {
+        "$ref": "#/components/schemas/SettingSource"
+      },
+      "default": {
+        "$ref": "#/components/schemas/SettingDefault"
+      }
+    },
+    "required": [
+      "changed",
+      "source",
+      "default"
+    ]
+  },
+  "SettingSource": {
+    "type": "string",
+    "enum": [
+      "env",
+      "stored",
+      "default"
+    ],
+    "description": "Where a setting's value comes from: the environment (read-only here), what the person stored, or the default"
+  },
+  "SettingDefault": {
+    "anyOf": [
+      {
+        "type": "string"
+      },
+      {
+        "type": "number"
+      },
+      {
+        "type": "boolean"
+      },
+      {
+        "type": "null"
+      },
+      {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "description": "A setting's default, as the store defines it; the web words it"
+  },
+  "SettingOverrides": {
+    "type": "object",
+    "additionalProperties": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "description": "`GET /settings/overrides`: the projects that override each global setting, sorted by project name; only ids with one or more"
   },
   "StoredDashboardLayout": {
     "type": "object",

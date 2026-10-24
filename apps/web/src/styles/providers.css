@@ -482,9 +482,23 @@
   min-width: 0;
 }
 
+/* The binary's Changed · Reset at the end of the row's line, inside the row's own padding */
+.prov-bare > .prov-item > .pref-row-change {
+  padding-inline-end: 18px;
+}
+
+.prov-bare > .prov-item.setting-change-row {
+  --change-row-gap: 0;
+  column-gap: 0;
+}
+
 @media (max-width: 900px) {
   .prov-bare > .prov-item {
     margin-inline: -14px;
+  }
+
+  .prov-bare > .prov-item > .pref-row-change {
+    padding: 0 14px 12px;
   }
 
   .prov-bare .prov-actions .btn {

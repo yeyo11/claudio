@@ -102,6 +102,9 @@ export default a11ySpec(async ({ page, problems, scan, fx }) => {
   await scan(page, 'notification panel', { rules: OVERLAY_RULES });
   await page.key('Escape');
   await page.waitFor(`return !document.querySelector('.notif-panel')`, { label: 'notification panel closed' });
+  // Escape gives focus back to the bell, not to <body>, and the bell's tooltip stays shut
+  if (!(await page.eval(`return document.activeElement === document.querySelector('.bell')`))) problems.push('[shell] closing the notification panel with Escape does not return focus to the bell');
+  if (await page.eval(`return !!document.querySelector('[role=tooltip]')`)) problems.push('[shell] Escape on the notification panel opened the bell tooltip');
 
   // "Run workflow" lives behind "New chat ▾" now: the menu, then the dialog it opens
   await page.focus('.topbar-new .split-btn-more');

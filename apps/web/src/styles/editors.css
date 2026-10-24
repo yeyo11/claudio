@@ -826,6 +826,19 @@ button.master-item-on:hover {
   font-weight: var(--fw-strong);
 }
 
+/* A section's head line: its title and one fact about the whole section, neutral and small */
+.settings-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.settings-section-head > .pref-row-overridden {
+  font-size: var(--fs-small);
+}
+
 .settings-section-title:focus {
   outline: none;
 }
@@ -1121,6 +1134,168 @@ button.master-item-on:hover {
   align-items: flex-start;
   gap: 12px;
   min-width: 0;
+}
+
+/*
+ * The "Changed · Reset" slot (SettingChange): a neutral dot, the word, and the Reset link, on one
+ * line that never wraps inside itself. Where it sits is the row's business (`.setting-change-row`
+ * below, and the decision point's own grid): on a desktop at the end of the row's head line, in a
+ * column that keeps its width while nothing is changed (`visibility`, not `display`), so the row is
+ * no taller for it and nothing moves sideways when it appears.
+ */
+.pref-row-change {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+.pref-row-change-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.pref-row-change-line.is-hidden {
+  visibility: hidden;
+}
+
+/* A change is not a status, so the dot is never ok, warn or bad */
+.pref-row-change-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--fg-3);
+}
+
+/* A 24 px target on a line of text: the padding is given back by the margin, so the line keeps
+   the small line height and the head line it sits on grows by nothing */
+.pref-row-change-reset {
+  padding-block: 3px;
+  margin-block: -3px;
+}
+
+.pref-row-change-error {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 36ch;
+  color: var(--bad);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A row that carries the slot: its first line (or the first line of the Field or settings row it
+ * holds, which lend their lines to this grid) shares the top line with the slot's column, and
+ * everything under it takes the whole width again.
+ */
+.setting-change-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 16px;
+  row-gap: var(--change-row-gap, 4px);
+  align-items: start;
+  min-width: 0;
+}
+
+.setting-change-row:has(> .field) {
+  --change-row-gap: 6px;
+}
+
+.setting-change-row > *,
+.setting-change-row > :is(.field, .settings-row) > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.setting-change-row > :is(.field, .settings-row) {
+  display: contents;
+}
+
+.setting-change-row > :first-child,
+.setting-change-row > :is(.field, .settings-row) > :first-child {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.setting-change-row > .pref-row-change {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.pref-row-overridden {
+  /* A link inside a line of text still takes a whole target, 24 px here and 44 px on a phone; the
+     negative margin gives the room back, so the line does not grow */
+  display: inline-block;
+  line-height: var(--lh-small);
+  padding-block: 3px;
+  margin-block: -3px;
+  color: var(--fg-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/*
+ * A phone or a touch screen (the viewport is read, not the row's container, because not every card
+ * sets its rows in `PrefRows`): nothing is reserved. The slot takes no room until the value differs
+ * from the default, and then its own line under the row's consequence, with a finger's Reset. That
+ * line appears from the person's own edit, so it is not a shift they did not cause.
+ */
+@media (pointer: coarse), (max-width: 900px) {
+  .setting-change-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--change-row-gap, 4px);
+  }
+
+  .setting-change-row > :is(.field, .settings-row) {
+    display: flex;
+  }
+
+  /* Its own line, at the start of the row like the consequence above it */
+  .setting-change-row > .pref-row-change {
+    align-self: flex-start;
+  }
+
+  /* Out of the flow and out of sight, but still in the tree: its live region says "Restored". Just
+     after a Reset (`data-held`) the line keeps its room instead, hidden by `.is-hidden`, until the
+     person's next change, so the rows below do not move when the server's answer lands */
+  .pref-row-change[data-shown='false']:not([data-held]) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .pref-row-change-reset {
+    min-height: var(--touch);
+    min-width: var(--touch);
+    padding-block: 0;
+    margin-block: 0;
+  }
+
+  .pref-row-overridden {
+    padding-block: 13px;
+    margin-block: -13px;
+  }
+}
+
+/* A PrefRow's control column carries the slot beside its control; the control keeps its own width */
+.pref-row-control.setting-change-row {
+  justify-items: start;
+  --change-row-gap: 12px;
+}
+
+.pref-row.is-stacked > .pref-row-control.setting-change-row {
+  justify-items: stretch;
 }
 
 /* A stacked row's control is a block (a list, a form): it takes the row's width */
@@ -1674,6 +1849,14 @@ button.master-item-on:hover {
   margin-top: 0;
 }
 
+/* Closed by a Reset: the room stays, nothing of it shows, until the person's next change */
+.settings-reveal.is-held {
+  grid-template-rows: 1fr;
+  margin-top: 0;
+  visibility: hidden;
+  transition: none;
+}
+
 .settings-reveal-body {
   display: flex;
   flex-direction: column;
@@ -1761,6 +1944,11 @@ button.master-item-on:hover {
   margin: 4px 0 0;
 }
 
+/* In a slot's grid the row gap spaces the lines */
+.guard-switches .setting-change-row p {
+  margin: 0;
+}
+
 .guard-rules {
   display: flex;
   flex-direction: column;
@@ -1771,8 +1959,13 @@ button.master-item-on:hover {
   border-radius: var(--radius-lg);
 }
 
-.guard-rule {
+/* The card's rules are lines of text, not the Sheet's switch-beside-text rows of guards.css: a head
+   line, then the description, starting at the same x on every rule */
+.guard-switches .guard-rule {
+  display: block;
+  min-height: 0;
   padding: 10px 12px;
+  border-bottom: 0;
 }
 
 .guard-rule + .guard-rule {

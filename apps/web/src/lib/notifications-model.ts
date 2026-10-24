@@ -105,6 +105,18 @@ export function defaultPrefs(): NotificationPrefs {
   return { kinds: Object.fromEntries(KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>, level: DEFAULT_LEVEL, browser: false };
 }
 
+/**
+ * The Notifications row's "Changed": a kind or the level differs from the default. `browser` is
+ * left out because it is the permission the browser granted, not a preference with a default.
+ */
+export function prefsChanged(prefs: NotificationPrefs): boolean {
+  const defaults = defaultPrefs();
+  return prefs.level !== defaults.level || KINDS.some((kind) => prefs.kinds[kind] !== defaults.kinds[kind]);
+}
+
+/** The prefs after Reset: the defaults for the kinds and the level, the browser permission kept. */
+export const resetPrefsOf = (prefs: NotificationPrefs): NotificationPrefs => ({ ...defaultPrefs(), browser: prefs.browser });
+
 /** The person is already looking at what the notification is about, so a toast would only repeat it. */
 export function isRedundant(notification: Pick<NotificationDraft, 'runId' | 'orchestrationId'>, pathname: string, tabVisible: boolean): boolean {
   if (!tabVisible) return false;

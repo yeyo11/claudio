@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EFFORT_LEVELS, type Effort, type LessonSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
+import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
 import { WorkItemError } from '../work-item-validation.ts';
 
@@ -122,6 +123,7 @@ function mergeDeep(base: Record<string, unknown>, patch: Record<string, unknown>
 /** Reads and writes `lessons.json` in the data directory */
 export class LessonSettingsStore {
   private readonly file: string;
+  private writing: Promise<unknown> = Promise.resolve();
 
   constructor(config: CoreConfig) {
     this.file = join(config.dataDir, 'lessons.json');
@@ -138,11 +140,50 @@ export class LessonSettingsStore {
   }
 
   /** Applies a partial update over the current document, validated as a whole */
-  async update(patch: unknown): Promise<LessonSettings> {
-    if (!isObject(patch)) return bad('settings', 'must be an object');
-    const merged = mergeDeep((await this.get()) as unknown as Record<string, unknown>, patch);
-    const next = parseLessonSettings(merged);
-    await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
-    return next;
+  update(patch: unknown): Promise<LessonSettings> {
+    if (!isObject(patch)) return Promise.reject(new WorkItemError('settings must be an object', 400));
+    return this.chained(async () => {
+      const merged = mergeDeep((await this.get()) as unknown as Record<string, unknown>, patch);
+      const next = parseLessonSettings(merged);
+      await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
+      return next;
+    });
+  }
+
+  /** The document as stored, before the defaults fill it in; null when there is none or it does not parse */
+  async stored(): Promise<Record<string, unknown> | null> {
+    if (!existsSync(this.file)) return null;
+    try {
+      const raw: unknown = JSON.parse(await readFile(this.file, 'utf8'));
+      return isObject(raw) ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Removes the values at `paths`, so their defaults apply again. What is left must still hold
+   * together (`retireBelow` under `deliverAt`, say): a reset that would break it is refused with the
+   * field, like an update, rather than leave a document that reads as all defaults.
+   */
+  resetKeys(paths: readonly SettingPath[]): Promise<LessonSettings> {
+    return this.chained(async () => {
+      const raw = await this.stored();
+      if (!raw) {
+        if (existsSync(this.file)) throw new WorkItemError(`${this.file} is not valid JSON; fix or remove it`, 409);
+        return this.get();
+      }
+      const next = withoutPaths(raw, paths);
+      const parsed = parseLessonSettings(next);
+      await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
+      return parsed;
+    });
+  }
+
+  /** One write at a time, each on top of the one before: a reset and a save made together both land */
+  private chained<T>(run: () => Promise<T>): Promise<T> {
+    const write = this.writing.then(run);
+    this.writing = write.catch(() => undefined);
+    return write;
   }
 }

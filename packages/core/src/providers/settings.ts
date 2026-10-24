@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import type { LimitAction, ProviderId, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
+import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
 import { PROVIDER_MANIFESTS } from './registry.ts';
 
@@ -83,6 +84,33 @@ export class ProvidersSettingsStore {
   async set(input: unknown): Promise<ProvidersSettings> {
     const parsed = this.parse(input);
     await writeAtomic(this.file, `${JSON.stringify(parsed, null, 2)}\n`);
+    this.cached = parsed;
+    return this.get();
+  }
+
+  /** The document as stored, before the defaults fill it in; null when there is none or it does not parse */
+  stored(): Record<string, unknown> | null {
+    if (!existsSync(this.file)) return null;
+    try {
+      const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
+      return isObject(raw) ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Removes the values at `paths` from the stored document, so their defaults apply again. The rest
+   * is kept as stored, and the result must still parse, so a reset never leaves a document the
+   * store would refuse. A document that does not parse is refused rather than overwritten.
+   */
+  async resetKeys(paths: readonly SettingPath[]): Promise<ProvidersSettings> {
+    if (!existsSync(this.file)) return this.get();
+    const raw = this.stored();
+    if (!raw) throw new Error(`${this.file} is not valid JSON; fix or remove it`);
+    const next = withoutPaths(raw, paths);
+    const parsed = this.parse(next, true);
+    await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
     this.cached = parsed;
     return this.get();
   }

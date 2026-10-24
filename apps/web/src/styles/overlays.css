@@ -209,7 +209,7 @@
   margin: 6px 0 0;
   max-height: 180px;
   overflow: auto;
-  font: var(--fs-small) var(--mono);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -261,7 +261,7 @@
 .viewer-count {
   flex: none;
   color: var(--text-faint);
-  font: var(--fs-small) var(--sans);
+  font: var(--fw-regular) var(--fs-small)/var(--lh-small) var(--sans);
   font-variant-numeric: tabular-nums;
 }
 

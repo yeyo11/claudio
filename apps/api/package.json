@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts",
     "openapi:schemas": "tsx scripts/generate-schemas.ts",
+    "audit:strings": "tsx scripts/generate-audit-strings.ts",
     "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {

@@ -74,7 +74,8 @@
       "stale": "Asks again",
       "staleHint": "The state of this point changed since you consented, so it asks again."
     },
-    "limited": "Runs as shadow until it has consent.",
+    "offUntilConsent": "Off until it has consent.",
+    "reviewConsent": "Review and consent",
     "names": {
       "flowRefineNeeded": "Decide whether a card needs refining",
       "flowBounce": "Send the card back to the developer after QA rejects it",

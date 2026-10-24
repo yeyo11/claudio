@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CollaboratorsSettings, UpdateCollaboratorsRequest } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
+import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
 
 /*
@@ -100,6 +101,35 @@ export class CollaboratorsSettingsStore {
     } catch {
       return { ...DEFAULT_COLLABORATORS_SETTINGS };
     }
+  }
+
+  /** The document as stored, before the defaults fill it in; null when there is none or it does not parse */
+  stored(): Record<string, unknown> | null {
+    if (!existsSync(this.file)) return null;
+    try {
+      const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
+      return isObject(raw) ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Removes the stored value of each key (one key per path), so the default applies again, under the
+   * same lock as `update`. A file that does not parse is refused rather than overwritten.
+   */
+  resetKeys(paths: readonly SettingPath[]): Promise<{ before: CollaboratorsSettings; after: CollaboratorsSettings }> {
+    const run = this.lock.then(async () => {
+      const before = this.read();
+      if (!existsSync(this.file)) return { before, after: before };
+      const raw = this.stored();
+      if (!raw) throw new Error(`${this.file} is not valid JSON; fix or remove it`);
+      const next = withoutPaths(raw, paths);
+      await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
+      return { before, after: this.read() };
+    });
+    this.lock = run.catch(() => undefined);
+    return run;
   }
 
   /** Applies a validated change to what is stored now, read under the lock; answers the result. */
