@@ -1,5 +1,7 @@
 import { isModelName, normalizeMessage, type ChatModelTokens, type TokenUsage, type TranscriptEntry } from '@claudio/shared';
 
+import type { ModelUsage } from './providers/driver.ts';
+
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 export const emptyTokenUsage = (): TokenUsage => ({ input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 });
@@ -11,6 +13,35 @@ export function addTokenUsage(into: TokenUsage, more: TokenUsage): void {
   into.cacheRead += more.cacheRead;
   into.cacheCreation += more.cacheCreation;
   into.total = into.input + into.output + into.cacheRead + into.cacheCreation;
+}
+
+/**
+ * The tokens one turn used: the growth of the CLI's per-model counts since the previous `result` of
+ * the same process. The CLI reports `modelUsage` cumulative over its process (as it does
+ * `total_cost_usd`), so a long-lived or resumed chat would over-report every turn after its first
+ * if the figure were read as the turn's own. A model whose count went down (a counter that started
+ * again) counts from zero. Null when the result carried no counts at all: nothing is estimated.
+ */
+export function turnTokens(previous: readonly ModelUsage[], current: readonly ModelUsage[]): TokenUsage | null {
+  if (current.length === 0) return null;
+  const before = new Map(previous.map((m) => [m.model, m]));
+  const grown = (now: number | undefined, then: number | undefined): number => {
+    const n = num(now);
+    const t = num(then);
+    return n >= t ? n - t : n;
+  };
+  const turn = emptyTokenUsage();
+  for (const m of current) {
+    const p = before.get(m.model);
+    addTokenUsage(turn, {
+      input: grown(m.inputTokens, p?.inputTokens),
+      output: grown(m.outputTokens, p?.outputTokens),
+      cacheRead: grown(m.cacheReadInputTokens, p?.cacheReadInputTokens),
+      cacheCreation: grown(m.cacheCreationInputTokens, p?.cacheCreationInputTokens),
+      total: 0,
+    });
+  }
+  return turn;
 }
 
 /** What the last response of the main conversation read, and the model that answered it. */

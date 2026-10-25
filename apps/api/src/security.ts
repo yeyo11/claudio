@@ -707,6 +707,9 @@ export class FailureBackoff {
  */
 const READ_ONLY_ALLOWED = new Set([`POST ${API_PREFIX}/chats/:id/permissions/:requestId`, `PUT ${API_PREFIX}/security/auth`]);
 
+/** The OpenAI-compatible surface, which needs a credential in every mode */
+const OPENAI_SURFACE = new RegExp(`^${API_PREFIX}/v1(?:/|$)`);
+
 /** Only what this process serves is guarded; the UI bundle is public so a 401 has a page to show. */
 const isGuarded = (path: string): boolean => path === '/openapi.json' || path === '/docs' || path.startsWith('/docs/') || path.startsWith(`${API_PREFIX}/`);
 
@@ -958,6 +961,32 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         void reply.status(403).send({ error: "a chat's token cannot import, link, unlink or sync issues, or change a project's tracker" });
         return reply;
       }
+    }
+    // The OpenAI-compatible routes start chats that may run commands for whoever calls them, so an
+    // open install still asks them for a credential: the owner's token, or a chat's own from this
+    // machine (docs/openai-compatible-api.md). Guarded modes already asked above
+    if (mode === 'none' && guarded && OPENAI_SURFACE.test(path)) {
+      const client = backoffKey(req, runtimeHosts);
+      const wait = backoff.retryAfter(client);
+      if (wait > 0) {
+        req.actor = 'anonymous';
+        void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
+        return reply;
+      }
+      const credential = credentialOf(req, path);
+      const actor = core.security.credentialActorFor(credential, fromLocalMachineStrict(req, runtimeHosts));
+      if (!actor) {
+        // Only a wrong credential is a guess; none at all is a client not set up yet
+        if (credential !== undefined) backoff.fail(client);
+        req.actor = 'anonymous';
+        const error = core.security.config.tokenSet
+          ? 'authentication required: send the API token as `Authorization: Bearer <token>`'
+          : 'authentication required: this API runs commands for its callers, so it needs a token even with authentication off. Set one in Settings → Access & safety (or `POST /api/security/token`) and send it as `Authorization: Bearer <token>`';
+        void reply.header('WWW-Authenticate', 'Bearer realm="Claudio"').status(401).send({ error, mode });
+        return reply;
+      }
+      backoff.succeed(client);
+      req.actor = actor;
     }
     // Open mode grants everything already, so a chat's token only labels who wrote: a missing, wrong
     // or expired one leaves `local` and is never refused

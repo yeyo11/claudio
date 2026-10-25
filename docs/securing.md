@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-10-25T20:00:00Z
 tags:
     - security
     - authentication
@@ -42,7 +42,7 @@ directory it wins over the environment).
 
 | Mode | What a request must carry |
 | --- | --- |
-| `none` | Nothing. The default |
+| `none` | Nothing. The default. The one exception is the OpenAI-compatible surface (`/api/v1/*`), which still needs the API token or a chat's own token, because a request there starts a chat that may run commands ([openai-compatible-api.md](openai-compatible-api.md)) |
 | `token` | `Authorization: Bearer <token>`. Only the SHA-256 of the token is stored; the token exists once, in the answer that created it, and can be rotated or removed but never read back |
 | `oidc` | A JWT that the issuer's JWKS validates, with the `aud` you configured and an unexpired `exp`. With a client id configured, a token whose `azp` names another client is refused |
 

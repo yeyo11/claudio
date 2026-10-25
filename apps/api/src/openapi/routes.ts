@@ -130,6 +130,11 @@ export const TAGS = [
       "Teammates' Claudios sharing projects read only, peer to peer over iroh. A group's roster is a chain its owner signs; a project is shared per group, under a share key matched across installs, and what members share is copied here and served from the copy. Nothing on these routes starts work on anyone's machine. A chat's token is refused on every route here, reads included. Changes are announced as `collaborators.changed`, `collaborators.peer`, `collaborators.synced`, `collaborators.join-request`, `collaborators.join-answered` and `collaborators.join-ended` on `GET /events`; a join request notifies the owner in the app and by push, and its answer clears that notification.",
   },
   {
+    name: 'OpenAI-compatible',
+    description:
+      "Chat Completions and Models in OpenAI's wire format, so clients and SDKs that speak it use Claudio by pointing their base URL at `/api/v1`. For local use with the owner's own login (see docs/openai-compatible-api.md). Each request is a real Claudio chat (origin `api`, hidden from the chat lists) with the default tool preset, no permission prompts and never `bypassPermissions`; a resent history finds its chat again. A credential is required in every mode, `mode: none` included: the owner's token or a chat's own. Errors are `{ error: { message, type, param, code } }`; the daily spend cap answers `429` with `Retry-After`. Claudio's own parameters are headers: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset` in; `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` and `X-Claudio-Ignored` out.",
+  },
+  {
     name: 'Push',
     description:
       'Web Push over VAPID, signed and sent by this server: a chat that stops for a permission prompt reaches a phone whose app is closed. There is no third-party push account — the payload goes out to whatever endpoint the browser handed us. A subscription belongs to an install, not to a person, so every install that registered gets the same notifications.',
@@ -152,6 +157,8 @@ interface RouteDoc {
   produces?: string;
   /** Kept for old clients; the description names what replaces it */
   deprecated?: boolean;
+  /** Request headers the route reads */
+  headers?: Json;
 }
 
 const d = (tag: string, summary: string, rest: Omit<RouteDoc, 'tags' | 'summary'> = {}): RouteDoc => ({ tags: [tag], summary, ...rest });
@@ -767,6 +774,23 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   'POST /tunnel/stop': d('Remote access', 'Stop the tunnel', { description: 'Takes the node\'s name off the allowlist, then removes Claudio\'s Serve rule (`tailscale serve --https=<port> off`), only if the port still holds exactly that rule. Turning the auth mode to `none` does this first by itself.', ok: ref('TunnelStatus') }),
 
   // ---- Uploads
+  'GET /v1/models': d('OpenAI-compatible', 'The models a chat can run on, in OpenAI\'s list shape', {
+    description: 'Every model of every provider with a driver, as `{ object: "list", data: [{ id, object: "model", created, owned_by }] }`. `id` is the value the CLI takes (`sonnet`); `owned_by` is the provider id; `created` is 0 because the catalogue has no date.',
+  }),
+  'GET /v1/models/:id': d('OpenAI-compatible', 'One model, by its value or a concrete id it stands for', {
+    description: 'Also found by a concrete id an alias resolves to (`claude-sonnet-5-5` for `sonnet`). An unknown id is `404` with `code: "model_not_found"`.',
+    params: obj({ id: str('Model id') }, ['id']),
+  }),
+  'POST /v1/chat/completions': d('OpenAI-compatible', 'A Chat Completions turn, answered whole or streamed', {
+    description:
+      'Body: OpenAI\'s Chat Completions request. The turn runs in a Claudio chat: a new one, or the one the history (or `X-Claudio-Chat-Id`) leads to, resumed with only the new messages. `stream: true` answers `text/event-stream` with `data: <chunk>` lines ending in `data: [DONE]`, a usage chunk with `choices: []` before it when `stream_options.include_usage` is set, and `X-Claudio-Cost-Usd` as a trailer. Refused with `400 unsupported_parameter`: `n > 1`, client `tools` / `functions` / a `tool_choice` that needs them, and a `response_format` other than `text` (both arrive in later phases). Requests on one conversation run one after another. A client that disconnects interrupts the turn.',
+    headers: obj({
+      'x-claudio-chat-id': str('Continue this chat; an unknown id is 404'),
+      'x-claudio-cwd': str('An absolute directory inside the workspace or an imported project, for a new chat'),
+      'x-claudio-tool-preset': str('A stored tool preset id (`GET /config/tool-presets`); the default preset otherwise'),
+      'x-claudio-spend-override': str('`1` goes on past the daily spend cap', { enum: ['1'] }),
+    }),
+  }),
   'POST /uploads': d('Uploads', 'Upload a file to attach', { description: 'The request body is the file itself, sent as `application/octet-stream`; `name` is its file name. The type is read from the bytes. Limits: images (PNG, JPEG, GIF, WebP) 5 MB, PDFs 32 MB, anything else 50 MB. Files are kept in the data dir, outside every project, and every run can read them.', querystring: obj({ name: str('File name') }), ok: ref('Attachment'), created: true }),
   'GET /uploads/:id': d('Uploads', "An upload's metadata", { ok: ref('Attachment') }),
   'GET /uploads/:id/content': d('Uploads', 'The uploaded file', { description: 'Images and PDFs are served inline; any other type as a download, never rendered.' }),
@@ -869,13 +893,20 @@ const SPEND_GATED = new Set([
   'POST /assistant/chats',
 ]);
 
+const OPENAI_ERROR = obj(
+  { error: obj({ message: str(), type: str('`invalid_request_error`, `rate_limit_error` or `server_error`'), param: { type: ['string', 'null'] }, code: { type: ['string', 'null'] } }, ['message', 'type', 'param', 'code']) },
+  ['error'],
+);
+
 /** Builds the Fastify route schema for a documented route; path params are derived from the URL. */
 export function routeSchema(method: string, path: string): Json | null {
   const doc = ROUTE_DOCS[`${method} ${path}`];
   if (!doc) return null;
   const pathParams = [...path.matchAll(/:(\w+)/g)].map((m) => m[1] as string);
   const params = doc.params ?? (pathParams.length ? obj(Object.fromEntries(pathParams.map((p) => [p, str()])), pathParams) : undefined);
-  const error = { description: 'Invalid request or not found', content: { 'application/json': { schema: ref('ApiError') } } };
+  // The OpenAI-compatible routes answer OpenAI's error body, not Claudio's
+  const openAi = path.startsWith('/v1/');
+  const error = { description: 'Invalid request or not found', content: { 'application/json': { schema: openAi ? OPENAI_ERROR : ref('ApiError') } } };
   const gated = SPEND_GATED.has(`${method} ${path}`);
   return {
     tags: doc.tags,
@@ -884,7 +915,7 @@ export function routeSchema(method: string, path: string): Json | null {
     ...(params ? { params: { ...params, required: pathParams } } : {}),
     ...(doc.querystring ? { querystring: doc.querystring } : {}),
     ...(doc.body ? { body: doc.body } : {}),
-    ...(gated ? { headers: obj({ 'x-claudio-spend-override': str('`1` goes on past the daily spend cap; ignored on a request authenticated by a chat\'s token', { enum: ['1'] }) }) } : {}),
+    ...(gated ? { headers: obj({ 'x-claudio-spend-override': str('`1` goes on past the daily spend cap; ignored on a request authenticated by a chat\'s token', { enum: ['1'] }) }) } : doc.headers ? { headers: doc.headers } : {}),
     ...(doc.produces ? { produces: [doc.produces] } : {}),
     ...(doc.deprecated ? { deprecated: true } : {}),
     response: {

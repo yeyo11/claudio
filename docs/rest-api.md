@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-10-25T18:00:00Z
 tags:
     - rest-api
     - api
@@ -609,6 +609,22 @@ curl -X POST localhost:8797/api/chats -H 'content-type: application/json' \
   -d '{"prompt":"Summarize this repo","cwd":"/workspace/my-project","model":"sonnet"}'
 curl -N localhost:8797/api/chats/<id>/stream
 ```
+
+## OpenAI-compatible
+
+OpenAI's Chat Completions and Models, so a client that speaks them uses Claudio by setting its base
+URL to `http://127.0.0.1:8797/api/v1`. For local use with the owner's own login. Each request is a
+real Claudio chat (origin `api`, hidden from the chat lists unless `?origin=api` asks for them). These
+routes need a credential in every mode, `none` included: the owner's API token, or a chat's own from
+this machine. Errors here are OpenAI's `{ "error": { "message", "type", "param", "code" } }`, not
+Claudio's `{ "error": "…" }`; the daily spend cap is `429` with `Retry-After`. What the surface does,
+its headers and its limits are in [openai-compatible-api.md](openai-compatible-api.md).
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/v1/models` | `{ object: "list", data: [{ id, object: "model", created, owned_by }] }`: the models of every provider that can run chats |
+| GET | `/v1/models/:id` | One of them, by its value or a concrete id it stands for; `404 model_not_found` otherwise |
+| POST | `/v1/chat/completions` | A turn, whole or as `data:` chunks ending in `data: [DONE]`. Headers in: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset`; out: `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` (a trailer when streamed), `X-Claudio-Ignored` |
 
 ## Orchestration
 

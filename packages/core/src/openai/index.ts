@@ -9,6 +9,8 @@ export {
   type KeySeed as OpenAiKeySeed,
 } from './conversation-key.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';
+export { fetchImage as fetchOpenAiImage, isPublicAddress, type FetchImageOptions } from './fetch-image.ts';
+export { OPENAI_CONVERSATION_TTL_MS, sweepOpenAiChats, type OpenAiSweep, type OpenAiSweepDeps } from './sweep.ts';
 export { failureOfSpendCap, failureOfThrown, openAiError, retryAfterSeconds, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
 export {
   ChatCompletionTranslator,

@@ -1,17 +1,26 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-25T16:00:00Z
+updated_at: 2026-10-25T20:00:00Z
 tags:
     - api
     - openai
     - chats
+    - how-to
 ---
 # The OpenAI-compatible surface
 
 Clients that speak OpenAI's Chat Completions format will reach Claudio under `/api/v1`, and each
 request becomes a real Claudio chat ([the plan](plans/openai-compatible-api.md)). This page describes
-what is built. Today that is **phase 1 only**: the pure translators and the conversation table in
-`packages/core/src/openai/`, with unit tests. No route serves them yet; phase 2 adds the routes.
+what is built: **phases 1 and 2**. Phase 1 is the pure translators and the conversation table in
+`packages/core/src/openai/`. Phase 2 serves them: `GET /v1/models`, `GET /v1/models/:id` and
+`POST /v1/chat/completions`, whole and streamed, in `apps/api/src/routes/openai.ts`. Client tools
+(phase 4), `response_format` (phase 3) and `/v1/responses` (phase 5) are not built yet.
+
+**This surface is for local use with the owner's own login.** It drives the unmodified Claude Code
+CLI on the owner's machine, under the account signed in there. Anthropic's terms do not cover
+serving other people or services with a Pro or Max subscription through it
+([the plan](plans/openai-compatible-api.md), risk 1). Keep it on loopback, or behind the same guard
+as the rest of the API, and do not hand the token to anyone else.
 
 Everything here stays inside Claudio: it translates between two shapes and stores rows. It reaches
 no agent, calls no SDK and adds no dependency.
@@ -88,9 +97,9 @@ the whole response or the error once the turn is over.
 
 **Where the tokens come from.** `RunOutcome` carries no token counts, only `costUsd`. The CLI reports
 them per model on its `result` (`modelUsage`, which reaches `ChatManager` as the driver's `ModelUsage[]`),
-not on the `RunEvent`. So `push(resultEvent, { usage })` takes the counts from the caller, and
-`tokenUsageOf(modelUsage)` sums them. When none are given, the body has no `usage` and no usage
-chunk is sent. Nothing is estimated.
+not on the `RunEvent`. So `push(resultEvent, { usage })` takes the counts from the caller. When none
+are given, the body has no `usage` and no usage chunk is sent. Nothing is estimated. Phase 2 decided
+which counts the caller passes (below, "The tokens of one turn").
 
 ### Errors
 
@@ -135,10 +144,190 @@ never share a chat.
 SQL's keyword. `remember` is a single `INSERT … ON CONFLICT (hash) DO UPDATE`, so concurrent writers
 on one key leave one whole row, and `created_at` stays the first writer's. `forgetChat(chatId)`
 drops a chat's keys, and `Db.deleteChat` does the same inside its own transaction, like the other
-chat-keyed tables. `expire(olderThan)` drops keys not answered since then. Nothing calls it yet:
-phase 2 decides the period. Chats pruned by `saveChats(keep)` keep their rows until they expire, and
+chat-keyed tables. `expire(olderThan)` drops keys not answered since then; phase 2's sweep calls it (below). Chats pruned by `saveChats(keep)` keep their rows until they expire, and
 a lookup must check that the chat still exists.
+
+## Phase 2: the routes
+
+| File | What it does |
+|---|---|
+| `apps/api/src/routes/openai.ts` | The three routes, registered under `/api` with the prefix `/v1` in their own Fastify context: OpenAI's error shape, a `/v1` 404, the per-conversation queue, the turn runner and the hourly sweep. |
+| `apps/api/src/security.ts` | The rule that `/api/v1/*` needs a credential under `mode: none` too. |
+| `apps/api/src/sse.ts` | `openStream` takes extra headers and announced trailers, writes a raw `data:` line (for `[DONE]`) and ends the reply. |
+| `packages/core/src/openai/fetch-image.ts` | `fetchImage` and `isPublicAddress`: the image fetcher phase 1 left to the caller. |
+| `packages/core/src/openai/sweep.ts` | `sweepOpenAiChats` and `OPENAI_CONVERSATION_TTL_MS`. |
+| `packages/core/src/usage.ts` | `turnTokens`, a turn's tokens from the cumulative figures. |
+
+### The tokens of one turn
+
+**Decision.** The CLI reports `modelUsage` (and `total_cost_usd`) **cumulative over its process**, as
+recorded in `packages/core/test/fixtures/recordings/c0-NOTES.md` (F12) and as `foldResult` already
+treats the cost. An API chat keeps its process between turns, so reading the figure as the turn's
+own would bill the second turn for the first one too. The route needs this turn alone.
+
+The smallest sound option is a per-turn delta computed where the cost delta already is, with no
+change to the API contract:
+
+- `LiveChat.lastReportedModelUsage` is the process's last `modelUsage`, reset at every spawn like
+  `lastReportedCostUsd`.
+- `foldResult` sets `LiveChat.lastTurn = { tokens, costUsd }` **before** it pushes the `result`
+  event: `tokens` is `turnTokens(previous, current)`, the growth per model (a model seen for the first
+  time counts whole, a count that went down counts from zero), and `costUsd` is the growth of
+  `total_cost_usd`.
+- `ChatManager.lastTurn(id)` reads it. The route reads it in its listener of the `result` event, which
+  runs synchronously inside the push, so it is always that turn's figure.
+
+Rejected: a `tokens` field on `RunOutcome`. It is the cleaner contract for the web too, but it changes
+`packages/shared/src/types.ts` and every consumer for something only this route reads today. If the
+web ever shows per-turn tokens, move `lastTurn` onto the outcome then. `x-claudio-cost-usd` uses the
+same delta, so the second turn of a process reports its own cost, not the process's total.
+
+### A request, step by step
+
+1. The body is read (`parseChatCompletionRequest`). What phase 2 cannot do is refused with
+   `400 unsupported_parameter`: client `tools` / `functions`, a `tool_choice` / `function_call` that
+   needs them (`required` or a named function; `auto` and `none` pass), and `response_format` other
+   than `text`. The message says they arrive in a later version. Then the model must be in the
+   catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid and `X-Claudio-Tool-Preset` must
+   name a stored preset.
+2. **Serialised per conversation.** Requests wait in a queue keyed by the conversation key (or by
+   `chat:<id>` with `X-Claudio-Chat-Id`), then also on `chat:<id>` once the chat is known, so a
+   request that names the chat and one that finds it by history wait for each other. A queue rather
+   than a 409: the SDKs retry a 409 anyway, and the queue answers without the round trip. Two clients
+   continuing the same point of one conversation therefore run in turn in one chat, and the second
+   sees the first's exchange in the chat's context.
+3. **The chat.** `X-Claudio-Chat-Id` names it (unknown is `404 not_found`). Otherwise the history key
+   is looked up; a row whose chat no longer exists is forgotten and counts as a miss. A miss starts a
+   new chat with the cold prompt, a hit continues with the delta.
+4. **Images** of the chosen prompt are uploaded (`uploadOpenAiImages`, with `fetchImage` and
+   `core.uploads.save`) and attached to the message.
+5. **The turn.** A new chat is created with `permissionPrompts: 'none'`, the default tool preset (or
+   the header's), the app's default permission mode, except that `bypassPermissions` becomes `manual`,
+   and origin `api`. A chat with a live idle process gets the turn as a message
+   (`chats.send`); a live chat that is busy is `409 conflict`, and one running with
+   `bypassPermissions` is refused too. A chat nobody holds is resumed (`chats.resume`) with the same
+   mode and prompt settings. The runner subscribes to the chat **before** the turn is sent (inside
+   `create`'s `onStart` for a new chat) and asks `ChatManager.nextResult` when the turn is over, so a
+   process that dies without a result, or a stop, ends the answer as an error and a limit replay
+   that changes accounts does not.
+6. **The answer.** Whole: the completion, or the error with its status. Streamed: the SSE reply is
+   opened only once the chat started, so everything before is a proper HTTP error; after that a
+   failure is an error chunk and `[DONE]`. After a completed turn, `keyAfterAnswer` is remembered for
+   the chat, so the client's next request finds it.
+7. **A client that disconnects** (the response closes before it finished) interrupts the chat with
+   `chats.interrupt`; writing stops, and the request keeps its place in the queue until the turn ends
+   or 30 s pass, so the next request on the conversation does not find the chat busy.
+
+### Headers
+
+| Header | Direction | Meaning |
+|---|---|---|
+| `Authorization: Bearer <token>` | in | The owner's API token, or a chat's own `CLAUDIO_API_TOKEN` from this machine |
+| `X-Claudio-Chat-Id` | in | Continue this chat |
+| `X-Claudio-Cwd` | in | Where a new chat runs: an absolute, existing directory inside the workspace or an imported project. Stricter than `cwd` on `POST /chats`, which only checks the type and creates the directory. Ignored for a chat that exists. UTF-8 bytes are read as UTF-8 |
+| `X-Claudio-Tool-Preset` | in | A stored tool preset id instead of the default preset |
+| `X-Claudio-Spend-Override: 1` | in | Past the daily spend cap, as on `POST /chats` |
+| `X-Claudio-Chat-Id` | out | The chat, on every answer once it is known, errors after the start included |
+| `X-Claudio-Cost-Usd` | out | This turn's cost; an HTTP trailer on a streamed answer, since it is known only at the end |
+| `X-Claudio-Ignored` | out | Parameters the CLI cannot honour (`temperature`, `max_tokens`…), and `reasoning_effort` sent to a chat whose process is up (the effort of a live process cannot change) |
+| `Retry-After` | out | On every 429 |
+
+### Errors under /v1
+
+The routes live in their own Fastify context with their own error handler and 404, so everything
+under `/api/v1` answers `{ error: { message, type, param, code } }` and the rest of the API keeps
+`{ error: string }`. Core's plain `Error`s keep the 400 or 404 the main handler gives them. What
+answers before a handler runs (the guard's 401, 421 and 429, read-only's 405, the spend gate's 409)
+is rewritten by an `onSend` hook of the context: the status stays, except the spend cap, whose 409
+becomes `429 rate_limit_exceeded` with `Retry-After` to local midnight. A start refused for lack of
+a run slot (`Concurrent run limit reached`) is `429` with `Retry-After: 5` instead of a 400, so SDKs
+retry by themselves.
+
+### Authentication
+
+The plan asks for a credential even where `/chats` needs none, because a request here starts a chat
+that may run Bash. Under `mode: token` and `oidc` the guard already asks for one. Under `mode: none`
+the guard now asks `/api/v1/*` for the owner's API token (checked against the stored hash whatever
+the mode) or a chat's own token from this machine (the same loopback check the guarded modes use);
+anything else is a 401, and a wrong credential counts toward the failure back-off. With no token
+set, the 401 says how to set one (Settings → Access & safety, or `POST /api/security/token`). Not
+built: the plan's rule that a collaborator's token calls these routes only with what its share
+grants; collaborators reach Claudio over iroh, not with API tokens, so there is no such token today.
+
+### API chats and their expiry
+
+A chat started here has origin `api` (`ChatOrigin`, so `openapi:schemas` was regenerated). Like
+`internal`, it is left out of `GET /chats` unless `?origin=api` asks for it, and the web's list never
+shows it; its badge reads "API". It runs with the purpose `person` for the spend ledger and the
+admission queue. Every hour the route plugin runs `sweepOpenAiChats`: conversation keys not answered
+for **7 days** (`OPENAI_CONVERSATION_TTL_MS`) are dropped, then every `api` chat with no key left, no
+process and no change in those 7 days is deleted (transcript and record). A person's chat a client
+continued by id only loses its keys.
+
+Each chat keeps its process up between turns, as a person's does, so follow-ups are fast; idle
+processes count toward `maxConcurrentRuns` until the idle timeout lets them go.
+
+### The image fetcher
+
+`fetchImage(url, maxBytes)` fetches only `http` and `https` URLs without credentials, at most 3
+redirects, within 15 s overall, and stops reading past the cap (5 MB, the upload store's image limit;
+a larger `Content-Length` is refused before reading). It refuses every address that is not public:
+loopback, private, link-local (the cloud metadata address), CGNAT, multicast, documentation and the
+IPv6 equivalents, with IPv4-mapped, NAT64 and 6to4 addresses judged by what they carry. A literal
+address is checked before connecting; a name is checked in the connection's own `lookup`, every
+address it resolves to, so a name that answers differently the second time (DNS rebinding) is caught
+too. Every redirect is checked again.
+
+### Known gaps
+
+- Client tools (phase 4) and `response_format` (phase 3: the answer must come from the result's
+  `structuredOutput`, and a live process cannot change its schema) are refused.
+- A chat continued by `X-Claudio-Chat-Id` keeps its live process's settings: its system prompt and
+  effort do not change for that turn (effort is named in `x-claudio-ignored`); its model does change.
+- `created` in a model object is 0: the catalogue has no date.
+- A run refused for memory pressure (not for the run count) is still a 409.
+
+## Using it
+
+The base URL is `http://127.0.0.1:<port>/api/v1` (the dev server's port is 8797; the desktop app
+shows its own). Set an API token first if none is set (Settings → Access & safety, or
+`POST /api/security/token`, which shows it once).
+
+```bash
+TOKEN=...   # the API token
+curl -s http://127.0.0.1:8797/api/v1/models -H "Authorization: Bearer $TOKEN"
+
+curl -s http://127.0.0.1:8797/api/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"model":"sonnet","messages":[{"role":"user","content":"Say hi in one word"}]}' -D -
+
+curl -N http://127.0.0.1:8797/api/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -H 'X-Claudio-Cwd: /home/me/code/my-project' \
+  -d '{"model":"sonnet","stream":true,"stream_options":{"include_usage":true},
+       "messages":[{"role":"user","content":"What does this repo do?"}]}'
+```
+
+With the `openai` SDK (Python; the Node SDK takes the same `baseURL` and `apiKey`):
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8797/api/v1", api_key=TOKEN)
+reply = client.chat.completions.create(model="sonnet", messages=[{"role": "user", "content": "Say hi"}])
+print(reply.choices[0].message.content, reply.usage)
+
+# The same conversation continues: resend the history with the answer and a new message
+history = [{"role": "user", "content": "Say hi"}, {"role": "assistant", "content": reply.choices[0].message.content},
+           {"role": "user", "content": "Now in Spanish"}]
+for chunk in client.chat.completions.create(model="sonnet", messages=history, stream=True):
+    print(chunk.choices[0].delta.content or "", end="")
+
+# Claudio's own parameters are headers
+raw = client.chat.completions.with_raw_response.create(
+    model="sonnet", messages=[{"role": "user", "content": "hi"}], extra_headers={"X-Claudio-Tool-Preset": "read-only"})
+print(raw.headers["x-claudio-chat-id"], raw.headers.get("x-claudio-cost-usd"))
+```
 
 ## Related
 
-[[plans/openai-compatible-api.md]] · [[plans/openai-compatible-api-spike.md]] · [[rest-api.md]] · [[cli-surfaces.md]]
+[[plans/openai-compatible-api.md]] · [[plans/openai-compatible-api-spike.md]] · [[rest-api.md]] · [[cli-surfaces.md]] · [[securing.md]] · [[security-model.md]]

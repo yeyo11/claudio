@@ -32,6 +32,7 @@ import {
   type RunEvent,
   type RunGuardEvent,
   type RunStatus,
+  type TokenUsage,
   type TranscriptEntry,
   type UsageHistoryPoint,
 } from '@claudio/shared';
@@ -566,6 +567,14 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * The tokens and cost of the chat's last turn alone (see `LiveChat.lastTurn`). Read when that
+   * turn's `result` event arrives: the event is pushed after the figures are set.
+   */
+  lastTurn(id: string): { tokens: TokenUsage | null; costUsd: number | null } | null {
+    return this.chats.get(id)?.lastTurn ?? null;
+  }
+
+  /**
    * What the process working on a chat is doing right now, read from the events it streamed: when
    * it last did anything, and the shell commands it started and has not had an answer to. Null
    * when Claudio has no process on the chat, which is when there is nothing to watch. Only the
@@ -716,7 +725,8 @@ export class ChatManager extends EventEmitter {
     const driver = this.driverFor(opts.provider);
     this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }));
     const attachments = this.resolveAttachments(opts.attachments);
-    return this.begin(new LiveChat(randomUUID(), opts, meta, opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : 'claudio', null, this.chatDefaults(), driver), opts.prompt, attachments);
+    const origin = opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : opts.apiClient ? 'api' : 'claudio';
+    return this.begin(new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver), opts.prompt, attachments);
   }
 
   /**
@@ -1626,6 +1636,7 @@ export class ChatManager extends EventEmitter {
     if (account) chat.account = account.id;
     // The CLI's total is cumulative over its process, so a new process counts from zero again
     chat.lastReportedCostUsd = 0;
+    chat.lastReportedModelUsage = [];
     chat.stopRequested = false;
     chat.endedAt = null;
     chat.error = null;

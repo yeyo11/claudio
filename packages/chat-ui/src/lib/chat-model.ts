@@ -66,6 +66,9 @@ export const ORIGIN_LABEL: Record<ChatOrigin, string> = {
   get internal() {
     return i18n.t('chat:model.origin.internal');
   },
+  get api() {
+    return i18n.t('chat:model.origin.api');
+  },
 };
 
 /** The execution that ended last, which is what tells an idle chat that crashed from one that finished. */
@@ -154,6 +157,9 @@ export function searchText(chat: ChatSummary): string {
 export function matchesFilters(chat: ChatSummary, filters: ChatFilters): boolean {
   if (chat.origin === 'internal') {
     if (!filters.internal) return false;
+  } else if (chat.origin === 'api') {
+    // The OpenAI-compatible surface's chats belong to its clients; the list never asks for them
+    return false;
   } else if (isWorker(chat)) {
     if (!filters.workers) return false;
   } else if (!filters.origins.has(chat.origin)) {

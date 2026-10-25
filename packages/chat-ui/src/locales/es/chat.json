@@ -201,13 +201,15 @@
       "claudio": "Claudio",
       "external": "Terminal",
       "orchestration": "Orquestación",
-      "internal": "Interno"
+      "internal": "Interno",
+      "api": "API"
     },
     "originHint": {
       "claudio": "Iniciado desde Claudio",
       "external": "Iniciado en una terminal con {{agent}}",
       "orchestration": "Trabaja para una orquestación",
-      "internal": "Tareas internas del propio Claudio"
+      "internal": "Tareas internas del propio Claudio",
+      "api": "Iniciado por un cliente de la API compatible con OpenAI"
     },
     "control": {
       "interactive": "Interactivo",
@@ -660,7 +662,8 @@
       "claudio": "Claudio",
       "external": "Terminal",
       "orchestration": "Orquestación",
-      "internal": "Interno"
+      "internal": "Interno",
+      "api": "API"
     },
     "sort": {
       "activity": "Actividad reciente",

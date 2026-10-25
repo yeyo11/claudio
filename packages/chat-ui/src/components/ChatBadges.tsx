@@ -1,5 +1,5 @@
 import type { ChatAgentStatus, ChatControl, ChatOrigin, ChatState, ChatSummary, ExecutionOutcome } from '@claudio/shared';
-import { CircleCheck, CirclePause, Cog, Hand, Lock, Network, OctagonX, Play, Terminal, TriangleAlert, Zap, type LucideIcon } from 'lucide-react';
+import { CircleCheck, CirclePause, Cog, Hand, Lock, Network, OctagonX, Play, Plug, Terminal, TriangleAlert, Zap, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded } from '../lib/chat-model';
 import { formatNumber } from '@claudio/ui/lib/format';
@@ -85,7 +85,7 @@ export function ProviderBadge({ provider, label }: { provider: string; label: st
   );
 }
 
-const ORIGIN_ICON:Record<ChatOrigin, LucideIcon> = { claudio: Play, external: Terminal, orchestration: Network, internal: Cog };
+const ORIGIN_ICON:Record<ChatOrigin, LucideIcon> = { claudio: Play, external: Terminal, orchestration: Network, internal: Cog, api: Plug };
 
 /** Where the chat was born: it never changes, even when resuming adopts the chat. */
 export function OriginBadge({ origin, label }: { origin: ChatOrigin; label?: string }) {

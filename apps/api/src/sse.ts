@@ -9,6 +9,10 @@ const RETRY_MS = 3000;
 export interface SseStream {
   /** One event: `id` is left out for what a client must not resume from, `event` for a plain frame. */
   send(payload: unknown, frame?: { event?: string; id?: number }): void;
+  /** A `data:` line as it is, for a protocol whose sentinel is not JSON (OpenAI's `[DONE]`). */
+  sendData(data: string): void;
+  /** Ends the reply, with the trailers announced when it was opened. */
+  end(trailers?: Record<string, string>): void;
   /** Runs when the client hangs up, after the heartbeat is stopped. */
   onClose(cleanup: () => void): void;
 }
@@ -21,14 +25,23 @@ export interface SseStream {
  * decision has to be made by hand — and it is made here once, from `allowedOrigin`, instead of
  * being restated per route where it drifted into reflecting whatever origin asked.
  */
-export function openStream(req: FastifyRequest, reply: FastifyReply): SseStream {
+export interface StreamOptions {
+  /** More headers for the reply, written with the stream's own */
+  headers?: Record<string, string>;
+  /** Headers whose value is only known at the end, sent as HTTP trailers by `end()` */
+  trailers?: string[];
+}
+
+export function openStream(req: FastifyRequest, reply: FastifyReply, options: StreamOptions = {}): SseStream {
   const origin = allowedOrigin(req.headers.origin);
   reply.hijack();
   reply.raw.writeHead(200, {
+    ...options.headers,
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
+    ...(options.trailers?.length ? { Trailer: options.trailers.join(', ') } : {}),
     // The answer depends on who asked, so a cache must not hand one caller's copy to another
     ...(origin ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' } : {}),
   });
@@ -49,6 +62,12 @@ export function openStream(req: FastifyRequest, reply: FastifyReply): SseStream 
       const id = frame.id === undefined ? '' : `id: ${frame.id}\n`;
       const event = frame.event === undefined ? '' : `event: ${frame.event}\n`;
       reply.raw.write(`${id}${event}data: ${JSON.stringify(payload)}\n\n`);
+    },
+    sendData: (data) => void reply.raw.write(`data: ${data}\n\n`),
+    end: (trailers) => {
+      clearInterval(heartbeat);
+      if (trailers && options.trailers?.length) reply.raw.addTrailers(trailers);
+      reply.raw.end();
     },
     onClose: (cleanup) => void cleanups.push(cleanup),
   };

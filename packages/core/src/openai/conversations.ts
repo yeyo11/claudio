@@ -55,6 +55,11 @@ export class OpenAiConversationStore {
     return Number(this.sql.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(chatId).changes);
   }
 
+  /** Whether any key still leads to the chat: an `api` chat with none left has expired. */
+  hasChat(chatId: string): boolean {
+    return this.sql.prepare('SELECT 1 FROM openai_conversations WHERE chat_id = ? LIMIT 1').get(chatId) !== undefined;
+  }
+
   /** Drops the keys not answered under since `olderThan` (ISO); returns how many went. */
   expire(olderThan: string): number {
     return Number(this.sql.prepare('DELETE FROM openai_conversations WHERE updated_at < ?').run(olderThan).changes);

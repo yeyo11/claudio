@@ -729,8 +729,12 @@ export type ChatControl =
   | { mode: 'resumable' }
   | { mode: 'readOnly'; reason: string; action: 'fork' | 'hint' };
 
-/** Where a chat was born. Never changes, even when resuming adopts the chat. */
-export type ChatOrigin = 'claudio' | 'external' | 'orchestration' | 'internal';
+/**
+ * Where a chat was born. Never changes, even when resuming adopts the chat. `api`: a request to the
+ * OpenAI-compatible surface (`POST /v1/chat/completions`) started it; like `internal` and the
+ * workers, it is left out of the chat lists unless asked for, and it expires with its conversation.
+ */
+export type ChatOrigin = 'claudio' | 'external' | 'orchestration' | 'internal' | 'api';
 
 /** How an execution ended. `interrupted`: its process was lost (the wrapper restarted or crashed) rather than stopped or finished. */
 export type ExecutionOutcome = 'completed' | 'failed' | 'stopped' | 'interrupted';

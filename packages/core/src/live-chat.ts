@@ -22,6 +22,7 @@ import type {
   RunEvent,
   RunStatus,
   SpendPurpose,
+  TokenUsage,
   TranscriptEntry,
 } from '@claudio/shared';
 import { isEffort } from '@claudio/shared';
@@ -137,6 +138,11 @@ export interface NewChat extends NewChatRequest {
   keepAlive?: boolean;
   /** Housekeeping: no transcript is written (`--no-session-persistence`), so it cannot be resumed */
   internal?: boolean;
+  /**
+   * Core-only, never read from a request body: the OpenAI-compatible surface started the chat, whose
+   * origin is then `api` (`ChatService.create` takes it as its own argument and drops one in a body).
+   */
+  apiClient?: true;
   /**
    * `false` leaves `CLAUDIO_API_URL` out of the environment and mints no `CLAUDIO_API_TOKEN`: a run
    * that never calls the API back (a decision chat) holds no credential to it.
@@ -376,6 +382,13 @@ export class LiveChat {
   procStartedAt: string | null = null;
   /** The `total_cost_usd` the current process last reported; it is cumulative over the process, so each result's spend is the increase. Reset at every spawn. */
   lastReportedCostUsd = 0;
+  /** The `modelUsage` the current process last reported, cumulative like its cost. Reset at every spawn. */
+  lastReportedModelUsage: ModelUsage[] = [];
+  /**
+   * What the last result's turn alone used and cost: the growth of the process's cumulative figures
+   * since its previous result. Null before any result, or when the result reported none.
+   */
+  lastTurn: { tokens: TokenUsage | null; costUsd: number | null } = { tokens: null, costUsd: null };
   seq = 0;
   /** `seq` when the current execution began: a stream opened from here replays the whole execution */
   executionSeq = 0;
@@ -560,7 +573,7 @@ export class LiveChat {
         ...(record.keepAlive === false ? { keepAlive: false } : {}),
         // The purpose is not stored: what a person sends to a chat after a restart is theirs, and the
         // starters set their own again when they resume it
-        ...(record.origin === 'orchestration' ? { purpose: 'orchestration' as const } : record.origin === 'claudio' || record.origin === 'external' ? { purpose: 'person' as const } : {}),
+        ...(record.origin === 'orchestration' ? { purpose: 'orchestration' as const } : record.origin === 'claudio' || record.origin === 'external' || record.origin === 'api' ? { purpose: 'person' as const } : {}),
         ...(record.accountPinned && record.account ? { account: record.account } : {}),
       },
       { orchestrationId: record.orchestrationId ?? undefined, orchestrationTaskId: record.orchestrationTaskId ?? undefined },

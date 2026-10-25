@@ -5,6 +5,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
 import { worktreesChanged } from './git.ts';
+import { turnTokens } from './usage.ts';
 import { now, type ChatHost, type ContextSignal, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
 
@@ -282,6 +283,13 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
 }
 
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
+  // What this turn alone used: the process reports both figures cumulative, so each is the growth
+  // since its previous result, read before the cost baseline below moves
+  chat.lastTurn = {
+    tokens: turnTokens(chat.lastReportedModelUsage, event.modelUsage),
+    costUsd: event.costUsd !== undefined && Number.isFinite(event.costUsd) ? Math.max(0, event.costUsd - chat.lastReportedCostUsd) : null,
+  };
+  if (event.modelUsage.length > 0) chat.lastReportedModelUsage = event.modelUsage;
   const execution = chat.execution;
   if (execution) {
     execution.turns += event.turns;

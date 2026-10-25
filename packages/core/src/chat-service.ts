@@ -734,10 +734,18 @@ export class ChatService {
     claudioAssistant?: ClaudioAssistantMarker,
     /** Only core's launch paths pass it, with the files already written: `null` is a run that is not guarded, absent leaves it to the project's opt-in */
     guards?: ChatGuardPlan | null,
+    /** Only the OpenAI-compatible routes pass it: a body sent to `POST /chats` never makes an `api` chat */
+    origin?: 'api',
   ): Promise<ChatSummary> {
     // The name before the rename is dropped too, so a stored or replayed old body cannot carry it in
-    const { claudioAssistant: _sent, agentryAssistant: _legacy, guards: _plan, ...rest } = body as typeof body & { claudioAssistant?: unknown; agentryAssistant?: unknown; guards?: unknown };
-    const request = claudioAssistant ? { ...rest, claudioAssistant } : rest;
+    const { claudioAssistant: _sent, agentryAssistant: _legacy, guards: _plan, apiClient: _api, ...rest } = body as typeof body & {
+      claudioAssistant?: unknown;
+      agentryAssistant?: unknown;
+      guards?: unknown;
+      apiClient?: unknown;
+    };
+    const marked = claudioAssistant ? { ...rest, claudioAssistant } : rest;
+    const request = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a

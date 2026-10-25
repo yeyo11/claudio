@@ -9,10 +9,12 @@ import fastifyStatic from '@fastify/static';
 import websocket from '@fastify/websocket';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Core } from '@claudio/core';
+import { deliberate } from './errors.ts';
 import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
 import { chatRoutes } from './routes/chats.ts';
+import { openAiRoutes } from './routes/openai.ts';
 import { collaboratorRoutes } from './routes/collaborators.ts';
 import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
@@ -55,21 +57,6 @@ import { terminalRoutes } from './routes/terminals.ts';
 import { SOCKET_OPTIONS } from './terminal-socket.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-
-/**
- * A failure the caller cannot act on: its text is for us, not for them.
- *
- * Core refuses on purpose with a hand-thrown `Error` — or with one that declares its status, the
- * way `ChatConflictError` does — and that text is the answer. Everything else (a `TypeError`, a
- * `SyntaxError`, an `ENOENT` carrying the absolute path it tried to open) is a bug in this
- * process, and its message spells out where the host keeps its files and who runs it.
- */
-function deliberate(err: Error & { statusCode?: number; code?: string; validation?: unknown }): boolean {
-  if (typeof err.statusCode === 'number') return true;
-  if (err.validation !== undefined) return true;
-  // Node stamps what it raises itself with `code` / `syscall`; only `new Error(...)` arrives bare
-  return Object.getPrototypeOf(err) === Error.prototype && err.code === undefined && !('syscall' in err);
-}
 
 /**
  * What the UI bundle is allowed to load and who is allowed to frame it.
@@ -256,6 +243,8 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(webhookRoutes, { core });
       await api.register(terminalRoutes, { core, guard });
       await api.register(collaboratorRoutes, { core });
+      // Its own context: OpenAI's error shape, its 404 and its hooks stay under /api/v1
+      await api.register(openAiRoutes, { core, prefix: '/v1' });
     },
     { prefix: '/api' },
   );

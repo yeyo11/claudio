@@ -359,6 +359,20 @@ export class AuthStore {
   }
 
   /**
+   * Who is calling, by the owner's token or a chat's own, whatever the mode: the OpenAI-compatible
+   * routes ask for a credential even under `mode: 'none'`, where `actorFor` lets anything in, because
+   * a request there starts a chat that may run commands. Null when the credential is neither, which
+   * includes every credential on an install with no token set.
+   */
+  credentialActorFor(credential: string | undefined, fromLocalChat: boolean): string | null {
+    if (!credential) return null;
+    if (this.stored.tokenHash && sameSecret(credential, this.stored.tokenHash)) return `token:${this.stored.tokenId ?? 'default'}`;
+    if (!fromLocalChat) return null;
+    const chatId = this.chatTokens.verify(credential);
+    return chatId === null ? null : chatActor(chatId);
+  }
+
+  /**
    * The actor behind a chat token, or null. Only under a guard: under `mode: 'none'` every request
    * is `local` and nothing is looked up. `fromLocalChat` is the caller's word that the request came
    * from a loopback peer, was dialled on a loopback name and carries no forwarding header: a tunnel

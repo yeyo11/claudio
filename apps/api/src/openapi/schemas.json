@@ -1079,9 +1079,10 @@
       "claudio",
       "external",
       "orchestration",
-      "internal"
+      "internal",
+      "api"
     ],
-    "description": "Where a chat was born. Never changes, even when resuming adopts the chat."
+    "description": "Where a chat was born. Never changes, even when resuming adopts the chat. `api`: a request to the OpenAI-compatible surface (`POST /v1/chat/completions`) started it; like `internal` and the workers, it is left out of the chat lists unless asked for, and it expires with its conversation."
   },
   "ChatOrchestration": {
     "type": "object",

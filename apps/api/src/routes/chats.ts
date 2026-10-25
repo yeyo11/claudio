@@ -31,7 +31,7 @@ import { spendGate } from './spend.ts';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
-const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal'];
+const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal', 'api'];
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 
 /** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */
