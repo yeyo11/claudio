@@ -1,0 +1,272 @@
+import type { RunEvent, RunOutcome, TokenUsage } from '@claudio/shared';
+import type { ModelUsage } from '../providers/driver.ts';
+import { openAiError, type OpenAiFailure } from './errors.ts';
+import {
+  STREAM_DONE,
+  type ChatCompletion,
+  type ChatCompletionChunk,
+  type ChatCompletionStreamItem,
+  type ChatCompletionUsage,
+  type ChunkDelta,
+  type FinishReason,
+  type OpenAiErrorBody,
+  type ToolCall,
+} from './wire.ts';
+
+/** Between two stretches of the answer (two text blocks, or text before and after a tool ran). */
+const SEPARATOR = '\n\n';
+
+export function completionUsage(usage: TokenUsage): ChatCompletionUsage {
+  // OpenAI counts cached prompt tokens inside prompt_tokens and names the cached share apart
+  const prompt = usage.input + usage.cacheRead + usage.cacheCreation;
+  return { prompt_tokens: prompt, completion_tokens: usage.output, total_tokens: prompt + usage.output, prompt_tokens_details: { cached_tokens: usage.cacheRead } };
+}
+
+/**
+ * The token counts of a `result`, from the per-model figures the CLI reports with it (the driver's
+ * `modelUsage`). `RunOutcome` carries no tokens today, so the caller reads them where it can and
+ * hands them in; nothing here estimates them.
+ */
+export function tokenUsageOf(models: readonly ModelUsage[]): TokenUsage | null {
+  if (models.length === 0) return null;
+  const sum = (pick: (m: ModelUsage) => number | undefined): number => models.reduce((n, m) => n + (pick(m) ?? 0), 0);
+  const input = sum((m) => m.inputTokens);
+  const output = sum((m) => m.outputTokens);
+  const cacheRead = sum((m) => m.cacheReadInputTokens);
+  const cacheCreation = sum((m) => m.cacheCreationInputTokens);
+  return { input, output, cacheRead, cacheCreation, total: input + output + cacheRead + cacheCreation };
+}
+
+/** How a finished turn reads to OpenAI's client, from what the provider said about it. */
+export function finishReasonOf(outcome: RunOutcome, calledTools: boolean): FinishReason {
+  if (calledTools) return 'tool_calls';
+  // A budget that ran out cut the answer short, which is what `length` tells a client
+  if (outcome.stopReason === 'max_tokens' || outcome.cause === 'budget') return 'length';
+  if (outcome.stopReason === 'refusal') return 'content_filter';
+  return 'stop';
+}
+
+/** What a failed `result` means to the client; null when the result is not a failure to report. */
+export function failureOfOutcome(outcome: RunOutcome, text: string | undefined): OpenAiFailure | null {
+  if (!outcome.isError || outcome.cause === 'budget') return null;
+  if (outcome.cause === 'rate-limit') return { kind: 'usage-limit', resetsAt: null, ...(text ? { message: text } : {}) };
+  if (outcome.cause === 'stopped') return { kind: 'server', message: 'The chat was stopped before it answered.' };
+  return { kind: 'server', message: text ? `The run failed: ${text}` : 'The run failed.' };
+}
+
+export interface ChatCompletionTranslatorOptions {
+  /** `chatcmpl-…`, chosen by the caller so this stays deterministic */
+  id: string;
+  /** The model id as the client asked for it: clients match on it */
+  model: string;
+  /** Unix seconds */
+  created: number;
+  includeUsage: boolean;
+}
+
+/** The end of a turn, once `result` or a failure arrived. */
+export type TurnEnd =
+  | {
+      kind: 'completion';
+      completion: ChatCompletion;
+      finishReason: FinishReason;
+      /** For `x-claudio-cost-usd`; never put in the body */
+      costUsd: number;
+      /** The answer's text and calls, for the conversation key after the answer */
+      text: string;
+      toolCalls: ToolCall[];
+    }
+  | { kind: 'error'; status: number; body: OpenAiErrorBody; retryAfterSeconds?: number };
+
+interface StreamedBlock {
+  text: string;
+  /** Whether any of it has gone out: the separator goes before a block's first character, once */
+  started: boolean;
+}
+
+interface CallState {
+  index: number;
+  id: string;
+  name: string;
+  arguments: string;
+}
+
+/**
+ * Claudio's `RunEvent` stream for one turn, as Chat Completions output. Fed every event of the turn
+ * in order; `push` returns the stream items to write (a whole-response caller ignores them), and
+ * `end()` the whole response once the turn is over.
+ *
+ * Text comes from two places that overlap: `partial` events stream a block as it is written, and the
+ * `message` event that closes it holds the block whole. Partials are throttled and the last stretch
+ * of a block may never be sent as one, so each closing message is compared with what was streamed
+ * for it and only the rest goes out.
+ */
+export class ChatCompletionTranslator {
+  private content = '';
+  private sentRole = false;
+  /** Text blocks streamed from partials, oldest first, not yet matched to their closing message */
+  private streamed: StreamedBlock[] = [];
+  /** The text block partials are filling now; null between blocks or inside a thinking block */
+  private current: StreamedBlock | null = null;
+  private readonly calls = new Map<string, CallState>();
+  private ended: TurnEnd | null = null;
+
+  constructor(private readonly opts: ChatCompletionTranslatorOptions) {}
+
+  get finished(): boolean {
+    return this.ended !== null;
+  }
+
+  /** The whole response or the error, once the turn is over. */
+  end(): TurnEnd | null {
+    return this.ended;
+  }
+
+  private chunk(delta: ChunkDelta, finishReason: FinishReason | null = null): ChatCompletionChunk {
+    // Clients read the role from the first chunk only, and some drop a stream whose first chunk lacks it
+    const withRole: ChunkDelta = this.sentRole ? delta : { role: 'assistant', ...delta };
+    this.sentRole = true;
+    return {
+      id: this.opts.id,
+      object: 'chat.completion.chunk',
+      created: this.opts.created,
+      model: this.opts.model,
+      choices: [{ index: 0, delta: withRole, finish_reason: finishReason, logprobs: null }],
+      usage: null,
+    };
+  }
+
+  private emit(block: StreamedBlock, text: string, out: ChatCompletionStreamItem[]): void {
+    if (!text) return;
+    const piece = !block.started && this.content ? `${SEPARATOR}${text}` : text;
+    block.started = true;
+    this.content += piece;
+    out.push(this.chunk({ content: piece }));
+  }
+
+  private partial(event: RunEvent, out: ChatCompletionStreamItem[]): void {
+    // Thinking is the model's working, not its answer: it never reaches the client
+    if (event.block !== 'text') {
+      this.current = null;
+      return;
+    }
+    if (event.text !== undefined) {
+      // A whole `text` starts a block (live-chat resets what it sent at every block start)
+      this.current = { text: '', started: false };
+      this.streamed.push(this.current);
+      this.emit(this.current, event.text, out);
+      this.current.text = event.text;
+      return;
+    }
+    if (!this.current || event.append === undefined) return;
+    const at = event.at ?? this.current.text.length;
+    // A fragment that starts past what is held means one was lost: the closing message fills the gap
+    if (at > this.current.text.length) return;
+    const fresh = event.append.slice(this.current.text.length - at);
+    this.emit(this.current, fresh, out);
+    this.current.text += fresh;
+  }
+
+  private message(event: RunEvent, out: ChatCompletionStreamItem[]): void {
+    const entry = event.entry;
+    if (!entry || entry.role !== 'assistant' || entry.isSidechain || entry.parentToolUseId !== null) return;
+    for (const block of entry.blocks) {
+      if (block.type !== 'text') continue;
+      const streamed = this.streamed.shift() ?? { text: '', started: false };
+      if (block.text.startsWith(streamed.text)) this.emit(streamed, block.text.slice(streamed.text.length), out);
+      // Otherwise the stream already said something else and cannot take it back: the message is kept as streamed
+    }
+    // Blocks streamed after this message's own stay queued for the message that closes them
+    if (this.current && !this.streamed.includes(this.current)) this.current = null;
+  }
+
+  private finish(outcome: RunOutcome, text: string | undefined, usage: TokenUsage | null, out: ChatCompletionStreamItem[]): void {
+    const failure = failureOfOutcome(outcome, text);
+    if (failure) {
+      this.fail(failure, out);
+      return;
+    }
+    const toolCalls = this.toolCallList();
+    const finishReason = finishReasonOf(outcome, toolCalls.length > 0);
+    out.push(this.chunk(this.sentRole ? {} : { content: '' }, finishReason));
+    const counted = usage ? completionUsage(usage) : null;
+    if (this.opts.includeUsage && counted) {
+      out.push({ id: this.opts.id, object: 'chat.completion.chunk', created: this.opts.created, model: this.opts.model, choices: [], usage: counted });
+    }
+    out.push(STREAM_DONE);
+    this.ended = {
+      kind: 'completion',
+      finishReason,
+      costUsd: outcome.costUsd,
+      text: this.content,
+      toolCalls,
+      completion: {
+        id: this.opts.id,
+        object: 'chat.completion',
+        created: this.opts.created,
+        model: this.opts.model,
+        choices: [
+          {
+            index: 0,
+            message: { role: 'assistant', content: toolCalls.length > 0 && !this.content ? null : this.content, refusal: null, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) },
+            finish_reason: finishReason,
+            logprobs: null,
+          },
+        ],
+        ...(counted ? { usage: counted } : {}),
+      },
+    };
+  }
+
+  private fail(failure: OpenAiFailure, out: ChatCompletionStreamItem[]): void {
+    const error = openAiError(failure);
+    // A stream that just stops reads as a complete answer to most clients: the failure must be said
+    out.push(error.body, STREAM_DONE);
+    this.ended = { kind: 'error', ...error };
+  }
+
+  /**
+   * One event of the turn. `usage` is read only with the `result` event: `RunOutcome` has no token
+   * counts, so the caller passes what the provider reported (see `tokenUsageOf`), or null.
+   */
+  push(event: RunEvent, context: { usage?: TokenUsage | null } = {}): ChatCompletionStreamItem[] {
+    if (this.ended) return [];
+    const out: ChatCompletionStreamItem[] = [];
+    if (event.kind === 'partial') this.partial(event, out);
+    else if (event.kind === 'message') this.message(event, out);
+    else if (event.kind === 'result' && event.outcome) this.finish(event.outcome, event.text, context.usage ?? null, out);
+    return out;
+  }
+
+  /** The turn failed outside the event stream (the process died, the client's chat was refused mid-way). */
+  failWith(failure: OpenAiFailure): ChatCompletionStreamItem[] {
+    if (this.ended) return [];
+    const out: ChatCompletionStreamItem[] = [];
+    this.fail(failure, out);
+    return out;
+  }
+
+  /**
+   * A fragment of a client tool call, as the client-tool handoff will stream it. The first fragment
+   * of a call names it; every fragment of it carries the same `index`, and `content` is null while a
+   * call streams, which is how clients tell a call from text.
+   */
+  toolCallDelta(call: { id: string; name: string; argumentsAppend: string }): ChatCompletionStreamItem[] {
+    if (this.ended) return [];
+    let state = this.calls.get(call.id);
+    const first = !state;
+    if (!state) {
+      state = { index: this.calls.size, id: call.id, name: call.name, arguments: '' };
+      this.calls.set(call.id, state);
+    }
+    state.arguments += call.argumentsAppend;
+    const delta = first
+      ? { index: state.index, id: state.id, type: 'function' as const, function: { name: state.name, arguments: call.argumentsAppend } }
+      : { index: state.index, function: { arguments: call.argumentsAppend } };
+    return [this.chunk({ content: null, tool_calls: [delta] })];
+  }
+
+  private toolCallList(): ToolCall[] {
+    return [...this.calls.values()].sort((a, b) => a.index - b.index).map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } }));
+  }
+}

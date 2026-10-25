@@ -1399,6 +1399,19 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      gone_at       TEXT
    );
    CREATE INDEX repo_places_common ON repo_places (common_dir);`,
+
+  // Which chat holds a stateless OpenAI client's history, by the hash of that history
+  // (docs/openai-compatible-api.md). Rows, because two processes answer requests on one data dir and
+  // a restart must still find the chat; the hash is the key, so a second answer under it is an upsert
+  `CREATE TABLE openai_conversations (
+     hash        TEXT PRIMARY KEY,
+     chat_id     TEXT NOT NULL,
+     client_user TEXT,
+     created_at  TEXT NOT NULL,
+     updated_at  TEXT NOT NULL
+   );
+   CREATE INDEX openai_conversations_chat ON openai_conversations (chat_id);
+   CREATE INDEX openai_conversations_updated ON openai_conversations (updated_at);`,
 ];
 
 /**
@@ -2140,6 +2153,7 @@ export class Db {
       this.db.prepare('DELETE FROM chat_notes WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM chat_uploads WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM chat_upload_scans WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(id);
     });
   }
 

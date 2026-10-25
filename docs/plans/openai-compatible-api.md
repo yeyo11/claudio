@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T12:00:00Z
-updated_at: 2026-10-25T12:00:00Z
+updated_at: 2026-10-25T16:00:00Z
 tags:
     - plan
     - api
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: an OpenAI-compatible surface on Claudio's API
 
-Status: **design settled, spike done (GO with changes), not built (2026-10-25).** The owner chose: each
+Status: **design settled, spike done (GO with changes); phase 1 (translators and the conversation table) built on branch `feat/openai-phase1`, phases 2-6 not built (2026-10-25).** What is built is described in [openai-compatible-api.md](../openai-compatible-api.md). The owner chose: each
 request is a real Claudio chat with tools, the routes live in `apps/api`, and the first version covers
 `chat/completions` with streaming, `models`, tools / function calling, `/v1/responses` and images.
 The research below found a terms-of-use constraint and several precedents that change the decisions
@@ -215,4 +215,4 @@ Nothing: every decision is settled. The one thing not measured is a hold longer 
 
 ## Related
 
-[[openai-compatible-api-spike.md]] · [[rest-api.md]] · [[rest-api-contract.md]] · [[chat-api-token.md]] · [[cli-surfaces.md]] · [[chat-environment.md]]
+[[openai-compatible-api-spike.md]] · [[openai-compatible-api.md]] · [[rest-api.md]] · [[rest-api-contract.md]] · [[chat-api-token.md]] · [[cli-surfaces.md]] · [[chat-environment.md]]
