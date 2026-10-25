@@ -783,9 +783,9 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
   'POST /v1/chat/completions': d('OpenAI-compatible', 'A Chat Completions turn, answered whole or streamed', {
     description:
-      'Body: OpenAI\'s Chat Completions request. The turn runs in a Claudio chat: a new one, or the one the history (or `X-Claudio-Chat-Id`) leads to, resumed with only the new messages. `stream: true` answers `text/event-stream` with `data: <chunk>` lines ending in `data: [DONE]`, a usage chunk with `choices: []` before it when `stream_options.include_usage` is set, and `X-Claudio-Cost-Usd` as a trailer. Refused with `400 unsupported_parameter`: `n > 1`, client `tools` / `functions` / a `tool_choice` that needs them, and a `response_format` other than `text` (both arrive in later phases). Requests on one conversation run one after another. A client that disconnects interrupts the turn.',
+      'Body: OpenAI\'s Chat Completions request. The turn runs in a Claudio chat: a new one, or the one the history (or `X-Claudio-Chat-Id`) leads to, resumed with only the new messages. `stream: true` answers `text/event-stream` with `data: <chunk>` lines ending in `data: [DONE]`, a usage chunk with `choices: []` before it when `stream_options.include_usage` is set, and `X-Claudio-Cost-Usd` as a trailer. Refused with `400 unsupported_parameter`: `n > 1`, client `functions`, `tools` unless `tool_choice` is `none` (then they are ignored and named in `X-Claudio-Ignored`), and a `response_format` other than `text` (both arrive in later phases). `X-Claudio-Chat-Id` and the conversation key only continue chats this surface started (origin `api`). Bodies up to about 27 MB, for inline images. Requests on one conversation run one after another. A client that disconnects interrupts the turn.',
     headers: obj({
-      'x-claudio-chat-id': str('Continue this chat; an unknown id is 404'),
+      'x-claudio-chat-id': str('Continue this chat, one with origin `api`; any other id is 404'),
       'x-claudio-cwd': str('An absolute directory inside the workspace or an imported project, for a new chat'),
       'x-claudio-tool-preset': str('A stored tool preset id (`GET /config/tool-presets`); the default preset otherwise'),
       'x-claudio-spend-override': str('`1` goes on past the daily spend cap', { enum: ['1'] }),

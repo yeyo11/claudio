@@ -1113,6 +1113,21 @@ export class ChatManager extends EventEmitter {
    * Changes the permission mode or the model. A live process switches at once; one that has
    * exited gets them when the next message resumes it.
    */
+  /**
+   * Where the chat's permission prompts go from now on, its live process included: the CLI's
+   * requests are routed when they arrive (`askPermission` reads the option then), so a turn sent by
+   * a caller nobody watches can be made to deny them instead of waiting for a person.
+   */
+  setPermissionPrompts(id: string, prompts: 'host' | 'none'): ChatRuntime {
+    const chat = this.chats.get(id);
+    if (!chat) throw new Error('chat not found');
+    if (chat.opts.permissionPrompts !== prompts) {
+      chat.opts.permissionPrompts = prompts;
+      this.persist();
+    }
+    return chat.summary();
+  }
+
   async updateSettings(id: string, update: ChatSettingsUpdate): Promise<ChatRuntime> {
     const chat = this.chats.get(id);
     if (!chat) throw new Error('chat not found');

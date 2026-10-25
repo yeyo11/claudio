@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig } from '@claudio/core';
+import { Core, loadConfig, parseChatCompletionRequest, translateOpenAiRequest, type ChatCompletionRequest } from '@claudio/core';
 import type { ChatSummary, RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 
@@ -74,6 +74,12 @@ async function post(body: unknown, headers: Record<string, string> = {}): Promis
 }
 
 const user = (text: string) => ({ role: 'user', content: text });
+
+function parseOk(body: unknown): ChatCompletionRequest {
+  const parsed = parseChatCompletionRequest(body);
+  if (!parsed.ok) assert.fail(JSON.stringify(parsed.error.body));
+  return parsed.value;
+}
 const assistant = (text: string) => ({ role: 'assistant', content: text });
 
 function assertOpenAiError(body: unknown, code: string): OpenAiErrorBody {
@@ -411,4 +417,141 @@ test('an image part becomes an attachment of the turn, and a URL to a private ad
   const local = await post({ model: 'sonnet', messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `${base}/api/health` } }] }] });
   assert.equal(local.status, 400);
   assert.match(((await local.json()) as OpenAiErrorBody).error.message, /could not be fetched/);
+});
+
+// ---------- review fixes ----------
+
+/** A PNG of about `bytes`: the signature the upload store sniffs, then padding */
+function pngOf(bytes: number): string {
+  const head = Buffer.from(PNG, 'base64');
+  return Buffer.concat([head, Buffer.alloc(Math.max(0, bytes - head.length))]).toString('base64');
+}
+
+const imageMessage = (base64: string) => ({ role: 'user', content: [{ type: 'text', text: 'big picture' }, { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}` } }] });
+
+test('an inline image above 1 MiB reaches the chat, and one above the cap gets the size message, not a 413', async () => {
+  const big = await post({ model: 'sonnet', messages: [imageMessage(pngOf(2 * 1024 * 1024))] });
+  assert.equal(big.status, 200, await big.clone().text());
+  const chatId = big.headers.get('x-claudio-chat-id') ?? '';
+  await big.json();
+  assert.equal(promptsOf(chatId)[0]?.images, 1);
+
+  const huge = await post({ model: 'sonnet', messages: [imageMessage(pngOf(5 * 1024 * 1024 + 1024))] });
+  assert.equal(huge.status, 400);
+  assert.match(((await huge.json()) as OpenAiErrorBody).error.message, /bytes; the most is 5242880/);
+});
+
+test("X-Claudio-Chat-Id and a conversation key only reach chats this surface started", async () => {
+  const person = await fetch(`${base}/api/chats`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'a person' }) });
+  assert.equal(person.status, 201, await person.clone().text());
+  const personId = ((await person.json()) as ChatSummary).id;
+  core.runtime.apiUrl = `${base}/api`;
+  const assistantRes = await fetch(`${base}/api/assistant/chats`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'the assistant' }) });
+  assert.equal(assistantRes.status, 201, await assistantRes.clone().text());
+  const assistantId = ((await assistantRes.json()) as ChatSummary).id;
+  const worker = core.runtime.start({ prompt: 'a worker', purpose: 'orchestration' }, { orchestrationId: 'graph-1' });
+  assert.equal(worker.origin, 'orchestration');
+
+  for (const id of [personId, assistantId, worker.id]) {
+    const res = await post({ model: 'sonnet', messages: [user('inject')] }, { 'x-claudio-chat-id': id });
+    assert.equal(res.status, 404, id);
+    assertOpenAiError(await res.json(), 'not_found');
+    assert.ok(!promptsOf(id).some((p) => p.prompt === 'inject'), `nothing was written into ${id}`);
+  }
+
+  // A key that leads to a person's chat is a miss: a new chat starts, the person's stays untouched
+  const history = [user('keyed'), assistant('echo: keyed')];
+  const parsed = translateOpenAiRequest(parseOk({ model: 'sonnet', messages: [...history, user('next')] }));
+  assert.ok(parsed.historyKey);
+  core.openaiConversations.remember(parsed.historyKey, personId, null);
+  const keyed = await post({ model: 'sonnet', messages: [...history, user('next')] });
+  assert.equal(keyed.status, 200);
+  assert.notEqual(keyed.headers.get('x-claudio-chat-id'), personId);
+  await keyed.json();
+  assert.ok(!promptsOf(personId).some((p) => p.prompt.includes('next')));
+});
+
+test('a turn on a live chat runs without host prompts and never in bypassPermissions', async () => {
+  const first = await post({ model: 'sonnet', messages: [user('live')] });
+  const chatId = first.headers.get('x-claudio-chat-id') ?? '';
+  await first.json();
+  core.runtime.setPermissionPrompts(chatId, 'host');
+  await core.runtime.updateSettings(chatId, { permissionMode: 'bypassPermissions' });
+  assert.notEqual(core.runtime.get(chatId)?.pid, null, 'the process is still up');
+  const next = await post({ model: 'sonnet', messages: [user('live'), assistant('echo: live'), user('again')] });
+  assert.equal(next.status, 200, await next.clone().text());
+  assert.equal(next.headers.get('x-claudio-chat-id'), chatId);
+  await next.json();
+  const runtime = core.runtime.get(chatId);
+  assert.equal(runtime?.permissionPrompts, 'none');
+  assert.notEqual(runtime?.permissionMode, 'bypassPermissions');
+});
+
+test('a turn that shows no sign of life for the idle period fails in OpenAI\'s shape and is interrupted', async () => {
+  process.env.CLAUDIO_OPENAI_TURN_IDLE_MS = '600';
+  try {
+    const res = await post({ model: 'sonnet', messages: [user('HANG')] }, {});
+    assert.equal(res.status, 500);
+    const chatId = res.headers.get('x-claudio-chat-id') ?? '';
+    assert.match(assertOpenAiError(await res.json(), 'server_error').error.message, /no activity/);
+    const deadline = Date.now() + 10_000;
+    let ended: RunEvent | undefined;
+    while (Date.now() < deadline && !ended) {
+      ended = core.chats.events(chatId).find((e) => e.kind === 'result');
+      if (!ended) await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.equal(ended?.outcome?.cause, 'stopped', 'the chat was interrupted');
+  } finally {
+    delete process.env.CLAUDIO_OPENAI_TURN_IDLE_MS;
+  }
+});
+
+test("a resumed chat answers with this turn's result, never the one an earlier execution left in the buffer", async () => {
+  const first = await post({ model: 'sonnet', messages: [user('earlier')] });
+  const chatId = first.headers.get('x-claudio-chat-id') ?? '';
+  await first.json();
+  await fetch(`${base}/api/chats/${chatId}/stop`, { method: 'POST' });
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline && core.runtime.get(chatId)?.pid !== null) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(core.runtime.get(chatId)?.pid, null);
+  assert.ok(core.chats.events(chatId).some((e) => e.kind === 'result'), 'the buffer holds the earlier result');
+  const next = await post({ model: 'sonnet', messages: [user('earlier'), assistant('echo: earlier'), user('later')] });
+  assert.equal(next.status, 200, await next.clone().text());
+  assert.equal(next.headers.get('x-claudio-chat-id'), chatId);
+  assert.equal(((await next.json()) as Completion).choices[0]?.message.content, 'echo: later');
+});
+
+test('X-Claudio-Cwd on a chat that exists is named in x-claudio-ignored when it differs', async () => {
+  const sub = join(root, 'workspace', 'sub');
+  const first = await post({ model: 'sonnet', messages: [user('cwd first')] }, { 'x-claudio-cwd': sub });
+  await first.json();
+  const history = [user('cwd first'), assistant('echo: cwd first')];
+  const same = await post({ model: 'sonnet', messages: [...history, user('same')] }, { 'x-claudio-cwd': sub });
+  assert.equal(same.status, 200);
+  assert.ok(!(same.headers.get('x-claudio-ignored') ?? '').includes('x-claudio-cwd'));
+  await same.json();
+  const moved = await post({ model: 'sonnet', messages: [...history, user('same'), assistant('echo: same'), user('elsewhere')] }, { 'x-claudio-cwd': join(root, 'workspace') });
+  assert.equal(moved.status, 200);
+  assert.equal(moved.headers.get('x-claudio-chat-id'), first.headers.get('x-claudio-chat-id'));
+  assert.match(moved.headers.get('x-claudio-ignored') ?? '', /x-claudio-cwd/);
+  await moved.json();
+});
+
+test("tools with tool_choice 'none' are ignored and named; any other client-tool request is still refused", async () => {
+  const tools = [{ type: 'function', function: { name: 'lookup', parameters: { type: 'object' } } }];
+  const none = await post({ model: 'sonnet', messages: [user('no tools please')], tools, tool_choice: 'none' });
+  assert.equal(none.status, 200, await none.clone().text());
+  assert.match(none.headers.get('x-claudio-ignored') ?? '', /\btools\b/);
+  assert.equal(((await none.json()) as Completion).choices[0]?.message.content, 'echo: no tools please');
+  const refused: Array<[Record<string, unknown>, string]> = [
+    [{ tools, tool_choice: 'auto' }, 'tools'],
+    [{ tools, tool_choice: 'required' }, 'tools'],
+    [{ tools, tool_choice: { type: 'function', function: { name: 'lookup' } } }, 'tools'],
+    [{ functions: [{ name: 'lookup', parameters: { type: 'object' } }], function_call: 'none' }, 'functions'],
+  ];
+  for (const [extra, param] of refused) {
+    const res = await post({ model: 'sonnet', messages: [user('x')], ...extra });
+    assert.equal(res.status, 400, JSON.stringify(extra));
+    assert.equal(assertOpenAiError(await res.json(), 'unsupported_parameter').error.param, param);
+  }
 });

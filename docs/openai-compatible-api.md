@@ -186,8 +186,9 @@ same delta, so the second turn of a process reports its own cost, not the proces
 
 1. The body is read (`parseChatCompletionRequest`). What phase 2 cannot do is refused with
    `400 unsupported_parameter`: client `tools` / `functions`, a `tool_choice` / `function_call` that
-   needs them (`required` or a named function; `auto` and `none` pass), and `response_format` other
-   than `text`. The message says they arrive in a later version. Then the model must be in the
+   needs them, and `response_format` other than `text`. Declared `tools` pass only with
+   `tool_choice: "none"`: they are left out and named in `x-claudio-ignored`. `functions` are always
+   refused. The message says they arrive in a later version. Then the model must be in the
    catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid and `X-Claudio-Tool-Preset` must
    name a stored preset.
 2. **Serialised per conversation.** Requests wait in a queue keyed by the conversation key (or by
@@ -196,20 +197,32 @@ same delta, so the second turn of a process reports its own cost, not the proces
    than a 409: the SDKs retry a 409 anyway, and the queue answers without the round trip. Two clients
    continuing the same point of one conversation therefore run in turn in one chat, and the second
    sees the first's exchange in the chat's context.
-3. **The chat.** `X-Claudio-Chat-Id` names it (unknown is `404 not_found`). Otherwise the history key
-   is looked up; a row whose chat no longer exists is forgotten and counts as a miss. A miss starts a
+3. **The chat.** `X-Claudio-Chat-Id` names it. Otherwise the history key is looked up; a row whose
+   chat no longer exists is forgotten and counts as a miss. Either way **only a chat with origin
+   `api` is continued**: a person's chat, an orchestration's or the assistant's is answered `404`
+   by id, like an unknown id so the answer does not tell which chats exist, and a key that leads to
+   one is a miss. Without this, any holder of a token could write into those chats and run them
+   with this surface's rules. A miss starts a
    new chat with the cold prompt, a hit continues with the delta.
 4. **Images** of the chosen prompt are uploaded (`uploadOpenAiImages`, with `fetchImage` and
    `core.uploads.save`) and attached to the message.
 5. **The turn.** A new chat is created with `permissionPrompts: 'none'`, the default tool preset (or
    the header's), the app's default permission mode, except that `bypassPermissions` becomes `manual`,
    and origin `api`. A chat with a live idle process gets the turn as a message
-   (`chats.send`); a live chat that is busy is `409 conflict`, and one running with
-   `bypassPermissions` is refused too. A chat nobody holds is resumed (`chats.resume`) with the same
-   mode and prompt settings. The runner subscribes to the chat **before** the turn is sent (inside
+   (`chats.send`), after its live process is set to the same rules: prompts denied
+   (`ChatManager.setPermissionPrompts`) and the same permission mode (`bypassPermissions` becomes
+   `manual`). A live chat that is busy is `409 conflict`. A chat nobody holds is resumed
+   (`chats.resume`) with the same mode and prompt settings. The runner subscribes to the chat **before** the turn is sent (inside
    `create`'s `onStart` for a new chat) and asks `ChatManager.nextResult` when the turn is over, so a
    process that dies without a result, or a stop, ends the answer as an error and a limit replay
-   that changes accounts does not.
+   that changes accounts does not. Once the turn is sent, the chat's buffer is read from the last
+   event before the turn (recorded when the runner attached), never from the start, so an earlier
+   execution's `result` cannot answer this turn.
+   **The idle limit.** A turn that shows no sign of life (no event, no CLI heartbeat for a command
+   it runs) for `CLAUDIO_OPENAI_TURN_IDLE_MS`, **10 minutes** by default, is interrupted and answered
+   `500 server_error` ("showed no activity"). It is what ends a turn stuck on a prompt nobody can
+   answer, or a process that stopped talking; the 10 minutes match the chat idle timeout, and a long
+   build keeps the turn alive through its heartbeats.
 6. **The answer.** Whole: the completion, or the error with its status. Streamed: the SSE reply is
    opened only once the chat started, so everything before is a proper HTTP error; after that a
    failure is an error chunk and `[DONE]`. After a completed turn, `keyAfterAnswer` is remembered for
@@ -224,13 +237,20 @@ same delta, so the second turn of a process reports its own cost, not the proces
 |---|---|---|
 | `Authorization: Bearer <token>` | in | The owner's API token, or a chat's own `CLAUDIO_API_TOKEN` from this machine |
 | `X-Claudio-Chat-Id` | in | Continue this chat |
-| `X-Claudio-Cwd` | in | Where a new chat runs: an absolute, existing directory inside the workspace or an imported project. Stricter than `cwd` on `POST /chats`, which only checks the type and creates the directory. Ignored for a chat that exists. UTF-8 bytes are read as UTF-8 |
+| `X-Claudio-Cwd` | in | Where a new chat runs: an absolute, existing directory inside the workspace or an imported project. Stricter than `cwd` on `POST /chats`, which only checks the type and creates the directory. **It applies only when a chat is created**: on a chat that exists it is ignored, and named in `x-claudio-ignored` when it differs from the chat's directory. It is not part of the conversation key (the key's seed is phase 1's `model`, system prompt and `user`), so the same history from two directories continues one chat. UTF-8 bytes are read as UTF-8 |
 | `X-Claudio-Tool-Preset` | in | A stored tool preset id instead of the default preset |
 | `X-Claudio-Spend-Override: 1` | in | Past the daily spend cap, as on `POST /chats` |
 | `X-Claudio-Chat-Id` | out | The chat, on every answer once it is known, errors after the start included |
 | `X-Claudio-Cost-Usd` | out | This turn's cost; an HTTP trailer on a streamed answer, since it is known only at the end |
-| `X-Claudio-Ignored` | out | Parameters the CLI cannot honour (`temperature`, `max_tokens`…), and `reasoning_effort` sent to a chat whose process is up (the effort of a live process cannot change) |
+| `X-Claudio-Ignored` | out | Parameters the CLI cannot honour (`temperature`, `max_tokens`…), `tools` sent with `tool_choice: "none"`, `x-claudio-cwd` on a chat in another directory, and `reasoning_effort` sent to a chat whose process is up (the effort of a live process cannot change) |
 | `Retry-After` | out | On every 429 |
+
+### The request body
+
+`POST /v1/chat/completions` accepts bodies up to `COMPLETION_BODY_LIMIT`, about 27 MB: four images at
+the 5 MB upload cap as base64 data URLs (4/3 of their bytes) and 1 MiB for the text. Fastify's
+default of 1 MiB would answer `413` to a single 2 MB photo before the parser could say which image
+is too big; with the larger limit an image over the cap gets the parser's `400` naming its size.
 
 ### Errors under /v1
 

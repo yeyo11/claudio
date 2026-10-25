@@ -165,6 +165,7 @@ import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
 import { Plugins } from './plugins.ts';
 import { UploadStore } from './uploads.ts';
+export { UPLOAD_LIMITS } from './uploads.ts';
 import { MemoryStore } from './memory.ts';
 import { JournalService } from './journal.ts';
 import { EMPTY_SECTION, type LessonSection } from './lessons/render.ts';

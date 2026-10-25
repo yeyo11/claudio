@@ -15,6 +15,7 @@ import {
   STREAM_DONE,
   sweepOpenAiChats,
   translateOpenAiRequest,
+  UPLOAD_LIMITS,
   uploadOpenAiImages,
   type ChatCompletionRequest,
   type ChatCompletionStreamItem,
@@ -38,6 +39,23 @@ const SWEEP_EVERY_MS = 60 * 60 * 1000;
 const RUN_SLOT_RETRY_SECONDS = 5;
 /** How long a turn the client walked away from may take to wind down before its locks go */
 const INTERRUPT_GRACE_MS = 30_000;
+/** How many full-size images one request may carry inline before the body itself is refused */
+const INLINE_IMAGES = 4;
+/**
+ * The body a completion may have: four images at the upload cap as base64 data URLs (4/3 of their
+ * bytes) and a megabyte for the text around them. Fastify's 1 MiB default would answer 413 before
+ * the parser could say which image is too big, and a single 2 MB photo is an ordinary request.
+ */
+export const COMPLETION_BODY_LIMIT = INLINE_IMAGES * Math.ceil((UPLOAD_LIMITS.image * 4) / 3) + 1024 * 1024;
+/**
+ * How long a turn may go without any sign of life (an event, a CLI heartbeat for a running command)
+ * before it is given up: interrupted, and answered with an error. Nobody can answer a prompt here,
+ * so a turn that stops moving would otherwise hold the request for ever. `CLAUDIO_OPENAI_TURN_IDLE_MS`.
+ */
+export const turnIdleMs = (): number => {
+  const set = Number(process.env.CLAUDIO_OPENAI_TURN_IDLE_MS);
+  return Number.isFinite(set) && set > 0 ? set : 10 * 60_000;
+};
 
 export interface OpenAiRouteOptions {
   core: Core;
@@ -133,6 +151,18 @@ function header(req: FastifyRequest, name: string): string | undefined {
   return text === '' ? undefined : text;
 }
 
+/** Two directories, compared as the filesystem resolves them (a symlinked temp dir, say). */
+function sameDir(a: string, b: string): boolean {
+  const real = (p: string): string => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return resolve(p);
+    }
+  };
+  return real(a) === real(b);
+}
+
 function within(dir: string, root: string): boolean {
   return dir === root || dir.startsWith(root.endsWith(sep) ? root : `${root}${sep}`);
 }
@@ -173,11 +203,18 @@ function permissionModeOf(core: Core): PermissionMode {
  * What phase 2 refuses although phase 1 reads it: client tools need the hand-off of phase 4, and a
  * structured answer needs the result's `structuredOutput` turned into content (phase 3).
  */
-function laterPhase(request: ChatCompletionRequest, body: unknown): OpenAiFailure | null {
+function laterPhase(request: ChatCompletionRequest, body: unknown, ignored: string[]): OpenAiFailure | null {
   const fields = (body ?? {}) as Record<string, unknown>;
   if (request.tools.length > 0) {
-    const param = Array.isArray(fields.functions) && fields.functions.length > 0 ? 'functions' : 'tools';
-    return { kind: 'unsupported-parameter', param, message: `Client tools (\`${param}\`) are not supported yet: they arrive in a later version of this API. Claude's own tools still run on the server.` };
+    const legacy = Array.isArray(fields.functions) && fields.functions.length > 0;
+    // `tool_choice: none` asks for no call: the tools are only context the model is told not to
+    // use, so they can be left out and named, where a call they could ask for would need phase 4
+    if (!legacy && request.toolChoice.kind === 'none') {
+      ignored.push('tools');
+    } else {
+      const param = legacy ? 'functions' : 'tools';
+      return { kind: 'unsupported-parameter', param, message: `Client tools (\`${param}\`) are not supported yet: they arrive in a later version of this API. Claude's own tools still run on the server.` };
+    }
   }
   if (request.toolChoice.kind === 'required' || request.toolChoice.kind === 'function') {
     const param = fields.tool_choice !== undefined && fields.tool_choice !== null ? 'tool_choice' : 'function_call';
@@ -236,6 +273,9 @@ class TurnRun {
   private writer: ((items: ChatCompletionStreamItem[]) => void) | null = null;
   private unsubscribe: () => void = () => {};
   private readonly seen = new Set<number>();
+  private since = 0;
+  private lastSign = 0;
+  private idleTimer: NodeJS.Timeout | null = null;
   private settle: () => void = () => {};
   readonly done: Promise<void>;
 
@@ -253,26 +293,57 @@ class TurnRun {
   }
 
   /**
-   * Starts listening to the chat. `replaySince` is for a chat the runtime did not know before the
-   * turn started (one adopted from a terminal): its events so far are read from the buffer.
+   * Starts listening to the chat, before the turn is sent. `since` is the chat's last event before
+   * the turn: once the turn is sent, `replay()` reads what came after it from the buffer, so nothing
+   * of this turn is lost and nothing of an earlier one (its `result` above all) is taken for it.
    */
-  attach(chatId: string, replaySince: number | null = null): void {
+  attach(chatId: string): void {
     this.chatId = chatId;
+    this.since = this.core.runtime.streamPosition(chatId)?.seq ?? 0;
+    this.lastSign = Date.now();
     this.unsubscribe = this.core.chats.subscribe(chatId, (event) => this.take(event));
-    if (replaySince !== null) for (const event of this.core.chats.events(chatId, replaySince)) this.take(event);
-    if (this.finished) return;
     // The runtime knows when a turn is over without a result (the process died, a person stopped
     // it) and when a stop is only a limit replay changing accounts: its word ends the turn
     this.core.runtime.nextResult(chatId).then(
       (result) => this.ended(result),
       () => this.ended(null),
     );
-    // Adopted after the fact: a process that already went without a result has nothing more to say
-    if (replaySince !== null && this.core.runtime.get(chatId)?.pid === null) this.ended(null);
+    this.watchIdle();
+  }
+
+  /** What the buffer holds of this turn and the subscription has not delivered; deduplicated by seq. */
+  replay(): void {
+    if (this.chatId === null) return;
+    for (const event of this.core.chats.events(this.chatId, this.since)) this.take(event);
+  }
+
+  /**
+   * Gives the turn up when it shows no sign of life for `turnIdleMs()`: no event, and no heartbeat
+   * of a command it is running. A prompt nobody answers, or a process that stopped talking, would
+   * otherwise hold the request (and its conversation's queue) for ever.
+   */
+  private watchIdle(): void {
+    const limit = turnIdleMs();
+    const check = (): void => {
+      if (this.finished || this.chatId === null) return;
+      const pulse = this.core.runtime.pulse(this.chatId);
+      const beats = (pulse?.commands ?? []).map((c) => (c.heartbeat ? Date.parse(c.heartbeat.at) : 0));
+      const last = Math.max(this.lastSign, pulse ? Date.parse(pulse.lastEventAt) : 0, ...beats);
+      if (Date.now() - last >= limit) {
+        void this.core.chats.interrupt(this.chatId).catch(() => undefined);
+        this.fail({ kind: 'server', message: `The chat showed no activity for ${String(Math.round(limit / 1000))} s and was interrupted.` });
+        return;
+      }
+      this.idleTimer = setTimeout(check, Math.min(limit, Math.max(250, limit - (Date.now() - last))));
+      this.idleTimer.unref();
+    };
+    this.idleTimer = setTimeout(check, limit);
+    this.idleTimer.unref();
   }
 
   private take(event: RunEvent): void {
     if (this.finished || this.chatId === null) return;
+    this.lastSign = Date.now();
     // Partials have no sequence number of their own; everything else may come twice (replay and live)
     if (event.kind !== 'partial') {
       if (this.seen.has(event.seq)) return;
@@ -309,6 +380,7 @@ class TurnRun {
     }
     if (this.finished) {
       this.unsubscribe();
+      if (this.idleTimer) clearTimeout(this.idleTimer);
       this.settle();
     }
   }
@@ -323,6 +395,7 @@ class TurnRun {
   /** Lets go of the chat without an answer: the turn never started. */
   detach(): void {
     this.unsubscribe();
+    if (this.idleTimer) clearTimeout(this.idleTimer);
     this.settle();
   }
 }
@@ -387,11 +460,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     return modelObject(entry);
   });
 
-  app.post('/chat/completions', { preHandler: spendGate(core) }, async (req, reply) => {
+  app.post('/chat/completions', { preHandler: spendGate(core), bodyLimit: COMPLETION_BODY_LIMIT }, async (req, reply) => {
     const parsed = parseChatCompletionRequest(req.body);
     if (!parsed.ok) return answer(reply, parsed.error);
     const request = parsed.value;
-    const later = laterPhase(request, req.body);
+    const ignoredHere: string[] = [];
+    const later = laterPhase(request, req.body, ignoredHere);
     if (later) throw fail(later);
     const model = await findModel(core, request.model);
     if (!model) throw fail({ kind: 'model-not-found', model: request.model });
@@ -401,7 +475,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const toolPreset = header(req, TOOL_PRESET_HEADER);
     if (toolPreset !== undefined && !core.toolPresets.get(toolPreset)) throw fail({ kind: 'invalid-request', message: `${TOOL_PRESET_HEADER}: no tool preset '${toolPreset}' (see GET /api/config/tool-presets).`, param: null });
     const turn = translateOpenAiRequest(request);
-    const ignored = [...turn.ignored];
+    const ignored = [...turn.ignored, ...ignoredHere];
 
     // The client may go while it waits: a turn nobody reads is interrupted, one not started never starts
     let gone = false;
@@ -486,20 +560,28 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     }
   });
 
+  /** A chat the OpenAI surface started, that still exists. */
+  async function isApiChat(id: string): Promise<boolean> {
+    return core.runtime.get(id)?.origin === 'api' && (await core.chats.get(id)) !== null;
+  }
+
   /**
    * The chat the request continues: the one it names, or the one its history leads to. A row whose
    * chat was deleted since (or pruned) is a miss, and the conversation starts again from the history.
    */
   async function targetOf(named: string | undefined, turn: OpenAiChatTurn): Promise<Target> {
     if (named !== undefined) {
-      if (!(await core.chats.get(named))) throw fail({ kind: 'not-found', message: `No chat ${named} (from ${CHAT_ID_HEADER}).` });
+      // Only a chat this surface started: anyone holding a token would otherwise write into a
+      // person's chat, an orchestration's or the assistant's, and run it with this surface's rules.
+      // The same 404 as an unknown id, so the answer does not say which chats exist
+      if (!(await isApiChat(named))) throw fail({ kind: 'not-found', message: `No chat ${named} (from ${CHAT_ID_HEADER}).` });
       return { kind: 'existing', chatId: named };
     }
     if (turn.historyKey === null) return { kind: 'new' };
     const row = core.openaiConversations.find(turn.historyKey);
     if (!row) return { kind: 'new' };
-    if (await core.chats.get(row.chatId)) return { kind: 'existing', chatId: row.chatId };
-    core.openaiConversations.forgetChat(row.chatId);
+    if (await isApiChat(row.chatId)) return { kind: 'existing', chatId: row.chatId };
+    if (!(await core.chats.get(row.chatId))) core.openaiConversations.forgetChat(row.chatId);
     return { kind: 'new' };
   }
 
@@ -539,17 +621,23 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     }
     const id = target.chatId;
     const runtime = core.runtime.get(id);
-    if (runtime && runtime.pid !== null) {
+    if (!runtime) throw fail({ kind: 'not-found', message: `No chat ${id}.` });
+    // Where a chat already is, the header cannot move it: said rather than dropped in silence
+    if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
+    if (runtime.pid !== null) {
       // A live process keeps how it was started: only a turn on an idle one is ours to send
       if (runtime.status !== 'idle') throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
-      if (runtime.permissionMode === 'bypassPermissions') throw fail({ kind: 'conflict', message: 'The chat runs without permission checks, which this API never drives; stop it or change its mode first.' });
+      // The same rules as a start or a resume, on the live process: nobody answers a prompt here
+      if (runtime.permissionPrompts !== 'none') core.runtime.setPermissionPrompts(id, 'none');
+      if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
       if (turn.effort) opts.ignored.push('reasoning_effort');
       if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
       current.attach(id);
       await core.chats.send(id, { text: prompt, attachments });
+      current.replay();
       return;
     }
-    if (runtime) current.attach(id);
+    current.attach(id);
     await core.chats.resume(id, {
       prompt,
       ...(attachments.length ? { attachments } : {}),
@@ -560,7 +648,6 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       permissionMode,
       permissionPrompts: 'none',
     });
-    // A chat this runtime adopted just now (a terminal's): its turn so far is in the buffer
-    if (!runtime) current.attach(id, 0);
+    current.replay();
   }
 };
