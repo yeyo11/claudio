@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chatTurnOf, parseChatCompletionRequest, renderCold, renderDelta, translateRequest, uploadImages, type ChatTurn, type ImageUploads } from '../src/openai/request.ts';
+import { chatTurnOf, parseChatCompletionRequest, renderCold, renderDelta, sameJsonSchema, translateRequest, uploadImages, type ChatTurn, type ImageUploads } from '../src/openai/request.ts';
 import type { ChatCompletionRequest } from '../src/openai/wire.ts';
 
 // The request half of the OpenAI-compatible surface (docs/openai-compatible-api.md): a client's body
@@ -290,4 +290,15 @@ test('the translation carries the history key the route looks the chat up by', (
   const t = translateRequest(request);
   assert.equal(typeof t.historyKey, 'string');
   assert.deepEqual(t.keySeed, { model: 'm', systemPrompt: 'Be brief.', user: 'alice' });
+});
+
+test('json_schema strict is recorded on the turn, and schemas compare with their keys sorted', () => {
+  const schema = { type: 'object', properties: { a: { type: 'string' } } };
+  assert.equal(turn({ model: 'm', messages: [user('x')], response_format: { type: 'json_schema', json_schema: { name: 'o', schema, strict: true } } }).schemaStrict, true);
+  assert.equal(turn({ model: 'm', messages: [user('x')], response_format: { type: 'json_schema', json_schema: { name: 'o', schema } } }).schemaStrict, false);
+  assert.equal(turn({ model: 'm', messages: [user('x')], response_format: { type: 'json_object' } }).schemaStrict, null);
+  assert.equal(sameJsonSchema(schema, { properties: { a: { type: 'string' } }, type: 'object' }), true);
+  assert.equal(sameJsonSchema(schema, { type: 'object' }), false);
+  assert.equal(sameJsonSchema(undefined, null), true);
+  assert.equal(sameJsonSchema(undefined, schema), false);
 });

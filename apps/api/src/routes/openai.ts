@@ -13,6 +13,7 @@ import {
   openAiKeyAfterAnswer,
   parseChatCompletionRequest,
   RunSlotRefusal,
+  sameJsonSchema,
   STREAM_DONE,
   sweepOpenAiChats,
   translateOpenAiRequest,
@@ -201,10 +202,7 @@ function permissionModeOf(core: Core): PermissionMode {
   return mode === 'bypassPermissions' ? 'manual' : mode;
 }
 
-/**
- * What phase 2 refuses although phase 1 reads it: client tools need the hand-off of phase 4, and a
- * structured answer needs the result's `structuredOutput` turned into content (phase 3).
- */
+/** What this surface refuses although phase 1 reads it: client tools need the hand-off of phase 4. */
 function laterPhase(request: ChatCompletionRequest, body: unknown, ignored: string[]): OpenAiFailure | null {
   const fields = (body ?? {}) as Record<string, unknown>;
   if (request.tools.length > 0) {
@@ -221,9 +219,6 @@ function laterPhase(request: ChatCompletionRequest, body: unknown, ignored: stri
   if (request.toolChoice.kind === 'required' || request.toolChoice.kind === 'function') {
     const param = fields.tool_choice !== undefined && fields.tool_choice !== null ? 'tool_choice' : 'function_call';
     return { kind: 'unsupported-parameter', param, message: `\`${param}\` needs client tools, which arrive in a later version of this API.` };
-  }
-  if (request.responseFormat.type !== 'text') {
-    return { kind: 'unsupported-parameter', param: 'response_format', message: '`response_format` other than `text` is not supported yet: it arrives in a later version of this API.' };
   }
   return null;
 }
@@ -514,7 +509,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       });
       if (!uploaded.ok) return answer(reply, uploaded.error);
 
-      const translator = new ChatCompletionTranslator({ id: `chatcmpl-${randomUUID().replaceAll('-', '')}`, model: request.model, created: Math.floor(Date.now() / 1000), includeUsage: turn.includeUsage });
+      const translator = new ChatCompletionTranslator({ id: `chatcmpl-${randomUUID().replaceAll('-', '')}`, model: request.model, created: Math.floor(Date.now() / 1000), includeUsage: turn.includeUsage, structured: turn.jsonSchema !== undefined });
       const current = new TurnRun(core, translator);
       run = current;
       try {
@@ -609,6 +604,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           model: turn.model,
           ...(turn.effort ? { effort: turn.effort } : {}),
           ...(turn.appendSystemPrompt !== undefined ? { appendSystemPrompt: turn.appendSystemPrompt } : {}),
+          ...(turn.jsonSchema ? { jsonSchema: turn.jsonSchema } : {}),
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
           ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
           permissionMode,
@@ -626,9 +622,15 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (!runtime) throw fail({ kind: 'not-found', message: `No chat ${id}.` });
     // Where a chat already is, the header cannot move it: said rather than dropped in silence
     if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
-    if (runtime.pid !== null) {
+    if (runtime.pid !== null && runtime.status !== 'idle') {
       // A live process keeps how it was started: only a turn on an idle one is ours to send
-      if (runtime.status !== 'idle') throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
+      throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
+    }
+    // `--json-schema` is fixed when the process starts: a turn asking for another schema (or for none
+    // after one) ends the idle process and resumes the chat with its own. The same schema keeps it
+    const restart = runtime.pid !== null && !sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema);
+    if (restart) await core.runtime.endBetweenTurns(id);
+    if (runtime.pid !== null && !restart) {
       // The same rules as a start or a resume, on the live process: nobody answers a prompt here
       if (runtime.permissionPrompts !== 'none') core.runtime.setPermissionPrompts(id, 'none');
       if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
@@ -649,7 +651,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
       permissionMode,
       permissionPrompts: 'none',
-    });
+    }, { jsonSchema: turn.jsonSchema ?? null });
     current.replay();
   }
 };

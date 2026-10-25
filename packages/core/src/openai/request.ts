@@ -1,6 +1,6 @@
 import type { Effort } from '@claudio/shared';
 import { sniffMediaType, UPLOAD_LIMITS } from '../uploads.ts';
-import { historyKey, normalizeText, type KeySeed } from './conversation-key.ts';
+import { historyKey, normalizeText, stableStringify, type KeySeed } from './conversation-key.ts';
 import { openAiError, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
 import type { ChatCompletionRequest, ChatMessage, ClientTool, ImageRef, ResponseFormat, ToolCall, ToolChoice, UserPart } from './wire.ts';
 
@@ -309,6 +309,12 @@ export interface ChatTurn {
   appendSystemPrompt?: string;
   effort?: Effort;
   jsonSchema?: Record<string, unknown>;
+  /**
+   * `response_format.json_schema.strict` as the client sent it; null without a schema. Recorded only:
+   * the CLI validates every structured output against the schema and makes the model retry, so the
+   * answer is held to the schema whether or not the client asked for strictness.
+   */
+  schemaStrict: boolean | null;
   user: string | null;
   stream: boolean;
   includeUsage: boolean;
@@ -399,6 +405,15 @@ function jsonSchemaOf(format: ResponseFormat): Record<string, unknown> | undefin
   return undefined;
 }
 
+/**
+ * Whether two schemas are the same for a process: compared as JSON with keys sorted, so a client that
+ * reorders a schema's keys between turns keeps its process. `undefined` (no schema) equals only itself.
+ */
+export function sameJsonSchema(a: unknown, b: unknown): boolean {
+  if (a === undefined || a === null || b === undefined || b === null) return (a ?? undefined) === (b ?? undefined);
+  return stableStringify(a) === stableStringify(b);
+}
+
 export function translateRequest(request: ChatCompletionRequest): ChatTurn {
   const systemPrompt = systemPromptOf(request.messages);
   const effort = request.reasoningEffort === null ? undefined : EFFORT_OF[request.reasoningEffort];
@@ -409,6 +424,7 @@ export function translateRequest(request: ChatCompletionRequest): ChatTurn {
     ...(systemPrompt !== null ? { appendSystemPrompt: systemPrompt } : {}),
     ...(effort ? { effort } : {}),
     ...(jsonSchema ? { jsonSchema } : {}),
+    schemaStrict: request.responseFormat.type === 'json_schema' ? request.responseFormat.strict : null,
     user: request.user,
     stream: request.stream,
     includeUsage: request.includeUsage,

@@ -101,12 +101,12 @@ function dataLines(text: string): string[] {
     .map((line) => line.slice('data: '.length));
 }
 
-function promptsOf(chatId: string): Array<{ prompt: string; images: number; pid: number }> {
+function promptsOf(chatId: string): Array<{ prompt: string; images: number; pid: number; schema: string | null }> {
   if (!existsSync(prompts)) return [];
   return readFileSync(prompts, 'utf8')
     .split('\n')
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as { sessionId: string; prompt: string; images: number; pid: number })
+    .map((l) => JSON.parse(l) as { sessionId: string; prompt: string; images: number; pid: number; schema: string | null })
     .filter((p) => p.sessionId === chatId);
 }
 
@@ -258,7 +258,6 @@ test('what this phase cannot do is refused with 400 before any chat starts', asy
     [{ model: 'sonnet', messages: [user('x')], functions: [{ name: 'f', parameters: { type: 'object' } }] }, 'unsupported_parameter', 'functions'],
     [{ model: 'sonnet', messages: [user('x'), assistant('y')] }, 'invalid_request_error', 'messages'],
     [{ model: 'sonnet' }, 'invalid_request_error', 'messages'],
-    [{ model: 'sonnet', messages: [user('x')], response_format: { type: 'json_object' } }, 'unsupported_parameter', 'response_format'],
   ];
   const before = (await (await fetch(`${base}/api/chats?origin=api`)).json()) as ChatSummary[];
   for (const [body, code, param] of cases) {
@@ -555,6 +554,99 @@ test("tools with tool_choice 'none' are ignored and named; any other client-tool
     assert.equal(res.status, 400, JSON.stringify(extra));
     assert.equal(assertOpenAiError(await res.json(), 'unsupported_parameter').error.param, param);
   }
+});
+
+// ---------- response_format (phase 3) ----------
+
+const ANSWER_SCHEMA = { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] };
+const jsonSchemaFormat = (schema: Record<string, unknown>, strict = true) => ({ type: 'json_schema', json_schema: { name: 'answer', schema, strict } });
+
+test('response_format json_schema answers whole with the structured output as JSON content, never the prose around it', async () => {
+  const res = await post({ model: 'sonnet', messages: [user('structured')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
+  assert.equal(res.status, 200, await res.clone().text());
+  const chatId = res.headers.get('x-claudio-chat-id') ?? '';
+  const completion = (await res.json()) as Completion;
+  const content = completion.choices[0]?.message.content ?? '';
+  assert.deepEqual(JSON.parse(content), { answer: 'echo: structured' });
+  assert.equal(completion.choices[0]?.finish_reason, 'stop');
+  assert.ok(completion.usage, 'the usage is still counted');
+  assert.equal(promptsOf(chatId)[0]?.schema, JSON.stringify(ANSWER_SCHEMA), 'the schema reached the CLI as --json-schema');
+});
+
+test('a streamed structured answer sends the JSON as one content chunk before the finish chunk', async () => {
+  const res = await post({ model: 'sonnet', stream: true, messages: [user('streamed structure')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
+  assert.equal(res.status, 200);
+  const lines = dataLines(await res.text());
+  assert.equal(lines.at(-1), '[DONE]');
+  const chunks = lines.slice(0, -1).map((l) => JSON.parse(l) as { choices: Array<{ delta: { role?: string; content?: string | null }; finish_reason: string | null }> });
+  const pieces = chunks.flatMap((c) => c.choices.map((ch) => ch.delta.content ?? '')).filter(Boolean);
+  assert.deepEqual(pieces, [JSON.stringify({ answer: 'echo: streamed structure' })], 'the prose is not streamed, and the JSON comes whole');
+  assert.equal(chunks[0]?.choices[0]?.delta.role, 'assistant');
+  assert.equal(chunks.at(-1)?.choices[0]?.finish_reason, 'stop');
+});
+
+test('response_format json_object holds the answer to an object schema', async () => {
+  const res = await post({ model: 'sonnet', messages: [user('any object')], response_format: { type: 'json_object' } });
+  assert.equal(res.status, 200, await res.clone().text());
+  const chatId = res.headers.get('x-claudio-chat-id') ?? '';
+  assert.deepEqual(JSON.parse(((await res.json()) as Completion).choices[0]?.message.content ?? ''), { answer: 'echo: any object' });
+  assert.equal(promptsOf(chatId)[0]?.schema, JSON.stringify({ type: 'object' }));
+});
+
+test('response_format text is a plain answer with no schema', async () => {
+  const res = await post({ model: 'sonnet', messages: [user('plain text')], response_format: { type: 'text' } });
+  assert.equal(res.status, 200, await res.clone().text());
+  const chatId = res.headers.get('x-claudio-chat-id') ?? '';
+  assert.equal(((await res.json()) as Completion).choices[0]?.message.content, 'echo: plain text');
+  assert.equal(promptsOf(chatId)[0]?.schema, null);
+});
+
+test('a schema change between turns of one conversation restarts its process with the new schema; the same schema keeps it', async () => {
+  const other = { type: 'object', properties: { answer: { type: 'string' }, extra: { type: 'number' } }, required: ['answer'] };
+  const first = await post({ model: 'sonnet', messages: [user('s1')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
+  assert.equal(first.status, 200, await first.clone().text());
+  const chatId = first.headers.get('x-claudio-chat-id') ?? '';
+  const a1 = ((await first.json()) as Completion).choices[0]?.message.content ?? '';
+  const h1 = [user('s1'), assistant(a1)];
+
+  const second = await post({ model: 'sonnet', messages: [...h1, user('s2')], response_format: jsonSchemaFormat(other) });
+  assert.equal(second.status, 200, await second.clone().text());
+  assert.equal(second.headers.get('x-claudio-chat-id'), chatId, 'the conversation key does not depend on the schema');
+  const a2 = ((await second.json()) as Completion).choices[0]?.message.content ?? '';
+  assert.deepEqual(JSON.parse(a2), { answer: 'echo: s2' });
+  const h2 = [...h1, user('s2'), assistant(a2)];
+
+  // The same schema with its keys in another order is the same schema: the process stays
+  const reordered = { required: ['answer'], properties: { extra: { type: 'number' }, answer: { type: 'string' } }, type: 'object' };
+  const third = await post({ model: 'sonnet', messages: [...h2, user('s3')], response_format: jsonSchemaFormat(reordered, false) });
+  assert.equal(third.status, 200, await third.clone().text());
+  const a3 = ((await third.json()) as Completion).choices[0]?.message.content ?? '';
+  const h3 = [...h2, user('s3'), assistant(a3)];
+
+  const fourth = await post({ model: 'sonnet', messages: [...h3, user('s4')] });
+  assert.equal(fourth.status, 200, await fourth.clone().text());
+  assert.equal(fourth.headers.get('x-claudio-chat-id'), chatId);
+  assert.equal(((await fourth.json()) as Completion).choices[0]?.message.content, 'echo: s4', 'a turn with no schema after one is plain text again');
+
+  const sent = promptsOf(chatId);
+  assert.deepEqual(sent.map((p) => p.prompt), ['s1', 's2', 's3', 's4'], 'every turn after the first is a delta of the same chat');
+  assert.deepEqual(sent.map((p) => p.schema), [JSON.stringify(ANSWER_SCHEMA), JSON.stringify(other), JSON.stringify(other), null]);
+  assert.notEqual(sent[1]?.pid, sent[0]?.pid, 'a new schema needed a new process');
+  assert.equal(sent[2]?.pid, sent[1]?.pid, 'the same schema kept the process');
+  assert.notEqual(sent[3]?.pid, sent[2]?.pid, 'dropping the schema needed a new process too');
+});
+
+test('a structured turn that ends without its output is an OpenAI error, never an empty 200', async () => {
+  const whole = await post({ model: 'sonnet', messages: [user('GIVE UP')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
+  assert.equal(whole.status, 500);
+  assert.match(assertOpenAiError(await whole.json(), 'server_error').error.message, /response_format.*cannot match that schema/s);
+
+  const streamed = await post({ model: 'sonnet', stream: true, messages: [user('GIVE UP')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
+  assert.equal(streamed.status, 200);
+  const lines = dataLines(await streamed.text());
+  assert.equal(lines.at(-1), '[DONE]');
+  assertOpenAiError(JSON.parse(lines.at(-2) ?? '{}'), 'server_error');
+  assert.ok(!lines.some((l) => l.includes('Here is the structured answer')), 'no prose reached the client');
 });
 
 // ---------- how failures are classified ----------

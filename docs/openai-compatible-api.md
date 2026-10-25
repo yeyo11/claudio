@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-25T20:00:00Z
+updated_at: 2026-10-25T23:00:00Z
 tags:
     - api
     - openai
@@ -11,10 +11,11 @@ tags:
 
 Clients that speak OpenAI's Chat Completions format will reach Claudio under `/api/v1`, and each
 request becomes a real Claudio chat ([the plan](plans/openai-compatible-api.md)). This page describes
-what is built: **phases 1 and 2**. Phase 1 is the pure translators and the conversation table in
+what is built: **phases 1 to 3**. Phase 1 is the pure translators and the conversation table in
 `packages/core/src/openai/`. Phase 2 serves them: `GET /v1/models`, `GET /v1/models/:id` and
-`POST /v1/chat/completions`, whole and streamed, in `apps/api/src/routes/openai.ts`. Client tools
-(phase 4), `response_format` (phase 3) and `/v1/responses` (phase 5) are not built yet.
+`POST /v1/chat/completions`, whole and streamed, in `apps/api/src/routes/openai.ts`. Phase 3 adds
+`response_format` (structured output), below; images were built in phase 2. Client tools (phase 4)
+and `/v1/responses` (phase 5) are not built yet.
 
 **This surface is for local use with the owner's own login.** It drives the unmodified Claude Code
 CLI on the owner's machine, under the account signed in there. Anthropic's terms do not cover
@@ -185,9 +186,9 @@ same delta, so the second turn of a process reports its own cost, not the proces
 
 ### A request, step by step
 
-1. The body is read (`parseChatCompletionRequest`). What phase 2 cannot do is refused with
-   `400 unsupported_parameter`: client `tools` / `functions`, a `tool_choice` / `function_call` that
-   needs them, and `response_format` other than `text`. Declared `tools` pass only with
+1. The body is read (`parseChatCompletionRequest`). What this surface cannot do yet is refused with
+   `400 unsupported_parameter`: client `tools` / `functions` and a `tool_choice` / `function_call`
+   that needs them. (`response_format` was refused here until phase 3.) Declared `tools` pass only with
    `tool_choice: "none"`: they are left out and named in `x-claudio-ignored`. `functions` are always
    refused. The message says they arrive in a later version. Then the model must be in the
    catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid and `X-Claudio-Tool-Preset` must
@@ -308,12 +309,83 @@ too. Every redirect is checked again.
 
 ### Known gaps
 
-- Client tools (phase 4) and `response_format` (phase 3: the answer must come from the result's
-  `structuredOutput`, and a live process cannot change its schema) are refused.
+- Client tools (phase 4) are refused.
+- A structured answer is not streamed as it is written: it arrives as one chunk at the end (phase 3).
 - A chat continued by `X-Claudio-Chat-Id` keeps its live process's settings: its system prompt and
   effort do not change for that turn (effort is named in `x-claudio-ignored`); its model does change.
 - `created` in a model object is 0: the catalogue has no date.
 - A run refused for memory pressure (not for the run count) is still a 409.
+
+## Phase 3: `response_format`
+
+| File | What it does |
+|---|---|
+| `packages/core/src/openai/events.ts` | `ChatCompletionTranslator` takes `structured: true`: the content is the result's `structured_output` as JSON text, and `structuredFailure` is the error when it is missing. |
+| `packages/core/src/openai/request.ts` | `ChatTurn.schemaStrict` records `json_schema.strict`; `sameJsonSchema` compares two schemas with their keys sorted. |
+| `packages/core/src/chats.ts` | `ChatManager.jsonSchemaOf(id)`, the schema a live process was started with, and `endBetweenTurns(id)`, which ends an idle process the way its idle timeout does. |
+| `apps/api/src/routes/openai.ts` | Passes the schema to a new chat, to a resume, and restarts a live process whose schema differs. |
+
+**How the CLI delivers it.** A chat started with `--json-schema` gets one extra tool,
+`StructuredOutput`, whose input is the answer. The model calls it, and the CLI's `result` line
+carries the object as `structured_output` (core keeps it as `RunOutcome.structuredOutput` and
+`RunResult.structuredOutput`). The model may write prose before the call: in the smoke test below it
+answered "Paris." as text first, the CLI added a `[structured-output-enforce]` user message, and only
+then the model called the tool. So the prose is never the answer.
+
+**The answer.**
+
+- `json_schema` passes its `schema` as the chat's `jsonSchema`. `json_object` passes
+  `{ type: 'object' }`. `text`, or no `response_format`, passes none.
+- In a structured turn the translator ignores every text partial and assistant text block. At the
+  `result` it writes `JSON.stringify(structured_output)` as the content, whole or as one content
+  chunk followed by the finish chunk, the usage chunk and `[DONE]`. `finish_reason` is `stop`: the
+  CLI's `stop_reason` (`tool_use`, from the output call) is not the client's business.
+- **Streaming is one chunk at the end.** Core does see the output call's arguments as they stream
+  (`structured-delta`, `LiveChat.structured`). It does not forward them, because the CLI validates the
+  output against the schema and makes the model call the tool again when it fails: JSON already sent
+  for a rejected attempt could not be taken back. Only the `result` carries the output that passed.
+- `strict` is recorded on the turn (`schemaStrict`) and nothing more. The CLI holds every output to
+  the schema, so a strict request is met and a non-strict one gets a stricter answer than it asked for.
+- The conversation key is that JSON text. A client that resends the assistant message as it got it
+  finds the same chat.
+
+**When there is no output.** A model that gives up on the schema ends with `subtype: success`, prose
+and no `structured_output` (recorded in `packages/core/test/fixtures/replay/review-schema-fail.jsonl`).
+That is a `500 server_error` "The model did not produce output matching `response_format`; it said:
+…", whole, or an error chunk and `[DONE]` when streamed. A budget that cut the turn first is the same
+error with its own message. A failed result (`error_max_structured_output_retries`, say) is the usual
+failed-run error. Never an empty 200.
+
+**A schema change on one conversation.** `--json-schema` is a launch flag, fixed while the process
+lives. On a chat whose process is up and idle, the route compares the turn's schema with
+`jsonSchemaOf` (`sameJsonSchema`: keys sorted, and no schema equals only no schema):
+
+- equal: the turn goes to the live process as a message, as before;
+- different, including a schema after none and none after a schema: `endBetweenTurns` closes the
+  process's input, as the idle timeout does, and waits for it to exit (5 s, then SIGTERM). Then the
+  chat is resumed (`chats.resume`) with the turn's prompt and `jsonSchema` (or `null`, which drops
+  the chat's schema). The resumed process has the whole session, so only the new messages are sent.
+
+**What the key depends on.** The schema is not part of the conversation key. It is a per-turn option,
+like `stream`: a client that asks for JSON on one turn and text on the next is still in the same
+conversation, and keying on it would start a new chat, with the history pasted in cold, on every
+change. The cost is one process restart when the schema changes.
+
+**At a usage limit.** `ChatManager.heldToSchema` made a chat with a schema count as automated work
+for the rotation, which does not replay a turn nobody waits for. An `api` chat's turn has a request
+waiting for it, so `heldToSchema` is false for `api` chats: at a limit they are handled as a person's
+chat, with or without a schema.
+
+**Smoke test** (2026-10-25, real CLI, `claude -p --model haiku --max-budget-usd 0.5 --output-format
+stream-json --verbose --include-partial-messages --tools= --json-schema
+'{"type":"object","properties":{"capital":{"type":"string"}},"required":["capital"]}'`, "What is the
+capital of France? Answer briefly.", 0.0074 USD). The stream had a text block "Paris." (`end_turn`),
+the CLI's `[structured-output-enforce]` user message, then a `StructuredOutput` call whose
+`input_json_delta`s were `{"capital": "Paris` and `"}`, and the `result`: `subtype: success`,
+`stop_reason: tool_use`, `structured_output: {"capital":"Paris"}`, with `result` holding the same JSON
+as text. Fed through the driver, the fold and the translator, it gave exactly one content chunk
+`{"capital":"Paris"}`, then the finish chunk (`stop`), the usage chunk and `[DONE]`, and the same
+content whole. The prose "Paris." did not reach the client.
 
 ## Using it
 
@@ -338,6 +410,8 @@ curl -N http://127.0.0.1:8797/api/v1/chat/completions -H "Authorization: Bearer 
 With the `openai` SDK (Python; the Node SDK takes the same `baseURL` and `apiKey`):
 
 ```python
+import json
+
 from openai import OpenAI
 
 client = OpenAI(base_url="http://127.0.0.1:8797/api/v1", api_key=TOKEN)
@@ -354,6 +428,13 @@ for chunk in client.chat.completions.create(model="sonnet", messages=history, st
 raw = client.chat.completions.with_raw_response.create(
     model="sonnet", messages=[{"role": "user", "content": "hi"}], extra_headers={"X-Claudio-Tool-Preset": "read-only"})
 print(raw.headers["x-claudio-chat-id"], raw.headers.get("x-claudio-cost-usd"))
+
+# A structured answer: the content is JSON that matches the schema
+city = client.chat.completions.create(
+    model="haiku", messages=[{"role": "user", "content": "The capital of France?"}],
+    response_format={"type": "json_schema", "json_schema": {"name": "city", "schema": {
+        "type": "object", "properties": {"capital": {"type": "string"}}, "required": ["capital"]}}})
+print(json.loads(city.choices[0].message.content)["capital"])
 ```
 
 ## Related

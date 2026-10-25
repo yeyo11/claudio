@@ -9,7 +9,12 @@
 //   EXIT          the process exits without a result
 //   SLOW <ms>     waits that long, then echoes
 //
-//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images }` per turn
+// Started with `--json-schema`, it answers as the CLI does there: a line of prose, then a call to the
+// `StructuredOutput` tool whose input is `{ "answer": "echo: <line>" }`, and a `result` carrying it
+// as `structured_output`. Under a schema, `GIVE UP` ends the turn with prose only and no
+// `structured_output`, as the CLI reports a model that would not match the schema.
+//
+//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema }` per turn
 import { appendFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
@@ -36,7 +41,9 @@ let initialised = false;
 /** The turn waiting for an interrupt, when one hangs */
 let hanging = null;
 
-function result(isError, text) {
+const schema = flag('--json-schema') ?? null;
+
+function result(isError, text, structured) {
   turns++;
   const usage = { inputTokens: 10 * turns, outputTokens: 5 * turns, cacheReadInputTokens: 100 * turns, cacheCreationInputTokens: 20 * turns, costUSD: 0.01 * turns, contextWindow: 200000 };
   out({
@@ -47,6 +54,7 @@ function result(isError, text) {
     total_cost_usd: 0.01 * turns,
     modelUsage: { 'claude-sonnet-5-5': usage },
     result: text,
+    ...(structured !== undefined ? { structured_output: structured } : {}),
   });
 }
 
@@ -67,6 +75,27 @@ async function answer(prompt) {
   const text = `echo: ${last}`;
   const half = Math.ceil(text.length / 2);
   const block = (event) => out({ type: 'stream_event', parent_tool_use_id: null, event });
+  if (schema !== null) {
+    const prose = 'Here is the structured answer.';
+    block({ type: 'message_start', message: { role: 'assistant' } });
+    block({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+    block({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: prose } });
+    block({ type: 'content_block_stop', index: 0 });
+    if (last === 'GIVE UP') {
+      const refusal = 'I cannot match that schema.';
+      out({ type: 'assistant', parent_tool_use_id: null, message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: refusal }], stop_reason: 'end_turn' } });
+      result(false, refusal);
+      return;
+    }
+    const output = { answer: text };
+    const json = JSON.stringify(output);
+    block({ type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: `toolu_${String(turns)}`, name: 'StructuredOutput', input: {} } });
+    block({ type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: json } });
+    block({ type: 'content_block_stop', index: 1 });
+    out({ type: 'assistant', parent_tool_use_id: null, message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: prose }, { type: 'tool_use', id: `toolu_${String(turns)}`, name: 'StructuredOutput', input: output }], stop_reason: 'tool_use' } });
+    result(false, json, output);
+    return;
+  }
   block({ type: 'message_start', message: { role: 'assistant' } });
   block({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
   block({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(0, half) } });
@@ -103,7 +132,7 @@ lines.on('line', (line) => {
   const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : (content ?? []);
   const prompt = blocks.map((b) => b.text ?? '').join('\n');
   if (process.env.FAKE_OPENAI_PROMPTS) {
-    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length })}\n`);
+    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema })}\n`);
   }
   void answer(prompt);
 });

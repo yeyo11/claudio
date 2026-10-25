@@ -1917,7 +1917,29 @@ export class ChatManager extends EventEmitter {
    * asks for (a flow run, the assistant): whoever started it heard its result already.
    */
   heldToSchema(id: string): boolean {
-    return this.chats.get(id)?.opts.jsonSchema !== undefined;
+    const chat = this.chats.get(id);
+    // An OpenAI client's `response_format` is a schema too, but its turn is a request still waiting
+    // for its answer: at a limit it is handled as a person's chat, not as a run nobody waits for
+    return !!chat && chat.opts.jsonSchema !== undefined && !chat.opts.apiClient;
+  }
+
+  /** The JSON schema the chat's process was started with (`--json-schema`), if any: fixed until it ends. */
+  jsonSchemaOf(id: string): unknown {
+    return this.chats.get(id)?.opts.jsonSchema;
+  }
+
+  /**
+   * Ends an idle chat's live process between turns, the way its idle timeout does, and resolves once
+   * it is gone: for a caller whose next turn needs launch flags the process cannot change (a new
+   * `--json-schema`), and resumes the chat with them. A chat that is working is refused.
+   */
+  async endBetweenTurns(id: string): Promise<void> {
+    const chat = this.chats.get(id);
+    if (!chat) throw new ChatNotFoundError();
+    if (!chat.alive) return;
+    if (chat.status !== 'idle' || chat.written().length > 0) throw new ChatRefusal('the chat is working on a turn; its process cannot be ended between turns now', 409);
+    // Resolves on the process's `close`, after the handler registered at spawn has finalised the chat
+    await this.endProcessBetweenTurns(chat);
   }
 
   /**

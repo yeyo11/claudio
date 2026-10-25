@@ -221,3 +221,38 @@ test("token usage sums the CLI's per-model figures, and OpenAI's prompt tokens i
   );
   assert.deepEqual(completionUsage(USAGE), { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
 });
+
+// ---------- structured answers (response_format) ----------
+
+const structured = () => new ChatCompletionTranslator({ id: 'chatcmpl-s', model: 'sonnet', created: 1_700_000_000, includeUsage: false, structured: true });
+
+test('a structured turn answers the result\'s structured output as JSON text, and drops the prose around it', () => {
+  const t = structured();
+  const items = run(t, [textStart('Here it is'), message(['Here it is']), result({ structuredOutput: { a: 1, b: ['x'] }, stopReason: 'tool_use' }, '{"a":1}')]);
+  assert.deepEqual(chunksOf(items).map((c) => c.choices[0]?.delta.content).filter((c) => c !== undefined), ['{"a":1,"b":["x"]}']);
+  assert.equal(items.at(-1), STREAM_DONE);
+  const end = t.end();
+  assert.equal(end?.kind, 'completion');
+  if (end?.kind === 'completion') {
+    assert.equal(end.completion.choices[0]?.message.content, '{"a":1,"b":["x"]}');
+    assert.equal(end.finishReason, 'stop', 'the tool_use stop reason of the output call is not the client\'s');
+    assert.equal(end.text, '{"a":1,"b":["x"]}', 'the conversation key reads the JSON the client will resend');
+  }
+});
+
+test('a structured turn whose result carries no output is an error, never an empty answer', () => {
+  const t = structured();
+  const items = run(t, [message(['I will not.']), result({}, 'I will not.')]);
+  assert.equal(items.at(-1), STREAM_DONE);
+  const end = t.end();
+  assert.equal(end?.kind, 'error');
+  if (end?.kind === 'error') {
+    assert.equal(end.status, 500);
+    assert.match(end.body.error.message, /response_format.*I will not\./);
+  }
+  const budget = structured();
+  run(budget, [result({ isError: true, cause: 'budget' })]);
+  const cut = budget.end();
+  assert.equal(cut?.kind, 'error');
+  if (cut?.kind === 'error') assert.match(cut.body.error.message, /budget/);
+});

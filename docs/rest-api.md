@@ -624,7 +624,7 @@ its headers and its limits are in [openai-compatible-api.md](openai-compatible-a
 | --- | --- | --- |
 | GET | `/v1/models` | `{ object: "list", data: [{ id, object: "model", created, owned_by }] }`: the models of every provider that can run chats |
 | GET | `/v1/models/:id` | One of them, by its value or a concrete id it stands for; `404 model_not_found` otherwise |
-| POST | `/v1/chat/completions` | A turn, whole or as `data:` chunks ending in `data: [DONE]`. Headers in: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset`; out: `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` (a trailer when streamed), `X-Claudio-Ignored` |
+| POST | `/v1/chat/completions` | A turn, whole or as `data:` chunks ending in `data: [DONE]`; `response_format` `json_schema` / `json_object` answers the structured output as JSON content. Headers in: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset`; out: `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` (a trailer when streamed), `X-Claudio-Ignored` |
 
 ## Orchestration
 

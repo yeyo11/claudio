@@ -54,6 +54,16 @@ export function failureOfOutcome(outcome: RunOutcome, text: string | undefined):
   return { kind: 'server', message: text ? `The run failed: ${text}` : 'The run failed.' };
 }
 
+/**
+ * A turn held to a schema that ended without its output: the model gave up on the schema (the CLI
+ * then reports success with only prose, recorded in `review-schema-fail.jsonl`) or a budget cut it.
+ */
+export function structuredFailure(outcome: RunOutcome, text: string | undefined): OpenAiFailure {
+  const said = text?.trim();
+  if (outcome.cause === 'budget') return { kind: 'server', message: 'The run hit its budget before it produced the structured output `response_format` asked for.' };
+  return { kind: 'server', message: `The model did not produce output matching \`response_format\`${said ? `; it said: ${said}` : '.'}` };
+}
+
 export interface ChatCompletionTranslatorOptions {
   /** `chatcmpl-…`, chosen by the caller so this stays deterministic */
   id: string;
@@ -62,6 +72,13 @@ export interface ChatCompletionTranslatorOptions {
   /** Unix seconds */
   created: number;
   includeUsage: boolean;
+  /**
+   * The turn was asked for a structured answer (`response_format`, the CLI's `--json-schema`): the
+   * content is the result's `structured_output` as JSON text, and the model's prose around it is not
+   * part of the answer. The CLI reports the output only on its `result`, so it goes out as one
+   * content chunk at the end.
+   */
+  structured?: boolean;
 }
 
 /** The end of a turn, once `result` or a failure arrived. */
@@ -145,6 +162,8 @@ export class ChatCompletionTranslator {
   }
 
   private partial(event: RunEvent, out: ChatCompletionStreamItem[]): void {
+    // A structured answer is the result's output alone; prose the model wrote beside its call is not it
+    if (this.opts.structured) return;
     // Thinking is the model's working, not its answer: it never reaches the client
     if (event.block !== 'text') {
       this.current = null;
@@ -168,6 +187,7 @@ export class ChatCompletionTranslator {
   }
 
   private message(event: RunEvent, out: ChatCompletionStreamItem[]): void {
+    if (this.opts.structured) return;
     const entry = event.entry;
     if (!entry || entry.role !== 'assistant' || entry.isSidechain || entry.parentToolUseId !== null) return;
     for (const block of entry.blocks) {
@@ -186,8 +206,17 @@ export class ChatCompletionTranslator {
       this.fail(failure, out);
       return;
     }
+    if (this.opts.structured) {
+      // Without the output there is no answer: an empty 200 would read as a valid, empty object
+      if (outcome.structuredOutput === undefined || outcome.structuredOutput === null) {
+        this.fail(structuredFailure(outcome, text), out);
+        return;
+      }
+      this.emit({ text: '', started: false }, JSON.stringify(outcome.structuredOutput), out);
+    }
     const toolCalls = this.toolCallList();
-    const finishReason = finishReasonOf(outcome, toolCalls.length > 0);
+    // A structured answer that arrived is whole, whatever the stop reason of the call that carried it
+    const finishReason = this.opts.structured ? 'stop' : finishReasonOf(outcome, toolCalls.length > 0);
     out.push(this.chunk(this.sentRole ? {} : { content: '' }, finishReason));
     const counted = usage ? completionUsage(usage) : null;
     if (this.opts.includeUsage && counted) {
