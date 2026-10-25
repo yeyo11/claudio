@@ -493,15 +493,20 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   );
 
   const sweep = setInterval(() => {
-    void sweepOpenAiChats({ conversations: core.openaiConversations, runtime: core.runtime, remove: async (id) => {
-      await core.chats.remove(id);
-      registry.drop(id);
-    } }, Date.now(), ttl).catch((err: unknown) =>
+    void sweepOpenAiChats({ conversations: core.openaiConversations, runtime: core.runtime, remove: (id) => core.chats.remove(id) }, Date.now(), ttl).catch((err: unknown) =>
       app.log.warn({ err, scope: 'openai' }, 'the conversation sweep failed'),
     );
   }, SWEEP_EVERY_MS);
   sweep.unref();
-  app.addHook('onClose', async () => clearInterval(sweep));
+  // A chat's stub goes with the chat, however it is removed (the sweep, `DELETE /chats/:id`, the
+  // history trim): its URL stops answering and nothing it held outlives it
+  const unobserve = core.events.observe((event) => {
+    if (event.type === 'run.removed') registry.drop(event.runId);
+  });
+  app.addHook('onClose', async () => {
+    clearInterval(sweep);
+    unobserve();
+  });
 
   app.get('/models', async () => ({ object: 'list' as const, data: (await loadedCatalogue(core)).map(modelObject) }));
 

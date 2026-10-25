@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-25T23:00:00Z
+updated_at: 2026-10-26T02:00:00Z
 tags:
     - api
     - openai
@@ -11,11 +11,13 @@ tags:
 
 Clients that speak OpenAI's Chat Completions format will reach Claudio under `/api/v1`, and each
 request becomes a real Claudio chat ([the plan](plans/openai-compatible-api.md)). This page describes
-what is built: **phases 1 to 3**. Phase 1 is the pure translators and the conversation table in
+what is built: **phases 1 to 4**. Phase 1 is the pure translators and the conversation table in
 `packages/core/src/openai/`. Phase 2 serves them: `GET /v1/models`, `GET /v1/models/:id` and
 `POST /v1/chat/completions`, whole and streamed, in `apps/api/src/routes/openai.ts`. Phase 3 adds
-`response_format` (structured output), below; images were built in phase 2. Client tools (phase 4)
-and `/v1/responses` (phase 5) are not built yet.
+`response_format` (structured output); images were built in phase 2. Phase 4 adds client tools
+(function calling): the client's `tools` are served to the CLI by a stub MCP server, and each call
+is held at `can_use_tool` until the client sends its result. `/v1/responses` (phase 5) is not built
+yet.
 
 **This surface is for local use with the owner's own login.** It drives the unmodified Claude Code
 CLI on the owner's machine, under the account signed in there. Anthropic's terms do not cover
@@ -59,7 +61,7 @@ no agent, calls no SDK and adds no dependency.
 - `user` is kept for the conversation row.
 - `tools`, the legacy `functions`, `tool_choice` and `function_call` are validated (names
   `[A-Za-z0-9_-]{1,64}`, no duplicates, a named choice must exist, `required` needs tools) and carried
-  in `ChatTurn`. Nothing acts on them until phase 4.
+  in `ChatTurn`. Phase 4 acts on `tools` and `tool_choice`; `functions` stay refused.
 - The last non-system message must come from the user or a tool. The CLI cannot continue a reply
   the client started.
 
@@ -89,9 +91,10 @@ the whole response or the error once the turn is over.
   `content_filter` for `stopReason: refusal`. Everything else is `stop`.
 - A failed `result` (other than a budget), or `failWith(failure)` for a failure outside the events,
   becomes an error chunk and then `[DONE]`. A stream never just stops.
-- `toolCallDelta({ id, name, argumentsAppend })` is phase 4's entry point. The first fragment of a
+- `toolCallDelta({ id, name, argumentsAppend })` writes a client's call. The first fragment of a
   call carries `index`, `id`, `type` and the name, and later fragments only `index` and arguments.
-  `content` is `null` in those chunks.
+  `content` is `null` in those chunks. Phase 4 feeds it from the main agent's `tool_use` blocks
+  (option `clientTools`) and ends the turn with `handOff()`.
 - Usage: `prompt_tokens` = input + cache read + cache creation, with `prompt_tokens_details.cached_tokens`
   = cache read. `completion_tokens` = output. `costUsd` is returned beside the body for
   `x-claudio-cost-usd` and never placed in it.
@@ -186,13 +189,13 @@ same delta, so the second turn of a process reports its own cost, not the proces
 
 ### A request, step by step
 
-1. The body is read (`parseChatCompletionRequest`). What this surface cannot do yet is refused with
-   `400 unsupported_parameter`: client `tools` / `functions` and a `tool_choice` / `function_call`
-   that needs them. (`response_format` was refused here until phase 3.) Declared `tools` pass only with
-   `tool_choice: "none"`: they are left out and named in `x-claudio-ignored`. `functions` are always
-   refused. The message says they arrive in a later version. Then the model must be in the
-   catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid and `X-Claudio-Tool-Preset` must
-   name a stored preset.
+1. The body is read (`parseChatCompletionRequest`). What this surface cannot do is refused with
+   `400 unsupported_parameter`: the legacy `functions`, and client `tools` together with
+   `response_format`. Tool names the stub cannot serve are `400 invalid_request_error` (phase 4,
+   below). `tools` with `tool_choice: "none"` are left out and named in `x-claudio-ignored`. Trailing
+   `tool` messages must answer every call of the last assistant message, and nothing else. Then the
+   model must be in the catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid and
+   `X-Claudio-Tool-Preset` must name a stored preset.
 2. **Serialised per conversation.** Requests wait in a queue keyed by the conversation key (or by
    `chat:<id>` with `X-Claudio-Chat-Id`), then also on `chat:<id>` once the chat is known, so a
    request that names the chat and one that finds it by history wait for each other. A queue rather
@@ -208,7 +211,8 @@ same delta, so the second turn of a process reports its own cost, not the proces
    new chat with the cold prompt, a hit continues with the delta.
 4. **Images** of the chosen prompt are uploaded (`uploadOpenAiImages`, with `fetchImage` and
    `core.uploads.save`) and attached to the message.
-5. **The turn.** A new chat is created with `permissionPrompts: 'none'`, the default tool preset (or
+5. **The turn.** A new chat is created with `permissionPrompts: 'none'` (`'host'` when it has client
+   tools: phase 4), the default tool preset (or
    the header's), the app's default permission mode, except that `bypassPermissions` becomes `manual`,
    and origin `api`. A chat with a live idle process gets the turn as a message
    (`chats.send`), after its live process is set to the same rules: prompts denied
@@ -244,7 +248,8 @@ same delta, so the second turn of a process reports its own cost, not the proces
 | `X-Claudio-Spend-Override: 1` | in | Past the daily spend cap, as on `POST /chats` |
 | `X-Claudio-Chat-Id` | out | The chat, on every answer once it is known, errors after the start included |
 | `X-Claudio-Cost-Usd` | out | This turn's cost; an HTTP trailer on a streamed answer, since it is known only at the end |
-| `X-Claudio-Ignored` | out | Parameters the CLI cannot honour (`temperature`, `max_tokens`…), `tools` sent with `tool_choice: "none"`, `x-claudio-cwd` on a chat in another directory, and `reasoning_effort` sent to a chat whose process is up (the effort of a live process cannot change) |
+| `X-Claudio-Ignored` | out | Parameters the CLI cannot honour (`temperature`, `max_tokens`…), `tools` sent with `tool_choice: "none"`, `tools` that differ from those a live process holding calls already serves, `x-claudio-cwd` on a chat in another directory, and `reasoning_effort` sent to a chat whose process is up (the effort of a live process cannot change) |
+| `X-Claudio-Resume: cold` | out | The client's tool results reached a chat whose process was gone (a restart, the idle expiry, a crash): the chat was resumed and the results went in as a message |
 | `Retry-After` | out | On every 429 |
 
 ### The request body
@@ -309,7 +314,7 @@ too. Every redirect is checked again.
 
 ### Known gaps
 
-- Client tools (phase 4) are refused.
+- Client tools together with `response_format` are refused (phase 4).
 - A structured answer is not streamed as it is written: it arrives as one chunk at the end (phase 3).
 - A chat continued by `X-Claudio-Chat-Id` keeps its live process's settings: its system prompt and
   effort do not change for that turn (effort is named in `x-claudio-ignored`); its model does change.
@@ -387,6 +392,151 @@ as text. Fed through the driver, the fold and the translator, it gave exactly on
 `{"capital":"Paris"}`, then the finish chunk (`stop`), the usage chunk and `[DONE]`, and the same
 content whole. The prose "Paris." did not reach the client.
 
+## Phase 4: client tools
+
+A request's `tools` (type `function`: `name`, `description`, JSON-schema `parameters`) are the
+client's own functions. Claude calls them, Claudio hands the calls back as OpenAI does
+(`finish_reason: "tool_calls"`), and the client's next request brings the results. The CLI is never
+told it is talking to a remote client: it sees an MCP server whose calls need permission, and the
+permission is what Claudio holds. The design and the real-CLI evidence are in
+[the plan](plans/openai-compatible-api.md) (decision 2) and [the spike](plans/openai-compatible-api-spike.md).
+
+| File | What it does |
+|---|---|
+| `packages/core/src/openai/client-tools.ts` | `ClientToolSession` (one chat's tools, held requests, handed-over calls and results), `clientToolsProblem` (names the stub cannot serve), `trailingResults` / `resultsProblem` (the results a request ends with), `toolChoiceInstruction`, `clientToolsServerEntry` and `answerStub` (the stub's JSON-RPC) |
+| `apps/api/src/routes/openai-tools.ts` | `ClientToolRegistry` (sessions by chat and by stub id) and the stub route `/api/openai/client-tools/:id/mcp` |
+| `apps/api/src/routes/openai.ts` | The handoff in the turn runner, the continuation, the timeout and the cold resume |
+| `packages/core/src/live-chat.ts`, `chat-fold.ts`, `chats.ts` | `PermissionHost`: a program answers a chat's permission requests instead of a person; `extraMcpServers`: servers core's callers add to a chat's `--mcp-config` |
+
+### The stub server
+
+Each chat with client tools gets a session with a random id and a stub MCP server at
+`/api/openai/client-tools/<id>/mcp`, passed to the CLI with `--mcp-config` beside the servers the
+chat loads anyway (the file adds to them, so `--strict-mcp-config` stays off). The entry is
+`{ type: "http", url, headers: { Authorization: "Bearer ${CLAUDIO_API_TOKEN}" }, alwaysLoad: true }`:
+the CLI expands the chat's own per-process token from its environment, so no secret is written to
+the file, and the stub accepts only that token, for the chat the session is bound to (`401`
+otherwise, the same for an unknown id). `alwaysLoad` saves a `ToolSearch` round trip and makes
+`tool_choice` instructions work (spike). `tools/list` lists the client's tools with
+`readOnlyHint: true`, so the CLI asks for every call of a message at once and runs them together.
+The stub changes nothing itself; the client acts on its own side.
+
+The stub **never waits**. `tools/call` returns the result the client already sent: the one under
+`_meta["claudecode/toolUseId"]`, else the oldest result for a call of that name, else an error result
+at once. **`_meta["claudecode/toolUseId"]` is the one soft spot:** it is on the wire (spike question
+3) but not documented, so the first-in-first-out fallback by name keeps the stub correct if a CLI
+release drops it. The answers are plain JSON (no SSE), notifications get `202`, `GET` and `DELETE`
+get `405`, and an unknown method gets `-32601` (the CLI's `server/discover` among them; it falls back
+to `initialize`). The session lives in memory and goes with the chat: removing the chat (the sweep,
+`DELETE /chats/:id`, the history trim) drops it, and its URL stops answering.
+
+Names: the CLI shows the tools to the model as `mcp__client__<name>`, and the client gets its own
+names back. Names longer than 51 characters (the model's 64 minus the prefix), names of Claude
+Code's own tools (`Bash`, `Read`, `Task`…, compared without case) and names that differ only by case
+are `400 invalid_request_error`. The parser already refuses names outside `[A-Za-z0-9_-]` and exact
+duplicates.
+
+### Who answers the permission requests
+
+A chat with client tools runs with `permissionPrompts: 'host'` (never `bypassPermissions`), and its
+session is the chat's `PermissionHost` (`ChatManager.setPermissionHost`). Every `can_use_tool` the
+CLI sends goes to it, before Claudio's tool policy, and **none reaches `PermissionBroker`**: its
+10-minute deny and the panel's buttons cannot answer a client's call, `pendingPrompts` stays 0, and
+the chat's permission list and notices show nothing. The session holds a request for one of the
+client's tools in its own map and denies everything else at once, with the message
+`permissionPrompts: 'none'` gives. Built-in tools that the chat's tool preset and permission mode
+allow without asking still run in the same turn, as in any API chat. An `api` chat whose host is
+not attached (after a restart) denies every request rather than asking a person.
+
+### A turn that calls tools
+
+1. The model writes one API message with `tool_use` blocks for `mcp__client__*`, maybe after some
+   text. The translator streams the text as content and each call as two `tool_calls` fragments on a
+   stable `index`: the first with `id`, `type: "function"` and the name with empty `arguments`, the
+   second with the arguments whole. The calls come from the blocks, not from the permission
+   requests: with a tool that is not read-only the CLI asks for call *n+1* only after call *n* ran,
+   so waiting for one request per call would deadlock (spike change 2).
+2. At the end of that API message (`stop_reason: tool_use`), the HTTP turn ends:
+   `finish_reason: "tool_calls"`, `message.tool_calls[]` whole, or the finish chunk and `[DONE]`
+   when streaming. No `usage` and no `X-Claudio-Cost-Usd`: the CLI reports them with its turn's
+   `result`, which comes once the results are in. The process stays up, silent, holding the
+   requests, and the session starts the wait.
+3. The client runs its functions and sends the history again with the assistant message (its
+   `tool_calls` as received) and one `tool` message per call. The conversation key after a
+   `tool_calls` answer covers the calls, so this request finds the chat; `X-Claudio-Chat-Id` works
+   too. Each held request is allowed with its **original input**, in any order; the CLI calls the
+   stub, gets each result as the tool's output, and the same CLI turn goes on. This request streams
+   it and ends with the next calls or the final answer, whose usage and cost are those of the whole
+   CLI turn. No message is sent to the CLI.
+
+The first request's place in the conversation's queue is released when it ends with the calls, so
+the result request never waits behind it. The idle limit (`CLAUDIO_OPENAI_TURN_IDLE_MS`) belongs to
+a turn being read, so it does not run while the calls are with the client; the wait has its own
+limit.
+
+**What the results must be.** A `tool` message for every call of the last assistant message, and
+none for anything else: an unknown `tool_call_id`, a missing result or two results for one call are
+`400 invalid_request_error`, naming the ids. While the CLI is holding the calls, the results must
+also be the ones it waits for, and a `user` message after them is a `400` (the CLI is in the middle
+of its turn; send the results, then the message).
+
+**The wait.** `openaiToolCallTimeoutMinutes` (`GET`/`PUT /api/settings/app`, 1 to 1440, **10** by
+default, `null` resets it; `CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES` fixes it), read when each wait
+starts. `CLAUDIO_OPENAI_TOOL_CALL_WAIT_MS` overrides it in milliseconds, for tests that cannot wait a
+minute. A call still owed then is answered to the CLI with an error result ("the client did not
+return a result for this call in time") and the chat is stopped. A result that arrives later is a
+`400` that says the call expired. It has no control in the web yet; it is set through the API or the
+environment.
+
+**A client that disconnects** while a call is held and its answer still open is the usual
+disconnect: the chat is interrupted, and the CLI withdraws the held requests
+(`control_cancel_request`) and ends its turn (spike).
+
+**Cold resume.** When the results arrive and the process is gone (a restart, the idle expiry, a
+crash), the chat is resumed with `--resume`. The CLI writes its own "tool call interrupted" error for
+each call that was dangling (spike question 6), and the results go in as a user message that says
+the session restarted. The answer carries `X-Claudio-Resume: cold`.
+
+### `tool_choice` and `parallel_tool_calls`
+
+The CLI's flags are fixed when its process starts, and the process outlives a request, so each
+request's choice is enforced where it can be: in the answer to each permission request.
+
+| Value | What happens |
+|---|---|
+| `auto` (default) | Nothing |
+| `none` | On a new chat the tools are left out (no stub) and named in `x-claudio-ignored`. On a chat whose process already serves the stub, every client call is denied with a message naming the rule |
+| `{ type: "function", function: { name } }` | Calls of other client tools are denied with a message naming the required one, and the turn's prompt carries a line asking for it |
+| `required` | Only a line in the turn's prompt; not guaranteed |
+| `parallel_tool_calls: false` | Only the first call of a message is handed to the client; the others are denied |
+
+Built-in tools the preset allows can still run in the same turn whatever `tool_choice` says (spike
+question 7).
+
+### Limits
+
+- Client tools together with `response_format` are refused (`unsupported_parameter`, not supported yet).
+- A live process serves the tool list it started with. A turn that names different tools restarts an
+  idle process with the new list; a request that brings results to a process holding calls keeps
+  the old list and names `tools` in `x-claudio-ignored`.
+- A chat holding calls keeps its process, and its run slot, for up to the wait.
+- Held requests live in memory: a restart loses them, and the results resume the chat cold.
+- Never allow-list `mcp__client__*` tools in a preset or the CLI's settings: a call the CLI runs
+  without asking finds no result in the stub and gets an error result.
+
+### Evidence from the real CLI
+
+Two smoke runs on Claude Code 2.1.310, `haiku`, each spawn capped with `--max-budget-usd 0.5`,
+through the real routes, core and stub (2026-10-26):
+
+- One tool, whole: the first answer was `finish_reason: "tool_calls"` with
+  `get_secret {"key":"alpha"}` (id `toolu_0146…`), the process up and `core.permissions.list()` empty.
+  The second request, with the `tool` message `ZEBRA-4471-KUMQUAT`, answered
+  `content: "ZEBRA-4471-KUMQUAT"`, `finish_reason: "stop"`, in the same chat. $0.0069.
+- Two tools, streamed: `get_weather` on index 0 and `get_time` on index 1, each as a name fragment
+  and an arguments fragment, then `finish_reason: "tool_calls"` and `[DONE]`. The second stream
+  quoted both results ("17 C, light rain", "14:05 CEST") and ended with a usage chunk. $0.0071.
+
 ## Using it
 
 The base URL is `http://127.0.0.1:<port>/api/v1` (the dev server's port is 8797; the desktop app
@@ -435,6 +585,37 @@ city = client.chat.completions.create(
     response_format={"type": "json_schema", "json_schema": {"name": "city", "schema": {
         "type": "object", "properties": {"capital": {"type": "string"}}, "required": ["capital"]}}})
 print(json.loads(city.choices[0].message.content)["capital"])
+
+# Client tools: the turn ends with the calls, the next request brings the results
+tools = [{"type": "function", "function": {"name": "get_weather", "description": "Current weather in a city",
+          "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}}]
+messages = [{"role": "user", "content": "What's the weather in Madrid?"}]
+first = client.chat.completions.create(model="sonnet", messages=messages, tools=tools)
+assert first.choices[0].finish_reason == "tool_calls"
+messages.append(first.choices[0].message)          # the assistant message with its tool_calls
+for call in first.choices[0].message.tool_calls:
+    args = json.loads(call.function.arguments)
+    messages.append({"role": "tool", "tool_call_id": call.id, "content": f"21 C and sunny in {args['city']}"})
+final = client.chat.completions.create(model="sonnet", messages=messages, tools=tools)
+print(final.choices[0].message.content)
+```
+
+The same round trip with curl (the ids come from the first answer):
+
+```bash
+curl -s http://127.0.0.1:8797/api/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"model":"sonnet",
+    "messages":[{"role":"user","content":"Weather in Madrid?"}],
+    "tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}}]}'
+# → "finish_reason":"tool_calls", "tool_calls":[{"id":"toolu_01…","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Madrid\"}"}}]
+
+curl -s http://127.0.0.1:8797/api/v1/chat/completions -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"model":"sonnet",
+    "messages":[{"role":"user","content":"Weather in Madrid?"},
+      {"role":"assistant","content":null,"tool_calls":[{"id":"toolu_01…","type":"function","function":{"name":"get_weather","arguments":"{\"city\":\"Madrid\"}"}}]},
+      {"role":"tool","tool_call_id":"toolu_01…","content":"21 C and sunny"}],
+    "tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}}]}'
+# → the final answer, in the same chat
 ```
 
 ## Related

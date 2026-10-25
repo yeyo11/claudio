@@ -793,7 +793,7 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   }),
   'POST /openai/client-tools/:id/mcp': d('OpenAI-compatible', "The stub MCP server of one chat's client tools", {
     description:
-      "Called by the chat's own CLI process, never by a client: JSON-RPC over MCP's Streamable HTTP, answered as plain JSON (`initialize`, `ping`, `tools/list`, `tools/call`; notifications get `202`; anything else `-32601`). Lists the client's `tools` with `readOnlyHint`; `tools/call` returns the result the client already sent, by `_meta[\"claudecode/toolUseId\"]` or, without it, the oldest result for that tool, and never waits. Only the process's own `CLAUDIO_API_TOKEN` is accepted, and only for the chat the session belongs to (`401` otherwise).",
+      "Called by the chat's own CLI process, never by a client: JSON-RPC over MCP's Streamable HTTP, answered as plain JSON (`initialize`, `ping`, `tools/list`, `tools/call`; notifications get `202`; anything else `-32601`). Lists the client's `tools` with `readOnlyHint`; `tools/call` returns the result the client already sent, by `_meta[\"claudecode/toolUseId\"]` or, without it, the oldest result for that tool, and never waits. Only the process's own `CLAUDIO_API_TOKEN` is accepted, and only for the chat the session belongs to (`401` otherwise). The session goes with the chat: once the chat is removed, its URL answers `401`.",
     params: obj({ id: str("The session id in the stub's URL") }, ['id']),
   }),
   'GET /openai/client-tools/:id/mcp': d('OpenAI-compatible', 'No server-initiated stream', { description: 'Always `405`: the stub has no stream of its own to offer.', params: obj({ id: str("The session id in the stub's URL") }, ['id']) }),

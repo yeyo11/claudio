@@ -87,7 +87,7 @@ async function connectStub() {
   await fetch(stub.url, { method: 'POST', headers: { 'content-type': 'application/json', ...stub.headers }, body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) });
   const list = await rpc('tools/list', {});
   const unauth = await rpc('tools/list', {}, { Authorization: 'Bearer wrong' });
-  stubSeen = { alwaysLoad: stub.alwaysLoad, type: stub.type, strict: strictMcp, discover: discover.body?.error?.code ?? null, init: init.status, tools: list.body?.result?.tools ?? null, unauthorized: unauth.status };
+  stubSeen = { url: stub.url, alwaysLoad: stub.alwaysLoad, type: stub.type, strict: strictMcp, discover: discover.body?.error?.code ?? null, init: init.status, tools: list.body?.result?.tools ?? null, unauthorized: unauth.status };
 }
 
 /** `can_use_tool` requests out and not answered yet, by request id */

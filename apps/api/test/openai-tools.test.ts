@@ -90,7 +90,7 @@ interface Logged {
   resume?: string | null;
   prompts?: string | null;
   instruction?: string | null;
-  stub?: { alwaysLoad: boolean; type: string; strict: boolean; discover: number | null; init: number; tools: Array<Record<string, unknown>> | null; unauthorized: number };
+  stub?: { url: string; alwaysLoad: boolean; type: string; strict: boolean; discover: number | null; init: number; tools: Array<Record<string, unknown>> | null; unauthorized: number };
 }
 function logged(chatId: string): Logged[] {
   if (!existsSync(log)) return [];
@@ -143,6 +143,7 @@ test('a client tool call ends the turn with tool_calls, the process waits, and t
   assert.deepEqual(await panel.json(), []);
 
   // The stub was loaded as the spike requires, and answers only the chat's own process
+  await until(() => logged(chatId).some((l) => l.stub));
   const stub = logged(chatId).find((l) => l.stub)?.stub;
   assert.ok(stub);
   assert.equal(stub.type, 'http');
@@ -376,12 +377,31 @@ test('a result for a chat whose process died resumes it cold with --resume, the 
   assert.equal(resumed?.resume, chatId);
   assert.match(resumed?.prompt ?? '', /restarted/);
   assert.match(resumed?.prompt ?? '', new RegExp(`<tool-result id="${id}">\\nthe value\\n</tool-result>`));
-  // The resumed process serves the stub again, for the next calls
-  assert.equal(logged(chatId).filter((l) => l.stub).length, 2);
+  // The resumed process serves the stub again, for the next calls (the fake logs it after the turn's result)
+  await until(() => logged(chatId).filter((l) => l.stub).length === 2, 10_000);
   assert.equal(core.runtime.get(chatId)?.permissionPrompts, 'host');
 });
 
 // ---------- refusals ----------
+
+test("a chat's stub goes with the chat: once the chat is removed its URL answers 401 even to a valid token of that chat", async () => {
+  const res = await post({ model: 'sonnet', messages: [user('hello with tools')], tools: [weather] });
+  assert.equal(res.status, 200);
+  const chatId = chatOf(res);
+  await res.json();
+  await until(() => logged(chatId).some((l) => l.stub));
+  const url = logged(chatId).find((l) => l.stub)?.stub?.url ?? '';
+  // A token of the chat's own, as its process holds, outlives the removal here on purpose: only the stub's teardown refuses it
+  const own = core.security.chatTokens.mint(chatId);
+  const list = (): Promise<Response> =>
+    fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${own}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+  assert.equal((await list()).status, 200);
+  core.runtime.stop(chatId);
+  await until(() => core.runtime.get(chatId)?.pid === null || core.runtime.get(chatId)?.pid === undefined);
+  await until(() => core.runtime.remove(chatId), 5000);
+  assert.equal((await list()).status, 401);
+  core.security.chatTokens.revoke(own);
+});
 
 test('tool names that collide with a built-in, are too long or repeat, and the legacy functions, are refused', async () => {
   const named = (name: string) => ({ type: 'function', function: { name, parameters: { type: 'object' } } });
