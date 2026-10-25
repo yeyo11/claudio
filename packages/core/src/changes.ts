@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { ChatNotFoundError } from './chat-errors.ts';
 import { systemTempDirs } from './temp-dirs.ts';
 import type {
   ChangeSummary,
@@ -349,7 +350,7 @@ export class Changes {
 
   private async chatOf(id: string): Promise<ChatSummary> {
     const chat = await this.deps.chats.summaryOf(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     return chat;
   }
 
@@ -463,7 +464,7 @@ export class Changes {
     if (fromDisk) return fromDisk;
     // A chat that has not written its transcript yet, or never will (housekeeping): what it streamed
     const streamed: TranscriptEntry[] | null = this.deps.runtime.messages(chatId);
-    if (!streamed) throw new Error('chat not found');
+    if (!streamed) throw new ChatNotFoundError();
     return toolCallsOf(streamed, names);
   }
 

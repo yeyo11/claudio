@@ -943,3 +943,25 @@ test("a chat's token cannot change who receives lessons through the project's se
   assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(token, { ...current, lessons: grab }) })).statusCode, 200);
   assert.deepEqual(((await app.inject({ url, ...bearer(owner) })).json() as { lessons: unknown }).lessons, mine);
 });
+
+test('with authentication off, /v1 counts wrong credentials and waits like the guarded modes, and the rest stays open', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
+  const { token } = created.json() as { token: string };
+
+  // A success clears the failures behind it, as under a guard
+  for (let i = 0; i < 9; i += 1) assert.equal((await app.inject({ url: '/api/v1/models', ...bearer('not-the-token') })).statusCode, 401);
+  assert.equal((await app.inject({ url: '/api/v1/models', ...bearer(token) })).statusCode, 200);
+
+  for (let i = 0; i < 10; i += 1) {
+    assert.equal((await app.inject({ url: '/api/v1/models', ...bearer('not-the-token') })).statusCode, 401, `attempt ${i + 1}`);
+  }
+  const throttled = await app.inject({ url: '/api/v1/models', ...bearer('not-the-token') });
+  assert.equal(throttled.statusCode, 429);
+  assert.equal(throttled.headers['retry-after'], '1');
+  assert.equal((await app.inject({ url: '/api/v1/models', ...bearer(token) })).statusCode, 429, 'the real token waits with the rest');
+  // No credential is no guess: refused, never made to wait, as the guarded modes treat it
+  assert.equal((await app.inject('/api/v1/models')).statusCode, 401);
+  assert.equal((await app.inject('/api/chats')).statusCode, 200, 'only /v1 asks for a credential under mode none');
+});

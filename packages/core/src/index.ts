@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { ChatNotFoundError } from './chat-errors.ts';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
@@ -292,7 +293,7 @@ export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolve
 export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { AccountSwitchRefusal, ChatRefusal } from './chats.ts';
+export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chats.ts';
 export { ReviewStoreError } from './review-store.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
@@ -1932,7 +1933,7 @@ export class Core {
       ...effortOption(resolveEffort('chat', request.model, request.effort)),
     });
     const chat = await this.chats.summaryOf(started.id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     return chat;
   }
 
@@ -3417,7 +3418,7 @@ export class Core {
     const text: unknown = request?.text;
     if (typeof text !== 'string' || !text.trim()) throw new WorkItemError('text is required: the message the task is made from', 400);
     const chat = await this.chats.summaryOf(chatId);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const projectId = chat.project?.id;
     if (!projectId) throw new WorkItemError('this chat is not in an imported project, so there is no board to add the task to', 409);
     await this.workItemProject(projectId, 'write');

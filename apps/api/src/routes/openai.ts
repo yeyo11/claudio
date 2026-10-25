@@ -12,6 +12,7 @@ import {
   openAiError,
   openAiKeyAfterAnswer,
   parseChatCompletionRequest,
+  RunSlotRefusal,
   STREAM_DONE,
   sweepOpenAiChats,
   translateOpenAiRequest,
@@ -85,17 +86,18 @@ function isSpendCap(value: unknown): value is SpendCapRefusal {
 }
 
 /**
- * What a throw becomes under `/v1`. Core's plain `Error`s are refusals the rest of the API already
- * answers 400 or 404 (`deliberate`); they keep that status here, only in OpenAI's shape.
+ * What a throw becomes under `/v1`, decided by the error's class and declared status, never by its
+ * wording. A typed refusal keeps its status (`ChatNotFoundError` 404, `ChatConflictError` 409…); a
+ * plain hand-thrown `Error` from core is a refusal of the request (`deliberate`), so a 400.
  */
-function failureOf(err: unknown): OpenAiFailure {
+export function failureOf(err: unknown): OpenAiFailure {
   if (err instanceof V1Failure) return err.failure;
   // No run slot is free now: a client retries a 429 by itself, where a 400 would read as its own fault
-  if (err instanceof Error && err.message.includes('Concurrent run limit')) {
+  if (err instanceof RunSlotRefusal) {
     return { kind: 'usage-limit', resetsAt: Math.floor(Date.now() / 1000) + RUN_SLOT_RETRY_SECONDS, message: `${err.message}: try again in a moment.` };
   }
   if (err instanceof Error && typeof (err as { statusCode?: unknown }).statusCode !== 'number' && deliberate(err)) {
-    return failureOfThrown(Object.assign(err, { statusCode: /not found/i.test(err.message) ? 404 : 400 }));
+    return { kind: 'invalid-request', message: err.message };
   }
   return failureOfThrown(err);
 }
@@ -534,8 +536,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
       if (turn.stream) {
         const stream: SseStream = openStream(req, reply, { headers: out, trailers: [COST_HEADER] });
+        // The stream drops what comes after the client left or after its end (`SseStream.closed`)
         current.stream((items) => {
-          if (gone) return;
           for (const item of items) {
             if (item === STREAM_DONE) stream.sendData(STREAM_DONE);
             else stream.send(item);
@@ -543,7 +545,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         });
         await settled(current);
         remember();
-        if (!gone) stream.end(current.costUsd !== null ? { [COST_HEADER]: String(current.costUsd) } : {});
+        stream.end(current.costUsd !== null ? { [COST_HEADER]: String(current.costUsd) } : {});
         return reply;
       }
 

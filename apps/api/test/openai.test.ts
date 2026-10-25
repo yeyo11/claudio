@@ -6,9 +6,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { Core, loadConfig, parseChatCompletionRequest, translateOpenAiRequest, type ChatCompletionRequest } from '@claudio/core';
+import { ChatConflictError, ChatNotFoundError, Core, loadConfig, parseChatCompletionRequest, RunSlotRefusal, translateOpenAiRequest, type ChatCompletionRequest } from '@claudio/core';
 import type { ChatSummary, RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { failureOf } from '../src/routes/openai.ts';
 
 // The OpenAI-compatible routes over a real core and a fake CLI that keeps its process across turns
 // and reports its cost and token counts cumulative, as the real one does (docs/openai-compatible-api.md).
@@ -554,4 +555,19 @@ test("tools with tool_choice 'none' are ignored and named; any other client-tool
     assert.equal(res.status, 400, JSON.stringify(extra));
     assert.equal(assertOpenAiError(await res.json(), 'unsupported_parameter').error.param, param);
   }
+});
+
+// ---------- how failures are classified ----------
+
+test('a failure is classified by its type, never by its wording', () => {
+  assert.equal(failureOf(new ChatNotFoundError()).kind, 'not-found');
+  assert.equal(failureOf(new RunSlotRefusal(2)).kind, 'usage-limit');
+  assert.equal(failureOf(new ChatConflictError('busy', null)).kind, 'conflict');
+  // The words that used to decide no longer do
+  assert.equal(failureOf(new Error('the upload was not found')).kind, 'invalid-request');
+  assert.equal(failureOf(new Error('Concurrent run limit reached (2)')).kind, 'invalid-request');
+  assert.equal(failureOf(new TypeError('x is not found')).kind, 'server');
+  const plain = new Error('thing not found');
+  failureOf(plain);
+  assert.equal((plain as { statusCode?: unknown }).statusCode, undefined, 'the thrown error is not mutated');
 });

@@ -1,4 +1,5 @@
 import { dirname, resolve } from 'node:path';
+import { ChatNotFoundError } from './chat-errors.ts';
 import {
   EFFORT_LEVELS,
   entrySearchText,
@@ -628,7 +629,7 @@ export class ChatService {
    */
   async detail(id: string, opts: { includeSidechains?: boolean; limit?: number; before?: number } = {}): Promise<ChatDetail> {
     const chat = await this.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     // Read before the transcript, so what is pushed in between is covered by the stream's replay
     const stream = this.deps.runtime.streamPosition(id);
     const page = await this.fromStores(id, (store, key) => store.page(key, opts));
@@ -649,7 +650,7 @@ export class ChatService {
    */
   async export(id: string): Promise<ChatExport> {
     const chat = await this.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const pages: TranscriptEntry[][] = [];
     let before: number | undefined;
     for (;;) {
@@ -681,7 +682,7 @@ export class ChatService {
     const found = await this.fromStores(id, (store, key) => store.search(key, query, opts));
     if (found) return found;
     const messages = this.deps.runtime.messages(id);
-    if (!messages) throw new Error('chat not found');
+    if (!messages) throw new ChatNotFoundError();
     const pattern = searchPattern(query);
     if (!pattern) throw new Error('q is required');
     const search = new TranscriptSearch(query, pattern);
@@ -787,7 +788,7 @@ export class ChatService {
     const text = request?.text?.trim();
     if (!text) throw new Error('text is required');
     const runtime = this.deps.runtime.get(id);
-    if (!runtime) throw new Error('chat not found');
+    if (!runtime) throw new ChatNotFoundError();
     if (runtime.pid === null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
     this.deps.runtime.send(id, `${CHAT_HINT_PREFIX}\n\n${text}`);
     return this.require(id);
@@ -799,7 +800,7 @@ export class ChatService {
    * is told a person did it, since a bare exit status looks like the command's own crash.
    */
   async cancelCommand(id: string, toolUseId: string, request: CancelCommandRequest = {}): Promise<CancelCommandResult> {
-    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
     let cancelled: { command: string; processes: number };
     try {
       cancelled = this.deps.runtime.cancelCommand(id, toolUseId);
@@ -829,7 +830,7 @@ export class ChatService {
     // A plan is core's to hand over, in `extras`; one in a body is dropped
     const { guards: _plan, ...request } = body as ResumeChatRequest & { guards?: unknown };
     const chat = await this.summaryOf(id, true);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
@@ -878,7 +879,7 @@ export class ChatService {
   async fork(id: string, body: ForkChatRequest): Promise<ChatSummary> {
     const { guards: _plan, ...request } = body as ForkChatRequest & { guards?: unknown };
     const chat = await this.summaryOf(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
     const provider = this.gate(this.deps.runtime.get(id)?.provider ?? request.provider, request, { fork: true });
     const adoption = await this.adoptionOf(chat);
@@ -912,7 +913,7 @@ export class ChatService {
     const before = this.sending.get(id) ?? Promise.resolve();
     const turn = before.then(async () => {
       const chat = await this.summaryForSend(id);
-      if (!chat) throw new Error('chat not found');
+      if (!chat) throw new ChatNotFoundError();
       if (chat.control.mode !== 'interactive') {
         throw new ChatConflictError(chat.control.mode === 'readOnly' ? chat.control.reason : 'This chat has no live execution: resume it to continue.', chat.control.mode === 'readOnly' ? chat.control.action : null);
       }
@@ -977,19 +978,19 @@ export class ChatService {
 
   /** Switches one MCP server of the live process; the CLI keeps the choice for the chat's folder. */
   async toggleMcpServer(id: string, name: string, enabled: boolean): Promise<ChatMcpServers> {
-    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
     return this.deps.runtime.toggleMcpServer(id, name, enabled);
   }
 
   /** Switches Claudio's own MCP server in the live process, and keeps the choice on the chat for its next processes. */
   async setClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers> {
-    if (!this.deps.runtime.get(id)) throw new Error('chat not found');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
     return this.deps.runtime.setClaudioMcp(id, enabled);
   }
 
   /** Deletes the chat: its transcript and sidecar files, and Claudio's record of it. */
   async remove(id: string): Promise<void> {
-    if (!(await this.summaryOf(id, true))) throw new Error('chat not found');
+    if (!(await this.summaryOf(id, true))) throw new ChatNotFoundError();
     if (await this.liveIn(id)) throw new ChatConflictError('Something is running on this chat: stop it before deleting.', null);
     // Only Claude's transcript is Claudio's to delete: another vendor's history stays where its
     // CLI keeps it, and Claudio's own rows go with the chat's record
@@ -1014,13 +1015,13 @@ export class ChatService {
 
   private async requireForSend(id: string): Promise<ChatSummary> {
     const chat = await this.summaryForSend(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     return chat;
   }
 
   private async require(id: string): Promise<ChatSummary> {
     const chat = await this.summaryOf(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     return chat;
   }
 
@@ -1116,7 +1117,7 @@ export class ChatService {
       ids.map(async (id) => {
         const runtime = this.deps.runtime.get(id);
         const summary = await this.summaryWith(id, facts);
-        if (!summary) throw new Error('chat not found');
+        if (!summary) throw new ChatNotFoundError();
         const ref = refFrom(summary);
         const children = toChildren(await this.branchFacts(id, runtime, summary.alive), id, summary.alive ? undefined : endedAtOf(summary));
         return { ref, children };

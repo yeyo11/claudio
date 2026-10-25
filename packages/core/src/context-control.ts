@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { ChatNotFoundError } from './chat-errors.ts';
 import {
   COMPACT_FOCUS_MAX,
   type Chat,
@@ -104,7 +105,7 @@ export class ContextControl {
    */
   async usage(chatId: string, detail: ContextDetail = 'summary'): Promise<ChatContextUsage> {
     const chat = await this.deps.chats.get(chatId);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const base = { snapshot: chat.context, observedAt: iso() };
     const runtime = this.deps.runtime.get(chatId);
     if (runtime?.pid == null) return { live: false, unreported: 'no-process', detail: null, breakdown: null, ...base };
@@ -167,7 +168,7 @@ export class ContextControl {
   /** `availability` of a chat read now */
   private async check(chatId: string): Promise<Chat> {
     const chat = await this.deps.chats.get(chatId, { fresh: true });
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const { refusal } = this.availability(chat);
     if (refusal) throw new ContextRefusal(refusal);
     return chat;

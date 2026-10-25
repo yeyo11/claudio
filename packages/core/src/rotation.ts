@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { ChatNotFoundError } from './chat-errors.ts';
 import type { LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
@@ -274,7 +275,7 @@ export class ProviderRotation {
    */
   waitFor(chatId: string, decidedBy: ProviderMoveDecider = 'person'): ProviderMove | null {
     const run = this.deps.runtime.get(chatId);
-    if (!run) throw new Error('chat not found');
+    if (!run) throw new ChatNotFoundError();
     const limit = this.deps.runtime.limits.get(run.provider ?? LEGACY_PROVIDER);
     const work = this.deps.work?.(chatId) ?? null;
     const projectId = this.deps.projectOf(run.workingDir ?? run.cwd);

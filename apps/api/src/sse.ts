@@ -7,14 +7,16 @@ const HEARTBEAT_MS = 15_000;
 const RETRY_MS = 3000;
 
 export interface SseStream {
-  /** One event: `id` is left out for what a client must not resume from, `event` for a plain frame. */
+  /** One event: `id` is left out for what a client must not resume from, `event` for a plain frame. A no-op once closed. */
   send(payload: unknown, frame?: { event?: string; id?: number }): void;
   /** A `data:` line as it is, for a protocol whose sentinel is not JSON (OpenAI's `[DONE]`). */
   sendData(data: string): void;
-  /** Ends the reply, with the trailers announced when it was opened. */
+  /** Ends the reply, with the trailers announced when it was opened; a second call, or one after the client left, does nothing. */
   end(trailers?: Record<string, string>): void;
   /** Runs when the client hangs up, after the heartbeat is stopped. */
   onClose(cleanup: () => void): void;
+  /** True once the stream ended or the connection closed: every write after that is dropped */
+  readonly closed: boolean;
 }
 
 /**
@@ -49,23 +51,43 @@ export function openStream(req: FastifyRequest, reply: FastifyReply, options: St
   // what is new has nothing replayed, so it would not see the stream open until the first heartbeat
   reply.raw.write(`retry: ${RETRY_MS}\n\n`);
 
-  const heartbeat = setInterval(() => reply.raw.write(': ping\n\n'), HEARTBEAT_MS);
+  // The stream keeps its own word on whether it may still write: a turn's last items can arrive after
+  // the client hung up or after `end()`, and a write then throws (ERR_STREAM_WRITE_AFTER_END) or goes
+  // nowhere. Every write below is a no-op once this is set
+  let closed = false;
+  const open = (): boolean => !closed && !reply.raw.writableEnded && !reply.raw.destroyed;
+  const write = (text: string): void => {
+    if (open()) reply.raw.write(text);
+  };
+  const heartbeat = setInterval(() => write(': ping\n\n'), HEARTBEAT_MS);
   const cleanups: Array<() => void> = [];
-  req.raw.on('close', () => {
+  const close = (): void => {
+    closed = true;
     clearInterval(heartbeat);
+  };
+  reply.raw.on('close', close);
+  req.raw.on('close', () => {
+    close();
     // Or every closed tab leaks its subscription for as long as the wrapper runs
     for (const cleanup of cleanups.splice(0)) cleanup();
   });
 
   return {
+    get closed() {
+      return !open();
+    },
     send: (payload, frame = {}) => {
       const id = frame.id === undefined ? '' : `id: ${frame.id}\n`;
       const event = frame.event === undefined ? '' : `event: ${frame.event}\n`;
-      reply.raw.write(`${id}${event}data: ${JSON.stringify(payload)}\n\n`);
+      write(`${id}${event}data: ${JSON.stringify(payload)}\n\n`);
     },
-    sendData: (data) => void reply.raw.write(`data: ${data}\n\n`),
+    sendData: (data) => write(`data: ${data}\n\n`),
     end: (trailers) => {
-      clearInterval(heartbeat);
+      if (!open()) {
+        close();
+        return;
+      }
+      close();
       if (trailers && options.trailers?.length) reply.raw.addTrailers(trailers);
       reply.raw.end();
     },

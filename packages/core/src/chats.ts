@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
 import { DEFAULT_ID, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
@@ -112,14 +113,7 @@ export class AccountSwitchRefusal extends Error {
   }
 }
 
-export class ChatRefusal extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: 400 | 404 | 409 | 503 = 400,
-  ) {
-    super(message);
-  }
-}
+export { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
 
 /** One replay of a turn lost to a limit per execution: a second failure is a real one, not a quota one */
 const MAX_LIMIT_REPLAYS = 1;
@@ -641,7 +635,7 @@ export class ChatManager extends EventEmitter {
    */
   cancelCommand(id: string, toolUseId: string): { command: string; processes: number } {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const trace = this.trace(id);
     if (!trace || !chat.proc?.pid) throw new Error('the chat has no live process, so it runs no command');
     const open = runningCommands(trace);
@@ -744,7 +738,7 @@ export class ChatManager extends EventEmitter {
     this.admit(request, driver, classOfStart({ purpose: request.purpose, housekeeping: request.housekeeping !== undefined, queued: request.queued }));
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
-      if (!adopt) throw new ChatRefusal('chat not found', 404);
+      if (!adopt) throw new ChatNotFoundError();
       chat = new LiveChat(id, { prompt: request.prompt, cwd: adopt.cwd, name: adopt.name, ...(adopt.model ? { model: adopt.model } : {}) }, {}, 'external', null, this.chatDefaults(), driver, true);
       chat.workingDir = adopt.cwd;
     }
@@ -843,14 +837,14 @@ export class ChatManager extends EventEmitter {
     try {
       const limit = this.defaults.maxConcurrentRuns;
       if (this.activeCount() - this.releaseWarm(limit) >= limit) {
-        throw new ChatRefusal(`Concurrent run limit reached (${limit})`);
+        throw new RunSlotRefusal(limit);
       }
       // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
       const { refusal } = readSystemLoad(this.admission);
       if (refusal) throw new ChatRefusal(refusal, 409);
     } catch (err) {
       // The person is told exactly what they were told before; the refusal only also reserves the next place
-      if (kind === 'interactive' && err instanceof ChatRefusal && (err.message.includes('Concurrent run limit') || err.message.startsWith(RESOURCE_REFUSAL_PREFIX))) {
+      if (kind === 'interactive' && (err instanceof RunSlotRefusal || (err instanceof ChatRefusal && err.message.startsWith(RESOURCE_REFUSAL_PREFIX)))) {
         this.interactive.hold();
       }
       throw err;
@@ -942,7 +936,7 @@ export class ChatManager extends EventEmitter {
   send(id: string, text: string, attachmentIds: string[] = [], messageId?: string): ChatRuntime {
     this.sendMessage(id, text, attachmentIds, messageId);
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     return chat.summary();
   }
 
@@ -953,7 +947,7 @@ export class ChatManager extends EventEmitter {
    */
   sendMessage(id: string, text: string, attachmentIds: string[] = [], messageId?: string, purpose?: HousekeepingPurpose): ChatMessageReceipt {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const known = messageId ? chat.receipts.get(messageId) : undefined;
     if (known) return { ...known, duplicate: true };
     const attachments = this.resolveAttachments(attachmentIds);
@@ -1048,7 +1042,7 @@ export class ChatManager extends EventEmitter {
 
   stop(id: string): ChatRuntime {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     chat.stopRequested = true;
     // Stopping means none of them is wanted any more, and the page is told so for each
     for (const message of chat.held()) {
@@ -1087,7 +1081,7 @@ export class ChatManager extends EventEmitter {
    */
   async interrupt(id: string, messageId?: string): Promise<ChatRuntime> {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     if (!chat.alive || !chat.session) throw new Error('the chat has no live process to interrupt');
     // "Send now" for a message the agent has already taken would cut the turn answering it
     if (messageId !== undefined && chat.pending.get(messageId)?.state !== 'written') {
@@ -1120,7 +1114,7 @@ export class ChatManager extends EventEmitter {
    */
   setPermissionPrompts(id: string, prompts: 'host' | 'none'): ChatRuntime {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     if (chat.opts.permissionPrompts !== prompts) {
       chat.opts.permissionPrompts = prompts;
       this.persist();
@@ -1130,7 +1124,7 @@ export class ChatManager extends EventEmitter {
 
   async updateSettings(id: string, update: ChatSettingsUpdate): Promise<ChatRuntime> {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const { permissionMode, model } = update;
     if (permissionMode !== undefined) {
       if (chat.alive) await chat.session?.setOption({ permissionMode });
@@ -1224,7 +1218,7 @@ export class ChatManager extends EventEmitter {
    */
   async setClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const proc = chat.alive ? chat.proc : null;
     const session = proc ? chat.session : null;
     if (!proc || !session?.mcpSetServers || !session.mcpStatus) throw new ChatRefusal("This chat has no live process: choose Claudio's server when you resume it.");
@@ -1272,7 +1266,7 @@ export class ChatManager extends EventEmitter {
    */
   async toggleMcpServer(id: string, name: string, enabled: boolean): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
-    if (!chat) throw new Error('chat not found');
+    if (!chat) throw new ChatNotFoundError();
     const session = chat.alive ? chat.session : null;
     if (!session?.mcpToggle) throw new ChatRefusal('This chat has no live process: choose its servers when you resume it.');
     await session.mcpToggle(name, enabled);
@@ -1329,7 +1323,7 @@ export class ChatManager extends EventEmitter {
    */
   nextResult(id: string): Promise<RunResult> {
     const chat = this.chats.get(id);
-    if (!chat) return Promise.reject(new Error('chat not found'));
+    if (!chat) return Promise.reject(new ChatNotFoundError());
     const before = chat.lastResult;
     return new Promise((resolvePromise) => {
       const onEvent = (event: RunEvent) => {
@@ -1353,7 +1347,7 @@ export class ChatManager extends EventEmitter {
 
   waitForResult(id: string): Promise<RunResult> {
     const chat = this.chats.get(id);
-    if (!chat) return Promise.reject(new Error('chat not found'));
+    if (!chat) return Promise.reject(new ChatNotFoundError());
     // A chat that has already ended emits nothing further, so subscribing alone would wait for an
     // event that never comes. Anything awaiting it — the planner holds an HTTP request open —
     // would hang until the process dies.

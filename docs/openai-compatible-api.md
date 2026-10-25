@@ -153,7 +153,7 @@ a lookup must check that the chat still exists.
 |---|---|
 | `apps/api/src/routes/openai.ts` | The three routes, registered under `/api` with the prefix `/v1` in their own Fastify context: OpenAI's error shape, a `/v1` 404, the per-conversation queue, the turn runner and the hourly sweep. |
 | `apps/api/src/security.ts` | The rule that `/api/v1/*` needs a credential under `mode: none` too. |
-| `apps/api/src/sse.ts` | `openStream` takes extra headers and announced trailers, writes a raw `data:` line (for `[DONE]`) and ends the reply. |
+| `apps/api/src/sse.ts` | `openStream` takes extra headers and announced trailers, writes a raw `data:` line (for `[DONE]`) and ends the reply. The stream tracks whether it is closed (ended, or the connection gone): a late write or a second `end()` does nothing. |
 | `packages/core/src/openai/fetch-image.ts` | `fetchImage` and `isPublicAddress`: the image fetcher phase 1 left to the caller. |
 | `packages/core/src/openai/sweep.ts` | `sweepOpenAiChats` and `OPENAI_CONVERSATION_TTL_MS`. |
 | `packages/core/src/usage.ts` | `turnTokens`, a turn's tokens from the cumulative figures. |
@@ -169,7 +169,8 @@ The smallest sound option is a per-turn delta computed where the cost delta alre
 change to the API contract:
 
 - `LiveChat.lastReportedModelUsage` is the process's last `modelUsage`, reset at every spawn like
-  `lastReportedCostUsd`.
+  `lastReportedCostUsd`. Both baselines move on every `result`, whether or not an execution is open,
+  so the cost and the tokens of a turn always describe the same turn.
 - `foldResult` sets `LiveChat.lastTurn = { tokens, costUsd }` **before** it pushes the `result`
   event: `tokens` is `turnTokens(previous, current)`, the growth per model (a model seen for the first
   time counts whole, a count that went down counts from zero), and `costUsd` is the growth of
@@ -256,12 +257,16 @@ is too big; with the larger limit an image over the cap gets the parser's `400` 
 
 The routes live in their own Fastify context with their own error handler and 404, so everything
 under `/api/v1` answers `{ error: { message, type, param, code } }` and the rest of the API keeps
-`{ error: string }`. Core's plain `Error`s keep the 400 or 404 the main handler gives them. What
+`{ error: string }`. A failure is classified by its type and declared status, never by its wording:
+core throws `ChatNotFoundError` (404) for a chat it does not know and `RunSlotRefusal` for a start
+with every run slot taken (both in `packages/core/src/chat-errors.ts`, beside `ChatRefusal`), and
+the route keeps the status of any error that declares one (`ChatConflictError` 409…). A plain
+hand-thrown `Error` from core is a refusal of the request, so a 400, whatever it says. What
 answers before a handler runs (the guard's 401, 421 and 429, read-only's 405, the spend gate's 409)
 is rewritten by an `onSend` hook of the context: the status stays, except the spend cap, whose 409
 becomes `429 rate_limit_exceeded` with `Retry-After` to local midnight. A start refused for lack of
-a run slot (`Concurrent run limit reached`) is `429` with `Retry-After: 5` instead of a 400, so SDKs
-retry by themselves.
+a run slot (`RunSlotRefusal`, still a 400 on the rest of the API) is `429` with `Retry-After: 5`, so
+SDKs retry by themselves.
 
 ### Authentication
 
@@ -269,7 +274,10 @@ The plan asks for a credential even where `/chats` needs none, because a request
 that may run Bash. Under `mode: token` and `oidc` the guard already asks for one. Under `mode: none`
 the guard now asks `/api/v1/*` for the owner's API token (checked against the stored hash whatever
 the mode) or a chat's own token from this machine (the same loopback check the guarded modes use);
-anything else is a 401, and a wrong credential counts toward the failure back-off. With no token
+anything else is a 401. The check is the guarded modes' own flow (`authenticate` in `security.ts`,
+one copy for both): a request with no credential is refused without being counted or made to wait,
+an address in its back-off waits (`429`), a wrong credential counts toward the back-off, and a right
+one clears it. With no token
 set, the 401 says how to set one (Settings → Access & safety, or `POST /api/security/token`). Not
 built: the plan's rule that a collaborator's token calls these routes only with what its share
 grants; collaborators reach Claudio over iroh, not with API tokens, so there is no such token today.

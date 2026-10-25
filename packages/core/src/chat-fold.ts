@@ -284,12 +284,17 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
 
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
   // What this turn alone used: the process reports both figures cumulative, so each is the growth
-  // since its previous result, read before the cost baseline below moves
+  // since its previous result. Both baselines move here, whether or not an execution is open: one
+  // that moved only with an execution would bill the next turn for this one, and the tokens beside it
+  // would then disagree with its cost
+  const reportedCost = event.costUsd !== undefined && Number.isFinite(event.costUsd) ? event.costUsd : null;
+  const costDelta = reportedCost !== null ? reportedCost - chat.lastReportedCostUsd : null;
   chat.lastTurn = {
     tokens: turnTokens(chat.lastReportedModelUsage, event.modelUsage),
-    costUsd: event.costUsd !== undefined && Number.isFinite(event.costUsd) ? Math.max(0, event.costUsd - chat.lastReportedCostUsd) : null,
+    costUsd: costDelta !== null ? Math.max(0, costDelta) : null,
   };
   if (event.modelUsage.length > 0) chat.lastReportedModelUsage = event.modelUsage;
+  if (reportedCost !== null) chat.lastReportedCostUsd = Math.max(chat.lastReportedCostUsd, reportedCost);
   const execution = chat.execution;
   if (execution) {
     execution.turns += event.turns;
@@ -297,10 +302,8 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     if (event.costUsd !== undefined) execution.costUsd = Math.max(execution.costUsd ?? 0, event.costUsd);
     // The spend of this result is the increase over the process's last report, not the execution's
     // max(): a process restarted inside one execution begins its total again from zero
-    if (event.costUsd !== undefined && Number.isFinite(event.costUsd)) {
-      const delta = event.costUsd - chat.lastReportedCostUsd;
-      chat.lastReportedCostUsd = Math.max(chat.lastReportedCostUsd, event.costUsd);
-      if (delta > 0) host.recordSpend(chat, execution, delta);
+    if (costDelta !== null) {
+      if (costDelta > 0) host.recordSpend(chat, execution, costDelta);
     } else if (event.costUsd === undefined) host.recordSpend(chat, execution, null);
     host.learnModelCosts(execution, event.modelUsage);
   }

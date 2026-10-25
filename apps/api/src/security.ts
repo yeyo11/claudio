@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { DESKTOP_ACTOR, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
 import type { HostRefusal } from '@claudio/shared';
 import { ROUTE_DOCS } from './openapi/routes.ts';
@@ -808,6 +808,47 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   const desktopUpdateWrite = (req: FastifyRequest, path: string): boolean =>
     core.serverUpdates.desktopHost && DESKTOP_UPDATE_WRITES.has(`${req.method} ${req.routeOptions.url ?? path}`);
 
+  /**
+   * Checks the credential a request presents, the one flow every guarded check goes through: no
+   * credential is refused without touching the back-off, a client in its back-off waits (429), a
+   * wrong credential counts and is refused, a right one clears the count and names the actor.
+   * `resolve` says whose a credential is; `refuse` writes the 401 of the caller's rule. Returns the
+   * actor, or null once the reply has been sent.
+   */
+  const authenticate = async (
+    req: FastifyRequest,
+    reply: FastifyReply,
+    path: string,
+    mode: string,
+    refuse: () => unknown,
+    resolve: (credential: string) => Promise<{ actor: string; chat: boolean } | null>,
+  ): Promise<{ actor: string; chat: boolean } | null> => {
+    const credential = credentialOf(req, path);
+    // Nothing to check is nothing guessed: neither counted nor made to wait, so a local process
+    // polling without a credential cannot lock the owner out of their own install
+    if (credential === undefined) {
+      void refuse();
+      return null;
+    }
+    const client = backoffKey(req, runtimeHosts);
+    const wait = backoff.retryAfter(client);
+    if (wait > 0) {
+      req.actor = 'anonymous';
+      // Not counted as another failure: a client that kept trying would never serve its wait
+      void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
+      return null;
+    }
+    const found = await resolve(credential);
+    if (!found) {
+      backoff.fail(client);
+      void refuse();
+      return null;
+    }
+    backoff.succeed(client);
+    req.actor = found.actor;
+    return found;
+  };
+
   app.addHook('onRequest', async (req, reply) => {
     // A CORS preflight carries no credential by definition, and answering it reveals nothing
     if (req.method === 'OPTIONS') return;
@@ -853,33 +894,17 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
           .status(401)
           .send({ error: 'authentication required', mode, ...(core.security.firstRunPending ? { firstRunToken: true } : {}) });
       };
-      const credential = credentialOf(req, path);
-      // Nothing to check is nothing guessed: neither counted nor made to wait, so a local process
-      // polling without a credential cannot lock the owner out of their own install
-      if (credential === undefined) {
-        void refuse();
-        return reply;
-      }
-      const client = backoffKey(req, runtimeHosts);
-      const wait = backoff.retryAfter(client);
-      if (wait > 0) {
-        req.actor = 'anonymous';
-        // Not counted as another failure: a client that kept trying would never serve its wait
-        void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
-        return reply;
-      }
-      const owner = await core.security.actorFor(credential, fromLocalMachine(req));
-      // The owner's credential first; a chat token is only ever the fallback, and fails the same
-      // way. Told apart by where it came from, not by its prefix: an OIDC subject could be anything
-      const chat = owner === null ? core.security.chatActorFor(credential, fromLocalMachineStrict(req, runtimeHosts)) : null;
-      const actor = owner ?? chat;
-      if (!actor) {
-        backoff.fail(client);
-        void refuse();
-        return reply;
-      }
-      backoff.succeed(client);
-      req.actor = actor;
+      const found = await authenticate(req, reply, path, mode, refuse, async (credential) => {
+        const owner = await core.security.actorFor(credential, fromLocalMachine(req));
+        // The owner's credential first; a chat token is only ever the fallback, and fails the same
+        // way. Told apart by where it came from, not by its prefix: an OIDC subject could be anything
+        const chat = owner === null ? core.security.chatActorFor(credential, fromLocalMachineStrict(req, runtimeHosts)) : null;
+        const actor = owner ?? chat;
+        return actor ? { actor, chat: chat !== null } : null;
+      });
+      if (!found) return reply;
+      const actor = found.actor;
+      const chat = found.chat ? actor : null;
       if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method) && !desktopUpdateWrite(req, path)) {
         void reply.status(403).send({ error: "the desktop app's own credential only reads; sign in with the API token to change anything" });
         return reply;
@@ -966,27 +991,19 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     // open install still asks them for a credential: the owner's token, or a chat's own from this
     // machine (docs/openai-compatible-api.md). Guarded modes already asked above
     if (mode === 'none' && guarded && OPENAI_SURFACE.test(path)) {
-      const client = backoffKey(req, runtimeHosts);
-      const wait = backoff.retryAfter(client);
-      if (wait > 0) {
-        req.actor = 'anonymous';
-        void reply.header('Retry-After', String(wait)).status(429).send({ error: 'too many failed authentications from this address', mode });
-        return reply;
-      }
-      const credential = credentialOf(req, path);
-      const actor = core.security.credentialActorFor(credential, fromLocalMachineStrict(req, runtimeHosts));
-      if (!actor) {
-        // Only a wrong credential is a guess; none at all is a client not set up yet
-        if (credential !== undefined) backoff.fail(client);
+      const refuse = (): void => {
         req.actor = 'anonymous';
         const error = core.security.config.tokenSet
           ? 'authentication required: send the API token as `Authorization: Bearer <token>`'
           : 'authentication required: this API runs commands for its callers, so it needs a token even with authentication off. Set one in Settings → Access & safety (or `POST /api/security/token`) and send it as `Authorization: Bearer <token>`';
         void reply.header('WWW-Authenticate', 'Bearer realm="Claudio"').status(401).send({ error, mode });
-        return reply;
-      }
-      backoff.succeed(client);
-      req.actor = actor;
+      };
+      const found = await authenticate(req, reply, path, mode, refuse, async (credential) => {
+        // The owner's API token whatever the mode, or a chat's own from this machine
+        const actor = core.security.credentialActorFor(credential, fromLocalMachineStrict(req, runtimeHosts));
+        return actor ? { actor, chat: actor.startsWith('chat:') } : null;
+      });
+      if (!found) return reply;
     }
     // Open mode grants everything already, so a chat's token only labels who wrote: a missing, wrong
     // or expired one leaves `local` and is never refused
