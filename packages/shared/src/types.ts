@@ -5177,6 +5177,13 @@ export interface AppSettingValues {
    * are not affected.
    */
   evalsPhase2: boolean;
+  /**
+   * How long the OpenAI-compatible surface holds a client's tool call, in minutes, from the end of
+   * the turn that handed it over until the client's next request brings the result. A call still
+   * owed then is answered to the CLI with an error result, and the chat is stopped. A whole number
+   * from 1 to 1440, 10 by default; a `PUT` with `null` resets it to the default.
+   */
+  openaiToolCallTimeoutMinutes: number;
 }
 
 /**

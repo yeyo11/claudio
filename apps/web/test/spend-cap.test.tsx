@@ -52,7 +52,8 @@ const settings = (cap: number | null, source: 'env' | 'file' | 'default' = 'defa
   setupSeen: false,
   dailySpendCapUsd: cap,
   evalsPhase2: false,
-  sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: source, evalsPhase2: 'default' },
+  openaiToolCallTimeoutMinutes: 10,
+  sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: source, evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
   allowedHostLayers: { env: [], file: [], runtime: [] },
 });
 

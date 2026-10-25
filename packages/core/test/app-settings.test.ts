@@ -36,7 +36,8 @@ test('an install that sets nothing runs on the defaults it always had, and write
     setupSeen: false,
     dailySpendCapUsd: null,
     evalsPhase2: false,
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' },
+    openaiToolCallTimeoutMinutes: 10,
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
     allowedHostLayers: { env: [], file: [], runtime: [] },
   });
   // The environment's view is what it was before the settings had layers
@@ -48,7 +49,7 @@ test('an install that sets nothing runs on the defaults it always had, and write
 test('an empty variable is not a setting, so a compose file passing VAR= through does not lock the UI', () => {
   const c = config({ CLAUDIO_ALLOWED_HOSTS: '', CLAUDIO_MAX_CONCURRENT_RUNS: ' ', CLAUDIO_DEFAULT_PERMISSION_MODE: '' });
   assert.equal(c.settingsFromEnv.size, 0);
-  assert.deepEqual(new AppSettingsStore(c).get().sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' });
+  assert.deepEqual(new AppSettingsStore(c).get().sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' });
   // An empty count used to become `Number('') === 0`, a wrapper that could start no run at all
   assert.equal(c.maxConcurrentRuns, 8);
   assert.equal(c.defaultPermissionMode, 'acceptEdits');
@@ -66,7 +67,8 @@ test('a value in the environment beats the file, and the file cannot be written 
     setupSeen: false,
     dailySpendCapUsd: null,
     evalsPhase2: false,
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' },
+    openaiToolCallTimeoutMinutes: 10,
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
     allowedHostLayers: { env: [], file: [], runtime: [] },
   });
 
@@ -129,7 +131,7 @@ test('a change is written to the file, survives a restart, and goes out on the e
 
   const changed = await store.update({ maxConcurrentRuns: 2, allowedHosts: [' Claudio.Example.com ', '*.preview.example.com', 'claudio.example.com'] });
   assert.deepEqual(changed.allowedHosts, ['claudio.example.com', '*.preview.example.com'], 'trimmed, lowercased and without repeats');
-  assert.deepEqual(changed.sources, { allowedHosts: 'file', maxConcurrentRuns: 'file', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' });
+  assert.deepEqual(changed.sources, { allowedHosts: 'file', maxConcurrentRuns: 'file', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' });
   // Only what was set is stored: a default the person never chose keeps following the default
   assert.deepEqual(JSON.parse(readFileSync(fileOf(c), 'utf8')), { maxConcurrentRuns: 2, allowedHosts: ['claudio.example.com', '*.preview.example.com'] });
 
@@ -301,4 +303,31 @@ test('a write that names the daily spend cap tells the gate, and one that does n
   assert.equal(told, 2);
   await assert.rejects(store.update({ dailySpendCapUsd: -1 }));
   assert.equal(told, 2, 'a refused write changes nothing');
+});
+
+test('the OpenAI tool-call timeout is 10 minutes by default, kept in the file, bounded, reset by null, and owned by the environment when it sets it', async () => {
+  const c = config();
+  const store = new AppSettingsStore(c);
+  assert.equal(store.openaiToolCallTimeoutMinutes, 10);
+  assert.equal(store.get().sources.openaiToolCallTimeoutMinutes, 'default');
+  await store.update({ openaiToolCallTimeoutMinutes: 3 });
+  assert.equal(store.openaiToolCallTimeoutMinutes, 3);
+  assert.equal((JSON.parse(readFileSync(fileOf(c), 'utf8')) as Record<string, unknown>).openaiToolCallTimeoutMinutes, 3);
+  // A restart reads it back from the file
+  assert.equal(new AppSettingsStore(c).openaiToolCallTimeoutMinutes, 3);
+  for (const bad of [0, 1441, 2.5, '5', true]) await assert.rejects(store.update({ openaiToolCallTimeoutMinutes: bad }), /openaiToolCallTimeoutMinutes/);
+  // `null` is the reset: the stored value goes, the default stands again
+  const reset = await store.update({ openaiToolCallTimeoutMinutes: null });
+  assert.equal(reset.openaiToolCallTimeoutMinutes, 10);
+  assert.equal(reset.sources.openaiToolCallTimeoutMinutes, 'default');
+  assert.equal('openaiToolCallTimeoutMinutes' in (JSON.parse(readFileSync(fileOf(c), 'utf8')) as Record<string, unknown>), false);
+  // Null is a reset only for this key: the others still refuse it
+  await assert.rejects(store.update({ maxConcurrentRuns: null }), /maxConcurrentRuns/);
+
+  const fixed = new AppSettingsStore(config({ CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES: '30' }));
+  assert.equal(fixed.openaiToolCallTimeoutMinutes, 30);
+  assert.equal(fixed.get().sources.openaiToolCallTimeoutMinutes, 'env');
+  await assert.rejects(fixed.update({ openaiToolCallTimeoutMinutes: 5 }), /set by the environment/);
+  await assert.rejects(fixed.update({ openaiToolCallTimeoutMinutes: null }), /set by the environment/);
+  assert.throws(() => config({ CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES: 'soon' }), /CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES/);
 });

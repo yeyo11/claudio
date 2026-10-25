@@ -31,7 +31,8 @@ const APP: AppSettings = {
   setupSeen: true,
   dailySpendCapUsd: null,
   evalsPhase2: false,
-  sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' },
+  openaiToolCallTimeoutMinutes: 10,
+  sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
   allowedHostLayers: { env: [], file: ['claudio.example.com'], runtime: [] },
 };
 const AUTH: AuthConfig = { mode: 'token', tokenSet: true, readOnly: false, oidc: null } as unknown as AuthConfig;

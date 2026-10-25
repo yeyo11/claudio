@@ -55,8 +55,9 @@ test('an install that sets nothing answers exactly as before the settings had la
     setupSeen: false,
     dailySpendCapUsd: null,
     evalsPhase2: false,
+    openaiToolCallTimeoutMinutes: 10,
     defaultPermissionMode: 'acceptEdits',
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' },
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
     allowedHostLayers: { env: [], file: [], runtime: [] },
   });
   assert.equal((await app.inject('/api/system')).json().defaultPermissionMode, 'acceptEdits');
@@ -118,7 +119,7 @@ test('a setting the environment holds is shown, and a PUT for it is refused', as
   });
 
   const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
-  assert.deepEqual(settings.sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'env', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' });
+  assert.deepEqual(settings.sources, { allowedHosts: 'default', maxConcurrentRuns: 'default', defaultPermissionMode: 'env', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' });
   assert.equal(settings.defaultPermissionMode, 'bypassPermissions');
 
   const refused = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ defaultPermissionMode: 'plan' }) });

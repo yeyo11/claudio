@@ -326,7 +326,8 @@ test('the tunnel and the settings are written whole from their events, and a new
     setupSeen: false,
     dailySpendCapUsd: null,
     evalsPhase2: false,
-    sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' },
+    openaiToolCallTimeoutMinutes: 10,
+    sources: { allowedHosts: 'default', maxConcurrentRuns: 'file', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
     allowedHostLayers: { env: [], file: [], runtime: [] },
   };
   const event = { id: 2, at: '', type: 'settings.changed', settings } as Parameters<typeof patchSettings>[1];
@@ -346,7 +347,8 @@ const layered = (sources: Partial<AppSettings['sources']> = {}, hosts: Partial<A
     setupSeen: false,
     dailySpendCapUsd: null,
     evalsPhase2: false,
-    sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', ...sources },
+    openaiToolCallTimeoutMinutes: 10,
+    sources: { allowedHosts: 'file', maxConcurrentRuns: 'default', defaultPermissionMode: 'default', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default', ...sources },
     allowedHostLayers,
   };
 };

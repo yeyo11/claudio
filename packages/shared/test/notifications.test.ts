@@ -271,7 +271,8 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
       setupSeen: false,
       dailySpendCapUsd: null,
       evalsPhase2: false,
-      sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default' },
+      openaiToolCallTimeoutMinutes: 10,
+      sources: { allowedHosts: 'default', maxConcurrentRuns: 'env', defaultPermissionMode: 'file', setupSeen: 'default', dailySpendCapUsd: 'default', evalsPhase2: 'default', openaiToolCallTimeoutMinutes: 'default' },
       allowedHostLayers: { env: [], file: [], runtime: [] },
     },
   };

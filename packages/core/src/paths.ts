@@ -56,6 +56,8 @@ export interface CoreConfig {
   dailySpendCapUsd: number | null;
   /** The instruction evals' Phase 2 switch from `CLAUDIO_EVALS_PHASE2` (or the default, off) */
   evalsPhase2: boolean;
+  /** How long an OpenAI client's tool call is held, from `CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES` (or the default, 10) */
+  openaiToolCallTimeoutMinutes: number;
   /**
    * VAPID `sub` claim of every push the server signs: a `mailto:` or `https:` the push service can
    * complain to. It has to name a real domain — Apple refuses the whole JWT with `403 BadJwtToken`
@@ -201,6 +203,21 @@ function spendCapFromEnv(value: string | undefined): number | null {
   return cap;
 }
 
+/** The longest an OpenAI client's tool call may be held: a day, past which nobody is coming back */
+export const MAX_OPENAI_TOOL_CALL_TIMEOUT_MINUTES = 1440;
+
+/** A whole number of minutes from 1 to a day, or null when the value is not one. */
+export function normalizeToolCallTimeout(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_OPENAI_TOOL_CALL_TIMEOUT_MINUTES ? value : null;
+}
+
+function toolCallTimeoutFromEnv(value: string | undefined): number {
+  if (!isSet(value)) return DEFAULT_APP_SETTINGS.openaiToolCallTimeoutMinutes;
+  const minutes = normalizeToolCallTimeout(Number(value.trim()));
+  if (minutes === null) throw new Error(`CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES: '${value}' is not a whole number of minutes from 1 to ${String(MAX_OPENAI_TOOL_CALL_TIMEOUT_MINUTES)}`);
+  return minutes;
+}
+
 /** What a layered setting is when neither the environment nor `app-settings.json` says otherwise. */
 export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   allowedHosts: [],
@@ -209,6 +226,7 @@ export const DEFAULT_APP_SETTINGS: Readonly<AppSettingValues> = Object.freeze({
   setupSeen: false,
   dailySpendCapUsd: null,
   evalsPhase2: false,
+  openaiToolCallTimeoutMinutes: 10,
 });
 
 /** pnpm runs scripts from the package dir; default state dirs belong at the monorepo root instead. */
@@ -234,6 +252,7 @@ export const APP_SETTING_ENV = {
   setupSeen: 'CLAUDIO_SETUP_SEEN',
   dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
   evalsPhase2: 'CLAUDIO_EVALS_PHASE2',
+  openaiToolCallTimeoutMinutes: 'CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES',
 } as const satisfies Record<keyof AppSettingValues, string>;
 
 /**
@@ -299,6 +318,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     dailySpendCapUsd: spendCapFromEnv(env.CLAUDIO_DAILY_SPEND_CAP_USD),
     evalsPhase2: isSet(env.CLAUDIO_EVALS_PHASE2) ? parseSeenSwitch('CLAUDIO_EVALS_PHASE2', env.CLAUDIO_EVALS_PHASE2) : DEFAULT_APP_SETTINGS.evalsPhase2,
     maxConcurrentRuns: isSet(env.CLAUDIO_MAX_CONCURRENT_RUNS) ? Number(env.CLAUDIO_MAX_CONCURRENT_RUNS) : DEFAULT_APP_SETTINGS.maxConcurrentRuns,
+    openaiToolCallTimeoutMinutes: toolCallTimeoutFromEnv(env.CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES),
     pushSubject: env.CLAUDIO_PUSH_SUBJECT?.trim() || 'https://github.com/yeyo11/claudio',
     allowedHosts: parseAllowedHosts(env.CLAUDIO_ALLOWED_HOSTS),
     settingsFromEnv: new Set((Object.keys(APP_SETTING_ENV) as (keyof AppSettingValues)[]).filter((key) => isSet(env[APP_SETTING_ENV[key]]) || (key === 'setupSeen' && isSet(env[OLD_SETUP_SEEN_ENV])))),

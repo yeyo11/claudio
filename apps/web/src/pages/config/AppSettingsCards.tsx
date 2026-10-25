@@ -19,6 +19,7 @@ export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
   setupSeen: 'CLAUDIO_SETUP_SEEN',
   dailySpendCapUsd: 'CLAUDIO_DAILY_SPEND_CAP_USD',
   evalsPhase2: 'CLAUDIO_EVALS_PHASE2',
+  openaiToolCallTimeoutMinutes: 'CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES',
 };
 
 // The server's own bounds; a value outside them is refused with a 400

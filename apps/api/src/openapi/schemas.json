@@ -11593,6 +11593,10 @@
         "type": "boolean",
         "description": "Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals are not affected."
       },
+      "openaiToolCallTimeoutMinutes": {
+        "type": "number",
+        "description": "How long the OpenAI-compatible surface holds a client's tool call, in minutes, from the end of the turn that handed it over until the client's next request brings the result. A call still owed then is answered to the CLI with an error result, and the chat is stopped. A whole number from 1 to 1440, 10 by default; a `PUT` with `null` resets it to the default."
+      },
       "sources": {
         "type": "object",
         "properties": {
@@ -11613,6 +11617,9 @@
           },
           "evalsPhase2": {
             "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "openaiToolCallTimeoutMinutes": {
+            "$ref": "#/components/schemas/AppSettingSource"
           }
         },
         "required": [
@@ -11621,7 +11628,8 @@
           "defaultPermissionMode",
           "setupSeen",
           "dailySpendCapUsd",
-          "evalsPhase2"
+          "evalsPhase2",
+          "openaiToolCallTimeoutMinutes"
         ],
         "description": "For `allowedHosts`, the highest layer that names any host (`env`, then `file`, then `default`); it does not make the list read-only, `allowedHostLayers` does that per host."
       },
@@ -11636,6 +11644,7 @@
       "defaultPermissionMode",
       "evalsPhase2",
       "maxConcurrentRuns",
+      "openaiToolCallTimeoutMinutes",
       "setupSeen",
       "sources"
     ],
@@ -27454,6 +27463,10 @@
       "evalsPhase2": {
         "type": "boolean",
         "description": "Instruction evals, Phase 2: pressure levels, judged expectations, the promotion gate and case drafting. Off by default; while off, those routes answer 409 `evals-phase2-off`. Phase 1 evals are not affected."
+      },
+      "openaiToolCallTimeoutMinutes": {
+        "type": "number",
+        "description": "How long the OpenAI-compatible surface holds a client's tool call, in minutes, from the end of the turn that handed it over until the client's next request brings the result. A call still owed then is answered to the CLI with an error result, and the chat is stopped. A whole number from 1 to 1440, 10 by default; a `PUT` with `null` resets it to the default."
       }
     },
     "description": "`PUT /settings/app`: the settings to change, and only those. A setting the environment set is refused rather than written to the file, where it would do nothing until the variable goes away and then change behaviour by surprise. `allowedHosts` is the exception: it replaces the UI's hosts, which add to the environment's, so it is accepted whatever the environment says."

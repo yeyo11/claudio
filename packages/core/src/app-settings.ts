@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { PERMISSION_MODES, type AllowedHostLayers, type AppSettings, type AppSettingSource, type AppSettingValues, type PermissionMode } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { ClaudioEventInput } from './events.ts';
-import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, MAX_DAILY_SPEND_CAP_USD, normalizeSpendCap, type CoreConfig } from './paths.ts';
+import { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, hostPatternProblem, MAX_DAILY_SPEND_CAP_USD, MAX_OPENAI_TOOL_CALL_TIMEOUT_MINUTES, normalizeSpendCap, normalizeToolCallTimeout, type CoreConfig } from './paths.ts';
 
 /*
  * Settings that used to be read from the environment once, at startup, and can now change while
@@ -83,8 +83,16 @@ function parseValue(key: keyof AppSettingValues, value: unknown): AppSettingValu
       if (cap === null) throw new Error(`dailySpendCapUsd must be an amount above 0 and up to ${String(MAX_DAILY_SPEND_CAP_USD)}, or null for no cap`);
       return cap;
     }
+    case 'openaiToolCallTimeoutMinutes': {
+      const minutes = normalizeToolCallTimeout(value);
+      if (minutes === null) throw new Error(`openaiToolCallTimeoutMinutes must be a whole number of minutes from 1 to ${String(MAX_OPENAI_TOOL_CALL_TIMEOUT_MINUTES)}, or null for the default`);
+      return minutes;
+    }
   }
 }
+
+/** Settings a `null` in a `PUT` resets: the stored value goes and the default stands again. */
+const RESETTABLE: ReadonlySet<keyof AppSettingValues> = new Set(['openaiToolCallTimeoutMinutes']);
 
 /**
  * What a stored document is worth. A key whose value a `PUT` would refuse is dropped and falls back
@@ -186,7 +194,7 @@ export class AppSettingsStore implements RunDefaults {
   ) {
     this.file = join(config.dataDir, 'app-settings.json');
     this.fromEnv = config.settingsFromEnv;
-    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen, dailySpendCapUsd: config.dailySpendCapUsd, evalsPhase2: config.evalsPhase2 };
+    this.env = { allowedHosts: [...config.allowedHosts], maxConcurrentRuns: config.maxConcurrentRuns, defaultPermissionMode: config.defaultPermissionMode, setupSeen: config.setupSeen, dailySpendCapUsd: config.dailySpendCapUsd, evalsPhase2: config.evalsPhase2, openaiToolCallTimeoutMinutes: config.openaiToolCallTimeoutMinutes };
     if (existsSync(this.file)) {
       try {
         this.stored = sanitize(JSON.parse(readFileSync(this.file, 'utf8')));
@@ -228,6 +236,11 @@ export class AppSettingsStore implements RunDefaults {
     return this.current.evalsPhase2;
   }
 
+  /** How long the OpenAI surface holds a client's tool call; read when each wait starts */
+  get openaiToolCallTimeoutMinutes(): number {
+    return this.current.openaiToolCallTimeoutMinutes;
+  }
+
   get maxConcurrentRuns(): number {
     return this.current.maxConcurrentRuns;
   }
@@ -250,19 +263,22 @@ export class AppSettingsStore implements RunDefaults {
     const unknownKeys = Object.keys(body).filter((key) => !(KEYS as string[]).includes(key));
     if (unknownKeys.length) throw new Error(`unknown app settings: ${unknownKeys.join(', ')}; known are ${KEYS.join(', ')}`);
     const changes: Partial<Record<keyof AppSettingValues, unknown>> = {};
+    const resets: Array<keyof AppSettingValues> = [];
     for (const key of KEYS) {
       if (body[key] === undefined) continue;
       if (this.fromEnv.has(key) && key !== 'allowedHosts') throw new Error(`${key} is set by the environment (${APP_SETTING_ENV[key]}) and cannot be changed here`);
-      changes[key] = parseValue(key, body[key]);
+      if (body[key] === null && RESETTABLE.has(key)) resets.push(key);
+      else changes[key] = parseValue(key, body[key]);
     }
     if (changes.allowedHosts !== undefined) changes.allowedHosts = this.notFromEnv(changes.allowedHosts as string[]);
     if (this.broken) throw new Error(this.broken);
-    if (!Object.keys(changes).length) return this.get();
+    if (!Object.keys(changes).length && !resets.length) return this.get();
 
     // Chained, so two writes in flight land in the order they were made and never share a temp
     // file, and each builds on the one before it rather than on what was stored when it arrived
     const write = this.writing.then(async () => {
-      const next = { ...this.stored, ...(changes as Partial<AppSettingValues>) };
+      const next: Partial<AppSettingValues> = { ...this.stored, ...(changes as Partial<AppSettingValues>) };
+      for (const key of resets) delete next[key];
       await writeAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`);
       this.stored = next;
       this.current = this.resolve();
