@@ -145,6 +145,9 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
 
     case 'stop-reason':
       chat.stopReason = event.reason;
+      // The end of one API message, which the turn outlives when it called tools: the OpenAI surface
+      // hands a client its calls here, while the CLI waits on them
+      host.emit('chat-stop-reason', chat.id, event.reason);
       return;
 
     // Kept for the health of the chat and not pushed as an event: it says a command is alive and
@@ -219,7 +222,8 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
 
     // The agent withdrew the question: the broker settles it, and the answer that was waiting is dropped
     case 'permission-withdrawn':
-      host.permissions?.withdraw(event.id);
+      if (chat.permissionHost) chat.permissionHost.withdrawn(event.id);
+      else host.permissions?.withdraw(event.id);
       return;
 
     case 'result':
@@ -407,6 +411,17 @@ function hostJudges(chat: LiveChat, policy: ToolPolicy, request: NeutralRequest)
 function askPermission(host: ChatHost, chat: LiveChat, question: Extract<DriverEvent, { kind: 'permission-request' }>['question']): void {
   const session = chat.session;
   const broker = host.permissions;
+  // A program answers for this chat (the OpenAI surface's client tools): before the policy too, so
+  // the built-in tools of such a chat are refused exactly as `permissionPrompts: 'none'` refuses them
+  if (chat.permissionHost && chat.opts.permissionPrompts === 'host') {
+    chat.permissionHost.ask(question, (decision) => session?.answerPermission(question.id, decision));
+    return;
+  }
+  // An API client's chat never asks a person, even when its host is not attached (after a restart)
+  if (chat.origin === 'api') {
+    session?.answerPermission(question.id, { behavior: 'deny', message: 'Nobody is answering permission prompts for this chat' });
+    return;
+  }
   const policy = chat.opts.toolConfig?.policy;
   if (policy && question.request && hostJudges(chat, policy, question.request)) {
     // Decided by Claudio's policy, not by the agent's own rules: the part is listed as `host`

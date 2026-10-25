@@ -79,6 +79,12 @@ export interface ChatCompletionTranslatorOptions {
    * content chunk at the end.
    */
   structured?: boolean;
+  /**
+   * The client's tools in this turn: a main-agent `tool_use` block named `<prefix><name>`, with a name
+   * in `names`, is a call the client makes, streamed as tool-call deltas. `single` keeps only the
+   * first (`parallel_tool_calls: false`). `handOff()` then ends the turn with them.
+   */
+  clientTools?: { prefix: string; names: ReadonlySet<string>; single: boolean };
 }
 
 /** The end of a turn, once `result` or a failure arrived. */
@@ -191,6 +197,10 @@ export class ChatCompletionTranslator {
     const entry = event.entry;
     if (!entry || entry.role !== 'assistant' || entry.isSidechain || entry.parentToolUseId !== null) return;
     for (const block of entry.blocks) {
+      if (block.type === 'tool_use') {
+        this.clientCall(block.id, block.name, block.input, out);
+        continue;
+      }
       if (block.type !== 'text') continue;
       const streamed = this.streamed.shift() ?? { text: '', started: false };
       if (block.text.startsWith(streamed.text)) this.emit(streamed, block.text.slice(streamed.text.length), out);
@@ -198,6 +208,37 @@ export class ChatCompletionTranslator {
     }
     // Blocks streamed after this message's own stay queued for the message that closes them
     if (this.current && !this.streamed.includes(this.current)) this.current = null;
+  }
+
+  /**
+   * A tool call of the client's, from its whole `tool_use` block (the calls come from the blocks, not
+   * from the CLI's permission requests: spike change 2). Streamed as two fragments, the call's name
+   * with empty arguments and then the arguments whole, the shape OpenAI's own streams open with.
+   */
+  private clientCall(id: string, cliName: string, input: unknown, out: ChatCompletionStreamItem[]): void {
+    const tools = this.opts.clientTools;
+    if (!tools || !cliName.startsWith(tools.prefix) || this.calls.has(id)) return;
+    const name = cliName.slice(tools.prefix.length);
+    if (!tools.names.has(name) || (tools.single && this.calls.size > 0)) return;
+    out.push(...this.toolCallDelta({ id, name, argumentsAppend: '' }));
+    out.push(...this.toolCallDelta({ id, name, argumentsAppend: JSON.stringify(input ?? {}) }));
+  }
+
+  /** Calls the client is to make, streamed so far, in order: what `handOff()` would hand over. */
+  clientCalls(): Array<{ id: string; name: string }> {
+    return this.toolCallList().map((c) => ({ id: c.id, name: c.function.name }));
+  }
+
+  /**
+   * Ends the turn at the end of an API message that called client tools: `finish_reason:
+   * "tool_calls"`, while the CLI's process waits on them. No usage: the CLI reports it only with the
+   * turn's `result`, which comes once the client's results are in. Null when no call streamed.
+   */
+  handOff(): ChatCompletionStreamItem[] | null {
+    if (this.ended || this.calls.size === 0) return null;
+    const out: ChatCompletionStreamItem[] = [];
+    this.complete('tool_calls', 0, null, out);
+    return out;
   }
 
   private finish(outcome: RunOutcome, text: string | undefined, usage: TokenUsage | null, out: ChatCompletionStreamItem[]): void {
@@ -214,9 +255,13 @@ export class ChatCompletionTranslator {
       }
       this.emit({ text: '', started: false }, JSON.stringify(outcome.structuredOutput), out);
     }
-    const toolCalls = this.toolCallList();
     // A structured answer that arrived is whole, whatever the stop reason of the call that carried it
-    const finishReason = this.opts.structured ? 'stop' : finishReasonOf(outcome, toolCalls.length > 0);
+    const finishReason = this.opts.structured ? 'stop' : finishReasonOf(outcome, this.calls.size > 0);
+    this.complete(finishReason, outcome.costUsd, usage, out);
+  }
+
+  private complete(finishReason: FinishReason, costUsd: number, usage: TokenUsage | null, out: ChatCompletionStreamItem[]): void {
+    const toolCalls = this.toolCallList();
     out.push(this.chunk(this.sentRole ? {} : { content: '' }, finishReason));
     const counted = usage ? completionUsage(usage) : null;
     if (this.opts.includeUsage && counted) {
@@ -226,7 +271,7 @@ export class ChatCompletionTranslator {
     this.ended = {
       kind: 'completion',
       finishReason,
-      costUsd: outcome.costUsd,
+      costUsd,
       text: this.content,
       toolCalls,
       completion: {

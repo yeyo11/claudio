@@ -318,7 +318,7 @@ export interface ChatTurn {
   user: string | null;
   stream: boolean;
   includeUsage: boolean;
-  /** Carried for the client-tool handoff; nothing acts on them yet */
+  /** The client's tools: a stub MCP server serves them (docs/openai-compatible-api.md, phase 4) */
   tools: ClientTool[];
   toolChoice: ToolChoice;
   parallelToolCalls: boolean | null;
@@ -390,6 +390,20 @@ export function renderCold(messages: readonly ChatMessage[]): RenderedPrompt {
 export function renderDelta(messages: readonly ChatMessage[]): RenderedPrompt {
   const images = new ImageList();
   return { prompt: renderNew(split(messages).fresh, images), images: images.images };
+}
+
+const RESULTS_AFTER_RESTART =
+  'Your session restarted while you waited for the results of your client tool calls, so those calls were recorded as interrupted. ' +
+  'The client has now sent their results, below; continue from them as if each call had returned it.';
+
+/**
+ * A resumed chat's prompt when the process that held the client's calls is gone: the CLI records
+ * its own "interrupted" error for each dangling call on `--resume`, so the results go in as a user
+ * message that says what happened (spike question 6).
+ */
+export function renderResultsCold(messages: readonly ChatMessage[]): RenderedPrompt {
+  const images = new ImageList();
+  return { prompt: `${RESULTS_AFTER_RESTART}\n\n${renderNew(split(messages).fresh, images)}`, images: images.images };
 }
 
 /** Every `system` and `developer` message, wherever it stands, as the one system prompt the CLI appends. */

@@ -8,6 +8,25 @@ export {
   seedKey as openAiSeedKey,
   type KeySeed as OpenAiKeySeed,
 } from './conversation-key.ts';
+export {
+  answerStub as answerOpenAiStub,
+  CLIENT_TIMEOUT_MESSAGE,
+  CLIENT_TOOL_PREFIX,
+  CLIENT_TOOLS_SERVER,
+  ClientToolSession,
+  clientToolName,
+  clientToolsProblem,
+  clientToolsServerEntry,
+  MAX_CLIENT_TOOL_NAME,
+  NOBODY_ANSWERS,
+  resultsProblem,
+  sameTools as sameClientTools,
+  toolChoiceInstruction,
+  trailingResults,
+  type StubReply,
+  type StubResult,
+  type TrailingResults,
+} from './client-tools.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';
 export { fetchImage as fetchOpenAiImage, isPublicAddress, type FetchImageOptions } from './fetch-image.ts';
 export { OPENAI_CONVERSATION_TTL_MS, sweepOpenAiChats, type OpenAiSweep, type OpenAiSweepDeps } from './sweep.ts';
@@ -27,6 +46,7 @@ export {
   parseChatCompletionRequest,
   renderCold as renderOpenAiCold,
   renderDelta as renderOpenAiDelta,
+  renderResultsCold as renderOpenAiResultsCold,
   sameJsonSchema,
   translateRequest as translateOpenAiRequest,
   uploadImages as uploadOpenAiImages,

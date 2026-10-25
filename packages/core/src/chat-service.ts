@@ -737,16 +737,20 @@ export class ChatService {
     guards?: ChatGuardPlan | null,
     /** Only the OpenAI-compatible routes pass it: a body sent to `POST /chats` never makes an `api` chat */
     origin?: 'api',
+    /** Only core's callers pass it (the OpenAI surface's stub server): one in a body is dropped, since an entry is a command to run */
+    extraMcpServers?: Record<string, Record<string, unknown>>,
   ): Promise<ChatSummary> {
     // The name before the rename is dropped too, so a stored or replayed old body cannot carry it in
-    const { claudioAssistant: _sent, agentryAssistant: _legacy, guards: _plan, apiClient: _api, ...rest } = body as typeof body & {
+    const { claudioAssistant: _sent, agentryAssistant: _legacy, guards: _plan, apiClient: _api, extraMcpServers: _servers, ...rest } = body as typeof body & {
       claudioAssistant?: unknown;
       agentryAssistant?: unknown;
       guards?: unknown;
       apiClient?: unknown;
+      extraMcpServers?: unknown;
     };
     const marked = claudioAssistant ? { ...rest, claudioAssistant } : rest;
-    const request = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
+    const api = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
+    const request = extraMcpServers ? { ...api, extraMcpServers } : api;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
@@ -828,7 +832,7 @@ export class ChatService {
    */
   async resume(id: string, body: ResumeChatRequest, extras: ExecutionExtras = {}): Promise<ChatSummary> {
     // A plan is core's to hand over, in `extras`; one in a body is dropped
-    const { guards: _plan, ...request } = body as ResumeChatRequest & { guards?: unknown };
+    const { guards: _plan, extraMcpServers: _servers, ...request } = body as ResumeChatRequest & { guards?: unknown; extraMcpServers?: unknown };
     const chat = await this.summaryOf(id, true);
     if (!chat) throw new ChatNotFoundError();
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
@@ -857,6 +861,7 @@ export class ChatService {
         systemPromptSnapshot: extras.systemPromptSnapshot ?? null,
         uploads: extras.uploads ?? null,
         confine: extras.confine ?? null,
+        extraMcpServers: extras.extraMcpServers ?? null,
         ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
         // A starter says what its execution is for; a person's own turn is theirs
         purpose: extras.purpose ?? 'person',

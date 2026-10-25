@@ -18,6 +18,7 @@ import type {
   GuardMode,
   GuardRuleId,
   NewChatRequest,
+  PermissionDecision,
   PermissionMode,
   RunEvent,
   RunStatus,
@@ -34,7 +35,7 @@ import type { BackgroundTask, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, ProviderDriver } from './providers/driver.ts';
+import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, PermissionQuestion, ProviderDriver } from './providers/driver.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 const MAX_EVENTS_PER_RUN = 5000;
@@ -144,6 +145,12 @@ export interface NewChat extends NewChatRequest {
    */
   apiClient?: true;
   /**
+   * Core-only, never read from a request body: MCP servers added to whatever the chat loads, by
+   * name, as `--mcp-config` entries. The OpenAI surface hands a chat with client tools its stub
+   * server this way. A body sent to `POST /chats` cannot name it: an entry is a command to run.
+   */
+  extraMcpServers?: Record<string, Record<string, unknown>>;
+  /**
    * `false` leaves `CLAUDIO_API_URL` out of the environment and mints no `CLAUDIO_API_TOKEN`: a run
    * that never calls the API back (a decision chat) holds no credential to it.
    */
@@ -165,6 +172,19 @@ export interface NewChat extends NewChatRequest {
    * `appendSystemPrompt` (the flow's journal handoff carries it), so `launchSpec` does not add it again.
    */
   lessons?: 'handoff';
+}
+
+/**
+ * Answers a chat's permission requests in a person's place: a program on the far side of an API
+ * that holds some requests and refuses the rest (docs/openai-compatible-api.md, client tools).
+ * `answer` writes the decision to the process that asked; it does nothing once that process is gone.
+ */
+export interface PermissionHost {
+  ask(question: PermissionQuestion, answer: (decision: PermissionDecision) => void): void;
+  /** The CLI took a request back (an interrupt): it must not be answered */
+  withdrawn(requestId: string): void;
+  /** The chat's process ended: every request it held went with it */
+  ended(): void;
 }
 
 /**
@@ -208,6 +228,8 @@ export interface ExecutionExtras {
    */
   handBack?: boolean;
   confine?: ChatConfinement | null;
+  /** See `NewChat.extraMcpServers`; `null` drops them. Only core's callers pass it, never a request body */
+  extraMcpServers?: Record<string, Record<string, unknown>> | null;
   /** The guard this execution runs under; `null` drops it. Only core's launch paths pass it, never a request body */
   guards?: ChatGuardPlan | null;
   /** Why this execution spends, for the daily spend ledger; left out, the chat keeps the purpose it had */
@@ -434,6 +456,12 @@ export class LiveChat {
   armingTimer: NodeJS.Timeout | null = null;
   /** Prompts the CLI is holding for a person */
   pendingPrompts = 0;
+  /**
+   * The program that answers this chat's permission requests instead of a person, when one is set:
+   * the OpenAI surface's client-tool adapter. In memory only, across the chat's processes; while it
+   * is set, nothing the CLI asks reaches `PermissionBroker`, the panel or `pendingPrompts`.
+   */
+  permissionHost: PermissionHost | null = null;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
   /** What the live process is doing right now, folded from the stream as it arrives */

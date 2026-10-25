@@ -14,8 +14,25 @@
 // as `structured_output`. Under a schema, `GIVE UP` ends the turn with prose only and no
 // `structured_output`, as the CLI reports a model that would not match the schema.
 //
-//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema }` per turn
-import { appendFileSync } from 'node:fs';
+// Client tools, as the real CLI handles them (docs/plans/openai-compatible-api-spike.md): with a
+// `client` server in `--mcp-config`, it connects to the stub over HTTP with the token the entry
+// names (`${CLAUDIO_API_TOKEN}` expanded from its environment) and lists the tools. Then:
+//   TOOLS <json>       one API message calling each `{ name, input }` as `mcp__client__<name>`: the
+//                      `tool_use` blocks stream, the message ends (`message_delta` stop_reason
+//                      `tool_use`), and a `can_use_tool` request per call goes out at once. An allowed
+//                      call is made on the stub (`tools/call` with `_meta["claudecode/toolUseId"]`)
+//                      and its text becomes the `tool_result`; a denied one an error result. Once all
+//                      are answered the turn ends with `results: <text of each, in order>`.
+//   TOOLS_TEXT <json>  the same after a line of text, `Calling the tools.`
+//   TOOLS_NOMETA <json> the same, but `tools/call` carries no tool call id (the FIFO fallback)
+//   TOOLS_HANG <json>  the blocks and the requests, but the message never ends: only an interrupt
+//                      ends the turn (the requests withdrawn with `control_cancel_request`)
+//   BASH               a built-in `Bash` call asked with `can_use_tool`; answers `bash: <behavior>`
+// The last line of a prompt that starts with `(For this turn:` is the tool_choice instruction: it is
+// recorded and skipped when the directive is read.
+//
+//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema, prompts, stub, instruction }` per turn
+import { appendFileSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 
@@ -42,6 +59,123 @@ let initialised = false;
 let hanging = null;
 
 const schema = flag('--json-schema') ?? null;
+const permissionPrompts = flag('--permission-prompts') ?? null;
+const mcpConfigArg = args.find((a) => a.startsWith('--mcp-config='))?.slice('--mcp-config='.length) ?? null;
+const strictMcp = args.includes('--strict-mcp-config');
+
+/** The `client` server of the config, with `${VAR}` expanded from the environment as the CLI does */
+function stubServer() {
+  if (!mcpConfigArg) return null;
+  const servers = JSON.parse(readFileSync(mcpConfigArg, 'utf8')).mcpServers ?? {};
+  const entry = servers.client;
+  if (!entry) return null;
+  const expand = (v) => String(v).replace(/\$\{([A-Z_]+)\}/g, (_, name) => process.env[name] ?? '');
+  return { url: expand(entry.url), headers: Object.fromEntries(Object.entries(entry.headers ?? {}).map(([k, v]) => [k, expand(v)])), alwaysLoad: entry.alwaysLoad === true, type: entry.type };
+}
+const stub = stubServer();
+let rpcId = 0;
+async function rpc(method, params, auth = stub.headers) {
+  const res = await fetch(stub.url, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...auth }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }) });
+  return { status: res.status, body: res.status === 200 ? await res.json() : await res.text() };
+}
+/** What the stub said when the process connected: kept for the prompt log */
+let stubSeen = null;
+async function connectStub() {
+  if (!stub || stubSeen) return;
+  const discover = await rpc('server/discover', {});
+  const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fake', version: '0' } });
+  await fetch(stub.url, { method: 'POST', headers: { 'content-type': 'application/json', ...stub.headers }, body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) });
+  const list = await rpc('tools/list', {});
+  const unauth = await rpc('tools/list', {}, { Authorization: 'Bearer wrong' });
+  stubSeen = { alwaysLoad: stub.alwaysLoad, type: stub.type, strict: strictMcp, discover: discover.body?.error?.code ?? null, init: init.status, tools: list.body?.result?.tools ?? null, unauthorized: unauth.status };
+}
+
+/** `can_use_tool` requests out and not answered yet, by request id */
+const asked = new Map();
+let askSeq = 0;
+/** The tool turn in progress: its calls, in order, and what each came to */
+let toolTurn = null;
+
+function askFor(toolUseId, name, input) {
+  const requestId = `fake-ask-${String(++askSeq)}`;
+  asked.set(requestId, { toolUseId, name, input });
+  out({ type: 'control_request', request_id: requestId, request: { subtype: 'can_use_tool', tool_name: name, display_name: name, input, tool_use_id: toolUseId } });
+}
+
+async function settleAsk(requestId, response) {
+  const ask = asked.get(requestId);
+  if (!ask) return;
+  asked.delete(requestId);
+  let text;
+  let isError = false;
+  if (response?.behavior === 'allow') {
+    if (ask.name === 'Bash') text = 'bash ran';
+    else {
+      const meta = toolTurn?.noMeta ? {} : { _meta: { 'claudecode/toolUseId': ask.toolUseId, progressToken: askSeq } };
+      const answer = await rpc('tools/call', { name: ask.name.replace(/^mcp__client__/, ''), arguments: response.updatedInput ?? ask.input, ...meta });
+      const result = answer.body?.result;
+      text = (result?.content ?? []).map((c) => c.text).join('');
+      isError = result?.isError === true;
+    }
+  } else {
+    text = response?.message ?? 'denied';
+    isError = true;
+  }
+  out({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: ask.toolUseId, content: [{ type: 'text', text }], is_error: isError }] } });
+  if (!toolTurn) return;
+  toolTurn.done.set(ask.toolUseId, `${isError ? 'ERROR ' : ''}${text}`);
+  if (toolTurn.done.size < toolTurn.calls.length) return;
+  const final = `results: ${toolTurn.calls.map((c) => toolTurn.done.get(c.id)).join(' | ')}`;
+  toolTurn = null;
+  const block = (event) => out({ type: 'stream_event', parent_tool_use_id: null, event });
+  block({ type: 'message_start', message: { role: 'assistant' } });
+  block({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+  block({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: final } });
+  block({ type: 'content_block_stop', index: 0 });
+  out({ type: 'assistant', parent_tool_use_id: null, message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: final }], stop_reason: 'end_turn' } });
+  result(false, final);
+}
+
+function callTools(kind, calls) {
+  const block = (event) => out({ type: 'stream_event', parent_tool_use_id: null, event });
+  const message = (content) => out({ type: 'assistant', parent_tool_use_id: null, message: { id: `msg_${String(turns)}`, role: 'assistant', model: 'claude-sonnet-5-5', content, stop_reason: null } });
+  block({ type: 'message_start', message: { role: 'assistant' } });
+  let index = 0;
+  if (kind === 'TOOLS_TEXT') {
+    block({ type: 'content_block_start', index, content_block: { type: 'text', text: '' } });
+    block({ type: 'content_block_delta', index, delta: { type: 'text_delta', text: 'Calling the tools.' } });
+    block({ type: 'content_block_stop', index });
+    message([{ type: 'text', text: 'Calling the tools.' }]);
+    index++;
+  }
+  const made = calls.map((call, i) => ({ id: `toolu_${String(turns)}_${String(i)}_${String(process.pid)}`, name: call.name === 'Bash' ? 'Bash' : `mcp__client__${call.name}`, input: call.input ?? {} }));
+  toolTurn = { calls: made, done: new Map(), noMeta: kind === 'TOOLS_NOMETA' };
+  for (const call of made) {
+    block({ type: 'content_block_start', index, content_block: { type: 'tool_use', id: call.id, name: call.name, input: {} } });
+    block({ type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(call.input) } });
+    block({ type: 'content_block_stop', index });
+    // The CLI writes the assistant message block by block, each as it closes
+    message([{ type: 'tool_use', id: call.id, name: call.name, input: call.input }]);
+    index++;
+  }
+  if (kind === 'TOOLS_HANG') {
+    // The calls are asked for, but the message never says it ended
+    for (const call of made) askFor(call.id, call.name, call.input);
+    hanging = () => {
+      for (const id of [...asked.keys()]) {
+        asked.delete(id);
+        out({ type: 'control_cancel_request', request_id: id });
+      }
+      toolTurn = null;
+      result(true, 'aborted_tools');
+    };
+    return;
+  }
+  block({ type: 'message_delta', delta: { stop_reason: 'tool_use' } });
+  block({ type: 'message_stop' });
+  // Read-only tools: every request of the turn goes out together
+  for (const call of made) askFor(call.id, call.name, call.input);
+}
 
 function result(isError, text, structured) {
   turns++;
@@ -59,7 +193,18 @@ function result(isError, text, structured) {
 }
 
 async function answer(prompt) {
-  const last = prompt.trim().split('\n').at(-1) ?? '';
+  await connectStub();
+  const lines = prompt.trim().split('\n').filter((l) => !l.startsWith('(For this turn:')).join('\n').trim().split('\n');
+  const last = lines.at(-1) ?? '';
+  const tools = /^(TOOLS|TOOLS_TEXT|TOOLS_NOMETA|TOOLS_HANG) (.*)$/.exec(last);
+  if (tools) {
+    callTools(tools[1], JSON.parse(tools[2]));
+    return;
+  }
+  if (last === 'BASH') {
+    callTools('TOOLS', [{ name: 'Bash', input: { command: 'ls' } }]);
+    return;
+  }
   if (last === 'HANG') {
     hanging = () => result(true, 'interrupted');
     return;
@@ -116,11 +261,24 @@ lines.on('line', (line) => {
       { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5', supportsEffort: false },
     ];
     out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: subtype === 'initialize' ? { commands: [], models, account: { apiProvider: 'firstParty' } } : {} } });
+    if (subtype === 'interrupt' && toolTurn && !hanging) {
+      // Held requests are withdrawn and the turn ends aborted, as the spike recorded
+      for (const id of [...asked.keys()]) {
+        asked.delete(id);
+        out({ type: 'control_cancel_request', request_id: id });
+      }
+      toolTurn = null;
+      result(true, 'aborted_tools');
+    }
     if (subtype === 'interrupt' && hanging) {
       const end = hanging;
       hanging = null;
       end();
     }
+    return;
+  }
+  if (msg.type === 'control_response') {
+    void settleAsk(msg.response?.request_id, msg.response?.response);
     return;
   }
   if (msg.type !== 'user') return;
@@ -132,8 +290,10 @@ lines.on('line', (line) => {
   const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : (content ?? []);
   const prompt = blocks.map((b) => b.text ?? '').join('\n');
   if (process.env.FAKE_OPENAI_PROMPTS) {
-    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema })}\n`);
+    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema, prompts: permissionPrompts, instruction: prompt.split('\n').find((l) => l.startsWith('(For this turn:')) ?? null })}\n`);
   }
-  void answer(prompt);
+  void answer(prompt).then(() => {
+    if (process.env.FAKE_OPENAI_PROMPTS && stubSeen) appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, sessionId, stub: stubSeen })}\n`);
+  });
 });
 lines.on('close', () => process.exit(0));

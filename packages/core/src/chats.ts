@@ -59,11 +59,13 @@ import {
   type ExecutionExtras,
   type HousekeepingPurpose,
   type NewChat,
+  type PermissionHost,
   type ResolvedTools,
   type RunMeta,
   type RunResult,
   type SentMessage,
 } from './live-chat.ts';
+import { writeMcpConfigSync } from './chat-tools.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
@@ -79,7 +81,7 @@ import type { UploadStore } from './uploads.ts';
 import { LESSONS_ARG_MAX_BYTES } from './lessons/render.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
-export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
+export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, PermissionHost, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
 export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
@@ -901,6 +903,10 @@ export class ChatManager extends EventEmitter {
       if (options.guards === null) delete opts.guards;
       else opts.guards = options.guards;
     }
+    if (options.extraMcpServers !== undefined) {
+      if (options.extraMcpServers === null) delete opts.extraMcpServers;
+      else opts.extraMcpServers = options.extraMcpServers;
+    }
     chat.setSettings({ ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}), ...(options.model ? { model: options.model } : {}) });
     // A rewind point belongs to the one process the resume starts, not to the ones after it
     if ('resumeSessionAt' in options || options.handBack) delete opts.resumeSessionAt;
@@ -1120,6 +1126,16 @@ export class ChatManager extends EventEmitter {
       this.persist();
     }
     return chat.summary();
+  }
+
+  /**
+   * Hands the chat's permission requests to a program instead of a person (`LiveChat.permissionHost`),
+   * or back with null. Read when each request arrives, so it applies to the live process too.
+   */
+  setPermissionHost(id: string, permissionHost: PermissionHost | null): void {
+    const chat = this.chats.get(id);
+    if (!chat) throw new ChatNotFoundError();
+    chat.permissionHost = permissionHost;
   }
 
   async updateSettings(id: string, update: ChatSettingsUpdate): Promise<ChatRuntime> {
@@ -1426,6 +1442,25 @@ export class ChatManager extends EventEmitter {
     }
   }
 
+  /**
+   * The `--mcp-config` of a process: the servers the chat chose (or Claudio's reads joined to them),
+   * plus the servers core's callers add (`extraMcpServers`) in one file, since the CLI is given one.
+   * Added servers keep the chat's choice as it was: a chat that chose none still loads the servers
+   * the CLI finds on its own, so the file only adds to them.
+   */
+  private mcpLaunch(chat: LiveChat, reads: CollabMcpLaunch | null): Pick<SessionLaunch, 'mcpConfig' | 'mcpConfigAdds'> {
+    const base = reads ? reads.mcpConfig : (chat.opts.mcp?.config ?? null);
+    const adds = reads ? reads.adds : base === null;
+    const extra = chat.opts.extraMcpServers;
+    if (!extra || Object.keys(extra).length === 0) return base ? { mcpConfig: base, ...(adds ? { mcpConfigAdds: true } : {}) } : {};
+    let servers: Record<string, Record<string, unknown>> = {};
+    if (base) {
+      const listed = (JSON.parse(readFileSync(base, 'utf8')) as { mcpServers?: unknown }).mcpServers;
+      if (listed && typeof listed === 'object' && !Array.isArray(listed)) servers = { ...(listed as Record<string, Record<string, unknown>>) };
+    }
+    return { mcpConfig: writeMcpConfigSync(this.config.dataDir, { ...servers, ...extra }), ...(adds ? { mcpConfigAdds: true } : {}) };
+  }
+
   /** What a process of the chat is started from: the driver turns it into a command line. */
   private launchSpec(chat: LiveChat, account: AccountRef | null): SessionLaunch {
     const { opts } = chat;
@@ -1444,7 +1479,7 @@ export class ChatManager extends EventEmitter {
       ...this.appendedPrompt(chat),
       ...(opts.allowedTools || reads ? { allowedTools: [...(opts.allowedTools ?? []), ...(reads?.allowedTools ?? [])] } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
-      ...(reads ? { mcpConfig: reads.mcpConfig, ...(reads.adds ? { mcpConfigAdds: true } : {}) } : opts.mcp?.config ? { mcpConfig: opts.mcp.config } : {}),
+      ...this.mcpLaunch(chat, reads),
       ...(opts.confine ? { confine: opts.confine } : {}),
       // Attached files live outside every project: a session that may read them is told where they are
       ...(this.uploads && opts.uploads !== false ? { uploadsDir: this.uploads.dir } : {}),
@@ -1870,6 +1905,7 @@ export class ChatManager extends EventEmitter {
     chat.endedAt = now();
     // A prompt still waiting belongs to a process that is gone: nobody can act on the answer.
     this.permissions?.denyAllFor(chat.id);
+    chat.permissionHost?.ended();
     chat.session?.dispose('the chat ended before the CLI answered');
     chat.branches.endAll(chat.endedAt);
     const execution = chat.execution;

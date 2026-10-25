@@ -5,6 +5,14 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Core, FetchImageOptions, OpenAiFailure, RunResult } from '@claudio/core';
 import {
   ChatCompletionTranslator,
+  CLIENT_TOOL_PREFIX,
+  clientToolsProblem,
+  renderOpenAiResultsCold,
+  resultsProblem,
+  sameClientTools,
+  toolChoiceInstruction,
+  trailingResults,
+  type ClientToolSession,
   failureOfSpendCap,
   failureOfThrown,
   fetchOpenAiImage,
@@ -27,6 +35,7 @@ import {
 import type { ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
 import { deliberate } from '../errors.ts';
 import { openStream, type SseStream } from '../sse.ts';
+import { ClientToolRegistry } from './openai-tools.ts';
 import { spendGate } from './spend.ts';
 
 /** Claudio's own parameters travel as headers: strict SDKs refuse body fields they do not know. */
@@ -35,6 +44,8 @@ export const CWD_HEADER = 'x-claudio-cwd';
 export const TOOL_PRESET_HEADER = 'x-claudio-tool-preset';
 export const COST_HEADER = 'x-claudio-cost-usd';
 export const IGNORED_HEADER = 'x-claudio-ignored';
+/** `cold` when the client's tool results resumed a chat whose process had gone (decision 2's fallback) */
+export const RESUME_HEADER = 'x-claudio-resume';
 
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
 /** What `Retry-After` says when every run slot is taken: idle chats give theirs back within moments */
@@ -59,12 +70,23 @@ export const turnIdleMs = (): number => {
   return Number.isFinite(set) && set > 0 ? set : 10 * 60_000;
 };
 
+/**
+ * How long a client's tool call is held: the `openaiToolCallTimeoutMinutes` setting.
+ * `CLAUDIO_OPENAI_TOOL_CALL_WAIT_MS` overrides it in milliseconds, for tests that cannot wait a minute.
+ */
+export const toolCallWaitMs = (core: Pick<Core, 'appSettings'>): number => {
+  const set = Number(process.env.CLAUDIO_OPENAI_TOOL_CALL_WAIT_MS);
+  return Number.isFinite(set) && set > 0 ? set : core.appSettings.openaiToolCallTimeoutMinutes * 60_000;
+};
+
 export interface OpenAiRouteOptions {
   core: Core;
   /** How long a conversation outlives its last answer; `OPENAI_CONVERSATION_TTL_MS` by default */
   conversationTtlMs?: number;
   /** For tests: what the image fetcher may reach and how long it waits */
   images?: FetchImageOptions;
+  /** The client-tool sessions, shared with the stub route; one of its own when absent */
+  clientTools?: ClientToolRegistry;
 }
 
 // ---------- errors ----------
@@ -202,25 +224,26 @@ function permissionModeOf(core: Core): PermissionMode {
   return mode === 'bypassPermissions' ? 'manual' : mode;
 }
 
-/** What this surface refuses although phase 1 reads it: client tools need the hand-off of phase 4. */
-function laterPhase(request: ChatCompletionRequest, body: unknown, ignored: string[]): OpenAiFailure | null {
+/**
+ * What this surface refuses although the parser reads it: the legacy `functions`, tools it cannot
+ * serve under the stub's prefix, and client tools together with `response_format` (both would be the
+ * answer; not supported yet, the owner's call). `tool_choice: none` makes the tools context the model
+ * is told not to use: they are left out and named in `x-claudio-ignored`.
+ */
+function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: string[]): OpenAiFailure | null {
   const fields = (body ?? {}) as Record<string, unknown>;
-  if (request.tools.length > 0) {
-    const legacy = Array.isArray(fields.functions) && fields.functions.length > 0;
-    // `tool_choice: none` asks for no call: the tools are only context the model is told not to
-    // use, so they can be left out and named, where a call they could ask for would need phase 4
-    if (!legacy && request.toolChoice.kind === 'none') {
-      ignored.push('tools');
-    } else {
-      const param = legacy ? 'functions' : 'tools';
-      return { kind: 'unsupported-parameter', param, message: `Client tools (\`${param}\`) are not supported yet: they arrive in a later version of this API. Claude's own tools still run on the server.` };
-    }
+  if (Array.isArray(fields.functions) && fields.functions.length > 0) {
+    return { kind: 'unsupported-parameter', param: 'functions', message: 'The legacy `functions` parameter is not supported: declare the same functions in `tools`.' };
   }
-  if (request.toolChoice.kind === 'required' || request.toolChoice.kind === 'function') {
-    const param = fields.tool_choice !== undefined && fields.tool_choice !== null ? 'tool_choice' : 'function_call';
-    return { kind: 'unsupported-parameter', param, message: `\`${param}\` needs client tools, which arrive in a later version of this API.` };
+  if (request.tools.length === 0) return null;
+  if (request.toolChoice.kind === 'none') {
+    ignored.push('tools');
+    return null;
   }
-  return null;
+  if (request.responseFormat.type !== 'text') {
+    return { kind: 'unsupported-parameter', param: 'response_format', message: 'Client `tools` together with `response_format` are not supported yet: send one or the other.' };
+  }
+  return clientToolsProblem(request.tools);
 }
 
 // ---------- serialising one conversation ----------
@@ -279,6 +302,10 @@ class TurnRun {
   constructor(
     private readonly core: Core,
     readonly translator: ChatCompletionTranslator,
+    /** The turns open now, by chat: where the end of each API message is told (`chat-stop-reason`) */
+    private readonly open: Map<string, TurnRun>,
+    /** Hands the calls to the client's session when the turn ends with them */
+    private readonly onHandOff: ((calls: Array<{ id: string; name: string }>) => void) | null = null,
   ) {
     this.done = new Promise<void>((r) => {
       this.settle = r;
@@ -299,6 +326,7 @@ class TurnRun {
     this.since = this.core.runtime.streamPosition(chatId)?.seq ?? 0;
     this.lastSign = Date.now();
     this.unsubscribe = this.core.chats.subscribe(chatId, (event) => this.take(event));
+    this.open.set(chatId, this);
     // The runtime knows when a turn is over without a result (the process died, a person stopped
     // it) and when a stop is only a limit replay changing accounts: its word ends the turn
     this.core.runtime.nextResult(chatId).then(
@@ -338,6 +366,20 @@ class TurnRun {
     this.idleTimer.unref();
   }
 
+  /**
+   * One API message ended. One that called client tools ends the HTTP turn here, with the calls, while
+   * the CLI's process stays up holding them: waiting for one permission request per call would
+   * deadlock, since a CLI may ask for the next call only once the first has run (spike change 2).
+   */
+  stopReason(reason: string): void {
+    if (this.finished || reason !== 'tool_use') return;
+    const calls = this.translator.clientCalls();
+    const items = this.translator.handOff();
+    if (!items) return;
+    this.onHandOff?.(calls);
+    this.out(items);
+  }
+
   private take(event: RunEvent): void {
     if (this.finished || this.chatId === null) return;
     this.lastSign = Date.now();
@@ -375,11 +417,14 @@ class TurnRun {
       if (this.writer) this.writer(items);
       else this.pending.push(...items);
     }
-    if (this.finished) {
-      this.unsubscribe();
-      if (this.idleTimer) clearTimeout(this.idleTimer);
-      this.settle();
-    }
+    if (this.finished) this.release();
+  }
+
+  private release(): void {
+    this.unsubscribe();
+    if (this.chatId !== null && this.open.get(this.chatId) === this) this.open.delete(this.chatId);
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.settle();
   }
 
   /** Hands what was said so far, and everything after, to `write`. */
@@ -391,9 +436,7 @@ class TurnRun {
 
   /** Lets go of the chat without an answer: the turn never started. */
   detach(): void {
-    this.unsubscribe();
-    if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.settle();
+    this.release();
   }
 }
 
@@ -402,9 +445,17 @@ type Target = { kind: 'new' } | { kind: 'existing'; chatId: string };
 
 // ---------- the routes ----------
 
-export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, { core, conversationTtlMs, images }) => {
+export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, { core, conversationTtlMs, images, clientTools }) => {
   const locks = new KeyedLocks();
   const ttl = conversationTtlMs ?? OPENAI_CONVERSATION_TTL_MS;
+  const registry = clientTools ?? new ClientToolRegistry();
+  const openTurns = new Map<string, TurnRun>();
+  // The end of each API message, for the turn reading that chat: where a turn hands its calls over
+  const onStopReason = (chatId: string, reason: string): void => openTurns.get(chatId)?.stopReason(reason);
+  core.runtime.on('chat-stop-reason', onStopReason);
+  app.addHook('onClose', async () => {
+    core.runtime.off('chat-stop-reason', onStopReason);
+  });
 
   // Every answer under /v1 is OpenAI's error shape, whoever wrote it: the guard and the spend gate
   // answer before any handler runs, in the rest of the API's `{ error: string }`
@@ -442,7 +493,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   );
 
   const sweep = setInterval(() => {
-    void sweepOpenAiChats({ conversations: core.openaiConversations, runtime: core.runtime, remove: (id) => core.chats.remove(id) }, Date.now(), ttl).catch((err: unknown) =>
+    void sweepOpenAiChats({ conversations: core.openaiConversations, runtime: core.runtime, remove: async (id) => {
+      await core.chats.remove(id);
+      registry.drop(id);
+    } }, Date.now(), ttl).catch((err: unknown) =>
       app.log.warn({ err, scope: 'openai' }, 'the conversation sweep failed'),
     );
   }, SWEEP_EVERY_MS);
@@ -462,8 +516,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (!parsed.ok) return answer(reply, parsed.error);
     const request = parsed.value;
     const ignoredHere: string[] = [];
-    const later = laterPhase(request, req.body, ignoredHere);
-    if (later) throw fail(later);
+    const refusal = refusalOf(request, req.body, ignoredHere);
+    if (refusal) throw fail(refusal);
+    // The results the request ends with must answer the calls of its last assistant message, all of them
+    const trailing = trailingResults(request.messages);
+    const mismatch = trailing.calls.length > 0 || trailing.results.length > 0 ? resultsProblem(trailing) : null;
+    if (mismatch) throw fail(mismatch);
     const model = await findModel(core, request.model);
     if (!model) throw fail({ kind: 'model-not-found', model: request.model });
     const named = header(req, CHAT_ID_HEADER);
@@ -473,6 +531,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (toolPreset !== undefined && !core.toolPresets.get(toolPreset)) throw fail({ kind: 'invalid-request', message: `${TOOL_PRESET_HEADER}: no tool preset '${toolPreset}' (see GET /api/config/tool-presets).`, param: null });
     const turn = translateOpenAiRequest(request);
     const ignored = [...turn.ignored, ...ignoredHere];
+    const wantsTools = request.tools.length > 0 && request.toolChoice.kind !== 'none';
 
     // The client may go while it waits: a turn nobody reads is interrupted, one not started never starts
     let gone = false;
@@ -502,20 +561,53 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (target.kind === 'existing' && key !== `chat:${target.chatId}`) releases.push(await locks.acquire(`chat:${target.chatId}`));
       if (gone) return reply;
 
-      const prompt = target.kind === 'new' ? turn.cold : turn.delta;
+      const existing = target.kind === 'existing' ? target.chatId : null;
+      const session = existing !== null ? registry.ofChat(existing) : undefined;
+      const late = session ? trailing.results.filter((r) => session.expired(r.toolCallId)).map((r) => `\`${r.toolCallId}\``) : [];
+      if (late.length) {
+        throw fail({ kind: 'invalid-request', param: 'messages', message: `The tool calls ${late.join(', ')} waited longer than the tool-call timeout (openaiToolCallTimeoutMinutes) for their results, and the chat was stopped. Start the conversation again.` });
+      }
+      const live = existing !== null ? (core.runtime.get(existing)?.pid ?? null) !== null : false;
+      // The CLI is holding the client's calls: the results go to it, no message is sent
+      const held = live && session?.waiting === true;
+      // The process that held them is gone (a restart, the idle expiry, a crash): the chat resumes cold
+      const cold = existing !== null && !live && trailing.results.length > 0;
+
+      const prompt = held ? { prompt: '', images: [] } : target.kind === 'new' ? turn.cold : cold ? renderOpenAiResultsCold(request.messages) : turn.delta;
       const uploaded = await uploadOpenAiImages(prompt.images, {
         fetch: (url, maxBytes) => fetchOpenAiImage(url, maxBytes, images),
         save: (name, bytes) => core.uploads.save(name, bytes),
       });
       if (!uploaded.ok) return answer(reply, uploaded.error);
 
-      const translator = new ChatCompletionTranslator({ id: `chatcmpl-${randomUUID().replaceAll('-', '')}`, model: request.model, created: Math.floor(Date.now() / 1000), includeUsage: turn.includeUsage, structured: turn.jsonSchema !== undefined });
-      const current = new TurnRun(core, translator);
+      // A chat keeps its session once it had client tools: its process may serve the stub still
+      const tools = session ?? (wantsTools ? registry.create(request.tools) : null);
+      if (tools) {
+        tools.choice = wantsTools ? request.toolChoice : { kind: 'none' };
+        tools.parallel = request.parallelToolCalls !== false;
+        if (cold) tools.forgetCalls();
+      }
+      // A live stub lists what it listed when the process started; the results go there all the same
+      if (held && wantsTools && tools && !sameClientTools(tools.tools, request.tools)) ignored.push('tools');
+      const instruction = !held && wantsTools ? toolChoiceInstruction(request.toolChoice) : null;
+      const text = instruction ? `${prompt.prompt}\n\n${instruction}` : prompt.prompt;
+
+      const translator = new ChatCompletionTranslator({
+        id: `chatcmpl-${randomUUID().replaceAll('-', '')}`,
+        model: request.model,
+        created: Math.floor(Date.now() / 1000),
+        includeUsage: turn.includeUsage,
+        structured: turn.jsonSchema !== undefined,
+        ...(tools ? { clientTools: { prefix: CLIENT_TOOL_PREFIX, names: tools.allowedNames(), single: !tools.parallel } } : {}),
+      });
+      const current = new TurnRun(core, translator, openTurns, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
       try {
-        await startTurn(current, target, turn, prompt.prompt, uploaded.value, { provider: model.provider, cwd, toolPreset, ignored });
+        if (held && tools && existing !== null) continueHeld(current, existing, tools, trailing);
+        else await startTurn(current, target, turn, text, uploaded.value, { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools });
       } catch (err) {
         current.detach();
+        if (tools && !session) registry.discard(tools);
         throw err;
       }
       const chatId = current.chatId;
@@ -527,7 +619,11 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         if (end?.kind !== 'completion') return;
         core.openaiConversations.remember(openAiKeyAfterAnswer(turn.keySeed, request.messages, { text: end.text, toolCalls: end.toolCalls }), chatId, turn.user);
       };
-      const out: Record<string, string> = { [CHAT_ID_HEADER]: chatId, ...(ignored.length ? { [IGNORED_HEADER]: [...new Set(ignored)].join(', ') } : {}) };
+      const out: Record<string, string> = {
+        [CHAT_ID_HEADER]: chatId,
+        ...(ignored.length ? { [IGNORED_HEADER]: [...new Set(ignored)].join(', ') } : {}),
+        ...(cold ? { [RESUME_HEADER]: 'cold' } : {}),
+      };
 
       if (turn.stream) {
         const stream: SseStream = openStream(req, reply, { headers: out, trailers: [COST_HEADER] });
@@ -557,6 +653,38 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     }
   });
 
+  /**
+   * The calls are the client's now. The wait is the setting's, read when it starts; a call still owed
+   * at its end is answered to the CLI with an error result, and the chat is stopped (decision 2).
+   */
+  function handOff(tools: ClientToolSession, calls: Array<{ id: string; name: string }>): void {
+    tools.handOff(calls, toolCallWaitMs(core), () => {
+      if (tools.chatId === null) return;
+      try {
+        core.runtime.stop(tools.chatId);
+      } catch {
+        // already gone
+      }
+    });
+  }
+
+  /**
+   * The client's results for the calls the CLI is holding: each held request is allowed with its
+   * original input, the stub hands the CLI the text, and the same CLI turn goes on, read from here.
+   */
+  function continueHeld(current: TurnRun, chatId: string, tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>): void {
+    const awaiting = new Set(tools.awaitingIds());
+    const unknown = trailing.results.filter((r) => !awaiting.has(r.toolCallId)).map((r) => `\`${r.toolCallId}\``);
+    if (unknown.length) throw fail({ kind: 'invalid-request', param: 'messages', message: `The chat is not waiting for the tool calls ${unknown.join(', ')}.` });
+    const missing = [...awaiting].filter((id) => !trailing.results.some((r) => r.toolCallId === id)).map((id) => `\`${id}\``);
+    if (missing.length) throw fail({ kind: 'invalid-request', param: 'messages', message: `The chat is waiting for the results of the tool calls ${missing.join(', ')}: send a \`tool\` message for each.` });
+    // The CLI is in the middle of a turn: a message now would be read by it, or start a turn nobody reads
+    if (trailing.userAfter) throw fail({ kind: 'invalid-request', param: 'messages', message: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.' });
+    current.attach(chatId);
+    tools.deliver(trailing.results);
+    current.replay();
+  }
+
   /** A chat the OpenAI surface started, that still exists. */
   async function isApiChat(id: string): Promise<boolean> {
     return core.runtime.get(id)?.origin === 'api' && (await core.chats.get(id)) !== null;
@@ -584,7 +712,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
   /**
    * Sends the turn: a new chat, a message to a live process that is idle, or a resume of one nobody
-   * holds. The run is attached before anything is sent, so no event of the turn is missed.
+   * holds. The run is attached before anything is sent, so no event of the turn is missed. A chat
+   * with client tools runs with `permissionPrompts: 'host'` and its session as the host, which holds
+   * the client's calls and refuses everything else at once, as `'none'` would (spike change 1).
    */
   async function startTurn(
     current: TurnRun,
@@ -592,10 +722,27 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     turn: OpenAiChatTurn,
     prompt: string,
     attachments: string[],
-    opts: { provider: string; cwd: string | undefined; toolPreset: string | undefined; ignored: string[] },
+    opts: { provider: string; cwd: string | undefined; toolPreset: string | undefined; ignored: string[]; tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools'] },
   ): Promise<void> {
     const permissionMode = permissionModeOf(core);
+    const { tools } = opts;
+    const prompts = tools ? 'host' : 'none';
+    const servers = (): Record<string, Record<string, unknown>> => {
+      const listed = tools ? registry.servers(core, tools) : null;
+      if (!listed) throw fail({ kind: 'unavailable', message: "Client tools need the API's own address, which is not known yet." });
+      return listed;
+    };
+    /** The chat answers to its session from now on; called before its process can ask anything */
+    const host = (chatId: string): void => {
+      if (!tools) return;
+      registry.bind(tools, chatId);
+      core.runtime.setPermissionHost(chatId, tools);
+    };
+    const served = (chatId: string): void => {
+      if (tools) tools.servedPid = core.runtime.get(chatId)?.pid ?? null;
+    };
     if (target.kind === 'new') {
+      const extra = tools ? servers() : undefined;
       await core.chats.create(
         {
           prompt,
@@ -608,13 +755,18 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
           ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
           permissionMode,
-          permissionPrompts: 'none',
+          permissionPrompts: prompts,
         },
-        (started) => current.attach(started.id),
+        (started) => {
+          host(started.id);
+          current.attach(started.id);
+        },
         undefined,
         undefined,
         'api',
+        extra,
       );
+      if (current.chatId) served(current.chatId);
       return;
     }
     const id = target.chatId;
@@ -626,13 +778,17 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       // A live process keeps how it was started: only a turn on an idle one is ours to send
       throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
     }
-    // `--json-schema` is fixed when the process starts: a turn asking for another schema (or for none
-    // after one) ends the idle process and resumes the chat with its own. The same schema keeps it
-    const restart = runtime.pid !== null && !sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema);
+    // `--json-schema` and `--mcp-config` are fixed when the process starts: a turn asking for another
+    // schema (or for none after one), or for client tools the live process does not serve, ends the
+    // idle process and resumes the chat with its own. The same ones keep it
+    const toolsChanged = opts.wantsTools && tools !== null && (tools.servedPid !== runtime.pid || !sameClientTools(tools.tools, opts.requestTools));
+    const restart = runtime.pid !== null && (!sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema) || toolsChanged);
     if (restart) await core.runtime.endBetweenTurns(id);
+    if (tools && opts.wantsTools && (restart || runtime.pid === null)) tools.tools = opts.requestTools;
+    host(id);
     if (runtime.pid !== null && !restart) {
       // The same rules as a start or a resume, on the live process: nobody answers a prompt here
-      if (runtime.permissionPrompts !== 'none') core.runtime.setPermissionPrompts(id, 'none');
+      if (runtime.permissionPrompts !== prompts) core.runtime.setPermissionPrompts(id, prompts);
       if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
       if (turn.effort) opts.ignored.push('reasoning_effort');
       if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
@@ -650,8 +806,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       ...(turn.appendSystemPrompt !== undefined ? { appendSystemPrompt: turn.appendSystemPrompt } : {}),
       ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
       permissionMode,
-      permissionPrompts: 'none',
-    }, { jsonSchema: turn.jsonSchema ?? null });
+      permissionPrompts: prompts,
+    }, { jsonSchema: turn.jsonSchema ?? null, extraMcpServers: tools ? servers() : null });
+    served(id);
     current.replay();
   }
 };

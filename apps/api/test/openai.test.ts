@@ -254,7 +254,7 @@ test('a process that dies without a result is an error, not a silent end', async
 test('what this phase cannot do is refused with 400 before any chat starts', async () => {
   const cases: Array<[unknown, string, string | null]> = [
     [{ model: 'sonnet', n: 2, messages: [user('x')] }, 'invalid_request_error', 'n'],
-    [{ model: 'sonnet', messages: [user('x')], tools: [{ type: 'function', function: { name: 'f', parameters: { type: 'object' } } }] }, 'unsupported_parameter', 'tools'],
+    [{ model: 'sonnet', messages: [user('x')], tools: [{ type: 'function', function: { name: 'f', parameters: { type: 'object' } } }], response_format: { type: 'json_object' } }, 'unsupported_parameter', 'response_format'],
     [{ model: 'sonnet', messages: [user('x')], functions: [{ name: 'f', parameters: { type: 'object' } }] }, 'unsupported_parameter', 'functions'],
     [{ model: 'sonnet', messages: [user('x'), assistant('y')] }, 'invalid_request_error', 'messages'],
     [{ model: 'sonnet' }, 'invalid_request_error', 'messages'],
@@ -268,7 +268,7 @@ test('what this phase cannot do is refused with 400 before any chat starts', asy
     else assert.equal((error as OpenAiErrorBody).error.type, 'invalid_request_error', JSON.stringify(error));
   }
   const tools = await post(cases[1]?.[0]);
-  assert.match(((await tools.json()) as OpenAiErrorBody).error.message, /later version/);
+  assert.match(((await tools.json()) as OpenAiErrorBody).error.message, /not supported yet/);
   const after = (await (await fetch(`${base}/api/chats?origin=api`)).json()) as ChatSummary[];
   assert.equal(after.length, before.length, 'no chat started');
 });
@@ -537,16 +537,13 @@ test('X-Claudio-Cwd on a chat that exists is named in x-claudio-ignored when it 
   await moved.json();
 });
 
-test("tools with tool_choice 'none' are ignored and named; any other client-tool request is still refused", async () => {
+test("tools with tool_choice 'none' are ignored and named; the legacy functions are still refused", async () => {
   const tools = [{ type: 'function', function: { name: 'lookup', parameters: { type: 'object' } } }];
   const none = await post({ model: 'sonnet', messages: [user('no tools please')], tools, tool_choice: 'none' });
   assert.equal(none.status, 200, await none.clone().text());
   assert.match(none.headers.get('x-claudio-ignored') ?? '', /\btools\b/);
   assert.equal(((await none.json()) as Completion).choices[0]?.message.content, 'echo: no tools please');
   const refused: Array<[Record<string, unknown>, string]> = [
-    [{ tools, tool_choice: 'auto' }, 'tools'],
-    [{ tools, tool_choice: 'required' }, 'tools'],
-    [{ tools, tool_choice: { type: 'function', function: { name: 'lookup' } } }, 'tools'],
     [{ functions: [{ name: 'lookup', parameters: { type: 'object' } }], function_call: 'none' }, 'functions'],
   ];
   for (const [extra, param] of refused) {

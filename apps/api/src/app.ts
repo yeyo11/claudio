@@ -15,6 +15,7 @@ import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { openAiRoutes } from './routes/openai.ts';
+import { ClientToolRegistry, openAiStubRoutes } from './routes/openai-tools.ts';
 import { collaboratorRoutes } from './routes/collaborators.ts';
 import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
@@ -244,7 +245,10 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(terminalRoutes, { core, guard });
       await api.register(collaboratorRoutes, { core });
       // Its own context: OpenAI's error shape, its 404 and its hooks stay under /api/v1
-      await api.register(openAiRoutes, { core, prefix: '/v1' });
+      // The client-tool sessions: the /v1 routes drive them, the stub server the CLI calls reads them
+      const clientTools = new ClientToolRegistry();
+      await api.register(openAiRoutes, { core, prefix: '/v1', clientTools });
+      await api.register(openAiStubRoutes, { core, registry: clientTools });
     },
     { prefix: '/api' },
   );
