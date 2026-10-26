@@ -19,7 +19,7 @@ import {
   type Parsed,
 } from './request.ts';
 import type { InputContent, InputItem, OutputItem, ResponseFunctionTool, ResponseTextFormat, ResponseToolChoice } from './responses-wire.ts';
-import type { ChatCompletionRequest, ChatMessage, ClientTool, ResponseFormat, ToolCall, ToolChoice, UserPart } from './wire.ts';
+import type { ChatCompletionRequest, ChatMessage, ClientTool, ImageRef, ResponseFormat, ToolCall, ToolChoice, UserPart } from './wire.ts';
 
 /**
  * `POST /v1/responses` read into the Chat Completions request the rest of the surface already runs
@@ -152,6 +152,23 @@ function textParts(content: unknown, path: string, assistant: boolean): TextPart
 
 const joined = (parts: readonly TextPart[]): string => parts.map((p) => p.text).join('\n');
 
+/** The longest image URL kept as it is in the stored input */
+export const STORED_IMAGE_URL_MAX = 2048;
+
+/**
+ * What the stored input says of an image: a reference, never its data. A data URL becomes one with
+ * the same media type, its size as a parameter and no payload (`data:image/png;claudio-omitted-bytes=2048,`),
+ * still a well-formed data URL; the bytes are in the upload the turn saved. Copying up to 5 MB of
+ * base64 into every stored response's row, and parsing it again on each lookup, would buy nothing.
+ * An http(s) URL is kept unless it is longer than `STORED_IMAGE_URL_MAX`, then only its origin with
+ * how much was left out.
+ */
+export function imageReference(image: ImageRef): string {
+  if (image.kind === 'data') return `data:${image.mediaType};claudio-omitted-bytes=${String(image.sizeBytes)},`;
+  if (image.url.length <= STORED_IMAGE_URL_MAX) return image.url;
+  return `${new URL(image.url).origin}/?claudio-omitted-chars=${String(image.url.length)}`;
+}
+
 function userContent(content: unknown, path: string, maxImageBytes: number): { parts: UserPart[]; items: InputContent[] } {
   if (typeof content === 'string') return { parts: [{ type: 'text', text: content }], items: [{ type: 'input_text', text: content }] };
   if (!Array.isArray(content) || content.length === 0) throw invalid('`content` must be a string or a non-empty array of content parts.', path);
@@ -170,7 +187,7 @@ function userContent(content: unknown, path: string, maxImageBytes: number): { p
       if (present(part.file_id) && !present(part.image_url)) throw unsupported('Images by `file_id` are not supported: send `image_url` as a data URL or an http(s) URL.', `${at}.file_id`);
       const image = parseImage(part.image_url, `${at}.image_url`, maxImageBytes);
       parts.push({ type: 'image', image });
-      items.push({ type: 'input_image', image_url: String(part.image_url), detail: typeof part.detail === 'string' ? part.detail : 'auto' });
+      items.push({ type: 'input_image', image_url: imageReference(image), detail: typeof part.detail === 'string' ? part.detail : 'auto' });
       continue;
     }
     throw unsupported(`Content parts of type \`${String(part.type)}\` are not supported.`, `${at}.type`);

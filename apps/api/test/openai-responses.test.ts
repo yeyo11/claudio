@@ -289,7 +289,7 @@ test('a stored response is only continued into a chat this surface started; its 
   const theirs = await ok(await post({ model: 'sonnet', input: 'borrowed' }));
   const stored = core.openaiResponses.find(theirs.id);
   assert.ok(stored);
-  core.openaiResponses.save({ ...stored, id: 'resp_person', chatId: personId });
+  core.openaiResponses.save({ ...stored, id: 'resp_person', chatId: personId, inputItems: [] });
   const res = await post({ model: 'sonnet', previous_response_id: 'resp_person', input: 'inject' });
   assert.equal(res.status, 404);
   assertError(await res.json(), 'not_found', 'previous_response_id');

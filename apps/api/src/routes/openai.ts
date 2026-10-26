@@ -726,13 +726,13 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   });
 
   app.get<{ Params: { id: string }; Querystring: { after?: string; limit?: string; order?: string } }>('/responses/:id/input_items', async (req) => {
-    const stored = core.openaiResponses.find(req.params.id);
+    const stored = core.openaiResponses.inputItems(req.params.id);
     if (!stored) throw fail(responseNotFound(req.params.id));
     const { after, order = 'desc' } = req.query;
     if (order !== 'asc' && order !== 'desc') throw fail({ kind: 'invalid-request', param: 'order', message: '`order` must be `asc` or `desc`.' });
     const limit = req.query.limit === undefined ? 20 : Number(req.query.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw fail({ kind: 'invalid-request', param: 'limit', message: '`limit` must be a whole number from 1 to 100.' });
-    const items = order === 'asc' ? stored.inputItems : [...stored.inputItems].reverse();
+    const items = order === 'asc' ? stored : [...stored].reverse();
     let start = 0;
     if (after !== undefined) {
       const at = items.findIndex((item) => item.id === after);

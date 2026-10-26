@@ -710,6 +710,14 @@ example is that case. Chat Completions shares the path: a system message that ch
 indexed on `chat_id` and `created_at`: one row per response the client asked to keep, written once.
 `response` is the object as it was served (its `output` items are what a follow-up continues from),
 `input_items` the request's input with ids, and `conversation_key` the key after this response.
+`find` reads every column but `input_items`, which only the input-items route reads (`inputItems`).
+
+**Images in the stored input are references.** An `input_image` with a data URL is stored as a data
+URL with the same media type, its size and no payload, `data:image/png;claudio-omitted-bytes=48213,`
+(still well formed), and listed so by `GET /v1/responses/:id/input_items`: the bytes went to the
+chat as an upload, and copying up to 5 MB of base64 into every stored row (and parsing it on every
+lookup) would buy nothing. An http(s) URL is kept as sent up to 2,048 characters (`STORED_IMAGE_URL_MAX`);
+a longer one is stored as its origin and `?claudio-omitted-chars=<length>`. `detail` is kept.
 
 - **Stored when** `store` is not false and the turn answered: `completed` (with text or with
   `function_call` items) or `incomplete`. A failed response is not stored. The row is written
@@ -865,7 +873,8 @@ in process through the real routes, core and stub (no dev server), 2026-10-26, 0
 - `previous_response_id` to an older response of a chain continues the chat as it is now (Forks,
   above).
 - Stored responses live 7 days, not 30.
-- `input_items` lists the request's own input, not the chain's.
+- `input_items` lists the request's own input, not the chain's, and an image as a reference, not
+  its data (above).
 - The SDK parse check was not run (the package is not in the repository).
 
 ## Using it

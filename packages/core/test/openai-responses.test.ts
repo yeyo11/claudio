@@ -467,7 +467,8 @@ test('a stored response is found again with its chat, key, object and input; del
     assert.equal(found?.chatId, 'chat-1');
     assert.equal(found?.conversationKey, 'k1');
     assert.equal(found?.response.id, 'resp_a');
-    assert.deepEqual(found?.inputItems, inputItems);
+    assert.deepEqual(responses.inputItems('resp_a'), inputItems);
+    assert.equal(responses.inputItems('resp_missing'), null);
     assert.equal(found?.createdAt, '2026-10-26T10:00:00.000Z');
     assert.equal(responses.find('resp_missing'), null);
     assert.equal(responses.delete('resp_a'), true);
@@ -512,6 +513,31 @@ test('the sweep expires old stored responses, and an api chat a fresh one still 
     assert.equal(responses.find('resp_old'), null);
     assert.ok(responses.find('resp_new'));
     assert.deepEqual(removed, ['old-chat']);
+  } finally {
+    db.close();
+  }
+});
+
+test('a large data URL image leaves a small stored row: the input lists a reference with its type and size', () => {
+  const { responses, db } = stores(() => '2026-10-26T10:00:00.000Z');
+  try {
+    const bytes = 3 * 1024 * 1024;
+    const big = `data:image/png;base64,${Buffer.alloc(bytes, 7).toString('base64')}`;
+    const link = 'https://example.com/cat.png';
+    const request = parseOk({ input: [{ role: 'user', content: [{ type: 'input_text', text: 'Both?' }, { type: 'input_image', image_url: big }, { type: 'input_image', image_url: link, detail: 'low' }] }] });
+    // The turn still gets the image whole
+    const user = request.chat.messages[0];
+    assert.equal(user?.role === 'user' && user.parts[1]?.type === 'image' && user.parts[1].image.kind === 'data' ? user.parts[1].image.sizeBytes : null, bytes);
+    responses.save({ id: 'resp_img', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_img'), inputItems: request.inputItems });
+    const row = db.connection.prepare('SELECT length(input_items) AS n FROM openai_responses WHERE id = ?').get('resp_img') as { n: number };
+    assert.ok(row.n < 1024, `the row holds ${String(row.n)} characters of input`);
+    const listed = responses.inputItems('resp_img')?.[0];
+    assert.ok(listed?.type === 'message');
+    assert.deepEqual(listed.content, [
+      { type: 'input_text', text: 'Both?' },
+      { type: 'input_image', image_url: `data:image/png;claudio-omitted-bytes=${String(bytes)},`, detail: 'auto' },
+      { type: 'input_image', image_url: link, detail: 'low' },
+    ]);
   } finally {
     db.close();
   }

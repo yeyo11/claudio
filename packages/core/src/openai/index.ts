@@ -38,7 +38,7 @@ export {
   type TrailingResults,
 } from './client-tools.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';
-export { OpenAiResponseStore, type StoredResponse as OpenAiStoredResponse } from './responses-store.ts';
+export { OpenAiResponseStore, type StoredResponse as OpenAiStoredResponse, type StoredResponseHead as OpenAiStoredResponseHead } from './responses-store.ts';
 export {
   assistantOfOutput,
   keyAfterPrevious as openAiKeyAfterPrevious,
