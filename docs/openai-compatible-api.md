@@ -512,11 +512,18 @@ results must also be the ones it waits for, and a `user` message after a full se
 the assistant message with the calls, or alone on a chat named by `X-Claudio-Chat-Id`) drops them:
 the turn holding them is interrupted (the CLI withdraws its requests, a held one still left gets the
 error result "the client sent a new message instead of a result for this call"), and the message
-then goes to the idle process as an ordinary turn. If the interrupt does not land within 30 s the
-request is a `409` and nothing else is sent.
+then goes to the idle process as an ordinary turn. What would refuse that message (no such chat, a
+process that would have to start again with the stub while the API's address is unknown) is
+checked **before** the interrupt, so a refused request leaves the calls held and the turn as it was.
+If the interrupt does not land within 30 s the request is a `409` and nothing else is sent. Only a
+refusal that cannot be known before the turn ends comes after the calls were dropped: the chat not
+idle once the interrupt landed, or its process gone by then with no run slot free to start another.
+Its message then begins "The held tool calls were dropped, but the new message was not sent", so
+the client does not send their results again.
 
 **Every refusal comes first.** The checks on a request (its results against the held calls, the
-target chat, a conflict, the images) all run before the session is touched: the session's
+target chat, a conflict, the images) all run before the session is touched, with the one exception
+named under "Dropping the calls": the session's
 `tool_choice` and `parallel_tool_calls` change as the last step before the turn runs, and go back to
 what they were if starting it fails, so a refused request never changes what another client's held
 calls get.

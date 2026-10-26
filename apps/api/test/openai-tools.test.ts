@@ -518,6 +518,36 @@ test('a new message after a person interrupted the turn holding the calls is an 
   assert.equal(results.at(-1)?.outcome?.isError, false);
 });
 
+test('a new message that would be refused leaves the held calls and the turn holding them as they were', async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'lookup', input: { key: '1' } }, { name: 'lookup', input: { key: '2' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const [a, b] = body.choices[0]?.message.tool_calls ?? [];
+  assert.ok(a && b);
+  const session = registry.ofChat(chatId);
+  assert.ok(session);
+  await until(() => session.heldCount() === 2);
+  const pid = core.runtime.get(chatId)?.pid;
+  const ends = core.runtime.events(chatId).filter((e) => e.kind === 'result').length;
+  const api = core.runtime.apiUrl;
+  core.runtime.apiUrl = null;
+  try {
+    // Other tools: the process would have to start again with the stub, whose address is not known
+    const refused = await post({ model: 'sonnet', messages: [...messages, echoed(body), user('forget those')], tools: [lookup, weather] }, {}, AbortSignal.timeout(10_000));
+    assert.equal(refused.status, 503);
+  } finally {
+    core.runtime.apiUrl = api;
+  }
+  assert.equal(session.heldCount(), 2);
+  assert.deepEqual(session.awaitingIds().sort(), [a.id, b.id].sort());
+  assert.equal(core.runtime.get(chatId)?.pid, pid);
+  assert.notEqual(core.runtime.get(chatId)?.status, 'idle');
+  assert.equal(core.runtime.events(chatId).filter((e) => e.kind === 'result').length, ends);
+  const ok = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(a.id, 'A'), toolMsg(b.id, 'B')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
+  assert.equal(((await ok.json()) as Completion).choices[0]?.message.content, 'results: A | B');
+});
+
 test('a client-tool request no call handed to the client covers (a subagent\'s) is denied at once instead of held', async () => {
   const res = await post({ model: 'sonnet', messages: [user(directive('TOOLS_SIDE', [{ name: 'lookup', input: { key: 's' } }]))], tools: [lookup] }, {}, AbortSignal.timeout(8_000));
   assert.equal(res.status, 200);

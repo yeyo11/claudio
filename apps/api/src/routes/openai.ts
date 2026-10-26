@@ -632,10 +632,20 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       });
       const current = new TurnRun(core, translator, openTurns, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
+      const startOpts = { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools, apply };
       try {
-        if (abandoning && tools && existing !== null) await abandon(existing, tools);
-        if (held && tools && existing !== null) continueHeld(current, existing, tools, trailing, apply);
-        else await startTurn(current, target, turn, text, uploaded.value, { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools, apply });
+        if (abandoning && tools && existing !== null) {
+          // What would refuse the new message is checked while the calls are still held, so a refused
+          // request leaves them and the turn holding them as they were
+          existingTurnPlan(existing, turn, startOpts, true);
+          await abandon(existing, tools);
+          try {
+            await startTurn(current, target, turn, text, uploaded.value, startOpts);
+          } catch (err) {
+            throw afterDropping(err);
+          }
+        } else if (held && tools && existing !== null) continueHeld(current, existing, tools, trailing, apply);
+        else await startTurn(current, target, turn, text, uploaded.value, startOpts);
       } catch (err) {
         current.detach();
         if (tools && !session) {
@@ -736,6 +746,18 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (!settled) throw fail({ kind: 'conflict', message: 'The chat is still ending the turn whose tool calls were dropped; try again in a moment.' });
   }
 
+  /**
+   * A refusal of the new message that could only be known once the calls were dropped (the chat
+   * not idle after the interrupt, its process gone and no run slot free to start another): the
+   * answer says the calls are gone, so the client does not send their results again.
+   */
+  function afterDropping(err: unknown): V1Failure {
+    const failure = failureOf(err);
+    const note = 'The held tool calls were dropped, but the new message was not sent';
+    if ('message' in failure && typeof failure.message === 'string') return fail({ ...failure, message: `${note}: ${failure.message}` });
+    return fail(failure);
+  }
+
   /** Why results cannot go to the calls the CLI is holding, thrown before anything is changed. */
   function heldProblem(tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>): void {
     const awaiting = new Set(tools.awaitingIds());
@@ -782,6 +804,35 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (await isApiChat(row.chatId)) return { kind: 'existing', chatId: row.chatId };
     if (!(await core.chats.get(row.chatId))) core.openaiConversations.forgetChat(row.chatId);
     return { kind: 'new' };
+  }
+
+  /**
+   * How a turn goes to an existing chat, and its refusals, which change nothing: no such chat, a turn
+   * already running (unless it is the one being ended to drop its calls, `ending`), or a process to
+   * start with the stub while the API's address is unknown.
+   */
+  function existingTurnPlan(
+    id: string,
+    turn: OpenAiChatTurn,
+    opts: { tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools'] },
+    ending: boolean,
+  ): { runtime: NonNullable<ReturnType<Core['runtime']['get']>>; restart: boolean } {
+    const { tools } = opts;
+    const runtime = core.runtime.get(id);
+    if (!runtime) throw fail({ kind: 'not-found', message: `No chat ${id}.` });
+    if (runtime.pid !== null && runtime.status !== 'idle' && !ending) {
+      // A live process keeps how it was started: only a turn on an idle one is ours to send
+      throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
+    }
+    // `--json-schema` and `--mcp-config` are fixed when the process starts: a turn asking for another
+    // schema (or for none after one), or for client tools the live process does not serve, ends the
+    // idle process and resumes the chat with its own. The same ones keep it
+    const toolsChanged = opts.wantsTools && tools !== null && (tools.servedPid !== runtime.pid || !sameClientTools(tools.tools, opts.requestTools));
+    const restart = runtime.pid !== null && (!sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema) || toolsChanged);
+    if (tools && (restart || runtime.pid === null) && !registry.servers(core, tools)) {
+      throw fail({ kind: 'unavailable', message: "Client tools need the API's own address, which is not known yet." });
+    }
+    return { runtime, restart };
   }
 
   /**
@@ -846,19 +897,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       return;
     }
     const id = target.chatId;
-    const runtime = core.runtime.get(id);
-    if (!runtime) throw fail({ kind: 'not-found', message: `No chat ${id}.` });
+    const { runtime, restart } = existingTurnPlan(id, turn, opts, false);
     // Where a chat already is, the header cannot move it: said rather than dropped in silence
     if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
-    if (runtime.pid !== null && runtime.status !== 'idle') {
-      // A live process keeps how it was started: only a turn on an idle one is ours to send
-      throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
-    }
-    // `--json-schema` and `--mcp-config` are fixed when the process starts: a turn asking for another
-    // schema (or for none after one), or for client tools the live process does not serve, ends the
-    // idle process and resumes the chat with its own. The same ones keep it
-    const toolsChanged = opts.wantsTools && tools !== null && (tools.servedPid !== runtime.pid || !sameClientTools(tools.tools, opts.requestTools));
-    const restart = runtime.pid !== null && (!sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema) || toolsChanged);
     if (restart) await core.runtime.endBetweenTurns(id);
     if (tools && opts.wantsTools && (restart || runtime.pid === null)) tools.tools = opts.requestTools;
     opts.apply();
