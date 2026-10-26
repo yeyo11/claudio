@@ -21,6 +21,11 @@ conversations from anywhere, run agents in parallel on a project's board, and ke
 Claude account when one runs out of quota. It drives Claude Code through its CLI and nothing else,
 so whatever the CLI can do, Claudio can do, and nothing more.
 
+Read the launch article,
+[Claudio: run Claude Code as a service](https://josegarrido.dev/en/claudio-run-claude-code-as-a-service/)
+([en español](https://josegarrido.dev/es/claudio-claude-code-como-servicio/)), and every launch on
+[the project's page](https://josegarrido.dev/en/projects/claudio/) of the author's blog.
+
 ## What it does
 
 - **Chats, from anywhere.** Start a chat from the UI or the API, stream it, answer its permission
