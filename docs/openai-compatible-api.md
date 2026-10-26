@@ -432,7 +432,17 @@ client could tell apart. A result whose request the CLI took back (an interrupt)
 new hand-off clears what the previous message left, so neither can answer a later call. The answers are plain JSON (no SSE), notifications get `202`, `GET` and `DELETE`
 get `405`, and an unknown method gets `-32601` (the CLI's `server/discover` among them; it falls back
 to `initialize`). The session lives in memory and goes with the chat: removing the chat (the sweep,
-`DELETE /chats/:id`, the history trim) drops it, and its URL stops answering.
+`DELETE /chats/:id`, the history trim) drops it, and its URL stops answering. A request whose new
+chat fails to start after the session was bound drops the session too.
+
+**The config file.** Core writes the stub's entry, joined to the servers the chat chose, to
+`<data>/mcp/extra-<chat id>-<hash>.json` (`writeChatExtrasConfigSync`), one per chat: writing it
+deletes the chat's earlier ones, removing the chat deletes it, and a restart of the wrapper deletes
+every such file of a chat with no process (its stub URL died with the old server). Only names of that
+shape are touched; the shared, content-named config files in the same folder never are. When the
+chat's own config file is gone or is not a config, the process starts with the stub only and the
+chat gets a notice that its chosen servers could not be read; a chat without added servers is
+given its own config path exactly as before.
 
 Names: the CLI shows the tools to the model as `mcp__client__<name>`, and the client gets its own
 names back. Names longer than 51 characters (the model's 64 minus the prefix), names of Claude

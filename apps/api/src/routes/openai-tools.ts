@@ -31,9 +31,19 @@ export class ClientToolRegistry {
     return this.byId.get(id);
   }
 
-  /** A session whose chat never started (the start was refused) */
+  /**
+   * A session whose turn never started (the start was refused or threw), bound to its chat already
+   * or not: nothing else would ever drop a session whose chat was not created.
+   */
   discard(session: ClientToolSession): void {
-    if (session.chatId === null) this.byId.delete(session.id);
+    this.byId.delete(session.id);
+    if (session.chatId !== null && this.byChat.get(session.chatId) === session) this.byChat.delete(session.chatId);
+    session.dispose();
+  }
+
+  /** How many sessions are kept, by stub id and by chat: for tests */
+  get size(): { byId: number; byChat: number } {
+    return { byId: this.byId.size, byChat: this.byChat.size };
   }
 
   drop(chatId: string): void {

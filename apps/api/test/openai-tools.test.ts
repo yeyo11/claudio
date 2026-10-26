@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -495,6 +495,29 @@ test('a tool list that only changes order keeps the idle process and the stub it
   assert.equal(core.runtime.get(chatId)?.pid, pid);
 });
 
+test('a new chat whose start fails after its session was bound leaves no session behind', async () => {
+  const before = registry.size;
+  const create = core.chats.create.bind(core.chats);
+  let started: string | null = null;
+  // The chat is created and its session bound in the start callback, then the call throws
+  core.chats.create = (async (...args: Parameters<typeof create>) => {
+    const chat = await create(...args);
+    started = chat.id;
+    throw new Error('the start failed after the chat was created');
+  }) as typeof create;
+  try {
+    const res = await post({ model: 'sonnet', messages: [user('hello with tools, failing')], tools: [weather] });
+    assert.ok(res.status >= 400);
+    await res.json();
+  } finally {
+    core.chats.create = create;
+  }
+  assert.ok(started);
+  assert.equal(registry.ofChat(started), undefined);
+  assert.deepEqual(registry.size, before);
+  core.runtime.stop(started);
+});
+
 // ---------- refusals ----------
 
 test("a chat's stub goes with the chat: once the chat is removed its URL answers 401 even to a valid token of that chat", async () => {
@@ -509,10 +532,14 @@ test("a chat's stub goes with the chat: once the chat is removed its URL answers
   const list = (): Promise<Response> =>
     fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${own}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
   assert.equal((await list()).status, 200);
+  // The chat's own --mcp-config, found by its name, goes with it too
+  const files = (): string[] => readdirSync(join(root, 'data', 'mcp')).filter((f) => f.startsWith(`extra-${chatId}-`));
+  assert.equal(files().length, 1);
   core.runtime.stop(chatId);
   await until(() => core.runtime.get(chatId)?.pid === null || core.runtime.get(chatId)?.pid === undefined);
   await until(() => core.runtime.remove(chatId), 5000);
   assert.equal((await list()).status, 401);
+  assert.deepEqual(files(), []);
   core.security.chatTokens.revoke(own);
 });
 

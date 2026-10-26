@@ -634,7 +634,17 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         else await startTurn(current, target, turn, text, uploaded.value, { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools, apply });
       } catch (err) {
         current.detach();
-        if (tools && !session) registry.discard(tools);
+        if (tools && !session) {
+          // A chat that started before the failure must not keep a host the registry no longer knows
+          if (tools.chatId !== null) {
+            try {
+              core.runtime.setPermissionHost(tools.chatId, null);
+            } catch {
+              // no such chat: it never started
+            }
+          }
+          registry.discard(tools);
+        }
         // A turn that did not start leaves the session's rules as the request before it set them
         if (tools && session && before) {
           tools.choice = before.choice;

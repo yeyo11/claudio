@@ -65,7 +65,7 @@ import {
   type RunResult,
   type SentMessage,
 } from './live-chat.ts';
-import { writeMcpConfigSync } from './chat-tools.ts';
+import { removeChatExtrasConfigs, writeChatExtrasConfigSync } from './chat-tools.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
@@ -478,6 +478,9 @@ export class ChatManager extends EventEmitter {
     // The executions the restore closed as interrupted are written down, so a second start does
     // not have to conclude it again
     if (stored.length) this.persist();
+    // What the servers core's callers added pointed at (a stub in a server that is gone) died with
+    // the processes that read them: no process of this wrapper is running yet
+    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.get(chatId)?.alive);
   }
 
   /** Processes found at start working on a restored chat's session that are still up. */
@@ -1298,6 +1301,7 @@ export class ChatManager extends EventEmitter {
     this.db.deleteChat(id);
     this.saved.delete(id);
     this.persist();
+    removeChatExtrasConfigs(this.config.dataDir, (chatId) => chatId === id);
     return true;
   }
 
@@ -1453,12 +1457,26 @@ export class ChatManager extends EventEmitter {
     const adds = reads ? reads.adds : base === null;
     const extra = chat.opts.extraMcpServers;
     if (!extra || Object.keys(extra).length === 0) return base ? { mcpConfig: base, ...(adds ? { mcpConfigAdds: true } : {}) } : {};
-    let servers: Record<string, Record<string, unknown>> = {};
-    if (base) {
-      const listed = (JSON.parse(readFileSync(base, 'utf8')) as { mcpServers?: unknown }).mcpServers;
-      if (listed && typeof listed === 'object' && !Array.isArray(listed)) servers = { ...(listed as Record<string, Record<string, unknown>>) };
+    const servers = base ? this.baseServers(chat, base) : {};
+    return { mcpConfig: writeChatExtrasConfigSync(this.config.dataDir, chat.id, { ...servers, ...extra }), ...(adds ? { mcpConfigAdds: true } : {}) };
+  }
+
+  /**
+   * The servers of the chat's own config file, to join the added ones to. A file that is gone or not
+   * a config (edited by hand, a disk cleaned up) is no reason to refuse the spawn: the process starts
+   * with the added servers only, and the chat says why its chosen servers are missing.
+   */
+  private baseServers(chat: LiveChat, base: string): Record<string, Record<string, unknown>> {
+    let why: string;
+    try {
+      const listed = (JSON.parse(readFileSync(base, 'utf8')) as { mcpServers?: unknown } | null)?.mcpServers;
+      if (listed && typeof listed === 'object' && !Array.isArray(listed)) return { ...(listed as Record<string, Record<string, unknown>>) };
+      why = 'it lists no `mcpServers`';
+    } catch (err) {
+      why = (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'the file is gone' : 'it is not valid JSON';
     }
-    return { mcpConfig: writeMcpConfigSync(this.config.dataDir, { ...servers, ...extra }), ...(adds ? { mcpConfigAdds: true } : {}) };
+    chat.push({ kind: 'notice', text: `The chat's MCP server config could not be read (${why}): this process starts without the servers it chose. Pick them again to restore them.`, data: { mcpConfig: base } });
+    return {};
   }
 
   /** What a process of the chat is started from: the driver turns it into a command line. */

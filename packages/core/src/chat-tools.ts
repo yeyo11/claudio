@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { ChatStartOptions, ChatToolConfig, CommandRule, McpSelection, ToolPolicy, ToolPreset, ToolPresetsConfig, ToolPresetsOverview } from '@claudio/shared';
@@ -312,6 +312,49 @@ export function writeMcpConfigSync(dataDir: string, mcpServers: Record<string, R
   writeFileSync(file, body, { mode: 0o600 });
   chmodSync(file, 0o600);
   return file;
+}
+
+/**
+ * The `--mcp-config` of a chat whose servers core's callers extend (`extraMcpServers`): one file per
+ * chat, `mcp/extra-<chat id>-<hash>.json`, so it can be found and deleted with the chat. Writing it
+ * deletes the chat's earlier ones: a chat has one process at a time, which reads its file at spawn.
+ */
+export function writeChatExtrasConfigSync(dataDir: string, chatId: string, mcpServers: Record<string, Record<string, unknown>>): string {
+  const { body } = mcpConfigFile(dataDir, mcpServers);
+  const name = `${EXTRAS_PREFIX}${chatId}-${createHash('sha256').update(body).digest('hex').slice(0, 16)}.json`;
+  removeChatExtrasConfigs(dataDir, (id, file) => id === chatId && file !== name);
+  const file = join(dataDir, 'mcp', name);
+  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  writeFileSync(file, body, { mode: 0o600 });
+  chmodSync(file, 0o600);
+  return file;
+}
+
+const EXTRAS_PREFIX = 'extra-';
+/** Only files `writeChatExtrasConfigSync` wrote match: a chat id is a UUID */
+const EXTRAS_FILE = /^extra-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-[0-9a-f]{16}\.json$/;
+
+/** Deletes the extras files `doomed` names, by chat id and file name; the shared config files are never touched. */
+export function removeChatExtrasConfigs(dataDir: string, doomed: (chatId: string, file: string) => boolean): number {
+  const dir = join(dataDir, 'mcp');
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const name of names) {
+    const id = EXTRAS_FILE.exec(name)?.[1];
+    if (id === undefined || !doomed(id, name)) continue;
+    try {
+      unlinkSync(join(dir, name));
+      removed++;
+    } catch {
+      // gone already
+    }
+  }
+  return removed;
 }
 
 function mcpConfigFile(dataDir: string, mcpServers: Record<string, Record<string, unknown>>): { file: string; body: string } {
