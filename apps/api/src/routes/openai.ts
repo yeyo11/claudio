@@ -817,6 +817,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       await core.chats.create(
         {
           prompt,
+          ...(turn.title ? { name: turn.title } : {}),
           ...(attachments.length ? { attachments } : {}),
           provider: opts.provider,
           model: turn.model,

@@ -200,6 +200,60 @@ test('API chats stay out of the chat list unless it asks for their origin', asyn
   assert.ok(api.some((c) => c.id === chatId));
 });
 
+// ---------- titles ----------
+
+/** The title the API serves for the chat a completion started */
+async function titleOfCompletion(body: unknown): Promise<{ chatId: string; title: string | undefined }> {
+  const res = await post(body);
+  assert.equal(res.status, 200, await res.clone().text());
+  const chatId = res.headers.get('x-claudio-chat-id') ?? '';
+  await res.json();
+  return { chatId, title: (await core.chats.get(chatId))?.title };
+}
+
+test("an API chat is titled with its first user message's first line, never the workspace name", async () => {
+  const { title } = await titleOfCompletion({ model: 'sonnet', messages: [user('  Summarise the release notes\nand list the breaking changes')] });
+  assert.equal(title, 'Summarise the release notes');
+});
+
+test('a system message before the first user message never becomes the title', async () => {
+  const { title } = await titleOfCompletion({ model: 'sonnet', messages: [{ role: 'system', content: 'You are terse.' }, user('Name three rivers')] });
+  assert.equal(title, 'Name three rivers');
+});
+
+test('a cold start over a history is titled with its first user message, not the preamble or the rendered turns', async () => {
+  const first = 'Plan a trip to Lisbon';
+  const { chatId, title } = await titleOfCompletion({ model: 'sonnet', messages: [user(first), assistant('Three days?'), user('Yes, three days')] });
+  assert.equal(title, first);
+  assert.match(promptsOf(chatId)[0]?.prompt ?? '', /<earlier-turns>/, 'the chat did start cold, over the rendered history');
+});
+
+test("an image part leaves the title to the message's text", async () => {
+  const { title } = await titleOfCompletion({ model: 'sonnet', messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${PNG}` } }, { type: 'text', text: 'What is in this picture?' }] }] });
+  assert.equal(title, 'What is in this picture?');
+});
+
+test('a long first message is cut to 100 characters, as a transcript title is', async () => {
+  const { title } = await titleOfCompletion({ model: 'sonnet', messages: [user('x'.repeat(150))] });
+  assert.equal(title, 'x'.repeat(100));
+});
+
+test('a resumed API chat keeps the title of its first turn', async () => {
+  const { chatId, title } = await titleOfCompletion({ model: 'sonnet', messages: [user('Draft the changelog')] });
+  assert.equal(title, 'Draft the changelog');
+  const second = await post({ model: 'sonnet', messages: [user('Draft the changelog'), assistant('echo: Draft the changelog'), user('Shorter, please')] });
+  assert.equal(second.headers.get('x-claudio-chat-id'), chatId);
+  await second.json();
+  assert.equal((await core.chats.get(chatId))?.title, 'Draft the changelog');
+});
+
+test('a chat started outside /v1 keeps its generated name until its transcript titles it', async () => {
+  const res = await fetch(`${base}/api/chats`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'An ordinary chat' }) });
+  assert.equal(res.status, 201, await res.clone().text());
+  const { id } = (await res.json()) as { id: string };
+  assert.match((await core.chats.get(id))?.title ?? '', new RegExp(`^workspace-${id.slice(0, 6)}$`));
+});
+
 // ---------- streaming ----------
 
 test('a streamed completion sends role first, the text, a final chunk, the usage chunk when asked, then [DONE]', async () => {

@@ -331,6 +331,13 @@ export interface ChatTurn {
   cold: RenderedPrompt;
   /** A resumed chat's prompt: only the messages after the last assistant message */
   delta: RenderedPrompt;
+  /**
+   * A new chat's name: the first user message's first line. Without it the chat is named
+   * `<dir>-<id prefix>`, which the CLI records as the session's title, and the first prompt a cold
+   * start sends is the preamble over the rendered history, not anything the person wrote. Null when
+   * no user message has text.
+   */
+  title: string | null;
 }
 
 const COLD_PREAMBLE =
@@ -450,7 +457,19 @@ export function translateRequest(request: ChatCompletionRequest): ChatTurn {
     historyKey: historyKey(keySeed, request.messages),
     cold: renderCold(request.messages),
     delta: renderDelta(request.messages),
+    title: titleOf(request.messages),
   };
+}
+
+/** The same cut as a transcript's title: the first line, at most 100 characters (`sessions.ts`). */
+function titleOf(messages: readonly ChatMessage[]): string | null {
+  for (const m of messages) {
+    if (m.role !== 'user') continue;
+    const text = normalizeText(m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('\n'));
+    const line = text.split('\n')[0]?.trim().slice(0, 100);
+    if (line) return line;
+  }
+  return null;
 }
 
 /** Parse and translate in one step, for a route. */

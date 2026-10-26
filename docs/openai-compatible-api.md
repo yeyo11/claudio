@@ -298,6 +298,10 @@ for **7 days** (`OPENAI_CONVERSATION_TTL_MS`) are dropped, then every `api` chat
 process and no change in those 7 days is deleted (transcript and record). A person's chat a client
 continued by id only loses its keys.
 
+Its title is the first line of the request's first user message with text (system messages, image
+parts and the cold start's rendered history left out), cut to 100 characters, as a transcript's
+title is. It is passed to the CLI as `--name` when the chat starts, so a resume never changes it.
+
 Each chat keeps its process up between turns, as a person's does, so follow-ups are fast; idle
 processes count toward `maxConcurrentRuns` until the idle timeout lets them go.
 
