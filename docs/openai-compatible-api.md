@@ -580,6 +580,17 @@ through the real routes, core and stub (2026-10-26):
   and an arguments fragment, then `finish_reason: "tool_calls"` and `[DONE]`. The second stream
   quoted both results ("17 C, light rain", "14:05 CEST") and ended with a usage chunk. $0.0071.
 
+After the review fixes, one more run on the same CLI and model (2026-10-26), $0.0143 for both:
+
+- A client tool and a preset-allowed built-in in one chat (`X-Claudio-Tool-Preset: read-only`): one
+  message called `mcp__client__get_weather` and `Bash` (`git status`). The client got only
+  `get_weather`; `Bash` ran under the preset's `Bash(git status:*)` without a permission request (git
+  itself failed: the workspace is not a repository). The answer quoted both, the panel stayed empty,
+  and the client call was held: the CLI writes a block's message before it asks for it, so the claim
+  came first.
+- Two parallel calls of one tool (`get_weather` Paris and Rome), results sent in reverse order: each
+  `tool_result` carried its own city's result, and the answer paired them right.
+
 ## Using it
 
 The base URL is `http://127.0.0.1:<port>/api/v1` (the dev server's port is 8797; the desktop app
