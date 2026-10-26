@@ -116,3 +116,45 @@ test("a restart deletes the added-servers files of chats with no process, and no
     core.shutdown();
   }
 });
+
+test("a config that cannot be read is told apart from one that is not JSON, and each problem is told once however often the chat respawns", async () => {
+  const { core, spawns } = setup();
+  try {
+    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, 'api', EXTRA);
+    await until(() => spawns().length === 1, 'the first process');
+    const base = (await core.chats.get(chat.id))?.tools?.mcp?.config;
+    assert.ok(base);
+    await stopped(core, chat.id);
+    // A directory where the file was: reading it fails with EISDIR, which is not a JSON problem
+    rmSync(base);
+    mkdirSync(base);
+    for (const n of [2, 3, 4]) {
+      core.runtime.send(chat.id, `again ${String(n)}`);
+      await until(() => spawns().length === n, `process ${String(n)}`);
+      await stopped(core, chat.id);
+    }
+    const notices = core.runtime.events(chat.id).filter((e) => e.kind === 'notice' && /MCP server config could not be read/.test(e.text ?? ''));
+    assert.equal(notices.length, 1);
+    assert.match(notices[0]?.text ?? '', /cannot be read: EISDIR/);
+    assert.doesNotMatch(notices[0]?.text ?? '', /not valid JSON/);
+  } finally {
+    core.shutdown();
+  }
+});
+
+test("Claudio's own config that cannot be read is named as Claudio's, without asking the person to pick servers they never picked", async () => {
+  const { config, core, spawns, mcpConfigOf } = setup();
+  try {
+    const broken = join(config.dataDir, 'claudio-reads.json');
+    writeFileSync(broken, '{ not json');
+    core.runtime.agentReadsLaunch = () => ({ mcpConfig: broken, adds: true, allowedTools: [] });
+    const chat = await core.chats.create({ prompt: 'x' }, undefined, undefined, undefined, 'api', EXTRA);
+    await until(() => spawns().length === 1, 'the first process');
+    assert.deepEqual(Object.keys((JSON.parse(readFileSync(mcpConfigOf(spawns()[0]), 'utf8')) as { mcpServers: object }).mcpServers), ['client']);
+    const notice = await until(() => core.runtime.events(chat.id).find((e) => e.kind === 'notice' && /config/.test(e.text ?? '')), 'the notice');
+    assert.match(notice.text ?? '', /^Claudio's MCP config for this chat could not be read \(it is not valid JSON\): this process starts without Claudio's server\./);
+    assert.doesNotMatch(notice.text ?? '', /Pick them again/);
+  } finally {
+    core.shutdown();
+  }
+});

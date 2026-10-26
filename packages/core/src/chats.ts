@@ -187,6 +187,8 @@ export class ChatManager extends EventEmitter {
    * port drove the other wrapper and its orchestrations never showed up in the one it ran in.
    */
   apiUrl: string | null = null;
+  /** The MCP config problems each chat was told about already (`baseUnread`) */
+  private readonly mcpConfigNoticed = new WeakMap<LiveChat, Set<string>>();
   /**
    * The per-process credentials handed over as `CLAUDIO_API_TOKEN` beside `CLAUDIO_API_URL`, so a
    * chat can call a guarded API. Core replaces it with the one its guard reads.
@@ -1466,25 +1468,49 @@ export class ChatManager extends EventEmitter {
     const adds = reads ? reads.adds : base === null;
     const extra = chat.opts.extraMcpServers;
     if (!extra || Object.keys(extra).length === 0) return base ? { mcpConfig: base, ...(adds ? { mcpConfigAdds: true } : {}) } : {};
-    const servers = base ? this.baseServers(chat, base) : {};
+    const servers = base ? this.baseServers(chat, base, reads !== null) : {};
     return { mcpConfig: writeChatExtrasConfigSync(this.config.dataDir, chat.id, { ...servers, ...extra }), ...(adds ? { mcpConfigAdds: true } : {}) };
   }
 
   /**
-   * The servers of the chat's own config file, to join the added ones to. A file that is gone or not
-   * a config (edited by hand, a disk cleaned up) is no reason to refuse the spawn: the process starts
-   * with the added servers only, and the chat says why its chosen servers are missing.
+   * The servers of the chat's config file, to join the added ones to. A file that is gone or not a
+   * config (edited by hand, a disk cleaned up) is no reason to refuse the spawn: the process starts
+   * with the added servers only, and the chat says why. `claudios` is Claudio's own file (its server
+   * joined to the chat's choice, `agentReadsLaunch`), which nobody picked and nobody can pick again.
    */
-  private baseServers(chat: LiveChat, base: string): Record<string, Record<string, unknown>> {
-    let why: string;
+  private baseServers(chat: LiveChat, base: string, claudios: boolean): Record<string, Record<string, unknown>> {
+    let text: string;
     try {
-      const listed = (JSON.parse(readFileSync(base, 'utf8')) as { mcpServers?: unknown } | null)?.mcpServers;
-      if (listed && typeof listed === 'object' && !Array.isArray(listed)) return { ...(listed as Record<string, Record<string, unknown>>) };
-      why = 'it lists no `mcpServers`';
+      text = readFileSync(base, 'utf8');
     } catch (err) {
-      why = (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'the file is gone' : 'it is not valid JSON';
+      const code = (err as NodeJS.ErrnoException).code;
+      return this.baseUnread(chat, base, claudios, code === 'ENOENT' ? 'the file is gone' : `it cannot be read: ${code ?? (err instanceof Error ? err.message : String(err))}`);
     }
-    chat.push({ kind: 'notice', text: `The chat's MCP server config could not be read (${why}): this process starts without the servers it chose. Pick them again to restore them.`, data: { mcpConfig: base } });
+    let listed: unknown;
+    try {
+      listed = (JSON.parse(text) as { mcpServers?: unknown } | null)?.mcpServers;
+    } catch {
+      return this.baseUnread(chat, base, claudios, 'it is not valid JSON');
+    }
+    if (listed && typeof listed === 'object' && !Array.isArray(listed)) return { ...(listed as Record<string, Record<string, unknown>>) };
+    return this.baseUnread(chat, base, claudios, 'it lists no `mcpServers`');
+  }
+
+  /**
+   * Says once per chat and problem that its servers are missing: an API chat respawns its process
+   * on many turns, and the same notice on each would bury the conversation.
+   */
+  private baseUnread(chat: LiveChat, base: string, claudios: boolean, why: string): Record<string, Record<string, unknown>> {
+    const key = `${base}\n${why}`;
+    const told = this.mcpConfigNoticed.get(chat) ?? new Set<string>();
+    this.mcpConfigNoticed.set(chat, told);
+    if (told.has(key)) return {};
+    told.add(key);
+    const chose = chat.opts.mcp?.config != null;
+    const text = claudios
+      ? `Claudio's MCP config for this chat could not be read (${why}): this process starts without Claudio's server${chose ? ' and the servers the chat chose' : ''}. The next process writes it again.`
+      : `The chat's MCP server config could not be read (${why}): this process starts without the servers it chose. Pick them again to restore them.`;
+    chat.push({ kind: 'notice', text, data: { mcpConfig: base } });
     return {};
   }
 

@@ -444,9 +444,19 @@ chat fails to start after the session was bound drops the session too.
 deletes the chat's earlier ones, removing the chat deletes it, and a restart of the wrapper deletes
 every such file of a chat with no process (its stub URL died with the old server). Only names of that
 shape are touched; the shared, content-named config files in the same folder never are. When the
-chat's own config file is gone or is not a config, the process starts with the stub only and the
-chat gets a notice that its chosen servers could not be read; a chat without added servers is
+config the stub joins is gone, unreadable or not a config, the process starts with the stub only and
+the chat gets a notice that says which (gone, cannot be read with the error code, not valid JSON, no
+`mcpServers`). When that config is the chat's own choice the notice asks to pick the servers again;
+when it is Claudio's own file (its server joined to the chat's choice), which nobody picked, it says
+Claudio's server is missing and that the next process writes it again. A chat is told once per
+problem, not on each of the respawns an API chat goes through. A chat without added servers is
 given its own config path exactly as before.
+
+A development install that ran pre-release phase 4 builds may have stale `<hash>.json` files in
+`<data>/mcp/` whose `mcpServers.client` points at `/api/openai/client-tools/`: those builds wrote the
+stub's config under the same content-hashed names as the shared configs, so the wrapper cannot tell
+them apart by name and does not delete them. They are safe to delete by hand when no chat references
+them.
 
 Names: the CLI shows the tools to the model as `mcp__client__<name>`, and the client gets its own
 names back. Names longer than 51 characters (the model's 64 minus the prefix), names of Claude
