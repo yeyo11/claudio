@@ -641,3 +641,52 @@ test('GET returns the stored response, DELETE removes the row but not the chat, 
   assert.equal((await get(`/responses/${body.id}/input_items`)).status, 404);
   assert.ok(await core.chats.get(chatId), 'the chat stays');
 });
+
+// ---------- storage failures ----------
+
+/** Makes both stores throw as SQLite does under contention, for the length of `run`. */
+async function withFailingStores<T>(run: () => Promise<T>): Promise<T> {
+  const save = core.openaiResponses.save;
+  const remember = core.openaiConversations.remember;
+  const busy = (): never => {
+    throw Object.assign(new Error('database is locked'), { code: 'ERR_SQLITE_ERROR', errcode: 5 });
+  };
+  core.openaiResponses.save = busy;
+  core.openaiConversations.remember = busy;
+  try {
+    return await run();
+  } finally {
+    core.openaiResponses.save = save;
+    core.openaiConversations.remember = remember;
+  }
+}
+
+test('a store that fails to write still serves the answer, whole and streamed, and frees the conversation for the next request', async () => {
+  const first = await post({ model: 'sonnet', input: 'before the failure' });
+  await ok(first);
+  const chatId = chatOf(first);
+  const named = { 'x-claudio-chat-id': chatId };
+  // Bounded: before the fix the request never settled
+  const bounded = { signal: AbortSignal.timeout(5000) };
+  const sent = (body: unknown): Promise<Response> =>
+    fetch(`${base}/api/v1/responses`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth(), ...named }, body: JSON.stringify(body), ...bounded });
+
+  const whole = await withFailingStores(() => sent({ model: 'sonnet', input: 'whole while the disk is full' }));
+  const body = await ok(whole);
+  assert.equal(body.status, 'completed');
+  assert.equal(textOf(body), 'echo: whole while the disk is full');
+  assert.equal((await get(`/responses/${body.id}`)).status, 404, 'the response that could not be stored is not found later');
+
+  const streamed = await withFailingStores(async () => {
+    const res = await sent({ model: 'sonnet', input: 'streamed while the disk is full', stream: true });
+    return { status: res.status, events: eventsOf(await res.text()) };
+  });
+  assert.equal(streamed.status, 200);
+  assert.equal(streamed.events.at(-1)?.type, 'response.completed', 'the final event still goes out');
+  assert.equal(textOf(streamed.events.at(-1)?.response as ResponseBody), 'echo: streamed while the disk is full');
+
+  // The chat's queue was released: the next request on it is served
+  const next = await sent({ model: 'sonnet', input: 'after the failure' });
+  assert.equal(textOf(await ok(next)), 'echo: after the failure');
+  assert.equal(chatOf(next), chatId);
+});

@@ -714,3 +714,30 @@ test('a failure is classified by its type, never by its wording', () => {
   failureOf(plain);
   assert.equal((plain as { statusCode?: unknown }).statusCode, undefined, 'the thrown error is not mutated');
 });
+
+test('a conversation key that fails to store still ends the stream with [DONE] and frees the chat for the next request', async () => {
+  const first = await post({ model: 'sonnet', messages: [user('before the failure')] });
+  assert.equal(first.status, 200, await first.clone().text());
+  const chatId = first.headers.get('x-claudio-chat-id') ?? '';
+  const named = { 'x-claudio-chat-id': chatId };
+  const sent = (body: unknown): Promise<Response> =>
+    fetch(`${base}/api/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', ...auth(), ...named }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000) });
+  const remember = core.openaiConversations.remember;
+  core.openaiConversations.remember = () => {
+    throw new Error('database is locked');
+  };
+  let lines: string[];
+  try {
+    const res = await sent({ model: 'sonnet', stream: true, messages: [user('streamed while the disk is full')] });
+    assert.equal(res.status, 200);
+    lines = dataLines(await res.text());
+  } finally {
+    core.openaiConversations.remember = remember;
+  }
+  assert.equal(lines.at(-1), '[DONE]');
+  const text = lines.slice(0, -1).map((l) => JSON.parse(l) as { choices: Array<{ delta: { content?: string | null } }> }).flatMap((c) => c.choices.map((ch) => ch.delta.content ?? '')).join('');
+  assert.equal(text, 'echo: streamed while the disk is full');
+  const next = await sent({ model: 'sonnet', messages: [user('after the failure')] });
+  assert.equal(next.status, 200, await next.clone().text());
+  assert.equal(((await next.json()) as Completion).choices[0]?.message.content, 'echo: after the failure');
+});

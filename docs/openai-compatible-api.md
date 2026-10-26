@@ -701,6 +701,14 @@ indexed on `chat_id` and `created_at`: one row per response the client asked to 
   `function_call` items) or `incomplete`. A failed response is not stored. The row is written
   before the stream's last event goes out, so a client that sends its follow-up the moment it reads
   `response.completed` finds it.
+- **A write that fails** (`SQLITE_BUSY` from a second process on the data dir, a full disk), of
+  the stored response or of the conversation key (on both routes), is logged and the answer is
+  still served: `completed` whole, and the stream's last event (`response.completed`, or `[DONE]`)
+  still goes out. The turn ran, cost money and may have changed files; a failed answer would make
+  the client run it again. What is lost is the way back: the response is not found later (404),
+  and a resent history without its key starts the chat again cold. The turn always settles and
+  releases its conversation's queue, and the chat's event emitter never sees the throw: a throw
+  from the writer is caught and logged where the turn feeds it (`TurnRun.out`).
 - **`store: false` writes nothing.** The response still has an id, but `GET` answers 404 and
   `previous_response_id` answers 404. The plan asked for a `stored` column; with nothing to keep for
   such a response, writing no row is the smaller and stricter choice.

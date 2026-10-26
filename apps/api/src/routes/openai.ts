@@ -332,6 +332,12 @@ class TurnRun<Item> {
     readonly translator: OpenAiTurnTranslator<Item>,
     /** The turns open now, by chat: where the end of each API message is told (`chat-stop-reason`) */
     private readonly open: Map<string, { stopReason(reason: string): void }>,
+    /**
+     * Where a throw from the writer goes. The writer runs inside the chat's event emitter, which must
+     * never see it, and the turn must still release its locks and settle (a stuck request would hold
+     * its conversation's queue for ever)
+     */
+    private readonly report: (err: unknown) => void,
     /** The chat's client-tool session: told each call as it streams, and handed the calls at the end */
     private readonly session: ClientToolSession | null = null,
     private readonly onHandOff: ((calls: OpenAiClientCall[]) => void) | null = null,
@@ -447,11 +453,22 @@ class TurnRun<Item> {
   }
 
   private out(items: Item[]): void {
-    if (items.length > 0) {
-      if (this.writer) this.writer(items);
-      else this.pending.push(...items);
+    try {
+      if (items.length > 0) {
+        if (this.writer) this.deliver(this.writer, items);
+        else this.pending.push(...items);
+      }
+    } finally {
+      if (this.finished) this.release();
     }
-    if (this.finished) this.release();
+  }
+
+  private deliver(write: (items: Item[]) => void, items: Item[]): void {
+    try {
+      write(items);
+    } catch (err) {
+      this.report(err);
+    }
   }
 
   private release(): void {
@@ -465,7 +482,7 @@ class TurnRun<Item> {
   stream(write: (items: Item[]) => void): void {
     this.writer = write;
     const waiting = this.pending.splice(0);
-    if (waiting.length > 0) write(waiting);
+    if (waiting.length > 0) this.deliver(write, waiting);
   }
 
   /** Lets go of the chat without an answer: the turn never started. */
@@ -812,7 +829,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         structured: turn.jsonSchema !== undefined,
         ...(tools ? { clientTools: { prefix: CLIENT_TOOL_PREFIX, names: allowedToolNames(choice, listed), single: !parallel } } : {}),
       });
-      const current = new TurnRun<Item>(core, translator, openTurns, tools, tools ? (calls) => handOff(tools, calls) : null);
+      const report = (err: unknown): void => req.log.error({ err, scope: 'openai' }, 'writing the answer failed');
+      const current = new TurnRun<Item>(core, translator, openTurns, report, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
       const startOpts = { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools, apply };
       try {
@@ -857,6 +875,11 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
        * Once per turn, and before the event that ends it is written: a client that reads
        * `response.completed` (or `[DONE]`) and sends its follow-up at once must find the stored
        * response and the conversation key already there.
+       *
+       * A write that fails (SQLITE_BUSY from another process on the data dir, a full disk) is logged
+       * and the answer is still served: the turn ran, cost money and may have changed files, and a
+       * failed answer would make the client retry it. What is lost is only the shortcut back to the
+       * chat: a resent history without its key starts cold, an unsaved response answers 404 later.
        */
       const remember = (): void => {
         if (remembered || !translator.finished) return;
@@ -864,8 +887,16 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         const answered = translator.answered();
         if (!answered) return;
         const after = plan.keyAfter(answered);
-        core.openaiConversations.remember(after, chatId, turn.user);
-        plan.completed?.(translator, chatId, after);
+        try {
+          core.openaiConversations.remember(after, chatId, turn.user);
+        } catch (err) {
+          req.log.error({ err, scope: 'openai', chatId }, 'storing the conversation key failed; the answer is served without it');
+        }
+        try {
+          plan.completed?.(translator, chatId, after);
+        } catch (err) {
+          req.log.error({ err, scope: 'openai', chatId }, 'storing the response failed; the answer is served without it');
+        }
       };
       const out: Record<string, string> = {
         [CHAT_ID_HEADER]: chatId,
