@@ -1,5 +1,5 @@
 import * as RadixTooltip from '@radix-ui/react-tooltip';
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactElement, type ReactNode } from 'react';
 import { layerCollisionPadding } from './layer';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
@@ -50,27 +50,37 @@ export function focusOpensTooltip(sinceNavigation: number, focusVisible: boolean
  * Themed tooltip for interactive elements. The child must accept a ref (native elements do).
  * Empty content keeps it closed without changing the tree, so a conditional hint never remounts
  * the child (an input would lose focus mid-typing).
+ *
+ * `describe` makes the hint the trigger's description at all times, for a trigger whose hint says
+ * something its own words do not (a badge that is not a control). Radix links its content only while
+ * the tooltip is open, so a screen reader walking the page never heard the hint; a hidden copy is the
+ * description while closed, and Radix's own content takes over while open, so it is announced once.
  */
 export function Tooltip({
   content,
   children,
   side = 'top',
+  describe = false,
 }: {
   content: ReactNode;
   children: ReactElement;
   side?: 'top' | 'right' | 'bottom' | 'left';
+  describe?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const descriptionId = useId();
   useEffect(listenForNavigation, []);
   const empty = content === undefined || content === null || content === false || content === '';
   // Content that goes away closes the tooltip, so it does not reopen when the content comes back
   useEffect(() => {
     if (empty) setOpen(false);
   }, [empty]);
+  const described = describe && !empty;
   return (
     <RadixTooltip.Root open={open && !empty} onOpenChange={(next) => setOpen(nextTooltipOpen(next, empty))}>
       <RadixTooltip.Trigger
         asChild
+        aria-describedby={described && !open ? descriptionId : undefined}
         // Radix skips its own focus handler (which opens) when this one prevents the default
         onFocus={(e) => {
           if (!focusOpensTooltip(performance.now() - navigatedAt, e.currentTarget.matches(':focus-visible'))) e.preventDefault();
@@ -78,6 +88,11 @@ export function Tooltip({
       >
         {children}
       </RadixTooltip.Trigger>
+      {described && (
+        <span id={descriptionId} hidden>
+          {content}
+        </span>
+      )}
       <RadixTooltip.Portal>
         <RadixTooltip.Content className="tooltip" side={side} sideOffset={6} collisionPadding={layerCollisionPadding()}>
           {content}

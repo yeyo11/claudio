@@ -1,6 +1,7 @@
 import type { ChatAgentStatus, ChatControl, ChatOrigin, ChatState, ChatSummary, ExecutionOutcome } from '@claudio/shared';
 import { CircleCheck, CirclePause, Cog, Hand, Lock, Network, OctagonX, Play, Plug, Terminal, TriangleAlert, Zap, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAgentName } from '../lib/agent';
 import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded } from '../lib/chat-model';
 import { formatNumber } from '@claudio/ui/lib/format';
 import '../chats.css';
@@ -87,13 +88,21 @@ export function ProviderBadge({ provider, label }: { provider: string; label: st
 
 const ORIGIN_ICON:Record<ChatOrigin, LucideIcon> = { claudio: Play, external: Terminal, orchestration: Network, internal: Cog, api: Plug };
 
-/** Where the chat was born: it never changes, even when resuming adopts the chat. */
+/**
+ * Where the chat was born: it never changes, even when resuming adopts the chat.
+ *
+ * The hint is not only the mouse's: the badge is a Tab stop, so a keyboard opens the tooltip, and the
+ * hint is its description, so a screen reader hears it without opening anything. Its one place
+ * today is the chat's facts panel; a list that showed it on every row would keep it out of the Tab
+ * order and keep only the description.
+ */
 export function OriginBadge({ origin, label }: { origin: ChatOrigin; label?: string }) {
   const { t } = useTranslation('chat');
+  const agent = useAgentName();
   const Icon = ORIGIN_ICON[origin];
   return (
-    <Tooltip content={t(`badges.originHint.${origin}`)}>
-      <span className="badge badge-muted">
+    <Tooltip content={t(`badges.originHint.${origin}`, { agent })} describe>
+      <span className="badge badge-muted" tabIndex={0}>
         <Icon size={11} strokeWidth={2} aria-hidden /> {label ?? t(`badges.origin.${origin}`)}
       </span>
     </Tooltip>
