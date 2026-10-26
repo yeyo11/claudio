@@ -25,6 +25,8 @@
 //                      are answered the turn ends with `results: <text of each, in order>`.
 //   TOOLS_TEXT <json>  the same after a line of text, `Calling the tools.`
 //   TOOLS_NOMETA <json> the same, but `tools/call` carries no tool call id (the FIFO fallback)
+//   TOOLS_SIDE <json>  the calls made by a subagent: the `tool_use` blocks only in a sidechain message
+//                      (no main-agent block names them), then a `can_use_tool` request per call
 //   TOOLS_HANG <json>  the blocks and the requests, but the message never ends: only an interrupt
 //                      ends the turn (the requests withdrawn with `control_cancel_request`)
 //   BASH [command]     a built-in `Bash` call (`ls` by default). As the CLI does, a call its own
@@ -155,6 +157,13 @@ async function settleAsk(requestId, response) {
 function callTools(kind, calls) {
   const block = (event) => out({ type: 'stream_event', parent_tool_use_id: null, event });
   const message = (content) => out({ type: 'assistant', parent_tool_use_id: null, message: { id: `msg_${String(turns)}`, role: 'assistant', model: 'claude-sonnet-5-5', content, stop_reason: null } });
+  if (kind === 'TOOLS_SIDE') {
+    const side = calls.map((call, i) => ({ id: `toolu_side_${String(turns)}_${String(i)}_${String(process.pid)}`, name: `mcp__client__${call.name}`, input: call.input ?? {} }));
+    toolTurn = { calls: side, done: new Map(), noMeta: false };
+    out({ type: 'assistant', parent_tool_use_id: 'toolu_parent', message: { id: `msg_side_${String(turns)}`, role: 'assistant', model: 'claude-sonnet-5-5', content: side.map((c) => ({ type: 'tool_use', ...c })), stop_reason: null } });
+    for (const call of side) askFor(call.id, call.name, call.input);
+    return;
+  }
   block({ type: 'message_start', message: { role: 'assistant' } });
   let index = 0;
   if (kind === 'TOOLS_TEXT') {
@@ -212,7 +221,7 @@ async function answer(prompt) {
   await connectStub();
   const lines = prompt.trim().split('\n').filter((l) => !l.startsWith('(For this turn:')).join('\n').trim().split('\n');
   const last = lines.at(-1) ?? '';
-  const tools = /^(TOOLS|TOOLS_TEXT|TOOLS_NOMETA|TOOLS_HANG) (.*)$/.exec(last);
+  const tools = /^(TOOLS|TOOLS_TEXT|TOOLS_NOMETA|TOOLS_HANG|TOOLS_SIDE) (.*)$/.exec(last);
   if (tools) {
     callTools(tools[1], JSON.parse(tools[2]));
     return;

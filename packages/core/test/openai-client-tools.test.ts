@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { PermissionDecision, TranscriptEntry } from '@claudio/shared';
 import {
   answerStub,
+  CLIENT_ABANDONED_MESSAGE,
   CLIENT_TIMEOUT_MESSAGE,
   CLIENT_TOOL_PREFIX,
   ClientToolSession,
@@ -26,6 +27,8 @@ import type { PermissionQuestion } from '../src/providers/driver.ts';
 
 const tool = (name: string, description: string | null = null): ClientTool => ({ name, description, parameters: { type: 'object', properties: { city: { type: 'string' } } }, strict: false });
 const ask = (toolUseId: string, name: string, input: Record<string, unknown> = { city: 'Madrid' }): PermissionQuestion => ({ id: `req-${toolUseId}`, toolName: name, toolUseId, input });
+/** A call as the translator streams it and the hand-off carries it */
+const call = (id: string, name: string, input: unknown = { city: 'Madrid' }) => ({ id, name, input });
 
 /** Answers recorded per request, so a test sees every decision and that each came once. */
 function recorder() {
@@ -39,8 +42,9 @@ function recorder() {
 test('a client tool request is held, unanswered, and a built-in tool is refused at once as nobody-answers', () => {
   const s = new ClientToolSession([tool('get_weather')]);
   const { answers, answer } = recorder();
-  const call = ask('toolu_1', `${CLIENT_TOOL_PREFIX}get_weather`);
-  s.ask(call, answer(call));
+  s.claim([call('toolu_1', 'get_weather')]);
+  const first = ask('toolu_1', `${CLIENT_TOOL_PREFIX}get_weather`);
+  s.ask(first, answer(first));
   assert.equal(answers.size, 0);
   assert.equal(s.heldCount(), 1);
   const bash = ask('toolu_2', 'Bash', { command: 'ls' });
@@ -58,9 +62,10 @@ test('delivering the results allows each held request with its original input, i
   const { answers, answer } = recorder();
   const a = ask('toolu_a', `${CLIENT_TOOL_PREFIX}a`, { city: 'Lima' });
   const b = ask('toolu_b', `${CLIENT_TOOL_PREFIX}b`, { city: 'Oslo' });
+  s.claim([call('toolu_a', 'a', { city: 'Lima' }), call('toolu_b', 'b', { city: 'Oslo' })]);
   s.ask(a, answer(a));
   s.ask(b, answer(b));
-  s.handOff([{ id: 'toolu_a', name: 'a' }, { id: 'toolu_b', name: 'b' }], 60_000, () => assert.fail('no expiry'));
+  s.handOff([call('toolu_a', 'a', { city: 'Lima' }), call('toolu_b', 'b', { city: 'Oslo' })], 60_000, () => assert.fail('no expiry'));
   assert.ok(s.waiting);
   assert.deepEqual(s.awaitingIds().sort(), ['toolu_a', 'toolu_b']);
   s.deliver([{ toolCallId: 'toolu_b', text: 'cold' }, { toolCallId: 'toolu_a', text: 'warm' }]);
@@ -74,7 +79,7 @@ test('delivering the results allows each held request with its original input, i
 
 test('without the tool call id the stub falls back to the oldest result for that tool', () => {
   const s = new ClientToolSession([tool('a'), tool('b')]);
-  s.handOff([{ id: 't1', name: 'a' }, { id: 't2', name: 'b' }, { id: 't3', name: 'a' }], 60_000, () => undefined);
+  s.handOff([call('t1', 'a'), call('t2', 'b'), call('t3', 'a')], 60_000, () => undefined);
   s.deliver([{ toolCallId: 't1', text: 'first a' }, { toolCallId: 't2', text: 'b' }, { toolCallId: 't3', text: 'second a' }]);
   assert.equal(s.callResult('a', undefined).text, 'first a');
   assert.equal(s.callResult('b', undefined).text, 'b');
@@ -88,8 +93,9 @@ test('a request for a call whose result came first is allowed at once (a CLI tha
   const s = new ClientToolSession([tool('a'), tool('b')]);
   const { answers, answer } = recorder();
   const a = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
+  s.claim([call('t1', 'a'), call('t2', 'b', { city: 'Rome' })]);
   s.ask(a, answer(a));
-  s.handOff([{ id: 't1', name: 'a' }, { id: 't2', name: 'b' }], 60_000, () => undefined);
+  s.handOff([call('t1', 'a'), call('t2', 'b', { city: 'Rome' })], 60_000, () => undefined);
   s.deliver([{ toolCallId: 't1', text: '1' }, { toolCallId: 't2', text: '2' }]);
   const b = ask('t2', `${CLIENT_TOOL_PREFIX}b`, { city: 'Rome' });
   s.ask(b, answer(b));
@@ -110,6 +116,7 @@ test("tool_choice none and a named function deny the other client tools with a m
   s.ask(a2, answer(a2));
   assert.match(String((answers.get(a2.id)?.[0] as { message?: string }).message), /requires `b`/);
   const b = ask('t3', `${CLIENT_TOOL_PREFIX}b`);
+  s.claim([call('t3', 'b')]);
   s.ask(b, answer(b));
   assert.equal(answers.has(b.id), false);
   assert.equal(s.heldCount(), 1);
@@ -121,9 +128,11 @@ test('the handoff refuses held requests it does not hand over (parallel_tool_cal
   const { answers, answer } = recorder();
   const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
   const two = ask('t2', `${CLIENT_TOOL_PREFIX}a`);
+  // The translator claims only the first call when parallel_tool_calls is false
+  s.claim([call('t1', 'a')]);
   s.ask(one, answer(one));
   s.ask(two, answer(two));
-  s.handOff([{ id: 't1', name: 'a' }], 60_000, () => undefined);
+  s.handOff([call('t1', 'a')], 60_000, () => undefined);
   assert.equal(answers.has(one.id), false);
   assert.match(String((answers.get(two.id)?.[0] as { message?: string }).message), /parallel_tool_calls/);
   // While the client has the calls, a request for any other call is refused
@@ -136,9 +145,10 @@ test('the wait runs out: every held request gets the timeout error, the calls ar
   const s = new ClientToolSession([tool('a')]);
   const { answers, answer } = recorder();
   const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
+  s.claim([call('t1', 'a')]);
   s.ask(one, answer(one));
   let expired = 0;
-  s.handOff([{ id: 't1', name: 'a' }], 20, () => expired++);
+  s.handOff([call('t1', 'a')], 20, () => expired++);
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(expired, 1);
   assert.deepEqual(answers.get(one.id), [{ behavior: 'deny', message: CLIENT_TIMEOUT_MESSAGE }]);
@@ -149,7 +159,7 @@ test('the wait runs out: every held request gets the timeout error, the calls ar
 test('results before the wait ends cancel it', async () => {
   const s = new ClientToolSession([tool('a')]);
   let expired = 0;
-  s.handOff([{ id: 't1', name: 'a' }], 20, () => expired++);
+  s.handOff([call('t1', 'a')], 20, () => expired++);
   s.deliver([{ toolCallId: 't1', text: 'x' }]);
   await new Promise((r) => setTimeout(r, 60));
   assert.equal(expired, 0);
@@ -160,6 +170,7 @@ test('a withdrawn request (an interrupt) and the end of the process leave nothin
   const { answers, answer } = recorder();
   const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
   const two = ask('t2', `${CLIENT_TOOL_PREFIX}a`);
+  s.claim([call('t1', 'a'), call('t2', 'a')]);
   s.ask(one, answer(one));
   s.ask(two, answer(two));
   s.withdrawn(one.id);
@@ -167,6 +178,37 @@ test('a withdrawn request (an interrupt) and the end of the process leave nothin
   s.ended();
   assert.equal(s.heldCount(), 0);
   assert.equal(answers.size, 0);
+});
+
+test('a client-tool request nobody claimed is denied at once; the end of the process forgets the calls with the client', () => {
+  const s = new ClientToolSession([tool('a')]);
+  const { answers, answer } = recorder();
+  const stray = ask('t0', `${CLIENT_TOOL_PREFIX}a`);
+  s.ask(stray, answer(stray));
+  assert.match(String((answers.get(stray.id)?.[0] as { message?: string }).message), /not handed to the client/);
+  assert.equal(s.heldCount(), 0);
+  s.claim([call('t1', 'a')]);
+  const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
+  s.ask(one, answer(one));
+  s.handOff([call('t1', 'a')], 60_000, () => assert.fail('no expiry'), 4242);
+  assert.equal(s.holderPid, 4242);
+  s.ended();
+  assert.equal(s.waiting, false);
+  assert.equal(s.holderPid, null);
+  assert.deepEqual(s.awaitingIds(), []);
+});
+
+test('dropping the calls answers a request still held with an error result and forgets them', () => {
+  const s = new ClientToolSession([tool('a')]);
+  const { answers, answer } = recorder();
+  s.claim([call('t1', 'a')]);
+  const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
+  s.ask(one, answer(one));
+  s.handOff([call('t1', 'a')], 60_000, () => assert.fail('no expiry'));
+  s.abandon();
+  assert.deepEqual(answers.get(one.id), [{ behavior: 'deny', message: CLIENT_ABANDONED_MESSAGE }]);
+  assert.equal(s.waiting, false);
+  assert.equal(s.heldCount(), 0);
 });
 
 // ---------- validation ----------
@@ -242,7 +284,7 @@ test('the stub lists the tools read-only, answers calls from the results, and 20
   assert.equal(discover.body.error.code, -32601);
   const list = answerStub({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, s) as { body: { result: { tools: unknown[] } } };
   assert.deepEqual(list.body.result.tools, [{ name: 'get_weather', description: 'The weather', inputSchema: tool('x').parameters, annotations: { readOnlyHint: true } }]);
-  s.handOff([{ id: 'toolu_9', name: 'get_weather' }], 60_000, () => undefined);
+  s.handOff([{ id: 'toolu_9', name: 'get_weather', input: {} }], 60_000, () => undefined);
   s.deliver([{ toolCallId: 'toolu_9', text: 'sunny' }]);
   const call = answerStub({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'get_weather', arguments: {}, _meta: { 'claudecode/toolUseId': 'toolu_9' } } }, s) as { body: { result: unknown } };
   assert.deepEqual(call.body.result, { content: [{ type: 'text', text: 'sunny' }] });
@@ -287,11 +329,11 @@ test('parallel calls get indexes 0 and 1; built-in, disallowed and single-mode e
   t.push(msg(toolUse('t1', `${CLIENT_TOOL_PREFIX}a`, {})));
   t.push(msg(toolUse('t2', `${CLIENT_TOOL_PREFIX}b`, { x: 1 })));
   t.push(msg(toolUse('t3', `${CLIENT_TOOL_PREFIX}c`, {})));
-  assert.deepEqual(t.clientCalls(), [{ id: 't1', name: 'a' }, { id: 't2', name: 'b' }]);
+  assert.deepEqual(t.clientCalls(), [{ id: 't1', name: 'a', input: {} }, { id: 't2', name: 'b', input: { x: 1 } }]);
   const single = clientTranslator(['a', 'b'], true);
   single.push(msg(toolUse('t1', `${CLIENT_TOOL_PREFIX}a`, {})));
   single.push(msg(toolUse('t2', `${CLIENT_TOOL_PREFIX}b`, {})));
-  assert.deepEqual(single.clientCalls(), [{ id: 't1', name: 'a' }]);
+  assert.deepEqual(single.clientCalls(), [{ id: 't1', name: 'a', input: {} }]);
   // No call, no handoff: the turn goes on to its result
   assert.equal(clientTranslator(['a']).handOff(), null);
 });

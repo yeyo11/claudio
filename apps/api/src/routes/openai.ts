@@ -4,9 +4,12 @@ import { isAbsolute, resolve, sep } from 'node:path';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Core, FetchImageOptions, OpenAiFailure, RunResult } from '@claudio/core';
 import {
+  abandonsClientCalls,
+  allowedToolNames,
   ChatCompletionTranslator,
   CLIENT_TOOL_PREFIX,
   clientToolsProblem,
+  missingResults,
   renderOpenAiResultsCold,
   resultsProblem,
   sameClientTools,
@@ -30,7 +33,9 @@ import {
   type ChatCompletionRequest,
   type ChatCompletionStreamItem,
   type OpenAiChatTurn,
+  type OpenAiClientCall,
   type OpenAiErrorResponse,
+  type OpenAiToolChoice,
 } from '@claudio/core';
 import type { ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
 import { deliberate } from '../errors.ts';
@@ -304,8 +309,9 @@ class TurnRun {
     readonly translator: ChatCompletionTranslator,
     /** The turns open now, by chat: where the end of each API message is told (`chat-stop-reason`) */
     private readonly open: Map<string, TurnRun>,
-    /** Hands the calls to the client's session when the turn ends with them */
-    private readonly onHandOff: ((calls: Array<{ id: string; name: string }>) => void) | null = null,
+    /** The chat's client-tool session: told each call as it streams, and handed the calls at the end */
+    private readonly session: ClientToolSession | null = null,
+    private readonly onHandOff: ((calls: OpenAiClientCall[]) => void) | null = null,
   ) {
     this.done = new Promise<void>((r) => {
       this.settle = r;
@@ -395,6 +401,8 @@ class TurnRun {
       return;
     }
     this.out(this.translator.push(event));
+    // Before the CLI can ask for them: it writes a block's message first, and this runs as it arrives
+    if (this.session && event.kind === 'message') this.session.claim(this.translator.clientCalls());
   }
 
   private ended(result: RunResult | null): void {
@@ -572,11 +580,17 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (late.length) {
         throw fail({ kind: 'invalid-request', param: 'messages', message: `The tool calls ${late.join(', ')} waited longer than the tool-call timeout (openaiToolCallTimeoutMinutes) for their results, and the chat was stopped. Start the conversation again.` });
       }
-      const live = existing !== null ? (core.runtime.get(existing)?.pid ?? null) !== null : false;
-      // The CLI is holding the client's calls: the results go to it, no message is sent
-      const held = live && session?.waiting === true;
-      // The process that held them is gone (a restart, the idle expiry, a crash): the chat resumes cold
-      const cold = existing !== null && !live && trailing.results.length > 0;
+      const pid = existing !== null ? (core.runtime.get(existing)?.pid ?? null) : null;
+      // The CLI process that asked for the calls is the one holding them: another process (a restart,
+      // a person's resume) never asked, and results sent to it would wait for nothing
+      const holding = pid !== null && session?.waiting === true && session.holderPid === pid;
+      // The client dropped the calls and sent a new message: the turn holding them is interrupted
+      const abandoning = holding && abandonsClientCalls(trailing);
+      const held = holding && !abandoning;
+      // Results that no live process holds: the chat is resumed with them as a message
+      const cold = existing !== null && !held && trailing.results.length > 0;
+      // Every refusal comes before anything shared is touched (`heldProblem` throws)
+      if (held && session) heldProblem(session, trailing);
 
       const prompt = held ? { prompt: '', images: [] } : target.kind === 'new' ? turn.cold : cold ? renderOpenAiResultsCold(request.messages) : turn.delta;
       const uploaded = await uploadOpenAiImages(prompt.images, {
@@ -587,15 +601,22 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
       // A chat keeps its session once it had client tools: its process may serve the stub still
       const tools = session ?? (wantsTools ? registry.create(request.tools) : null);
-      if (tools) {
-        tools.choice = wantsTools ? request.toolChoice : { kind: 'none' };
-        tools.parallel = request.parallelToolCalls !== false;
+      const choice: OpenAiToolChoice = wantsTools ? request.toolChoice : { kind: 'none' };
+      const parallel = request.parallelToolCalls !== false;
+      const before = tools ? { choice: tools.choice, parallel: tools.parallel } : null;
+      /** This request's rules on the session: applied as the last step before the turn runs, so a refused request changes nothing */
+      const apply = (): void => {
+        if (!tools) return;
+        tools.choice = choice;
+        tools.parallel = parallel;
         if (cold) tools.forgetCalls();
-      }
+      };
       // A live stub lists what it listed when the process started; the results go there all the same
       if (held && wantsTools && tools && !sameClientTools(tools.tools, request.tools)) ignored.push('tools');
       const instruction = !held && wantsTools ? toolChoiceInstruction(request.toolChoice) : null;
       const text = instruction ? `${prompt.prompt}\n\n${instruction}` : prompt.prompt;
+      // What the stub will list this turn: the live list when results go to it, else this request's
+      const listed = tools && (held || !wantsTools) ? tools.tools : request.tools;
 
       const translator = new ChatCompletionTranslator({
         id: `chatcmpl-${randomUUID().replaceAll('-', '')}`,
@@ -603,16 +624,22 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         created: Math.floor(Date.now() / 1000),
         includeUsage: turn.includeUsage,
         structured: turn.jsonSchema !== undefined,
-        ...(tools ? { clientTools: { prefix: CLIENT_TOOL_PREFIX, names: tools.allowedNames(), single: !tools.parallel } } : {}),
+        ...(tools ? { clientTools: { prefix: CLIENT_TOOL_PREFIX, names: allowedToolNames(choice, listed), single: !parallel } } : {}),
       });
-      const current = new TurnRun(core, translator, openTurns, tools ? (calls) => handOff(tools, calls) : null);
+      const current = new TurnRun(core, translator, openTurns, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
       try {
-        if (held && tools && existing !== null) continueHeld(current, existing, tools, trailing);
-        else await startTurn(current, target, turn, text, uploaded.value, { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools });
+        if (abandoning && tools && existing !== null) await abandon(existing, tools);
+        if (held && tools && existing !== null) continueHeld(current, existing, tools, trailing, apply);
+        else await startTurn(current, target, turn, text, uploaded.value, { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools, apply });
       } catch (err) {
         current.detach();
         if (tools && !session) registry.discard(tools);
+        // A turn that did not start leaves the session's rules as the request before it set them
+        if (tools && session && before) {
+          tools.choice = before.choice;
+          tools.parallel = before.parallel;
+        }
         throw err;
       }
       const chatId = current.chatId;
@@ -662,29 +689,57 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
    * The calls are the client's now. The wait is the setting's, read when it starts; a call still owed
    * at its end is answered to the CLI with an error result, and the chat is stopped (decision 2).
    */
-  function handOff(tools: ClientToolSession, calls: Array<{ id: string; name: string }>): void {
-    tools.handOff(calls, toolCallWaitMs(core), () => {
-      if (tools.chatId === null) return;
-      try {
-        core.runtime.stop(tools.chatId);
-      } catch {
-        // already gone
-      }
-    });
+  function handOff(tools: ClientToolSession, calls: OpenAiClientCall[]): void {
+    const holder = tools.chatId === null ? null : (core.runtime.get(tools.chatId)?.pid ?? null);
+    tools.handOff(
+      calls,
+      toolCallWaitMs(core),
+      () => {
+        if (tools.chatId === null) return;
+        try {
+          core.runtime.stop(tools.chatId);
+        } catch {
+          // already gone
+        }
+      },
+      holder,
+    );
+  }
+
+  /**
+   * Drops the calls the CLI is holding, for a client that sent a new message instead of their
+   * results: the turn is interrupted (the CLI withdraws its requests and ends the turn), and the
+   * message then goes to the idle process as usual. Waits only as long as an interrupt takes.
+   */
+  async function abandon(chatId: string, tools: ClientToolSession): Promise<void> {
+    const ended = core.runtime.nextResult(chatId).then(
+      () => true,
+      () => true,
+    );
+    await core.chats.interrupt(chatId).catch(() => undefined);
+    const settled = await Promise.race([ended, new Promise<false>((r) => setTimeout(() => r(false), INTERRUPT_GRACE_MS).unref())]);
+    tools.abandon();
+    if (!settled) throw fail({ kind: 'conflict', message: 'The chat is still ending the turn whose tool calls were dropped; try again in a moment.' });
+  }
+
+  /** Why results cannot go to the calls the CLI is holding, thrown before anything is changed. */
+  function heldProblem(tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>): void {
+    const awaiting = new Set(tools.awaitingIds());
+    const unknown = trailing.results.filter((r) => !awaiting.has(r.toolCallId)).map((r) => `\`${r.toolCallId}\``);
+    if (unknown.length) throw fail({ kind: 'invalid-request', param: 'messages', message: `The chat is not waiting for the tool calls ${unknown.join(', ')}.` });
+    const missing = [...awaiting].filter((id) => !trailing.results.some((r) => r.toolCallId === id));
+    if (missing.length) throw fail(missingResults(missing));
+    // The CLI is in the middle of a turn: a message now would be read by it, or start a turn nobody reads
+    if (trailing.userAfter) throw fail({ kind: 'invalid-request', param: 'messages', message: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.' });
   }
 
   /**
    * The client's results for the calls the CLI is holding: each held request is allowed with its
    * original input, the stub hands the CLI the text, and the same CLI turn goes on, read from here.
    */
-  function continueHeld(current: TurnRun, chatId: string, tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>): void {
-    const awaiting = new Set(tools.awaitingIds());
-    const unknown = trailing.results.filter((r) => !awaiting.has(r.toolCallId)).map((r) => `\`${r.toolCallId}\``);
-    if (unknown.length) throw fail({ kind: 'invalid-request', param: 'messages', message: `The chat is not waiting for the tool calls ${unknown.join(', ')}.` });
-    const missing = [...awaiting].filter((id) => !trailing.results.some((r) => r.toolCallId === id)).map((id) => `\`${id}\``);
-    if (missing.length) throw fail({ kind: 'invalid-request', param: 'messages', message: `The chat is waiting for the results of the tool calls ${missing.join(', ')}: send a \`tool\` message for each.` });
-    // The CLI is in the middle of a turn: a message now would be read by it, or start a turn nobody reads
-    if (trailing.userAfter) throw fail({ kind: 'invalid-request', param: 'messages', message: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.' });
+  function continueHeld(current: TurnRun, chatId: string, tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>, apply: () => void): void {
+    heldProblem(tools, trailing);
+    apply();
     current.attach(chatId);
     tools.deliver(trailing.results);
     current.replay();
@@ -727,7 +782,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     turn: OpenAiChatTurn,
     prompt: string,
     attachments: string[],
-    opts: { provider: string; cwd: string | undefined; toolPreset: string | undefined; ignored: string[]; tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools'] },
+    opts: { provider: string; cwd: string | undefined; toolPreset: string | undefined; ignored: string[]; tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools']; apply: () => void },
   ): Promise<void> {
     const permissionMode = permissionModeOf(core);
     const { tools } = opts;
@@ -748,6 +803,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     };
     if (target.kind === 'new') {
       const extra = tools ? servers() : undefined;
+      opts.apply();
       await core.chats.create(
         {
           prompt,
@@ -790,6 +846,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const restart = runtime.pid !== null && (!sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema) || toolsChanged);
     if (restart) await core.runtime.endBetweenTurns(id);
     if (tools && opts.wantsTools && (restart || runtime.pid === null)) tools.tools = opts.requestTools;
+    opts.apply();
     host(id);
     if (runtime.pid !== null && !restart) {
       // The same rules as a start or a resume, on the live process: nobody answers a prompt here

@@ -443,8 +443,12 @@ session is the chat's `PermissionHost` (`ChatManager.setPermissionHost`). Every 
 CLI sends goes to it, before Claudio's tool policy, and **none reaches `PermissionBroker`**: its
 10-minute deny and the panel's buttons cannot answer a client's call, `pendingPrompts` stays 0, and
 the chat's permission list and notices show nothing. The session holds a request for one of the
-client's tools in its own map and denies everything else at once, with the message
-`permissionPrompts: 'none'` gives. Built-in tools that the chat's tool preset and permission mode
+client's tools in its own map only when the turn being read has **claimed** that call: the
+translator tells the session each main-agent `mcp__client__*` block it streams to the client, as the
+block's message arrives, and the CLI writes that message before it asks. A request for a call nobody
+claimed (a subagent's call, one `parallel_tool_calls: false` or a named `tool_choice` left out, a late
+ask) is denied at once with "This call was not handed to the client." rather than held until a
+watchdog. A built-in tool is denied at once with the message `permissionPrompts: 'none'` gives. Built-in tools that the chat's tool preset and permission mode
 allow without asking still run in the same turn, as in any API chat: a preset reaches the CLI as its
 own `--allowedTools` and `--disallowedTools`, which it applies before it would send `can_use_tool`,
 so nothing Claudio answers can take them away. This surface gives its chats no Claudio tool policy
@@ -479,10 +483,25 @@ a turn being read, so it does not run while the calls are with the client; the w
 limit.
 
 **What the results must be.** A `tool` message for every call of the last assistant message, and
-none for anything else: an unknown `tool_call_id`, a missing result or two results for one call are
-`400 invalid_request_error`, naming the ids. While the CLI is holding the calls, the results must
-also be the ones it waits for, and a `user` message after them is a `400` (the CLI is in the middle
-of its turn; send the results, then the message).
+none for anything else: an unknown `tool_call_id`, results for some calls but not all, or two
+results for one call are `400 invalid_request_error`, naming the ids ("… have no result: send a
+`tool` message for each of them, or none and a new `user` message to drop them"; the same words
+whether the history or the live process is short of them). While the CLI is holding the calls, the
+results must also be the ones it waits for, and a `user` message after a full set of results is a
+`400` (the CLI is in the middle of its turn; send the results, then the message).
+
+**Dropping the calls.** A request with **no** result for the calls and a new `user` message (after
+the assistant message with the calls, or alone on a chat named by `X-Claudio-Chat-Id`) drops them:
+the turn holding them is interrupted (the CLI withdraws its requests, a held one still left gets the
+error result "the client sent a new message instead of a result for this call"), and the message
+then goes to the idle process as an ordinary turn. If the interrupt does not land within 30 s the
+request is a `409` and nothing else is sent.
+
+**Every refusal comes first.** The checks on a request (its results against the held calls, the
+target chat, a conflict, the images) all run before the session is touched: the session's
+`tool_choice` and `parallel_tool_calls` change as the last step before the turn runs, and go back to
+what they were if starting it fails, so a refused request never changes what another client's held
+calls get.
 
 **The wait.** `openaiToolCallTimeoutMinutes` (`GET`/`PUT /api/settings/app`, 1 to 1440, **10** by
 default, `null` resets it; `CLAUDIO_OPENAI_TOOL_CALL_TIMEOUT_MINUTES` fixes it), read when each wait
@@ -496,8 +515,13 @@ environment.
 disconnect: the chat is interrupted, and the CLI withdraws the held requests
 (`control_cancel_request`) and ends its turn (spike).
 
-**Cold resume.** When the results arrive and the process is gone (a restart, the idle expiry, a
-crash), the chat is resumed with `--resume`. The CLI writes its own "tool call interrupted" error for
+**Cold resume.** The results go to the held requests only when the chat's live process is the one
+the calls were handed over from (`ClientToolSession.holderPid`). When that process is gone (a
+restart, the idle expiry, a crash), the session forgets its calls as the process ends, and results
+that no live process holds go in as a cold resume, even when another process of the chat is up by
+then (a person's resume, an earlier request's turn): the new process never asked for them. A chat
+without a live process is resumed with `--resume`; one with an idle process that serves the stub gets
+the message on that process. The CLI writes its own "tool call interrupted" error for
 each call that was dangling (spike question 6), and the results go in as a user message that says
 the session restarted. The answer carries `X-Claudio-Resume: cold`.
 

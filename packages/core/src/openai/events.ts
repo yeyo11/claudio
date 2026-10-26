@@ -225,8 +225,8 @@ export class ChatCompletionTranslator {
   }
 
   /** Calls the client is to make, streamed so far, in order: what `handOff()` would hand over. */
-  clientCalls(): Array<{ id: string; name: string }> {
-    return this.toolCallList().map((c) => ({ id: c.id, name: c.function.name }));
+  clientCalls(): Array<{ id: string; name: string; input: unknown }> {
+    return this.toolCallList().map((c) => ({ id: c.id, name: c.function.name, input: parsedArguments(c.function.arguments) }));
   }
 
   /**
@@ -342,5 +342,14 @@ export class ChatCompletionTranslator {
 
   private toolCallList(): ToolCall[] {
     return [...this.calls.values()].sort((a, b) => a.index - b.index).map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } }));
+  }
+}
+
+/** A call's arguments back as a value: they were written by `JSON.stringify`, so they parse. */
+function parsedArguments(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
   }
 }

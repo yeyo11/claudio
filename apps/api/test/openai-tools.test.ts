@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
+import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
 
 // Client tools on /v1/chat/completions (docs/openai-compatible-api.md, phase 4): over a real core,
 // the real routes and the stub MCP server, and a fake CLI that loads the stub from `--mcp-config`,
@@ -20,6 +21,7 @@ let app: FastifyInstance;
 let base: string;
 let token: string;
 let log: string;
+const registry = new ClientToolRegistry();
 
 before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-tools-'));
@@ -35,7 +37,7 @@ before(async () => {
   );
   mkdirSync(join(root, 'workspace'), { recursive: true });
   await core.appSettings.update({ maxConcurrentRuns: 64 });
-  app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
+  app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui'), clientTools: registry });
   await app.listen({ port: 0, host: '127.0.0.1' });
   const address = app.server.address();
   assert.ok(address && typeof address === 'object');
@@ -406,6 +408,79 @@ test('a result for a chat whose process died resumes it cold with --resume, the 
   // The resumed process serves the stub again, for the next calls (the fake logs it after the turn's result)
   await until(() => logged(chatId).filter((l) => l.stub).length === 2, 10_000);
   assert.equal(core.runtime.get(chatId)?.permissionPrompts, 'host');
+});
+
+test('a refused request leaves the session\'s tool_choice, parallel_tool_calls and held calls as they were, and the first client still completes', async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'get_weather', input: { city: 'Oslo' } }, { name: 'lookup', input: { key: 'k' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [weather, lookup] });
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const [a, b] = body.choices[0]?.message.tool_calls ?? [];
+  assert.ok(a && b);
+  const session = registry.ofChat(chatId);
+  assert.ok(session);
+  await until(() => session.heldCount() === 2);
+  // The same chat by name, with other calls answered and other rules: refused once the held calls are checked
+  const other = [user('x'), { role: 'assistant', content: null, tool_calls: [{ id: 'call_other', type: 'function', function: { name: 'lookup', arguments: '{}' } }] }, toolMsg('call_other', 'z')];
+  const refused = await post({ model: 'sonnet', messages: other, tools: [weather, lookup], tool_choice: 'none', parallel_tool_calls: false }, { 'x-claudio-chat-id': chatId });
+  assert.equal(refused.status, 400);
+  assert.match(((await refused.json()) as ErrorBody).error.message, /call_other/);
+  assert.deepEqual(session.choice, { kind: 'auto' });
+  assert.equal(session.parallel, true);
+  assert.equal(session.heldCount(), 2);
+  assert.deepEqual(session.awaitingIds().sort(), [a.id, b.id].sort());
+  const ok = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(a.id, 'A'), toolMsg(b.id, 'B')], tools: [weather, lookup] }, {}, AbortSignal.timeout(10_000));
+  assert.equal(((await ok.json()) as Completion).choices[0]?.message.content, 'results: A | B');
+});
+
+test('results for calls a dead process held go to a new process of the chat as a cold resume, never to the new process\'s permission requests', async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'lookup', input: { key: 'k' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const pid = core.runtime.get(chatId)?.pid;
+  assert.ok(pid);
+  process.kill(pid, 'SIGKILL');
+  await until(() => core.runtime.get(chatId)?.pid === null);
+  // Another turn starts a new process, which never asked for the calls
+  const hello = await post({ model: 'sonnet', messages: [user('hello again')] }, { 'x-claudio-chat-id': chatId }, AbortSignal.timeout(10_000));
+  assert.equal(((await hello.json()) as Completion).choices[0]?.message.content, 'echo: hello again');
+  assert.ok(core.runtime.get(chatId)?.pid);
+  assert.equal(registry.ofChat(chatId)?.waiting, false);
+  const id = body.choices[0]?.message.tool_calls?.[0]?.id ?? '';
+  const res = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(id, 'the value')], tools: [lookup] }, { 'x-claudio-chat-id': chatId }, AbortSignal.timeout(10_000));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('x-claudio-resume'), 'cold');
+  await res.json();
+  assert.match(logged(chatId).filter((l) => l.prompt !== undefined).at(-1)?.prompt ?? '', new RegExp(`<tool-result id="${id}">\\nthe value\\n</tool-result>`));
+});
+
+test('a new user message instead of the results drops the held calls and continues the chat; results for only some calls are still a 400', async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'lookup', input: { key: '1' } }, { name: 'lookup', input: { key: '2' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const [a, b] = body.choices[0]?.message.tool_calls ?? [];
+  assert.ok(a && b);
+  const partial = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(a.id, 'one')], tools: [lookup] });
+  assert.equal(partial.status, 400);
+  const said = ((await partial.json()) as ErrorBody).error.message;
+  assert.match(said, new RegExp(`\`${b.id}\` have no result`));
+  assert.match(said, /or none and a new `user` message to drop them/);
+  const next = await post({ model: 'sonnet', messages: [...messages, echoed(body), user('never mind, say hi')], tools: [lookup] }, {}, AbortSignal.timeout(15_000));
+  assert.equal(next.status, 200);
+  assert.equal(chatOf(next), chatId);
+  assert.equal(((await next.json()) as Completion).choices[0]?.message.content, 'echo: never mind, say hi');
+  assert.equal(registry.ofChat(chatId)?.waiting, false);
+  // The turn that held the calls ended interrupted, before the message was sent
+  const results = core.runtime.events(chatId).filter((e) => e.kind === 'result');
+  assert.equal(results.at(-2)?.outcome?.isError, true);
+});
+
+test('a client-tool request no call handed to the client covers (a subagent\'s) is denied at once instead of held', async () => {
+  const res = await post({ model: 'sonnet', messages: [user(directive('TOOLS_SIDE', [{ name: 'lookup', input: { key: 's' } }]))], tools: [lookup] }, {}, AbortSignal.timeout(8_000));
+  assert.equal(res.status, 200);
+  assert.equal(((await res.json()) as Completion).choices[0]?.message.content, 'results: ERROR This call was not handed to the client.');
 });
 
 // ---------- refusals ----------

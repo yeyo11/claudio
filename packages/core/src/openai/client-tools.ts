@@ -61,6 +61,15 @@ const BUILT_IN = new Set(BUILT_IN_TOOLS.map((n) => n.toLowerCase()));
 export const NOBODY_ANSWERS = 'Nobody is answering permission prompts for this chat';
 /** What the CLI gives the model when the client never sent a result (spike: a clean error result). */
 export const CLIENT_TIMEOUT_MESSAGE = 'the client did not return a result for this call in time';
+/** What a held call gets when the client moved on without its result */
+export const CLIENT_ABANDONED_MESSAGE = 'the client sent a new message instead of a result for this call';
+
+/** The client tools a `tool_choice` lets the model call, by the client's names. */
+export function allowedToolNames(choice: ToolChoice, tools: readonly ClientTool[]): Set<string> {
+  if (choice.kind === 'none') return new Set();
+  if (choice.kind === 'function') return new Set([choice.name]);
+  return new Set(tools.map((t) => t.name));
+}
 
 /** The client's name of a CLI tool name, or null when it is not one of the stub's tools. */
 export function clientToolName(cliName: string): string | null {
@@ -148,13 +157,47 @@ export function resultsProblem(trailing: TrailingResults): OpenAiFailure | null 
   const answered = new Set(trailing.results.map((r) => r.toolCallId));
   const unknown = [...answered].filter((id) => !called.has(id));
   if (unknown.length) return { kind: 'invalid-request', param: 'messages', message: `No tool call ${unknown.map((id) => `\`${id}\``).join(', ')} in the last assistant message: a \`tool\` message must answer one of its \`tool_calls\`.` };
+  // No result at all and a new user message: the client dropped the calls and moved on
+  if (abandons(trailing)) return null;
   const missing = trailing.calls.filter((c) => !answered.has(c.id)).map((c) => c.id);
-  if (missing.length) return { kind: 'invalid-request', param: 'messages', message: `The tool calls ${missing.map((id) => `\`${id}\``).join(', ')} have no result: send a \`tool\` message for each \`tool_call_id\` of the last assistant message.` };
+  if (missing.length) return missingResults(missing);
   if (trailing.results.length !== answered.size) return { kind: 'invalid-request', param: 'messages', message: 'A tool call has two results.' };
   return null;
 }
 
+/** Whether the request drops the calls it was handed: no result for any of them, and a new user message. */
+export function abandons(trailing: TrailingResults): boolean {
+  return trailing.results.length === 0 && trailing.userAfter;
+}
+
+/** The one wording for calls still owed, whether the history or the live process is short of them. */
+export function missingResults(ids: readonly string[]): OpenAiFailure {
+  return {
+    kind: 'invalid-request',
+    param: 'messages',
+    message: `The tool calls ${ids.map((id) => `\`${id}\``).join(', ')} have no result: send a \`tool\` message for each of them, or none and a new \`user\` message to drop them.`,
+  };
+}
+
+/** How a call's arguments are compared: key order and spacing do not make two calls different. */
+export function argumentsKey(input: unknown): string {
+  return stableStringify(input ?? {});
+}
+
+/** A call of the client's as the translator streamed it, or as the hand-off carries it. */
+export interface ClientCall {
+  id: string;
+  name: string;
+  /** The arguments, already parsed */
+  input: unknown;
+}
+
 // ---------- the session: one chat's held calls ----------
+
+interface Claim {
+  name: string;
+  args: string;
+}
 
 interface Held {
   requestId: string;
@@ -190,12 +233,16 @@ export class ClientToolSession {
   parallel = true;
   /** The process that loaded this list: another one (or none) has to be started with the stub first */
   servedPid: number | null = null;
+  /** The process the calls were handed over from: only it can take their results */
+  holderPid: number | null = null;
   /** Requests the CLI is waiting on, by tool call id */
   private readonly held = new Map<string, Held>();
-  /** Calls handed to the client, by id, with their name: their results are what the next request owes */
-  private readonly awaiting = new Map<string, string>();
+  /** Main-agent calls the turn being read streamed to the client and has not handed over yet */
+  private readonly claimed = new Map<string, Claim>();
+  /** Calls handed to the client, by id: their results are what the next request owes */
+  private readonly awaiting = new Map<string, Claim>();
   /** Results the client sent that the stub has not handed over yet, by tool call id */
-  private readonly results = new Map<string, { name: string; text: string }>();
+  private readonly results = new Map<string, Claim & { text: string }>();
   /** The same ids in arrival order, for a `tools/call` that carries no id */
   private readonly order: string[] = [];
   /** Calls whose wait ran out: a result for one is refused */
@@ -227,9 +274,18 @@ export class ClientToolSession {
 
   /** The client tools the model may call in this turn, by the client's names. */
   allowedNames(): Set<string> {
-    if (this.choice.kind === 'none') return new Set();
-    if (this.choice.kind === 'function') return new Set([this.choice.name]);
-    return new Set(this.tools.map((t) => t.name));
+    return allowedToolNames(this.choice, this.tools);
+  }
+
+  /**
+   * Calls the turn being read streamed to the client. Only a claimed (or handed-over) call is held
+   * when the CLI asks for it; the CLI writes a block's message before it asks, so the claim comes first.
+   */
+  claim(calls: readonly ClientCall[]): void {
+    for (const call of calls) {
+      if (this.awaiting.has(call.id) || this.results.has(call.id)) continue;
+      this.claimed.set(call.id, { name: call.name, args: argumentsKey(call.input) });
+    }
   }
 
   private forbids(name: string): string | null {
@@ -264,8 +320,9 @@ export class ClientToolSession {
       answer({ behavior: 'deny', message: forbidden });
       return;
     }
-    // Once calls are with the client, only theirs can still be asked for
-    if (this.waiting && !this.awaiting.has(question.toolUseId)) {
+    // Only a call the client was handed, or is being handed, can be waited for: anything else (a
+    // subagent's call, one the translator skipped, a late ask) would hold the CLI until the watchdog
+    if (!this.claimed.has(question.toolUseId) && !this.awaiting.has(question.toolUseId)) {
       answer({ behavior: 'deny', message: this.notHandedOver() });
       return;
     }
@@ -273,13 +330,18 @@ export class ClientToolSession {
   }
 
   withdrawn(requestId: string): void {
-    for (const [id, held] of this.held) if (held.requestId === requestId) this.held.delete(id);
+    for (const [id, held] of this.held) {
+      if (held.requestId !== requestId) continue;
+      this.held.delete(id);
+      // The CLI will not call the stub for it: a result left behind could only answer another call
+      this.dropResult(id);
+    }
   }
 
   ended(): void {
-    // The answers would go to a process that is gone; the calls stay owed, and resume cold
-    this.held.clear();
-    this.clearTimer();
+    // Nothing of the process outlives it: the results the client still owes go to the next process
+    // as a cold resume, never to a process that did not ask for them
+    this.forgetCalls();
   }
 
   // ---------- the handoff ----------
@@ -289,9 +351,14 @@ export class ClientToolSession {
    * call is refused (a second call when `parallel_tool_calls` is false). The wait starts here;
    * `onExpire` runs when it ends with results still owed, after each held request was refused.
    */
-  handOff(calls: ReadonlyArray<{ id: string; name: string }>, waitMs: number, onExpire: () => void): void {
+  handOff(calls: readonly ClientCall[], waitMs: number, onExpire: () => void, holderPid: number | null = null): void {
     this.awaiting.clear();
-    for (const call of calls) this.awaiting.set(call.id, call.name);
+    this.claimed.clear();
+    // The previous message's results were all taken before the model could write this one
+    this.results.clear();
+    this.order.length = 0;
+    this.holderPid = holderPid;
+    for (const call of calls) this.awaiting.set(call.id, { name: call.name, args: argumentsKey(call.input) });
     for (const [id, held] of [...this.held]) {
       if (this.awaiting.has(id)) continue;
       this.held.delete(id);
@@ -316,9 +383,10 @@ export class ClientToolSession {
   deliver(results: ReadonlyArray<{ toolCallId: string; text: string }>): void {
     this.clearTimer();
     for (const result of results) {
-      const name = this.awaiting.get(result.toolCallId) ?? this.held.get(result.toolCallId)?.name ?? '';
+      const held = this.held.get(result.toolCallId);
+      const claim = this.awaiting.get(result.toolCallId) ?? (held ? { name: held.name, args: argumentsKey(held.input) } : { name: '', args: '' });
       this.awaiting.delete(result.toolCallId);
-      this.results.set(result.toolCallId, { name, text: result.text });
+      this.results.set(result.toolCallId, { ...claim, text: result.text });
       this.order.push(result.toolCallId);
     }
     for (const result of results) {
@@ -332,10 +400,27 @@ export class ClientToolSession {
   /** The process that owed the results is gone and the chat resumes cold: nothing of it is held. */
   forgetCalls(): void {
     this.held.clear();
+    this.claimed.clear();
     this.awaiting.clear();
     this.results.clear();
     this.order.length = 0;
+    this.holderPid = null;
     this.clearTimer();
+  }
+
+  /**
+   * The client dropped the calls and sent a new message. The caller interrupted the CLI first, so it
+   * withdrew its requests; one still held is answered with an error result rather than left waiting.
+   */
+  abandon(): void {
+    for (const held of this.held.values()) held.answer({ behavior: 'deny', message: CLIENT_ABANDONED_MESSAGE });
+    this.forgetCalls();
+  }
+
+  private dropResult(id: string): void {
+    if (!this.results.delete(id)) return;
+    const at = this.order.indexOf(id);
+    if (at >= 0) this.order.splice(at, 1);
   }
 
   /**

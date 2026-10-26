@@ -113,6 +113,8 @@ export interface AppOptions {
   logLevel?: string;
   /** Built UI to serve; skipped when the directory does not exist */
   webDist?: string;
+  /** For tests that look into the OpenAI surface's client-tool sessions; one of its own when absent */
+  clientTools?: ClientToolRegistry;
 }
 
 export async function buildApp(core: Core, options: AppOptions = {}): Promise<FastifyInstance> {
@@ -246,7 +248,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(collaboratorRoutes, { core });
       // Its own context: OpenAI's error shape, its 404 and its hooks stay under /api/v1
       // The client-tool sessions: the /v1 routes drive them, the stub server the CLI calls reads them
-      const clientTools = new ClientToolRegistry();
+      const clientTools = options.clientTools ?? new ClientToolRegistry();
       await api.register(openAiRoutes, { core, prefix: '/v1', clientTools });
       await api.register(openAiStubRoutes, { core, registry: clientTools });
     },
