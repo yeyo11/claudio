@@ -111,6 +111,10 @@ async function until(check: () => boolean, ms = 5000): Promise<void> {
   }
 }
 
+/** Listeners on the chat's event emitter: a waiter left behind (a lost race) shows up here */
+const chatListeners = (chatId: string): number =>
+  (core.runtime as unknown as { chats: Map<string, { emitter: { listenerCount(event: string): number } }> }).chats.get(chatId)?.emitter.listenerCount('event') ?? -1;
+
 const chatOf = (res: Response): string => {
   const id = res.headers.get('x-claudio-chat-id');
   assert.ok(id);
@@ -467,11 +471,15 @@ test('a new user message instead of the results drops the held calls and continu
   const said = ((await partial.json()) as ErrorBody).error.message;
   assert.match(said, new RegExp(`\`${b.id}\` have no result`));
   assert.match(said, /or none and a new `user` message to drop them/);
+  // The first request's wait for its result is still on the chat; the drop adds its own
+  const listening = chatListeners(chatId);
   const next = await post({ model: 'sonnet', messages: [...messages, echoed(body), user('never mind, say hi')], tools: [lookup] }, {}, AbortSignal.timeout(15_000));
   assert.equal(next.status, 200);
   assert.equal(chatOf(next), chatId);
   assert.equal(((await next.json()) as Completion).choices[0]?.message.content, 'echo: never mind, say hi');
   assert.equal(registry.ofChat(chatId)?.waiting, false);
+  // The interrupt's result settled the first request's wait and the drop's: neither stays behind
+  assert.equal(chatListeners(chatId), listening - 1);
   // The turn that held the calls ended interrupted, before the message was sent
   const results = core.runtime.events(chatId).filter((e) => e.kind === 'result');
   assert.equal(results.at(-2)?.outcome?.isError, true);
@@ -548,6 +556,28 @@ test('a new message that would be refused leaves the held calls and the turn hol
   assert.equal(core.runtime.events(chatId).filter((e) => e.kind === 'result').length, ends);
   const ok = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(a.id, 'A'), toolMsg(b.id, 'B')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
   assert.equal(((await ok.json()) as Completion).choices[0]?.message.content, 'results: A | B');
+});
+
+test('dropping calls whose turn does not end within the grace is a 409 that leaves no waiter on the chat', async () => {
+  process.env.CLAUDIO_OPENAI_INTERRUPT_GRACE_MS = '300';
+  let chatId = '';
+  try {
+    const messages = [user(directive('TOOLS_DEAF', [{ name: 'lookup', input: { key: 'd' } }]))];
+    const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+    chatId = chatOf(first);
+    const body = (await first.json()) as Completion;
+    const session = registry.ofChat(chatId);
+    assert.ok(session);
+    await until(() => session.heldCount() === 1);
+    const listening = chatListeners(chatId);
+    const res = await post({ model: 'sonnet', messages: [...messages, echoed(body), user('moving on')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
+    assert.equal(res.status, 409);
+    assert.match(((await res.json()) as ErrorBody).error.message, /still ending the turn/);
+    assert.equal(chatListeners(chatId), listening);
+  } finally {
+    delete process.env.CLAUDIO_OPENAI_INTERRUPT_GRACE_MS;
+    if (chatId) core.runtime.stop(chatId);
+  }
 });
 
 test('a client-tool request no call handed to the client covers (a subagent\'s) is denied at once instead of held', async () => {

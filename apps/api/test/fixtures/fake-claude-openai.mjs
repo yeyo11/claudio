@@ -29,6 +29,8 @@
 //                      (no main-agent block names them), then a `can_use_tool` request per call
 //   TOOLS_HANG <json>  the blocks and the requests, but the message never ends: only an interrupt
 //                      ends the turn (the requests withdrawn with `control_cancel_request`)
+//   TOOLS_DEAF <json>  TOOLS from a wedged CLI: from then on it ignores interrupts and the answers to
+//                      its requests, so the turn never ends
 //   BASH [command]     a built-in `Bash` call (`ls` by default). As the CLI does, a call its own
 //                      `--allowedTools` rules allow (`Bash`, or `Bash(<prefix>:*)` matching the command)
 //                      runs without a `can_use_tool` request; any other is asked for
@@ -61,6 +63,8 @@ let turns = 0;
 let initialised = false;
 /** The turn waiting for an interrupt, when one hangs */
 let hanging = null;
+/** A wedged process (TOOLS_DEAF): interrupts and permission answers go unheard */
+let deaf = false;
 
 const schema = flag('--json-schema') ?? null;
 const permissionPrompts = flag('--permission-prompts') ?? null;
@@ -221,9 +225,10 @@ async function answer(prompt) {
   await connectStub();
   const lines = prompt.trim().split('\n').filter((l) => !l.startsWith('(For this turn:')).join('\n').trim().split('\n');
   const last = lines.at(-1) ?? '';
-  const tools = /^(TOOLS|TOOLS_TEXT|TOOLS_NOMETA|TOOLS_HANG|TOOLS_SIDE) (.*)$/.exec(last);
+  const tools = /^(TOOLS|TOOLS_TEXT|TOOLS_NOMETA|TOOLS_HANG|TOOLS_SIDE|TOOLS_DEAF) (.*)$/.exec(last);
   if (tools) {
-    callTools(tools[1], JSON.parse(tools[2]));
+    deaf = tools[1] === 'TOOLS_DEAF';
+    callTools(deaf ? 'TOOLS' : tools[1], JSON.parse(tools[2]));
     return;
   }
   const bash = /^BASH(?: (.+))?$/.exec(last);
@@ -287,6 +292,7 @@ lines.on('line', (line) => {
       { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5', supportsEffort: false },
     ];
     out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: subtype === 'initialize' ? { commands: [], models, account: { apiProvider: 'firstParty' } } : {} } });
+    if (deaf) return;
     if (subtype === 'interrupt' && toolTurn && !hanging) {
       // Held requests are withdrawn and the turn ends aborted, as the spike recorded
       for (const id of [...asked.keys()]) {
@@ -304,6 +310,7 @@ lines.on('line', (line) => {
     return;
   }
   if (msg.type === 'control_response') {
+    if (deaf) return;
     void settleAsk(msg.response?.request_id, msg.response?.response);
     return;
   }

@@ -54,8 +54,14 @@ export const RESUME_HEADER = 'x-claudio-resume';
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
 /** What `Retry-After` says when every run slot is taken: idle chats give theirs back within moments */
 const RUN_SLOT_RETRY_SECONDS = 5;
-/** How long a turn the client walked away from may take to wind down before its locks go */
-const INTERRUPT_GRACE_MS = 30_000;
+/**
+ * How long a turn the client walked away from (or whose tool calls it dropped) may take to wind down
+ * before its locks go. `CLAUDIO_OPENAI_INTERRUPT_GRACE_MS`, for tests that cannot wait 30 s.
+ */
+export const interruptGraceMs = (): number => {
+  const set = Number(process.env.CLAUDIO_OPENAI_INTERRUPT_GRACE_MS);
+  return Number.isFinite(set) && set > 0 ? set : 30_000;
+};
 /** How many full-size images one request may carry inline before the body itself is refused */
 const INLINE_IMAGES = 4;
 /**
@@ -561,7 +567,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     /** Waits for the turn; once the client went, only as long as an interrupt takes to land. */
     const settled = async (current: TurnRun): Promise<void> => {
       await Promise.race([current.done, left]);
-      if (!current.finished) await Promise.race([current.done, new Promise((r) => setTimeout(r, INTERRUPT_GRACE_MS).unref())]);
+      if (!current.finished) await Promise.race([current.done, new Promise((r) => setTimeout(r, interruptGraceMs()).unref())]);
     };
 
     const releases: Array<() => void> = [];
@@ -737,12 +743,26 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
    * message then goes to the idle process as usual. Waits only as long as an interrupt takes.
    */
   async function abandon(chatId: string, tools: ClientToolSession): Promise<void> {
-    const ended = core.runtime.nextResult(chatId).then(
-      () => true,
-      () => true,
-    );
-    await core.chats.interrupt(chatId).catch(() => undefined);
-    const settled = await Promise.race([ended, new Promise<false>((r) => setTimeout(() => r(false), INTERRUPT_GRACE_MS).unref())]);
+    // Whichever side of the race loses is taken down: the grace timer, and the result listener on
+    // the chat, which would otherwise stay until a result that may never come
+    const lost = new AbortController();
+    let grace: NodeJS.Timeout | undefined;
+    let settled: boolean;
+    try {
+      const ended = core.runtime.nextResult(chatId, lost.signal).then(
+        () => true,
+        () => true,
+      );
+      await core.chats.interrupt(chatId).catch(() => undefined);
+      const timedOut = new Promise<false>((r) => {
+        grace = setTimeout(() => r(false), interruptGraceMs());
+        grace.unref();
+      });
+      settled = await Promise.race([ended, timedOut]);
+    } finally {
+      clearTimeout(grace);
+      lost.abort();
+    }
     tools.abandon();
     if (!settled) throw fail({ kind: 'conflict', message: 'The chat is still ending the turn whose tool calls were dropped; try again in a moment.' });
   }

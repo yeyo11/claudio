@@ -520,7 +520,9 @@ error result "the client sent a new message instead of a result for this call"),
 then goes to the idle process as an ordinary turn. What would refuse that message (no such chat, a
 process that would have to start again with the stub while the API's address is unknown) is
 checked **before** the interrupt, so a refused request leaves the calls held and the turn as it was.
-If the interrupt does not land within 30 s the request is a `409` and nothing else is sent. Only a
+If the interrupt does not land within 30 s (`CLAUDIO_OPENAI_INTERRUPT_GRACE_MS` overrides it, for
+tests) the request is a `409` and nothing else is sent; the wait for the interrupt and its timer are
+taken down whichever ends first. Only a
 refusal that cannot be known before the turn ends comes after the calls were dropped: the chat not
 idle once the interrupt landed, or its process gone by then with no run slot free to start another.
 Its message then begins "The held tool calls were dropped, but the new message was not sent", so

@@ -1339,13 +1339,16 @@ export class ChatManager extends EventEmitter {
   /**
    * Resolves with the next result the chat produces, ignoring one it already has: what a turn sent
    * to a chat that has answered before needs, where {@link waitForResult} would return the old one.
-   * Call it before sending the turn, so nothing is missed in between.
+   * Call it before sending the turn, so nothing is missed in between. `signal` lets a caller that
+   * stopped waiting (a race it lost) take its listener off the chat at once rather than leave it
+   * until a result comes, which may be never: the promise then rejects with the signal's reason.
    */
-  nextResult(id: string): Promise<RunResult> {
+  nextResult(id: string, signal?: AbortSignal): Promise<RunResult> {
     const chat = this.chats.get(id);
     if (!chat) return Promise.reject(new ChatNotFoundError());
+    if (signal?.aborted) return Promise.reject(signal.reason);
     const before = chat.lastResult;
-    return new Promise((resolvePromise) => {
+    return new Promise((resolvePromise, rejectPromise) => {
       const onEvent = (event: RunEvent) => {
         if (event.kind === 'result' && chat.lastResult && chat.lastResult !== before) finish(chat.lastResult);
         // A process stopped for a limit replay (`carrying`) is replaced at once: its end is not the
@@ -1357,11 +1360,17 @@ export class ChatManager extends EventEmitter {
           );
         }
       };
+      const onAbort = (): void => {
+        chat.emitter.off('event', onEvent);
+        rejectPromise(signal?.reason);
+      };
       const finish = (result: RunResult) => {
         chat.emitter.off('event', onEvent);
+        signal?.removeEventListener('abort', onAbort);
         resolvePromise(result);
       };
       chat.emitter.on('event', onEvent);
+      signal?.addEventListener('abort', onAbort, { once: true });
     });
   }
 
