@@ -101,6 +101,21 @@ export type TurnEnd =
     }
   | { kind: 'error'; status: number; body: OpenAiErrorBody; retryAfterSeconds?: number };
 
+/**
+ * What the route's turn runner drives, whichever wire format the answer is in: Chat Completions
+ * chunks, or the Responses API's events (`ResponsesTranslator`, which is built on this one).
+ */
+export interface TurnTranslator<Item> {
+  readonly finished: boolean;
+  push(event: RunEvent, context?: { usage?: TokenUsage | null }): Item[];
+  failWith(failure: OpenAiFailure): Item[];
+  handOff(): Item[] | null;
+  clientCalls(): Array<{ id: string; name: string; input: unknown }>;
+  takeNewClientCalls(): Array<{ id: string; name: string; input: unknown }>;
+  /** The answer's text and calls once the turn completed (for the conversation key); null otherwise */
+  answered(): { text: string; toolCalls: ToolCall[] } | null;
+}
+
 interface StreamedBlock {
   text: string;
   /** Whether any of it has gone out: the separator goes before a block's first character, once */
@@ -124,7 +139,7 @@ interface CallState {
  * of a block may never be sent as one, so each closing message is compared with what was streamed
  * for it and only the rest goes out.
  */
-export class ChatCompletionTranslator {
+export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionStreamItem> {
   private content = '';
   private sentRole = false;
   /** Text blocks streamed from partials, oldest first, not yet matched to their closing message */
@@ -145,6 +160,10 @@ export class ChatCompletionTranslator {
   /** The whole response or the error, once the turn is over. */
   end(): TurnEnd | null {
     return this.ended;
+  }
+
+  answered(): { text: string; toolCalls: ToolCall[] } | null {
+    return this.ended?.kind === 'completion' ? { text: this.ended.text, toolCalls: this.ended.toolCalls } : null;
   }
 
   private chunk(delta: ChunkDelta, finishReason: FinishReason | null = null): ChatCompletionChunk {

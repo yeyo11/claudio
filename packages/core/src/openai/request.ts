@@ -6,21 +6,21 @@ import type { ChatCompletionRequest, ChatMessage, ClientTool, ImageRef, Response
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: OpenAiErrorResponse };
 
-/** Thrown only inside this module, and always caught before a caller sees it. */
-class Refusal extends Error {
+/** Thrown only inside the parsers (this one and `responses-request.ts`), and always caught before a caller sees it. */
+export class Refusal extends Error {
   constructor(readonly failure: OpenAiFailure) {
     super(failure.kind);
   }
 }
 
-const invalid = (message: string, param: string | null = null): Refusal => new Refusal({ kind: 'invalid-request', message, param });
-const unsupported = (message: string, param: string): Refusal => new Refusal({ kind: 'unsupported-parameter', message, param });
+export const invalid = (message: string, param: string | null = null): Refusal => new Refusal({ kind: 'invalid-request', message, param });
+export const unsupported = (message: string, param: string): Refusal => new Refusal({ kind: 'unsupported-parameter', message, param });
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-const present = (value: unknown): boolean => value !== undefined && value !== null;
+export const present = (value: unknown): boolean => value !== undefined && value !== null;
 
 /** Types Claude reads as images; the same set the upload store accepts as `image`. */
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
@@ -52,7 +52,7 @@ const IGNORED_PARAMETERS = [
  * OpenAI's `reasoning_effort` in Claudio's levels. OpenAI's lowest two have no Claudio match, so
  * they take the lowest Claudio has; Claudio's own `max` is accepted for a client that knows it.
  */
-const EFFORT_OF: Readonly<Record<string, Effort>> = { none: 'low', minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' };
+export const EFFORT_OF: Readonly<Record<string, Effort>> = { none: 'low', minimal: 'low', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' };
 
 const TOOL_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -66,7 +66,7 @@ export interface ParseOptions {
 const DATA_URL_RE = /^data:([^;,]*)((?:;[^;,]*)*),(.*)$/s;
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 
-function parseImage(url: unknown, path: string, maxBytes: number): ImageRef {
+export function parseImage(url: unknown, path: string, maxBytes: number): ImageRef {
   if (typeof url !== 'string' || !url) throw invalid('An image part needs `image_url.url`.', path);
   if (url.startsWith('data:')) {
     const match = DATA_URL_RE.exec(url);
@@ -181,7 +181,7 @@ function parseMessage(raw: unknown, i: number, maxImageBytes: number): ChatMessa
 
 // ---------- the request's options ----------
 
-function parseFunction(raw: unknown, path: string): ClientTool {
+export function parseFunction(raw: unknown, path: string): ClientTool {
   if (!isRecord(raw) || typeof raw.name !== 'string') throw invalid('A function needs a `name`.', path);
   if (!TOOL_NAME_RE.test(raw.name)) throw invalid('A function name is 1 to 64 letters, digits, `_` or `-`.', `${path}.name`);
   if (present(raw.parameters) && !isRecord(raw.parameters)) throw invalid('`parameters` must be a JSON Schema object.', `${path}.parameters`);
@@ -208,13 +208,17 @@ function parseTools(body: Record<string, unknown>): ClientTool[] {
     if (!Array.isArray(body.functions)) throw invalid('`functions` must be an array.', 'functions');
     tools = body.functions.map((fn, j) => parseFunction(fn, `functions[${String(j)}]`));
   }
+  assertDistinctTools(tools);
+  return tools;
+}
+
+export function assertDistinctTools(tools: readonly ClientTool[]): void {
   const seen = new Set<string>();
   for (const tool of tools) {
     // The stub MCP server lists them under one prefix: two of a name could not be told apart
     if (seen.has(tool.name)) throw invalid(`Two tools are named \`${tool.name}\`.`, 'tools');
     seen.add(tool.name);
   }
-  return tools;
 }
 
 function parseToolChoice(body: Record<string, unknown>, tools: readonly ClientTool[]): ToolChoice {
@@ -506,8 +510,9 @@ const EXTENSION: Readonly<Record<string, string>> = { 'image/png': 'png', 'image
  * Turns a prompt's images into upload ids, in order, so `[image N]` is the Nth attachment. The bytes
  * decide the type, not the label: an image block whose declared type is wrong is rejected by the
  * API, so a mislabelled or non-image file is refused here with a 400 instead of failing the run.
+ * `param` names where the images came from: `messages` for Chat Completions, `input` for Responses.
  */
-export async function uploadImages(images: readonly ImageRef[], uploads: ImageUploads, maxBytes: number = UPLOAD_LIMITS.image): Promise<Parsed<string[]>> {
+export async function uploadImages(images: readonly ImageRef[], uploads: ImageUploads, maxBytes: number = UPLOAD_LIMITS.image, param: string = 'messages'): Promise<Parsed<string[]>> {
   const ids: string[] = [];
   for (const [i, image] of images.entries()) {
     const n = String(i + 1);
@@ -519,16 +524,16 @@ export async function uploadImages(images: readonly ImageRef[], uploads: ImageUp
         bytes = (await uploads.fetch(image.url, maxBytes)).bytes;
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} could not be fetched: ${reason}`, param: 'messages' }) };
+        return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} could not be fetched: ${reason}`, param }) };
       }
     }
-    if (bytes.length === 0) return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} is empty.`, param: 'messages' }) };
+    if (bytes.length === 0) return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} is empty.`, param }) };
     if (bytes.length > maxBytes) {
-      return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} is ${String(bytes.length)} bytes; the most is ${String(maxBytes)}.`, param: 'messages' }) };
+      return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} is ${String(bytes.length)} bytes; the most is ${String(maxBytes)}.`, param }) };
     }
     const mediaType = sniffMediaType(bytes, '');
     if (!IMAGE_TYPES.has(mediaType)) {
-      return { ok: false, error: openAiError({ kind: 'unsupported-parameter', message: `Image ${n} is not a PNG, JPEG, GIF or WebP image.`, param: 'messages' }) };
+      return { ok: false, error: openAiError({ kind: 'unsupported-parameter', message: `Image ${n} is not a PNG, JPEG, GIF or WebP image.`, param }) };
     }
     ids.push(uploads.save(`openai-image-${n}.${EXTENSION[mediaType] ?? 'bin'}`, bytes).id);
   }

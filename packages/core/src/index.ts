@@ -256,6 +256,7 @@ import { TerminalService } from './terminals/service.ts';
 import { TerminalSettingsStore } from './terminals/settings.ts';
 import { TerminalStore } from './terminals/store.ts';
 import { OpenAiConversationStore } from './openai/conversations.ts';
+import { OpenAiResponseStore } from './openai/responses-store.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
@@ -460,6 +461,8 @@ export class Core {
   readonly db: Db;
   /** Which chat a stateless OpenAI client's history belongs to (docs/openai-compatible-api.md) */
   readonly openaiConversations: OpenAiConversationStore;
+  /** The responses `POST /v1/responses` stored for `previous_response_id` (docs/openai-compatible-api.md, phase 5) */
+  readonly openaiResponses: OpenAiResponseStore;
   private readonly reviewStore: ReviewStore;
   /** Every change worth telling a client about; what `GET /api/events` streams */
   readonly events = new EventBus();
@@ -715,6 +718,7 @@ export class Core {
     this.repos = new RepoIndex({ places: new RepoPlaces(this.db.connection) });
     this.reviewStore = new ReviewStore(this.db.connection);
     this.openaiConversations = new OpenAiConversationStore(this.db.connection);
+    this.openaiResponses = new OpenAiResponseStore(this.db.connection);
     this.permissions = new PermissionBroker();
     this.credentials = new CredentialStore(config, this.vault);
     this.security = new AuthStore(config);

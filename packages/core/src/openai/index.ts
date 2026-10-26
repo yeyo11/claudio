@@ -1,5 +1,6 @@
 // The OpenAI-compatible surface's pure half (docs/openai-compatible-api.md): request in, chat start
-// out; RunEvent in, Chat Completions out; failures in OpenAI's error shape; the conversation rows.
+// out; RunEvent in, Chat Completions or Responses out; failures in OpenAI's error shape; the
+// conversation and stored-response rows.
 export {
   chainKey as openAiChainKey,
   extendKey as openAiExtendKey,
@@ -33,6 +34,25 @@ export {
   type TrailingResults,
 } from './client-tools.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';
+export { OpenAiResponseStore, type StoredResponse as OpenAiStoredResponse } from './responses-store.ts';
+export {
+  assistantOfOutput,
+  keyAfterPrevious as openAiKeyAfterPrevious,
+  parseResponsesRequest,
+  responsesTurnOf,
+  withPreviousOutput,
+  type ResponseEcho,
+  type ResponsesRequest,
+} from './responses-request.ts';
+export { responseUsage, ResponsesTranslator, type ResponsesTranslatorOptions, type ResponsesTurnEnd } from './responses-events.ts';
+export type {
+  FunctionCallItem as ResponseFunctionCallItem,
+  InputItem as ResponseInputItem,
+  OutputItem as ResponseOutputItem,
+  ResponseDeleted,
+  ResponseObject,
+  ResponseStreamEvent,
+} from './responses-wire.ts';
 export { fetchImage as fetchOpenAiImage, isPublicAddress, type FetchImageOptions } from './fetch-image.ts';
 export { OPENAI_CONVERSATION_TTL_MS, sweepOpenAiChats, type OpenAiSweep, type OpenAiSweepDeps } from './sweep.ts';
 export { failureOfSpendCap, failureOfThrown, openAiError, retryAfterSeconds, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
@@ -44,6 +64,7 @@ export {
   structuredFailure as openAiStructuredFailure,
   tokenUsageOf,
   type ChatCompletionTranslatorOptions,
+  type TurnTranslator as OpenAiTurnTranslator,
   type TurnEnd as OpenAiTurnEnd,
 } from './events.ts';
 export {

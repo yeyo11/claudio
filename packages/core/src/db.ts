@@ -1412,6 +1412,20 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    );
    CREATE INDEX openai_conversations_chat ON openai_conversations (chat_id);
    CREATE INDEX openai_conversations_updated ON openai_conversations (updated_at);`,
+
+  // The responses `POST /v1/responses` stored for `previous_response_id` and `GET /v1/responses/:id`
+  // (docs/openai-compatible-api.md, phase 5). One row per response, written once: they accumulate,
+  // and a restart must still continue a chain. They go with their chat and expire with the API sweep
+  `CREATE TABLE openai_responses (
+     id               TEXT PRIMARY KEY,
+     chat_id          TEXT NOT NULL,
+     conversation_key TEXT NOT NULL,
+     response         TEXT NOT NULL,
+     input_items      TEXT NOT NULL,
+     created_at       TEXT NOT NULL
+   );
+   CREATE INDEX openai_responses_chat ON openai_responses (chat_id);
+   CREATE INDEX openai_responses_created ON openai_responses (created_at);`,
 ];
 
 /**
@@ -2154,6 +2168,7 @@ export class Db {
       this.db.prepare('DELETE FROM chat_uploads WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM chat_upload_scans WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM openai_responses WHERE chat_id = ?').run(id);
     });
   }
 
