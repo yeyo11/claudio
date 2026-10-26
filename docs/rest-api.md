@@ -612,7 +612,7 @@ curl -N localhost:8797/api/chats/<id>/stream
 
 ## OpenAI-compatible
 
-OpenAI's Chat Completions and Models, so a client that speaks them uses Claudio by setting its base
+OpenAI's Chat Completions, Responses and Models, so a client that speaks them uses Claudio by setting its base
 URL to `http://127.0.0.1:8797/api/v1`. For local use with the owner's own login. Each request is a
 real Claudio chat (origin `api`, hidden from the chat lists unless `?origin=api` asks for them). These
 routes need a credential in every mode, `none` included: the owner's API token, or a chat's own from
@@ -625,6 +625,10 @@ its headers and its limits are in [openai-compatible-api.md](openai-compatible-a
 | GET | `/v1/models` | `{ object: "list", data: [{ id, object: "model", created, owned_by }] }`: the models of every provider that can run chats |
 | GET | `/v1/models/:id` | One of them, by its value or a concrete id it stands for; `404 model_not_found` otherwise |
 | POST | `/v1/chat/completions` | A turn, whole or as `data:` chunks ending in `data: [DONE]`; `response_format` `json_schema` / `json_object` answers the structured output as JSON content. Client `tools` end a turn with `finish_reason: "tool_calls"` and the next request's `tool` messages continue it. Headers in: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset`; out: `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` (a trailer when streamed), `X-Claudio-Ignored`, `X-Claudio-Resume: cold` |
+| POST | `/v1/responses` | A Responses API turn, whole or as semantic events (`event:` lines, a rising `sequence_number`, from `response.created` to `response.completed` / `response.incomplete` / `response.failed`). `input` items, `instructions`, `text.format`, flat function `tools` with `function_call` / `function_call_output` items; `previous_response_id` continues a stored response's chat; `store` (default true) keeps it for 7 days. Hosted tools, `background` and `conversation` are `400 unsupported_parameter`. Same headers as `/v1/chat/completions` |
+| GET | `/v1/responses/:id` | A stored response object; `404 not_found` when it was never stored, was deleted, expired or its chat is gone |
+| DELETE | `/v1/responses/:id` | `{ id, object: "response.deleted", deleted: true }`: removes the stored response, not its chat |
+| GET | `/v1/responses/:id/input_items` | The stored response's input items, `{ object: "list", data, first_id, last_id, has_more }`; `after`, `limit` (1 to 100) and `order` (`desc` by default) |
 | POST / GET / DELETE | `/openai/client-tools/:id/mcp` | Not for clients: the stub MCP server a chat's own CLI process calls for the client's tools (JSON-RPC, plain JSON answers), accepting only that process's `CLAUDIO_API_TOKEN`. `GET` and `DELETE` answer `405` |
 
 ## Orchestration

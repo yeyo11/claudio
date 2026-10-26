@@ -6,7 +6,7 @@ export type OpenAiFailure =
   | { kind: 'auth'; message?: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'model-not-found'; model: string }
-  | { kind: 'not-found'; message: string }
+  | { kind: 'not-found'; message: string; param?: string | null }
   | { kind: 'invalid-request'; message: string; param?: string | null }
   | { kind: 'unsupported-parameter'; message: string; param: string }
   | { kind: 'conflict'; message: string }
@@ -49,7 +49,7 @@ export function openAiError(failure: OpenAiFailure, now: number = Date.now()): O
     case 'model-not-found':
       return { status: 404, body: body(`The model \`${failure.model}\` does not exist or no provider here can run it.`, 'invalid_request_error', 'model_not_found', 'model') };
     case 'not-found':
-      return { status: 404, body: body(failure.message, 'invalid_request_error', 'not_found') };
+      return { status: 404, body: body(failure.message, 'invalid_request_error', 'not_found', failure.param ?? null) };
     case 'invalid-request':
       return { status: 400, body: body(failure.message, 'invalid_request_error', 'invalid_request_error', failure.param ?? null) };
     case 'unsupported-parameter':

@@ -34,7 +34,16 @@ import {
   type OpenAiChatTurn,
   type OpenAiClientCall,
   type OpenAiErrorResponse,
+  type OpenAiToolCall,
   type OpenAiToolChoice,
+  type OpenAiTurnTranslator,
+  openAiKeyAfterPrevious,
+  parseResponsesRequest,
+  ResponsesTranslator,
+  responsesTurnOf,
+  withPreviousOutput,
+  type ResponseDeleted,
+  type ResponseStreamEvent,
 } from '@claudio/core';
 import type { ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
 import { deliberate } from '../errors.ts';
@@ -240,7 +249,15 @@ function permissionModeOf(core: Core): PermissionMode {
  * answer; not supported yet, the owner's call). `tool_choice: none` makes the tools context the model
  * is told not to use: they are left out and named in `x-claudio-ignored`.
  */
-function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: string[]): OpenAiFailure | null {
+/** Where each API names what `refusalOf` may refuse: the two shapes put the format and the tool names in different places. */
+interface ParamNames {
+  format: string;
+  toolName: (index: number) => string;
+}
+const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name` };
+const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name` };
+
+function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: string[], names: ParamNames): OpenAiFailure | null {
   const fields = (body ?? {}) as Record<string, unknown>;
   if (Array.isArray(fields.functions) && fields.functions.length > 0) {
     return { kind: 'unsupported-parameter', param: 'functions', message: 'The legacy `functions` parameter is not supported: declare the same functions in `tools`.' };
@@ -251,9 +268,9 @@ function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: strin
     return null;
   }
   if (request.responseFormat.type !== 'text') {
-    return { kind: 'unsupported-parameter', param: 'response_format', message: 'Client `tools` together with `response_format` are not supported yet: send one or the other.' };
+    return { kind: 'unsupported-parameter', param: names.format, message: `Client \`tools\` together with \`${names.format}\` are not supported yet: send one or the other.` };
   }
-  return clientToolsProblem(request.tools);
+  return clientToolsProblem(request.tools, names.toolName);
 }
 
 // ---------- serialising one conversation ----------
@@ -291,16 +308,17 @@ export class KeyedLocks {
 // ---------- one turn ----------
 
 /**
- * Feeds one turn's events to the translator and hands what it says to whoever writes the answer.
+ * Feeds one turn's events to the translator (Chat Completions chunks or Responses events) and hands
+ * what it says to whoever writes the answer.
  * Subscribed before the turn is sent, so nothing of it is missed; what arrives before the answer is
  * open waits in `pending`.
  */
-class TurnRun {
+class TurnRun<Item> {
   chatId: string | null = null;
   /** What this turn alone cost, from the process's cumulative figure (`ChatManager.lastTurn`) */
   costUsd: number | null = null;
-  private pending: ChatCompletionStreamItem[] = [];
-  private writer: ((items: ChatCompletionStreamItem[]) => void) | null = null;
+  private pending: Item[] = [];
+  private writer: ((items: Item[]) => void) | null = null;
   private unsubscribe: () => void = () => {};
   private readonly seen = new Set<number>();
   private since = 0;
@@ -311,9 +329,9 @@ class TurnRun {
 
   constructor(
     private readonly core: Core,
-    readonly translator: ChatCompletionTranslator,
+    readonly translator: OpenAiTurnTranslator<Item>,
     /** The turns open now, by chat: where the end of each API message is told (`chat-stop-reason`) */
-    private readonly open: Map<string, TurnRun>,
+    private readonly open: Map<string, { stopReason(reason: string): void }>,
     /** The chat's client-tool session: told each call as it streams, and handed the calls at the end */
     private readonly session: ClientToolSession | null = null,
     private readonly onHandOff: ((calls: OpenAiClientCall[]) => void) | null = null,
@@ -428,7 +446,7 @@ class TurnRun {
     this.out(this.translator.failWith(failure));
   }
 
-  private out(items: ChatCompletionStreamItem[]): void {
+  private out(items: Item[]): void {
     if (items.length > 0) {
       if (this.writer) this.writer(items);
       else this.pending.push(...items);
@@ -444,7 +462,7 @@ class TurnRun {
   }
 
   /** Hands what was said so far, and everything after, to `write`. */
-  stream(write: (items: ChatCompletionStreamItem[]) => void): void {
+  stream(write: (items: Item[]) => void): void {
     this.writer = write;
     const waiting = this.pending.splice(0);
     if (waiting.length > 0) write(waiting);
@@ -459,13 +477,42 @@ class TurnRun {
 /** The chat a request continues, or none: a new one starts. */
 type Target = { kind: 'new' } | { kind: 'existing'; chatId: string };
 
+/** The chat a stored response (`previous_response_id`) leads to, and what to answer when it may not be continued. */
+interface Previous {
+  chatId: string;
+  refusal: OpenAiFailure;
+}
+
+/**
+ * What a route tells `runTurn`: the request in Chat Completions' terms, and how its answer is made
+ * and written. Everything between (queue, target, tools, images, start, wait) is the same for both.
+ */
+interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
+  request: ChatCompletionRequest;
+  turn: OpenAiChatTurn;
+  /** Names for `x-claudio-ignored` the route found beside the translator's */
+  ignored: string[];
+  previous: Previous | null;
+  /** Where image errors point: `messages` or `input` */
+  imagesParam: string;
+  make(options: { structured: boolean; clientTools?: { prefix: string; names: ReadonlySet<string>; single: boolean } }): T;
+  /** What a stream opens with before anything of the turn (Responses' `response.created`) */
+  opening(translator: T): Item[];
+  write(stream: SseStream, item: Item): void;
+  /** The conversation key the client's next request carries, after this answer */
+  keyAfter(answered: { text: string; toolCalls: OpenAiToolCall[] }): string;
+  /** After a turn that answered (completed or cut short), with its chat and key */
+  completed?(translator: T, chatId: string, key: string): void;
+  whole(translator: T): { kind: 'error'; error: OpenAiErrorResponse } | { kind: 'ok'; body: unknown };
+}
+
 // ---------- the routes ----------
 
 export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, { core, conversationTtlMs, images, clientTools }) => {
   const locks = new KeyedLocks();
   const ttl = conversationTtlMs ?? OPENAI_CONVERSATION_TTL_MS;
   const registry = clientTools ?? new ClientToolRegistry();
-  const openTurns = new Map<string, TurnRun>();
+  const openTurns = new Map<string, { stopReason(reason: string): void }>();
   // The end of each API message, for the turn reading that chat: where a turn hands its calls over
   const onStopReason = (chatId: string, reason: string): void => openTurns.get(chatId)?.stopReason(reason);
   core.runtime.on('chat-stop-reason', onStopReason);
@@ -509,7 +556,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   );
 
   const sweep = setInterval(() => {
-    void sweepOpenAiChats({ conversations: core.openaiConversations, runtime: core.runtime, remove: (id) => core.chats.remove(id) }, Date.now(), ttl).catch((err: unknown) =>
+    void sweepOpenAiChats({ conversations: core.openaiConversations, responses: core.openaiResponses, runtime: core.runtime, remove: (id) => core.chats.remove(id) }, Date.now(), ttl).catch((err: unknown) =>
       app.log.warn({ err, scope: 'openai' }, 'the conversation sweep failed'),
     );
   }, SWEEP_EVERY_MS);
@@ -536,9 +583,139 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const parsed = parseChatCompletionRequest(req.body);
     if (!parsed.ok) return answer(reply, parsed.error);
     const request = parsed.value;
-    const ignoredHere: string[] = [];
-    const refusal = refusalOf(request, req.body, ignoredHere);
+    const ignored: string[] = [];
+    const refusal = refusalOf(request, req.body, ignored, CHAT_COMPLETION_PARAMS);
     if (refusal) throw fail(refusal);
+    const turn = translateOpenAiRequest(request);
+    const id = `chatcmpl-${randomUUID().replaceAll('-', '')}`;
+    const created = Math.floor(Date.now() / 1000);
+    return runTurn<ChatCompletionStreamItem, ChatCompletionTranslator>(req, reply, {
+      request,
+      turn,
+      ignored,
+      previous: null,
+      imagesParam: 'messages',
+      make: (options) => new ChatCompletionTranslator({ id, model: request.model, created, includeUsage: turn.includeUsage, ...options }),
+      opening: () => [],
+      write: (stream, item) => (item === STREAM_DONE ? stream.sendData(STREAM_DONE) : stream.send(item)),
+      keyAfter: (answered) => openAiKeyAfterAnswer(turn.keySeed, request.messages, answered),
+      whole: (translator) => {
+        const end = translator.end();
+        if (!end) return { kind: 'error', error: openAiError({ kind: 'server', message: 'The turn ended without an answer.' }) };
+        if (end.kind === 'error') return { kind: 'error', error: { status: end.status, body: end.body, ...(end.retryAfterSeconds !== undefined ? { retryAfterSeconds: end.retryAfterSeconds } : {}) } };
+        return { kind: 'ok', body: end.completion };
+      },
+    });
+  });
+
+  // ---------- the Responses API ----------
+
+  const responseNotFound = (id: string, param: string | null = null): OpenAiFailure => ({ kind: 'not-found', message: `No response found with id '${id}'.`, param });
+
+  app.post('/responses', { preHandler: spendGate(core), bodyLimit: COMPLETION_BODY_LIMIT }, async (req, reply) => {
+    const parsed = parseResponsesRequest(req.body);
+    if (!parsed.ok) return answer(reply, parsed.error);
+    const fresh = parsed.value;
+    const ignored: string[] = [];
+    const refusal = refusalOf(fresh.chat, req.body, ignored, RESPONSES_PARAMS);
+    if (refusal) throw fail(refusal);
+    let request = fresh;
+    let previous: Previous | null = null;
+    let previousKey: string | null = null;
+    if (fresh.previousResponseId !== null) {
+      // An unknown id, one deleted, one sent with `store: false` (never written) and one whose chat
+      // is gone or not this surface's all read the same: there is no such response to continue
+      const notFound = responseNotFound(fresh.previousResponseId, 'previous_response_id');
+      const stored = core.openaiResponses.find(fresh.previousResponseId);
+      if (!stored) throw fail(notFound);
+      const named = header(req, CHAT_ID_HEADER);
+      if (named !== undefined && named !== stored.chatId) {
+        throw fail({ kind: 'invalid-request', param: 'previous_response_id', message: `The previous response belongs to another chat than the one ${CHAT_ID_HEADER} names.` });
+      }
+      previous = { chatId: stored.chatId, refusal: notFound };
+      previousKey = stored.conversationKey;
+      // Its output goes before the new items, so their results are checked against its calls
+      request = withPreviousOutput(fresh, stored.response.output);
+    }
+    const turn = responsesTurnOf(request);
+    const id = `resp_${randomUUID().replaceAll('-', '')}`;
+    const createdAt = Math.floor(Date.now() / 1000);
+    return runTurn<ResponseStreamEvent, ResponsesTranslator>(req, reply, {
+      request: request.chat,
+      turn,
+      ignored,
+      previous,
+      imagesParam: 'input',
+      make: (options) =>
+        new ResponsesTranslator({
+          id,
+          model: request.chat.model,
+          createdAt,
+          instructions: request.instructions,
+          previousResponseId: request.previousResponseId,
+          store: request.store,
+          metadata: request.metadata,
+          echo: request.echo,
+          ...options,
+        }),
+      opening: (translator) => translator.open(),
+      // The reference's stream names each event on an `event:` line as well as in its `type`
+      write: (stream, event) => stream.send(event, { event: event.type }),
+      keyAfter: (answered) =>
+        previousKey !== null ? openAiKeyAfterPrevious(previousKey, fresh.chat.messages, answered) : openAiKeyAfterAnswer(turn.keySeed, request.chat.messages, answered),
+      completed: (translator, chatId, key) => {
+        if (!request.store) return;
+        const end = translator.end();
+        if (end?.kind !== 'response') return;
+        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, inputItems: request.inputItems });
+      },
+      whole: (translator) => {
+        const end = translator.end();
+        if (!end) return { kind: 'error', error: openAiError({ kind: 'server', message: 'The turn ended without an answer.' }) };
+        if (end.kind === 'error') return { kind: 'error', error: { status: end.status, body: end.body, ...(end.retryAfterSeconds !== undefined ? { retryAfterSeconds: end.retryAfterSeconds } : {}) } };
+        return { kind: 'ok', body: end.response };
+      },
+    });
+  });
+
+  app.get<{ Params: { id: string } }>('/responses/:id', async (req) => {
+    const stored = core.openaiResponses.find(req.params.id);
+    if (!stored) throw fail(responseNotFound(req.params.id));
+    return stored.response;
+  });
+
+  app.delete<{ Params: { id: string } }>('/responses/:id', async (req) => {
+    // The stored response goes; its chat stays, and a client resending the history still finds it
+    if (!core.openaiResponses.delete(req.params.id)) throw fail(responseNotFound(req.params.id));
+    const deleted: ResponseDeleted = { id: req.params.id, object: 'response.deleted', deleted: true };
+    return deleted;
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { after?: string; limit?: string; order?: string } }>('/responses/:id/input_items', async (req) => {
+    const stored = core.openaiResponses.find(req.params.id);
+    if (!stored) throw fail(responseNotFound(req.params.id));
+    const { after, order = 'desc' } = req.query;
+    if (order !== 'asc' && order !== 'desc') throw fail({ kind: 'invalid-request', param: 'order', message: '`order` must be `asc` or `desc`.' });
+    const limit = req.query.limit === undefined ? 20 : Number(req.query.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw fail({ kind: 'invalid-request', param: 'limit', message: '`limit` must be a whole number from 1 to 100.' });
+    const items = order === 'asc' ? stored.inputItems : [...stored.inputItems].reverse();
+    let start = 0;
+    if (after !== undefined) {
+      const at = items.findIndex((item) => item.id === after);
+      if (at < 0) throw fail({ kind: 'invalid-request', param: 'after', message: `No input item '${after}' in this response.` });
+      start = at + 1;
+    }
+    const data = items.slice(start, start + limit);
+    return { object: 'list' as const, data, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null, has_more: start + limit < items.length };
+  });
+
+  /**
+   * One request's turn, whichever API shape it came in: the conversation's queue, the target chat,
+   * the client-tool handoff, the images, the start or continuation, the answer whole or streamed.
+   * The two routes differ only in what `plan` says: how the request reads and how the answer is written.
+   */
+  async function runTurn<Item, T extends OpenAiTurnTranslator<Item>>(req: FastifyRequest, reply: FastifyReply, plan: TurnPlan<Item, T>): Promise<FastifyReply> {
+    const { request, turn } = plan;
     // The results the request ends with must answer the calls of its last assistant message, all of them
     const trailing = trailingResults(request.messages);
     const mismatch = trailing.calls.length > 0 || trailing.results.length > 0 ? resultsProblem(trailing) : null;
@@ -550,13 +727,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const cwd = cwdHeader === undefined ? undefined : cwdOf(core, cwdHeader);
     const toolPreset = header(req, TOOL_PRESET_HEADER);
     if (toolPreset !== undefined && !core.toolPresets.get(toolPreset)) throw fail({ kind: 'invalid-request', message: `${TOOL_PRESET_HEADER}: no tool preset '${toolPreset}' (see GET /api/config/tool-presets).`, param: null });
-    const turn = translateOpenAiRequest(request);
-    const ignored = [...turn.ignored, ...ignoredHere];
+    const ignored = [...turn.ignored, ...plan.ignored];
     const wantsTools = request.tools.length > 0 && request.toolChoice.kind !== 'none';
 
     // The client may go while it waits: a turn nobody reads is interrupted, one not started never starts
     let gone = false;
-    let run: TurnRun | null = null;
+    let run: TurnRun<Item> | null = null;
     let leave: () => void = () => {};
     const left = new Promise<void>((r) => {
       leave = r;
@@ -568,17 +744,17 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (run?.chatId && !run.finished) void core.chats.interrupt(run.chatId).catch(() => undefined);
     });
     /** Waits for the turn; once the client went, only as long as an interrupt takes to land. */
-    const settled = async (current: TurnRun): Promise<void> => {
+    const settled = async (current: TurnRun<Item>): Promise<void> => {
       await Promise.race([current.done, left]);
       if (!current.finished) await Promise.race([current.done, new Promise((r) => setTimeout(r, interruptGraceMs()).unref())]);
     };
 
     const releases: Array<() => void> = [];
     try {
-      const key = named !== undefined ? `chat:${named}` : turn.historyKey !== null ? `key:${turn.historyKey}` : null;
+      const key = named !== undefined ? `chat:${named}` : plan.previous ? `chat:${plan.previous.chatId}` : turn.historyKey !== null ? `key:${turn.historyKey}` : null;
       if (key) releases.push(await locks.acquire(key));
       if (gone) return reply;
-      const target = await targetOf(named, turn);
+      const target = await targetOf(named, turn, plan.previous);
       if (target.kind === 'existing' && key !== `chat:${target.chatId}`) releases.push(await locks.acquire(`chat:${target.chatId}`));
       if (gone) return reply;
 
@@ -608,7 +784,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       const uploaded = await uploadOpenAiImages(prompt.images, {
         fetch: (url, maxBytes) => fetchOpenAiImage(url, maxBytes, images),
         save: (name, bytes) => core.uploads.save(name, bytes),
-      });
+      }, UPLOAD_LIMITS.image, plan.imagesParam);
       if (!uploaded.ok) return answer(reply, uploaded.error);
 
       // A chat keeps its session once it had client tools: its process may serve the stub still
@@ -632,15 +808,11 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       // What the stub will list this turn: the live list when results go to it, else this request's
       const listed = tools && (held || !wantsTools) ? tools.tools : request.tools;
 
-      const translator = new ChatCompletionTranslator({
-        id: `chatcmpl-${randomUUID().replaceAll('-', '')}`,
-        model: request.model,
-        created: Math.floor(Date.now() / 1000),
-        includeUsage: turn.includeUsage,
+      const translator = plan.make({
         structured: turn.jsonSchema !== undefined,
         ...(tools ? { clientTools: { prefix: CLIENT_TOOL_PREFIX, names: allowedToolNames(choice, listed), single: !parallel } } : {}),
       });
-      const current = new TurnRun(core, translator, openTurns, tools, tools ? (calls) => handOff(tools, calls) : null);
+      const current = new TurnRun<Item>(core, translator, openTurns, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
       const startOpts = { provider: model.provider, cwd, toolPreset, ignored, tools, wantsTools, requestTools: request.tools, apply };
       try {
@@ -680,10 +852,20 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (chatId === null) throw fail({ kind: 'server', message: 'The chat started without an id.' });
       if (gone && !current.finished) void core.chats.interrupt(chatId).catch(() => undefined);
 
+      let remembered = false;
+      /**
+       * Once per turn, and before the event that ends it is written: a client that reads
+       * `response.completed` (or `[DONE]`) and sends its follow-up at once must find the stored
+       * response and the conversation key already there.
+       */
       const remember = (): void => {
-        const end = current.translator.end();
-        if (end?.kind !== 'completion') return;
-        core.openaiConversations.remember(openAiKeyAfterAnswer(turn.keySeed, request.messages, { text: end.text, toolCalls: end.toolCalls }), chatId, turn.user);
+        if (remembered || !translator.finished) return;
+        remembered = true;
+        const answered = translator.answered();
+        if (!answered) return;
+        const after = plan.keyAfter(answered);
+        core.openaiConversations.remember(after, chatId, turn.user);
+        plan.completed?.(translator, chatId, after);
       };
       const out: Record<string, string> = {
         [CHAT_ID_HEADER]: chatId,
@@ -694,12 +876,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (turn.stream) {
         const stream: SseStream = openStream(req, reply, { headers: out, trailers: [COST_HEADER] });
         // The stream drops what comes after the client left or after its end (`SseStream.closed`)
-        current.stream((items) => {
-          for (const item of items) {
-            if (item === STREAM_DONE) stream.sendData(STREAM_DONE);
-            else stream.send(item);
-          }
-        });
+        const write = (items: Item[]): void => {
+          remember();
+          for (const item of items) plan.write(stream, item);
+        };
+        write(plan.opening(translator));
+        current.stream(write);
         await settled(current);
         remember();
         stream.end(current.costUsd !== null ? { [COST_HEADER]: String(current.costUsd) } : {});
@@ -709,15 +891,14 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       await settled(current);
       remember();
       void reply.headers(out);
-      const end = current.translator.end();
-      if (!end) throw fail({ kind: 'server', message: 'The turn ended without an answer.' });
-      if (end.kind === 'error') return answer(reply, { status: end.status, body: end.body, ...(end.retryAfterSeconds !== undefined ? { retryAfterSeconds: end.retryAfterSeconds } : {}) });
+      const whole = plan.whole(translator);
+      if (whole.kind === 'error') return answer(reply, whole.error);
       if (current.costUsd !== null) void reply.header(COST_HEADER, String(current.costUsd));
-      return reply.send(end.completion);
+      return reply.send(whole.body);
     } finally {
       for (const release of releases.reverse()) release();
     }
-  });
+  }
 
   /**
    * The calls are the client's now. The wait is the setting's, read when it starts; a call still owed
@@ -787,7 +968,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
    * original input, the stub hands the CLI the text, and the same CLI turn goes on, read from here.
    * The results were checked against the held calls before anything was changed (`heldProblem`).
    */
-  function continueHeld(current: TurnRun, chatId: string, tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>, apply: () => void): void {
+  function continueHeld<Item>(current: TurnRun<Item>, chatId: string, tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>, apply: () => void): void {
     apply();
     current.attach(chatId);
     tools.deliver(trailing.results);
@@ -803,7 +984,13 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
    * The chat the request continues: the one it names, or the one its history leads to. A row whose
    * chat was deleted since (or pruned) is a miss, and the conversation starts again from the history.
    */
-  async function targetOf(named: string | undefined, turn: OpenAiChatTurn): Promise<Target> {
+  async function targetOf(named: string | undefined, turn: OpenAiChatTurn, previous: Previous | null): Promise<Target> {
+    if (previous) {
+      // A stored response of a chat that is no longer this surface's (or no longer there) is not one
+      // this client may continue: the same 404 as an unknown id
+      if (!(await isApiChat(previous.chatId))) throw fail(previous.refusal);
+      return { kind: 'existing', chatId: previous.chatId };
+    }
     if (named !== undefined) {
       // Only a chat this surface started: anyone holding a token would otherwise write into a
       // person's chat, an orchestration's or the assistant's, and run it with this surface's rules.
@@ -854,8 +1041,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
    * with client tools runs with `permissionPrompts: 'host'` and its session as the host, which holds
    * the client's calls and refuses everything else at once, as `'none'` would (spike change 1).
    */
-  async function startTurn(
-    current: TurnRun,
+  async function startTurn<Item>(
+    current: TurnRun<Item>,
     target: Target,
     turn: OpenAiChatTurn,
     prompt: string,

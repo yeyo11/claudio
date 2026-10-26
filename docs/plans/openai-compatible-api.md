@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T12:00:00Z
-updated_at: 2026-10-26T02:00:00Z
+updated_at: 2026-10-26T23:00:00Z
 tags:
     - plan
     - api
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: an OpenAI-compatible surface on Claudio's API
 
-Status: **design settled, spike done (GO with changes); phase 1 (translators and the conversation table) built on branch `feat/openai-phase1`; phase 2 (`/v1/models`, `/v1/chat/completions` whole and streamed, the `/v1` error handler, the credential rule, image fetching, the conversation expiry) built on branch `feat/openai-phase2`; phase 3 (`response_format` and structured output) built on branch `feat/openai-phase3`; phase 4 (client tools held at `can_use_tool` behind a per-chat stub MCP server, the `openaiToolCallTimeoutMinutes` setting, API only) built on branch `feat/openai-phase4`; phases 5-6 not built (2026-10-26).** What is built is described in [openai-compatible-api.md](../openai-compatible-api.md). The owner chose: each
+Status: **design settled, spike done (GO with changes); phase 1 (translators and the conversation table) built on branch `feat/openai-phase1`; phase 2 (`/v1/models`, `/v1/chat/completions` whole and streamed, the `/v1` error handler, the credential rule, image fetching, the conversation expiry) built on branch `feat/openai-phase2`; phase 3 (`response_format` and structured output) built on branch `feat/openai-phase3`; phase 4 (client tools held at `can_use_tool` behind a per-chat stub MCP server, the `openaiToolCallTimeoutMinutes` setting, API only) built on branch `feat/openai-phase4`; phase 5 (`POST /v1/responses`, the stored responses for `previous_response_id`, `GET`/`DELETE /v1/responses/:id` and the input items) and the docs of phase 6 built on branch `feat/openai-phase5`. The plan is complete (2026-10-26).** What is built is described in [openai-compatible-api.md](../openai-compatible-api.md). The owner chose: each
 request is a real Claudio chat with tools, the routes live in `apps/api`, and the first version covers
 `chat/completions` with streaming, `models`, tools / function calling, `/v1/responses` and images.
 The research below found a terms-of-use constraint and several precedents that change the decisions

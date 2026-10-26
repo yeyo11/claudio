@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-26T02:00:00Z
+updated_at: 2026-10-26T23:00:00Z
 tags:
     - api
     - openai
@@ -9,15 +9,16 @@ tags:
 ---
 # The OpenAI-compatible surface
 
-Clients that speak OpenAI's Chat Completions format will reach Claudio under `/api/v1`, and each
-request becomes a real Claudio chat ([the plan](plans/openai-compatible-api.md)). This page describes
-what is built: **phases 1 to 4**. Phase 1 is the pure translators and the conversation table in
+Clients that speak OpenAI's Chat Completions or Responses format reach Claudio under `/api/v1`, and
+each request becomes a real Claudio chat ([the plan](plans/openai-compatible-api.md)). This page
+describes what is built: **phases 1 to 5**. Phase 1 is the pure translators and the conversation table in
 `packages/core/src/openai/`. Phase 2 serves them: `GET /v1/models`, `GET /v1/models/:id` and
 `POST /v1/chat/completions`, whole and streamed, in `apps/api/src/routes/openai.ts`. Phase 3 adds
 `response_format` (structured output); images were built in phase 2. Phase 4 adds client tools
 (function calling): the client's `tools` are served to the CLI by a stub MCP server, and each call
-is held at `can_use_tool` until the client sends its result. `/v1/responses` (phase 5) is not built
-yet.
+is held at `can_use_tool` until the client sends its result. Phase 5 adds `POST /v1/responses`
+(OpenAI's Responses API) on the same machinery, with stored responses for `previous_response_id`,
+`GET` and `DELETE /v1/responses/:id` and `GET /v1/responses/:id/input_items`.
 
 **This surface is for local use with the owner's own login.** It drives the unmodified Claude Code
 CLI on the owner's machine, under the account signed in there. Anthropic's terms do not cover
@@ -623,6 +624,196 @@ After the review fixes, one more run on the same CLI and model (2026-10-26), $0.
 - Two parallel calls of one tool (`get_weather` Paris and Rome), results sent in reverse order: each
   `tool_result` carried its own city's result, and the answer paired them right.
 
+## Phase 5: the Responses API
+
+`POST /v1/responses` is OpenAI's Responses API over the same machinery as `/v1/chat/completions`:
+the request is read into the same Chat Completions request and `ChatTurn`, the turn runs through
+the same runner (queue, target chat, client-tool hold, images, start or continuation, idle
+watchdog, disconnect), and only the reading of the body and the writing of the answer differ.
+
+**Sources.** The wire format was read on 2026-10-26 from OpenAI's official reference, in the
+Markdown form the site serves (the HTML URL `developers.openai.com/api/reference/responses` answers
+404; the index `developers.openai.com/api/reference/llms.txt` lists the pages):
+
+- create: `https://developers.openai.com/api/reference/resources/responses/methods/create.md`
+  (request body, the Response object, input and output items, the examples, the streaming example)
+- retrieve, delete and input items: `…/responses/methods/retrieve.md`, `…/responses/methods/delete.md`,
+  `…/responses/subresources/input_items/methods/list.md`
+- streaming events: `https://developers.openai.com/api/reference/resources/responses/streaming-events.md`
+- guides: `https://developers.openai.com/api/docs/guides/migrate-to-responses.md`,
+  `…/guides/conversation-state.md`, `…/guides/function-calling.md`
+
+The official `openai` SDKs were not checked against the routes: the package is not in this
+repository's `node_modules`, and no dependency was added for it.
+
+| File | What it does |
+|---|---|
+| `packages/core/src/openai/responses-wire.ts` | The Responses wire types: output and input items, the response object, the delete answer, the stream events |
+| `packages/core/src/openai/responses-request.ts` | `parseResponsesRequest` (a body to the Chat Completions request plus what only Responses has, or an OpenAI-shaped 400), `responsesTurnOf`, `withPreviousOutput` and `keyAfterPrevious` |
+| `packages/core/src/openai/responses-events.ts` | `ResponsesTranslator`: a turn as output items and semantic events, built on `ChatCompletionTranslator` |
+| `packages/core/src/openai/responses-store.ts` | `OpenAiResponseStore` over the `openai_responses` table; `Core.openaiResponses` |
+| `apps/api/src/routes/openai.ts` | The four routes; `runTurn`, the turn both POST routes share, driven by a `TurnPlan` |
+
+### The request
+
+| Responses | What Claudio does |
+|---|---|
+| `input` as a string | One user message |
+| `message` items, roles `user`, `system`, `developer`, `assistant` (with or without `type`) | Messages, as in Chat Completions. Parts: `input_text`; `input_image` with `image_url` (data URL or http(s), the phase 2 fetcher and its 5 MB cap); `output_text` and `refusal` in an assistant's. `file_id` images, `input_file` and audio are `400 unsupported_parameter` |
+| `function_call` items | Tool calls of the assistant message right before them (an output's message and its calls are one assistant turn), or an assistant message of their own |
+| `function_call_output` items | `tool` messages, matched by `call_id`; text output only (image and file parts are refused) |
+| `reasoning` items | Dropped: Claudio never returns them and the CLI keeps its own thinking |
+| `item_reference`, items of hosted tools | `400 unsupported_parameter`; any other type is `400 invalid_request_error` |
+| `instructions` | The system prompt, before the input's system and developer messages; **not** part of the conversation key |
+| `model` | As on Chat Completions; unknown is `404 model_not_found` |
+| `reasoning.effort` | `effort`, with the same map as `reasoning_effort` |
+| `text.format` `json_schema` (flat: `name`, `schema`, `strict`) / `json_object` / `text` | Phase 3's structured output |
+| `tools` of type `function` (flat: `name`, `description`, `parameters`, `strict`) | Phase 4's client tools; `strict` is true unless `false` is sent, as the migration guide says Responses does |
+| `tool_choice` `auto` / `none` / `required` / `{ type: "function", name }` | As phase 4 enforces them |
+| `parallel_tool_calls` | As phase 4 |
+| `previous_response_id`, `store`, `metadata` | Below |
+| `user` | Kept for the conversation key, as on Chat Completions |
+| `max_output_tokens`, `max_tool_calls`, `temperature`, `top_p`, `top_logprobs`, `service_tier`, `truncation: "auto"`, a non-empty `include`, `safety_identifier`, `prompt_cache_*`, `context_management`, `moderation`, `access_programs`, `text.verbosity`, `reasoning.summary` (and its other fields) | Named in `x-claudio-ignored` |
+| `background: true`, `conversation`, `prompt`, hosted tools (`web_search*`, `file_search`, `code_interpreter`, `computer*`, `image_generation`, `mcp`, `shell`, `apply_patch`, `custom`…), `tool_choice` `allowed_tools` or a hosted type | `400 unsupported_parameter` with a message saying what to do instead |
+| `tools` together with a JSON `text.format` | `400 unsupported_parameter` (`param: text.format`), the same rule as Chat Completions |
+
+The last item must be a user message or a `function_call_output`, for the same reason as on Chat
+Completions. Everything else is phase 2: the credential rule, the per-conversation queue, the body
+limit, the headers in and out, the title from the first user text (`titleOf`).
+
+**Why `instructions` stay out of the key.** The reference says they are not carried from one
+response to the next, so a client may change them on each request, and its own function-calling
+example does: the second request has `instructions` the first did not. With them in the key, that
+request would miss the chat that holds the calls. The cost: two clients with the same model, `user`
+and resent history, differing only in `instructions`, share a chat. The history includes the
+model's own answers, so that takes resending them word for word. A live process keeps the system
+prompt it started with (a phase 2 gap): new `instructions` reach the chat when its process next
+starts.
+
+### State: `previous_response_id` and `store`
+
+`openai_responses (id PRIMARY KEY, chat_id, conversation_key, response, input_items, created_at)`,
+indexed on `chat_id` and `created_at`: one row per response the client asked to keep, written once.
+`response` is the object as it was served (its `output` items are what a follow-up continues from),
+`input_items` the request's input with ids, and `conversation_key` the key after this response.
+
+- **Stored when** `store` is not false and the turn answered: `completed` (with text or with
+  `function_call` items) or `incomplete`. A failed response is not stored. The row is written
+  before the stream's last event goes out, so a client that sends its follow-up the moment it reads
+  `response.completed` finds it.
+- **`store: false` writes nothing.** The response still has an id, but `GET` answers 404 and
+  `previous_response_id` answers 404. The plan asked for a `stored` column; with nothing to keep for
+  such a response, writing no row is the smaller and stricter choice.
+- **`previous_response_id`** finds the row, and the request continues that chat with only its new
+  items: the stored output is put before them as the assistant message it was, so its calls are
+  checked against the `function_call_output` items exactly as a resent history's are, and the delta
+  is just the new items. The queue key is `chat:<id>`. An unknown, deleted or never-stored id, an
+  expired one and one whose chat is gone or is not an `api` chat are all `404 not_found` with
+  `param: previous_response_id`, worded the same. With `X-Claudio-Chat-Id` naming another chat it is
+  a 400.
+- **The key after a `previous_response_id` turn** is the stored key extended by the new items and
+  the answer, so a client that later resends the whole history (same model and `user`, its system
+  messages as the first request had them) finds the same chat. It is remembered in
+  `openai_conversations` as on Chat Completions, so a request with the whole history and no id finds
+  the chat too, with `store` true or false.
+- **Forks.** A chat is one line. `previous_response_id` naming an older response of the chain
+  continues the chat as it is now, not as it was then: the model sees the later turns too. It is
+  the same rule as a resent history that leads to a chat that moved on (phase 2, "two clients
+  continuing the same point").
+- **Lifetime.** Rows go with their chat (`Db.deleteChat`, inside its transaction, like the other
+  chat-keyed rows). The hourly sweep drops rows older than 7 days (`OPENAI_CONVERSATION_TTL_MS`),
+  and an `api` chat a stored response still leads to is not deleted. OpenAI keeps responses 30 days.
+  `DELETE /v1/responses/:id` removes the row and answers `{ id, object: "response.deleted",
+  deleted: true }`. The chat stays, and a resent history still finds it.
+- `GET /v1/responses/:id` returns the stored object. `GET /v1/responses/:id/input_items` lists the
+  stored input in OpenAI's list shape (`data`, `first_id`, `last_id`, `has_more`), newest first unless
+  `order=asc`, with `limit` (1 to 100, 20 by default) and `after`. Only this request's input is listed,
+  not the chain before it.
+
+### The response object
+
+`id` (`resp_` and 32 hex characters), `object: "response"`, `created_at`, `completed_at`, `status`,
+`error`, `incomplete_details`, `instructions`, `max_output_tokens`, `model` (as asked), `output`,
+`parallel_tool_calls`, `previous_response_id`, `reasoning: { effort, summary: null }`, `store`,
+`temperature`, `text`, `tool_choice`, `tools` (the function tools as resolved, `strict` included),
+`top_p`, `truncation`, `usage`, `user`, `metadata`, `background: false`. No `output_text`: the
+reference calls it an SDK-only convenience the Python and JavaScript SDKs compute themselves.
+
+- `output` is a `message` item (`msg_…`, one `output_text` part with `annotations: []` and
+  `logprobs: []`) for a stretch of text, and a `function_call` item (`fc_…`, `call_id` the CLI's
+  `toolu_…` id, `name`, `arguments` as a JSON string, `status`) per client call, in the order the
+  model wrote them.
+- `status`: `completed`, including a response that hands calls over (the reference's own example);
+  `incomplete` with `incomplete_details.reason: "max_output_tokens"` when a budget or the token limit
+  cut the answer (`content_filter` for a refusal), the unfinished item `incomplete`; `failed` with
+  `error: { code, message }` (`rate_limit_exceeded` for a usage limit, `server_error` otherwise).
+- `usage`: `input_tokens` = input + cache read + cache creation, `input_tokens_details` with
+  `cached_tokens` (read) and `cache_write_tokens` (creation), `output_tokens`,
+  `output_tokens_details.reasoning_tokens: 0` (the CLI does not report them apart), `total_tokens`;
+  phase 2's per-turn figures, null when the CLI reported none, and null on a response that handed
+  calls over (the CLI reports usage with the turn's result). The cost stays in `X-Claudio-Cost-Usd`.
+- A whole answer that failed is an HTTP error in OpenAI's error shape, as on Chat Completions; an
+  `incomplete` one is a 200.
+
+### Streaming
+
+`stream: true` answers `text/event-stream`, each event as `event: <type>` and `data: <json>`, every
+event with a `sequence_number` one above the last, from 0. No `[DONE]`: the stream ends after the
+last event, as the reference's example does. `X-Claudio-Cost-Usd` is a trailer. The events, in
+order:
+
+```text
+response.created              (status in_progress, empty output)
+response.in_progress
+  for a stretch of text:
+response.output_item.added    (message, in_progress, content [])
+response.content_part.added   (output_text, text "")
+response.output_text.delta    … one per piece
+response.output_text.done
+response.content_part.done
+response.output_item.done     (message, completed)
+  for each client call:
+response.output_item.added    (function_call, in_progress, arguments "")
+response.function_call_arguments.delta   (the arguments whole, as the CLI writes the block)
+response.function_call_arguments.done
+response.output_item.done     (function_call, completed)
+response.completed | response.incomplete | response.failed   (the whole response)
+```
+
+A failure after `response.created` (a failed result, the process dying, the idle watchdog, a usage
+limit) ends with `response.failed` carrying the response and its `error`; the item being written
+stays in its output as `incomplete`, with no `.done` events. No `error` event is sent: the reference
+defines `error` with only a code and a message, while `response.failed` carries the response with
+its `error`, its id and what it wrote before failing, which is what a failed response is. Whether
+an SDK raises on `response.failed` was not checked (no SDK in the repository). Structured output streams as one
+`output_text.delta` holding the JSON at the end (phase 3).
+
+### Function tools
+
+Phase 4's whole hold, unchanged: the stub MCP server, `can_use_tool` held in the session's own
+pending map, the claimed-calls rule, withdrawn calls, the timeout setting, the cold resume with
+`X-Claudio-Resume: cold`, and a new user message dropping the held calls. In this shape:
+
+1. The response ends `completed` with its `function_call` items while the CLI holds the calls.
+2. The client runs them and sends one `function_call_output` per `call_id`, with
+   `previous_response_id` (the usual way) or after the whole history (`…input, …response.output`,
+   as the function-calling guide builds it). The held calls take the results and the same CLI turn
+   goes on.
+3. A user message and no output for the calls drops them, as on Chat Completions. Outputs for some
+   calls but not all, or for a call that was never made, are a 400 naming them.
+
+### Limits
+
+- `background`, `conversation` objects, stored prompts, hosted tools and `item_reference` are not
+  supported (400).
+- `GET /v1/responses/:id` does not stream (`stream=true` on the retrieve route is ignored), and
+  there is no `cancel` (it only applies to background responses).
+- `previous_response_id` to an older response of a chain continues the chat as it is now (Forks,
+  above).
+- Stored responses live 7 days, not 30.
+- `input_items` lists the request's own input, not the chain's.
+- The SDK parse check was not run (the package is not in the repository).
+
 ## Using it
 
 The base URL is `http://127.0.0.1:<port>/api/v1` (the dev server's port is 8797; the desktop app
@@ -686,7 +877,57 @@ final = client.chat.completions.create(model="sonnet", messages=messages, tools=
 print(final.choices[0].message.content)
 ```
 
-The same round trip with curl (the ids come from the first answer):
+The Responses API, with the same client (Python; the Node SDK is the same shape):
+
+```python
+# One turn, then a follow-up that continues the same chat from the stored response
+first = client.responses.create(model="sonnet", instructions="Be brief.", input="Name a river in Spain")
+print(first.output_text)
+second = client.responses.create(model="sonnet", previous_response_id=first.id, input="And one in France?")
+print(second.output_text)
+
+# Streamed: the semantic events, from response.created to response.completed
+for event in client.responses.create(model="sonnet", input="Count to three", stream=True):
+    if event.type == "response.output_text.delta":
+        print(event.delta, end="")
+
+# A function tool round trip: the response hands the call over, function_call_output answers it
+tools = [{"type": "function", "name": "get_weather", "description": "Current weather in a city",
+          "parameters": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]}}]
+asked = client.responses.create(model="sonnet", input="What's the weather in Madrid?", tools=tools)
+results = [{"type": "function_call_output", "call_id": item.call_id,
+            "output": f"21 C and sunny in {json.loads(item.arguments)['city']}"}
+           for item in asked.output if item.type == "function_call"]
+final = client.responses.create(model="sonnet", previous_response_id=asked.id, input=results, tools=tools)
+print(final.output_text)
+```
+
+With curl:
+
+```bash
+curl -s http://127.0.0.1:8797/api/v1/responses -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"model":"sonnet","input":"Weather in Madrid?",
+       "tools":[{"type":"function","name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}]}'
+# → "id":"resp_…", "status":"completed",
+#   "output":[{"type":"function_call","id":"fc_…","call_id":"toolu_01…","name":"get_weather","arguments":"{\"city\":\"Madrid\"}","status":"completed"}]
+
+curl -s http://127.0.0.1:8797/api/v1/responses -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"model":"sonnet","previous_response_id":"resp_…",
+       "input":[{"type":"function_call_output","call_id":"toolu_01…","output":"21 C and sunny"}],
+       "tools":[{"type":"function","name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}]}'
+# → the final answer as a message item, in the same chat
+
+curl -N http://127.0.0.1:8797/api/v1/responses -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"model":"sonnet","input":"Say hi","stream":true}'
+# → event: response.created / data: {…,"sequence_number":0} … event: response.completed
+
+curl -s http://127.0.0.1:8797/api/v1/responses/resp_… -H "Authorization: Bearer $TOKEN"            # the stored response
+curl -s -X DELETE http://127.0.0.1:8797/api/v1/responses/resp_… -H "Authorization: Bearer $TOKEN"  # {"id":…,"object":"response.deleted","deleted":true}
+```
+
+The Chat Completions round trip with curl (the ids come from the first answer):
 
 ```bash
 curl -s http://127.0.0.1:8797/api/v1/chat/completions -H "Authorization: Bearer $TOKEN" \

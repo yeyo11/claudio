@@ -8,6 +8,7 @@
 //   FAIL <text>   ends the turn with an error result
 //   EXIT          the process exits without a result
 //   SLOW <ms>     waits that long, then echoes
+//   BUDGET        streams the start of an answer, then ends as `--max-budget-usd` does (`error_max_budget_usd`)
 //
 // Started with `--json-schema`, it answers as the CLI does there: a line of prose, then a call to the
 // `StructuredOutput` tool whose input is `{ "answer": "echo: <line>" }`, and a `result` carrying it
@@ -37,7 +38,7 @@
 // The last line of a prompt that starts with `(For this turn:` is the tool_choice instruction: it is
 // recorded and skipped when the directive is read.
 //
-//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema, prompts, stub, instruction }` per turn
+//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema, prompts, system, stub, instruction }` per turn
 import { appendFileSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
@@ -206,12 +207,12 @@ function callTools(kind, calls) {
   for (const call of made) askFor(call.id, call.name, call.input);
 }
 
-function result(isError, text, structured) {
+function result(isError, text, structured, subtype) {
   turns++;
   const usage = { inputTokens: 10 * turns, outputTokens: 5 * turns, cacheReadInputTokens: 100 * turns, cacheCreationInputTokens: 20 * turns, costUSD: 0.01 * turns, contextWindow: 200000 };
   out({
     type: 'result',
-    subtype: isError ? 'error_during_execution' : 'success',
+    subtype: subtype ?? (isError ? 'error_during_execution' : 'success'),
     is_error: isError,
     num_turns: 1,
     total_cost_usd: 0.01 * turns,
@@ -241,6 +242,15 @@ async function answer(prompt) {
     return;
   }
   if (last === 'EXIT') process.exit(0);
+  if (last === 'BUDGET') {
+    const cut = 'A long answer that the budget cut';
+    out({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_start', message: { role: 'assistant' } } });
+    out({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } });
+    out({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: cut } } });
+    out({ type: 'assistant', parent_tool_use_id: null, message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: cut }], stop_reason: null } });
+    result(true, '', undefined, 'error_max_budget_usd');
+    return;
+  }
   const failure = /^FAIL (.*)$/.exec(last);
   if (failure) {
     result(true, failure[1]);
@@ -323,7 +333,7 @@ lines.on('line', (line) => {
   const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : (content ?? []);
   const prompt = blocks.map((b) => b.text ?? '').join('\n');
   if (process.env.FAKE_OPENAI_PROMPTS) {
-    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema, prompts: permissionPrompts, instruction: prompt.split('\n').find((l) => l.startsWith('(For this turn:')) ?? null })}\n`);
+    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema, prompts: permissionPrompts, system: flag('--append-system-prompt') ?? null, instruction: prompt.split('\n').find((l) => l.startsWith('(For this turn:')) ?? null })}\n`);
   }
   void answer(prompt).then(() => {
     if (process.env.FAKE_OPENAI_PROMPTS && stubSeen) appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, sessionId, stub: stubSeen })}\n`);

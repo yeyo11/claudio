@@ -80,9 +80,9 @@ export function clientToolName(cliName: string): string | null {
  * Why the request's tools cannot be served, or null. The parser already checked the name's
  * characters and duplicates; this is what the stub adds: the prefix's room and the built-ins.
  */
-export function clientToolsProblem(tools: readonly ClientTool[]): OpenAiFailure | null {
+export function clientToolsProblem(tools: readonly ClientTool[], paramOf: (index: number) => string = (i) => `tools[${String(i)}].function.name`): OpenAiFailure | null {
   for (const [i, tool] of tools.entries()) {
-    const param = `tools[${String(i)}].function.name`;
+    const param = paramOf(i);
     if (tool.name.length > MAX_CLIENT_TOOL_NAME) {
       return { kind: 'invalid-request', param, message: `The tool name \`${tool.name}\` is too long: the CLI lists it as \`${CLIENT_TOOL_PREFIX}${tool.name}\`, and a tool name is at most ${String(MAX_TOOL_NAME)} characters, so client tool names are at most ${String(MAX_CLIENT_TOOL_NAME)}.` };
     }

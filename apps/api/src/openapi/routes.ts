@@ -132,7 +132,7 @@ export const TAGS = [
   {
     name: 'OpenAI-compatible',
     description:
-      "Chat Completions and Models in OpenAI's wire format, so clients and SDKs that speak it use Claudio by pointing their base URL at `/api/v1`. For local use with the owner's own login (see docs/openai-compatible-api.md). Each request is a real Claudio chat (origin `api`, hidden from the chat lists) with the default tool preset, no permission prompts and never `bypassPermissions`; a resent history finds its chat again. A credential is required in every mode, `mode: none` included: the owner's token or a chat's own. Errors are `{ error: { message, type, param, code } }`; the daily spend cap answers `429` with `Retry-After`. Claudio's own parameters are headers: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset` in; `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` and `X-Claudio-Ignored` out.",
+      "Chat Completions, Responses and Models in OpenAI's wire format, so clients and SDKs that speak it use Claudio by pointing their base URL at `/api/v1`. For local use with the owner's own login (see docs/openai-compatible-api.md). Each request is a real Claudio chat (origin `api`, hidden from the chat lists) with the default tool preset, no permission prompts and never `bypassPermissions`; a resent history finds its chat again. A credential is required in every mode, `mode: none` included: the owner's token or a chat's own. Errors are `{ error: { message, type, param, code } }`; the daily spend cap answers `429` with `Retry-After`. Claudio's own parameters are headers: `X-Claudio-Chat-Id`, `X-Claudio-Cwd`, `X-Claudio-Tool-Preset` in; `X-Claudio-Chat-Id`, `X-Claudio-Cost-Usd` and `X-Claudio-Ignored` out.",
   },
   {
     name: 'Push',
@@ -790,6 +790,29 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
       'x-claudio-tool-preset': str('A stored tool preset id (`GET /config/tool-presets`); the default preset otherwise'),
       'x-claudio-spend-override': str('`1` goes on past the daily spend cap', { enum: ['1'] }),
     }),
+  }),
+  'POST /v1/responses': d('OpenAI-compatible', 'A Responses API turn, answered whole or streamed', {
+    description:
+      'Body: OpenAI\'s Responses request. `input` is a string or a list of items (`message` with roles `user`, `assistant`, `system` and `developer` and parts `input_text`, `input_image` by data URL or http(s), `output_text`, `refusal`; `function_call`; `function_call_output`; `reasoning` items are dropped). `instructions` join the system prompt but not the conversation key. `previous_response_id` continues the chat of a stored response with only the new items; an unknown, deleted or `store: false` id, or one whose chat is gone, is `404 not_found` (`param: previous_response_id`). Without it, a resent history finds its chat by the conversation key, as on `/v1/chat/completions`. `store` (true by default) keeps the response for `GET /v1/responses/:id` and `previous_response_id` for 7 days; it goes with its chat. The answer is the response object (`output` of `message` and `function_call` items, `usage` with `input_tokens_details.cached_tokens`, `status` `completed`, or `incomplete` with `incomplete_details.reason` `max_output_tokens` when a budget cut it). `stream: true` answers the semantic events (`event: <type>` and `data: <event>` with a rising `sequence_number`), from `response.created` to `response.completed`, `response.incomplete` or `response.failed`, with `X-Claudio-Cost-Usd` as a trailer. `text.format` `json_schema` / `json_object` is the structured output, as `response_format` is on Chat Completions. Flat function `tools` are handed back: the response ends `completed` with `function_call` items while the chat\'s CLI holds the calls, and the next request\'s `function_call_output` items (with `previous_response_id` or the whole history) continue the same turn. Refused with `400 unsupported_parameter`: `background: true`, `conversation`, `prompt`, hosted tools (`web_search`, `file_search`, `code_interpreter`, computer use, `image_generation`, `mcp`…) and their items, `allowed_tools`, `item_reference`, and tools together with `text.format`. Headers in and out as on `/v1/chat/completions`.',
+    headers: obj({
+      'x-claudio-chat-id': str('Continue this chat, one with origin `api`; any other id is 404'),
+      'x-claudio-cwd': str('An absolute directory inside the workspace or an imported project, for a new chat'),
+      'x-claudio-tool-preset': str('A stored tool preset id (`GET /config/tool-presets`); the default preset otherwise'),
+      'x-claudio-spend-override': str('`1` goes on past the daily spend cap', { enum: ['1'] }),
+    }),
+  }),
+  'GET /v1/responses/:id': d('OpenAI-compatible', 'A stored response', {
+    description: 'The response object as `POST /v1/responses` answered it, while it is stored (`store` not false, not deleted, not expired after 7 days, its chat not deleted). Otherwise `404 not_found`.',
+    params: obj({ id: str('Response id, `resp_…`') }, ['id']),
+  }),
+  'DELETE /v1/responses/:id': d('OpenAI-compatible', 'Delete a stored response', {
+    description: 'Removes the stored response, not its chat: `{ id, object: "response.deleted", deleted: true }`. It can no longer be retrieved or continued with `previous_response_id`; a client resending the whole history still finds the chat. `404 not_found` when no such response is stored.',
+    params: obj({ id: str('Response id, `resp_…`') }, ['id']),
+  }),
+  'GET /v1/responses/:id/input_items': d('OpenAI-compatible', "A stored response's input items", {
+    description: 'The items the request carried, each with an id (the client\'s, or one Claudio gave it), in OpenAI\'s list shape `{ object: "list", data, first_id, last_id, has_more }`. Newest first unless `order=asc`; `limit` 1 to 100 (20 by default); `after` an item id to page from.',
+    params: obj({ id: str('Response id, `resp_…`') }, ['id']),
+    querystring: obj({ after: str('An item id: list the items after it'), limit: str('1 to 100, 20 by default'), order: str('`asc` or `desc` (the default)') }),
   }),
   'POST /openai/client-tools/:id/mcp': d('OpenAI-compatible', "The stub MCP server of one chat's client tools", {
     description:
