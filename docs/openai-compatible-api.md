@@ -534,7 +534,11 @@ disconnect: the chat is interrupted, and the CLI withdraws the held requests
 (`control_cancel_request`) and ends its turn (spike).
 
 **Cold resume.** The results go to the held requests only when the chat's live process is the one
-the calls were handed over from (`ClientToolSession.holderPid`). When that process is gone (a
+the calls were handed over from (`ClientToolSession.holderPid`), is still in that turn, and still
+holds at least one call the CLI has not withdrawn (`ClientToolSession.holds`). When the CLI withdrew
+every one (a person stopped the turn in the web while the client was computing), the idle process
+holds nothing: results go in as a cold resume to it, and a new `user` message is an ordinary turn,
+with nothing to interrupt. When that process is gone (a
 restart, the idle expiry, a crash), the session forgets its calls as the process ends, and results
 that no live process holds go in as a cold resume, even when another process of the chat is up by
 then (a person's resume, an earlier request's turn): the new process never asked for them. A chat

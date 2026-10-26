@@ -580,10 +580,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (late.length) {
         throw fail({ kind: 'invalid-request', param: 'messages', message: `The tool calls ${late.join(', ')} waited longer than the tool-call timeout (openaiToolCallTimeoutMinutes) for their results, and the chat was stopped. Start the conversation again.` });
       }
-      const pid = existing !== null ? (core.runtime.get(existing)?.pid ?? null) : null;
-      // The CLI process that asked for the calls is the one holding them: another process (a restart,
-      // a person's resume) never asked, and results sent to it would wait for nothing
-      const holding = pid !== null && session?.waiting === true && session.holderPid === pid;
+      const live = existing !== null ? (core.runtime.get(existing) ?? null) : null;
+      // The CLI process that asked for the calls, still in that turn and still holding at least one
+      // of them, is the one holding them. Another process (a restart, a person's resume) never asked,
+      // and one whose turn ended (a person interrupted it, so the CLI withdrew every request) will
+      // never call the stub: results sent to either would wait for nothing
+      const holding = session !== undefined && live !== null && live.status !== 'idle' && session.holds(live.pid);
       // The client dropped the calls and sent a new message: the turn holding them is interrupted
       const abandoning = holding && abandonsClientCalls(trailing);
       const held = holding && !abandoning;
@@ -609,7 +611,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         if (!tools) return;
         tools.choice = choice;
         tools.parallel = parallel;
-        if (cold) tools.forgetCalls();
+        // A turn that is not the held one starts afresh: calls a process no longer waits on (results
+        // going in cold, or a turn that ended without them) must not leave a wait that would stop it
+        if (!held) tools.forgetCalls();
       };
       // A live stub lists what it listed when the process started; the results go there all the same
       if (held && wantsTools && tools && !sameClientTools(tools.tools, request.tools)) ignored.push('tools');

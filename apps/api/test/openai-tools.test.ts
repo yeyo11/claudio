@@ -477,6 +477,47 @@ test('a new user message instead of the results drops the held calls and continu
   assert.equal(results.at(-2)?.outcome?.isError, true);
 });
 
+test('results sent after a person interrupted the turn holding the calls go in cold to the idle process instead of waiting on it', async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'lookup', input: { key: 'p' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const session = registry.ofChat(chatId);
+  assert.ok(session);
+  await until(() => session.heldCount() === 1);
+  const pid = core.runtime.get(chatId)?.pid;
+  // The person stops the turn in the web: the CLI withdraws its request and ends the turn; the process stays
+  await core.chats.interrupt(chatId);
+  await until(() => core.runtime.get(chatId)?.status === 'idle');
+  const id = body.choices[0]?.message.tool_calls?.[0]?.id ?? '';
+  const res = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(id, 'the value')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('x-claudio-resume'), 'cold');
+  await res.json();
+  assert.equal(core.runtime.get(chatId)?.pid, pid);
+  assert.match(logged(chatId).filter((l) => l.prompt !== undefined).at(-1)?.prompt ?? '', new RegExp(`<tool-result id="${id}">\\nthe value\\n</tool-result>`));
+});
+
+test('a new message after a person interrupted the turn holding the calls is an ordinary turn, with no second interrupt to wait out', async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'lookup', input: { key: 'q' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const session = registry.ofChat(chatId);
+  assert.ok(session);
+  await until(() => session.heldCount() === 1);
+  await core.chats.interrupt(chatId);
+  await until(() => core.runtime.get(chatId)?.status === 'idle');
+  const ends = core.runtime.events(chatId).filter((e) => e.kind === 'result').length;
+  const next = await post({ model: 'sonnet', messages: [...messages, echoed(body), user('something else')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
+  assert.equal(next.status, 200);
+  assert.equal(((await next.json()) as Completion).choices[0]?.message.content, 'echo: something else');
+  // One result more, the new turn's: nothing was interrupted on its way
+  const results = core.runtime.events(chatId).filter((e) => e.kind === 'result');
+  assert.equal(results.length, ends + 1);
+  assert.equal(results.at(-1)?.outcome?.isError, false);
+});
+
 test('a client-tool request no call handed to the client covers (a subagent\'s) is denied at once instead of held', async () => {
   const res = await post({ model: 'sonnet', messages: [user(directive('TOOLS_SIDE', [{ name: 'lookup', input: { key: 's' } }]))], tools: [lookup] }, {}, AbortSignal.timeout(8_000));
   assert.equal(res.status, 200);

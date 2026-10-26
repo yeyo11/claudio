@@ -262,6 +262,16 @@ export class ClientToolSession {
     return this.awaiting.size > 0;
   }
 
+  /**
+   * Whether `pid`, the chat's live process, is the one still waiting on the client's results: the
+   * process the calls were handed over from, with at least one of them not withdrawn. Only it can
+   * take them: another one never asked, and one whose requests were all withdrawn (a person
+   * interrupted the turn) will not call the stub again, so results sent there would wait for nothing.
+   */
+  holds(pid: number | null): boolean {
+    return pid !== null && this.holderPid === pid && [...this.awaiting.keys()].some((id) => !this.withdrawnIds.has(id));
+  }
+
   /** Ids of the calls handed to the client, for checking what the next request answers. */
   awaitingIds(): string[] {
     return [...this.awaiting.keys()];
