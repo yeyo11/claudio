@@ -407,7 +407,10 @@ class TurnRun {
     }
     this.out(this.translator.push(event));
     // Before the CLI can ask for them: it writes a block's message first, and this runs as it arrives
-    if (this.session && event.kind === 'message') this.session.claim(this.translator.clientCalls());
+    if (this.session && event.kind === 'message') {
+      const fresh = this.translator.takeNewClientCalls();
+      if (fresh.length) this.session.claim(fresh);
+    }
   }
 
   private ended(result: RunResult | null): void {

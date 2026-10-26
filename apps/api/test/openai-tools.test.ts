@@ -580,6 +580,31 @@ test('dropping calls whose turn does not end within the grace is a 409 that leav
   }
 });
 
+test('each message of a turn claims only the client calls new in it, not every call so far again', async () => {
+  const hello = await post({ model: 'sonnet', messages: [user('hi')], tools: [lookup] });
+  const chatId = chatOf(hello);
+  await hello.json();
+  const session = registry.ofChat(chatId);
+  assert.ok(session);
+  const sizes: number[] = [];
+  const claim = session.claim.bind(session);
+  session.claim = (calls) => {
+    sizes.push(calls.length);
+    claim(calls);
+  };
+  const calls = [{ name: 'lookup', input: { key: '1' } }, { name: 'lookup', input: { key: '2' } }, { name: 'lookup', input: { key: '3' } }];
+  const res = await post({ model: 'sonnet', messages: [user(directive('TOOLS', calls))], tools: [lookup] }, { 'x-claudio-chat-id': chatId });
+  const body = (await res.json()) as Completion;
+  assert.equal(body.choices[0]?.message.tool_calls?.length, 3);
+  // The CLI writes one message per block: each claims its own call
+  assert.deepEqual(sizes, [1, 1, 1]);
+  // Claiming less changes nothing the CLI sees: every call is held
+  await until(() => session.heldCount() === 3);
+  const ids = body.choices[0]?.message.tool_calls?.map((c) => c.id) ?? [];
+  const done = await post({ model: 'sonnet', messages: [user(directive('TOOLS', calls)), echoed(body), ...ids.map((id, i) => toolMsg(id, String(i)))], tools: [lookup] }, { 'x-claudio-chat-id': chatId }, AbortSignal.timeout(10_000));
+  assert.equal(((await done.json()) as Completion).choices[0]?.message.content, 'results: 0 | 1 | 2');
+});
+
 test('a client-tool request no call handed to the client covers (a subagent\'s) is denied at once instead of held', async () => {
   const res = await post({ model: 'sonnet', messages: [user(directive('TOOLS_SIDE', [{ name: 'lookup', input: { key: 's' } }]))], tools: [lookup] }, {}, AbortSignal.timeout(8_000));
   assert.equal(res.status, 200);

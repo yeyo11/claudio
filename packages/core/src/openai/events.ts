@@ -132,6 +132,8 @@ export class ChatCompletionTranslator {
   /** The text block partials are filling now; null between blocks or inside a thinking block */
   private current: StreamedBlock | null = null;
   private readonly calls = new Map<string, CallState>();
+  /** Client calls streamed since `takeNewClientCalls()` last ran, with their input as the block had it */
+  private fresh: Array<{ id: string; name: string; input: unknown }> = [];
   private ended: TurnEnd | null = null;
 
   constructor(private readonly opts: ChatCompletionTranslatorOptions) {}
@@ -222,6 +224,18 @@ export class ChatCompletionTranslator {
     if (!tools.names.has(name) || (tools.single && this.calls.size > 0)) return;
     out.push(...this.toolCallDelta({ id, name, argumentsAppend: '' }));
     out.push(...this.toolCallDelta({ id, name, argumentsAppend: JSON.stringify(input ?? {}) }));
+    this.fresh.push({ id, name, input: input ?? {} });
+  }
+
+  /**
+   * The client calls streamed since the last time this was asked, and only those: what a turn
+   * claims as each message arrives. Asking for the whole list each time would parse every call so
+   * far again on every message of a long turn.
+   */
+  takeNewClientCalls(): Array<{ id: string; name: string; input: unknown }> {
+    const taken = this.fresh;
+    this.fresh = [];
+    return taken;
   }
 
   /** Calls the client is to make, streamed so far, in order: what `handOff()` would hand over. */

@@ -418,3 +418,16 @@ test('parallel calls get indexes 0 and 1; built-in, disallowed and single-mode e
   // No call, no handoff: the turn goes on to its result
   assert.equal(clientTranslator(['a']).handOff(), null);
 });
+
+test('each message hands over only the client calls new in it, with the input the block carried', () => {
+  const t = clientTranslator(['a', 'b']);
+  t.push(msg(toolUse('t1', `${CLIENT_TOOL_PREFIX}a`, { x: 1 })));
+  assert.deepEqual(t.takeNewClientCalls(), [{ id: 't1', name: 'a', input: { x: 1 } }]);
+  t.push(msg(toolUse('t0', 'Bash', { command: 'ls' })));
+  assert.deepEqual(t.takeNewClientCalls(), []);
+  t.push(msg(toolUse('t2', `${CLIENT_TOOL_PREFIX}b`, {})));
+  t.push(msg(toolUse('t2', `${CLIENT_TOOL_PREFIX}b`, {})));
+  assert.deepEqual(t.takeNewClientCalls(), [{ id: 't2', name: 'b', input: {} }]);
+  // The whole list for the hand-off is unchanged
+  assert.deepEqual(t.clientCalls().map((c) => c.id), ['t1', 't2']);
+});

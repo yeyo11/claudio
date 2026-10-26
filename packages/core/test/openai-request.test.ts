@@ -302,3 +302,13 @@ test('json_schema strict is recorded on the turn, and schemas compare with their
   assert.equal(sameJsonSchema(undefined, null), true);
   assert.equal(sameJsonSchema(undefined, schema), false);
 });
+
+test('the title is cut at 100 units without splitting an emoji that straddles the cut', () => {
+  // 99 letters, then an emoji whose two halves are units 100 and 101
+  const prompt = `${'a'.repeat(99)}\u{1F600} and more`;
+  const title = turn({ model: 'sonnet', messages: [{ role: 'user', content: prompt }] }).title;
+  assert.equal(title, 'a'.repeat(99));
+  // One unit further the whole emoji fits, and is kept
+  assert.equal(turn({ model: 'sonnet', messages: [{ role: 'user', content: `${'a'.repeat(98)}\u{1F600} and more` }] }).title, `${'a'.repeat(98)}\u{1F600}`);
+  assert.equal(turn({ model: 'sonnet', messages: [{ role: 'user', content: 'b'.repeat(150) }] }).title, 'b'.repeat(100));
+});

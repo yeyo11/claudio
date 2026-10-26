@@ -461,15 +461,27 @@ export function translateRequest(request: ChatCompletionRequest): ChatTurn {
   };
 }
 
-/** The same cut as a transcript's title: the first line, at most 100 characters (`sessions.ts`). */
+/**
+ * The same cut as a transcript's title: the first line, at most 100 UTF-16 units (`sessions.ts`
+ * counts the same way), but never ending on half of a surrogate pair: the name goes to the CLI's
+ * `--name` and into the chat list, where a lone surrogate is not text.
+ */
 function titleOf(messages: readonly ChatMessage[]): string | null {
   for (const m of messages) {
     if (m.role !== 'user') continue;
     const text = normalizeText(m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('\n'));
-    const line = text.split('\n')[0]?.trim().slice(0, 100);
+    const line = cutTitle(text.split('\n')[0]?.trim() ?? '');
     if (line) return line;
   }
   return null;
+}
+
+const TITLE_LENGTH = 100;
+
+function cutTitle(line: string): string {
+  if (line.length <= TITLE_LENGTH) return line;
+  const last = line.charCodeAt(TITLE_LENGTH - 1);
+  return line.slice(0, last >= 0xd800 && last <= 0xdbff ? TITLE_LENGTH - 1 : TITLE_LENGTH);
 }
 
 /** Parse and translate in one step, for a route. */
