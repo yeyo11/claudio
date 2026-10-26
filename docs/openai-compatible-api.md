@@ -508,6 +508,11 @@ whether the history or the live process is short of them). While the CLI is hold
 results must also be the ones it waits for, and a `user` message after a full set of results is a
 `400` (the CLI is in the middle of its turn; send the results, then the message).
 
+**A call the CLI withdrew** (`control_cancel_request`, after an interrupt) is no longer owed: the
+session stops waiting on it (and stops its wait when nothing else is owed), a result the client
+sends for it anyway is accepted and ignored, and a result is demanded only for the calls the CLI
+still holds.
+
 **Dropping the calls.** A request with **no** result for the calls and a new `user` message (after
 the assistant message with the calls, or alone on a chat named by `X-Claudio-Chat-Id`) drops them:
 the turn holding them is interrupted (the CLI withdraws its requests, a held one still left gets the

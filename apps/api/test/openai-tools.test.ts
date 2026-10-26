@@ -489,6 +489,8 @@ test('results sent after a person interrupted the turn holding the calls go in c
   // The person stops the turn in the web: the CLI withdraws its request and ends the turn; the process stays
   await core.chats.interrupt(chatId);
   await until(() => core.runtime.get(chatId)?.status === 'idle');
+  // The withdrawn call is owed by nobody
+  assert.equal(session.waiting, false);
   const id = body.choices[0]?.message.tool_calls?.[0]?.id ?? '';
   const res = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(id, 'the value')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
   assert.equal(res.status, 200);

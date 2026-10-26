@@ -231,6 +231,49 @@ test('a client-tool request nobody claimed is denied at once; the end of the pro
   assert.deepEqual(s.awaitingIds(), []);
 });
 
+test('a call the CLI withdrew is no longer owed: the client answers only the other one, a result for it is ignored, and waiting stays truthful', () => {
+  const s = new ClientToolSession([tool('a')]);
+  const { answers, answer } = recorder();
+  const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`, { city: 'Lima' });
+  const two = ask('t2', `${CLIENT_TOOL_PREFIX}a`, { city: 'Oslo' });
+  s.claim([call('t1', 'a', { city: 'Lima' }), call('t2', 'a', { city: 'Oslo' })]);
+  s.ask(one, answer(one));
+  s.ask(two, answer(two));
+  s.handOff([call('t1', 'a', { city: 'Lima' }), call('t2', 'a', { city: 'Oslo' })], 60_000, () => assert.fail('no expiry'), 7);
+  s.withdrawn(one.id);
+  assert.deepEqual(s.awaitingIds(), ['t2']);
+  assert.ok(s.holds(7));
+  const only = (results: Array<{ toolCallId: string; text: string }>) => ({ calls: [], results, userAfter: false });
+  // Only the call still held must be answered; the withdrawn one may be answered too, and is ignored
+  assert.equal(s.heldProblem(only([{ toolCallId: 't2', text: 'B' }])), null);
+  assert.equal(s.heldProblem(only([{ toolCallId: 't1', text: 'A' }, { toolCallId: 't2', text: 'B' }])), null);
+  assert.match(s.heldProblem(only([{ toolCallId: 't1', text: 'A' }]))?.kind ?? '', /invalid-request/);
+  s.deliver([{ toolCallId: 't1', text: 'A' }, { toolCallId: 't2', text: 'B' }]);
+  assert.deepEqual(answers.get(two.id), [{ behavior: 'allow', updatedInput: { city: 'Oslo' } }]);
+  assert.equal(answers.get(one.id), undefined);
+  assert.equal(s.callResult('a', 't1', { city: 'Lima' }).isError, true);
+  assert.equal(s.callResult('a', 't2', { city: 'Oslo' }).text, 'B');
+});
+
+test('once the CLI withdrew every held request the session waits on nothing, holds for no process, and its wait never fires', async () => {
+  const s = new ClientToolSession([tool('a')]);
+  const { answer } = recorder();
+  const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
+  s.claim([call('t1', 'a')]);
+  s.ask(one, answer(one));
+  let expired = false;
+  s.handOff([call('t1', 'a')], 50, () => {
+    expired = true;
+  }, 7);
+  assert.ok(s.holds(7));
+  // A person interrupted the turn: the CLI took the request back and ended the turn
+  s.withdrawn(one.id);
+  assert.equal(s.waiting, false);
+  assert.equal(s.holds(7), false);
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(expired, false);
+});
+
 test('dropping the calls answers a request still held with an error result and forgets them', () => {
   const s = new ClientToolSession([tool('a')]);
   const { answers, answer } = recorder();

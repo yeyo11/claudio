@@ -257,19 +257,22 @@ export class ClientToolSession {
     this.tools = tools;
   }
 
-  /** Calls handed to the client and not answered yet: the CLI is waiting on the client. */
+  /**
+   * Calls handed to the client, not answered yet and not taken back by the CLI: what the client
+   * still owes. A withdrawn call leaves this set, so it is never demanded of the client.
+   */
   get waiting(): boolean {
     return this.awaiting.size > 0;
   }
 
   /**
    * Whether `pid`, the chat's live process, is the one still waiting on the client's results: the
-   * process the calls were handed over from, with at least one of them not withdrawn. Only it can
+   * process the calls were handed over from, with at least one of them still owed. Only it can
    * take them: another one never asked, and one whose requests were all withdrawn (a person
    * interrupted the turn) will not call the stub again, so results sent there would wait for nothing.
    */
   holds(pid: number | null): boolean {
-    return pid !== null && this.holderPid === pid && [...this.awaiting.keys()].some((id) => !this.withdrawnIds.has(id));
+    return pid !== null && this.holderPid === pid && this.waiting;
   }
 
   /** Ids of the calls handed to the client, for checking what the next request answers. */
@@ -348,9 +351,15 @@ export class ClientToolSession {
       if (held.requestId !== requestId) continue;
       this.held.delete(id);
       this.withdrawnIds.add(id);
+      // The CLI no longer waits on it, so neither does anyone else: the client is not asked for its
+      // result (one it sends anyway is accepted and ignored)
+      this.awaiting.delete(id);
+      this.claimed.delete(id);
       // The CLI will not call the stub for it: a result left behind could only answer another call
       this.dropResult(id);
     }
+    // Nothing is owed any more: a wait left running would stop a chat that moved on
+    if (!this.waiting) this.clearTimer();
   }
 
   ended(): void {
@@ -390,6 +399,22 @@ export class ClientToolSession {
       onExpire();
     }, waitMs);
     this.timer.unref();
+  }
+
+  /**
+   * Why the request's results cannot go to the calls this session waits on, or null. Results must
+   * answer every call still owed; a result for a call the CLI withdrew is accepted and ignored, since
+   * the client could not know. Checked before anything is changed, so a refusal touches nothing.
+   */
+  heldProblem(trailing: TrailingResults): OpenAiFailure | null {
+    const unknown = trailing.results.filter((r) => !this.awaiting.has(r.toolCallId) && !this.withdrawnIds.has(r.toolCallId)).map((r) => `\`${r.toolCallId}\``);
+    if (unknown.length) return { kind: 'invalid-request', param: 'messages', message: `The chat is not waiting for the tool calls ${unknown.join(', ')}.` };
+    const answered = new Set(trailing.results.map((r) => r.toolCallId));
+    const missing = [...this.awaiting.keys()].filter((id) => !answered.has(id));
+    if (missing.length) return missingResults(missing);
+    // The CLI is in the middle of a turn: a message now would be read by it, or start a turn nobody reads
+    if (trailing.userAfter) return { kind: 'invalid-request', param: 'messages', message: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.' };
+    return null;
   }
 
   /**

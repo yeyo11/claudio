@@ -9,7 +9,6 @@ import {
   ChatCompletionTranslator,
   CLIENT_TOOL_PREFIX,
   clientToolsProblem,
-  missingResults,
   renderOpenAiResultsCold,
   resultsProblem,
   sameClientTools,
@@ -591,8 +590,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       const held = holding && !abandoning;
       // Results that no live process holds: the chat is resumed with them as a message
       const cold = existing !== null && !held && trailing.results.length > 0;
-      // Every refusal comes before anything shared is touched (`heldProblem` throws)
-      if (held && session) heldProblem(session, trailing);
+      // Every refusal comes before anything shared is touched. A held request carries no images, so
+      // this is its only check of the results against what the CLI waits on
+      const heldRefusal = held && session ? session.heldProblem(trailing) : null;
+      if (heldRefusal) throw fail(heldRefusal);
 
       const prompt = held ? { prompt: '', images: [] } : target.kind === 'new' ? turn.cold : cold ? renderOpenAiResultsCold(request.messages) : turn.delta;
       const uploaded = await uploadOpenAiImages(prompt.images, {
@@ -758,23 +759,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     return fail(failure);
   }
 
-  /** Why results cannot go to the calls the CLI is holding, thrown before anything is changed. */
-  function heldProblem(tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>): void {
-    const awaiting = new Set(tools.awaitingIds());
-    const unknown = trailing.results.filter((r) => !awaiting.has(r.toolCallId)).map((r) => `\`${r.toolCallId}\``);
-    if (unknown.length) throw fail({ kind: 'invalid-request', param: 'messages', message: `The chat is not waiting for the tool calls ${unknown.join(', ')}.` });
-    const missing = [...awaiting].filter((id) => !trailing.results.some((r) => r.toolCallId === id));
-    if (missing.length) throw fail(missingResults(missing));
-    // The CLI is in the middle of a turn: a message now would be read by it, or start a turn nobody reads
-    if (trailing.userAfter) throw fail({ kind: 'invalid-request', param: 'messages', message: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.' });
-  }
-
   /**
    * The client's results for the calls the CLI is holding: each held request is allowed with its
    * original input, the stub hands the CLI the text, and the same CLI turn goes on, read from here.
+   * The results were checked against the held calls before anything was changed (`heldProblem`).
    */
   function continueHeld(current: TurnRun, chatId: string, tools: ClientToolSession, trailing: ReturnType<typeof trailingResults>, apply: () => void): void {
-    heldProblem(tools, trailing);
     apply();
     current.attach(chatId);
     tools.deliver(trailing.results);
