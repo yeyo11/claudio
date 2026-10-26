@@ -802,6 +802,23 @@ pending map, the claimed-calls rule, withdrawn calls, the timeout setting, the c
 3. A user message and no output for the calls drops them, as on Chat Completions. Outputs for some
    calls but not all, or for a call that was never made, are a 400 naming them.
 
+### Evidence from the real CLI
+
+Two smoke runs on Claude Code 2.1.310, `haiku`, every spawn capped with `--max-budget-usd 0.5`,
+in process through the real routes, core and stub (no dev server), 2026-10-26, 0.0109 USD for both:
+
+- Streamed text, then `previous_response_id`: the stream was exactly `0 response.created`,
+  `1 response.in_progress`, `2 output_item.added`, `3 content_part.added`, `4`-`5 output_text.delta`,
+  `6 output_text.done`, `7 content_part.done`, `8 output_item.done`, `9 response.completed`, with
+  usage (27,448 input of which 11,344 cached and 16,102 written, 106 output) and 0.0034 USD. The
+  follow-up with `previous_response_id` ran in the same chat on the same process, answered
+  "The Loire. France's longest river." with 27,446 of its 28,577 input tokens cached, and cost
+  0.0005 USD.
+- A function call round trip: the first response was `completed` with one `function_call`
+  (`get_secret`, `{"key":"alpha"}`, `call_id` `toolu_01WB…`), no usage and no cost header. The
+  `function_call_output` with `previous_response_id` answered `ZEBRA-4471-KUMQUAT` in the same chat,
+  with the CLI turn's usage, 0.0070 USD.
+
 ### Limits
 
 - `background`, `conversation` objects, stored prompts, hosted tools and `item_reference` are not
