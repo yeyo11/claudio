@@ -321,8 +321,10 @@ too. Every redirect is checked again.
 
 - Client tools together with `response_format` are refused (phase 4).
 - A structured answer is not streamed as it is written: it arrives as one chunk at the end (phase 3).
-- A chat continued by `X-Claudio-Chat-Id` keeps its live process's settings: its system prompt and
-  effort do not change for that turn (effort is named in `x-claudio-ignored`); its model does change.
+- A chat continued by `X-Claudio-Chat-Id` keeps its live process's effort for that turn (named in
+  `x-claudio-ignored`); its model does change. Its system prompt is the request's: since phase 5, a
+  live idle process started with another one is ended and the chat resumed with the new one, as a
+  schema change does (phase 3); a held turn keeps its own and names `system` in `x-claudio-ignored`.
 - `created` in a model object is 0: the catalogue has no date.
 - A run refused for memory pressure (not for the run count) is still a 409.
 
@@ -686,9 +688,21 @@ response to the next, so a client may change them on each request, and its own f
 example does: the second request has `instructions` the first did not. With them in the key, that
 request would miss the chat that holds the calls. The cost: two clients with the same model, `user`
 and resent history, differing only in `instructions`, share a chat. The history includes the
-model's own answers, so that takes resending them word for word. A live process keeps the system
-prompt it started with (a phase 2 gap): new `instructions` reach the chat when its process next
-starts.
+model's own answers, so that takes resending them word for word.
+
+**New `instructions` on a live process.** `--append-system-prompt` is fixed when the CLI starts, so
+one rule makes the behaviour the same whether the chat's process is alive or not: every turn runs
+with its own request's system prompt (`instructions` and the input's system and developer messages).
+A live idle process started with another one is ended between turns and the chat resumed with the
+new prompt (`endBetweenTurns`, then `--resume`), as phase 3 does for a schema; the same prompt keeps
+the process, and a request with none clears it rather than inheriting the last one. Chosen over
+only naming `instructions` in `x-claudio-ignored` because the restart already exists and is safe
+(the session continues, only the warm process and its prompt cache are lost), and a client that
+changes its instructions means them for this turn. The one exception is a held turn: outputs for
+calls the CLI holds go on in the process that made them, so new `instructions` there are named in
+`x-claudio-ignored` and take effect with the chat's next turn. The reference's own function-calling
+example is that case. Chat Completions shares the path: a system message that changes under
+`X-Claudio-Chat-Id` restarts the idle process the same way (its key changes with it otherwise).
 
 ### State: `previous_response_id` and `store`
 
@@ -809,6 +823,21 @@ pending map, the claimed-calls rule, withdrawn calls, the timeout setting, the c
    goes on.
 3. A user message and no output for the calls drops them, as on Chat Completions. Outputs for some
    calls but not all, or for a call that was never made, are a 400 naming them.
+
+Every refusal is in this shape's words: `param: "input"`, and messages about `function_call_output`
+items and their `call_id`, never Chat Completions' `tool` messages and `tool_calls` (a
+`ResultsVocabulary` per API, `RESPONSES_RESULTS` and `CHAT_COMPLETION_RESULTS` in `client-tools.ts`).
+The same goes for `x-claudio-ignored`: an effort a live process cannot take is `reasoning.effort`
+here, `reasoning_effort` on Chat Completions; images that fail point at `input`.
+
+**Text after a call.** One API message can hold text, a client call and more text. The text after
+the call is a `message` item of its own, and it does not start with the `\n\n` that joins two text
+blocks: an item never inherits the separator, while two text blocks with no call between stay one
+item joined by it. The answer's text for the conversation key keeps the separator, which is how
+`assistantOfOutput` joins a stored output's message items, and a resent output reads back the same
+way: an assistant `message` item right after an assistant item or a `function_call` joins that
+assistant message (texts joined by a blank line), so `[…input, …response.output]` hits the same key
+as `previous_response_id` does.
 
 ### Evidence from the real CLI
 

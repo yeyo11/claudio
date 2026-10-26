@@ -495,10 +495,28 @@ test('results that do not answer the calls are 400s that name them', async () =>
   const [a] = callsOf(one);
   const partial = await post({ model: 'sonnet', previous_response_id: one.id, input: [output(a?.call_id ?? '', 'only one')], tools: [lookup] });
   assert.equal(partial.status, 400);
-  assert.match(assertError(await partial.json(), 'invalid_request_error', 'messages').error.message, /have no result/);
+  const missing = assertError(await partial.json(), 'invalid_request_error', 'input').error.message;
+  assert.match(missing, /have no output: send a `function_call_output` with each `call_id`/);
   const stranger = await post({ model: 'sonnet', previous_response_id: one.id, input: [output('call_unknown', 'who?')], tools: [lookup] });
   assert.equal(stranger.status, 400);
-  assert.match(((await stranger.json()) as ErrorBody).error.message, /call_unknown/);
+  const unknown = assertError(await stranger.json(), 'invalid_request_error', 'input').error.message;
+  assert.match(unknown, /`call_unknown`.*`function_call_output`/);
+  // While the CLI holds the calls, a user message after their outputs is refused in the same words
+  const [, b] = callsOf(one);
+  const chatter = await post({ model: 'sonnet', previous_response_id: one.id, input: [output(a?.call_id ?? '', 'A'), output(b?.call_id ?? '', 'B'), { role: 'user', content: 'and also' }], tools: [lookup] });
+  assert.equal(chatter.status, 400);
+  const held = assertError(await chatter.json(), 'invalid_request_error', 'input').error.message;
+  assert.match(held, /after `function_call_output` items/);
+  for (const said of [missing, unknown, held]) assert.doesNotMatch(said, /`tool` message|`tool_calls`/, 'no Chat Completions words on /v1/responses');
+});
+
+test('reasoning.effort a live process cannot take is named in x-claudio-ignored by its Responses name', async () => {
+  const one = await ok(await post({ model: 'sonnet', input: 'think a little', reasoning: { effort: 'low' } }));
+  const next = await post({ model: 'sonnet', previous_response_id: one.id, input: 'and again', reasoning: { effort: 'high' } });
+  await ok(next);
+  const ignored = (next.headers.get('x-claudio-ignored') ?? '').split(', ');
+  assert.ok(ignored.includes('reasoning.effort'), ignored.join(', '));
+  assert.ok(!ignored.includes('reasoning_effort'));
 });
 
 test('a new user message instead of the results drops the held calls and the chat goes on', async () => {
@@ -689,4 +707,40 @@ test('a store that fails to write still serves the answer, whole and streamed, a
   const next = await sent({ model: 'sonnet', input: 'after the failure' });
   assert.equal(textOf(await ok(next)), 'echo: after the failure');
   assert.equal(chatOf(next), chatId);
+});
+
+// ---------- instructions on a live process ----------
+
+test('new instructions restart the idle process with them; the same ones keep it, and none clears them', async () => {
+  const first = await post({ model: 'sonnet', instructions: 'Answer like a pirate.', input: 'one' });
+  const one = await ok(first);
+  const chatId = chatOf(first);
+  const two = await ok(await post({ model: 'sonnet', previous_response_id: one.id, instructions: 'Answer like a poet.', input: 'two' }));
+  const three = await ok(await post({ model: 'sonnet', previous_response_id: two.id, instructions: 'Answer like a poet.', input: 'three' }));
+  await ok(await post({ model: 'sonnet', previous_response_id: three.id, input: 'four' }));
+  const turns = turnsOf(chatId);
+  assert.deepEqual(
+    turns.map((t) => t.prompt),
+    ['one', 'two', 'three', 'four'],
+  );
+  assert.equal(turns[0]?.system, 'Answer like a pirate.');
+  assert.equal(turns[1]?.system, 'Answer like a poet.', 'the live process was restarted with the new instructions');
+  assert.notEqual(turns[1]?.pid, turns[0]?.pid);
+  assert.equal(turns[1]?.resume, chatId, 'resumed, so the conversation goes on');
+  assert.equal(turns[2]?.pid, turns[1]?.pid, 'the same instructions keep the process');
+  assert.equal(turns[3]?.system, null, 'a request without instructions does not run under the last ones');
+});
+
+test('new instructions on a held function call are named in x-claudio-ignored and reach the chat with its next turn', async () => {
+  const firstRes = await post({ model: 'sonnet', input: directive('TOOLS', [{ name: 'lookup', input: { key: 'i' } }]), tools: [lookup] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const call = callsOf(first)[0];
+  // As the reference's own function-calling example does: instructions only on the second request
+  const second = await post({ model: 'sonnet', previous_response_id: first.id, instructions: 'Be brief.', input: [output(call?.call_id ?? '', 'value')], tools: [lookup] });
+  const two = await ok(second);
+  assert.equal(textOf(two), 'results: value');
+  assert.ok((second.headers.get('x-claudio-ignored') ?? '').split(', ').includes('instructions'));
+  await ok(await post({ model: 'sonnet', previous_response_id: two.id, instructions: 'Be brief.', input: 'next', tools: [lookup] }));
+  assert.equal(turnsOf(chatId).at(-1)?.system, 'Be brief.');
 });

@@ -13,6 +13,7 @@ export {
   abandons as abandonsClientCalls,
   allowedToolNames,
   answerStub as answerOpenAiStub,
+  CHAT_COMPLETION_RESULTS,
   CLIENT_ABANDONED_MESSAGE,
   CLIENT_TIMEOUT_MESSAGE,
   CLIENT_TOOL_PREFIX,
@@ -24,6 +25,8 @@ export {
   MAX_CLIENT_TOOL_NAME,
   missingResults,
   NOBODY_ANSWERS,
+  listedIds as listedCallIds,
+  RESPONSES_RESULTS,
   resultsProblem,
   sameTools as sameClientTools,
   toolChoiceInstruction,
@@ -31,6 +34,7 @@ export {
   type ClientCall as OpenAiClientCall,
   type StubReply,
   type StubResult,
+  type ResultsVocabulary,
   type TrailingResults,
 } from './client-tools.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';

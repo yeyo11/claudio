@@ -345,6 +345,45 @@ test('client calls stream as function_call items with their arguments, and handi
   assert.deepEqual(t.answered()?.toolCalls.map((c) => c.id), ['toolu_1', 'toolu_2']);
 });
 
+test('text after a client call opens its own message item without the block separator, and the output resent finds the same key', () => {
+  const t = translator({ clientTools: { prefix: 'mcp__client__', names: new Set(['get_weather']), single: false } });
+  const mixed = ev({
+    kind: 'message',
+    entry: entry([
+      { type: 'text', text: 'Checking.' },
+      { type: 'tool_use', id: 'toolu_1', name: 'mcp__client__get_weather', input: { city: 'Paris' } },
+      { type: 'text', text: 'One moment.' },
+    ]),
+  });
+  const events = [...t.open(), ...t.push(mixed)];
+  const handed = t.handOff();
+  assert.ok(handed);
+  const done = [...events, ...handed].at(-1);
+  assert.ok(done?.type === 'response.completed');
+  const output = done.response.output;
+  assert.deepEqual(
+    output.map((i) => (i.type === 'message' ? ['message', i.content[0]?.text] : [i.type, i.call_id])),
+    [
+      ['message', 'Checking.'],
+      ['function_call', 'toolu_1'],
+      ['message', 'One moment.'],
+    ],
+  );
+  const deltas = [...events, ...handed].flatMap((e) => (e.type === 'response.output_text.delta' ? [e.delta] : []));
+  assert.deepEqual(deltas, ['Checking.', 'One moment.'], 'no item starts with the separator');
+
+  // The key the answer was remembered under is the one both ways back to the chat carry
+  const first = parseOk({ input: 'Weather in Paris?' });
+  const answered = t.answered();
+  assert.ok(answered);
+  assert.equal(assistantOfOutput(output).text, answered.text);
+  const remembered = keyAfterAnswer(responsesTurnOf(first).keySeed, first.chat.messages, answered);
+  const resent = parseOk({ input: [{ role: 'user', content: 'Weather in Paris?' }, ...output, { type: 'function_call_output', call_id: 'toolu_1', output: 'sunny' }] });
+  assert.equal(historyKey(responsesTurnOf(resent).keySeed, resent.chat.messages), remembered, 'the whole output resent');
+  const followed = withPreviousOutput(parseOk({ input: [{ type: 'function_call_output', call_id: 'toolu_1', output: 'sunny' }] }), output);
+  assert.equal(historyKey(responsesTurnOf(first).keySeed, [...first.chat.messages, ...followed.chat.messages]), remembered, 'the stored output before the new items');
+});
+
 test('a failure after the response was created is response.failed with its error, the unfinished item left incomplete', () => {
   const t = translator();
   const events = [...t.open(), ...t.push(textStart('Partial')), ...t.push(result({ isError: true }, 'boom'))];

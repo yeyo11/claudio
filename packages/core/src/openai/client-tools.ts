@@ -151,19 +151,65 @@ export function trailingResults(messages: readonly ChatMessage[]): TrailingResul
 }
 
 /**
+ * How one API names the client's results and the calls they answer, in the refusals about them:
+ * Chat Completions has `tool` messages answering `tool_calls` in `messages`, Responses has
+ * `function_call_output` items answering `function_call` items by `call_id` in `input`. The same
+ * check runs for both, so a client is told in the words of the shape it sent.
+ */
+export interface ResultsVocabulary {
+  /** The request field the results and their calls are in */
+  param: string;
+  /** Results for calls that are not in the history before them */
+  unknown(ids: string): string;
+  /** Calls with no result */
+  missing(ids: string): string;
+  /** One call answered twice */
+  twice: string;
+  /** Results for calls the live process does not wait on */
+  notWaiting(ids: string): string;
+  /** A user message after the results while the process holds the calls */
+  userAfter: string;
+  /** Results that came after the tool-call timeout stopped the chat */
+  late(ids: string): string;
+}
+
+export const CHAT_COMPLETION_RESULTS: ResultsVocabulary = {
+  param: 'messages',
+  unknown: (ids) => `No tool call ${ids} in the last assistant message: a \`tool\` message must answer one of its \`tool_calls\`.`,
+  missing: (ids) => `The tool calls ${ids} have no result: send a \`tool\` message for each of them, or none and a new \`user\` message to drop them.`,
+  twice: 'A tool call has two results.',
+  notWaiting: (ids) => `The chat is not waiting for the tool calls ${ids}.`,
+  userAfter: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.',
+  late: (ids) => `The tool calls ${ids} waited longer than the tool-call timeout (openaiToolCallTimeoutMinutes) for their results, and the chat was stopped. Start the conversation again.`,
+};
+
+export const RESPONSES_RESULTS: ResultsVocabulary = {
+  param: 'input',
+  unknown: (ids) => `No function call ${ids} in the output before it: a \`function_call_output\` must answer one of its \`function_call\` items by \`call_id\`.`,
+  missing: (ids) => `The function calls ${ids} have no output: send a \`function_call_output\` with each \`call_id\`, or none and a new user message to drop them.`,
+  twice: 'A function call has two outputs: two `function_call_output` items carry its `call_id`.',
+  notWaiting: (ids) => `The chat is not waiting for the function calls ${ids}.`,
+  userAfter: 'A user message after `function_call_output` items is not supported while the chat waits for them: send the outputs alone, then the message.',
+  late: (ids) => `The function calls ${ids} waited longer than the tool-call timeout (openaiToolCallTimeoutMinutes) for their outputs, and the chat was stopped. Start the conversation again.`,
+};
+
+/** Call ids as the refusals list them */
+export const listedIds = (ids: readonly string[]): string => ids.map((id) => `\`${id}\``).join(', ');
+
+/**
  * What is wrong with a request's results, as OpenAI words it: every call of the last assistant
  * message needs its result, and a result needs a call. Null when they match.
  */
-export function resultsProblem(trailing: TrailingResults): OpenAiFailure | null {
+export function resultsProblem(trailing: TrailingResults, words: ResultsVocabulary): OpenAiFailure | null {
   const called = new Set(trailing.calls.map((c) => c.id));
   const answered = new Set(trailing.results.map((r) => r.toolCallId));
   const unknown = [...answered].filter((id) => !called.has(id));
-  if (unknown.length) return { kind: 'invalid-request', param: 'messages', message: `No tool call ${unknown.map((id) => `\`${id}\``).join(', ')} in the last assistant message: a \`tool\` message must answer one of its \`tool_calls\`.` };
+  if (unknown.length) return { kind: 'invalid-request', param: words.param, message: words.unknown(listedIds(unknown)) };
   // No result at all and a new user message: the client dropped the calls and moved on
   if (abandons(trailing)) return null;
   const missing = trailing.calls.filter((c) => !answered.has(c.id)).map((c) => c.id);
-  if (missing.length) return missingResults(missing);
-  if (trailing.results.length !== answered.size) return { kind: 'invalid-request', param: 'messages', message: 'A tool call has two results.' };
+  if (missing.length) return missingResults(missing, words);
+  if (trailing.results.length !== answered.size) return { kind: 'invalid-request', param: words.param, message: words.twice };
   return null;
 }
 
@@ -173,12 +219,8 @@ export function abandons(trailing: TrailingResults): boolean {
 }
 
 /** The one wording for calls still owed, whether the history or the live process is short of them. */
-export function missingResults(ids: readonly string[]): OpenAiFailure {
-  return {
-    kind: 'invalid-request',
-    param: 'messages',
-    message: `The tool calls ${ids.map((id) => `\`${id}\``).join(', ')} have no result: send a \`tool\` message for each of them, or none and a new \`user\` message to drop them.`,
-  };
+export function missingResults(ids: readonly string[], words: ResultsVocabulary): OpenAiFailure {
+  return { kind: 'invalid-request', param: words.param, message: words.missing(listedIds(ids)) };
 }
 
 /** How a call's arguments are compared: key order and spacing do not make two calls different. */
@@ -406,14 +448,14 @@ export class ClientToolSession {
    * answer every call still owed; a result for a call the CLI withdrew is accepted and ignored, since
    * the client could not know. Checked before anything is changed, so a refusal touches nothing.
    */
-  heldProblem(trailing: TrailingResults): OpenAiFailure | null {
-    const unknown = trailing.results.filter((r) => !this.awaiting.has(r.toolCallId) && !this.withdrawnIds.has(r.toolCallId)).map((r) => `\`${r.toolCallId}\``);
-    if (unknown.length) return { kind: 'invalid-request', param: 'messages', message: `The chat is not waiting for the tool calls ${unknown.join(', ')}.` };
+  heldProblem(trailing: TrailingResults, words: ResultsVocabulary): OpenAiFailure | null {
+    const unknown = trailing.results.filter((r) => !this.awaiting.has(r.toolCallId) && !this.withdrawnIds.has(r.toolCallId)).map((r) => r.toolCallId);
+    if (unknown.length) return { kind: 'invalid-request', param: words.param, message: words.notWaiting(listedIds(unknown)) };
     const answered = new Set(trailing.results.map((r) => r.toolCallId));
     const missing = [...this.awaiting.keys()].filter((id) => !answered.has(id));
-    if (missing.length) return missingResults(missing);
+    if (missing.length) return missingResults(missing, words);
     // The CLI is in the middle of a turn: a message now would be read by it, or start a turn nobody reads
-    if (trailing.userAfter) return { kind: 'invalid-request', param: 'messages', message: 'A user message after tool results is not supported while the chat waits for them: send the results alone, then the message.' };
+    if (trailing.userAfter) return { kind: 'invalid-request', param: words.param, message: words.userAfter };
     return null;
   }
 

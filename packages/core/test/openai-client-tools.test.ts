@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { PermissionDecision, TranscriptEntry } from '@claudio/shared';
 import {
   answerStub,
+  CHAT_COMPLETION_RESULTS,
   CLIENT_ABANDONED_MESSAGE,
   CLIENT_TIMEOUT_MESSAGE,
   CLIENT_TOOL_PREFIX,
@@ -245,9 +246,9 @@ test('a call the CLI withdrew is no longer owed: the client answers only the oth
   assert.ok(s.holds(7));
   const only = (results: Array<{ toolCallId: string; text: string }>) => ({ calls: [], results, userAfter: false });
   // Only the call still held must be answered; the withdrawn one may be answered too, and is ignored
-  assert.equal(s.heldProblem(only([{ toolCallId: 't2', text: 'B' }])), null);
-  assert.equal(s.heldProblem(only([{ toolCallId: 't1', text: 'A' }, { toolCallId: 't2', text: 'B' }])), null);
-  assert.match(s.heldProblem(only([{ toolCallId: 't1', text: 'A' }]))?.kind ?? '', /invalid-request/);
+  assert.equal(s.heldProblem(only([{ toolCallId: 't2', text: 'B' }]), CHAT_COMPLETION_RESULTS), null);
+  assert.equal(s.heldProblem(only([{ toolCallId: 't1', text: 'A' }, { toolCallId: 't2', text: 'B' }]), CHAT_COMPLETION_RESULTS), null);
+  assert.match(s.heldProblem(only([{ toolCallId: 't1', text: 'A' }]), CHAT_COMPLETION_RESULTS)?.kind ?? '', /invalid-request/);
   s.deliver([{ toolCallId: 't1', text: 'A' }, { toolCallId: 't2', text: 'B' }]);
   assert.deepEqual(answers.get(two.id), [{ behavior: 'allow', updatedInput: { city: 'Oslo' } }]);
   assert.equal(answers.get(one.id), undefined);
@@ -303,10 +304,10 @@ test('tool names that are too long under the prefix, name a built-in, or differ 
 test('the trailing results must answer every call of the last assistant message, and nothing else', () => {
   const calls = [{ id: 'c1', type: 'function' as const, function: { name: 'a', arguments: '{}' } }, { id: 'c2', type: 'function' as const, function: { name: 'b', arguments: '{}' } }];
   const history = (results: ChatMessage[]): ChatMessage[] => [{ role: 'user', parts: [{ type: 'text', text: 'q' }] }, { role: 'assistant', text: '', toolCalls: calls }, ...results];
-  assert.equal(resultsProblem(trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }, { role: 'tool', toolCallId: 'c2', text: '2' }]))), null);
-  const missing = resultsProblem(trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }])));
+  assert.equal(resultsProblem(trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }, { role: 'tool', toolCallId: 'c2', text: '2' }])), CHAT_COMPLETION_RESULTS), null);
+  const missing = resultsProblem(trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }])), CHAT_COMPLETION_RESULTS);
   assert.match(missing?.kind === 'invalid-request' ? missing.message : '', /`c2`/);
-  const unknown = resultsProblem(trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }, { role: 'tool', toolCallId: 'c2', text: '2' }, { role: 'tool', toolCallId: 'zz', text: '?' }])));
+  const unknown = resultsProblem(trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }, { role: 'tool', toolCallId: 'c2', text: '2' }, { role: 'tool', toolCallId: 'zz', text: '?' }])), CHAT_COMPLETION_RESULTS);
   assert.match(unknown?.kind === 'invalid-request' ? unknown.message : '', /`zz`/);
   const after = trailingResults(history([{ role: 'tool', toolCallId: 'c1', text: '1' }, { role: 'tool', toolCallId: 'c2', text: '2' }, { role: 'user', parts: [{ type: 'text', text: 'more' }] }]));
   assert.equal(after.userAfter, true);

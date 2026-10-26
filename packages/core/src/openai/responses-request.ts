@@ -195,10 +195,11 @@ function outputOf(output: unknown, path: string): string {
 const stringId = (value: unknown, prefix: string): string => (typeof value === 'string' && value ? value : newId(prefix));
 
 /**
- * The input as messages. A `function_call` item joins the assistant message right before it (an
- * output's message and its calls are one assistant turn, as Chat Completions sends them), or starts
- * one of its own. `reasoning` items are dropped: Claudio never returns them, and the CLI keeps its
- * own thinking.
+ * The input as messages. A `function_call` item, and an assistant `message` item, join the assistant
+ * message right before them (an output's messages and calls are one assistant turn, as Chat
+ * Completions sends them and as `assistantOfOutput` reads a stored output), or start one of their
+ * own; texts join with a blank line, as the answer's text does. `reasoning` items are dropped:
+ * Claudio never returns them, and the CLI keeps its own thinking.
  */
 function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessage[]; items: InputItem[] } {
   if (typeof raw === 'string') {
@@ -228,8 +229,12 @@ function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessag
         items.push({ type: 'message', id, status: 'completed', role: item.role, content: parts.map((p) => ({ type: 'input_text', text: p.text })) });
       } else if (item.role === 'assistant') {
         const parts = textParts(item.content, content, true);
-        open = { role: 'assistant', text: joined(parts), toolCalls: [] };
-        messages.push(open);
+        const text = joined(parts);
+        if (open) open.text = [open.text, text].filter(Boolean).join('\n\n');
+        else {
+          open = { role: 'assistant', text, toolCalls: [] };
+          messages.push(open);
+        }
         items.push({
           type: 'message',
           id,

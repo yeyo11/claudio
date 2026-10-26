@@ -741,3 +741,35 @@ test('a conversation key that fails to store still ends the stream with [DONE] a
   assert.equal(next.status, 200, await next.clone().text());
   assert.equal(((await next.json()) as Completion).choices[0]?.message.content, 'echo: after the failure');
 });
+
+test('refusals of tool results and the effort a live process cannot take use the Chat Completions names', async () => {
+  const calls = [{ id: 'c1', type: 'function', function: { name: 'lookup', arguments: '{}' } }];
+  const stranger = await post({ model: 'sonnet', messages: [user('q'), { role: 'assistant', content: null, tool_calls: calls }, { role: 'tool', tool_call_id: 'zz', content: '?' }] });
+  assert.equal(stranger.status, 400);
+  const refused = assertOpenAiError(await stranger.json(), 'invalid_request_error');
+  assert.equal(refused.error.param, 'messages');
+  assert.match(refused.error.message, /`zz`.*a `tool` message must answer one of its `tool_calls`/);
+
+  const first = await post({ model: 'sonnet', reasoning_effort: 'low', messages: [user('think a little')] });
+  assert.equal(first.status, 200, await first.clone().text());
+  const next = await post({ model: 'sonnet', reasoning_effort: 'high', messages: [user('again')] }, { 'x-claudio-chat-id': first.headers.get('x-claudio-chat-id') ?? '' });
+  assert.equal(next.status, 200, await next.clone().text());
+  assert.ok((next.headers.get('x-claudio-ignored') ?? '').split(', ').includes('reasoning_effort'));
+});
+
+test('a system message that changes under X-Claudio-Chat-Id restarts the idle process with it', async () => {
+  const first = await post({ model: 'sonnet', messages: [{ role: 'system', content: 'Be brief.' }, user('first')] });
+  assert.equal(first.status, 200, await first.clone().text());
+  const chatId = first.headers.get('x-claudio-chat-id') ?? '';
+  const again = await post({ model: 'sonnet', messages: [{ role: 'system', content: 'Be thorough.' }, user('second')] }, { 'x-claudio-chat-id': chatId });
+  assert.equal(again.status, 200, await again.clone().text());
+  const turns = promptsOf(chatId) as Array<{ prompt: string; pid: number; system?: string | null }>;
+  assert.deepEqual(
+    turns.map((t) => [t.prompt, t.system]),
+    [
+      ['first', 'Be brief.'],
+      ['second', 'Be thorough.'],
+    ],
+  );
+  assert.notEqual(turns[1]?.pid, turns[0]?.pid);
+});

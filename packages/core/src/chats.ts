@@ -2018,6 +2018,14 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * The chat's own `appendSystemPrompt` (without the Lessons section a spawn adds), which its live
+   * process was started with: like the schema, fixed until the process ends.
+   */
+  systemPromptOf(id: string): string | undefined {
+    return this.chats.get(id)?.opts.appendSystemPrompt;
+  }
+
+  /**
    * Ends an idle chat's live process between turns, the way its idle timeout does, and resolves once
    * it is gone: for a caller whose next turn needs launch flags the process cannot change (a new
    * `--json-schema`), and resumes the chat with them. A chat that is working is refused.

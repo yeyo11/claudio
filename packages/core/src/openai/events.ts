@@ -85,6 +85,13 @@ export interface ChatCompletionTranslatorOptions {
    * first (`parallel_tool_calls: false`). `handOff()` then ends the turn with them.
    */
   clientTools?: { prefix: string; names: ReadonlySet<string>; single: boolean };
+  /**
+   * Text after a client call opens an output item of its own (`ResponsesTranslator`), so its chunk
+   * goes out without the block separator: an item must not start with `\n\n`. The answer's text
+   * (`answered()`, the conversation key) keeps the separator, which is how the items join again
+   * when their output is read back as one assistant message (`assistantOfOutput`).
+   */
+  itemPerStretch?: boolean;
 }
 
 /** The end of a turn, once `result` or a failure arrived. */
@@ -149,6 +156,8 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
   private readonly calls = new Map<string, CallState>();
   /** Client calls streamed since `takeNewClientCalls()` last ran, with their input as the block had it */
   private fresh: Array<{ id: string; name: string; input: unknown }> = [];
+  /** A client call went out after the last text: the next text starts a new stretch */
+  private callSinceText = false;
   private ended: TurnEnd | null = null;
 
   constructor(private readonly opts: ChatCompletionTranslatorOptions) {}
@@ -182,10 +191,13 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
 
   private emit(block: StreamedBlock, text: string, out: ChatCompletionStreamItem[]): void {
     if (!text) return;
-    const piece = !block.started && this.content ? `${SEPARATOR}${text}` : text;
+    const separated = !block.started && this.content !== '';
+    const piece = separated ? `${SEPARATOR}${text}` : text;
+    const sent = separated && this.callSinceText && this.opts.itemPerStretch ? text : piece;
     block.started = true;
+    this.callSinceText = false;
     this.content += piece;
-    out.push(this.chunk({ content: piece }));
+    out.push(this.chunk({ content: sent }));
   }
 
   private partial(event: RunEvent, out: ChatCompletionStreamItem[]): void {
@@ -244,6 +256,7 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
     out.push(...this.toolCallDelta({ id, name, argumentsAppend: '' }));
     out.push(...this.toolCallDelta({ id, name, argumentsAppend: JSON.stringify(input ?? {}) }));
     this.fresh.push({ id, name, input: input ?? {} });
+    this.callSinceText = true;
   }
 
   /**

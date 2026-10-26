@@ -81,6 +81,7 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
       model: opts.model,
       created: opts.createdAt,
       includeUsage: false,
+      itemPerStretch: true,
       ...(opts.structured ? { structured: true } : {}),
       ...(opts.clientTools ? { clientTools: opts.clientTools } : {}),
     });
