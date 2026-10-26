@@ -291,6 +291,32 @@ test('a built-in tool in a client-tool chat is denied at once, as a chat nobody 
   assert.deepEqual(core.permissions.list(), []);
 });
 
+// The early `api` deny in `askPermission` does not take a preset's allow rules away: a preset is the
+// CLI's own `--allowedTools`, which it applies without sending `can_use_tool`, and the surface never
+// gives a chat a Claudio tool policy for the judge to read
+test('a tool preset allows its built-in tools in an api chat with and without client tools; any other built-in is denied', async () => {
+  const preset = { 'x-claudio-tool-preset': 'read-only' };
+  const plain = await post({ model: 'sonnet', messages: [user('BASH git status')] }, preset);
+  assert.equal(((await plain.json()) as Completion).choices[0]?.message.content, 'results: bash ran');
+  const refused = await post({ model: 'sonnet', messages: [user('BASH ls')] }, preset);
+  assert.equal(((await refused.json()) as Completion).choices[0]?.message.content, 'results: ERROR Nobody is answering permission prompts for this chat');
+
+  // A client call and a preset-allowed built-in in one message: the client call is handed over, the built-in runs
+  const messages = [user(directive('TOOLS', [{ name: 'get_weather', input: { city: 'Bern' } }, { name: 'Bash', input: { command: 'git status' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [weather] }, preset);
+  const body = (await first.json()) as Completion;
+  assert.equal(body.choices[0]?.finish_reason, 'tool_calls');
+  assert.deepEqual(body.choices[0]?.message.tool_calls?.map((c) => c.function.name), ['get_weather']);
+  const done = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(body.choices[0]?.message.tool_calls?.[0]?.id ?? '', 'snow')], tools: [weather] }, preset);
+  assert.equal(((await done.json()) as Completion).choices[0]?.message.content, 'results: snow | bash ran');
+
+  const mixed = [user(directive('TOOLS', [{ name: 'get_weather', input: { city: 'Bern' } }, { name: 'Bash', input: { command: 'ls' } }]))];
+  const other = (await (await post({ model: 'sonnet', messages: mixed, tools: [weather] }, preset)).json()) as Completion;
+  const end = await post({ model: 'sonnet', messages: [...mixed, echoed(other), toolMsg(other.choices[0]?.message.tool_calls?.[0]?.id ?? '', 'rain')], tools: [weather] }, preset);
+  assert.equal(((await end.json()) as Completion).choices[0]?.message.content, 'results: rain | ERROR Nobody is answering permission prompts for this chat');
+  assert.deepEqual(core.permissions.list(), []);
+});
+
 // ---------- the wait, disconnects, restarts ----------
 
 test('a call nobody resolves in time gets an error result, the chat stops, and a late result is a 400', async () => {

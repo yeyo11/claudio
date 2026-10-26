@@ -27,7 +27,9 @@
 //   TOOLS_NOMETA <json> the same, but `tools/call` carries no tool call id (the FIFO fallback)
 //   TOOLS_HANG <json>  the blocks and the requests, but the message never ends: only an interrupt
 //                      ends the turn (the requests withdrawn with `control_cancel_request`)
-//   BASH               a built-in `Bash` call asked with `can_use_tool`; answers `bash: <behavior>`
+//   BASH [command]     a built-in `Bash` call (`ls` by default). As the CLI does, a call its own
+//                      `--allowedTools` rules allow (`Bash`, or `Bash(<prefix>:*)` matching the command)
+//                      runs without a `can_use_tool` request; any other is asked for
 // The last line of a prompt that starts with `(For this turn:` is the tool_choice instruction: it is
 // recorded and skipped when the directive is read.
 //
@@ -62,6 +64,16 @@ const schema = flag('--json-schema') ?? null;
 const permissionPrompts = flag('--permission-prompts') ?? null;
 const mcpConfigArg = args.find((a) => a.startsWith('--mcp-config='))?.slice('--mcp-config='.length) ?? null;
 const strictMcp = args.includes('--strict-mcp-config');
+const rulesOf = (name) => (args.find((a) => a.startsWith(`${name}=`))?.slice(name.length + 1).split(',') ?? []).filter(Boolean);
+const allowRules = rulesOf('--allowedTools');
+const denyRules = rulesOf('--disallowedTools');
+/** Whether the CLI's own rules decide a call without asking: what a tool preset becomes */
+function ruleMatches(rule, name, input) {
+  if (rule === name) return true;
+  const scoped = /^([A-Za-z]+)\((.*):\*\)$/.exec(rule);
+  return scoped !== null && scoped[1] === name && name === 'Bash' && String(input?.command ?? '').startsWith(scoped[2]);
+}
+const allowedByRules = (name, input) => !denyRules.some((r) => ruleMatches(r, name, input)) && allowRules.some((r) => ruleMatches(r, name, input));
 
 /** The `client` server of the config, with `${VAR}` expanded from the environment as the CLI does */
 function stubServer() {
@@ -99,6 +111,10 @@ let toolTurn = null;
 function askFor(toolUseId, name, input) {
   const requestId = `fake-ask-${String(++askSeq)}`;
   asked.set(requestId, { toolUseId, name, input });
+  if (allowedByRules(name, input)) {
+    void settleAsk(requestId, { behavior: 'allow' });
+    return;
+  }
   out({ type: 'control_request', request_id: requestId, request: { subtype: 'can_use_tool', tool_name: name, display_name: name, input, tool_use_id: toolUseId } });
 }
 
@@ -201,8 +217,9 @@ async function answer(prompt) {
     callTools(tools[1], JSON.parse(tools[2]));
     return;
   }
-  if (last === 'BASH') {
-    callTools('TOOLS', [{ name: 'Bash', input: { command: 'ls' } }]);
+  const bash = /^BASH(?: (.+))?$/.exec(last);
+  if (bash) {
+    callTools('TOOLS', [{ name: 'Bash', input: { command: bash[1] ?? 'ls' } }]);
     return;
   }
   if (last === 'HANG') {

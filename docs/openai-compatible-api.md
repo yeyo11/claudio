@@ -445,8 +445,12 @@ CLI sends goes to it, before Claudio's tool policy, and **none reaches `Permissi
 the chat's permission list and notices show nothing. The session holds a request for one of the
 client's tools in its own map and denies everything else at once, with the message
 `permissionPrompts: 'none'` gives. Built-in tools that the chat's tool preset and permission mode
-allow without asking still run in the same turn, as in any API chat. An `api` chat whose host is
-not attached (after a restart) denies every request rather than asking a person.
+allow without asking still run in the same turn, as in any API chat: a preset reaches the CLI as its
+own `--allowedTools` and `--disallowedTools`, which it applies before it would send `can_use_tool`,
+so nothing Claudio answers can take them away. This surface gives its chats no Claudio tool policy
+(`toolConfig.policy` comes only from automated work), so there is no policy verdict for the host to
+skip. An `api` chat whose host is not attached (after a restart) denies every request rather than
+asking a person.
 
 ### A turn that calls tools
 
