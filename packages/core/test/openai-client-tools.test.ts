@@ -73,20 +73,53 @@ test('delivering the results allows each held request with its original input, i
   assert.deepEqual(answers.get(b.id), [{ behavior: 'allow', updatedInput: { city: 'Oslo' } }]);
   assert.equal(s.waiting, false);
   // The stub hands over each text by the CLI's tool call id
-  assert.deepEqual(s.callResult('a', 'toolu_a'), { text: 'warm', isError: false });
-  assert.deepEqual(s.callResult('b', 'toolu_b'), { text: 'cold', isError: false });
+  assert.deepEqual(s.callResult('a', 'toolu_a', { city: 'Lima' }), { text: 'warm', isError: false });
+  assert.deepEqual(s.callResult('b', 'toolu_b', { city: 'Oslo' }), { text: 'cold', isError: false });
 });
 
 test('without the tool call id the stub falls back to the oldest result for that tool', () => {
   const s = new ClientToolSession([tool('a'), tool('b')]);
   s.handOff([call('t1', 'a'), call('t2', 'b'), call('t3', 'a')], 60_000, () => undefined);
   s.deliver([{ toolCallId: 't1', text: 'first a' }, { toolCallId: 't2', text: 'b' }, { toolCallId: 't3', text: 'second a' }]);
-  assert.equal(s.callResult('a', undefined).text, 'first a');
-  assert.equal(s.callResult('b', undefined).text, 'b');
-  assert.equal(s.callResult('a', 'not-a-known-id').text, 'second a');
+  const madrid = { city: 'Madrid' };
+  assert.equal(s.callResult('a', undefined, madrid).text, 'first a');
+  assert.equal(s.callResult('b', undefined, madrid).text, 'b');
+  assert.equal(s.callResult('a', 'not-a-known-id', madrid).text, 'second a');
   // Nothing left: an error result at once, never a wait
-  const none = s.callResult('a', undefined);
+  const none = s.callResult('a', undefined, madrid);
   assert.equal(none.isError, true);
+});
+
+test('without the tool call id, two calls of one tool get their own results by their arguments, and a call nothing matches gets an error, never another call\'s result', () => {
+  const s = new ClientToolSession([tool('get_weather')]);
+  s.handOff([call('t1', 'get_weather', { city: 'Paris' }), call('t2', 'get_weather', { city: 'Rome', unit: 'c' })], 60_000, () => undefined);
+  s.deliver([{ toolCallId: 't1', text: 'Paris: 12 C' }, { toolCallId: 't2', text: 'Rome: 19 C' }]);
+  // The CLI calls them in its own order, its arguments in its own key order
+  assert.deepEqual(s.callResult('get_weather', undefined, { unit: 'c', city: 'Rome' }), { text: 'Rome: 19 C', isError: false });
+  const other = s.callResult('get_weather', undefined, { city: 'Oslo' });
+  assert.equal(other.isError, true);
+  assert.match(other.text, /No result/);
+  assert.deepEqual(s.callResult('get_weather', undefined, { city: 'Paris' }), { text: 'Paris: 12 C', isError: false });
+});
+
+test('identical calls take their results first in, first out, and the result of a call the CLI took back is not kept for another', () => {
+  const s = new ClientToolSession([tool('a')]);
+  const { answer } = recorder();
+  s.claim([call('t1', 'a'), call('t2', 'a')]);
+  const one = ask('t1', `${CLIENT_TOOL_PREFIX}a`);
+  const two = ask('t2', `${CLIENT_TOOL_PREFIX}a`);
+  s.ask(one, answer(one));
+  s.ask(two, answer(two));
+  s.handOff([call('t1', 'a'), call('t2', 'a')], 60_000, () => undefined);
+  s.withdrawn(one.id);
+  s.deliver([{ toolCallId: 't1', text: 'one' }, { toolCallId: 't2', text: 'two' }]);
+  assert.equal(s.callResult('a', undefined, { city: 'Madrid' }).text, 'two');
+  assert.equal(s.callResult('a', undefined, { city: 'Madrid' }).isError, true);
+  const fifo = new ClientToolSession([tool('a')]);
+  fifo.handOff([call('t1', 'a'), call('t2', 'a')], 60_000, () => undefined);
+  fifo.deliver([{ toolCallId: 't1', text: 'one' }, { toolCallId: 't2', text: 'two' }]);
+  assert.equal(fifo.callResult('a', undefined, { city: 'Madrid' }).text, 'one');
+  assert.equal(fifo.callResult('a', undefined, { city: 'Madrid' }).text, 'two');
 });
 
 test('a request for a call whose result came first is allowed at once (a CLI that asks one after the other)', () => {
@@ -251,6 +284,11 @@ test('the key after a tool_calls answer is the one the client\'s next request is
   });
   assert.ok(next.ok);
   assert.equal(historyKey(seed, next.value.messages), answered);
+});
+
+test('sameTools compares names with their case, as the stub lists them, and its sort is consistent', () => {
+  assert.ok(sameTools([tool('b'), tool('a'), tool('c')], [tool('c'), tool('a'), tool('b')]));
+  assert.ok(!sameTools([tool('Lookup')], [tool('lookup')]));
 });
 
 test('sameTools ignores order, and the cold results prompt says the session restarted', () => {

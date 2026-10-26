@@ -101,7 +101,9 @@ export function clientToolsProblem(tools: readonly ClientTool[]): OpenAiFailure 
 
 /** Whether two requests declare the same tools: what a live stub serves cannot change. */
 export function sameTools(a: readonly ClientTool[], b: readonly ClientTool[]): boolean {
-  const form = (tools: readonly ClientTool[]) => stableStringify([...tools].sort((x, y) => (x.name < y.name ? -1 : 1)).map((t) => [t.name, t.description, t.parameters]));
+  // Names compare with their case: a renamed tool is listed under another name, so the model would
+  // call a name the live stub does not serve. The case-blind rule above only keeps one list unambiguous
+  const form = (tools: readonly ClientTool[]) => stableStringify([...tools].sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0)).map((t) => [t.name, t.description, t.parameters]));
   return form(a) === form(b);
 }
 
@@ -247,6 +249,8 @@ export class ClientToolSession {
   private readonly order: string[] = [];
   /** Calls whose wait ran out: a result for one is refused */
   private readonly expiredIds = new Set<string>();
+  /** Requests the CLI took back: it will not call the stub for them, so a result for one is not kept */
+  private readonly withdrawnIds = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
 
   constructor(tools: ClientTool[]) {
@@ -333,6 +337,7 @@ export class ClientToolSession {
     for (const [id, held] of this.held) {
       if (held.requestId !== requestId) continue;
       this.held.delete(id);
+      this.withdrawnIds.add(id);
       // The CLI will not call the stub for it: a result left behind could only answer another call
       this.dropResult(id);
     }
@@ -357,6 +362,7 @@ export class ClientToolSession {
     // The previous message's results were all taken before the model could write this one
     this.results.clear();
     this.order.length = 0;
+    this.withdrawnIds.clear();
     this.holderPid = holderPid;
     for (const call of calls) this.awaiting.set(call.id, { name: call.name, args: argumentsKey(call.input) });
     for (const [id, held] of [...this.held]) {
@@ -383,6 +389,10 @@ export class ClientToolSession {
   deliver(results: ReadonlyArray<{ toolCallId: string; text: string }>): void {
     this.clearTimer();
     for (const result of results) {
+      if (this.withdrawnIds.has(result.toolCallId)) {
+        this.awaiting.delete(result.toolCallId);
+        continue;
+      }
       const held = this.held.get(result.toolCallId);
       const claim = this.awaiting.get(result.toolCallId) ?? (held ? { name: held.name, args: argumentsKey(held.input) } : { name: '', args: '' });
       this.awaiting.delete(result.toolCallId);
@@ -404,6 +414,7 @@ export class ClientToolSession {
     this.awaiting.clear();
     this.results.clear();
     this.order.length = 0;
+    this.withdrawnIds.clear();
     this.holderPid = null;
     this.clearTimer();
   }
@@ -426,15 +437,22 @@ export class ClientToolSession {
   /**
    * What `tools/call` returns: the result under the CLI's tool call id
    * (`_meta["claudecode/toolUseId"]`, seen on the wire but not documented), else the oldest result
-   * for a call of that name. Never waits: a call nobody answered gets an error result at once.
+   * for a call of that name **and those arguments** (only calls that are the same call can swap
+   * results). Never waits, and never hands over another call's result: a call nothing matches gets
+   * an error result at once.
    */
-  callResult(name: string, toolUseId: string | undefined): StubResult {
+  callResult(name: string, toolUseId: string | undefined, args: unknown): StubResult {
     let id = toolUseId !== undefined && this.results.has(toolUseId) ? toolUseId : undefined;
-    id ??= this.order.find((candidate) => this.results.get(candidate)?.name === name);
+    if (id === undefined) {
+      const key = argumentsKey(args);
+      id = this.order.find((candidate) => {
+        const result = this.results.get(candidate);
+        return result?.name === name && result.args === key;
+      });
+    }
     const found = id === undefined ? undefined : this.results.get(id);
-    if (id === undefined || !found) return { text: `No result from the client is known for this call of \`${name}\`.`, isError: true };
-    this.results.delete(id);
-    this.order.splice(this.order.indexOf(id), 1);
+    if (id === undefined || !found) return { text: `No result from the client is known for this call of \`${name}\` with these arguments.`, isError: true };
+    this.dropResult(id);
     return { text: found.text, isError: false };
   }
 
@@ -482,7 +500,7 @@ function answerOne(message: unknown, session: ClientToolSession, version: string
       const name = typeof params.name === 'string' ? params.name : '';
       const meta = isRecord(params._meta) ? params._meta : {};
       const toolUseId = typeof meta['claudecode/toolUseId'] === 'string' ? meta['claudecode/toolUseId'] : undefined;
-      const result = session.callResult(name, toolUseId);
+      const result = session.callResult(name, toolUseId, params.arguments);
       return ok({ content: [{ type: 'text', text: result.text }], ...(result.isError ? { isError: true } : {}) });
     }
     default:

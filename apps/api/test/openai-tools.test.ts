@@ -483,6 +483,18 @@ test('a client-tool request no call handed to the client covers (a subagent\'s) 
   assert.equal(((await res.json()) as Completion).choices[0]?.message.content, 'results: ERROR This call was not handed to the client.');
 });
 
+test('a tool list that only changes order keeps the idle process and the stub it serves', async () => {
+  const first = await post({ model: 'sonnet', messages: [user('order one')], tools: [weather, lookup] });
+  const chatId = chatOf(first);
+  const answered = (await first.json()) as Completion;
+  const pid = core.runtime.get(chatId)?.pid;
+  assert.ok(pid);
+  await until(() => core.runtime.get(chatId)?.status === 'idle');
+  const second = await post({ model: 'sonnet', messages: [user('order one'), echoed(answered), user('order two')], tools: [lookup, weather] }, { 'x-claudio-chat-id': chatId });
+  assert.equal(((await second.json()) as Completion).choices[0]?.message.content, 'echo: order two');
+  assert.equal(core.runtime.get(chatId)?.pid, pid);
+});
+
 // ---------- refusals ----------
 
 test("a chat's stub goes with the chat: once the chat is removed its URL answers 401 even to a valid token of that chat", async () => {

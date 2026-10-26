@@ -422,10 +422,14 @@ otherwise, the same for an unknown id). `alwaysLoad` saves a `ToolSearch` round 
 The stub changes nothing itself; the client acts on its own side.
 
 The stub **never waits**. `tools/call` returns the result the client already sent: the one under
-`_meta["claudecode/toolUseId"]`, else the oldest result for a call of that name, else an error result
-at once. **`_meta["claudecode/toolUseId"]` is the one soft spot:** it is on the wire (spike question
-3) but not documented, so the first-in-first-out fallback by name keeps the stub correct if a CLI
-release drops it. The answers are plain JSON (no SSE), notifications get `202`, `GET` and `DELETE`
+`_meta["claudecode/toolUseId"]`, else the oldest result for a call of that name **with the same
+arguments** (compared without key order or spacing), else an error result at once, never the result
+of another call. **`_meta["claudecode/toolUseId"]` is the one soft spot:** it is on the wire (spike
+question 3) but not documented, so the fallback keeps the stub correct if a CLI release drops it.
+Two parallel calls with different arguments (`get_weather(Paris)`, `get_weather(Rome)`) cannot swap
+results; only identical calls share the first-in-first-out order, where swapping changes nothing a
+client could tell apart. A result whose request the CLI took back (an interrupt) is not kept, and a
+new hand-off clears what the previous message left, so neither can answer a later call. The answers are plain JSON (no SSE), notifications get `202`, `GET` and `DELETE`
 get `405`, and an unknown method gets `-32601` (the CLI's `server/discover` among them; it falls back
 to `initialize`). The session lives in memory and goes with the chat: removing the chat (the sweep,
 `DELETE /chats/:id`, the history trim) drops it, and its URL stops answering.
@@ -544,8 +548,9 @@ question 7).
 ### Limits
 
 - Client tools together with `response_format` are refused (`unsupported_parameter`, not supported yet).
-- A live process serves the tool list it started with. A turn that names different tools restarts an
-  idle process with the new list; a request that brings results to a process holding calls keeps
+- A live process serves the tool list it started with. A turn that names different tools (a name,
+  compared with its case, a description or the parameters; not the order) restarts an idle process
+  with the new list; a request that brings results to a process holding calls keeps
   the old list and names `tools` in `x-claudio-ignored`.
 - A chat holding calls keeps its process, and its run slot, for up to the wait.
 - Held requests live in memory: a restart loses them, and the results resume the chat cold.
