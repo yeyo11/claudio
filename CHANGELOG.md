@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.9.0](https://github.com/yeyo11/claudio/compare/v0.8.1...v0.9.0) (2026-10-24)
+
+
+### Features
+
+* **api:** record the matched route on every audit row, and generate its en/es strings ([49c2f8f](https://github.com/yeyo11/claudio/commit/49c2f8fe8eff7c8f1f79a06888dfc4d004737470))
+* **settings:** settings state, reset and overrides on the server ([fbe677e](https://github.com/yeyo11/claudio/commit/fbe677e21f8bb50eee4276e1a0ad04c6457339e0))
+* **web:** Changed and Reset on every settings row, Overridden in N projects ([b0270c2](https://github.com/yeyo11/claudio/commit/b0270c2cfa1ae8919482c362aa122b1c726fff32))
+* **web:** terminal history as wrapping rows on a phone ([e24c488](https://github.com/yeyo11/claudio/commit/e24c488d28ea46b5e35b9af252b2b4fcf31b1227))
+* **web:** translate the audit log per route, name actors in words, and fit it on any width ([d0bfb0e](https://github.com/yeyo11/claudio/commit/d0bfb0e56e029a28133a0f2dbd82fcd3f547da68))
+* **web:** word the settings reset route in the audit log ([32eab10](https://github.com/yeyo11/claudio/commit/32eab10604c59b000ceafd7d772449e3a546edf9))
+
+
+### Bug fixes
+
+* **deps:** electron 44.9.1 and undici 7.30.1 for two high advisories ([967d080](https://github.com/yeyo11/claudio/commit/967d0809049d1a11a1657583485b0bfc6a7559f2))
+* **ui:** draw the filter chip in Geist, not the browser's button font ([0c7c274](https://github.com/yeyo11/claudio/commit/0c7c2749c5ddefe5881f92a14722dcdbbf696a4b))
+* **web:** 44 px Reset on every phone, and two e2e selectors that missed ([cad9ad9](https://github.com/yeyo11/claudio/commit/cad9ad94df32905c62de655e911e5244e8924b0d))
+* **web:** a held row keeps its content at the top, and the rotation card never paints a stale draft ([d51fc27](https://github.com/yeyo11/claudio/commit/d51fc279bb633c4f902e8961e4f38b6231f27b47))
+* **web:** a Reset keeps the other row's unsaved edit and the engine slot stacks under its control ([e9ddb21](https://github.com/yeyo11/claudio/commit/e9ddb2180b5838df9d3ea6f1424f1056d688454b))
+* **web:** a Reset on a phone keeps the slot's room until the next change ([c93b0b4](https://github.com/yeyo11/claudio/commit/c93b0b4f567537850f37ea0a38213c52489fb1b3))
+* **web:** a Reset on a Runs row shows the default even over an unsaved edit ([a4dfb22](https://github.com/yeyo11/claudio/commit/a4dfb220750364680a5fab0581a83d5182963eb0))
+* **web:** a shadow point without consent says it is off and offers Review and consent ([08a5418](https://github.com/yeyo11/claudio/commit/08a5418bd99d52e6c28ce7145411921ac77b2706))
+* **web:** cut audit paths in the middle and let a keyboard reach the whole path ([11f0be2](https://github.com/yeyo11/claudio/commit/11f0be236789bbf7712fbb01caef22fb3b60470b))
+* **web:** Decisions rows keep their height and the Overridden link a target ([9fad5dd](https://github.com/yeyo11/claudio/commit/9fad5dd6be606b105847b03e4c46ffa387925118))
+* **web:** Escape returns focus to the bell, every font shorthand names its weight, model ids in mono ([0f54782](https://github.com/yeyo11/claudio/commit/0f5478249ea054dd098bee62d41eb46b451eadf1))
+* **web:** give the audit table's What column room at 1280, and keep cells from spilling ([19e1c57](https://github.com/yeyo11/claudio/commit/19e1c570f24211555e873925da6d304a0758e33b))
+* **web:** hold each part of a reset row, and let a Reset write only over an unsaved edit ([0e5912a](https://github.com/yeyo11/claudio/commit/0e5912a119c6d19a27892d605e653efecd497c00))
+* **web:** hold the whole row after a Reset on a phone, and end the hold only on a new change ([a7b72c0](https://github.com/yeyo11/claudio/commit/a7b72c0124f3b1bb3d38deb75bdf132d9d625289))
+* **web:** key the Runs card on env ownership, not on the source of each value ([71b0622](https://github.com/yeyo11/claudio/commit/71b0622677c110cd4ca1395e3bceabee7c535c03))
+* **web:** put Changed · Reset on the row's head line, and keep focus after Reset ([fb363d3](https://github.com/yeyo11/claudio/commit/fb363d3c6d565175294dd78d2c9e38a6e28cfe83))
+* **web:** Reset focuses the row's own control and keeps the other draft ([ff690bd](https://github.com/yeyo11/claudio/commit/ff690bda89e1f950ee5748e118782fac4e4f6658))
+* **web:** say in words when no route matched an audited request ([65776f5](https://github.com/yeyo11/claudio/commit/65776f5035992df2d90247b513edc986016e66b5))
+* **web:** Spanish copy of the audit routes and the settings slot ([37efea2](https://github.com/yeyo11/claudio/commit/37efea264a4dd6fdae8c06edd03d0904662f308a))
+* **web:** terminal history path is text when it fits, and takes the row's font ([a47622e](https://github.com/yeyo11/claudio/commit/a47622e06fd93d92fa6f64342036fc48ba358c1d))
+* **web:** terminal history short path takes the row's font ([44d100c](https://github.com/yeyo11/claudio/commit/44d100c37120fdb397e526db3d18b7e1944d2b3c))
+* **web:** the provider row's state never narrows below its tag ([e89c976](https://github.com/yeyo11/claudio/commit/e89c976988cd029f84bc3ca6694edbf9b1e5d2ff))
+* **web:** the rotation card keeps only the person's edits, over the saved copy ([0371238](https://github.com/yeyo11/claudio/commit/03712388365329d0022ea6f3938b879192bbef74))
+* **web:** the rotation card's Discard is always there, disabled while nothing is edited ([46f24cd](https://github.com/yeyo11/claudio/commit/46f24cd1ad06c94c65824b02b8ff50b6ebd75220))
+* **web:** the Runs card is not remounted when a row is reset ([9fb5e70](https://github.com/yeyo11/claudio/commit/9fb5e70731ff735f31ebb04ca24e01078e73d58f))
+* **web:** word the terminal history's actors as the audit log does ([4c5d120](https://github.com/yeyo11/claudio/commit/4c5d12084f3ecebb075e47343df1de6ca405fd3f))
+
+
+### Documentation
+
+* **plans:** record the owner's D2 and D4-D8 in the isolation study ([f32ebd0](https://github.com/yeyo11/claudio/commit/f32ebd0d6b4e06cd40dbc0e5707b29a501d01207))
+* **plans:** settings reset and overrides, terminal and audit on a phone, and the polish follow-ups ([9e89720](https://github.com/yeyo11/claudio/commit/9e89720735617c920a1b87b659e11b6d565d1253))
+* **readme:** the Buy me a coffee badge beside the others ([cea204f](https://github.com/yeyo11/claudio/commit/cea204f8690966673888831ad70fb04b86e1e7f4))
+* settings reset and overrides, audit, terminal history, status and the plan's outcome ([0cbf0fe](https://github.com/yeyo11/claudio/commit/0cbf0fe30f07d69f03a2f732869b21eee2ab1f21))
+
+
+### Build and packaging
+
+* run the repository's checks through Sluice ([5741994](https://github.com/yeyo11/claudio/commit/574199438a4053a7cc90966369825a09e975fb84))
+* **sluice:** install before the test gate, so a merge train can run it ([e7981d9](https://github.com/yeyo11/claudio/commit/e7981d99bcc4ef44409136e5b30c29398c6b0d43))
+
 ## [0.8.1](https://github.com/yeyo11/claudio/compare/v0.8.0...v0.8.1) (2026-10-20)
 
 

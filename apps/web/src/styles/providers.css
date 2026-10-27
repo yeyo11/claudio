@@ -4,7 +4,8 @@
    on a screen is the one the screen already had. */
 .prov-row {
   display: grid;
-  grid-template-columns: 20px 36px minmax(0, 250px) minmax(0, 1fr) auto 34px;
+  /* The state column never narrows below its tag: the id column, whose path ellipsis carries a title, gives way first */
+  grid-template-columns: 20px 36px minmax(0, 250px) minmax(min-content, 1fr) auto 34px;
   gap: 14px;
   align-items: center;
   padding: 14px 18px;
@@ -17,7 +18,7 @@
 
 /* First run: no handle and no switch, the person is only reading what was found */
 .prov-row.compact {
-  grid-template-columns: 36px minmax(0, 250px) minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 250px) minmax(min-content, 1fr) auto;
 }
 
 .prov-row .monogram {
@@ -482,9 +483,23 @@
   min-width: 0;
 }
 
+/* The binary's Changed · Reset at the end of the row's line, inside the row's own padding */
+.prov-bare > .prov-item > .pref-row-change {
+  padding-inline-end: 18px;
+}
+
+.prov-bare > .prov-item.setting-change-row {
+  --change-row-gap: 0;
+  column-gap: 0;
+}
+
 @media (max-width: 900px) {
   .prov-bare > .prov-item {
     margin-inline: -14px;
+  }
+
+  .prov-bare > .prov-item > .pref-row-change {
+    padding: 0 14px 12px;
   }
 
   .prov-bare .prov-actions .btn {

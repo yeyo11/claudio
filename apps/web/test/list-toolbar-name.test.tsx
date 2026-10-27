@@ -25,3 +25,16 @@ for (const lng of ['en', 'es']) {
     assert.ok(words(name).includes(visible), `"${name}" contains "${visible}"`);
   });
 }
+
+test('a filter chip draws its content but is still named by its label', () => {
+  const html = renderToStaticMarkup(
+    <ListToolbar
+      search={{ value: '', onChange: () => {} }}
+      chips={[{ id: 'models', label: 'Model: claude-opus-5', content: <span className="mono">claude-opus-5</span>, onRemove: () => {} }]}
+    />,
+  );
+  const chip = html.match(/<button[^>]*class="[^"]*filter-chip[^"]*"[^>]*>([\s\S]*?)<\/button>/);
+  assert.ok(chip, 'the chip renders');
+  assert.ok(/aria-label="[^"]*Model: claude-opus-5/.test(chip[0]), 'the accessible name carries the label');
+  assert.ok(chip[1]!.includes('<span class="mono">claude-opus-5</span>'), 'the visible text is the content, with the id in mono');
+});

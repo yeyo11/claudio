@@ -1982,6 +1982,33 @@ card sits beside other content.
   scroll sideways. A block is warn; `missing`, `unarmed` and `error` are bad; `observed` and `allowed-once` are neutral.
 - Nothing moves: a block is not a live state.
 
+### Audit log
+
+Settings → Access & safety → Audit log (`AuditTable` in `pages/config/security/AuditCard.tsx`): the latest writes on the
+group's screen and every write, filtered and paged, on its detail (`/settings/access/audit`). One `.audit-log` container
+holds the same entries twice, and its container query displays one of them, so only one is in the accessibility tree
+([plans/settings-reset-and-polish.md](plans/settings-reset-and-polish.md), D5).
+
+- **What it did** is worded in the reader's language: the row's `route` (`PUT /chats/:id/claudio-mcp`) is a key of the
+  `auditRoutes` namespace, generated from the route docs (`pnpm --filter @claudio/api audit:strings`). A row with no route,
+  or a route this build does not know, shows the English summary the server stored.
+- **Who** is a word in sans when it is one (`local` "Local access", `desktop` "Desktop app", `env` "Environment", `claudio`,
+  `anonymous` "Anonymous"); a token id, a chat id or an OIDC subject stays a literal in mono, cut by an ellipsis with its
+  full text as the title. `ActorName` (`pages/config/security/ActorName.tsx`) words it, and the terminal's history uses
+  the same helper, so the two never disagree.
+- **The request** is the method in mono and `--fg-2`, never bold, on its own line, then the path in mono under it, cut
+  **in the middle** (`middleEllipsis` in `packages/ui/src/lib/format.ts`) so the end that tells two routes apart stays.
+  A cut path takes focus and shows the whole path in a `Tooltip`, for a keyboard as for a pointer.
+- **The result** is the status code and its word in a `Tag`: ok done, warn not allowed / read-only / rejected, bad failed.
+- **At 560 px of the card and wider**, `.audit-table` has `table-layout: fixed` and fits the settings column with no
+  sideways scroll at 1280: When about 11ch (the date and the time break onto two lines), Who 12ch, Request 22 %, Result 13ch
+  (a long outcome wraps inside its tag), and What takes the rest and wraps. Every cell clips what it holds. Its `.table-wrap.is-paged` drops the shared 72vh cap: the pager keeps it short.
+- **Below 560 px**, `ul.audit-rows` > `li.audit-row`, the `.guard-event` pattern with a `--line` hairline between rows and no
+  card: time · who, with the result closing the line; what it did in sans; the method and the path folded by `shortPath(path,
+  40)` in mono, `--fs-small`, `--fg-3`. A folded path is a `.audit-row-path` button (`aria-expanded`, the whole line, at
+  `--touch` height) that shows the full path in place, wrapping anywhere.
+- Nothing moves.
+
 ### Terminal: the person's own shell
 
 The terminal ([plans/terminal.md](plans/terminal.md), §4) is the person's own shell, not an agent working. The
@@ -2031,6 +2058,15 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   no status bar and no panel: More → Terminals is a list of rows (`.term-list`, `.term-row`, 44 px tall) with
   "Nueva terminal", and a row opens the terminal full screen. The panel is the only desktop entry point: no page,
   project button, palette command or chat header button opens a terminal.
+- **History on a phone.** In Settings, the history is a four-column table from 560 px of the card's own width (a
+  container query on `.term-history`, not the viewport's) and wrapping rows below it: `ul.term-history-rows` >
+  `li.term-history-row`, the `.guard-event` pattern, never a sideways scroll at 390 or 320. A row has three
+  lines: the time (tabular sans), "·" and the actor; the directory in mono through `shortPath(cwd, 40)` as a
+  44 px `.term-history-cwd` button (`aria-expanded`) that shows the whole path in place; and the end reason with
+  the refusal `Tag` (warn). Only one of the two is displayed, so only one is in the accessibility tree. The actor is
+  worded as in the audit log (`ActorName`: `local` "Local access", `desktop`, `env`, `claudio`, `anonymous`, in
+  sans); any other actor is an id, in mono. The directory button's `aria-label` is the path it shows and "Show the
+  full path" / "Hide the full path".
 - **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
   chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
   fit follows the host's box only.
@@ -2525,7 +2561,28 @@ Claude Code are built from it ([settings IA plan](plans/settings-ia.md) §6.0).
 | `.pref-actions` | a line of buttons in the control column, with the answer they bring, wrapping on a phone |
 | `.reserved-label` (`ReservedLabel`) | a busy button's states ("Check for updates" → "Checking…") in one grid cell, so the button keeps the width of the longest (AP10) |
 | `.settings-detail-body`, `.settings-detail-tools` | a detail screen's content (Behaviour, Files) without a card: the detail's header names it |
+| `.pref-row-change` (`SettingChange`) | the `[● Changed · Reset]` slot of a row: a 6 px `--fg-3` dot (a change is not a status, so never ok, warn or bad), "Changed" in `--fg-2` at `--fs-small`, "·", and the `link-btn small` Reset, on one line that never wraps inside itself (`white-space: nowrap`). On a desktop it sits **inline on the row's head line** (the end of the label's line, or of the control's line), so it adds no height; its column keeps its width while nothing is changed (`.pref-row-change-line.is-hidden`, `visibility: hidden`, `aria-hidden`), so nothing shifts sideways when it appears. On a phone (≤ 900 px or a coarse pointer) nothing is reserved: the slot takes no room until the value differs from the default (`data-shown="false"` is visually hidden, its live region still in the tree), and then a line of its own under the consequence, left aligned |
+| `.setting-change-row` | a row that carries the slot: a grid on a desktop whose first line (the row's first child, or the first line of the `.field` or `.settings-row` it holds) shares the top line with the slot's `max-content` column, everything under it at full width; a flex column on a phone. A decision point (`.dp-point`) places the slot in its own grid, between the name and the modes |
+| `.pref-row-change-reset` | Reset: a 24 px target on a desktop (its padding given back by a negative margin, so the head line does not grow), `--touch` on a phone. Its tooltip reads "Default: {value}" and its `aria-label` names the row and the default |
+| `.pref-row-change-error` | a failed Reset: the server's message in `--bad` with its icon, in the slot; the value stays |
+| `.pref-row-overridden` | "Overridden in N projects", appended to the consequence line after "·": `--fg-3`, a link to the first project's settings, the names in a tooltip. A fact about a whole section (the provider's limits) sits on the section's head line instead (`.settings-section-head`) |
+| `.settings-section-head` | a section's title and one fact about the whole section on the same line, wrapping under it on a narrow screen |
 | `.prov-bare` | Claude Code → Provider: the one provider row on the screen, not in a card, its padding hanging outside the column so its mark lines up with the section heading |
+
+A row whose value has a default carries a `SettingChange` (`PrefRow`'s `change` prop, or placed by
+the screen where the row is a field, a switch or a decision point, inside a `.setting-change-row`).
+On a phone the slot's line appears with the person's own edit, a shift within 500 ms of their input
+that layout-shift scoring does not count. A Reset does not take it away: the line goes when the
+server answers, which on a phone over the LAN or the tunnel is long after the tap, so it keeps its
+room hidden (`.pref-row-change[data-held]`) until the person's next change, and so do the row and
+each of its parts (`[data-change-held]`, the heights they had at the tap), so what depends on the
+value (a decision point's consent line) leaves room instead of moving what follows it; a field a Reset closes (the spend cap's amount) keeps its room
+(`.settings-reveal.is-held`) until their next toggle. A server setting reads its state
+from `GET /settings/state` and resets through `DELETE /settings/state/:setting`; Appearance and
+Notifications reset the browser's own keys with the same slot. After Reset the control shows the
+default, the slot hides, focus moves to the row's control and a polite live region says "Restored to
+the default"; there is no toast. A value the environment sets keeps its `EnvNote` and gets no Reset.
+A row the person builds item by item, an identity, a credential or a log has no Reset.
 
 Every row carries the `data-setting` id that `settingsIndex.ts` names, so a search result lands on
 it. A signed-out account is `warn` everywhere (it needs authorisation), in the Sign-in section and

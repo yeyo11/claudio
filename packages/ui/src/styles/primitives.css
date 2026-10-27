@@ -1338,7 +1338,8 @@ button.step:hover {
   border-radius: var(--radius-xs);
   background: var(--bg-hover);
   color: var(--text-muted);
-  font-size: var(--fs-small);
+  /* A button does not inherit the page's font, and the chip's prefix is a label in Geist */
+  font: var(--fw-regular) var(--fs-small) / var(--lh-small) var(--sans);
   cursor: pointer;
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }

@@ -104,6 +104,7 @@ export function lintCss(file, raw) {
       if (property === 'font') {
         const font = fontShorthand(value);
         if (font.size && !SIZE_OK.test(font.size)) say('type-scale', `font shorthand with size ${font.size}: use a --fs-* token`);
+        if (font.size && font.family && !font.weight) say('type-weight', 'font shorthand without a weight resets it to 400; name --fw-regular or --fw-strong');
         if (font.weight && !WEIGHT_OK.test(font.weight)) say('type-weight', `font shorthand with weight ${font.weight}: use --fw-regular or --fw-strong`);
         if (font.family === 'mono') {
           mono = true;

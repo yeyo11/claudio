@@ -10,6 +10,7 @@
 [![Latest release](https://img.shields.io/github/v/release/yeyo11/claudio?sort=semver)](https://github.com/yeyo11/claudio/releases/latest)
 [![Image](https://img.shields.io/badge/ghcr.io-yeyo11%2Fclaudio-2496ed?logo=docker&logoColor=white)](https://github.com/yeyo11/claudio/pkgs/container/claudio)
 [![License: MIT](https://img.shields.io/github/license/yeyo11/claudio)](LICENSE)
+[![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/yeyo11)
 
 <img src="docs/media/tour.gif" alt="A tour of Claudio in the Night Shift design: a project's dashboard with what is working now, the command palette, a working chat with its activity and the inspector's changes, an orchestration followed as steps through to its verification, and the accounts with their usage" width="100%">
 
@@ -19,6 +20,11 @@ Claudio puts the Claude Code CLI behind a REST API and a web UI, so you can star
 conversations from anywhere, run agents in parallel on a project's board, and keep going on another
 Claude account when one runs out of quota. It drives Claude Code through its CLI and nothing else,
 so whatever the CLI can do, Claudio can do, and nothing more.
+
+Read the launch article,
+[Claudio: run Claude Code as a service](https://josegarrido.dev/en/claudio-run-claude-code-as-a-service/)
+([en español](https://josegarrido.dev/es/claudio-claude-code-como-servicio/)), and every launch on
+[the project's page](https://josegarrido.dev/en/projects/claudio/) of the author's blog.
 
 ## What it does
 

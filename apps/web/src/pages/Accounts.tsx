@@ -191,7 +191,7 @@ export function Accounts() {
         </ul>
       )}
 
-      {settings.data && <RotationCard key={JSON.stringify(settings.data)} settings={settings.data} />}
+      {settings.data && <RotationCard settings={settings.data} />}
 
       <PoliciesCard policies={policies.data ?? []} accounts={data} />
 

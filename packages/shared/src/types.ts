@@ -5098,16 +5098,20 @@ export interface AuditEntry {
   id: string;
   at: string;
   /**
-   * `token:<id>` for the owner's token, the OIDC subject, `desktop`, `chat:<chatId>` for a chat's own
-   * token (`CLAUDIO_API_TOKEN`), `env` or `claudio` for what the wrapper did itself; `local` when no
-   * authentication is configured
+   * Who made it: `token:<id>` for the owner's token, the OIDC subject, `desktop` for the desktop
+   * app's own credential, `chat:<chatId>` for a chat's own token (`CLAUDIO_API_TOKEN`), `env` or
+   * `claudio` for what the wrapper did itself, `local` when no authentication is configured, and
+   * `anonymous` for a request refused before it was identified (no valid credential, or a host the
+   * wrapper does not serve)
    */
   actor: string;
   method: string;
   path: string;
   status: number;
-  /** One line about what it did, built from the route, not from the payload */
+  /** One line about what it did, in English, built from the route, not from the payload */
   summary: string;
+  /** `METHOD /pattern` as `ROUTE_DOCS` keys it (`POST /chats/:id/mcp/:name`); null for rows written before it, or no matched route */
+  route: string | null;
 }
 
 /** The query of `GET /audit`; every field narrows the page and its `total`. */
@@ -5208,6 +5212,23 @@ export interface AppSettings extends AppSettingValues {
   sources: Record<keyof AppSettingValues, AppSettingSource>;
   allowedHostLayers: AllowedHostLayers;
 }
+
+/** Where a setting's value comes from: the environment (read-only here), what the person stored, or the default */
+export type SettingSource = 'env' | 'stored' | 'default';
+/** A setting's default, as the store defines it; the web words it */
+export type SettingDefault = string | number | boolean | null | string[] | { [key: string]: string | number | boolean | null | string[] };
+export interface SettingState {
+  /** The stored value differs from the default: the row shows "Changed · Reset" */
+  changed: boolean;
+  source: SettingSource;
+  default: SettingDefault;
+}
+/** `GET /settings/state`: every server-side setting a row can reset, by its `data-setting` id */
+export interface SettingsState {
+  settings: Record<string, SettingState>;
+}
+/** `GET /settings/overrides`: the projects that override each global setting, sorted by project name; only ids with one or more */
+export type SettingOverrides = Record<string, string[]>;
 
 /**
  * `PUT /settings/app`: the settings to change, and only those. A setting the environment set is

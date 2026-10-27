@@ -730,9 +730,19 @@ function credentialOf(req: FastifyRequest, path: string): string | undefined {
  * route and never from the payload: a body holds prompts and secrets and is not written down.
  */
 export function auditSummary(method: string, routeUrl: string | undefined, path: string): string {
-  const pattern = routeUrl?.startsWith(API_PREFIX) ? routeUrl.slice(API_PREFIX.length) : undefined;
-  const doc = pattern ? ROUTE_DOCS[`${method} ${pattern}`] : undefined;
+  const route = auditRoute(method, routeUrl);
+  const doc = route ? ROUTE_DOCS[route] : undefined;
   return doc?.summary ?? `${method} ${path}`;
+}
+
+/**
+ * The route a request matched, keyed as `ROUTE_DOCS` keys it (`POST /chats/:id/stop`), or null when
+ * Fastify matched none. Stored beside the English summary so the web can word the row in the
+ * reader's language (`auditRoutes` in its locales) without a second copy of every summary here.
+ */
+export function auditRoute(method: string, routeUrl: string | undefined): string | null {
+  const pattern = routeUrl?.startsWith(`${API_PREFIX}/`) ? routeUrl.slice(API_PREFIX.length) : undefined;
+  return pattern ? `${method} ${pattern}` : null;
 }
 
 /**
@@ -1086,6 +1096,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       path,
       status: reply.statusCode,
       summary: auditSummary(req.method, req.routeOptions.url, path),
+      route: auditRoute(req.method, req.routeOptions.url),
     });
   });
 
@@ -1094,7 +1105,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, or `local` when nothing guards the API */
+    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, `webhook`, `anonymous` for a refused host, or `local` when nothing guards the API */
     actor: string | null;
   }
 }

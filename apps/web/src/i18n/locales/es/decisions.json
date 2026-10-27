@@ -74,7 +74,8 @@
       "stale": "Volverá a preguntar",
       "staleHint": "El estado de este punto ha cambiado desde que consentiste, así que vuelve a preguntar."
     },
-    "limited": "Funciona como sombra hasta que tenga consentimiento.",
+    "offUntilConsent": "Apagado hasta que tenga consentimiento.",
+    "reviewConsent": "Revisar y consentir",
     "names": {
       "flowRefineNeeded": "Decidir si una tarjeta necesita refinarse",
       "flowBounce": "Devolver la tarjeta al desarrollador tras el rechazo de QA",

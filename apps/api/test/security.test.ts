@@ -239,6 +239,8 @@ test('every write leaves an audit row, with who and what but never the body', as
   assert.equal(newest.status, 200);
   // The summary comes from the route's own documentation, not from anything the caller sent
   assert.equal(newest.summary, 'Remove a project from Claudio');
+  // And the route it matched, as ROUTE_DOCS keys it, which is what the web translates the row by
+  assert.equal(newest.route, 'DELETE /projects/:id');
   assert.equal(page.entries.some((entry: { summary: string }) => entry.summary === 'Create a project in the workspace'), true);
   assert.equal((await app.inject('/api/audit')).payload.includes('audited'), false, 'no body, and no name from one, is ever recorded');
 
@@ -260,6 +262,16 @@ test('every write leaves an audit row, with who and what but never the body', as
   const refused = await app.inject('/api/audit?status=teapot');
   assert.equal(refused.statusCode, 400);
   assert.match(refused.json().error, /a code such as 404 or a class such as 4xx/);
+});
+
+test('a write no route matched is recorded with no route, and its method and path as the summary', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+
+  assert.equal((await app.inject({ method: 'POST', url: '/api/nowhere/at-all' })).statusCode, 404);
+  const [row] = (await app.inject('/api/audit')).json().entries;
+  assert.equal(row.route, null);
+  assert.equal(row.summary, 'POST /api/nowhere/at-all');
 });
 
 test('the audit page says itself what a page number must be, instead of letting SQLite say it', async (t) => {

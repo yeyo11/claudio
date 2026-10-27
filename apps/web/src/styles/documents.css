@@ -1291,7 +1291,12 @@
 .lessons-settings > p { margin: 0; }
 /* The error line is reserved: two lines, so a message that wraps on a phone moves nothing either */
 .lessons-problem { min-height: calc(2 * 1.45em); }
-.lessons-row { min-width: 0; }
+/* A row and its Changed · Reset slot at the end of the control's line; on a phone the slot goes under the hint, and only once changed */
+.lessons-row { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: center; column-gap: 16px; min-width: 0; }
+.lessons-row > .pref-row-change { grid-column: 2; grid-row: 1; }
+@media (pointer: coarse), (max-width: 900px) {
+  .lessons-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+}
 .lessons-row > .field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 240px); align-items: center; gap: 2px 16px; }
 .lessons-row > .field > .field-label { grid-column: 1; grid-row: 1; }
 .lessons-row > .field > .field-hint { grid-column: 1; grid-row: 2; }

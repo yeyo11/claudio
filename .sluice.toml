@@ -39,7 +39,8 @@ hooks = ["pre-commit"]
 key_inputs = ["node --version", "pnpm --version"]
 
 [gates.test]
-# Detected from package.json.
+# Detected from package.json. A merge train installs the dependencies once, before its gates
+# ([queue] prepare below), so the gate only tests
 cmd = "pnpm test"
 weight = "auto"
 timeout = "30m"
@@ -48,3 +49,8 @@ key_inputs = ["node --version", "pnpm --version"]
 # One package at a time: four at once, each running its files in parallel, pushed the load past
 # 30 on 12 threads and failed timing tests (a boot trial, an invite's expiry) that pass alone
 env = { CI = "1", npm_config_workspace_concurrency = "1" }
+
+[queue]
+# A merge train verifies in a fresh worktree without node_modules: install once, before the gates
+# (Sluice 0.6.0; a failure is attributed by installing the target alone, josegarridodigio/sluice#3)
+prepare = "pnpm install --frozen-lockfile --prefer-offline"

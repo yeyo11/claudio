@@ -275,7 +275,17 @@
       },
       "openAll": "See the whole log",
       "count_one": "{{formatted}} entry",
-      "count_other": "{{formatted}} entries"
+      "count_other": "{{formatted}} entries",
+      "actors": {
+        "local": "Local access",
+        "desktop": "Desktop app",
+        "env": "Environment",
+        "claudio": "Claudio",
+        "anonymous": "Anonymous"
+      },
+      "showPath": "Show the full path",
+      "hidePath": "Hide the full path",
+      "noRoute": "No route matched this request"
     }
   },
   "scope": {
@@ -541,6 +551,18 @@
     },
     "overridden_one": "Overridden in {{count}} project",
     "overridden_other": "Overridden in {{count}} projects",
+    "changeSlot": {
+      "changed": "Changed",
+      "default": "Default: {{value}}",
+      "resetLabel": "Reset {{setting}} to its default ({{value}})",
+      "restored": "Restored to the default",
+      "on": "On",
+      "off": "Off",
+      "noCap": "No cap",
+      "composite": "each rule's own",
+      "automatic": "Automatic",
+      "more": "and {{count}} more"
+    },
     "groups": {
       "general": "General",
       "claude-code": "Claude Code",
@@ -739,10 +761,24 @@
         "storage": "Where secrets are kept"
       },
       "guards": {
-        "rules": "Guard rules"
+        "rules": "Guard rules",
+        "mode": "Observe only",
+        "automated": "Orchestration and flow workers",
+        "rule": {
+          "no-verify": "No skipping checks",
+          "push": "No pushing",
+          "destructive": "No destructive commands",
+          "secrets": "No secrets in files",
+          "protect-configs": "Protect lint and CI configs"
+        }
       },
       "terminal": {
-        "enabled": "Terminal access"
+        "enabled": "Terminal access",
+        "remote": "From other devices",
+        "max-terminals": "Terminals at once",
+        "idle-minutes": "Close after minutes unattended",
+        "scrollback": "Lines kept for a reload",
+        "shell": "Shell"
       },
       "audit": {
         "log": "Audit log"
@@ -919,11 +955,25 @@
       },
       "guards": {
         "section": "block rules dangerous commands",
-        "rules": "block deny"
+        "rules": "block deny",
+        "mode": "observe log only false positive",
+        "automated": "workers orchestration flow",
+        "rule": {
+          "no-verify": "verify hooks skip",
+          "push": "push upload",
+          "destructive": "delete rm force",
+          "secrets": "secrets keys env",
+          "protect-configs": "lint ci config protect"
+        }
       },
       "terminal": {
         "section": "shell pty console",
-        "enabled": "shell pty"
+        "enabled": "shell pty",
+        "remote": "remote devices tunnel",
+        "max-terminals": "terminals limit",
+        "idle-minutes": "idle close timeout",
+        "scrollback": "scrollback history reload",
+        "shell": "shell path"
       },
       "audit": {
         "section": "writes requests history",
@@ -1814,8 +1864,8 @@
     "saveFailed": "Could not save the tunnel setting"
   },
   "appSettings": {
-    "fromEnv": "set by the environment",
-    "envHint": "Set by the environment ({{variable}}): change it where Claudio is deployed.",
+    "fromEnv": "Set by the environment",
+    "envHint": "Set by the environment (<mono>{{variable}}</mono>): change it where Claudio is deployed.",
     "saveFailed": "Could not save the setting",
     "hosts": {
       "title": "Allowed hosts",

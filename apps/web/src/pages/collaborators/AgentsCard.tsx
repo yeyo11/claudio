@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Switch } from '@claudio/ui/components/controls';
 import { Card } from '@claudio/ui/components/ui';
+import { collaboratorsKeys } from '../../lib/api/collaborators';
+import { ServerSettingChange } from '../config/SettingChange';
 import { settingsHref } from '../config/settingsGroups';
 
 /**
@@ -14,10 +16,13 @@ export function AgentsCard({ settings, busy, onSave }: { settings: Collaborators
   const { t } = useTranslation('collaborators');
   return (
     <Card className="collab-agents" title={t('agents.title')}>
-      <Switch checked={settings.assistantReads} disabled={busy} onChange={(assistantReads) => void onSave({ assistantReads })}>
-        <span>{t('agents.assistant')}</span>
-      </Switch>
-      <p className="small muted">{t('agents.hint')}</p>
+      <div className="setting-change-row" data-setting="collaborators.assistant-reads">
+        <Switch checked={settings.assistantReads} disabled={busy} onChange={(assistantReads) => void onSave({ assistantReads })}>
+          <span>{t('agents.assistant')}</span>
+        </Switch>
+        <p className="small muted">{t('agents.hint')}</p>
+        <ServerSettingChange id="collaborators.assistant-reads" label={t('agents.assistant')} invalidate={[collaboratorsKeys.status]} />
+      </div>
       <Link to={settingsHref('access', { detail: 'agent-reads' })} className="link-btn small" data-testid="collab-agent-reads-link">
         {t('agents.audit')}
       </Link>

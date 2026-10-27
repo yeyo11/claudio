@@ -104,13 +104,13 @@ export default async ({ page, api, check }) => {
     // Method and status narrow the same list; every row left is what was asked for
     const auditRows = `[...document.querySelectorAll('${auditTable} tbody tr')]`;
     await page.select('[role=tabpanel] .filter-bar .select-trigger', 'PUT');
-    await page.waitFor(`const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.strong')?.textContent==='PUT')`, { label: 'only PUT rows' });
+    await page.waitFor(`const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.audit-method')?.textContent==='PUT')`, { label: 'only PUT rows' });
     await page.fill(pathFilter, '');
     await page.select('[role=tabpanel] .filter-bar .select-trigger', 'POST');
     await page.fill('[role=tabpanel] input[role=combobox]', '4xx');
     // The write refused while read-only was on is a POST that ended in a 405
     await page.waitFor(
-      `const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.strong')?.textContent==='POST'&&/^4\\d\\d/.test(tr.querySelector('.badge')?.textContent??''))&&r.some(tr=>tr.textContent.includes('/api/projects'))`,
+      `const r=${auditRows};return r.length>0&&r.every(tr=>tr.querySelector('.audit-method')?.textContent==='POST'&&/^4\\d\\d/.test(tr.querySelector('.badge')?.textContent??''))&&r.some(tr=>tr.textContent.includes('/api/projects'))`,
       { label: 'only POST rows that ended in a 4xx' },
     );
     await page.fill('[role=tabpanel] input[role=combobox]', '405');
@@ -124,6 +124,41 @@ export default async ({ page, api, check }) => {
 
     await page.fill(pathFilter, 'zz-no-such-path');
     await page.waitFor(`return document.querySelector('[role=tabpanel]').textContent.includes('No entry matches these filters')`, { label: 'an empty filter result' });
+
+    // In Spanish, what each row did is its route's own line and who made it is a word; on a phone the
+    // same rows wrap instead of scrolling sideways (docs/plans/settings-reset-and-polish.md, D5)
+    await page.click('[role=tabpanel] button', 'Clear filters', 600);
+    try {
+      await page.eval(`localStorage.setItem('claudio-language', 'es'); return true`);
+      // The table's accessible name is translated too, so the Spanish page is found by its class
+      const auditTableEs = `[role=tabpanel] .audit-log > .table-wrap table.audit-table`;
+      await page.goto('/settings/access/audit', 0);
+      await page.waitFor(
+        `const t=document.querySelector('${auditTableEs}');return !!t&&t.textContent.includes('Cambiar el modo de autenticación o el modo de solo lectura')`,
+        { label: 'the audit log in Spanish', timeout: 60_000 },
+      );
+      const spanish = await page.eval(`return document.querySelector('${auditTableEs}').textContent`);
+      check(!spanish.includes('Change the auth mode or read-only'), 'a row with a route is not left in English');
+      check(spanish.includes('Acceso local'), 'the open install writes as a word, in Spanish');
+
+      await page.viewport(390, 844);
+      // A phone draws the group as a screen of its own, with no tab panel around it, so the rows are found by their class
+      await page.waitFor(`const r=document.querySelector('.audit-rows');return !!r&&r.offsetParent!==null&&document.querySelectorAll('.audit-row').length>0`, { label: 'the audit rows at 390' });
+      check(!(await page.eval(`return document.querySelector('.audit-log > .table-wrap').offsetParent !== null`)), 'at 390 the table is not displayed, so only the rows are read');
+      const sideways = await page.eval(
+        `const el=document.scrollingElement;const rows=[...document.querySelectorAll('.audit-row')];return el.scrollWidth>el.clientWidth+1||rows.some(r=>r.scrollWidth>r.clientWidth+1)`,
+      );
+      check(!sideways, 'the audit rows at 390 never scroll sideways');
+      check((await page.text('.audit-rows')).includes('Cambiar el modo de autenticación'), 'the rows say what each write did, in Spanish');
+      const fold = '.audit-row-path';
+      if (await page.eval(`return !!document.querySelector('${fold}')`)) {
+        await page.click(fold, undefined, 300);
+        check((await page.eval(`return document.querySelector('${fold}').getAttribute('aria-expanded')`)) === 'true', 'a tap on a folded path shows all of it');
+      }
+    } finally {
+      await page.viewport(1440, 900).catch(() => {});
+      await page.eval(`localStorage.removeItem('claudio-language'); return true`).catch(() => {});
+    }
 
     // A 401 is a screen that says what to do; a wrong token fails in the form, the right one returns the app
     await page.eval(`localStorage.removeItem(${JSON.stringify(TOKEN_KEY)}); return true`);

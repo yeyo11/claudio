@@ -147,6 +147,8 @@
     "where": "Directorio",
     "how": "Cómo acabó",
     "running": "En marcha",
+    "showPath": "Mostrar la ruta completa",
+    "hidePath": "Ocultar la ruta completa",
     "refused_one": "{{count}} intento rechazado: {{reasons}}",
     "refused_other": "{{count}} intentos rechazados: {{reasons}}",
     "refusedReason": {

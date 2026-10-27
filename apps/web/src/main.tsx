@@ -1,10 +1,11 @@
 import './lib/boot'; // first of all: the boot guard in index.html waits for this module to run
 import './lib/legacy-storage-init'; // before the modules below, which read their stored keys as they load
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { App } from './App';
+import { keys } from './api';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { SpendCapProvider } from './components/SpendCapDialog';
@@ -30,7 +31,15 @@ watchChunkErrors();
 // Before the first render, so a guarded wrapper opens on its sign-in screen and not on the shell
 void probeAuth();
 
-const queryClient = new QueryClient({
+const queryClient: QueryClient = new QueryClient({
+  // Any save may change a row's "Changed" state or a project's override; only a Settings screen that
+  // shows them has an active observer, so elsewhere this marks the reads stale and costs no request
+  mutationCache: new MutationCache({
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.settingsState });
+      void queryClient.invalidateQueries({ queryKey: keys.settingOverrides });
+    },
+  }),
   defaultOptions: {
     queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 1000 },
   },

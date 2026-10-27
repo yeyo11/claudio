@@ -20,6 +20,7 @@ import { collaboratorRoutes } from './routes/collaborators.ts';
 import { configRoutes } from './routes/config.ts';
 import { connectorRoutes } from './routes/connectors.ts';
 import { appSettingsRoutes } from './routes/app-settings.ts';
+import { settingsStateRoutes } from './routes/settings-state.ts';
 import { spendRoutes } from './routes/spend.ts';
 import { dashboardLayoutRoutes } from './routes/dashboard-layout.ts';
 import { tunnelRoutes } from './routes/tunnel.ts';
@@ -224,6 +225,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(configRoutes, { core });
       await api.register(toolPresetRoutes, { core });
       await api.register(appSettingsRoutes, { core });
+      await api.register(settingsStateRoutes, { core });
       await api.register(spendRoutes, { core });
       await api.register(dashboardLayoutRoutes, { core });
       await api.register(tunnelRoutes, { core });

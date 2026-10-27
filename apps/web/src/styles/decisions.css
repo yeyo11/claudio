@@ -1088,7 +1088,8 @@
 .dp-field-control {
   display: flex;
   flex: 0 1 auto;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
   min-width: 0;
 }
 
@@ -1099,6 +1100,19 @@
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
+}
+
+.dp-who > .setting-change-row {
+  align-self: stretch;
+  justify-items: start;
+  --change-row-gap: 8px;
+}
+
+/* The slot shares the control's line, before it, so every control keeps its right edge */
+.dp-field-control.has-change {
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 12px;
 }
 
 /* The pinned model is a hint attached to the Jev option, not a row of its own (AP3) */
@@ -1234,7 +1248,8 @@
 /* A point as evidence: name and mode on one line, then what it decided, then what it does */
 .dp-point {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* The name, the Changed · Reset slot (its width kept while hidden), the modes */
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 4px 16px;
   min-width: 0;
@@ -1253,9 +1268,20 @@
   overflow-wrap: anywhere;
 }
 
-.dp-point > .segmented {
+.dp-point > .dp-point-mode {
+  grid-row: 1;
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* The slot sits in the free space of the first line, before the modes, not as a band under them */
+.dp-point > .pref-row-change {
   grid-row: 1;
   grid-column: 2;
+  align-self: center;
 }
 
 .dp-evidence,
@@ -1286,15 +1312,25 @@
 /* A link inside a line of text still takes a whole target, 24 px here and 44 px on a phone, and the
    negative margin gives the room back, so the line does not grow when the link appears */
 .dp-who .link-btn,
-.dp-evidence .link-btn {
+.dp-evidence .link-btn,
+.dp-cap-link {
   display: inline-block;
-  padding-block: 2px;
-  margin-block: -2px;
+  line-height: var(--lh-small);
+  padding-block: 3px;
+  margin-block: -3px;
 }
 
 .dp-evidence-consent.is-none,
 .dp-evidence-wait {
   color: var(--fg-3);
+}
+
+/* Off until it has consent: a warning, so it carries its icon as well as the word */
+.dp-evidence-consent.dp-consent-off {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
 }
 
 .dp-evidence-wait {
@@ -1356,17 +1392,32 @@
     align-items: stretch;
   }
 
+  .dp-field-control.has-change {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .dp-point {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .dp-point > .segmented {
+  .dp-point > .dp-point-mode,
+  .dp-point > .pref-row-change {
     grid-row: auto;
     grid-column: 1;
+  }
+
+  .dp-point > .dp-point-mode {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .dp-point-mode > .segmented {
     display: flex;
   }
 
-  .dp-point > .segmented .segment {
+  .dp-point-mode > .segmented .segment {
     flex: 1 1 0;
     justify-content: center;
   }
@@ -1386,16 +1437,29 @@
 }
 
 @media (max-width: 900px) {
-  .dp-point > .segmented .segment,
+  .dp-point-mode > .segmented .segment,
   .dp-area-toggle,
   .dp-advanced > .collapsible-trigger {
     min-height: var(--touch);
   }
 
   .dp-who .link-btn,
-  .dp-evidence .link-btn {
-    padding-block: 12px;
-    margin-block: -12px;
+  .dp-evidence .link-btn,
+  .dp-cap-link {
+    padding-block: 13px;
+    margin-block: -13px;
+  }
+
+  /* The evidence line's links ("Overridden in 2 projects", "Review and consent") wrap onto lines of
+     their own: 26 px between lines (44 − the 18 px line) keeps each one's whole target clear of the
+     next one's, where 2 px laid one over the other */
+  .dp-evidence {
+    row-gap: 26px;
+  }
+
+  /* The last evidence link's target reaches 13 px under its line: the slot's Reset starts past it */
+  .dp-point > .pref-row-change {
+    margin-top: 10px;
   }
 
   .dp-point-thr .slider {

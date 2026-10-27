@@ -3,6 +3,7 @@
 import { chatUiEn, chatUiEs } from '@claudio/chat-ui/locales';
 import { uiEn, uiEs } from '@claudio/ui/i18n/resources';
 import enAssistant from './locales/en/assistant.json';
+import enAuditRoutes from './locales/en/auditRoutes.json';
 import enChanges from './locales/en/changes.json';
 import enChecks from './locales/en/checks.json';
 import enChats from './locales/en/chats.json';
@@ -38,6 +39,7 @@ import enWebhooks from './locales/en/webhooks.json';
 import enWork from './locales/en/work.json';
 import enWorkItem from './locales/en/workItem.json';
 import esAssistant from './locales/es/assistant.json';
+import esAuditRoutes from './locales/es/auditRoutes.json';
 import esChanges from './locales/es/changes.json';
 import esChecks from './locales/es/checks.json';
 import esChats from './locales/es/chats.json';
@@ -113,6 +115,8 @@ export const en = {
   suggestion: enSuggestion,
   webhooks: enWebhooks,
   collaborators: enCollaborators,
+  // Keyed by route (`POST /chats/:id/stop`), flat: read with keySeparator and nsSeparator off
+  auditRoutes: enAuditRoutes,
 };
 
 export type Namespace = keyof typeof en;
@@ -158,6 +162,7 @@ export const es = {
   suggestion: esSuggestion,
   webhooks: esWebhooks,
   collaborators: esCollaborators,
+  auditRoutes: esAuditRoutes,
 } satisfies Shape<typeof en>;
 
 // `satisfies` only catches keys Spanish lacks; a key only Spanish has is caught here instead, so a

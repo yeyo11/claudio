@@ -1,7 +1,7 @@
 import type { AppSettings, AppSettingValues, PermissionMode, UpdateAppSettingsRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { api, keys, useSpend } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
@@ -10,6 +10,7 @@ import { formatCost, formatNumber, formatPercent } from '@claudio/ui/lib/format'
 import { PERMISSION_MODES } from '../../components/ui';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
 import { SaveButton, SettingsReveal, SettingsRow } from './groups/Block';
+import { ServerSettingChange } from './SettingChange';
 
 /** The variable that sets each one, named where the UI says it cannot change it. */
 export const APP_SETTING_ENV: Record<keyof AppSettingValues, string> = {
@@ -68,8 +69,17 @@ export function changedSettings(saved: AppSettings, draft: Partial<AppSettingVal
 
 /** "Set by the environment", with the variable to change instead. */
 export function EnvNote({ setting }: { setting: keyof AppSettingValues }) {
+  return (
+    <p className="small muted">
+      <EnvHint variable={APP_SETTING_ENV[setting]} />
+    </p>
+  );
+}
+
+/** "Set by the environment (VARIABLE): …", the variable in mono: it is a literal the person types where Claudio runs. */
+function EnvHint({ variable }: { variable: string }) {
   const { t } = useTranslation('config');
-  return <p className="small muted">{t('appSettings.envHint', { variable: APP_SETTING_ENV[setting] })}</p>;
+  return <Trans t={t} i18nKey="appSettings.envHint" values={{ variable }} components={{ mono: <span className="mono" /> }} />;
 }
 
 function useSaveAppSettings(onSaved: (next: AppSettings) => void, savedText: string) {
@@ -111,7 +121,9 @@ export function RunsSettings() {
     <WithAppSettings rows={3}>
       {(saved) => (
         <RunsCard
-          key={`runs:${saved.maxConcurrentRuns}:${saved.defaultPermissionMode}:${saved.sources.maxConcurrentRuns}:${saved.sources.defaultPermissionMode}`}
+          // Not keyed by the values or their sources (a Reset turns `file` into `default`): a remount
+          // would drop the other row's unsaved edit and the slot's announcement; the card takes a new
+          // saved value into that one field instead, and reads the sources on every render
           saved={saved}
         />
       )}
@@ -121,12 +133,15 @@ export function RunsSettings() {
 
 /** Runs & spend → Daily spend cap. */
 export function SpendSettings() {
-  return <WithAppSettings rows={3}>{(saved) => <SpendCard key={`spend:${String(saved.dailySpendCapUsd)}:${saved.sources.dailySpendCapUsd}`} saved={saved} />}</WithAppSettings>;
+  // Not keyed by the value, as Runs is not: a remount on Reset would drop the slot's announcement and
+  // the focus it moves to the switch; the card takes a new saved value into its draft instead
+  return <WithAppSettings rows={3}>{(saved) => <SpendCard saved={saved} />}</WithAppSettings>;
 }
 
 /** Runs & spend → Evals. */
 export function EvalsSettings() {
-  return <WithAppSettings rows={2}>{(saved) => <EvalsCard key={`evals:${String(saved.evalsPhase2)}:${saved.sources.evalsPhase2}`} saved={saved} />}</WithAppSettings>;
+  // Not keyed by the value, for the same reason as the cap
+  return <WithAppSettings rows={2}>{(saved) => <EvalsCard saved={saved} />}</WithAppSettings>;
 }
 
 /** Access & safety → Allowed hosts. */
@@ -138,6 +153,8 @@ export function HostsSettings() {
 export function EvalsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation('config');
   const [on, setOn] = useState(saved.evalsPhase2);
+  // A value saved elsewhere, or reset to its default, replaces the draft
+  useEffect(() => setOn(saved.evalsPhase2), [saved.evalsPhase2]);
   const fromEnv = saved.sources.evalsPhase2 === 'env';
   const change = changedSettings(saved, { evalsPhase2: on });
   const dirty = Object.keys(change).length > 0;
@@ -153,9 +170,12 @@ export function EvalsCard({ saved }: { saved: AppSettings }) {
     >
       <SourceTag settings={saved} keys={['evalsPhase2']} />
       <p className="small muted">{t('appSettings.evals.intro')}</p>
-      <Switch checked={on} onChange={setOn} disabled={fromEnv}>
-        {t('appSettings.evals.switch')}
-      </Switch>
+      <div className="setting-change-row">
+        <Switch checked={on} onChange={setOn} disabled={fromEnv}>
+          {t('appSettings.evals.switch')}
+        </Switch>
+        <ServerSettingChange id="evals.phase-2" label={t('appSettings.evals.switch')} invalidate={[keys.appSettings]} />
+      </div>
       {fromEnv ? (
         <EnvNote setting="evalsPhase2" />
       ) : (
@@ -251,6 +271,9 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
   const { t } = useTranslation(['config', 'common']);
   const [mode, setMode] = useState<PermissionMode>(saved.defaultPermissionMode);
   const [runs, setRuns] = useState<number | undefined>(saved.maxConcurrentRuns);
+  // A value saved elsewhere, or reset to its default, replaces that field's draft and leaves the other's
+  useEffect(() => setMode(saved.defaultPermissionMode), [saved.defaultPermissionMode]);
+  useEffect(() => setRuns(saved.maxConcurrentRuns), [saved.maxConcurrentRuns]);
   const modeFromEnv = saved.sources.defaultPermissionMode === 'env';
   const runsFromEnv = saved.sources.maxConcurrentRuns === 'env';
   const runsValid = runs !== undefined && Number.isInteger(runs) && runs >= MIN_RUNS && runs <= MAX_RUNS;
@@ -262,7 +285,12 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
     },
     t('appSettings.runs.saved'),
   );
-  const envHint = (variable: string) => ` ${t('appSettings.envHint', { variable })}`;
+  const envHint = (variable: string) => (
+    <>
+      {' '}
+      <EnvHint variable={variable} />
+    </>
+  );
 
   return (
     <form
@@ -275,10 +303,15 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
       <SourceTag settings={saved} keys={['defaultPermissionMode', 'maxConcurrentRuns']} />
       <p className="small muted">{t('appSettings.runs.intro')}</p>
       <div className="form-grid">
-        <div data-setting="runs.permission-mode">
+        <div className="setting-change-row" data-setting="runs.permission-mode">
           <Field
             label={t('appSettings.runs.mode')}
-            hint={`${t(`appSettings.runs.modeConsequence.${mode}`)}${modeFromEnv ? envHint(APP_SETTING_ENV.defaultPermissionMode) : ''}`}
+            hint={
+              <>
+                {t(`appSettings.runs.modeConsequence.${mode}`)}
+                {modeFromEnv && envHint(APP_SETTING_ENV.defaultPermissionMode)}
+              </>
+            }
           >
             <Select
               aria-label={t('appSettings.runs.mode')}
@@ -288,8 +321,14 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
               options={PERMISSION_MODES.map((value) => ({ value, label: modeLabel(value) }))}
             />
           </Field>
+          <ServerSettingChange
+            id="runs.permission-mode"
+            label={t('appSettings.runs.mode')}
+            wording={(value) => modeLabel(PERMISSION_MODES.find((mode) => mode === value) ?? mode)}
+            invalidate={[keys.appSettings]}
+          />
         </div>
-        <div data-setting="runs.concurrent">
+        <div className="setting-change-row" data-setting="runs.concurrent">
           <Field
             label={t('appSettings.runs.concurrent')}
             hint={
@@ -297,12 +336,13 @@ export function RunsCard({ saved }: { saved: AppSettings }) {
                 {runsValid
                   ? t('appSettings.runs.concurrentConsequence', { count: runs, formatted: formatNumber(runs) })
                   : t('appSettings.runs.concurrentRange', { min: formatNumber(MIN_RUNS), max: formatNumber(MAX_RUNS) })}
-                {runsFromEnv ? envHint(APP_SETTING_ENV.maxConcurrentRuns) : ''}
+                {runsFromEnv && envHint(APP_SETTING_ENV.maxConcurrentRuns)}
               </span>
             }
           >
             <NumberInput aria-label={t('appSettings.runs.concurrent')} value={runs} onChange={setRuns} min={MIN_RUNS} max={MAX_RUNS} disabled={runsFromEnv} />
           </Field>
+          <ServerSettingChange id="runs.concurrent" label={t('appSettings.runs.concurrent')} invalidate={[keys.appSettings]} />
         </div>
       </div>
       {!(modeFromEnv && runsFromEnv) && (
@@ -323,6 +363,8 @@ export function SpendFields({
   spentUsd,
   onToggle,
   onAmount,
+  change,
+  hold = false,
 }: {
   on: boolean;
   amount: number | undefined;
@@ -332,6 +374,10 @@ export function SpendFields({
   spentUsd: number | null;
   onToggle: (on: boolean) => void;
   onAmount: (amount: number | undefined) => void;
+  /** The cap's "Changed · Reset" slot, at the end of the switch's line */
+  change?: ReactNode;
+  /** The amount keeps its room while closed: a Reset, not the person's hand, turned the cap off */
+  hold?: boolean;
 }) {
   const { t } = useTranslation('config');
   const cap = on ? validCap(amount) : null;
@@ -340,14 +386,17 @@ export function SpendFields({
     cap !== null && spentUsd !== null ? t('appSettings.spend.today', { spent: formatCost(spentUsd), cap: formatCost(cap), percent: formatPercent((spentUsd / cap) * 100) }) : null;
   return (
     <>
-      <SettingsRow>
-        <Switch checked={on} onChange={onToggle} disabled={fromEnv}>
-          {t('appSettings.spend.switch')}
-        </Switch>
-        <p className="small muted tnum">{on ? (today ?? t('appSettings.spend.hintOver')) : spentUsd !== null ? t('appSettings.spend.todayOff', { spent: formatCost(spentUsd) }) : t('appSettings.spend.hintOff')}</p>
-      </SettingsRow>
+      <div className="setting-change-row">
+        <SettingsRow>
+          <Switch checked={on} onChange={onToggle} disabled={fromEnv}>
+            {t('appSettings.spend.switch')}
+          </Switch>
+          <p className="small muted tnum">{on ? (today ?? t('appSettings.spend.hintOver')) : spentUsd !== null ? t('appSettings.spend.todayOff', { spent: formatCost(spentUsd) }) : t('appSettings.spend.hintOff')}</p>
+        </SettingsRow>
+        {change}
+      </div>
       {/* Mounted either way, revealed while the cap is on, so turning it on moves nothing at once */}
-      <SettingsReveal open={on}>
+      <SettingsReveal open={on} hold={hold}>
         <Field
           label={t('appSettings.spend.amount')}
           hint={
@@ -360,7 +409,8 @@ export function SpendFields({
         >
           <NumberInput aria-label={t('appSettings.spend.amount')} value={amount} onChange={onAmount} min={MIN_CAP} max={MAX_CAP} step={1} decimal disabled={fromEnv} />
         </Field>
-        {today && <p className="small muted">{t('appSettings.spend.hintOver')}</p>}
+        {/* Held, the line stays too: the room kept is the room the open cap took */}
+        {(today !== null || hold) && <p className="small muted">{t('appSettings.spend.hintOver')}</p>}
       </SettingsReveal>
       <p className="small muted">{t('appSettings.spend.hintApi')}</p>
     </>
@@ -377,6 +427,16 @@ export function SpendCard({ saved }: { saved: AppSettings }) {
   const spend = useSpend().data;
   const [on, setOn] = useState(saved.dailySpendCapUsd !== null);
   const [amount, setAmount] = useState<number | undefined>(saved.dailySpendCapUsd ?? undefined);
+  // Set when the saved cap, not the person's hand, turned an open cap off (a Reset, a save elsewhere):
+  // the amount keeps its room until their next toggle
+  const [hold, setHold] = useState(false);
+  useEffect(() => {
+    // `on` is still the draft from before this saved value
+    if (on && saved.dailySpendCapUsd === null) setHold(true);
+    setOn(saved.dailySpendCapUsd !== null);
+    setAmount(saved.dailySpendCapUsd ?? undefined);
+    // Only a new saved value may move the draft; the person's own toggles must not re-run this
+  }, [saved.dailySpendCapUsd]);
   const fromEnv = saved.sources.dailySpendCapUsd === 'env';
   const cap = on ? validCap(amount) : null;
   const invalid = on && amount !== undefined && cap === null;
@@ -400,7 +460,27 @@ export function SpendCard({ saved }: { saved: AppSettings }) {
       }}
     >
       <SourceTag settings={saved} keys={['dailySpendCapUsd']} />
-      <SpendFields on={on} amount={amount} fromEnv={fromEnv} invalid={invalid} spentUsd={spend?.spentUsd ?? null} onToggle={setOn} onAmount={setAmount} />
+      <SpendFields
+        on={on}
+        amount={amount}
+        fromEnv={fromEnv}
+        invalid={invalid}
+        spentUsd={spend?.spentUsd ?? null}
+        onToggle={(next) => {
+          setHold(false);
+          setOn(next);
+        }}
+        onAmount={setAmount}
+        hold={hold}
+        change={
+          <ServerSettingChange
+            id="spend-cap.daily"
+            label={t('appSettings.spend.switch')}
+            wording={(value) => (typeof value === 'number' ? formatCost(value) : t('settings.changeSlot.noCap'))}
+            invalidate={[keys.appSettings]}
+          />
+        }
+      />
       {fromEnv ? (
         <EnvNote setting="dailySpendCapUsd" />
       ) : (

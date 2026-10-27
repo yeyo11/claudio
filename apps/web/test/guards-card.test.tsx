@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DEFAULT_GUARD_SETTINGS, GUARD_RULES, type GuardEvent, type GuardSettingsView } from '@claudio/shared';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { ApiRequestError } from '../src/api';
@@ -56,11 +57,13 @@ const props = (over: Partial<GuardsCardViewProps> = {}): GuardsCardViewProps => 
 async function render(over: Partial<GuardsCardViewProps> = {}, language = 'en'): Promise<string> {
   await i18n.changeLanguage(language);
   return renderToStaticMarkup(
-    <TooltipProvider>
-      <MemoryRouter>
-        <GuardsCardView {...props(over)} />
-      </MemoryRouter>
-    </TooltipProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <TooltipProvider>
+        <MemoryRouter>
+          <GuardsCardView {...props(over)} />
+        </MemoryRouter>
+      </TooltipProvider>
+    </QueryClientProvider>,
   );
 }
 

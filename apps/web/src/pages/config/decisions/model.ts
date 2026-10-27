@@ -1,3 +1,4 @@
+import { DECISION_POINT_IDS, pointSettingId } from '@claudio/shared';
 import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionPointStats, DecisionProviderId, DecisionRecord, DecisionSettings } from '@claudio/shared';
 
 /** Rough size of a request in tokens: the consent dialog says "about", so four bytes a token is enough. */
@@ -95,9 +96,10 @@ export const activeBlocked = (info: Pick<DecisionPointInfo, 'id' | 'kind'>, prov
   info.kind === 'act' && provider === 'cli' && info.id !== SUPERVISOR_POINT;
 
 /**
- * Active in name only, as the engine's `effective().limited` says: without consent for what it
- * sends to this provider it runs as shadow. The Supervisor on the CLI asks the engine nothing, so
- * it is Active in full there, consent or not.
+ * Active in name only, as the engine's `effective().limited` says: an act point on the CLI never
+ * clears a threshold, and a point without consent for what it sends to this provider asks nothing.
+ * The Supervisor on the CLI asks the engine nothing, so it is Active in full there, consent or not.
+ * A point without consent is off, not "shadow": see `offUntilConsent`.
  */
 export function isLimited(
   info: Pick<DecisionPointInfo, 'id' | 'kind' | 'stateVersion'>,
@@ -108,6 +110,22 @@ export function isLimited(
   if (mode !== 'active') return false;
   if (info.id === SUPERVISOR_POINT && provider === 'cli') return false;
   return needsConsent(info, consent, provider) || (info.kind === 'act' && provider === 'cli');
+}
+
+/**
+ * A point that is not off but has no consent for this provider and state: the engine returns
+ * "off" for it before it splits shadow from active (`engine.ts`), so the row says so and offers
+ * the consent. The Supervisor's Active on the CLI never reaches the engine, so it is exempt.
+ */
+export function offUntilConsent(
+  info: Pick<DecisionPointInfo, 'id' | 'stateVersion'>,
+  consent: DecisionPointSettings['consent'],
+  mode: DecisionMode,
+  provider: DecisionProviderId,
+): boolean {
+  if (mode === 'off') return false;
+  if (info.id === SUPERVISOR_POINT && provider === 'cli' && mode === 'active') return false;
+  return needsConsent(info, consent, provider);
 }
 
 /** What the Supervisor does in each mode, on each provider: the line under its row. */
@@ -264,6 +282,32 @@ export const draftOf = (saved: DecisionSettings): Draft => ({
   historyDays: saved.historyDays,
   points: Object.fromEntries(Object.entries(saved.points).map(([id, point]) => [id, { mode: point.mode, threshold: point.threshold }])),
 });
+
+/**
+ * The draft with one row's field taken from `source` (the draft of the saved document after a Reset),
+ * so the row shows its default while every other unsaved edit stays. An unknown row changes nothing.
+ */
+export function withSettingFrom(draft: Draft, source: Draft, setting: string): Draft {
+  switch (setting) {
+    case 'engine.who-answers':
+      return { ...draft, provider: source.provider };
+    case 'engine.cap':
+      return { ...draft, cli: { ...draft.cli, maxCostUsd: source.cli.maxCostUsd } };
+    case 'engine.cli-model':
+      return { ...draft, cli: { ...draft.cli, model: source.cli.model } };
+    case 'engine.cli-effort':
+      return { ...draft, cli: { ...draft.cli, effort: source.cli.effort } };
+    case 'engine.history-days':
+      return { ...draft, historyDays: source.historyDays };
+  }
+  const id = DECISION_POINT_IDS.find((point) => pointSettingId(point) === setting);
+  if (!id) return draft;
+  const points = { ...draft.points };
+  const saved = source.points[id];
+  if (saved) points[id] = saved;
+  else delete points[id];
+  return { ...draft, points };
+}
 
 export const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 

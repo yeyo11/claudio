@@ -164,7 +164,9 @@ test('a trial that never answers is stopped and counted as a failed boot', async
   const s = setup('exit0');
   overlay(s, '0.7.0', 'hang');
   state(s, { trial: '0.7.0' });
-  const result = await run(s, { env: { TRIAL_MS: '400' } });
+  // 1.5 s, not 400 ms: on a loaded machine the hanging overlay could be stopped before it had even
+  // recorded its boot, and the test counted two boots where three happened
+  const result = await run(s, { env: { TRIAL_MS: '1500' } });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.boots.length, 3);
   assert.deepEqual(readLauncherState(s).bad, ['0.7.0']);

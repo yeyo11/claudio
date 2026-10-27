@@ -8,7 +8,7 @@ import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { CopyButton, Tag } from '@claudio/ui/components/ui';
-import { formatBytes, formatDuration } from '@claudio/ui/lib/format';
+import { formatBytes, formatDuration, middleEllipsis } from '@claudio/ui/lib/format';
 import { useRiskContext } from '../lib/agent';
 import { useChatUi } from '../lib/context';
 import type { StepCall } from '../lib/chat-steps';
@@ -244,10 +244,6 @@ function GenericLens({ call }: { call: StepCall }) {
   );
 }
 
-/** A long path keeps its start and its end; the full path is in the tooltip */
-function middleEllipsis(path: string, max = 48): string {
-  return path.length <= max ? path : `${path.slice(0, 18)}…${path.slice(path.length - (max - 19))}`;
-}
 
 function BashLens({ call }: { call: StepCall }) {
   const { t } = useTranslation('chat');

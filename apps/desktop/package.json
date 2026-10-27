@@ -1,6 +1,6 @@
 {
   "name": "@claudio/desktop",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "private": true,
   "description": "Electron desktop shell for Claudio",
   "homepage": "https://github.com/yeyo11/claudio",
@@ -22,7 +22,7 @@
     "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && pnpm run package:stage && electron-builder --linux --config electron-builder.yml --publish never"
   },
   "devDependencies": {
-    "electron": "^44.7.2",
+    "electron": "^44.9.1",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2"
   },

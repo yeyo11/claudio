@@ -290,6 +290,14 @@
   flex-direction: column;
 }
 
+.rotation-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
 .rotation-head {
   display: flex;
   align-items: center;
@@ -325,6 +333,21 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+
+/* With its Changed · Reset slot, a field is the slot's grid on a desktop (the slot at the end of the
+   label's line) and its own column on a phone (editors.css, .setting-change-row) */
+.rotation-switch.setting-change-row,
+.rotation-field.setting-change-row {
+  display: grid;
+  --change-row-gap: 8px;
+}
+
+@media (pointer: coarse), (max-width: 900px) {
+  .rotation-switch.setting-change-row,
+  .rotation-field.setting-change-row {
+    display: flex;
+  }
 }
 
 .rotation-field .field-hint {
