@@ -40,6 +40,9 @@ function store(now: () => string): OpenAiConversationStore {
   return new OpenAiConversationStore(sql, now);
 }
 
+/** No stored response leads anywhere: these sweeps are about the conversation keys */
+const noResponses = { expire: () => 0, hasChat: () => false };
+
 const runtime = (id: string, fields: Partial<ChatRuntime>): ChatRuntime => ({ id, origin: 'api', pid: null, updatedAt: '2026-01-01T00:00:00.000Z', ...fields }) as ChatRuntime;
 
 test('the sweep drops stale keys and deletes only the idle api chats left with none', async () => {
@@ -59,7 +62,7 @@ test('the sweep drops stale keys and deletes only the idle api chats left with n
   ];
   const removed: string[] = [];
   const now = Date.parse('2026-01-21T00:00:00.000Z');
-  const sweep = await sweepOpenAiChats({ conversations, runtime: { list: () => chats }, remove: async (id) => void removed.push(id) }, now, 7 * 24 * 3600 * 1000);
+  const sweep = await sweepOpenAiChats({ conversations, responses: noResponses, runtime: { list: () => chats }, remove: async (id) => void removed.push(id) }, now, 7 * 24 * 3600 * 1000);
   assert.equal(sweep.keys, 2);
   assert.deepEqual(removed.sort(), ['keyless-api', 'stale-api']);
   assert.deepEqual(sweep.chats.sort(), ['keyless-api', 'stale-api']);
@@ -70,7 +73,7 @@ test('the sweep drops stale keys and deletes only the idle api chats left with n
 test('a chat that cannot be removed is left for the next sweep', async () => {
   const conversations = store(() => '2026-01-01T00:00:00.000Z');
   const sweep = await sweepOpenAiChats(
-    { conversations, runtime: { list: () => [runtime('busy', {})] }, remove: () => Promise.reject(new Error('Something is running on this chat')) },
+    { conversations, responses: noResponses, runtime: { list: () => [runtime('busy', {})] }, remove: () => Promise.reject(new Error('Something is running on this chat')) },
     Date.parse('2026-02-01T00:00:00.000Z'),
   );
   assert.deepEqual(sweep.chats, []);

@@ -72,10 +72,7 @@ export class OpenAiResponseStore {
     return Number(this.sql.prepare('DELETE FROM openai_responses WHERE id = ?').run(id).changes) > 0;
   }
 
-  /** Every response of a chat; `Db.deleteChat` does the same in its own transaction. */
-  forgetChat(chatId: string): number {
-    return Number(this.sql.prepare('DELETE FROM openai_responses WHERE chat_id = ?').run(chatId).changes);
-  }
+  // A chat's rows go with the chat in `Db.deleteChat`, inside its transaction: the one owner of that delete
 
   /** Whether a stored response still leads to the chat: the sweep keeps such an `api` chat. */
   hasChat(chatId: string): boolean {

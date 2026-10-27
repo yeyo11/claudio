@@ -11,8 +11,11 @@ export const OPENAI_CONVERSATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface OpenAiSweepDeps {
   conversations: Pick<OpenAiConversationStore, 'expire' | 'hasChat'>;
-  /** Stored responses (`/v1/responses`): they expire on the same clock and keep their chat while they last */
-  responses?: Pick<OpenAiResponseStore, 'expire' | 'hasChat'>;
+  /**
+   * Stored responses (`/v1/responses`): they expire on the same clock and keep their chat while they
+   * last. Required: a sweep without them would delete chats a stored response still leads to
+   */
+  responses: Pick<OpenAiResponseStore, 'expire' | 'hasChat'>;
   runtime: { list(): ChatRuntime[] };
   /** `ChatService.remove`: the transcript and Claudio's record go together */
   remove(chatId: string): Promise<void>;
@@ -36,11 +39,11 @@ export interface OpenAiSweep {
 export async function sweepOpenAiChats(deps: OpenAiSweepDeps, now: number, ttlMs: number = OPENAI_CONVERSATION_TTL_MS): Promise<OpenAiSweep> {
   const cutoff = new Date(now - ttlMs).toISOString();
   const keys = deps.conversations.expire(cutoff);
-  const responses = deps.responses?.expire(cutoff) ?? 0;
+  const responses = deps.responses.expire(cutoff);
   const chats: string[] = [];
   for (const chat of deps.runtime.list()) {
     if (chat.origin !== 'api' || chat.pid !== null || chat.updatedAt > cutoff) continue;
-    if (deps.conversations.hasChat(chat.id) || deps.responses?.hasChat(chat.id)) continue;
+    if (deps.conversations.hasChat(chat.id) || deps.responses.hasChat(chat.id)) continue;
     try {
       await deps.remove(chat.id);
       chats.push(chat.id);

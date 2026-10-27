@@ -21,8 +21,10 @@ import {
   failureOfSpendCap,
   failureOfThrown,
   fetchOpenAiImage,
+  isOpenAiTurnError,
   OPENAI_CONVERSATION_TTL_MS,
   openAiError,
+  openAiHttpErrorOf,
   openAiKeyAfterAnswer,
   parseChatCompletionRequest,
   RunSlotRefusal,
@@ -39,6 +41,7 @@ import {
   type OpenAiErrorResponse,
   type OpenAiToolCall,
   type OpenAiToolChoice,
+  type OpenAiTurnError,
   type OpenAiTurnTranslator,
   openAiKeyAfterPrevious,
   parseResponsesRequest,
@@ -248,12 +251,6 @@ function permissionModeOf(core: Core): PermissionMode {
 }
 
 /**
- * What this surface refuses although the parser reads it: the legacy `functions`, tools it cannot
- * serve under the stub's prefix, and client tools together with `response_format` (both would be the
- * answer; not supported yet, the owner's call). `tool_choice: none` makes the tools context the model
- * is told not to use: they are left out and named in `x-claudio-ignored`.
- */
-/**
  * How each API names the fields a refusal points at and `x-claudio-ignored` lists: the two shapes put
  * the format, the tool names, the history and the effort in different places, and a client must be
  * told in the words of the shape it sent.
@@ -271,6 +268,12 @@ interface ParamNames {
 const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort', system: 'system' };
 const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort', system: 'instructions' };
 
+/**
+ * What this surface refuses although the parser reads it: the legacy `functions`, tools it cannot
+ * serve under the stub's prefix, and client tools together with `response_format` (both would be the
+ * answer; not supported yet, the owner's call). `tool_choice: none` makes the tools context the model
+ * is told not to use: they are left out and named in `x-claudio-ignored`.
+ */
 function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: string[], names: ParamNames): OpenAiFailure | null {
   const fields = (body ?? {}) as Record<string, unknown>;
   if (Array.isArray(fields.functions) && fields.functions.length > 0) {
@@ -537,7 +540,20 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
   keyAfter(answered: { text: string; toolCalls: OpenAiToolCall[] }): string;
   /** After a turn that answered (completed or cut short), with its chat and key */
   completed?(translator: T, chatId: string, key: string): void;
-  whole(translator: T): { kind: 'error'; error: OpenAiErrorResponse } | { kind: 'ok'; body: unknown };
+  whole(translator: T): WholeAnswer;
+}
+
+type WholeAnswer = { kind: 'error'; error: OpenAiErrorResponse } | { kind: 'ok'; body: unknown };
+
+/**
+ * A turn's end as a whole HTTP answer, for both APIs: the error it failed with, or the body the
+ * route makes of its success. A turn that settled without an end (the client went) is a 500.
+ */
+function wholeAnswer<E extends { kind: string }>(end: E | null, body: (end: Exclude<E, OpenAiTurnError>) => unknown): WholeAnswer {
+  if (!end) return { kind: 'error', error: openAiError({ kind: 'server', message: 'The turn ended without an answer.' }) };
+  if (isOpenAiTurnError(end)) return { kind: 'error', error: openAiHttpErrorOf(end) };
+  // The guard cannot narrow a type parameter: what is not a TurnError is the success variant
+  return { kind: 'ok', body: body(end as Exclude<E, OpenAiTurnError>) };
 }
 
 // ---------- the routes ----------
@@ -633,12 +649,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       opening: () => [],
       write: (stream, item) => (item === STREAM_DONE ? stream.sendData(STREAM_DONE) : stream.send(item)),
       keyAfter: (answered) => openAiKeyAfterAnswer(turn.keySeed, request.messages, answered),
-      whole: (translator) => {
-        const end = translator.end();
-        if (!end) return { kind: 'error', error: openAiError({ kind: 'server', message: 'The turn ended without an answer.' }) };
-        if (end.kind === 'error') return { kind: 'error', error: { status: end.status, body: end.body, ...(end.retryAfterSeconds !== undefined ? { retryAfterSeconds: end.retryAfterSeconds } : {}) } };
-        return { kind: 'ok', body: end.completion };
-      },
+      whole: (translator) => wholeAnswer(translator.end(), (end) => end.completion),
     });
   });
 
@@ -703,12 +714,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         if (end?.kind !== 'response') return;
         core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, inputItems: request.inputItems });
       },
-      whole: (translator) => {
-        const end = translator.end();
-        if (!end) return { kind: 'error', error: openAiError({ kind: 'server', message: 'The turn ended without an answer.' }) };
-        if (end.kind === 'error') return { kind: 'error', error: { status: end.status, body: end.body, ...(end.retryAfterSeconds !== undefined ? { retryAfterSeconds: end.retryAfterSeconds } : {}) } };
-        return { kind: 'ok', body: end.response };
-      },
+      whole: (translator) => wholeAnswer(translator.end(), (end) => end.response),
     });
   });
 

@@ -1,6 +1,6 @@
 import type { RunEvent, RunOutcome, TokenUsage } from '@claudio/shared';
 import type { ModelUsage } from '../providers/driver.ts';
-import { openAiError, type OpenAiFailure } from './errors.ts';
+import { openAiError, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
 import {
   STREAM_DONE,
   type ChatCompletion,
@@ -106,7 +106,17 @@ export type TurnEnd =
       text: string;
       toolCalls: ToolCall[];
     }
-  | { kind: 'error'; status: number; body: OpenAiErrorBody; retryAfterSeconds?: number };
+  | TurnError;
+
+/** A turn that ended in a failure: the HTTP error a whole answer is, whichever API shape it is in. */
+export type TurnError = { kind: 'error'; status: number; body: OpenAiErrorBody; retryAfterSeconds?: number };
+
+export const isTurnError = (end: { kind: string }): end is TurnError => end.kind === 'error';
+
+/** The one place a failed end becomes the HTTP answer: its status, its body and its `Retry-After`. */
+export function httpErrorOf(end: TurnError): OpenAiErrorResponse {
+  return { status: end.status, body: end.body, ...(end.retryAfterSeconds !== undefined ? { retryAfterSeconds: end.retryAfterSeconds } : {}) };
+}
 
 /**
  * What the route's turn runner drives, whichever wire format the answer is in: Chat Completions

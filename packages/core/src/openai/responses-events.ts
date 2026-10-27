@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { RunEvent, TokenUsage } from '@claudio/shared';
-import type { OpenAiErrorResponse, OpenAiFailure } from './errors.ts';
-import { ChatCompletionTranslator, type ChatCompletionTranslatorOptions, type TurnTranslator } from './events.ts';
+import type { OpenAiFailure } from './errors.ts';
+import { ChatCompletionTranslator, type ChatCompletionTranslatorOptions, type TurnError, type TurnTranslator } from './events.ts';
 import type { ResponseEcho } from './responses-request.ts';
 import type { FunctionCallItem, OutputItem, OutputMessage, OutputText, ResponseErrorCode, ResponseObject, ResponseStreamEvent, ResponseUsage } from './responses-wire.ts';
 import { STREAM_DONE, type ChatCompletionStreamItem, type FinishReason, type ToolCall, type ToolCallDelta } from './wire.ts';
@@ -38,7 +38,7 @@ export interface ResponsesTranslatorOptions {
 /** How a turn ended, in the Responses shape. */
 export type ResponsesTurnEnd =
   | { kind: 'response'; response: ResponseObject; costUsd: number }
-  | { kind: 'error'; status: number; body: OpenAiErrorResponse['body']; retryAfterSeconds?: number; response: ResponseObject };
+  | (TurnError & { response: ResponseObject });
 
 type OpenItem = { kind: 'message'; index: number; item: OutputMessage } | { kind: 'call'; index: number; item: FunctionCallItem };
 
@@ -128,7 +128,7 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
   end(): ResponsesTurnEnd | null {
     const inner = this.inner.end();
     if (!inner) return null;
-    if (inner.kind === 'error') return { kind: 'error', status: inner.status, body: inner.body, ...(inner.retryAfterSeconds !== undefined ? { retryAfterSeconds: inner.retryAfterSeconds } : {}), response: this.response() };
+    if (inner.kind === 'error') return { ...inner, response: this.response() };
     return { kind: 'response', response: this.response(), costUsd: inner.costUsd };
   }
 

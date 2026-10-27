@@ -65,11 +65,14 @@ export {
   completionUsage,
   failureOfOutcome,
   finishReasonOf,
+  httpErrorOf as openAiHttpErrorOf,
+  isTurnError as isOpenAiTurnError,
   structuredFailure as openAiStructuredFailure,
   tokenUsageOf,
   type ChatCompletionTranslatorOptions,
   type TurnTranslator as OpenAiTurnTranslator,
   type TurnEnd as OpenAiTurnEnd,
+  type TurnError as OpenAiTurnError,
 } from './events.ts';
 export {
   chatTurnOf,
