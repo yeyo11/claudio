@@ -1254,11 +1254,16 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const toolsChanged = opts.wantsTools && tools !== null && (tools.servedPid !== runtime.pid || !sameClientTools(tools.tools, opts.requestTools));
     const schemaChanged = !sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema);
     const systemChanged = !sameSystemPrompt(core.runtime.systemPromptOf(id), opts.system);
-    const restart = runtime.pid !== null && (schemaChanged || toolsChanged || systemChanged);
+    // A process that reads no more messages (its slot given away, its input ended) cannot take the
+    // turn: a message sent now would be held for a replacement started with the chat's flags, not
+    // this request's. The turn waits for its exit and resumes cold, through admission (a 429 when
+    // there is no room), as after the idle timeout
+    const leaving = core.runtime.isLeaving(id);
+    const restart = runtime.pid !== null && (schemaChanged || toolsChanged || systemChanged || leaving);
     if (tools && (restart || runtime.pid === null) && !registry.servers(core, tools)) {
       // A new prompt alone is not worth refusing the turn for: the live process, which serves the
       // stub already, answers it with the prompt it has, and `x-claudio-ignored` says so
-      if (runtime.pid !== null && !schemaChanged && !toolsChanged) return { runtime, restart: false, keepsPrompt: true };
+      if (runtime.pid !== null && !schemaChanged && !toolsChanged && !leaving) return { runtime, restart: false, keepsPrompt: true };
       throw fail({ kind: 'unavailable', message: "Client tools need the API's own address, which is not known yet." });
     }
     return { runtime, restart, keepsPrompt: false };
@@ -1345,15 +1350,14 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     // awaits must not end the process the turn is about to be written to
     const release = core.runtime.holdForTurn(id);
     try {
-      const plan = existingTurnPlan(id, turn, opts, false);
-      const { runtime, keepsPrompt } = plan;
-      // A process that gave its slot away before the hold reads nothing more and may be gone before a
-      // message reaches it: the turn waits for it to exit and resumes cold, through admission (a 429
-      // when there is no room), as after the idle timeout
-      const restart = plan.restart || core.runtime.evicted(id);
+      const { runtime, keepsPrompt, restart } = existingTurnPlan(id, turn, opts, false);
       // Where a chat already is, the header cannot move it: said rather than dropped in silence
       if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
-      if (restart) await core.runtime.endBetweenTurns(id);
+      if (restart) {
+        await core.runtime.endBetweenTurns(id);
+        // A message someone else sent while the process was leaving has a replacement of its own by now
+        if ((core.runtime.get(id)?.pid ?? null) !== null) throw fail({ kind: 'conflict', message: 'The chat is working on another turn; try again when it ends.' });
+      }
       if (tools && opts.wantsTools && (restart || runtime.pid === null)) tools.tools = opts.requestTools;
       opts.apply();
       host(id);

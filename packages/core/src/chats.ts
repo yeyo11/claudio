@@ -826,6 +826,11 @@ export class ChatManager extends EventEmitter {
     let busy = 0;
     const idle: LiveChat[] = [];
     for (const chat of this.chats.values()) {
+      // Its process may have exited already: the slot stays taken until its replacement starts
+      if (chat.slotReserved) {
+        busy++;
+        continue;
+      }
       if (!chat.alive || chat.released) continue;
       busy++;
       if (this.evictable(chat, at)) idle.push(chat);
@@ -851,14 +856,15 @@ export class ChatManager extends EventEmitter {
 
   /**
    * An idle process whose input can be ended for a slot without losing anything. Never one with a
-   * message waiting for it or for its replacement, a turn being prepared for it (`preparing`), or
-   * background work running: a process with a background task or agent does not exit when its input
-   * ends, so it would count as free while it still runs.
+   * message waiting for it or for its replacement, or a turn being prepared for it (`preparing`).
+   * Past the idle timeout the rule is the one warm chats always had; before it, an API chat with
+   * background work running is kept: its process does not exit when its input ends, so it would
+   * count as free while it still runs.
    */
   private evictable(chat: LiveChat, at: number): boolean {
     if (chat.status !== 'idle' || chat.idleSince === null || chat.preparing > 0 || chat.pending.size > 0) return false;
-    if (runsInBackground(chat.branches)) return false;
-    return at - chat.idleSince >= idleTimeoutMs() || this.evictableApiChat(chat);
+    if (at - chat.idleSince >= idleTimeoutMs()) return true;
+    return !runsInBackground(chat.branches) && this.evictableApiChat(chat);
   }
 
   /**
@@ -890,10 +896,14 @@ export class ChatManager extends EventEmitter {
     };
   }
 
-  /** The chat's process gave its slot to a start and is on its way out: a turn for it resumes cold. */
-  evicted(id: string): boolean {
+  /**
+   * The chat's process will read no more messages (its slot given away, its input ended, a
+   * replacement already queued): a turn that needs its own launch flags waits for the exit and
+   * resumes cold, since a message sent now would be held for a replacement started with the chat's.
+   */
+  isLeaving(id: string): boolean {
     const chat = this.chats.get(id);
-    return !!chat && chat.alive && chat.released;
+    return !!chat && this.leaving(chat);
   }
 
   /**
@@ -1048,10 +1058,10 @@ export class ChatManager extends EventEmitter {
       if (chat.alive && chat.released) {
         // Its process gave its slot to a start and is on its way out: the replacement takes a slot
         // now, or the sender hears there is none. Left to the exit, the slot could be gone by then,
-        // and the message lost with the turn failed. No longer `released`, the exiting process holds
-        // the slot until the replacement takes it, and is never chosen again (it has a message held)
+        // and the message lost with the turn failed. The slot is the chat's (`slotReserved`) until
+        // the replacement takes it at the exit, without a second admission that could refuse
         this.evict(this.admit({}, chat.driver, classOfChat(chat.origin)));
-        chat.released = false;
+        chat.slotReserved = true;
       }
       // A message written now would never be read: it waits for the replacement, behind any
       // message already waiting, so the order they were sent in is the order they arrive in
@@ -1095,6 +1105,8 @@ export class ChatManager extends EventEmitter {
 
   /** The process has exited: one process takes every message that waited for it. */
   private drainQueue(chat: LiveChat): void {
+    const reserved = chat.slotReserved;
+    chat.slotReserved = false;
     const held = chat.held();
     const [next, ...rest] = held;
     if (!next) return;
@@ -1105,7 +1117,8 @@ export class ChatManager extends EventEmitter {
       return;
     }
     try {
-      this.spawnProcess(chat, next, this.admit({}, chat.driver, classOfChat(chat.origin)), false);
+      // A slot reserved at send time was admitted then, memory included
+      this.spawnProcess(chat, next, reserved ? [] : this.admit({}, chat.driver, classOfChat(chat.origin)), false);
     } catch (err) {
       chat.error = err instanceof Error ? err.message : String(err);
       // The exit ended the chat while messages waited, and nothing will read them: the page is told
@@ -1814,7 +1827,6 @@ export class ChatManager extends EventEmitter {
     const account = this.chooseAccount(chat);
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
-    this.evict(room);
     if (account) chat.account = account.id;
     // The CLI's total is cumulative over its process, so a new process counts from zero again
     chat.lastReportedCostUsd = 0;
@@ -1869,6 +1881,9 @@ export class ChatManager extends EventEmitter {
       if (token) this.chatTokens.revoke(token);
       throw error;
     }
+    // Only now that a process exists: a spawn that failed has ended nobody's. Nothing yields between
+    // admission and here, so no other start could count the slots meanwhile
+    this.evict(room);
     // Keyed by this process's own token, so an earlier process ending late never revokes the current one
     const revokeToken = () => {
       if (token) this.chatTokens.revoke(token);
@@ -1877,6 +1892,7 @@ export class ChatManager extends EventEmitter {
     this.procTokens.set(proc, token);
     chat.proc = proc;
     chat.released = false;
+    chat.slotReserved = false;
     chat.procClosed = false;
     chat.procStartedAt = now();
     // The chat's status follows the process it tracks and no other: an earlier process ending late

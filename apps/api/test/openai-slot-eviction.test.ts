@@ -244,7 +244,7 @@ test('a message to an evicted chat inside its exit window is refused at once whe
   const evicted = await idleApiChat('alpha');
   // Same tick: the start ends the API chat's input, and the message reaches it before it exits
   const taker = core.runtime.start({ prompt: 'SLOW 1000' });
-  assert.ok(core.runtime.evicted(evicted));
+  assert.ok(core.runtime.isLeaving(evicted));
   assert.throws(() => core.runtime.sendMessage(evicted, 'beta'), RunSlotRefusal);
   await until(() => !live(evicted), 'the evicted chat to exit');
   await pause(50);
@@ -261,12 +261,12 @@ test('a message to an evicted chat inside its exit window is served by its repla
   await pause(30);
   const other = await idleApiChat('other');
   core.runtime.start({ prompt: 'SLOW 300' });
-  assert.ok(core.runtime.evicted(evicted));
+  assert.ok(core.runtime.isLeaving(evicted));
   const result = core.runtime.nextResult(evicted);
   // The replacement's slot is taken now, from the next idle API chat, not when the evicted one exits
   const receipt = core.runtime.sendMessage(evicted, 'beta');
   assert.equal(receipt.taken, 'held');
-  assert.ok(core.runtime.evicted(other), 'the other idle API chat gave its slot to the replacement');
+  assert.ok(core.runtime.isLeaving(other), 'the other idle API chat gave its slot to the replacement');
   assert.equal((await result).result, 'echo: beta');
   assert.equal(logged(evicted).at(-1)?.resume, evicted);
   assert.ok(core.runtime.activeCount() <= 2);
@@ -283,7 +283,7 @@ test('a /v1 turn reaching an evicted chat before its process exits resumes cold 
     delete process.env.FAKE_OPENAI_LINGER_MS;
   }
   core.runtime.start({ prompt: 'SLOW 3000' });
-  assert.ok(core.runtime.evicted(evicted), 'evicted, its process still up');
+  assert.ok(core.runtime.isLeaving(evicted), 'evicted, its process still up');
   const res = await post({ model: 'sonnet', messages: [user('alpha'), assistant('echo: alpha'), user('beta')] });
   assert.equal(res.status, 429, await res.clone().text());
   assert.equal(res.headers.get('retry-after'), '5');
@@ -336,7 +336,7 @@ test('a start refused after the slot count (lack of memory, an unknown attachmen
   assert.throws(() => core.runtime.resume('00000000-0000-4000-8000-000000000000', { prompt: 'who?' }));
   await pause(100);
   assert.ok(live(chat), 'the idle API chat keeps its process');
-  assert.equal(core.runtime.evicted(chat), false);
+  assert.equal(core.runtime.isLeaving(chat), false);
 });
 
 test('an idle API chat with a background task running is not evicted for a slot', async () => {
@@ -347,5 +347,118 @@ test('an idle API chat with a background task running is not evicted for a slot'
   await refused.text();
   await pause(100);
   assert.ok(live(chat), 'its process keeps running the task');
-  assert.equal(core.runtime.evicted(chat), false);
+  assert.equal(core.runtime.isLeaving(chat), false);
+});
+
+/** An idle /v1 chat whose CLI takes `ms` to exit once its input ends (read by the process at its start) */
+async function lingeringApiChat(text: string, ms: number, extra: Record<string, unknown> = {}): Promise<string> {
+  process.env.FAKE_OPENAI_LINGER_MS = String(ms);
+  try {
+    const res = await post({ model: 'sonnet', ...extra, messages: [user(text)] });
+    assert.equal(res.status, 200, await res.clone().text());
+    await res.json();
+    const id = chatOf(res);
+    await idle(id);
+    return id;
+  } finally {
+    delete process.env.FAKE_OPENAI_LINGER_MS;
+  }
+}
+
+test('a /v1 turn for a chat whose leaving process already reserved its replacement for another message is not held for that replacement', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 2 });
+  const chat = await lingeringApiChat('alpha', 400);
+  await pause(30);
+  await idleApiChat('other');
+  core.runtime.start({ prompt: 'SLOW 3000' });
+  assert.ok(core.runtime.isLeaving(chat));
+  // Someone else's message reserves the replacement's slot: the process is still leaving
+  assert.equal(core.runtime.sendMessage(chat, 'from a person').taken, 'held');
+  assert.ok(core.runtime.isLeaving(chat), 'reserving the slot does not make the leaving process take messages');
+  // Held behind that message, the turn would run in a replacement started with the chat's flags, not this request's
+  const res = await post({ model: 'sonnet', messages: [user('alpha'), assistant('echo: alpha'), user('beta')] });
+  assert.equal(res.status, 409, await res.clone().text());
+  await res.text();
+  assert.ok(!core.runtime.get(chat)?.pending?.some((m) => m.text.includes('beta')), 'nothing of the refused turn waits in the chat');
+});
+
+test('the idle timeout does not end the input of a process the /v1 route holds for a turn', async () => {
+  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '100';
+  try {
+    const chat = await idleApiChat('alpha');
+    const release = core.runtime.holdForTurn(chat);
+    await pause(300);
+    assert.ok(live(chat), 'kept while held');
+    assert.equal(core.runtime.isLeaving(chat), false);
+    release();
+    await until(() => !live(chat), 'the chat to end at its idle timeout once released');
+  } finally {
+    delete process.env.CLAUDIO_IDLE_TIMEOUT_MS;
+  }
+});
+
+test('a message that reserved a slot for an evicted chat is served at the exit even when admission would refuse by then', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 2 });
+  const chat = await lingeringApiChat('alpha', 200);
+  await pause(30);
+  await idleApiChat('other');
+  core.runtime.start({ prompt: 'SLOW 3000' });
+  const result = core.runtime.nextResult(chat);
+  assert.equal(core.runtime.sendMessage(chat, 'beta').taken, 'held');
+  // The memory check reads the machine: a floor no machine has makes a second admission refuse
+  const limits = (core.runtime as unknown as { admission: { memoryFloorMb: number } }).admission;
+  const floor = limits.memoryFloorMb;
+  limits.memoryFloorMb = Number.MAX_SAFE_INTEGER;
+  try {
+    assert.equal((await result).result, 'echo: beta');
+  } finally {
+    limits.memoryFloorMb = floor;
+  }
+  assert.notEqual(record(chat)?.status, 'failed');
+});
+
+test('a /v1 turn with client tools for an evicted chat, while the stub cannot be served, is a 503 that waits on nothing and changes nothing', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  const chat = await lingeringApiChat('alpha', 1500, { tools: [weather] });
+  core.runtime.start({ prompt: 'SLOW 3000' });
+  assert.ok(core.runtime.isLeaving(chat));
+  const url = core.runtime.apiUrl;
+  core.runtime.apiUrl = null;
+  try {
+    const res = await post({ model: 'sonnet', tools: [weather], messages: [user('alpha'), assistant('echo: alpha'), user('beta')] });
+    assert.equal(res.status, 503, await res.clone().text());
+    await res.text();
+    assert.ok(live(chat), 'answered before waiting for the leaving process to exit');
+  } finally {
+    core.runtime.apiUrl = url;
+  }
+});
+
+test('a start whose spawn fails ends no idle process', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  const chat = await idleApiChat('alpha');
+  // A NUL byte in an argument makes `spawn` throw before any process exists
+  assert.throws(() => core.runtime.start({ prompt: 'never', model: 'sonnet\u0000' }));
+  await pause(100);
+  assert.ok(live(chat), 'the idle API chat keeps its process');
+  assert.equal(core.runtime.isLeaving(chat), false);
+});
+
+test("a person's chat held warm past its idle timeout gives its slot up as before, background task or not", async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '100';
+  let unsubscribe = (): void => {};
+  try {
+    const person = core.runtime.start({ prompt: 'BACKGROUND' });
+    // A reader keeps it warm past the timeout
+    unsubscribe = core.runtime.subscribe(person.id, () => {});
+    await idle(person.id);
+    await pause(250);
+    assert.ok(live(person.id));
+    core.runtime.start({ prompt: 'mine' });
+    assert.ok(core.runtime.isLeaving(person.id));
+  } finally {
+    unsubscribe();
+    delete process.env.CLAUDIO_IDLE_TIMEOUT_MS;
+  }
 });

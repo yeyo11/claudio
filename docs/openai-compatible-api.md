@@ -1019,13 +1019,16 @@ least recently used idle process of an API chat gives its slot up. Its input is 
 timeout ends it, and its next turn resumes cold through the usual path, with its system prompt from
 `openai_chat_prompts`, its conversation key and its stored responses unchanged. A process is only
 taken when it waits for nothing: no turn running, no message queued for it or for its replacement,
-no permission prompt, no client tool call held, owed, streamed and not yet handed over, or answered
-by the client and not yet taken by the CLI, no limit replay or account switch pending, no turn the
-`/v1` route is preparing for it (`ChatManager.holdForTurn`, taken before the route's awaits and
-released once the turn is sent), and **no background task, background agent or workflow running**:
-such a process does not exit when its input ends, so it would count as free while it still ran. A
-person's chats, orchestration, assistant and worker chats are never taken (only the existing release
-of warm chats past the idle timeout applies to them, under the same conditions).
+no permission prompt, no client tool call held or owed (`ClientToolSession.holding`, bounded by the
+wait), no limit replay or account switch pending, no turn the `/v1` route is preparing for it
+(`ChatManager.holdForTurn`, taken before the route's awaits and released once the turn is sent; the
+idle timeout skips a held chat too), and **no background task, background agent or workflow
+running**: such a process does not exit when its input ends, so it would count as free while it
+still ran. Calls a turn streamed and results the client sent that the CLI has not taken only matter
+inside that turn, while the chat is busy and never taken; left over after it (a client gone
+mid-turn) they do not keep the process. A person's chats, orchestration, assistant and worker chats
+are never taken: only the release of warm chats past the idle timeout applies to them, exactly as
+before (background work does not exempt them from it).
 
 An API chat a person has open in the UI is taken like any other: the owner chose this on
 2026-10-27 over keeping viewed chats warm, since every OpenAI conversation is a chat and a page left
@@ -1037,19 +1040,26 @@ lowered below what runs), none is ended and the refusal is the same as before: `
 on the REST API. `evictionFor` in `packages/core/src/chats.ts` chooses the processes inside
 admission, after the account and queue checks and before the memory check; they are ended only at
 the spawn (`spawnProcess`, after the session-holder check and the launch plan), so a start refused
-for lack of memory, an unknown attachment, an unknown chat or a session held elsewhere ends nobody's
-process. Admission runs to the spawn without yielding and each process is marked `released` before
-the spawn returns, so two starts never take the same slot. Each eviction logs one line
+for lack of memory, an unknown attachment, an unknown chat, a session held elsewhere or a `spawn`
+that throws ends nobody's process. Admission runs to the spawn without yielding and each process is
+marked `released` before the spawn returns, so two starts never take the same slot. Each eviction logs one line
 (`run slots: ended the idle process of API chat <id> (idle <n> s)`); the chat gets no notice, as
 after the idle timeout.
 
 **A turn that reaches an evicted chat** before its process has exited never waits on that process.
-On `/v1`, the route sees the chat is evicted (`ChatManager.evicted`), waits for the exit and resumes
-cold through admission: the turn is served, or answered `429` with `Retry-After` when there is no
-room. Any other sender (the web UI, the REST API) is admitted at once (`sendMessage`): the message is
-held for the replacement and the exiting process keeps the slot for it, or the send is refused with
-`RunSlotRefusal` and nothing is held. Before this, the message was held without admission and the
-admission at the exit could find the slot gone, losing the message and failing the turn.
+On `/v1`, the route sees the process is leaving (`ChatManager.isLeaving`: its input ended, for a slot
+or otherwise), checks what would refuse the turn (the stub's address for client tools: `503`, with
+nothing changed), waits for the exit and resumes cold through admission with this request's flags:
+the turn is served, or answered `429` with `Retry-After` when there is no room. Any other sender
+(the web UI, the REST API) is admitted at once (`sendMessage`): the message is held for the
+replacement and the slot is the chat's (`slotReserved`, counted even after the process exits) until
+the replacement starts at the exit, without a second admission; or the send is refused with
+`RunSlotRefusal` and nothing is held. A `/v1` turn that arrives after such a message finds the
+replacement running when the exit comes and is answered `409` (the chat is working on another turn),
+never held behind that message in a process started without its own flags. A message held because a
+process ended its input for another reason (the idle timeout, a stop) is still admitted at the exit,
+as before eviction existed; when that admission refuses (no slot, memory), the message is reported
+lost on the chat (`undelivered`) and the chat fails, not dropped in silence.
 
 Background tasks still cost a turn each, so a tip for cost rather than for slots: in Open WebUI,
 turn off title, tag and follow-up generation (Admin Settings → Interface), or point its task model

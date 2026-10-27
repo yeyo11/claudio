@@ -444,6 +444,11 @@ export class LiveChat {
   viewers = 0;
   /** Its input was ended to make room for a start: the process is on its way out and no longer counts */
   released = false;
+  /**
+   * A message for it was admitted while its process was leaving: the slot is kept for the
+   * replacement (counted even once the process has exited) and the replacement is not admitted again
+   */
+  slotReserved = false;
   /** Callers preparing a turn for the live process (`ChatManager.holdForTurn`): it is not ended for a slot meanwhile */
   preparing = 0;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;

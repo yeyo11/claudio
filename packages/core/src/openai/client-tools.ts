@@ -405,11 +405,12 @@ export class ClientToolSession {
   }
 
   /**
-   * Calls a turn streamed and has not handed over yet, and results the client sent that the stub has
-   * not given the CLI, count too: ending the process now would drop them.
+   * A request held or a result owed, the wait bounding both. Claimed calls and results the stub has
+   * not handed over do not count: they only matter inside the turn, while the chat is busy and never
+   * evicted, and left over after it (a client gone mid-turn) they would keep the process for ever.
    */
   holding(): boolean {
-    return this.held.size > 0 || this.waiting || this.claimed.size > 0 || this.results.size > 0;
+    return this.held.size > 0 || this.waiting;
   }
 
   ended(): void {

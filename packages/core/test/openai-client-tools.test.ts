@@ -433,17 +433,15 @@ test('each message hands over only the client calls new in it, with the input th
   assert.deepEqual(t.clientCalls().map((c) => c.id), ['t1', 't2']);
 });
 
-test('a session is holding while a turn has claimed calls it has not handed over, and while delivered results wait for the CLI', () => {
+test('a session is holding only while a request is held or a result owed: claimed calls and untaken results left by a turn do not count', () => {
   const s = new ClientToolSession([tool('a')]);
   assert.equal(s.holding(), false);
-  // Streamed to the client, not handed over yet: the CLI's request for it may be about to come
+  // A client that disconnects mid-turn never gets the hand-off: the claim is left behind
   s.claim([call('t1', 'a')]);
-  assert.equal(s.holding(), true, 'a claimed call keeps the process');
+  assert.equal(s.holding(), false, 'a claimed call does not keep the process once its turn is over');
   s.handOff([call('t1', 'a')], 60_000, () => undefined);
-  assert.equal(s.holding(), true, 'an owed call keeps the process');
-  // Delivered before the CLI asked: the result waits for its `tools/call` on the stub
+  assert.equal(s.holding(), true, 'an owed call keeps the process, for the wait');
   s.deliver([{ toolCallId: 't1', text: 'sunny' }]);
-  assert.equal(s.holding(), true, 'a result the CLI has not taken keeps the process');
-  assert.equal(s.callResult('a', 't1', { city: 'Madrid' }).text, 'sunny');
-  assert.equal(s.holding(), false, 'nothing left once the CLI took it');
+  assert.equal(s.holding(), false, 'a delivered result the CLI never took does not pin it');
+  s.dispose();
 });

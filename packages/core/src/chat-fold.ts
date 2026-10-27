@@ -369,7 +369,8 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     const onIdle = () => {
       // Someone has the chat open: their next message should not wait for a cold start. Bounded, so a
       // tab forgotten open does not hold a process for ever (a hidden tab lets go of its stream after 30 s anyway)
-      if (chat.viewers > 0 && Date.now() - (chat.idleSince ?? 0) < viewedIdleMaxMs()) {
+      // A caller preparing a turn for this process (`holdForTurn`) is about to write to it
+      if (chat.preparing > 0 || (chat.viewers > 0 && Date.now() - (chat.idleSince ?? 0) < viewedIdleMaxMs())) {
         chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
         chat.idleTimer.unref();
         return;
