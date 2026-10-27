@@ -10,6 +10,7 @@ import {
   ChatCompletionTranslator,
   CLIENT_TOOL_PREFIX,
   clientToolsProblem,
+  effectiveSystemPrompt,
   listedCallIds,
   renderOpenAiResultsCold,
   RESPONSES_RESULTS,
@@ -31,11 +32,13 @@ import {
   sameJsonSchema,
   STREAM_DONE,
   sweepOpenAiChats,
+  systemPromptParts,
   translateOpenAiRequest,
   UPLOAD_LIMITS,
   uploadOpenAiImages,
   type ChatCompletionRequest,
   type ChatCompletionStreamItem,
+  type ConversationBase,
   type OpenAiChatTurn,
   type OpenAiClientCall,
   type OpenAiErrorResponse,
@@ -51,6 +54,7 @@ import {
   type ResponseDeleted,
   type ResponseStreamEvent,
   type ResultsVocabulary,
+  type SystemPromptParts,
 } from '@claudio/core';
 import type { ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
 import { deliberate } from '../errors.ts';
@@ -262,11 +266,9 @@ interface ParamNames {
   results: ResultsVocabulary;
   /** The effort parameter, named in `x-claudio-ignored` when a live process cannot take it */
   effort: string;
-  /** What carries the system prompt, named in `x-claudio-ignored` when a held turn cannot take a new one */
-  system: string;
 }
-const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort', system: 'system' };
-const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort', system: 'instructions' };
+const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort' };
+const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort' };
 
 /**
  * What this surface refuses although the parser reads it: the legacy `functions`, tools it cannot
@@ -518,6 +520,8 @@ type Target = { kind: 'new' } | { kind: 'existing'; chatId: string };
 interface Previous {
   chatId: string;
   refusal: OpenAiFailure;
+  /** The conversation part of the system prompt its chain reached; null for a row from before it was kept */
+  conversation: string | null;
 }
 
 /**
@@ -530,6 +534,8 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
   /** Names for `x-claudio-ignored` the route found beside the translator's */
   ignored: string[];
   previous: Previous | null;
+  /** Responses' `instructions`: the system prompt's part that holds for this request only */
+  instructions: string | null;
   /** The API's names for the refusals and `x-claudio-ignored` */
   names: ParamNames;
   make(options: { structured: boolean; clientTools?: { prefix: string; names: ReadonlySet<string>; single: boolean } }): T;
@@ -538,8 +544,8 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
   write(stream: SseStream, item: Item): void;
   /** The conversation key the client's next request carries, after this answer */
   keyAfter(answered: { text: string; toolCalls: OpenAiToolCall[] }): string;
-  /** After a turn that answered (completed or cut short), with its chat and key */
-  completed?(translator: T, chatId: string, key: string): void;
+  /** After a turn that answered (completed or cut short), with its chat, key and the system prompt it asked for */
+  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts): void;
   whole(translator: T): WholeAnswer;
 }
 
@@ -644,6 +650,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       turn,
       ignored,
       previous: null,
+      instructions: null,
       names: CHAT_COMPLETION_PARAMS,
       make: (options) => new ChatCompletionTranslator({ id, model: request.model, created, includeUsage: turn.includeUsage, ...options }),
       opening: () => [],
@@ -677,7 +684,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (named !== undefined && named !== stored.chatId) {
         throw fail({ kind: 'invalid-request', param: 'previous_response_id', message: `The previous response belongs to another chat than the one ${CHAT_ID_HEADER} names.` });
       }
-      previous = { chatId: stored.chatId, refusal: notFound };
+      previous = { chatId: stored.chatId, refusal: notFound, conversation: stored.conversationSystem };
       previousKey = stored.conversationKey;
       // Its output goes before the new items, so their results are checked against its calls
       request = withPreviousOutput(fresh, stored.response.output);
@@ -690,6 +697,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       turn,
       ignored,
       previous,
+      instructions: request.instructions,
       names: RESPONSES_PARAMS,
       make: (options) =>
         new ResponsesTranslator({
@@ -708,11 +716,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       write: (stream, event) => stream.send(event, { event: event.type }),
       keyAfter: (answered) =>
         previousKey !== null ? openAiKeyAfterPrevious(previousKey, fresh.chat.messages, answered) : openAiKeyAfterAnswer(turn.keySeed, request.chat.messages, answered),
-      completed: (translator, chatId, key) => {
+      completed: (translator, chatId, key, system) => {
         if (!request.store) return;
         const end = translator.end();
         if (end?.kind !== 'response') return;
-        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, inputItems: request.inputItems });
+        // The chain's part as the client asked for it, taken or not by a held turn: the next turn of the chain applies it
+        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, conversationSystem: system.conversation, inputItems: request.inputItems });
       },
       whole: (translator) => wholeAnswer(translator.end(), (end) => end.response),
     });
@@ -817,9 +826,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       // this is its only check of the results against what the CLI waits on
       const heldRefusal = held && session ? session.heldProblem(trailing, names.results) : null;
       if (heldRefusal) throw fail(heldRefusal);
-      // The held turn goes on in the process that started it, with the system prompt it started with:
-      // a new one is said to be ignored, and reaches the chat with its next turn (`existingTurnPlan`)
-      if (held && existing !== null && !sameSystemPrompt(core.runtime.systemPromptOf(existing), turn.appendSystemPrompt)) ignored.push(names.system);
+      const systemParts = systemPromptParts(request.messages, plan.instructions, conversationBaseOf(named, plan.previous, target));
+      const system = effectiveSystemPrompt(systemParts);
 
       const prompt = held ? { prompt: '', images: [] } : target.kind === 'new' ? turn.cold : cold ? renderOpenAiResultsCold(request.messages) : turn.delta;
       const uploaded = await uploadOpenAiImages(prompt.images, {
@@ -856,7 +864,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       const report = (err: unknown): void => req.log.error({ err, scope: 'openai' }, 'writing the answer failed');
       const current = new TurnRun<Item>(core, translator, openTurns, report, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
-      const startOpts = { provider: model.provider, cwd, toolPreset, ignored, effortName: names.effort, tools, wantsTools, requestTools: request.tools, apply };
+      const startOpts = { provider: model.provider, cwd, toolPreset, ignored, effortName: names.effort, tools, wantsTools, requestTools: request.tools, apply, system };
+      /** Whether the chat's process runs with `system` now; false when it had to keep its own */
+      let applied: boolean;
       try {
         if (abandoning && tools && existing !== null) {
           // What would refuse the new message is checked while the calls are still held, so a refused
@@ -864,12 +874,15 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           existingTurnPlan(existing, turn, startOpts, true);
           await abandon(existing, tools);
           try {
-            await startTurn(current, target, turn, text, uploaded.value, startOpts);
+            applied = await startTurn(current, target, turn, text, uploaded.value, startOpts);
           } catch (err) {
             throw afterDropping(err);
           }
-        } else if (held && tools && existing !== null) continueHeld(current, existing, tools, trailing, apply);
-        else await startTurn(current, target, turn, text, uploaded.value, startOpts);
+        } else if (held && tools && existing !== null) {
+          // The held turn goes on in the process that started it, with the system prompt it started with
+          applied = sameSystemPrompt(core.runtime.systemPromptOf(existing), system);
+          continueHeld(current, existing, tools, trailing, apply);
+        } else applied = await startTurn(current, target, turn, text, uploaded.value, startOpts);
       } catch (err) {
         current.detach();
         if (tools && !session) {
@@ -892,6 +905,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       }
       const chatId = current.chatId;
       if (chatId === null) throw fail({ kind: 'server', message: 'The chat started without an id.' });
+      if (applied) rememberSystemPrompt(req, chatId, systemParts);
+      else ignored.push(...keptPromptNames(chatId, systemParts));
       if (gone && !current.finished) void core.chats.interrupt(chatId).catch(() => undefined);
 
       let remembered = false;
@@ -917,7 +932,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           req.log.error({ err, scope: 'openai', chatId }, 'storing the conversation key failed; the answer is served without it');
         }
         try {
-          plan.completed?.(translator, chatId, after);
+          plan.completed?.(translator, chatId, after, systemParts);
         } catch (err) {
           req.log.error({ err, scope: 'openai', chatId }, 'storing the response failed; the answer is served without it');
         }
@@ -1030,6 +1045,40 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     current.replay();
   }
 
+  /**
+   * The conversation part a chat runs with: its row, or for a chat from before the rows its live
+   * process's prompt, the best guess there is (no `instructions` reached the CLI any other way then).
+   */
+  function chatConversation(chatId: string): string {
+    return core.openaiChatPrompts.find(chatId)?.conversation ?? core.runtime.systemPromptOf(chatId) ?? '';
+  }
+
+  /** What the request's system and developer messages build on (`ConversationBase`). */
+  function conversationBaseOf(named: string | undefined, previous: Previous | null, target: Target): ConversationBase {
+    if (previous) return { kind: 'chain', conversation: previous.conversation ?? chatConversation(previous.chatId) };
+    if (named !== undefined && target.kind === 'existing') return { kind: 'named', conversation: chatConversation(target.chatId) };
+    return { kind: 'whole' };
+  }
+
+  /** The parts the chat's process runs with now. A failed write is logged: the turn already runs. */
+  function rememberSystemPrompt(req: FastifyRequest, chatId: string, parts: SystemPromptParts): void {
+    try {
+      core.openaiChatPrompts.save(chatId, parts);
+    } catch (err) {
+      req.log.error({ err, scope: 'openai', chatId }, 'storing the system prompt failed; the turn goes on without it');
+    }
+  }
+
+  /**
+   * What `x-claudio-ignored` names when the process keeps its prompt: `instructions` when they are
+   * what changed, `system` when the system and developer messages are.
+   */
+  function keptPromptNames(chatId: string, parts: SystemPromptParts): string[] {
+    const running = core.openaiChatPrompts.find(chatId);
+    const changed = running ? [...(running.instructions !== parts.instructions ? ['instructions'] : []), ...(running.conversation !== parts.conversation ? ['system'] : [])] : [];
+    return changed.length ? changed : [parts.instructions ? 'instructions' : 'system'];
+  }
+
   /** A chat the OpenAI surface started, that still exists. */
   async function isApiChat(id: string): Promise<boolean> {
     return core.runtime.get(id)?.origin === 'api' && (await core.chats.get(id)) !== null;
@@ -1064,14 +1113,15 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   /**
    * How a turn goes to an existing chat, and its refusals, which change nothing: no such chat, a turn
    * already running (unless it is the one being ended to drop its calls, `ending`), or a process to
-   * start with the stub while the API's address is unknown.
+   * start with the stub while the API's address is unknown. `keepsPrompt`: the live process goes on
+   * with its own system prompt, since the restart a new one needs cannot happen.
    */
   function existingTurnPlan(
     id: string,
     turn: OpenAiChatTurn,
-    opts: { tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools'] },
+    opts: { tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools']; system: string },
     ending: boolean,
-  ): { runtime: NonNullable<ReturnType<Core['runtime']['get']>>; restart: boolean } {
+  ): { runtime: NonNullable<ReturnType<Core['runtime']['get']>>; restart: boolean; keepsPrompt: boolean } {
     const { tools } = opts;
     const runtime = core.runtime.get(id);
     if (!runtime) throw fail({ kind: 'not-found', message: `No chat ${id}.` });
@@ -1081,16 +1131,21 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     }
     // `--json-schema`, `--mcp-config` and `--append-system-prompt` are fixed when the process starts: a
     // turn asking for another schema (or for none after one), for client tools the live process does
-    // not serve, or with another system prompt (Responses' `instructions` may change on every request)
-    // ends the idle process and resumes the chat with its own. The same ones keep it. So every turn
-    // runs with its own request's system prompt, whether its process was alive or not
+    // not serve, or with another effective system prompt (`systemPromptParts`: Responses'
+    // `instructions` may change on every request) ends the idle process and resumes the chat with its
+    // own. The same ones keep it. So every turn runs with the prompt its request asks for, whether its
+    // process was alive or not
     const toolsChanged = opts.wantsTools && tools !== null && (tools.servedPid !== runtime.pid || !sameClientTools(tools.tools, opts.requestTools));
-    const systemChanged = !sameSystemPrompt(core.runtime.systemPromptOf(id), turn.appendSystemPrompt);
-    const restart = runtime.pid !== null && (!sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema) || toolsChanged || systemChanged);
+    const schemaChanged = !sameJsonSchema(core.runtime.jsonSchemaOf(id), turn.jsonSchema);
+    const systemChanged = !sameSystemPrompt(core.runtime.systemPromptOf(id), opts.system);
+    const restart = runtime.pid !== null && (schemaChanged || toolsChanged || systemChanged);
     if (tools && (restart || runtime.pid === null) && !registry.servers(core, tools)) {
+      // A new prompt alone is not worth refusing the turn for: the live process, which serves the
+      // stub already, answers it with the prompt it has, and `x-claudio-ignored` says so
+      if (runtime.pid !== null && !schemaChanged && !toolsChanged) return { runtime, restart: false, keepsPrompt: true };
       throw fail({ kind: 'unavailable', message: "Client tools need the API's own address, which is not known yet." });
     }
-    return { runtime, restart };
+    return { runtime, restart, keepsPrompt: false };
   }
 
   /**
@@ -1098,6 +1153,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
    * holds. The run is attached before anything is sent, so no event of the turn is missed. A chat
    * with client tools runs with `permissionPrompts: 'host'` and its session as the host, which holds
    * the client's calls and refuses everything else at once, as `'none'` would (spike change 1).
+   * Resolves to whether the chat's process runs with `opts.system`: false only when a live process
+   * had to keep its own (`existingTurnPlan`).
    */
   async function startTurn<Item>(
     current: TurnRun<Item>,
@@ -1116,8 +1173,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       wantsTools: boolean;
       requestTools: OpenAiChatTurn['tools'];
       apply: () => void;
+      /** The effective system prompt the request asks for (`effectiveSystemPrompt`) */
+      system: string;
     },
-  ): Promise<void> {
+  ): Promise<boolean> {
     const permissionMode = permissionModeOf(core);
     const { tools } = opts;
     const prompts = tools ? 'host' : 'none';
@@ -1146,7 +1205,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           provider: opts.provider,
           model: turn.model,
           ...(turn.effort ? { effort: turn.effort } : {}),
-          ...(turn.appendSystemPrompt !== undefined ? { appendSystemPrompt: turn.appendSystemPrompt } : {}),
+          ...(opts.system ? { appendSystemPrompt: opts.system } : {}),
           ...(turn.jsonSchema ? { jsonSchema: turn.jsonSchema } : {}),
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
           ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
@@ -1163,10 +1222,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         extra,
       );
       if (current.chatId) served(current.chatId);
-      return;
+      return true;
     }
     const id = target.chatId;
-    const { runtime, restart } = existingTurnPlan(id, turn, opts, false);
+    const { runtime, restart, keepsPrompt } = existingTurnPlan(id, turn, opts, false);
     // Where a chat already is, the header cannot move it: said rather than dropped in silence
     if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
     if (restart) await core.runtime.endBetweenTurns(id);
@@ -1182,7 +1241,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       current.attach(id);
       await core.chats.send(id, { text: prompt, attachments });
       current.replay();
-      return;
+      return !keepsPrompt;
     }
     current.attach(id);
     await core.chats.resume(id, {
@@ -1190,14 +1249,16 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       ...(attachments.length ? { attachments } : {}),
       model: turn.model,
       ...(turn.effort ? { effort: turn.effort } : {}),
-      // Always set: a resume keeps the chat's earlier prompt for a field left out, and a request without
-      // one must not run under the last request's
-      appendSystemPrompt: turn.appendSystemPrompt ?? '',
+      // Always set, a resume keeping the chat's earlier prompt for a field left out: the effective
+      // prompt holds the conversation's part whether or not this request resent it, so it is empty
+      // only when the conversation has none and the request no `instructions`
+      appendSystemPrompt: opts.system,
       ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
       permissionMode,
       permissionPrompts: prompts,
     }, { jsonSchema: turn.jsonSchema ?? null, extraMcpServers: tools ? servers() : null });
     served(id);
     current.replay();
+    return true;
   }
 };

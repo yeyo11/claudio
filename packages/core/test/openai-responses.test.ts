@@ -10,6 +10,7 @@ import { assistantOfOutput, keyAfterPrevious, parseResponsesRequest, responsesTu
 import { OpenAiResponseStore } from '../src/openai/responses-store.ts';
 import type { OutputItem, ResponseObject, ResponseStreamEvent } from '../src/openai/responses-wire.ts';
 import { sweepOpenAiChats } from '../src/openai/sweep.ts';
+import { effectiveSystemPrompt, hasSystemMessages, systemPromptParts } from '../src/openai/system-prompt.ts';
 import { tempConfig } from './helpers.ts';
 
 // Phase 5's core (docs/openai-compatible-api.md): `POST /v1/responses` read into the request the
@@ -94,13 +95,38 @@ test('a function call with no assistant message before it is an assistant messag
 });
 
 test('instructions join the system prompt but not the conversation key, so a client may change them each turn', () => {
-  const a = responsesTurnOf(parseOk({ instructions: 'Answer in French.', input: [{ role: 'system', content: 'Be brief.' }, { role: 'user', content: 'hi' }, { role: 'assistant', content: 'salut' }, { role: 'user', content: 'again' }] }));
-  const b = responsesTurnOf(parseOk({ instructions: 'Answer in Spanish.', input: [{ role: 'system', content: 'Be brief.' }, { role: 'user', content: 'hi' }, { role: 'assistant', content: 'salut' }, { role: 'user', content: 'again' }] }));
-  assert.equal(a.appendSystemPrompt, 'Answer in French.\n\nBe brief.');
-  assert.equal(b.appendSystemPrompt, 'Answer in Spanish.\n\nBe brief.');
-  assert.ok(a.historyKey);
-  assert.equal(a.historyKey, b.historyKey);
-  assert.equal(responsesTurnOf(parseOk({ input: 'x' })).appendSystemPrompt, undefined);
+  const input = [{ role: 'system', content: 'Be brief.' }, { role: 'user', content: 'hi' }, { role: 'assistant', content: 'salut' }, { role: 'user', content: 'again' }];
+  const a = parseOk({ instructions: 'Answer in French.', input });
+  const b = parseOk({ instructions: 'Answer in Spanish.', input });
+  const promptOf = (request: ResponsesRequest): string => effectiveSystemPrompt(systemPromptParts(request.chat.messages, request.instructions, { kind: 'whole' }));
+  assert.equal(promptOf(a), 'Answer in French.\n\nBe brief.');
+  assert.equal(promptOf(b), 'Answer in Spanish.\n\nBe brief.');
+  assert.ok(responsesTurnOf(a).historyKey);
+  assert.equal(responsesTurnOf(a).historyKey, responsesTurnOf(b).historyKey);
+  assert.equal(promptOf(parseOk({ input: 'x' })), '');
+});
+
+test('the conversation part accumulates along a chain, a named delta keeps the chat\'s, and instructions never carry over', () => {
+  const developer = (text: string) => ({ role: 'developer', content: text });
+  const userSays = (text: string) => ({ role: 'user', content: text });
+  const first = parseOk({ instructions: 'X', input: [developer('Answer in French.'), userSays('one')] });
+  const one = systemPromptParts(first.chat.messages, first.instructions, { kind: 'whole' });
+  assert.deepEqual(one, { instructions: 'X', conversation: 'Answer in French.' });
+  // previous_response_id with only a user item: the developer message stays, the instructions go
+  const second = parseOk({ input: [userSays('two')] });
+  const two = systemPromptParts(second.chat.messages, second.instructions, { kind: 'chain', conversation: one.conversation });
+  assert.deepEqual(two, { instructions: '', conversation: 'Answer in French.' });
+  assert.equal(effectiveSystemPrompt(two), 'Answer in French.');
+  // A new developer item along the chain is added to what it carried
+  const third = parseOk({ input: [developer('Be brief.'), userSays('three')] });
+  assert.equal(systemPromptParts(third.chat.messages, null, { kind: 'chain', conversation: two.conversation }).conversation, 'Answer in French.\n\nBe brief.');
+  // X-Claudio-Chat-Id with only the new message keeps the chat's part; one with system messages replaces it
+  assert.equal(systemPromptParts(second.chat.messages, null, { kind: 'named', conversation: 'Answer in French.' }).conversation, 'Answer in French.');
+  assert.equal(systemPromptParts(third.chat.messages, null, { kind: 'named', conversation: 'Answer in French.' }).conversation, 'Be brief.');
+  // An empty system message is a system message: it clears the part
+  const cleared = parseOk({ input: [developer(''), userSays('four')] });
+  assert.ok(hasSystemMessages(cleared.chat.messages));
+  assert.equal(systemPromptParts(cleared.chat.messages, null, { kind: 'named', conversation: 'Answer in French.' }).conversation, '');
 });
 
 test('reasoning.effort, text.format and the tools map onto the Chat Completions request', () => {
@@ -462,9 +488,10 @@ test('a stored response is found again with its chat, key, object and input; del
   const { responses, db } = stores(() => '2026-10-26T10:00:00.000Z');
   try {
     const inputItems = parseOk({ input: 'hi' }).inputItems;
-    responses.save({ id: 'resp_a', chatId: 'chat-1', conversationKey: 'k1', response: responseObject('resp_a'), inputItems });
+    responses.save({ id: 'resp_a', chatId: 'chat-1', conversationKey: 'k1', response: responseObject('resp_a'), conversationSystem: 'Be brief.', inputItems });
     const found = responses.find('resp_a');
     assert.equal(found?.chatId, 'chat-1');
+    assert.equal(found?.conversationSystem, 'Be brief.', 'the chain carries its system and developer messages');
     assert.equal(found?.conversationKey, 'k1');
     assert.equal(found?.response.id, 'resp_a');
     assert.deepEqual(responses.inputItems('resp_a'), inputItems);
@@ -482,8 +509,8 @@ test('a stored response is found again with its chat, key, object and input; del
 test("deleting a chat from the store drops its stored responses with it", () => {
   const { responses, db } = stores(() => '2026-10-26T10:00:00.000Z');
   try {
-    responses.save({ id: 'resp_a', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_a'), inputItems: [] });
-    responses.save({ id: 'resp_b', chatId: 'chat-2', conversationKey: 'k', response: responseObject('resp_b'), inputItems: [] });
+    responses.save({ id: 'resp_a', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_a'), conversationSystem: null, inputItems: [] });
+    responses.save({ id: 'resp_b', chatId: 'chat-2', conversationKey: 'k', response: responseObject('resp_b'), conversationSystem: null, inputItems: [] });
     db.deleteChat('chat-1');
     assert.equal(responses.find('resp_a'), null);
     assert.equal(responses.find('resp_b')?.chatId, 'chat-2');
@@ -500,9 +527,9 @@ test('the sweep expires old stored responses, and an api chat a fresh one still 
   let at = '2026-01-01T00:00:00.000Z';
   const { responses, conversations, db } = stores(() => at);
   try {
-    responses.save({ id: 'resp_old', chatId: 'old-chat', conversationKey: 'k', response: responseObject('resp_old'), inputItems: [] });
+    responses.save({ id: 'resp_old', chatId: 'old-chat', conversationKey: 'k', response: responseObject('resp_old'), conversationSystem: null, inputItems: [] });
     at = '2026-01-20T00:00:00.000Z';
-    responses.save({ id: 'resp_new', chatId: 'kept-chat', conversationKey: 'k', response: responseObject('resp_new'), inputItems: [] });
+    responses.save({ id: 'resp_new', chatId: 'kept-chat', conversationKey: 'k', response: responseObject('resp_new'), conversationSystem: null, inputItems: [] });
     const removed: string[] = [];
     const sweep = await sweepOpenAiChats(
       { conversations, responses, runtime: { list: () => [runtime('old-chat'), runtime('kept-chat')] }, remove: async (id) => void removed.push(id) },
@@ -528,7 +555,7 @@ test('a large data URL image leaves a small stored row: the input lists a refere
     // The turn still gets the image whole
     const user = request.chat.messages[0];
     assert.equal(user?.role === 'user' && user.parts[1]?.type === 'image' && user.parts[1].image.kind === 'data' ? user.parts[1].image.sizeBytes : null, bytes);
-    responses.save({ id: 'resp_img', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_img'), inputItems: request.inputItems });
+    responses.save({ id: 'resp_img', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_img'), conversationSystem: null, inputItems: request.inputItems });
     const row = db.connection.prepare('SELECT length(input_items) AS n FROM openai_responses WHERE id = ?').get('resp_img') as { n: number };
     assert.ok(row.n < 1024, `the row holds ${String(row.n)} characters of input`);
     const listed = responses.inputItems('resp_img')?.[0];

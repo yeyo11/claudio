@@ -773,3 +773,28 @@ test('a system message that changes under X-Claudio-Chat-Id restarts the idle pr
   );
   assert.notEqual(turns[1]?.pid, turns[0]?.pid);
 });
+
+test('a request under X-Claudio-Chat-Id without system messages keeps the chat\'s prompt, on the live process and on a cold resume', async () => {
+  const first = await post({ model: 'sonnet', messages: [{ role: 'system', content: 'Answer in French.' }, user('first')] });
+  assert.equal(first.status, 200, await first.clone().text());
+  const chatId = first.headers.get('x-claudio-chat-id') ?? '';
+  const named = { 'x-claudio-chat-id': chatId };
+  const second = await post({ model: 'sonnet', messages: [user('second')] }, named);
+  assert.equal(second.status, 200, await second.clone().text());
+  core.runtime.stop(chatId);
+  const deadline = Date.now() + 5000;
+  while (core.runtime.get(chatId)?.pid !== null && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+  const third = await post({ model: 'sonnet', messages: [user('third')] }, named);
+  assert.equal(third.status, 200, await third.clone().text());
+  const turns = promptsOf(chatId) as Array<{ prompt: string; pid: number; system?: string | null }>;
+  assert.deepEqual(
+    turns.map((t) => [t.prompt, t.system]),
+    [
+      ['first', 'Answer in French.'],
+      ['second', 'Answer in French.'],
+      ['third', 'Answer in French.'],
+    ],
+  );
+  assert.equal(turns[1]?.pid, turns[0]?.pid, 'no restart for a prompt that did not change');
+  assert.notEqual(turns[2]?.pid, turns[0]?.pid, 'the third turn was a cold resume');
+});

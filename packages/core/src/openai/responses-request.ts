@@ -11,7 +11,6 @@ import {
   parseImage,
   present,
   Refusal,
-  systemPromptOf,
   translateRequest,
   unsupported,
   type ChatTurn,
@@ -473,16 +472,15 @@ export function withPreviousOutput(request: ResponsesRequest, output: readonly O
 }
 
 /**
- * What starting or resuming the chat needs. `instructions` join the system prompt the input's
- * system and developer messages make, but stay out of the conversation key: the reference says they
- * are not carried from one response to the next, so a client may change them on every request (its
- * own function-calling example does) and still be in the same conversation.
+ * What starting or resuming the chat needs. Its `appendSystemPrompt` is only the input's system and
+ * developer messages, as on Chat Completions: `instructions`, and what a `previous_response_id`
+ * chain carried, join them in the route (`systemPromptParts`), which knows the chat. `instructions`
+ * stay out of the conversation key: the reference says they are not carried from one response to the
+ * next, so a client may change them on every request (its own function-calling example does) and
+ * still be in the same conversation.
  */
 export function responsesTurnOf(request: ResponsesRequest): ChatTurn {
-  const turn = translateRequest(request.chat);
-  const system = [request.instructions?.trim() ?? '', systemPromptOf(request.chat.messages) ?? ''].filter(Boolean).join('\n\n');
-  const { appendSystemPrompt: _, ...rest } = turn;
-  return { ...rest, ...(system ? { appendSystemPrompt: system } : {}) };
+  return translateRequest(request.chat);
 }
 
 /**

@@ -38,6 +38,7 @@ export {
   type TrailingResults,
 } from './client-tools.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';
+export { effectiveSystemPrompt, hasSystemMessages, OpenAiChatPromptStore, systemPromptParts, type ConversationBase, type SystemPromptParts } from './system-prompt.ts';
 export { OpenAiResponseStore, type StoredResponse as OpenAiStoredResponse, type StoredResponseHead as OpenAiStoredResponseHead } from './responses-store.ts';
 export {
   assistantOfOutput,

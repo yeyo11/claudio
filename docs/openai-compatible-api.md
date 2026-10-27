@@ -322,9 +322,10 @@ too. Every redirect is checked again.
 - Client tools together with `response_format` are refused (phase 4).
 - A structured answer is not streamed as it is written: it arrives as one chunk at the end (phase 3).
 - A chat continued by `X-Claudio-Chat-Id` keeps its live process's effort for that turn (named in
-  `x-claudio-ignored`); its model does change. Its system prompt is the request's: since phase 5, a
-  live idle process started with another one is ended and the chat resumed with the new one, as a
-  schema change does (phase 3); a held turn keeps its own and names `system` in `x-claudio-ignored`.
+  `x-claudio-ignored`); its model does change. Its system prompt follows phase 5's rule ("The system
+  prompt"): system messages in the body replace the chat's, a body without any keeps them, and a
+  live idle process started with another effective prompt is ended and the chat resumed with the new
+  one, as a schema change does (phase 3).
 - `created` in a model object is 0: the catalogue has no date.
 - A run refused for memory pressure (not for the run count) is still a 409.
 
@@ -654,6 +655,7 @@ repository's `node_modules`, and no dependency was added for it.
 | `packages/core/src/openai/responses-request.ts` | `parseResponsesRequest` (a body to the Chat Completions request plus what only Responses has, or an OpenAI-shaped 400), `responsesTurnOf`, `withPreviousOutput` and `keyAfterPrevious` |
 | `packages/core/src/openai/responses-events.ts` | `ResponsesTranslator`: a turn as output items and semantic events, built on `ChatCompletionTranslator` |
 | `packages/core/src/openai/responses-store.ts` | `OpenAiResponseStore` over the `openai_responses` table; `Core.openaiResponses` |
+| `packages/core/src/openai/system-prompt.ts` | The system prompt's two parts (`systemPromptParts`, `effectiveSystemPrompt`) and `OpenAiChatPromptStore` over `openai_chat_prompts`; `Core.openaiChatPrompts` |
 | `apps/api/src/routes/openai.ts` | The four routes; `runTurn`, the turn both POST routes share, driven by a `TurnPlan` |
 
 ### The request
@@ -666,7 +668,7 @@ repository's `node_modules`, and no dependency was added for it.
 | `function_call_output` items | `tool` messages, matched by `call_id`; text output only (image and file parts are refused) |
 | `reasoning` items | Dropped: Claudio never returns them and the CLI keeps its own thinking |
 | `item_reference`, items of hosted tools | `400 unsupported_parameter`; any other type is `400 invalid_request_error` |
-| `instructions` | The system prompt, before the input's system and developer messages; **not** part of the conversation key |
+| `instructions` | The system prompt's per-request part, before the conversation's system and developer messages ("The system prompt" below); **not** part of the conversation key |
 | `model` | As on Chat Completions; unknown is `404 model_not_found` |
 | `reasoning.effort` | `effort`, with the same map as `reasoning_effort` |
 | `text.format` `json_schema` (flat: `name`, `schema`, `strict`) / `json_object` / `text` | Phase 3's structured output |
@@ -690,26 +692,67 @@ request would miss the chat that holds the calls. The cost: two clients with the
 and resent history, differing only in `instructions`, share a chat. The history includes the
 model's own answers, so that takes resending them word for word.
 
-**New `instructions` on a live process.** `--append-system-prompt` is fixed when the CLI starts, so
-one rule makes the behaviour the same whether the chat's process is alive or not: every turn runs
-with its own request's system prompt (`instructions` and the input's system and developer messages).
-A live idle process started with another one is ended between turns and the chat resumed with the
-new prompt (`endBetweenTurns`, then `--resume`), as phase 3 does for a schema; the same prompt keeps
-the process, and a request with none clears it rather than inheriting the last one. Chosen over
-only naming `instructions` in `x-claudio-ignored` because the restart already exists and is safe
-(the session continues, only the warm process and its prompt cache are lost), and a client that
-changes its instructions means them for this turn. The one exception is a held turn: outputs for
-calls the CLI holds go on in the process that made them, so new `instructions` there are named in
-`x-claudio-ignored` and take effect with the chat's next turn. The reference's own function-calling
-example is that case. Chat Completions shares the path: a system message that changes under
-`X-Claudio-Chat-Id` restarts the idle process the same way (its key changes with it otherwise).
+### The system prompt
+
+One rule for both APIs, in `packages/core/src/openai/system-prompt.ts` and `runTurn`. OpenAI's own:
+under `previous_response_id`, earlier input messages, system and developer ones included, stay in the
+model's context; only `instructions` are not carried over to the next response (the Responses
+reference and the conversation-state guide). So an API chat's prompt is kept in two parts
+(`SystemPromptParts`):
+
+- **the conversation part**, from system and developer messages (`systemPromptParts`, by what the
+  request builds on, `ConversationBase`):
+  - a request that is the whole history (a new chat, or one found by its conversation key, whose
+    seed already holds the same system messages): its own system and developer messages;
+  - `previous_response_id`: the part the stored response's chain reached (`conversation_system` on
+    its row), with the new items' system and developer messages added after it;
+  - `X-Claudio-Chat-Id` without `previous_response_id`, both APIs: the body may be only the new
+    messages, so system messages in it replace the chat's part, and a body with none keeps it. An
+    empty system message is one: it clears the part;
+- **the per-request part**: Responses' `instructions`, replaced by each request and cleared by one
+  without them. Chat Completions has none.
+
+The **effective prompt** is `instructions`, a blank line, then the conversation part; that is what
+`--append-system-prompt` carries. `openai_chat_prompts (chat_id PRIMARY KEY, instructions,
+conversation, updated_at)` holds, per chat, the parts its process runs with: what a named request
+without system messages keeps, across a server restart too, and what says which part a turn could
+not take. It is written when a turn starts with the effective prompt; a write that fails is logged
+and the turn goes on. The row goes with the chat (`Db.deleteChat`).
+
+`--append-system-prompt` is fixed when the CLI starts, so:
+
+- **The idle process restarts only when the effective prompt changes**: it is ended between turns
+  and the chat resumed with the new prompt (`endBetweenTurns`, then `--resume`), as phase 3 does for
+  a schema. The session continues; only the warm process and its prompt cache are lost. A request
+  that changes nothing, a follow-up that does not resend its developer message say, keeps the process.
+- **A cold resume always runs with the effective prompt**: a request without system messages never
+  writes an empty one over the conversation's. The prompt is empty only when the conversation has no
+  system message and the request no `instructions`.
+- **When the restart cannot happen, the live process keeps its prompt** and answers the turn, and
+  `x-claudio-ignored` names what it could not take: `instructions` when they changed, `system` when
+  the system and developer messages did. Two cases: a held turn (function outputs go on in the
+  process that holds the calls; the reference's own function-calling example has `instructions` only
+  on its second request), and a chat with client tools while the API's own address is not known yet
+  (a restart could not load the stub). Never a 503 for a prompt alone; a schema or tool change still
+  is one there, since the answer would be wrong without it. The chat's row keeps the parts the
+  process runs with, so a chain (`previous_response_id`, or the resent history) applies the new
+  prompt on its next turn; a named delta without system messages keeps the old one.
+
+| The request | Live idle process | No process (cold) | Held turn | Client tools, address unknown |
+|---|---|---|---|---|
+| Carries the same effective prompt | kept | resumed with it | goes on, nothing named | kept |
+| Omits system messages (`previous_response_id`, or `X-Claudio-Chat-Id`) | kept: the chain's or the chat's part stays | resumed with it | goes on, nothing named | kept |
+| Changes `instructions` or system messages | restarted with the new prompt | resumed with the new prompt | goes on with the old one, named | kept with the old one, named |
+| Drops `instructions` | restarted without them | resumed without them | goes on, `instructions` named | kept, `instructions` named |
 
 ### State: `previous_response_id` and `store`
 
-`openai_responses (id PRIMARY KEY, chat_id, conversation_key, response, input_items, created_at)`,
+`openai_responses (id PRIMARY KEY, chat_id, conversation_key, response, input_items, created_at, conversation_system)`,
 indexed on `chat_id` and `created_at`: one row per response the client asked to keep, written once.
 `response` is the object as it was served (its `output` items are what a follow-up continues from),
-`input_items` the request's input with ids, and `conversation_key` the key after this response.
+`input_items` the request's input with ids, `conversation_key` the key after this response, and
+`conversation_system` the conversation part of the system prompt its chain reached ("The system
+prompt"), as the client sent it even when a held turn could not take it.
 `find` reads every column but `input_items`, which only the input-items route reads (`inputItems`).
 
 **Images in the stored input are references.** An `input_image` with a data URL is stored as a data

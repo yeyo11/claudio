@@ -92,6 +92,7 @@ interface Logged {
   resume?: string | null;
   prompts?: string | null;
   instruction?: string | null;
+  system?: string | null;
   stub?: { url: string; alwaysLoad: boolean; type: string; strict: boolean; discover: number | null; init: number; tools: Array<Record<string, unknown>> | null; unauthorized: number };
 }
 function logged(chatId: string): Logged[] {
@@ -713,4 +714,48 @@ test('the tool-call timeout setting round-trips through /settings/app and resets
   const after = await read();
   assert.equal(after.openaiToolCallTimeoutMinutes, 10);
   assert.equal(after.sources.openaiToolCallTimeoutMinutes, 'default');
+});
+
+// ---------- the system prompt with client tools ----------
+
+const system = (content: string) => ({ role: 'system', content });
+
+test('results sent under X-Claudio-Chat-Id without the system message name nothing ignored, and the next turn keeps the chat\'s prompt', async () => {
+  const messages = [system('Answer in French.'), user(directive('TOOLS', [{ name: 'lookup', input: { key: 's' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: [lookup] });
+  assert.equal(first.status, 200, await first.clone().text());
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  const call = body.choices[0]?.message.tool_calls?.[0];
+  assert.ok(call);
+  const named = { 'x-claudio-chat-id': chatId };
+  const second = await post({ model: 'sonnet', messages: [user('q'), echoed(body), toolMsg(call.id, 'value')], tools: [lookup] }, named);
+  assert.equal(second.status, 200, await second.clone().text());
+  assert.equal(second.headers.get('x-claudio-ignored'), null);
+  const third = await post({ model: 'sonnet', messages: [user('and now?')], tools: [lookup] }, named);
+  assert.equal(third.status, 200, await third.clone().text());
+  const turns = logged(chatId).filter((l) => l.prompt !== undefined);
+  assert.equal(turns.at(-1)?.system, 'Answer in French.');
+  assert.equal(turns.at(-1)?.pid, turns[0]?.pid, 'the same prompt keeps the process');
+});
+
+test('a new system message on an idle chat with client tools while the API address is unknown keeps the live process and is named, never a 503', async () => {
+  const first = await post({ model: 'sonnet', messages: [system('Be brief.'), user('one')], tools: [lookup] });
+  assert.equal(first.status, 200, await first.clone().text());
+  const chatId = chatOf(first);
+  const pid = core.runtime.get(chatId)?.pid;
+  const named = { 'x-claudio-chat-id': chatId };
+  const api = core.runtime.apiUrl;
+  core.runtime.apiUrl = null;
+  let second: Response;
+  try {
+    second = await post({ model: 'sonnet', messages: [system('Be thorough.'), user('two')], tools: [lookup] }, named, AbortSignal.timeout(10_000));
+  } finally {
+    core.runtime.apiUrl = api;
+  }
+  assert.equal(second.status, 200, await second.clone().text());
+  assert.deepEqual((second.headers.get('x-claudio-ignored') ?? '').split(', '), ['system']);
+  const turns = logged(chatId).filter((l) => l.prompt !== undefined);
+  assert.equal(turns.at(-1)?.system, 'Be brief.');
+  assert.equal(turns.at(-1)?.pid, pid);
 });

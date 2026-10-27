@@ -10,6 +10,12 @@ export interface StoredResponse {
   /** The response object as it was served */
   response: ResponseObject;
   /**
+   * The conversation part of the system prompt this response's chain had reached: every system and
+   * developer input item along it (`SystemPromptParts.conversation`). A `previous_response_id` turn
+   * extends it; null for a row written before the column existed
+   */
+  conversationSystem: string | null;
+  /**
    * The request's input, as `GET /v1/responses/:id/input_items` lists it. Images are references
    * (`parseResponsesRequest`), never their data: the upload holds the bytes already
    */
@@ -25,6 +31,7 @@ interface Row {
   chat_id: string;
   conversation_key: string;
   response: string;
+  conversation_system: string | null;
   created_at: string;
 }
 
@@ -33,6 +40,7 @@ const headOf = (r: Row): StoredResponseHead => ({
   chatId: r.chat_id,
   conversationKey: r.conversation_key,
   response: JSON.parse(r.response) as ResponseObject,
+  conversationSystem: r.conversation_system,
   createdAt: r.created_at,
 });
 
@@ -51,13 +59,13 @@ export class OpenAiResponseStore {
 
   save(entry: Omit<StoredResponse, 'createdAt'>): void {
     this.sql
-      .prepare('INSERT INTO openai_responses (id, chat_id, conversation_key, response, input_items, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(entry.id, entry.chatId, entry.conversationKey, JSON.stringify(entry.response), JSON.stringify(entry.inputItems), this.now());
+      .prepare('INSERT INTO openai_responses (id, chat_id, conversation_key, response, conversation_system, input_items, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(entry.id, entry.chatId, entry.conversationKey, JSON.stringify(entry.response), entry.conversationSystem, JSON.stringify(entry.inputItems), this.now());
   }
 
   /** The response, its chat and key; the input stays in its column, read only by `inputItems`. */
   find(id: string): StoredResponseHead | null {
-    const row = this.sql.prepare('SELECT id, chat_id, conversation_key, response, created_at FROM openai_responses WHERE id = ?').get(id) as Row | undefined;
+    const row = this.sql.prepare('SELECT id, chat_id, conversation_key, response, conversation_system, created_at FROM openai_responses WHERE id = ?').get(id) as Row | undefined;
     return row ? headOf(row) : null;
   }
 

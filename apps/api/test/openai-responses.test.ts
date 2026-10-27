@@ -744,3 +744,84 @@ test('new instructions on a held function call are named in x-claudio-ignored an
   await ok(await post({ model: 'sonnet', previous_response_id: two.id, instructions: 'Be brief.', input: 'next', tools: [lookup] }));
   assert.equal(turnsOf(chatId).at(-1)?.system, 'Be brief.');
 });
+
+// ---------- the system prompt's two parts ----------
+
+test('a developer message stays in the chat\'s system prompt under previous_response_id, on the live process and without a restart', async () => {
+  const firstRes = await post({ model: 'sonnet', input: [{ role: 'developer', content: 'Answer in French.' }, { role: 'user', content: 'one' }] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const second = await post({ model: 'sonnet', previous_response_id: first.id, input: 'two' });
+  await ok(second);
+  assert.equal(second.headers.get('x-claudio-ignored'), null);
+  const turns = turnsOf(chatId);
+  assert.deepEqual(
+    turns.map((t) => [t.prompt, t.system]),
+    [
+      ['one', 'Answer in French.'],
+      ['two', 'Answer in French.'],
+    ],
+  );
+  assert.equal(turns[1]?.pid, turns[0]?.pid, 'the same effective prompt keeps the process');
+});
+
+test('a cold resume runs with the chain\'s developer messages, after a plain turn and after held calls whose process died', async () => {
+  const firstRes = await post({ model: 'sonnet', input: [{ role: 'developer', content: 'Answer in French.' }, { role: 'user', content: 'one' }] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  await core.chats.interrupt(chatId).catch(() => undefined);
+  core.runtime.stop(chatId);
+  await until(() => core.runtime.get(chatId)?.pid === null);
+  await ok(await post({ model: 'sonnet', previous_response_id: first.id, input: 'two' }));
+  const resumed = turnsOf(chatId).at(-1);
+  assert.equal(resumed?.resume, chatId);
+  assert.equal(resumed?.system, 'Answer in French.', 'a request without system messages does not erase the chain\'s');
+
+  const heldRes = await post({ model: 'sonnet', input: [{ role: 'developer', content: 'Answer in German.' }, { role: 'user', content: directive('TOOLS', [{ name: 'lookup', input: { key: 'k' } }]) }], tools: [lookup] });
+  const held = await ok(heldRes);
+  const heldChat = chatOf(heldRes);
+  const pid = core.runtime.get(heldChat)?.pid;
+  assert.ok(pid);
+  process.kill(pid, 'SIGKILL');
+  await until(() => core.runtime.get(heldChat)?.pid === null);
+  const res = await post({ model: 'sonnet', previous_response_id: held.id, input: [output(callsOf(held)[0]?.call_id ?? '', 'value')], tools: [lookup] });
+  await ok(res);
+  assert.equal(res.headers.get('x-claudio-resume'), 'cold');
+  assert.equal(turnsOf(heldChat).at(-1)?.system, 'Answer in German.');
+});
+
+test('a held turn with the same instructions names nothing ignored, and the next turn keeps instructions and developer text', async () => {
+  const firstRes = await post({ model: 'sonnet', instructions: 'X', input: [{ role: 'developer', content: 'D' }, { role: 'user', content: directive('TOOLS', [{ name: 'lookup', input: { key: 'h' } }]) }], tools: [lookup] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const second = await post({ model: 'sonnet', previous_response_id: first.id, instructions: 'X', input: [output(callsOf(first)[0]?.call_id ?? '', 'value')], tools: [lookup] });
+  const two = await ok(second);
+  assert.equal(textOf(two), 'results: value');
+  assert.equal(second.headers.get('x-claudio-ignored'), null, 'nothing the client sent was left out');
+  await ok(await post({ model: 'sonnet', previous_response_id: two.id, instructions: 'X', input: 'next', tools: [lookup] }));
+  const turns = turnsOf(chatId);
+  assert.equal(turns.at(-1)?.system, 'X\n\nD');
+  assert.equal(turns.at(-1)?.pid, turns[0]?.pid, 'an unchanged prompt keeps the process');
+});
+
+test('new instructions on an idle chat with client tools while the API address is unknown keep the live process and are named, never a 503', async () => {
+  const firstRes = await post({ model: 'sonnet', instructions: 'Answer like a pirate.', input: 'one', tools: [lookup] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const pid = core.runtime.get(chatId)?.pid;
+  const api = core.runtime.apiUrl;
+  core.runtime.apiUrl = null;
+  let second: Response;
+  try {
+    second = await post({ model: 'sonnet', previous_response_id: first.id, instructions: 'Answer like a poet.', input: 'two', tools: [lookup] });
+  } finally {
+    core.runtime.apiUrl = api;
+  }
+  const two = await ok(second);
+  assert.deepEqual((second.headers.get('x-claudio-ignored') ?? '').split(', '), ['instructions']);
+  assert.equal(turnsOf(chatId).at(-1)?.system, 'Answer like a pirate.');
+  assert.equal(turnsOf(chatId).at(-1)?.pid, pid);
+  // Once the address is known, the next turn takes them
+  await ok(await post({ model: 'sonnet', previous_response_id: two.id, instructions: 'Answer like a poet.', input: 'three', tools: [lookup] }));
+  assert.equal(turnsOf(chatId).at(-1)?.system, 'Answer like a poet.');
+});

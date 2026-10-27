@@ -257,6 +257,7 @@ import { TerminalSettingsStore } from './terminals/settings.ts';
 import { TerminalStore } from './terminals/store.ts';
 import { OpenAiConversationStore } from './openai/conversations.ts';
 import { OpenAiResponseStore } from './openai/responses-store.ts';
+import { OpenAiChatPromptStore } from './openai/system-prompt.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
@@ -463,6 +464,8 @@ export class Core {
   readonly openaiConversations: OpenAiConversationStore;
   /** The responses `POST /v1/responses` stored for `previous_response_id` (docs/openai-compatible-api.md, phase 5) */
   readonly openaiResponses: OpenAiResponseStore;
+  /** The two parts of each API chat's system prompt (docs/openai-compatible-api.md, "The system prompt") */
+  readonly openaiChatPrompts: OpenAiChatPromptStore;
   private readonly reviewStore: ReviewStore;
   /** Every change worth telling a client about; what `GET /api/events` streams */
   readonly events = new EventBus();
@@ -719,6 +722,7 @@ export class Core {
     this.reviewStore = new ReviewStore(this.db.connection);
     this.openaiConversations = new OpenAiConversationStore(this.db.connection);
     this.openaiResponses = new OpenAiResponseStore(this.db.connection);
+    this.openaiChatPrompts = new OpenAiChatPromptStore(this.db.connection);
     this.permissions = new PermissionBroker();
     this.credentials = new CredentialStore(config, this.vault);
     this.security = new AuthStore(config);

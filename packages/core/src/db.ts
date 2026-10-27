@@ -1426,6 +1426,18 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    );
    CREATE INDEX openai_responses_chat ON openai_responses (chat_id);
    CREATE INDEX openai_responses_created ON openai_responses (created_at);`,
+
+  // The system prompt of an API chat in its two parts (docs/openai-compatible-api.md, "The system
+  // prompt"): per stored response, the conversation part its chain had reached, which a
+  // `previous_response_id` turn extends; per chat, the parts its process runs with, which a request
+  // naming the chat without system messages keeps, across a restart too
+  `ALTER TABLE openai_responses ADD COLUMN conversation_system TEXT;
+   CREATE TABLE openai_chat_prompts (
+     chat_id      TEXT PRIMARY KEY,
+     instructions TEXT NOT NULL,
+     conversation TEXT NOT NULL,
+     updated_at   TEXT NOT NULL
+   );`,
 ];
 
 /**
@@ -2169,6 +2181,7 @@ export class Db {
       this.db.prepare('DELETE FROM chat_upload_scans WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_responses WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM openai_chat_prompts WHERE chat_id = ?').run(id);
     });
   }
 
