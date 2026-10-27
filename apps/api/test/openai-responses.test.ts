@@ -826,6 +826,37 @@ test('new instructions on an idle chat with client tools while the API address i
   assert.equal(turnsOf(chatId).at(-1)?.system, 'Answer like a poet.');
 });
 
+test('a new developer message while the live process must keep its prompt is named as input, never as system', async () => {
+  const firstRes = await post({ model: 'sonnet', input: [{ role: 'developer', content: 'D1' }, { role: 'user', content: 'one' }], tools: [lookup] });
+  await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const api = core.runtime.apiUrl;
+  core.runtime.apiUrl = null;
+  let second: Response;
+  try {
+    second = await post({ model: 'sonnet', input: [{ role: 'developer', content: 'D2' }, { role: 'user', content: 'two' }], tools: [lookup] }, { 'x-claudio-chat-id': chatId });
+  } finally {
+    core.runtime.apiUrl = api;
+  }
+  await ok(second);
+  assert.deepEqual((second.headers.get('x-claudio-ignored') ?? '').split(', '), ['input']);
+});
+
+test('a chat without its prompt row keeps its process\'s prompt and writes no row from the joined one', async () => {
+  const firstRes = await post({ model: 'sonnet', instructions: 'I', input: [{ role: 'developer', content: 'C' }, { role: 'user', content: 'one' }] });
+  await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  // A chat from before the rows were kept
+  core.db.connection.prepare('DELETE FROM openai_chat_prompts WHERE chat_id = ?').run(chatId);
+  const second = await post({ model: 'sonnet', instructions: 'J', input: 'two' }, { 'x-claudio-chat-id': chatId });
+  await ok(second);
+  const turns = turnsOf(chatId);
+  assert.equal(turns.at(-1)?.system, 'I\n\nC', 'the old instructions are not carried as the conversation part');
+  assert.equal(turns.at(-1)?.pid, turns[0]?.pid);
+  assert.equal(core.openaiChatPrompts.find(chatId), null, 'no row is written from a guess');
+  assert.ok((second.headers.get('x-claudio-ignored') ?? '').split(', ').includes('instructions'));
+});
+
 // ---------- input_items round trip ----------
 
 test('input_items replayed with the output as the next input reach the same chat, images read back from their uploads', async () => {

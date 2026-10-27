@@ -754,8 +754,12 @@ test('a new system message on an idle chat with client tools while the API addre
     core.runtime.apiUrl = api;
   }
   assert.equal(second.status, 200, await second.clone().text());
-  assert.deepEqual((second.headers.get('x-claudio-ignored') ?? '').split(', '), ['system']);
+  assert.deepEqual((second.headers.get('x-claudio-ignored') ?? '').split(', '), ['messages'], 'named by the field Chat Completions has');
   const turns = logged(chatId).filter((l) => l.prompt !== undefined);
   assert.equal(turns.at(-1)?.system, 'Be brief.');
   assert.equal(turns.at(-1)?.pid, pid);
+  // Once the address is known, a named request without system messages runs the one the client sent last
+  const third = await post({ model: 'sonnet', messages: [user('three')], tools: [lookup] }, named);
+  assert.equal(third.status, 200, await third.clone().text());
+  assert.equal(logged(chatId).filter((l) => l.prompt !== undefined).at(-1)?.system, 'Be thorough.');
 });

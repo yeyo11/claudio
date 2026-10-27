@@ -11,6 +11,7 @@ import {
   CLIENT_TOOL_PREFIX,
   clientToolsProblem,
   effectiveSystemPrompt,
+  hasSystemMessages,
   listedCallIds,
   renderOpenAiResultsCold,
   RESPONSES_RESULTS,
@@ -271,9 +272,11 @@ interface ParamNames {
   effort: string;
   /** Where the images are, named by a refusal of one (an upload that failed): `messages`, `input` */
   images: string;
+  /** Responses' `instructions`, which Chat Completions does not have */
+  instructions: string | null;
 }
-const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort', images: 'messages' };
-const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort', images: 'input' };
+const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort', images: 'messages', instructions: null };
+const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort', images: 'input', instructions: 'instructions' };
 
 /**
  * What this surface refuses although the parser reads it: the legacy `functions`, tools it cannot
@@ -565,7 +568,7 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
    * After a turn that answered (completed or cut short), with its chat, key, the system prompt it
    * asked for and the uploads this turn saved its images to
    */
-  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts, images: ReadonlyMap<OpenAiImageRef, string>): void;
+  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts | null, images: ReadonlyMap<OpenAiImageRef, string>): void;
   whole(translator: T): WholeAnswer;
 }
 
@@ -742,7 +745,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         if (end?.kind !== 'response') return;
         const inputItems = storedInputItems(request.inputItems, (image, digest) => images.get(image) ?? earlierUpload(chatId, digest) ?? savedUpload(chatId, image));
         // The chain's part as the client asked for it, taken or not by a held turn: the next turn of the chain applies it
-        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, conversationSystem: system.conversation, inputItems });
+        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, conversationSystem: system?.conversation ?? null, inputItems });
       },
       whole: (translator) => wholeAnswer(translator.end(), (end) => end.response),
     });
@@ -878,8 +881,13 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       // this is its only check of the results against what the CLI waits on
       const heldRefusal = held && session ? session.heldProblem(trailing, names.results) : null;
       if (heldRefusal) throw fail(heldRefusal);
-      const systemParts = systemPromptParts(request.messages, plan.instructions, conversationBaseOf(named, plan.previous, target));
-      const system = effectiveSystemPrompt(systemParts);
+      const base = conversationBaseOf(named, plan.previous, target);
+      // A chat from before the parts were kept, continued without system messages: its conversation
+      // part is unknown (its process only has the join), so the process keeps the prompt it has and
+      // no row is written from a guess
+      const unknownPart = base === null && !hasSystemMessages(request.messages) && existing !== null;
+      const systemParts = unknownPart ? null : systemPromptParts(request.messages, plan.instructions, base ?? { kind: 'whole' });
+      const system = systemParts ? effectiveSystemPrompt(systemParts) : (core.runtime.systemPromptOf(existing ?? '') ?? '');
 
       const prompt = held ? { prompt: '', images: [] } : target.kind === 'new' ? turn.cold : cold ? renderOpenAiResultsCold(request.messages) : turn.delta;
       const uploaded = await uploadOpenAiImages(prompt.images, {
@@ -961,8 +969,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       }
       const chatId = current.chatId;
       if (chatId === null) throw fail({ kind: 'server', message: 'The chat started without an id.' });
-      if (applied) rememberSystemPrompt(req, chatId, systemParts);
-      else ignored.push(...keptPromptNames(chatId, systemParts));
+      if (systemParts) {
+        if (!applied) ignored.push(...keptPromptNames(chatId, systemParts, names));
+        // Taken or not: a process that had to keep its prompt is restarted with the row's parts by
+        // the next turn that can, which a named request without system messages rebuilds from
+        rememberSystemPrompt(req, chatId, systemParts);
+      } else if (plan.instructions && names.instructions) ignored.push(names.instructions);
       if (gone && !current.finished) void core.chats.interrupt(chatId).catch(() => undefined);
 
       let remembered = false;
@@ -1101,21 +1113,27 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   }
 
   /**
-   * The conversation part a chat runs with: its row, or for a chat from before the rows its live
-   * process's prompt, the best guess there is (no `instructions` reached the CLI any other way then).
+   * The conversation part a chat runs with: its row, or null for a chat from before the rows. Never
+   * read back from the process's prompt, which is the join and would carry old `instructions` along.
    */
-  function chatConversation(chatId: string): string {
-    return core.openaiChatPrompts.find(chatId)?.conversation ?? core.runtime.systemPromptOf(chatId) ?? '';
+  function chatConversation(chatId: string): string | null {
+    return core.openaiChatPrompts.find(chatId)?.conversation ?? null;
   }
 
-  /** What the request's system and developer messages build on (`ConversationBase`). */
-  function conversationBaseOf(named: string | undefined, previous: Previous | null, target: Target): ConversationBase {
-    if (previous) return { kind: 'chain', conversation: previous.conversation ?? chatConversation(previous.chatId) };
-    if (named !== undefined && target.kind === 'existing') return { kind: 'named', conversation: chatConversation(target.chatId) };
+  /** What the request's system and developer messages build on (`ConversationBase`); null when that part is unknown. */
+  function conversationBaseOf(named: string | undefined, previous: Previous | null, target: Target): ConversationBase | null {
+    if (previous) {
+      const conversation = previous.conversation ?? chatConversation(previous.chatId);
+      return conversation === null ? null : { kind: 'chain', conversation };
+    }
+    if (named !== undefined && target.kind === 'existing') {
+      const conversation = chatConversation(target.chatId);
+      return conversation === null ? null : { kind: 'named', conversation };
+    }
     return { kind: 'whole' };
   }
 
-  /** The parts the chat's process runs with now. A failed write is logged: the turn already runs. */
+  /** The parts the chat's next process runs with. A failed write is logged: the turn already runs. */
   function rememberSystemPrompt(req: FastifyRequest, chatId: string, parts: SystemPromptParts): void {
     try {
       core.openaiChatPrompts.save(chatId, parts);
@@ -1125,13 +1143,18 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   }
 
   /**
-   * What `x-claudio-ignored` names when the process keeps its prompt: `instructions` when they are
-   * what changed, `system` when the system and developer messages are.
+   * What `x-claudio-ignored` names when the process keeps its prompt, in the request's API's words:
+   * `instructions` (Responses only) when they are what changed, the history's field (`messages`,
+   * `input`) when its system and developer messages are. Read before this turn's parts are saved.
    */
-  function keptPromptNames(chatId: string, parts: SystemPromptParts): string[] {
-    const running = core.openaiChatPrompts.find(chatId);
-    const changed = running ? [...(running.instructions !== parts.instructions ? ['instructions'] : []), ...(running.conversation !== parts.conversation ? ['system'] : [])] : [];
-    return changed.length ? changed : [parts.instructions ? 'instructions' : 'system'];
+  function keptPromptNames(chatId: string, parts: SystemPromptParts, names: ParamNames): string[] {
+    const before = core.openaiChatPrompts.find(chatId);
+    const history = names.results.param;
+    const { instructions } = names;
+    const changed = before
+      ? [...(instructions && before.instructions !== parts.instructions ? [instructions] : []), ...(before.conversation !== parts.conversation ? [history] : [])]
+      : [];
+    return changed.length ? changed : [instructions && parts.instructions ? instructions : history];
   }
 
   /** A chat the OpenAI surface started, that still exists. */

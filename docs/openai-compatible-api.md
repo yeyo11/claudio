@@ -716,10 +716,19 @@ reference and the conversation-state guide). So an API chat's prompt is kept in 
 
 The **effective prompt** is `instructions`, a blank line, then the conversation part; that is what
 `--append-system-prompt` carries. `openai_chat_prompts (chat_id PRIMARY KEY, instructions,
-conversation, updated_at)` holds, per chat, the parts its process runs with: what a named request
-without system messages keeps, across a server restart too, and what says which part a turn could
-not take. It is written when a turn starts with the effective prompt; a write that fails is logged
-and the turn goes on. The row goes with the chat (`Db.deleteChat`).
+conversation, updated_at)` holds, per chat, the parts the client asked for last: what a named
+request without system messages keeps, across a server restart too, and what the chat's next
+process runs. It is written on every turn, also when the live process had to keep its old prompt
+(below), so the next turn that can restart applies it; a write that fails is logged and the turn
+goes on. The row goes with the chat (`Db.deleteChat`).
+
+**A chat without a row** (one started before the rows existed, which only dev data has) has an
+unknown conversation part: its process holds only the join, and reading the part back from it would
+carry old `instructions` along as if they were system messages. Such a chat, continued with
+`X-Claudio-Chat-Id` or a `previous_response_id` whose row has no `conversation_system`, and a request
+without system or developer messages, keeps its process's prompt as it is: the request's
+`instructions` are not applied (`x-claudio-ignored` names them) and no row is written. A request
+with system messages starts the part afresh from them, and writes the row.
 
 `--append-system-prompt` is fixed when the CLI starts, so:
 
@@ -731,14 +740,15 @@ and the turn goes on. The row goes with the chat (`Db.deleteChat`).
   writes an empty one over the conversation's. The prompt is empty only when the conversation has no
   system message and the request no `instructions`.
 - **When the restart cannot happen, the live process keeps its prompt** and answers the turn, and
-  `x-claudio-ignored` names what it could not take: `instructions` when they changed, `system` when
-  the system and developer messages did. Two cases: a held turn (function outputs go on in the
-  process that holds the calls; the reference's own function-calling example has `instructions` only
-  on its second request), and a chat with client tools while the API's own address is not known yet
+  `x-claudio-ignored` names what it could not take, in the words of the API the request used:
+  `instructions` (Responses only) when they changed, and the history's field when the system and
+  developer messages did: `messages` on Chat Completions, `input` on Responses. Two cases: a held
+  turn (function outputs go on in the process that holds the calls; the reference's own
+  function-calling example has `instructions` only on its second request), and a chat with client tools while the API's own address is not known yet
   (a restart could not load the stub). Never a 503 for a prompt alone; a schema or tool change still
-  is one there, since the answer would be wrong without it. The chat's row keeps the parts the
-  process runs with, so a chain (`previous_response_id`, or the resent history) applies the new
-  prompt on its next turn; a named delta without system messages keeps the old one.
+  is one there, since the answer would be wrong without it. The chat's row takes the new parts all
+  the same, so the next turn that can restart applies them, a named delta without system messages
+  included.
 
 | The request | Live idle process | No process (cold) | Held turn | Client tools, address unknown |
 |---|---|---|---|---|
