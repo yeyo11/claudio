@@ -132,6 +132,9 @@ test('a run a restart cut off continues in its own chat; with no chat to continu
     itemId = item.id;
     const run = await until(() => core.flow.runs(project.id)[0], (r) => !!r?.chatId && r.state === 'running', 'the run to start');
     chatId = run!.chatId!;
+    // The fake logs its argv only once Node is up, which under load lands after the run is marked
+    // running: counted later, the cut run's own first spawn would read as a fresh chat after the restart
+    await until(() => spawnsOf(spawns).some((l) => l.includes(chatId)), (seen) => seen, 'the cut run to log its spawn');
   } finally {
     core.shutdown();
   }
