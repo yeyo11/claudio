@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T16:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-24T16:00:00Z
 tags:
     - decision
     - e2e
@@ -9,6 +9,10 @@ tags:
     - agents
 ---
 # Decision: the e2e suite runs on GitHub, never on this machine
+
+> **Superseded on 2026-10-24** by [the e2e suite runs here through Sluice](e2e-through-sluice.md):
+> Sluice's queue removed the load that froze the host, so the suite runs here as the `e2e` gate.
+> `pnpm e2e:remote` and the GitHub workflow described below stay.
 
 Taken by the owner on 2026-10-17. The browser suite (`e2e/`) runs only on GitHub Actions. On a
 developer's machine `pnpm e2e` refuses to start, and agents run the specs they need with
@@ -111,4 +115,4 @@ before it):
 
 ## Related
 
-[[development.md]] · [[resource-control.md]] · [[plans/ci-e2e-shards.md]] · [[plans/verify-faster.md]] · [[plans/e2e-harness-waits.md]] · [[plans/e2e-flakes-under-load.md]]
+[[decisions/e2e-through-sluice.md]] · [[development.md]] · [[resource-control.md]] · [[plans/ci-e2e-shards.md]] · [[plans/verify-faster.md]] · [[plans/e2e-harness-waits.md]] · [[plans/e2e-flakes-under-load.md]]

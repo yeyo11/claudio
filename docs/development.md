@@ -22,8 +22,9 @@ pnpm install
 pnpm dev          # API on :8797, UI on :5181 (proxies /api)
 pnpm typecheck
 pnpm test         # unit tests (shared, core, mcp, web, ui, chat-ui, desktop) + API integration (node:test)
+sluice run e2e -v -- [specs]  # browser suite here, through Sluice's queue (see below); agents use `verify`
 pnpm e2e:remote [specs] # browser suite on GitHub Actions, for the pushed branch (see below)
-pnpm build && E2E_ALLOW_LOCAL=1 pnpm e2e <spec>  # here, only for a person watching one spec
+pnpm build && E2E_ALLOW_LOCAL=1 pnpm e2e <spec>  # outside the queue, only for a person watching one spec
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
                          # E2E_SERVER_START_TIMEOUT (120000 ms) bounds the wait for the API's /api/health
                          # E2E_SHARDS=N runs N isolated shards side by side (default: cores/2, at most 4);
@@ -58,10 +59,14 @@ person's browser is the peer: `pnpm --filter @claudio/web build`, then start the
 `CLAUDIO_WEB_DIST=<checkout>/apps/web/dist`, its own `CLAUDIO_DATA_DIR` and `PORT`, and, on the LAN,
 `HOST=0.0.0.0`, a token and `CLAUDIO_ALLOWED_HOSTS` ([terminal.md](terminal.md)).
 
-**The browser suite runs on GitHub, not here.** `pnpm e2e` refuses to start outside CI unless
-`E2E_ALLOW_LOCAL=1` is set, and agents never set it: each run boots a server and a Chrome per shard as
-if it had the machine to itself, and a few agents doing that at once froze the host
-([decisions/e2e-on-github.md](decisions/e2e-on-github.md)). `pnpm e2e:remote [spec prefixes]`
+**The browser suite runs here only through Sluice.** `pnpm e2e` refuses to start outside a Sluice job
+(`SLUICE_JOB`) or CI unless `E2E_ALLOW_LOCAL=1` is set, and agents never set it: each run boots a
+server and a Chrome per shard as if it had the machine to itself, and a few agents doing that at once,
+outside any queue, froze the host ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)).
+The `e2e` gate (`pnpm run e2e:gate`: `pnpm build`, then the runner on two shards, with failure
+screenshots in `e2e-shots/`) waits for the machine's budget like any other job, and a pass is cached
+per tree; spec prefixes go after `--` (`sluice run e2e -v -- config palette`) or in `verify`'s
+`extra_args`. It has no hook: run it when a change needs it. `pnpm e2e:remote [spec prefixes]`
 dispatches `.github/workflows/e2e.yml` on the pushed branch (4 shards for the whole suite, one per two
 spec files otherwise, `--shards N` to choose), waits up to `E2E_REMOTE_WAIT` seconds (540) and exits
 3 with a `--wait <run id>` line to go on with; a failure downloads each failed shard's `e2e.log` and
@@ -89,13 +94,13 @@ same way, with a one-off script against the same kind of sandbox.
 ## Checks through Sluice
 
 The repository's checks run through [Sluice](https://github.com/josegarridodigio/sluice), the verification
-queue and cache the agents on a machine share (`.sluice.toml`, 0.5.0 or later). Three gates: `lint`
+queue and cache the agents on a machine share (`.sluice.toml`, 0.5.0 or later). Three gates run from hooks: `lint`
 and `typecheck` before each commit, and `test` (`pnpm test` with `CI=1`) before each push, through
 the hooks in `.githooks/` (`git config core.hooksPath .githooks` once per clone; `sluice init` sets
 it). A tree that already passed is answered from the cache, so several agents verifying the same
-commit run it once. Without `sluice` on the `PATH` the hooks do nothing. The e2e suite is not a
-gate: it runs on GitHub ([decisions/e2e-on-github.md](decisions/e2e-on-github.md)). An agent
-verifies with Sluice's `verify` tool instead of running the commands itself.
+commit run it once. Without `sluice` on the `PATH` the hooks do nothing. A fourth gate, `e2e`, has no
+hook: it runs the browser suite on demand ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)).
+An agent verifies with Sluice's `verify` tool instead of running the commands itself.
 
 ## Monorepo layout
 

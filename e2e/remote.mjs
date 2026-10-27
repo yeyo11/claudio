@@ -1,5 +1,5 @@
 // Runs the e2e suite on GitHub Actions (.github/workflows/e2e.yml) for the pushed branch, and waits
-// for it. The suite never runs on a developer's machine (docs/decisions/e2e-on-github.md).
+// for it. On a developer's machine the suite runs as Sluice's `e2e` gate (docs/decisions/e2e-through-sluice.md).
 //   pnpm e2e:remote                    the whole suite, 4 shards
 //   pnpm e2e:remote config palette     only the specs those prefixes name, as `pnpm e2e` takes them
 //   pnpm e2e:remote --shards 2 a11y    a shard count of your own, 1 to 4

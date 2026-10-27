@@ -9,7 +9,7 @@
 - [ ] `pnpm typecheck`
 - [ ] `pnpm test`
 - [ ] `pnpm build`
-- [ ] `pnpm e2e:remote <specs>` on GitHub for the specs it touches (if it touches the UI or a route); the pull request runs the whole suite
+- [ ] The e2e specs it touches, through Sluice (`sluice run e2e -- <specs>`) or on GitHub (`pnpm e2e:remote <specs>`) (if it touches the UI or a route); the pull request runs the whole suite
 - [ ] `pnpm --filter @claudio/api openapi:schemas` (if it touches a shared type)
 - [ ] A summary and a tag in `apps/api/src/openapi/routes.ts` and a row in `docs/rest-api.md` (if it adds or changes a route)
 - [ ] A document under `docs/` for the feature or decision

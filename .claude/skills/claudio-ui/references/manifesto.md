@@ -84,5 +84,5 @@ point is a live row with data**, not a toggle:
 
 ## 9. What is deterministic is not discussed
 
-The invariants in `invariants.md` run in hooks, in `pnpm test` and in the e2e suite on GitHub (`pnpm e2e:remote`). They are not
+The invariants in `invariants.md` run in hooks, in `pnpm test` and in the e2e suite (Sluice's `e2e` gate, or `pnpm e2e:remote` on GitHub). They are not
 opinion. If a check fails, the work is not done, however good it looks.

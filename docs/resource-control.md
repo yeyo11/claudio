@@ -114,9 +114,9 @@ the right numbers for a given server.
   (`recentProcessTable`). Stopping a chat or cancelling a command reads it fresh: a stale table could
   name a pid the system has reused.
 - **The E2E port is fixed unless set** (`E2E_PORT || 8809` in `e2e/run.mjs`; parallel shards take
-  the ports after it): two runs on one machine with the same port collide. The suite now runs only
-  on GitHub Actions, one runner per shard, and refuses to start on this machine
-  ([decisions/e2e-on-github.md](decisions/e2e-on-github.md)).
+  the ports after it): two runs on one machine with the same port collide. On this machine the suite
+  now runs only as a Sluice job, which takes a free port, or on GitHub Actions, one runner per shard
+  ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)).
 - **The overview shows the figures in a Machine widget** (memory bar, pressure, admission, chats with
   their resident memory), polled every 10 s by `useSystemLoad` and `useSystemProcesses`; the history is
   on the Machine page. Neither shows the load per chat over time: only its resident memory and its

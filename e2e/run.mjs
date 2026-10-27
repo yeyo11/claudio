@@ -66,17 +66,21 @@ const SPEC_LIMIT_MS = envMs('E2E_SPEC_TIMEOUT', 180_000);
 const RUN_LIMIT_MS = envMs('E2E_TIMEOUT', 1_500_000);
 const specsDir = process.env.E2E_SPECS_DIR ? resolve(process.env.E2E_SPECS_DIR) : join(here, 'specs');
 
-// The suite runs on GitHub, never on a developer's machine (docs/decisions/e2e-on-github.md): each
-// run boots a server and a Chrome per shard as if it had the machine to itself, and a few agents
-// doing that at once froze the host. E2E_ALLOW_LOCAL=1 is the owner's way to watch one spec here.
-if (process.env.CI !== 'true' && process.env.E2E_ALLOW_LOCAL !== '1') {
+// On a developer's machine the suite runs only as a Sluice job (docs/decisions/e2e-through-sluice.md):
+// each run boots a server and a Chrome per shard as if it had the machine to itself, and a few agents
+// doing that at once, outside any queue, froze the host. Sluice sets SLUICE_JOB in every job it
+// runs, and admits a job only when the machine's budget has room for it. GitHub sets CI=true.
+// E2E_ALLOW_LOCAL=1 is the owner's way to watch one spec here.
+if (process.env.CI !== 'true' && !process.env.SLUICE_JOB && process.env.E2E_ALLOW_LOCAL !== '1') {
   console.error(
     [
-      'The e2e suite does not run on this machine: it runs on GitHub Actions.',
-      '  pnpm e2e:remote                  the whole suite on the pushed branch, 4 shards',
-      '  pnpm e2e:remote config palette   only some specs (the same prefixes `pnpm e2e` takes)',
-      'Push the branch first. See .claude/skills/e2e-on-github/SKILL.md.',
-      'E2E_ALLOW_LOCAL=1 runs it here anyway; it is for a person debugging one spec, never for an agent.',
+      'The e2e suite runs through Sluice on this machine, or on GitHub Actions.',
+      '  verify, gates ["e2e"]                         the whole suite, queued and cached (Sluice MCP tool)',
+      '  verify, gates ["e2e"], extra_args ["config"]   only some specs (the same prefixes `pnpm e2e` takes)',
+      '  sluice run e2e -v -- config palette           the same, from a terminal',
+      '  pnpm e2e:remote [specs]                       on GitHub, for the pushed branch',
+      'See .claude/skills/run-e2e/SKILL.md.',
+      'E2E_ALLOW_LOCAL=1 runs it here outside the queue; it is for a person debugging one spec, never for an agent.',
     ].join('\n'),
   );
   process.exit(2);
@@ -130,7 +134,8 @@ const mine = shard ? new Set(splitSpecs(entries, timings, shard.count)[shard.ind
 const specs = mine ? allSpecs.filter((f) => mine.has(f)) : allSpecs;
 const loaded = mine ? allLoaded.filter((e) => mine.has(e.file)) : allLoaded;
 
-const PORT = Number(process.env.E2E_PORT || 8809);
+// Sluice may admit two e2e jobs at once (two worktrees, a budget with room): each takes a free port
+const PORT = Number(process.env.E2E_PORT || (process.env.SLUICE_JOB ? await freePort('tcp') : 8809));
 const baseUrl = `http://127.0.0.1:${PORT}`;
 
 // GitHub's latest-release shape, reduced to the fields the check reads
