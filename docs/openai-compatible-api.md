@@ -991,6 +991,13 @@ in process through the real routes, core and stub (no dev server), 2026-10-26, 0
 - **A chain on a chat with no prompt row** (only dev data from before the unreleased migration):
   a request's new system or developer messages replace the chain's earlier ones instead of being
   added after them, since the chain's part is unknown ("The system prompt").
+- **Run-slot eviction edge cases.** A `/v1` turn for a chat whose leaving process already has a
+  person's message waiting for the replacement answers `409` (working on another turn) and the client
+  retries. A chat whose process has exited but whose pipes are not closed yet is leaving with no pid;
+  a `/v1` resume racing the queue's own respawn can be refused as "already has a live execution"
+  (this predates eviction). A replacement's reserved slot (`slotReserved`) would stay pinned if the
+  old process's `close` never drained its queue; no path is known to do that. A warm chat past the
+  idle timeout that still runs background work counts as free, as it did before eviction.
 - The SDK parse check was not run in the repository's tests (the package is not a dependency); the
   real-client tests below ran the official SDKs from outside it.
 
@@ -1013,6 +1020,9 @@ idle process holds a run slot until the idle timeout (10 minutes). Each new conv
 of Open WebUI's background tasks, is a new chat, so about eight of them fill `maxConcurrentRuns` (8)
 and every other request, a person's chats included, answers `429` until they expire. Both SDK runs
 hit it when run one after the other, and Open WebUI reaches it in about three conversations.
+
+With the rule below in place, the same suites run back to back on one server (Node SDK, Node images,
+Python SDK, Python images: 24 of 24, Claude Code 2.1.311) made 11 evictions and no `429`.
 
 The rule as built: when a start (any start, a person's chat included) finds every slot taken, the
 least recently used idle process of an API chat gives its slot up. Its input is ended, as the idle

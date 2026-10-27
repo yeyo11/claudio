@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-26T19:30:00Z
-updated_at: 2026-10-27T04:00:00Z
+updated_at: 2026-10-27T12:00:00Z
 tags:
     - plan
     - goal
@@ -36,9 +36,14 @@ until every box under "Done means" is ticked. It assumes the plan
   fixed in `78b2ca25a`, then passed 4/4; Open WebUI ran a three-turn conversation correctly.
   Deviation from step 2: the test server used the owner's own Claude Code login, because a fresh
   `CLAUDE_CONFIG_DIR` has no sign-in; only Claudio's data was isolated.
-- **Open choice for the owner (stop point):** idle API processes hold run slots for 10 minutes, so
-  about eight conversations (three in Open WebUI, whose background tasks are chats too) make every
-  other request answer 429. Asked three times on 2026-10-27, not answered yet.
+- **Owner's choices, 2026-10-27.** Idle API processes give their slot up to a new run when every slot
+  is taken (least recently used first, never a person's chats, including API chats open in the UI);
+  API chats keep the app's default tool preset, with the risk documented. Eviction was reviewed three
+  times and fixed (`cbe289c1d`, `1310e8aba`, `ba853dc0e`); the remaining edge cases are listed as
+  limits. Rerun of every real-client suite back to back: 24 of 24, 11 evictions, no `429`.
+- **Images.** Both SDKs, 11 of 11: data URLs, two images in a message, a follow-up without them, a
+  public URL, a refused loopback URL, a Responses chain and `input_items`. Video is not served; every
+  way of sending one is a clear `400`.
 - **Integration.** `origin/main` merged in `e240bf472`: conflicts in the migrations (main's
   `audit.route` shipped in v0.9.0 and keeps its place), their upgrade test, `docs/rest-api.md` and
   `docs/securing.md`; audit strings, OpenAPI schemas and the web strings snapshot regenerated.
@@ -52,9 +57,8 @@ until every box under "Done means" is ticked. It assumes the plan
 ## Done means
 
 - [x] Phase 5 is built, reviewed (`code-review` at high), its findings fixed or disproved with a test.
-- [ ] The surface works with real clients (see "Real-client tests"), and what they showed is in
-      `docs/openai-compatible-api.md`. *(Tests done and written up; open until the owner chooses how
-      idle API processes treat run slots, see "Progress".)*
+- [x] The surface works with real clients (see "Real-client tests"), and what they showed is in
+      `docs/openai-compatible-api.md`.
 - [x] The branch contains `origin/main`, every conflict resolved, OpenAPI schemas regenerated, and
       `verify` passes **lint, typecheck, test and e2e** on the final tree.
 - [x] `/ui-review` is SHIPPABLE on the final tree for the screens the stack touches (run again only if
