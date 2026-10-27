@@ -356,6 +356,15 @@ test('text.format json_schema answers the structured output as the message text,
 
 // ---------- streaming ----------
 
+test('every Responses stream event carries data, and none opens with a retry field', async () => {
+  const res = await post({ model: 'sonnet', input: 'Frames', stream: true });
+  const text = await res.text();
+  assert.doesNotMatch(text, /^retry:/m);
+  const events = text.split(/\n\n/).map((frame) => frame.split('\n').filter((line) => line && !line.startsWith(':'))).filter((lines) => lines.length > 0);
+  assert.ok(events.length > 1);
+  for (const lines of events) assert.ok(lines.some((line) => line.startsWith('data:')), `an event without data: ${JSON.stringify(lines)}`);
+});
+
 test('a streamed text answer is the reference sequence of named events with a rising sequence_number', async () => {
   const res = await post({ model: 'sonnet', input: 'Stream me', stream: true });
   assert.equal(res.status, 200);

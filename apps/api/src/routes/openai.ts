@@ -1041,7 +1041,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       };
 
       if (turn.stream) {
-        const stream: SseStream = openStream(req, reply, { headers: out, trailers: [COST_HEADER] });
+        const stream: SseStream = openStream(req, reply, { headers: out, trailers: [COST_HEADER], retry: false });
         // The stream drops what comes after the client left or after its end (`SseStream.closed`)
         const write = (item: Item): void => {
           remember();

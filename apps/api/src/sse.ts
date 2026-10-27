@@ -32,6 +32,12 @@ export interface StreamOptions {
   headers?: Record<string, string>;
   /** Headers whose value is only known at the end, sent as HTTP trailers by `end()` */
   trailers?: string[];
+  /**
+   * Whether to open with a `retry:` field. Claudio's own streams want it, so the panel reconnects on a
+   * fixed delay; OpenAI's never send one, and its Python SDK reads the empty event it makes as JSON
+   * and fails. Defaults to true.
+   */
+  retry?: boolean;
 }
 
 export function openStream(req: FastifyRequest, reply: FastifyReply, options: StreamOptions = {}): SseStream {
@@ -49,7 +55,8 @@ export function openStream(req: FastifyRequest, reply: FastifyReply, options: St
   });
   // Written at once: Node holds the headers until the first write, and a client that asks only for
   // what is new has nothing replayed, so it would not see the stream open until the first heartbeat
-  reply.raw.write(`retry: ${RETRY_MS}\n\n`);
+  if (options.retry === false) reply.raw.flushHeaders();
+  else reply.raw.write(`retry: ${RETRY_MS}\n\n`);
 
   // The stream keeps its own word on whether it may still write: a turn's last items can arrive after
   // the client hung up or after `end()`, and a write then throws (ERR_STREAM_WRITE_AFTER_END) or goes

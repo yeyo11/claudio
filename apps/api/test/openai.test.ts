@@ -285,6 +285,17 @@ test('without include_usage a stream has no usage chunk', async () => {
   assert.ok(chunks.every((c) => c.choices.length === 1 && c.usage === null));
 });
 
+// OpenAI's streams carry data in every event. An event made of fields alone (a `retry:` the panel's
+// streams open with) reaches the Python SDK as empty data, which it parses as JSON and fails on
+test('every event of a stream carries data, and none opens with a retry field', async () => {
+  const res = await post({ model: 'sonnet', stream: true, messages: [user('frames')] });
+  const text = await res.text();
+  assert.doesNotMatch(text, /^retry:/m);
+  const events = text.split(/\n\n/).map((frame) => frame.split('\n').filter((line) => line && !line.startsWith(':'))).filter((lines) => lines.length > 0);
+  assert.ok(events.length > 1);
+  for (const lines of events) assert.ok(lines.some((line) => line.startsWith('data:')), `an event without data: ${JSON.stringify(lines)}`);
+});
+
 test('a turn that fails mid-stream ends with an error chunk and [DONE]; whole, it is a 500 in OpenAI\'s shape', async () => {
   const streamed = await post({ model: 'sonnet', stream: true, messages: [user('FAIL boom')] });
   assert.equal(streamed.status, 200);

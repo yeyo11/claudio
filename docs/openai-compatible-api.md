@@ -880,8 +880,10 @@ reference calls it an SDK-only convenience the Python and JavaScript SDKs comput
 
 `stream: true` answers `text/event-stream`, each event as `event: <type>` and `data: <json>`, every
 event with a `sequence_number` one above the last, from 0. No `[DONE]`: the stream ends after the
-last event, as the reference's example does. `X-Claudio-Cost-Usd` is a trailer. The events, in
-order:
+last event, as the reference's example does. `X-Claudio-Cost-Usd` is a trailer. Neither `/v1`
+stream opens with the `retry:` field Claudio's own streams carry: an event without data reaches the
+official Python SDK as an empty string, which it parses as JSON and fails on (found by the
+real-client test, 2026-10-27). The events, in order:
 
 ```text
 response.created              (status in_progress, empty output)
