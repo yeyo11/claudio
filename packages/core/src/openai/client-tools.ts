@@ -404,6 +404,10 @@ export class ClientToolSession {
     if (!this.waiting) this.clearTimer();
   }
 
+  holding(): boolean {
+    return this.held.size > 0 || this.waiting;
+  }
+
   ended(): void {
     // Nothing of the process outlives it: the results the client still owes go to the next process
     // as a cold resume, never to a process that did not ask for them

@@ -185,6 +185,11 @@ export interface PermissionHost {
   withdrawn(requestId: string): void;
   /** The chat's process ended: every request it held went with it */
   ended(): void;
+  /**
+   * Whether the process is waiting on this host for anything (a request not answered yet, a call
+   * someone still owes a result for): ending it now would lose that, so it is not evicted for a slot.
+   */
+  holding?(): boolean;
 }
 
 /**

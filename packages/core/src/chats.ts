@@ -806,25 +806,47 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
-   * Ends the input of chats held warm for a reader, oldest first, until a start fits. They exit within
-   * moments, as after the idle timeout, so they count as free. Returns how many are on their way out.
+   * Ends the input of idle chats, least recently used first, until a start fits: those held warm for
+   * a reader past the idle timeout, and an OpenAI client's chats at any point of their wait. They exit
+   * within moments, as after the idle timeout, so they count as free; `released` is set before this
+   * returns, and admission runs to the spawn without yielding, so two starts never take the same one.
+   * Returns how many are on their way out.
    */
   private releaseWarm(limit: number): number {
     const gone = [...this.chats.values()].filter((c) => c.alive && c.released).length;
     let excess = this.activeCount() - gone - limit + 1;
     if (excess <= 0) return gone;
+    const at = Date.now();
     const warm = [...this.chats.values()]
-      .filter((c) => c.alive && !c.released && c.status === 'idle' && c.written().length === 0 && c.idleSince !== null && Date.now() - c.idleSince >= idleTimeoutMs())
+      .filter((c) => c.alive && !c.released && c.status === 'idle' && c.written().length === 0 && c.idleSince !== null && (at - c.idleSince >= idleTimeoutMs() || this.evictableApiChat(c)))
       .sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0));
+    // Too few to make room (the limit was lowered below what runs, or the rest is busy): the start is
+    // refused anyway, so nobody's process is ended for it
+    if (warm.length < excess) return gone;
     let freed = gone;
     for (const chat of warm) {
       if (excess <= 0) break;
+      if (chat.origin === 'api') console.warn(`run slots: ended the idle process of API chat ${chat.id} (idle ${String(Math.round((at - (chat.idleSince ?? at)) / 1000))} s) for a new run`);
       chat.released = true;
       chat.session?.endInput();
       freed++;
       excess--;
     }
     return freed;
+  }
+
+  /**
+   * An OpenAI client's chat whose idle process may give its slot away before the idle timeout: every
+   * new conversation (and each background task of a client like Open WebUI) is a chat of its own,
+   * and their idle processes would otherwise refuse everyone, a person included, for ten minutes. Its
+   * next turn resumes cold, as after the timeout. Only one that waits for nothing: no message for
+   * the process, no permission prompt, no client tool call held or owed, no limit to replay.
+   */
+  private evictableApiChat(chat: LiveChat): boolean {
+    if (chat.origin !== 'api' || this.leaving(chat) || chat.rateLimited || chat.pendingAccount) return false;
+    if (chat.pending.size > 0 || chat.armingQueue.length > 0) return false;
+    if (chat.permissionHost?.holding?.()) return false;
+    return (this.permissions?.list(chat.id).length ?? 0) === 0;
   }
 
   /** Refuses what cannot start, before anything is created. */

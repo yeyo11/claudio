@@ -305,7 +305,9 @@ parts and the cold start's rendered history left out), cut to 100 characters, as
 title is, one shorter when the cut would split an emoji or another character outside the BMP. It is passed to the CLI as `--name` when the chat starts, so a resume never changes it.
 
 Each chat keeps its process up between turns, as a person's does, so follow-ups are fast; idle
-processes count toward `maxConcurrentRuns` until the idle timeout lets them go.
+processes count toward `maxConcurrentRuns` until the idle timeout lets them go, or until a start
+finds every slot taken and one of them gives its slot up (see "What the tests showed about run
+slots").
 
 ### The image fetcher
 
@@ -1003,10 +1005,26 @@ chat process capped with `--max-budget-usd 0.5`, a daily spend cap of 3 USD, loo
 idle process holds a run slot until the idle timeout (10 minutes). Each new conversation, and each
 of Open WebUI's background tasks, is a new chat, so about eight of them fill `maxConcurrentRuns` (8)
 and every other request, a person's chats included, answers `429` until they expire. Both SDK runs
-hit it when run one after the other, and Open WebUI reaches it in about three conversations. How
-to treat it is the owner's choice (open, 2026-10-27). Until then: in Open WebUI, turn off title,
-tag and follow-up generation (Admin Settings → Interface), or point its task model at another
-provider.
+hit it when run one after the other, and Open WebUI reaches it in about three conversations.
+
+The rule as built: when a start (any start, a person's chat included) finds every slot taken, the
+least recently used idle process of an API chat gives its slot up. Its input is ended, as the idle
+timeout ends it, and its next turn resumes cold through the usual path, with its system prompt from
+`openai_chat_prompts`, its conversation key and its stored responses unchanged. A process is only
+taken when it waits for nothing: no turn running, no message queued for it, no permission prompt,
+no client tool call held or owed, no limit replay or account switch pending. A person's chats,
+orchestration, assistant and worker chats are never taken (only the existing release of warm chats
+past the idle timeout applies to them). When the idle API processes there are would not make room
+(the rest is busy, or the limit was lowered below what runs), none is ended and the refusal is the
+same as before: `429` on `/v1`, `400` on the REST API. `releaseWarm` in
+`packages/core/src/chats.ts` does it inside admission, which runs to the spawn without yielding,
+and marks each process `released` before it returns, so two starts never take the same slot. Each
+eviction logs one line (`run slots: ended the idle process of API chat <id> (idle <n> s)`); the chat
+gets no notice, as after the idle timeout.
+
+Background tasks still cost a turn each, so a tip for cost rather than for slots: in Open WebUI,
+turn off title, tag and follow-up generation (Admin Settings → Interface), or point its task model
+at another provider.
 
 ## Using it
 
