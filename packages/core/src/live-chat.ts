@@ -444,6 +444,8 @@ export class LiveChat {
   viewers = 0;
   /** Its input was ended to make room for a start: the process is on its way out and no longer counts */
   released = false;
+  /** Callers preparing a turn for the live process (`ChatManager.holdForTurn`): it is not ended for a slot meanwhile */
+  preparing = 0;
   partial: { block: 'text' | 'thinking'; text: string } | null = null;
   partialTimer: NodeJS.Timeout | null = null;
   private partialSentAt = 0;

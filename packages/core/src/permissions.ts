@@ -60,6 +60,12 @@ export class PermissionBroker extends EventEmitter {
     return runId ? all.filter((r) => r.runId === runId) : all;
   }
 
+  /** Whether a run has a request waiting, without listing them */
+  has(runId: string): boolean {
+    for (const entry of this.pending.values()) if (entry.request.runId === runId) return true;
+    return false;
+  }
+
   /**
    * Answers one waiting request. Given a `runId`, only that run's own requests can be answered:
    * an answer arrives addressed to a chat, and a request id alone would let any chat approve any

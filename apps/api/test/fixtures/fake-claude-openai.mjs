@@ -8,6 +8,7 @@
 //   FAIL <text>   ends the turn with an error result
 //   EXIT          the process exits without a result
 //   SLOW <ms>     waits that long, then echoes
+//   BACKGROUND    reports a background task started (`task_started`, never ended), then echoes
 //   BUDGET        streams the start of an answer, then ends as `--max-budget-usd` does (`error_max_budget_usd`)
 //
 // Started with `--json-schema`, it answers as the CLI does there: a line of prose, then a call to the
@@ -38,6 +39,7 @@
 // The last line of a prompt that starts with `(For this turn:` is the tool_choice instruction: it is
 // recorded and skipped when the directive is read.
 //
+//   FAKE_OPENAI_LINGER_MS=<ms>  exits that long after its input ends, as a real CLI takes a moment to
 //   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema, prompts, system, stub, instruction }` per turn
 import { appendFileSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -256,6 +258,7 @@ async function answer(prompt) {
     result(true, failure[1]);
     return;
   }
+  if (last === 'BACKGROUND') out({ type: 'system', subtype: 'task_started', task_id: `task_${String(turns)}`, task_type: 'local_bash', description: 'sleep 600', tool_use_id: null });
   const slow = /^SLOW (\d+)$/.exec(last);
   if (slow) await new Promise((r) => setTimeout(r, Number(slow[1])));
   const text = `echo: ${last}`;
@@ -339,4 +342,4 @@ lines.on('line', (line) => {
     if (process.env.FAKE_OPENAI_PROMPTS && stubSeen) appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, sessionId, stub: stubSeen })}\n`);
   });
 });
-lines.on('close', () => process.exit(0));
+lines.on('close', () => setTimeout(() => process.exit(0), Number(process.env.FAKE_OPENAI_LINGER_MS ?? 0)));

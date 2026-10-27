@@ -1341,40 +1341,52 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       return true;
     }
     const id = target.chatId;
-    const { runtime, restart, keepsPrompt } = existingTurnPlan(id, turn, opts, false);
-    // Where a chat already is, the header cannot move it: said rather than dropped in silence
-    if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
-    if (restart) await core.runtime.endBetweenTurns(id);
-    if (tools && opts.wantsTools && (restart || runtime.pid === null)) tools.tools = opts.requestTools;
-    opts.apply();
-    host(id);
-    if (runtime.pid !== null && !restart) {
-      // The same rules as a start or a resume, on the live process: nobody answers a prompt here
-      if (runtime.permissionPrompts !== prompts) core.runtime.setPermissionPrompts(id, prompts);
-      if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
-      if (turn.effort) opts.ignored.push(opts.effortName);
-      if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
+    // From the moment the chat is judged live until the turn is in it: a start admitted while this
+    // awaits must not end the process the turn is about to be written to
+    const release = core.runtime.holdForTurn(id);
+    try {
+      const plan = existingTurnPlan(id, turn, opts, false);
+      const { runtime, keepsPrompt } = plan;
+      // A process that gave its slot away before the hold reads nothing more and may be gone before a
+      // message reaches it: the turn waits for it to exit and resumes cold, through admission (a 429
+      // when there is no room), as after the idle timeout
+      const restart = plan.restart || core.runtime.evicted(id);
+      // Where a chat already is, the header cannot move it: said rather than dropped in silence
+      if (opts.cwd !== undefined && !sameDir(opts.cwd, runtime.cwd)) opts.ignored.push(CWD_HEADER);
+      if (restart) await core.runtime.endBetweenTurns(id);
+      if (tools && opts.wantsTools && (restart || runtime.pid === null)) tools.tools = opts.requestTools;
+      opts.apply();
+      host(id);
+      if (runtime.pid !== null && !restart) {
+        // The same rules as a start or a resume, on the live process: nobody answers a prompt here
+        if (runtime.permissionPrompts !== prompts) core.runtime.setPermissionPrompts(id, prompts);
+        if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
+        if (turn.effort) opts.ignored.push(opts.effortName);
+        if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
+        current.attach(id);
+        await core.chats.send(id, { text: prompt, attachments });
+        current.replay();
+        return !keepsPrompt;
+      }
       current.attach(id);
-      await core.chats.send(id, { text: prompt, attachments });
+      await core.chats.resume(id, {
+        prompt,
+        ...(attachments.length ? { attachments } : {}),
+        model: turn.model,
+        ...(turn.effort ? { effort: turn.effort } : {}),
+        // Always set, a resume keeping the chat's earlier prompt for a field left out: the effective
+        // prompt holds the conversation's part whether or not this request resent it, so it is empty
+        // only when the conversation has none and the request no `instructions`
+        appendSystemPrompt: opts.system,
+        ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
+        permissionMode,
+        permissionPrompts: prompts,
+      }, { jsonSchema: turn.jsonSchema ?? null, extraMcpServers: tools ? servers() : null });
+      served(id);
       current.replay();
-      return !keepsPrompt;
+      return true;
+    } finally {
+      release();
     }
-    current.attach(id);
-    await core.chats.resume(id, {
-      prompt,
-      ...(attachments.length ? { attachments } : {}),
-      model: turn.model,
-      ...(turn.effort ? { effort: turn.effort } : {}),
-      // Always set, a resume keeping the chat's earlier prompt for a field left out: the effective
-      // prompt holds the conversation's part whether or not this request resent it, so it is empty
-      // only when the conversation has none and the request no `instructions`
-      appendSystemPrompt: opts.system,
-      ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
-      permissionMode,
-      permissionPrompts: prompts,
-    }, { jsonSchema: turn.jsonSchema ?? null, extraMcpServers: tools ? servers() : null });
-    served(id);
-    current.replay();
-    return true;
   }
 };

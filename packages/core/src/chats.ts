@@ -71,7 +71,7 @@ import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
-import type { DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
+import type { BranchTracker, DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { ProviderLimits } from './providers/limits.ts';
 import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
 import { admissionLimitsFrom, readSystemLoad, RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
@@ -135,6 +135,14 @@ const GUARD_INTERRUPT_WAIT_MS = 1500;
 const STOPPED = 'the chat was stopped before the agent read it';
 /** ...and when its process ended for another reason, with nothing better to say */
 const ENDED = 'the process ended before the agent read it';
+
+/** A background task, agent or workflow still runs: what keeps a process up after its input ends */
+function runsInBackground(branches: BranchTracker): boolean {
+  for (const task of branches.tasks.values()) if (task.status === 'running') return true;
+  for (const sub of branches.subagents.values()) if (sub.background && (sub.status === 'running' || sub.status === 'waiting')) return true;
+  for (const workflow of branches.workflows.values()) if (workflow.status === 'running') return true;
+  return false;
+}
 
 /** A message Claudio sends of its own accord (a first prompt, a resume): an id of its own, now. */
 const sent = (text: string, attachments: Attachment[] = []): SentMessage => ({ id: randomUUID(), text, attachments, sentAt: now() });
@@ -724,10 +732,10 @@ export class ChatManager extends EventEmitter {
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
     if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
     const driver = this.driverFor(opts.provider);
-    this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }));
+    const room = this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }));
     const attachments = this.resolveAttachments(opts.attachments);
     const origin = opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : opts.apiClient ? 'api' : 'claudio';
-    return this.begin(new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver), opts.prompt, attachments);
+    return this.begin(new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver), opts.prompt, attachments, room);
   }
 
   /**
@@ -742,7 +750,7 @@ export class ChatManager extends EventEmitter {
     let chat = this.chats.get(id);
     if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
     const driver = chat?.driver ?? this.driverFor(request.provider);
-    this.admit(request, driver, classOfStart({ purpose: request.purpose, housekeeping: request.housekeeping !== undefined, queued: request.queued }));
+    const room = this.admit(request, driver, classOfStart({ purpose: request.purpose, housekeeping: request.housekeeping !== undefined, queued: request.queued }));
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
       if (!adopt) throw new ChatNotFoundError();
@@ -757,7 +765,7 @@ export class ChatManager extends EventEmitter {
     if (!known) this.chats.set(id, chat);
     chat.purpose = request.housekeeping ?? null;
     try {
-      this.spawnProcess(chat, sent(request.prompt, attachments));
+      this.spawnProcess(chat, sent(request.prompt, attachments), room);
     } catch (err) {
       // Refused before any process started (something else holds the session): an adopted chat is not ours yet
       chat.purpose = null;
@@ -777,7 +785,7 @@ export class ChatManager extends EventEmitter {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     const known = this.chats.get(sourceId);
     const driver = known?.driver ?? this.driverFor(request.provider);
-    this.admit(request, driver, classOfStart({ purpose: request.purpose }));
+    const room = this.admit(request, driver, classOfStart({ purpose: request.purpose }));
     const attachments = this.resolveAttachments(request.attachments);
     const chat = new LiveChat(
       randomUUID(),
@@ -802,55 +810,98 @@ export class ChatManager extends EventEmitter {
     if (known?.opts.claudioAssistant) chat.opts.claudioAssistant = known.opts.claudioAssistant;
     if (known) chat.permissionMode = known.permissionMode;
     this.applyStartOptions(chat, request);
-    return this.begin(chat, request.prompt, attachments);
+    return this.begin(chat, request.prompt, attachments, room);
   }
 
   /**
-   * Ends the input of idle chats, least recently used first, until a start fits: those held warm for
-   * a reader past the idle timeout, and an OpenAI client's chats at any point of their wait. They exit
-   * within moments, as after the idle timeout, so they count as free; `released` is set before this
-   * returns, and admission runs to the spawn without yielding, so two starts never take the same one.
-   * Returns how many are on their way out.
+   * The idle chats whose input a start would end to fit, least recently used first: those held warm
+   * for a reader past the idle timeout, and an OpenAI client's chats at any point of their wait. They
+   * exit within moments, as after the idle timeout, so they count as free. Empty when there is room
+   * already, null when ending every candidate would still not make room: then the start is refused
+   * anyway, and nobody's process is ended for it. Nothing is ended here: {@link evict} does that,
+   * once nothing else refuses the start.
    */
-  private releaseWarm(limit: number): number {
-    const gone = [...this.chats.values()].filter((c) => c.alive && c.released).length;
-    let excess = this.activeCount() - gone - limit + 1;
-    if (excess <= 0) return gone;
+  private evictionFor(limit: number): LiveChat[] | null {
     const at = Date.now();
-    const warm = [...this.chats.values()]
-      .filter((c) => c.alive && !c.released && c.status === 'idle' && c.written().length === 0 && c.idleSince !== null && (at - c.idleSince >= idleTimeoutMs() || this.evictableApiChat(c)))
-      .sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0));
-    // Too few to make room (the limit was lowered below what runs, or the rest is busy): the start is
-    // refused anyway, so nobody's process is ended for it
-    if (warm.length < excess) return gone;
-    let freed = gone;
-    for (const chat of warm) {
-      if (excess <= 0) break;
+    let busy = 0;
+    const idle: LiveChat[] = [];
+    for (const chat of this.chats.values()) {
+      if (!chat.alive || chat.released) continue;
+      busy++;
+      if (this.evictable(chat, at)) idle.push(chat);
+    }
+    const excess = busy - limit + 1;
+    if (excess <= 0) return [];
+    if (idle.length < excess) return null;
+    return idle.sort((a, b) => (a.idleSince ?? 0) - (b.idleSince ?? 0)).slice(0, excess);
+  }
+
+  /**
+   * Ends the input of the chats {@link evictionFor} chose. `released` is set before this returns,
+   * and admission runs to the spawn without yielding, so two starts never take the same slot.
+   */
+  private evict(chats: readonly LiveChat[]): void {
+    const at = Date.now();
+    for (const chat of chats) {
       if (chat.origin === 'api') console.warn(`run slots: ended the idle process of API chat ${chat.id} (idle ${String(Math.round((at - (chat.idleSince ?? at)) / 1000))} s) for a new run`);
       chat.released = true;
       chat.session?.endInput();
-      freed++;
-      excess--;
     }
-    return freed;
+  }
+
+  /**
+   * An idle process whose input can be ended for a slot without losing anything. Never one with a
+   * message waiting for it or for its replacement, a turn being prepared for it (`preparing`), or
+   * background work running: a process with a background task or agent does not exit when its input
+   * ends, so it would count as free while it still runs.
+   */
+  private evictable(chat: LiveChat, at: number): boolean {
+    if (chat.status !== 'idle' || chat.idleSince === null || chat.preparing > 0 || chat.pending.size > 0) return false;
+    if (runsInBackground(chat.branches)) return false;
+    return at - chat.idleSince >= idleTimeoutMs() || this.evictableApiChat(chat);
   }
 
   /**
    * An OpenAI client's chat whose idle process may give its slot away before the idle timeout: every
    * new conversation (and each background task of a client like Open WebUI) is a chat of its own,
    * and their idle processes would otherwise refuse everyone, a person included, for ten minutes. Its
-   * next turn resumes cold, as after the timeout. Only one that waits for nothing: no message for
-   * the process, no permission prompt, no client tool call held or owed, no limit to replay.
+   * next turn resumes cold, as after the timeout. Only one that waits for nothing: no permission
+   * prompt, no client tool call held, owed or not yet handed to the CLI, no limit to replay.
    */
   private evictableApiChat(chat: LiveChat): boolean {
-    if (chat.origin !== 'api' || this.leaving(chat) || chat.rateLimited || chat.pendingAccount) return false;
-    if (chat.pending.size > 0 || chat.armingQueue.length > 0) return false;
+    if (chat.origin !== 'api' || this.leaving(chat) || chat.rateLimited || chat.pendingAccount || chat.armingQueue.length > 0) return false;
     if (chat.permissionHost?.holding?.()) return false;
-    return (this.permissions?.list(chat.id).length ?? 0) === 0;
+    return !(this.permissions?.has(chat.id) ?? false);
   }
 
-  /** Refuses what cannot start, before anything is created. */
-  private admit(opts: ChatStartOptions, driver: ProviderDriver, kind: StartClass = 'other'): void {
+  /**
+   * Keeps the chat's idle process from giving its slot away while a caller prepares the turn it is
+   * about to send (the /v1 route awaits settings between deciding the chat is live and sending to
+   * it). Returns the release, which the caller runs once the turn is sent or abandoned.
+   */
+  holdForTurn(id: string): () => void {
+    const chat = this.chats.get(id);
+    if (!chat) return () => {};
+    chat.preparing++;
+    let held = true;
+    return () => {
+      if (held) chat.preparing--;
+      held = false;
+    };
+  }
+
+  /** The chat's process gave its slot to a start and is on its way out: a turn for it resumes cold. */
+  evicted(id: string): boolean {
+    const chat = this.chats.get(id);
+    return !!chat && chat.alive && chat.released;
+  }
+
+  /**
+   * Refuses what cannot start, before anything is created, and answers which idle processes the
+   * start ends to fit: the caller hands them to the spawn ({@link spawnProcess}), so a start refused
+   * later still (an unknown attachment, a session held elsewhere) has ended nobody's.
+   */
+  private admit(opts: ChatStartOptions, driver: ProviderDriver, kind: StartClass = 'other'): LiveChat[] {
     if (opts.account !== undefined) {
       if (!this.accounts) throw new ChatRefusal('accounts are not available here');
       try {
@@ -863,11 +914,12 @@ export class ChatManager extends EventEmitter {
     if (kind === 'worker' && this.interactive.active()) {
       throw new ChatRefusal(`${QUEUE_YIELD_PREFIX}: a chat a person asked for is waiting for a place`, 409);
     }
+    let room: LiveChat[];
     try {
       const limit = this.defaults.maxConcurrentRuns;
-      if (this.activeCount() - this.releaseWarm(limit) >= limit) {
-        throw new RunSlotRefusal(limit);
-      }
+      const found = this.evictionFor(limit);
+      if (found === null) throw new RunSlotRefusal(limit);
+      room = found;
       // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
       const { refusal } = readSystemLoad(this.admission);
       if (refusal) throw new ChatRefusal(refusal, 409);
@@ -879,6 +931,7 @@ export class ChatManager extends EventEmitter {
       throw err;
     }
     if (kind === 'interactive') this.interactive.release();
+    return room;
   }
 
   /** What a new chat starts from: the configured workspace, and the default mode as it stands now */
@@ -947,11 +1000,11 @@ export class ChatManager extends EventEmitter {
     if (options.toolConfig !== undefined) opts.toolConfig = options.toolConfig;
   }
 
-  private begin(chat: LiveChat, prompt: string, attachments: Attachment[]): ChatRuntime {
+  private begin(chat: LiveChat, prompt: string, attachments: Attachment[], room: readonly LiveChat[]): ChatRuntime {
     if (!existsSync(chat.cwd)) mkdirSync(chat.cwd, { recursive: true });
     this.chats.set(chat.id, chat);
     try {
-      this.spawnProcess(chat, sent(prompt, attachments));
+      this.spawnProcess(chat, sent(prompt, attachments), room);
     } catch (err) {
       this.chats.delete(chat.id);
       throw err;
@@ -992,16 +1045,24 @@ export class ChatManager extends EventEmitter {
     if (this.leaving(chat)) {
       // Held for a replacement process, it would reach the CLI as work and its result would be fanned out as such
       if (purpose) throw new ChatRefusal('the chat is ending: try again when it has', 409);
+      if (chat.alive && chat.released) {
+        // Its process gave its slot to a start and is on its way out: the replacement takes a slot
+        // now, or the sender hears there is none. Left to the exit, the slot could be gone by then,
+        // and the message lost with the turn failed. No longer `released`, the exiting process holds
+        // the slot until the replacement takes it, and is never chosen again (it has a message held)
+        this.evict(this.admit({}, chat.driver, classOfChat(chat.origin)));
+        chat.released = false;
+      }
       // A message written now would never be read: it waits for the replacement, behind any
       // message already waiting, so the order they were sent in is the order they arrive in
       chat.pending.set(message.id, { ...message, state: 'held' });
       chat.push({ kind: 'message', entry: userEntry(message, message.text) });
       taken = 'held';
     } else if (!chat.alive) {
-      this.admit({}, chat.driver, purpose ? 'other' : classOfChat(chat.origin));
+      const room = this.admit({}, chat.driver, purpose ? 'other' : classOfChat(chat.origin));
       chat.purpose = purpose ?? null;
       try {
-        this.spawnProcess(chat, message);
+        this.spawnProcess(chat, message, room);
       } catch (err) {
         chat.purpose = null;
         throw err;
@@ -1044,8 +1105,7 @@ export class ChatManager extends EventEmitter {
       return;
     }
     try {
-      this.admit({}, chat.driver, classOfChat(chat.origin));
-      this.spawnProcess(chat, next, false);
+      this.spawnProcess(chat, next, this.admit({}, chat.driver, classOfChat(chat.origin)), false);
     } catch (err) {
       chat.error = err instanceof Error ? err.message : String(err);
       // The exit ended the chat while messages waited, and nothing will read them: the page is told
@@ -1170,13 +1230,14 @@ export class ChatManager extends EventEmitter {
     if (!chat) throw new ChatNotFoundError();
     const { permissionMode, model } = update;
     if (permissionMode !== undefined) {
-      if (chat.alive) await chat.session?.setOption({ permissionMode });
+      // A process on its way out reads nothing more: its replacement starts with the setting
+      if (chat.alive && !this.leaving(chat)) await chat.session?.setOption({ permissionMode });
       chat.setSettings({ permissionMode });
     }
     if (model !== undefined) {
       const next = model.trim();
       if (!next) throw new Error('model must not be empty');
-      if (chat.alive) await chat.session?.setOption({ model: next });
+      if (chat.alive && !this.leaving(chat)) await chat.session?.setOption({ model: next });
       chat.opts.model = next;
       chat.setSettings({ model: next });
     }
@@ -1739,7 +1800,8 @@ export class ChatManager extends EventEmitter {
    * The only place a CLI process starts, and it becomes the chat's at once: every process is tracked
    * by the chat it works for, and a chat never has two.
    */
-  private spawnProcess(chat: LiveChat, first: SentMessage, announce = true): void {
+  /** `room`: the idle processes admission chose to end for this one, ended once nothing before the spawn refuses it. */
+  private spawnProcess(chat: LiveChat, first: SentMessage, room: readonly LiveChat[], announce = true): void {
     if (chat.alive) throw new ChatRefusal('the chat already has a live process');
     const holders = this.sessionHolders(chat);
     if (holders.length) {
@@ -1752,6 +1814,7 @@ export class ChatManager extends EventEmitter {
     const account = this.chooseAccount(chat);
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
+    this.evict(room);
     if (account) chat.account = account.id;
     // The CLI's total is cumulative over its process, so a new process counts from zero again
     chat.lastReportedCostUsd = 0;

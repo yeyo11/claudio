@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-26T23:00:00Z
+updated_at: 2026-10-27T12:00:00Z
 tags:
     - api
     - openai
@@ -226,6 +226,13 @@ same delta, so the second turn of a process reports its own cost, not the proces
    that changes accounts does not. Once the turn is sent, the chat's buffer is read from the last
    event before the turn (recorded when the runner attached), never from the start, so an earlier
    execution's `result` cannot answer this turn.
+   **Tools.** An API chat runs with the app's default tool preset and default permission mode
+   (`bypassPermissions` becomes `manual`, and a tool that would need a prompt is denied, since
+   nobody answers one). So a client can have the model run Claude Code's own tools (read files, run
+   commands, edit) in the chat's working directory, as far as that preset allows without asking. A
+   client that only chats should send `X-Claudio-Tool-Preset: read-only`, or the id of a preset with
+   no tools. Keeping the app's preset as the default is the owner's decision of 2026-10-27; the risk
+   it accepts is that any holder of an API token reaches whatever that preset allows.
    **The idle limit.** A turn that shows no sign of life (no event, no CLI heartbeat for a command
    it runs) for `CLAUDIO_OPENAI_TURN_IDLE_MS`, **10 minutes** by default, is interrupted and answered
    `500 server_error` ("showed no activity"). It is what ends a turn stuck on a prompt nobody can
@@ -1011,16 +1018,38 @@ The rule as built: when a start (any start, a person's chat included) finds ever
 least recently used idle process of an API chat gives its slot up. Its input is ended, as the idle
 timeout ends it, and its next turn resumes cold through the usual path, with its system prompt from
 `openai_chat_prompts`, its conversation key and its stored responses unchanged. A process is only
-taken when it waits for nothing: no turn running, no message queued for it, no permission prompt,
-no client tool call held or owed, no limit replay or account switch pending. A person's chats,
-orchestration, assistant and worker chats are never taken (only the existing release of warm chats
-past the idle timeout applies to them). When the idle API processes there are would not make room
-(the rest is busy, or the limit was lowered below what runs), none is ended and the refusal is the
-same as before: `429` on `/v1`, `400` on the REST API. `releaseWarm` in
-`packages/core/src/chats.ts` does it inside admission, which runs to the spawn without yielding,
-and marks each process `released` before it returns, so two starts never take the same slot. Each
-eviction logs one line (`run slots: ended the idle process of API chat <id> (idle <n> s)`); the chat
-gets no notice, as after the idle timeout.
+taken when it waits for nothing: no turn running, no message queued for it or for its replacement,
+no permission prompt, no client tool call held, owed, streamed and not yet handed over, or answered
+by the client and not yet taken by the CLI, no limit replay or account switch pending, no turn the
+`/v1` route is preparing for it (`ChatManager.holdForTurn`, taken before the route's awaits and
+released once the turn is sent), and **no background task, background agent or workflow running**:
+such a process does not exit when its input ends, so it would count as free while it still ran. A
+person's chats, orchestration, assistant and worker chats are never taken (only the existing release
+of warm chats past the idle timeout applies to them, under the same conditions).
+
+An API chat a person has open in the UI is taken like any other: the owner chose this on
+2026-10-27 over keeping viewed chats warm, since every OpenAI conversation is a chat and a page left
+open on one would hold a slot. The page sees the process end as after the idle timeout, and the next
+message resumes it.
+
+When the idle API processes there are would not make room (the rest is busy, or the limit was
+lowered below what runs), none is ended and the refusal is the same as before: `429` on `/v1`, `400`
+on the REST API. `evictionFor` in `packages/core/src/chats.ts` chooses the processes inside
+admission, after the account and queue checks and before the memory check; they are ended only at
+the spawn (`spawnProcess`, after the session-holder check and the launch plan), so a start refused
+for lack of memory, an unknown attachment, an unknown chat or a session held elsewhere ends nobody's
+process. Admission runs to the spawn without yielding and each process is marked `released` before
+the spawn returns, so two starts never take the same slot. Each eviction logs one line
+(`run slots: ended the idle process of API chat <id> (idle <n> s)`); the chat gets no notice, as
+after the idle timeout.
+
+**A turn that reaches an evicted chat** before its process has exited never waits on that process.
+On `/v1`, the route sees the chat is evicted (`ChatManager.evicted`), waits for the exit and resumes
+cold through admission: the turn is served, or answered `429` with `Retry-After` when there is no
+room. Any other sender (the web UI, the REST API) is admitted at once (`sendMessage`): the message is
+held for the replacement and the exiting process keeps the slot for it, or the send is refused with
+`RunSlotRefusal` and nothing is held. Before this, the message was held without admission and the
+admission at the exit could find the slot gone, losing the message and failing the turn.
 
 Background tasks still cost a turn each, so a tip for cost rather than for slots: in Open WebUI,
 turn off title, tag and follow-up generation (Admin Settings → Interface), or point its task model

@@ -404,8 +404,12 @@ export class ClientToolSession {
     if (!this.waiting) this.clearTimer();
   }
 
+  /**
+   * Calls a turn streamed and has not handed over yet, and results the client sent that the stub has
+   * not given the CLI, count too: ending the process now would drop them.
+   */
   holding(): boolean {
-    return this.held.size > 0 || this.waiting;
+    return this.held.size > 0 || this.waiting || this.claimed.size > 0 || this.results.size > 0;
   }
 
   ended(): void {

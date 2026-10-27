@@ -235,3 +235,117 @@ test('when evicting every idle API chat would still not make room, none is evict
   core.runtime.stopAll();
   await busy.then((r) => r.text()).catch(() => '');
 });
+
+/** The live chat's record, for what no route reports (a held message, the chat's outcome) */
+const record = (chatId: string) => core.runtime.get(chatId);
+
+test('a message to an evicted chat inside its exit window is refused at once when there is no room, and nothing is lost', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  const evicted = await idleApiChat('alpha');
+  // Same tick: the start ends the API chat's input, and the message reaches it before it exits
+  const taker = core.runtime.start({ prompt: 'SLOW 1000' });
+  assert.ok(core.runtime.evicted(evicted));
+  assert.throws(() => core.runtime.sendMessage(evicted, 'beta'), RunSlotRefusal);
+  await until(() => !live(evicted), 'the evicted chat to exit');
+  await pause(50);
+  const after = record(evicted);
+  assert.notEqual(after?.status, 'failed', 'the chat ended as an idle process does, not as a lost turn');
+  assert.deepEqual(after?.pending ?? [], [], 'no message was held, and none lost');
+  assert.equal(logged(evicted).length, 1, 'no process was started for the refused message');
+  assert.ok(live(taker.id));
+});
+
+test('a message to an evicted chat inside its exit window is served by its replacement when admission makes room', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 2 });
+  const evicted = await idleApiChat('alpha');
+  await pause(30);
+  const other = await idleApiChat('other');
+  core.runtime.start({ prompt: 'SLOW 300' });
+  assert.ok(core.runtime.evicted(evicted));
+  const result = core.runtime.nextResult(evicted);
+  // The replacement's slot is taken now, from the next idle API chat, not when the evicted one exits
+  const receipt = core.runtime.sendMessage(evicted, 'beta');
+  assert.equal(receipt.taken, 'held');
+  assert.ok(core.runtime.evicted(other), 'the other idle API chat gave its slot to the replacement');
+  assert.equal((await result).result, 'echo: beta');
+  assert.equal(logged(evicted).at(-1)?.resume, evicted);
+  assert.ok(core.runtime.activeCount() <= 2);
+});
+
+test('a /v1 turn reaching an evicted chat before its process exits resumes cold or answers 429, never a failed turn', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  // Read by the process at its start: this chat's CLI takes 400 ms to exit once its input ends
+  process.env.FAKE_OPENAI_LINGER_MS = '400';
+  let evicted: string;
+  try {
+    evicted = await idleApiChat('alpha');
+  } finally {
+    delete process.env.FAKE_OPENAI_LINGER_MS;
+  }
+  core.runtime.start({ prompt: 'SLOW 3000' });
+  assert.ok(core.runtime.evicted(evicted), 'evicted, its process still up');
+  const res = await post({ model: 'sonnet', messages: [user('alpha'), assistant('echo: alpha'), user('beta')] });
+  assert.equal(res.status, 429, await res.clone().text());
+  assert.equal(res.headers.get('retry-after'), '5');
+  await res.text();
+  await until(() => !live(evicted), 'the evicted chat to exit');
+  assert.notEqual(record(evicted)?.status, 'failed', 'the chat ended as an idle process does');
+  assert.deepEqual(record(evicted)?.pending ?? [], [], 'no message was held, and none lost');
+});
+
+test('a start admitted while the /v1 route prepares a turn for an idle API chat does not evict it', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  const chat = await idleApiChat('alpha');
+  // Between the route judging the chat live and the message reaching it: a person's chat starts
+  const send = core.chats.send.bind(core.chats);
+  let refused: unknown = null;
+  core.chats.send = async (...args: Parameters<typeof send>) => {
+    try {
+      core.runtime.start({ prompt: 'A chat of my own' });
+    } catch (err) {
+      refused = err;
+    }
+    return send(...args);
+  };
+  try {
+    const res = await post({ model: 'sonnet', messages: [user('alpha'), assistant('echo: alpha'), user('beta')] });
+    assert.equal(res.status, 200, await res.clone().text());
+    assert.equal(((await res.json()) as { choices: Array<{ message: { content: string } }> }).choices[0]?.message.content, 'echo: beta');
+    assert.equal(chatOf(res), chat);
+    assert.ok(refused instanceof RunSlotRefusal, 'the start found no slot: the chat being sent to kept its own');
+    assert.equal(logged(chat).length, 2);
+    assert.equal(logged(chat).at(-1)?.resume, null, 'the turn went to the live process');
+  } finally {
+    core.chats.send = send;
+  }
+});
+
+test('a start refused after the slot count (lack of memory, an unknown attachment, an unknown chat) ends no idle process', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  const chat = await idleApiChat('alpha');
+  // The memory check reads the machine: a floor no machine has makes it refuse
+  const limits = (core.runtime as unknown as { admission: { memoryFloorMb: number } }).admission;
+  const floor = limits.memoryFloorMb;
+  limits.memoryFloorMb = Number.MAX_SAFE_INTEGER;
+  try {
+    assert.throws(() => core.runtime.start({ prompt: 'no memory' }), /memory/i);
+  } finally {
+    limits.memoryFloorMb = floor;
+  }
+  assert.throws(() => core.runtime.start({ prompt: 'with a file', attachments: ['no-such-upload'] }));
+  assert.throws(() => core.runtime.resume('00000000-0000-4000-8000-000000000000', { prompt: 'who?' }));
+  await pause(100);
+  assert.ok(live(chat), 'the idle API chat keeps its process');
+  assert.equal(core.runtime.evicted(chat), false);
+});
+
+test('an idle API chat with a background task running is not evicted for a slot', async () => {
+  await core.appSettings.update({ maxConcurrentRuns: 1 });
+  const chat = await idleApiChat('BACKGROUND');
+  const refused = await post({ model: 'sonnet', messages: [user('no room')] });
+  assert.equal(refused.status, 429, await refused.clone().text());
+  await refused.text();
+  await pause(100);
+  assert.ok(live(chat), 'its process keeps running the task');
+  assert.equal(core.runtime.evicted(chat), false);
+});
