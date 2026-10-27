@@ -791,10 +791,12 @@ does a long link read back as a data URL, whose key was its URL's. `detail` is k
   from the writer is caught and logged where the turn feeds it (`TurnRun.deliver`).
 - **A stream item that cannot be written** (a throw from the writer) is logged and skipped alone:
   each item is written on its own, so the ones after it still go out, the stream's last event
-  (`response.completed`, `[DONE]`) above all. When that last event is the one that failed, the
-  stream ends as a mid-stream failure does (`unwritableEnd`): `response.failed` with a
-  `server_error`, or an error chunk and `[DONE]`. A stream that just stopped would read as a whole
-  answer to most clients. The stored response keeps the status the turn ended with.
+  (`response.completed`, `[DONE]`) above all. An item of the turn's end (the finish chunk, the
+  error chunk, `[DONE]`, `response.completed` or `response.failed`) is tried once more, then left
+  out, so the stream may end plainly, without its last event. It never ends with a failure the turn
+  did not have: the stored response and the conversation key already say the turn completed, and a
+  client told it failed would run it again. Only a turn that failed streams `response.failed` or an
+  error chunk, and nothing but `[DONE]` ever follows a finish chunk. The stored row is the truth.
 - **`store: false` writes nothing.** The response still has an id, but `GET` answers 404 and
   `previous_response_id` answers 404. The plan asked for a `stored` column; with nothing to keep for
   such a response, writing no row is the smaller and stricter choice.

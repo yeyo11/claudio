@@ -476,22 +476,25 @@ export class TurnRun<Item> {
     this.out(this.translator.failWith(failure));
   }
 
-  /** `deliver` catches every throw of the writer, so a turn that finished always gets to release. */
+  /** A turn that finished releases whatever its delivery throws: its locks and its conversation's queue wait on it. */
   private out(items: Item[]): void {
-    if (items.length > 0) {
-      if (this.writer) this.deliver(this.writer, items);
-      else this.pending.push(...items);
+    try {
+      if (items.length > 0) {
+        if (this.writer) this.deliver(this.writer, items);
+        else this.pending.push(...items);
+      }
+    } finally {
+      if (this.finished) this.release();
     }
-    if (this.finished) this.release();
   }
 
   /**
    * Each item on its own: one that cannot be written (and is reported) must not take the ones after
-   * it along, the event that ends the turn above all. When that last one is what failed, the stream
-   * still ends, as a failure (`unwritableEnd`).
+   * it along, the event that ends the turn above all. An item of the turn's end is tried once more,
+   * then left out: the stream never ends with a failure the turn did not have, since the stored
+   * response and the conversation key already say it completed and a client would run it again.
    */
   private deliver(write: (item: Item) => void, items: Item[]): void {
-    let lastFailed = false;
     const one = (item: Item): boolean => {
       try {
         write(item);
@@ -501,8 +504,7 @@ export class TurnRun<Item> {
         return false;
       }
     };
-    for (const item of items) lastFailed = !one(item);
-    if (lastFailed && this.finished) for (const item of this.translator.unwritableEnd('The end of the answer could not be written.')) one(item);
+    for (const item of items) if (!one(item) && this.finished) one(item);
   }
 
   private release(): void {

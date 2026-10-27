@@ -824,12 +824,17 @@ function handFedTurn<Item>(translator: OpenAiTurnTranslator<Item>, reported: unk
 const said = (text: string) => ({ kind: 'message' as const, entry: { uuid: `u-${text}`, role: 'assistant' as const, timestamp: null, model: 'claude', isSidechain: false, parentToolUseId: null, blocks: [{ type: 'text' as const, text }] } });
 const ended = { kind: 'result' as const, text: '', outcome: { isError: false, turns: 1, durationMs: 1, costUsd: 0, permissionDenials: [] } };
 
+/** A Chat Completions chunk that carries the finish reason */
+const finishes = (item: unknown): boolean => typeof item === 'object' && item !== null && 'choices' in item && (item as { choices: Array<{ finish_reason: string | null }> }).choices.some((c) => c.finish_reason !== null);
+const isError = (item: unknown): boolean => typeof item === 'object' && item !== null && 'error' in item;
+const responsesTranslator = (): ResponsesTranslator =>
+  new ResponsesTranslator({ id: 'resp_t', model: 'sonnet', createdAt: 0, instructions: null, previousResponseId: null, store: false, metadata: {}, echo: { tools: [], toolChoice: 'auto', text: { format: { type: 'text' } }, parallelToolCalls: true, reasoningEffort: null, maxOutputTokens: null, temperature: null, topP: null, truncation: 'disabled', user: null }, structured: false });
+
 test('a writer that throws on one item still gets every item after it, the end of the stream included', async () => {
   const reported: unknown[] = [];
   const { run, feed } = handFedTurn(new ChatCompletionTranslator({ id: 'chatcmpl-t', model: 'sonnet', created: 0, includeUsage: false, structured: false }), reported);
   const written: unknown[] = [];
   // The chunk with the finish reason goes in one batch with [DONE], right before it
-  const finishes = (item: unknown): boolean => typeof item === 'object' && item !== null && 'choices' in item && (item as { choices: Array<{ finish_reason: string | null }> }).choices.some((c) => c.finish_reason !== null);
   run.stream((item) => {
     if (finishes(item)) throw new Error('cannot serialise this chunk');
     written.push(item);
@@ -837,13 +842,54 @@ test('a writer that throws on one item still gets every item after it, the end o
   feed(said('one'));
   feed(ended);
   await run.done;
-  assert.equal(reported.length, 1);
+  assert.equal(reported.length, 2, 'the end item was tried once more');
   assert.equal(written.at(-1), STREAM_DONE, 'the stream still ends with [DONE]');
+  assert.ok(!written.some(isError), 'a turn that completed never streams an error');
 });
 
-test('when the event that ends the turn cannot be written, the stream ends as a failure', async () => {
+test('a [DONE] that fails once is written again, and never after an error chunk', async () => {
   const reported: unknown[] = [];
-  const translator = new ResponsesTranslator({ id: 'resp_t', model: 'sonnet', createdAt: 0, instructions: null, previousResponseId: null, store: false, metadata: {}, echo: { tools: [], toolChoice: 'auto', text: { format: { type: 'text' } }, parallelToolCalls: true, reasoningEffort: null, maxOutputTokens: null, temperature: null, topP: null, truncation: 'disabled', user: null }, structured: false });
+  const { run, feed } = handFedTurn(new ChatCompletionTranslator({ id: 'chatcmpl-t', model: 'sonnet', created: 0, includeUsage: false, structured: false }), reported);
+  const written: unknown[] = [];
+  let refused = false;
+  run.stream((item) => {
+    if (item === STREAM_DONE && !refused) {
+      refused = true;
+      throw new Error('a full socket buffer');
+    }
+    written.push(item);
+  });
+  feed(said('one'));
+  feed(ended);
+  await run.done;
+  const finish = written.findIndex(finishes);
+  assert.ok(finish >= 0);
+  assert.deepEqual(written.slice(finish + 1), [STREAM_DONE], 'only [DONE] follows the finish chunk');
+});
+
+test('when the event that ends a completed turn fails once, it is written again and the stream never claims a failure', async () => {
+  const reported: unknown[] = [];
+  const translator = responsesTranslator();
+  const { run, feed } = handFedTurn(translator, reported);
+  const written: string[] = [];
+  let refused = false;
+  run.stream((event) => {
+    if (event.type === 'response.completed' && !refused) {
+      refused = true;
+      throw new Error('a full socket buffer');
+    }
+    written.push(event.type);
+  }, translator.open());
+  feed(said('hello'));
+  feed(ended);
+  await run.done;
+  assert.equal(written.at(-1), 'response.completed');
+  assert.ok(!written.includes('response.failed'));
+});
+
+test('when the event that ends a completed turn can never be written, the stream ends plainly, not as a failure', async () => {
+  const reported: unknown[] = [];
+  const translator = responsesTranslator();
   const { run, feed } = handFedTurn(translator, reported);
   const written: string[] = [];
   run.stream((event) => {
@@ -853,6 +899,21 @@ test('when the event that ends the turn cannot be written, the stream ends as a 
   feed(said('hello'));
   feed(ended);
   await run.done;
-  assert.equal(reported.length, 1);
-  assert.equal(written.at(-1), 'response.failed');
+  assert.equal(reported.length, 2);
+  assert.ok(!written.includes('response.failed'), 'the stored response says completed; so does the stream');
+});
+
+test('a turn that finished releases even when reporting a failed write throws', async () => {
+  const translator = responsesTranslator();
+  const { run, feed } = handFedTurn(translator, {
+    push: () => {
+      throw new Error('the logger is gone');
+    },
+  } as unknown as unknown[]);
+  run.stream((event) => {
+    if (event.type === 'response.completed') throw new Error('cannot serialise the response');
+  }, translator.open());
+  feed(said('hello'));
+  assert.throws(() => feed(ended), /the logger is gone/);
+  await run.done;
 });
