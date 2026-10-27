@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-26T19:30:00Z
-updated_at: 2026-10-27T13:00:00Z
+updated_at: 2026-10-28T00:30:00Z
 tags:
     - plan
     - goal
@@ -10,7 +10,7 @@ tags:
 ---
 # Goal: test, merge and release the OpenAI-compatible API
 
-Status: **released 2026-10-27; only the knowledge-base re-sync is left** (see "Progress" below). This document is the goal a Claude Code session works to
+Status: **done, 2026-10-28** (see "Progress" below). This document is the goal a Claude Code session works to
 until every box under "Done means" is ticked. It assumes the plan
 ([openai-compatible-api.md](openai-compatible-api.md)) and the spike
 ([openai-compatible-api-spike.md](openai-compatible-api-spike.md)).
@@ -63,9 +63,12 @@ until every box under "Done means" is ticked. It assumes the plan
   `ghcr.io/yeyo11/claudio:0.10.0`, also `latest`; the apt repository lists 0.10.0, its `.deb` is the
   release's byte for byte, and `InRelease` verifies with `gpgv` against the repository keyring.
 - **After the release.** Worktrees, branches (local and the merged remote one) and temp folders of
-  this work removed; local `main` fast-forwarded; project memory updated. The knowledge base re-syncs
-  from the owner's checkout, which was on another branch at the time: it picks these documents up on
-  the next re-sync from `main`.
+  this work removed; local `main` fast-forwarded; project memory updated. The owner's checkout moved
+  to `main` once its uncommitted e2e-through-Sluice work landed (#68). The knowledge base then held
+  `openai-compatible-api.md`, the spike and the e2e decision; this plan and the design plan were added
+  with `kb_add_document` on 2026-10-28, because pando 1.3.3's full re-sync aborts on documents that
+  share a file name in different folders (`decision-engine.md` three times; reported to pando
+  separately).
 
 ## Done means
 
@@ -82,7 +85,7 @@ until every box under "Done means" is ticked. It assumes the plan
 - [x] The release that contains it (expected **v0.10.0**) is published: GitHub release Latest with the
       .deb, AppImage, signed server bundle and signed desktop manifest; image `ghcr.io/yeyo11/claudio`
       tagged; the apt repository lists it and `InRelease` verifies.
-- [ ] After the release: knowledge base indexed, project memory updated, worktrees, branches and temp
+- [x] After the release: knowledge base indexed, project memory updated, worktrees, branches and temp
       folders of this work removed, local `main` fast-forwarded.
 
 ## Steps
