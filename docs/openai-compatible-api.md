@@ -771,21 +771,25 @@ prompt"), as the client sent it even when a held turn could not take it.
 never holds an image's bytes: copying up to 5 MB of base64 into every row, and parsing it on each
 lookup, would buy nothing. It holds where they are:
 
-- a data URL: its media type, size, `imageDigest` and the upload holding the bytes. That is the
-  upload this turn saved; else one an earlier row of the chat names for the same digest
-  (`uploadsOfImage`; a resent history carries its earlier images again, and a warm turn only
-  uploads the new ones); else, for a history no row of the chat stored yet (one from Chat
-  Completions, say), the bytes are saved as an upload of the chat now, once;
-- an http(s) URL: the URL itself, up to 32 KiB (`STORED_IMAGE_URL_MAX`); a longer one, its origin,
-  its length and the upload the turn fetched it into.
+- a data URL: its media type, size, `imageDigest` (of the decoded bytes) and the upload holding
+  the bytes. That is the upload this turn made for the same digest; else one an earlier row of the
+  chat names for it (`uploadsOfImage`, looked up once per digest and turn, the upload checked by its
+  metadata; a resent history carries its earlier images again, and a warm turn only uploads the
+  new ones); else none. Storing a row never saves an upload of its own: an image of an earlier
+  turn that no stored response of the chat holds (sent with `store: false`, through Chat
+  Completions, or whose response was deleted) is listed as its marker;
+- an http(s) URL: the URL itself, up to 32 KiB (`STORED_IMAGE_URL_MAX`); a longer one, only its
+  origin and its length.
 
-`GET /v1/responses/:id/input_items` reads each image of the page back from its upload as a data URL,
+`GET /v1/responses/:id/input_items` reads each data URL image of the page back from its upload,
 so a client that rebuilds its history from the list and sends it again sends the same image, and
 reaches the same chat (the digest of the bytes does not change with the encoding). When the upload is
 gone, the image is listed as a marker: a data URL with the type and size and no payload,
-`data:image/png;claudio-omitted-bytes=48213,`, or for a long link `<origin>/?claudio-omitted-chars=<length>`.
-Sending a marker back is refused (it is not base64) or fetches the origin, and misses the key; so
-does a long link read back as a data URL, whose key was its URL's. `detail` is kept.
+`data:image/png;claudio-omitted-bytes=48213,`. A long link is always listed as its marker,
+`<origin>/?claudio-omitted-chars=<length>`, never as the bytes it was fetched into: its key was taken
+from the URL, so a data URL in its place would miss the chat all the same. Sending a marker back is
+refused (it is not base64) or fetches the origin, and misses the key: a client that resends a long
+link must keep it itself. `detail` is kept.
 
 - **Stored when** `store` is not false and the turn answered: `completed` (with text or with
   `function_call` items) or `incomplete`. A failed response is not stored. The row is written

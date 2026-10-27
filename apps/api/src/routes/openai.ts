@@ -28,6 +28,7 @@ import {
   OPENAI_CONVERSATION_TTL_MS,
   openAiError,
   openAiHttpErrorOf,
+  openAiImageDigest,
   openAiKeyAfterAnswer,
   parseChatCompletionRequest,
   RunSlotRefusal,
@@ -44,7 +45,6 @@ import {
   type ConversationBase,
   type OpenAiChatTurn,
   type OpenAiClientCall,
-  type OpenAiImageRef,
   type OpenAiErrorResponse,
   type OpenAiToolCall,
   type OpenAiToolChoice,
@@ -568,7 +568,7 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
    * After a turn that answered (completed or cut short), with its chat, key, the system prompt it
    * asked for and the uploads this turn saved its images to
    */
-  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts | null, images: ReadonlyMap<OpenAiImageRef, string>): void;
+  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts | null, images: ReadonlyMap<string, string>): void;
   whole(translator: T): WholeAnswer;
 }
 
@@ -743,7 +743,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         if (!request.store) return;
         const end = translator.end();
         if (end?.kind !== 'response') return;
-        const inputItems = storedInputItems(request.inputItems, (image, digest) => images.get(image) ?? earlierUpload(chatId, digest) ?? savedUpload(chatId, image));
+        // Each digest is looked up once per turn, however often the input carries the image
+        const known = new Map<string, string | null>(images);
+        const inputItems = storedInputItems(request.inputItems, (digest) => {
+          if (!known.has(digest)) known.set(digest, earlierUpload(chatId, digest));
+          return known.get(digest) ?? null;
+        });
         // The chain's part as the client asked for it, taken or not by a held turn: the next turn of the chain applies it
         core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, conversationSystem: system?.conversation ?? null, inputItems });
       },
@@ -793,24 +798,18 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     }
   }
 
-  /** An upload an earlier stored response of the chat saved the image to, if it is still there. */
+  /** An upload an earlier stored response of the chat saved the image to, if it is still there (its metadata, not its bytes). */
   function earlierUpload(chatId: string, digest: string): string | null {
-    return core.openaiResponses.uploadsOfImage(chatId, digest).find((upload) => readUpload(upload) !== null) ?? null;
-  }
-
-  /**
-   * The bytes of a data URL image no upload holds yet (a history resent into a chat that never stored
-   * it, from Chat Completions say), saved now, once: the next row finds it by its digest
-   */
-  function savedUpload(chatId: string, image: OpenAiImageRef): string | null {
-    if (image.kind !== 'data') return null;
-    try {
-      const saved = core.uploads.save(`openai-image.${image.mediaType.split('/')[1] ?? 'bin'}`, Buffer.from(image.base64, 'base64'));
-      core.db.addChatUploads(chatId, [saved.id], new Date().toISOString());
-      return saved.id;
-    } catch {
-      return null;
-    }
+    return (
+      core.openaiResponses.uploadsOfImage(chatId, digest).find((upload) => {
+        try {
+          core.uploads.get(upload);
+          return true;
+        } catch {
+          return false;
+        }
+      }) ?? null
+    );
   }
 
   /**
@@ -895,10 +894,16 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         save: (name, bytes) => core.uploads.save(name, bytes),
       }, UPLOAD_LIMITS.image, names.images);
       if (!uploaded.ok) return answer(reply, uploaded.error);
-      const turnImages = new Map(prompt.images.flatMap((image, i): Array<[OpenAiImageRef, string]> => {
-        const upload = uploaded.value[i];
-        return upload === undefined ? [] : [[image, upload]];
-      }));
+      // By digest, which the stored input names its data URL images by, so a stored row finds the
+      // upload this turn made for each. Only the API that stores responses needs them
+      const turnImages = new Map(
+        plan.completed
+          ? prompt.images.flatMap((image, i): Array<[string, string]> => {
+              const upload = uploaded.value[i];
+              return upload === undefined || image.kind !== 'data' ? [] : [[openAiImageDigest(image), upload]];
+            })
+          : [],
+      );
 
       // A chat keeps its session once it had client tools: its process may serve the stub still
       const tools = session ?? (wantsTools ? registry.create(request.tools) : null);

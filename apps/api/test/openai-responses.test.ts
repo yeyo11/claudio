@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -886,4 +886,44 @@ test('input_items replayed with the output as the next input reach the same chat
   rmSync(join(core.uploads.dir, part.stored.upload), { recursive: true, force: true });
   const marked = (await (await get(`/responses/${first.id}/input_items?order=asc`)).json()) as Listed;
   assert.match(String(marked.data[1]?.content?.[1]?.image_url), /^data:image\/png;claudio-omitted-bytes=\d+,$/);
+});
+
+test('storing a turn saves no upload of its own: an image no stored response holds is listed as its marker', async () => {
+  const image = { type: 'input_image', image_url: `data:image/png;base64,${PNG}`, detail: 'auto' };
+  // Not stored, so no row names the upload this turn made
+  const firstRes = await post({ model: 'sonnet', store: false, input: [{ role: 'user', content: [{ type: 'input_text', text: 'Twice?' }, image, image] }] });
+  const first = await ok(firstRes);
+  const uploads = readdirSync(core.uploads.dir).length;
+  const secondRes = await post({ model: 'sonnet', input: [{ role: 'user', content: [{ type: 'input_text', text: 'Twice?' }, image, image] }, ...first.output, { role: 'user', content: 'And now?' }] });
+  const second = await ok(secondRes);
+  assert.equal(chatOf(secondRes), chatOf(firstRes), 'continued warm');
+  assert.equal(readdirSync(core.uploads.dir).length, uploads, 'no 5 MB copy per image part');
+  type Listed = { data: Array<{ content?: Array<{ image_url?: string }> }> };
+  const listed = (await (await get(`/responses/${second.id}/input_items?order=asc`)).json()) as Listed;
+  assert.match(String(listed.data[0]?.content?.[1]?.image_url), /claudio-omitted-bytes=/);
+});
+
+test('an image this turn uploaded is named from the turn, with no lookup in earlier rows, however often the input carries it', async () => {
+  const image = { type: 'input_image', image_url: `data:image/png;base64,${PNG}`, detail: 'auto' };
+  const firstRes = await post({ model: 'sonnet', input: [{ role: 'user', content: [{ type: 'input_text', text: 'Look' }, image] }] });
+  const first = await ok(firstRes);
+  const lookups: string[] = [];
+  const original = core.openaiResponses.uploadsOfImage.bind(core.openaiResponses);
+  core.openaiResponses.uploadsOfImage = (chatId, digest) => {
+    lookups.push(digest);
+    return original(chatId, digest);
+  };
+  let second: Awaited<ReturnType<typeof ok>>;
+  try {
+    second = await ok(await post({ model: 'sonnet', previous_response_id: first.id, input: [{ role: 'user', content: [{ type: 'input_text', text: 'Again' }, image, image] }] }));
+  } finally {
+    core.openaiResponses.uploadsOfImage = original;
+  }
+  assert.deepEqual(lookups, []);
+  const stored = core.openaiResponses.inputItems(second.id);
+  const parts = stored?.[0]?.type === 'message' ? stored[0].content : [];
+  const named = parts.flatMap((p) => ('stored' in p && p.stored.kind === 'data' ? [p.stored.upload] : []));
+  assert.equal(named.length, 2);
+  assert.ok(named[0]);
+  assert.equal(named[0], named[1], 'one upload for the one image');
 });

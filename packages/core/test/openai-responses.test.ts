@@ -586,7 +586,8 @@ test('a large data URL image leaves a small stored row, and the listed input rea
     // The turn still gets the image whole
     const user = request.chat.messages[0];
     assert.equal(user?.role === 'user' && user.parts[1]?.type === 'image' && user.parts[1].image.kind === 'data' ? user.parts[1].image.sizeBytes : null, bytes);
-    const inputItems = storedInputItems(request.inputItems, (image) => (image.kind === 'data' ? 'up-1' : null));
+    // Every image is offered an upload: a long link must still never be read back from one
+    const inputItems = storedInputItems(request.inputItems, () => 'up-1');
     responses.save({ id: 'resp_img', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_img'), conversationSystem: null, inputItems });
     const row = db.connection.prepare('SELECT length(input_items) AS n FROM openai_responses WHERE id = ?').get('resp_img') as { n: number };
     assert.ok(row.n < 1024, `the row holds ${String(row.n)} characters of input`);
