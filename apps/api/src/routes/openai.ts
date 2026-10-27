@@ -346,6 +346,7 @@ export class TurnRun<Item> {
   costUsd: number | null = null;
   private pending: Item[] = [];
   private writer: ((item: Item) => void) | null = null;
+  private cut: () => void = () => {};
   private unsubscribe: () => void = () => {};
   private readonly seen = new Set<number>();
   private since = 0;
@@ -493,9 +494,11 @@ export class TurnRun<Item> {
 
   /**
    * Each item on its own: one that cannot be written (and is reported) must not take the ones after
-   * it along, the event that ends the turn above all. An item of the turn's end is tried once more,
-   * then left out: the stream never ends with a failure the turn did not have, since the stored
-   * response and the conversation key already say it completed and a client would run it again.
+   * it along, the event that ends the turn above all. An item of the turn's end (`endsTurn`) is tried
+   * once more. Then, for a turn that completed, it is left out: the stream never ends with a failure
+   * the turn did not have, since the stored response and the conversation key already say it
+   * completed and a client would run it again. For a turn that failed, the connection is cut: a
+   * stream that just ends reads as a complete answer to the SDKs, a broken one as an error.
    */
   private deliver(write: (item: Item) => void, items: Item[]): void {
     const one = (item: Item): boolean => {
@@ -507,7 +510,10 @@ export class TurnRun<Item> {
         return false;
       }
     };
-    for (const item of items) if (!one(item) && this.finished) one(item);
+    for (const item of items) {
+      if (one(item) || !endsTurn(item) || one(item)) continue;
+      if (this.translator.answered() === null) this.cut();
+    }
   }
 
   private release(): void {
@@ -517,9 +523,13 @@ export class TurnRun<Item> {
     this.settle();
   }
 
-  /** Hands `opening`, what was said so far, and everything after, to `write`, one item at a time. */
-  stream(write: (item: Item) => void, opening: Item[] = []): void {
+  /**
+   * Hands `opening`, what was said so far, and everything after, to `write`, one item at a time.
+   * `cut` breaks the connection, for a failed turn whose end could not be written.
+   */
+  stream(write: (item: Item) => void, opening: Item[] = [], cut: () => void = () => {}): void {
     this.writer = write;
+    this.cut = cut;
     const waiting = [...opening, ...this.pending.splice(0)];
     if (waiting.length > 0) this.deliver(write, waiting);
   }
@@ -528,6 +538,20 @@ export class TurnRun<Item> {
   detach(): void {
     this.release();
   }
+}
+
+/**
+ * Whether a stream item ends its turn: Chat Completions' finish chunk, error body and `[DONE]`, or
+ * Responses' terminal event. Only these are worth a second write; the rest of a batch is not.
+ */
+function endsTurn(item: unknown): boolean {
+  if (item === STREAM_DONE) return true;
+  if (typeof item !== 'object' || item === null) return false;
+  if ('error' in item) return true;
+  if ('choices' in item && Array.isArray(item.choices)) {
+    return item.choices.some((c: unknown) => typeof c === 'object' && c !== null && 'finish_reason' in c && c.finish_reason !== null);
+  }
+  return 'type' in item && (item.type === 'response.completed' || item.type === 'response.incomplete' || item.type === 'response.failed');
 }
 
 /** Two system prompts as a process runs them: none and an empty one are the same. */
@@ -1023,7 +1047,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           remember();
           plan.write(stream, item);
         };
-        current.stream(write, plan.opening(translator));
+        current.stream(write, plan.opening(translator), () => reply.raw.destroy());
         await settled(current);
         remember();
         stream.end(current.costUsd !== null ? { [COST_HEADER]: String(current.costUsd) } : {});

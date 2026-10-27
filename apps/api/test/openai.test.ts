@@ -903,6 +903,75 @@ test('when the event that ends a completed turn can never be written, the stream
   assert.ok(!written.includes('response.failed'), 'the stored response says completed; so does the stream');
 });
 
+test('a completed turn whose end can never be written keeps the connection', async () => {
+  const translator = responsesTranslator();
+  const { run, feed } = handFedTurn(translator, []);
+  let cut = 0;
+  run.stream(
+    (event) => {
+      if (event.type === 'response.completed') throw new Error('cannot serialise the response');
+    },
+    translator.open(),
+    () => cut++,
+  );
+  feed(said('hello'));
+  feed(ended);
+  await run.done;
+  assert.equal(cut, 0);
+});
+
+test('a failed Chat Completions turn whose error cannot be written cuts the connection rather than end as an answer', async () => {
+  const reported: unknown[] = [];
+  const { run, feed } = handFedTurn(new ChatCompletionTranslator({ id: 'chatcmpl-t', model: 'sonnet', created: 0, includeUsage: false, structured: false }), reported);
+  let cut = 0;
+  run.stream(
+    (item) => {
+      if (isError(item)) throw new Error('cannot serialise the error');
+    },
+    [],
+    () => cut++,
+  );
+  feed(said('one'));
+  run.fail({ kind: 'server', message: 'the process died' });
+  await run.done;
+  assert.equal(reported.length, 2, 'the error was tried once more first');
+  assert.equal(cut, 1);
+});
+
+test('a failed Responses turn whose response.failed cannot be written cuts the connection', async () => {
+  const translator = responsesTranslator();
+  const { run, feed } = handFedTurn(translator, []);
+  let cut = 0;
+  run.stream(
+    (event) => {
+      if (event.type === 'response.failed') throw new Error('cannot serialise the response');
+    },
+    translator.open(),
+    () => cut++,
+  );
+  feed(said('hello'));
+  run.fail({ kind: 'server', message: 'the process died' });
+  await run.done;
+  assert.equal(cut, 1);
+});
+
+test('a late subscriber of a finished turn writes its opening and earlier items once, retrying only the end', async () => {
+  const reported: unknown[] = [];
+  const translator = responsesTranslator();
+  const { run, feed } = handFedTurn(translator, reported);
+  feed(said('hello'));
+  feed(ended);
+  const tried: string[] = [];
+  run.stream((event) => {
+    tried.push(event.type);
+    if (event.type === 'response.created' || event.type === 'response.completed') throw new Error('a full socket buffer');
+  }, translator.open());
+  await run.done;
+  assert.equal(tried.filter((t) => t === 'response.created').length, 1, 'an opening event is not written twice');
+  assert.equal(tried.filter((t) => t === 'response.completed').length, 2, 'the end is');
+  assert.equal(reported.length, 3);
+});
+
 test('a turn that finished releases even when reporting a failed write throws', async () => {
   const translator = responsesTranslator();
   const { run, feed } = handFedTurn(translator, {
