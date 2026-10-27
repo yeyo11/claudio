@@ -968,6 +968,18 @@ in process through the real routes, core and stub (no dev server), 2026-10-26, 0
 - Stored responses live 7 days, not 30.
 - `input_items` lists the request's own input, not the chain's, and an image as a reference, not
   its data (above).
+- **Images that reached Claudio through Chat Completions or with `store: false`** have no stored
+  response naming their upload. When a later stored request's history carries them again,
+  `input_items` lists them as their marker (`data:image/png;claudio-omitted-bytes=<size>,`), not as
+  the image: storing a row never saves an upload of its own.
+- **An upload folder whose metadata is there but whose image file is gone** is still named by the
+  row, since the lookup checks the metadata only; `input_items` then cannot read the bytes back and
+  lists the image as its marker.
+- **Rows stored by pre-release builds with long image URLs** kept only the URL's origin and length,
+  so `input_items` lists those images as the origin marker (`<origin>/?claudio-omitted-chars=<length>`).
+- **A chain on a chat with no prompt row** (only dev data from before the unreleased migration):
+  a request's new system or developer messages replace the chain's earlier ones instead of being
+  added after them, since the chain's part is unknown ("The system prompt").
 - The SDK parse check was not run (the package is not in the repository).
 
 ## Using it
