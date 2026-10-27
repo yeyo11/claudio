@@ -720,7 +720,8 @@ conversation, updated_at)` holds, per chat, the parts the client asked for last:
 request without system messages keeps, across a server restart too, and what the chat's next
 process runs. It is written on every turn, also when the live process had to keep its old prompt
 (below), so the next turn that can restart applies it; a write that fails is logged and the turn
-goes on. The row goes with the chat (`Db.deleteChat`).
+goes on. So the row is not always what the live process runs: that is the process's joined prompt
+(`ChatManager.systemPromptOf`). The row goes with the chat (`Db.deleteChat`).
 
 **A chat without a row** (one started before the rows existed, which only dev data has) has an
 unknown conversation part: its process holds only the join, and reading the part back from it would
@@ -748,7 +749,13 @@ with system messages starts the part afresh from them, and writes the row.
   (a restart could not load the stub). Never a 503 for a prompt alone; a schema or tool change still
   is one there, since the answer would be wrong without it. The chat's row takes the new parts all
   the same, so the next turn that can restart applies them, a named delta without system messages
-  included.
+  included. What is named is read against the live process's joined prompt, not the row, so a
+  second turn in a row that keeps the process names the same field again
+  (`keptPromptNames`). The process's own parts are not kept apart, an approximation: a wanted
+  `instructions` runs when the join starts with it, a wanted conversation part when the join ends
+  with it, and an empty one when the other part does not run (it is then the whole difference). A
+  part that holds a blank line of its own can be taken for the other; when nothing tells them apart,
+  both fields are named.
 
 | The request | Live idle process | No process (cold) | Held turn | Client tools, address unknown |
 |---|---|---|---|---|

@@ -842,6 +842,46 @@ test('a new developer message while the live process must keep its prompt is nam
   assert.deepEqual((second.headers.get('x-claudio-ignored') ?? '').split(', '), ['input']);
 });
 
+/** A request while the API's address is unknown: a chat with client tools must keep its process's prompt */
+async function withoutApiUrl(send: () => Promise<Response>): Promise<Response> {
+  const api = core.runtime.apiUrl;
+  core.runtime.apiUrl = null;
+  try {
+    return await send();
+  } finally {
+    core.runtime.apiUrl = api;
+  }
+}
+
+const ignoredOf = (res: Response): string[] => (res.headers.get('x-claudio-ignored') ?? '').split(', ').filter(Boolean);
+
+test('dropped instructions stay named on the next turn that keeps the process, though the chat\'s row already has them dropped', async () => {
+  const firstRes = await post({ model: 'sonnet', instructions: 'X', input: [{ role: 'developer', content: 'D' }, { role: 'user', content: directive('TOOLS', [{ name: 'lookup', input: { key: 'd' } }]) }], tools: [lookup] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const second = await post({ model: 'sonnet', previous_response_id: first.id, input: [output(callsOf(first)[0]?.call_id ?? '', 'value')], tools: [lookup] });
+  const two = await ok(second);
+  assert.deepEqual(ignoredOf(second), ['instructions'], 'the held turn goes on with them');
+  const third = await withoutApiUrl(() => post({ model: 'sonnet', previous_response_id: two.id, input: 'next', tools: [lookup] }));
+  await ok(third);
+  assert.equal(turnsOf(chatId).at(-1)?.system, 'X\n\nD', 'the process still runs the old instructions');
+  assert.deepEqual(ignoredOf(third), ['instructions'], 'what was left out is the instructions, not the input');
+});
+
+test('a changed developer message with the same instructions stays named as input on consecutive turns that keep the process', async () => {
+  const firstRes = await post({ model: 'sonnet', instructions: 'X', input: [{ role: 'developer', content: 'D1' }, { role: 'user', content: 'one' }], tools: [lookup] });
+  await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  const ask = (prompt: string) => () => post({ model: 'sonnet', instructions: 'X', input: [{ role: 'developer', content: 'D2' }, { role: 'user', content: prompt }], tools: [lookup] }, { 'x-claudio-chat-id': chatId });
+  const second = await withoutApiUrl(ask('two'));
+  await ok(second);
+  assert.deepEqual(ignoredOf(second), ['input']);
+  const third = await withoutApiUrl(ask('three'));
+  await ok(third);
+  assert.equal(turnsOf(chatId).at(-1)?.system, 'X\n\nD1');
+  assert.deepEqual(ignoredOf(third), ['input'], 'the instructions run as asked; the developer message does not');
+});
+
 test('a chat without its prompt row keeps its process\'s prompt and writes no row from the joined one', async () => {
   const firstRes = await post({ model: 'sonnet', instructions: 'I', input: [{ role: 'developer', content: 'C' }, { role: 'user', content: 'one' }] });
   await ok(firstRes);

@@ -1162,7 +1162,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     return { kind: 'whole' };
   }
 
-  /** The parts the chat's next process runs with. A failed write is logged: the turn already runs. */
+  /** The parts the request asked for, which the chat's next process runs with. A failed write is logged: the turn already runs. */
   function rememberSystemPrompt(req: FastifyRequest, chatId: string, parts: SystemPromptParts): void {
     try {
       core.openaiChatPrompts.save(chatId, parts);
@@ -1173,17 +1173,26 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
   /**
    * What `x-claudio-ignored` names when the process keeps its prompt, in the request's API's words:
-   * `instructions` (Responses only) when they are what changed, the history's field (`messages`,
-   * `input`) when its system and developer messages are. Read before this turn's parts are saved.
+   * `instructions` (Responses only) and the history's field (`messages`, `input`), each when the
+   * process does not run the value the request asked for. Read against the live process's joined
+   * prompt, not the row: the row holds the parts last asked for, which a held turn saves without
+   * running them. The process's own parts are not kept, so the join is read: a wanted part runs when
+   * the join starts (instructions) or ends (conversation) with it, and an empty one when the other
+   * part does not run, which then is the whole difference. A part with a blank line of its own can be
+   * taken for the wrong side; when nothing can be told apart, both are named.
    */
   function keptPromptNames(chatId: string, parts: SystemPromptParts, names: ParamNames): string[] {
-    const before = core.openaiChatPrompts.find(chatId);
+    const running = core.runtime.systemPromptOf(chatId) ?? '';
+    if (running === effectiveSystemPrompt(parts)) return [];
     const history = names.results.param;
     const { instructions } = names;
-    const changed = before
-      ? [...(instructions && before.instructions !== parts.instructions ? [instructions] : []), ...(before.conversation !== parts.conversation ? [history] : [])]
-      : [];
-    return changed.length ? changed : [instructions && parts.instructions ? instructions : history];
+    const { instructions: wanted, conversation } = parts;
+    const startsWith = wanted !== '' && (running === wanted || running.startsWith(`${wanted}\n\n`));
+    const endsWith = conversation !== '' && (running === conversation || running.endsWith(`\n\n${conversation}`));
+    const runsInstructions = wanted === '' ? !endsWith && conversation !== '' : startsWith;
+    const runsConversation = conversation === '' ? !startsWith && wanted !== '' : endsWith;
+    const changed = [...(instructions && !runsInstructions ? [instructions] : []), ...(runsConversation ? [] : [history])];
+    return changed.length ? changed : [...(instructions ? [instructions] : []), history];
   }
 
   /** A chat the OpenAI surface started, that still exists. */

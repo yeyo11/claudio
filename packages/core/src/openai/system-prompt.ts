@@ -51,10 +51,12 @@ export function effectiveSystemPrompt(parts: SystemPromptParts): string {
 }
 
 /**
- * The `openai_chat_prompts` rows: the parts an API chat's process was last started (or kept) with.
- * A row per chat rather than an option of the live chat, because a request that names the chat and
- * carries no system message must keep the chat's part after a server restart too, when no process
- * is left to ask; and the parts, not only their join, say which of them a held turn could not take.
+ * The `openai_chat_prompts` rows: the parts an API chat's client last asked for, which its next
+ * process starts with. Not always what the live process runs: a turn that had to keep the old prompt
+ * (a held turn) saves them all the same, so the next turn that can restart applies them; what the
+ * process runs is its joined prompt (`ChatManager.systemPromptOf`). A row per chat rather than an
+ * option of the live chat, because a request that names the chat and carries no system message must
+ * keep the chat's part after a server restart too, when no process is left to ask.
  */
 export class OpenAiChatPromptStore {
   constructor(
