@@ -982,7 +982,29 @@ in process through the real routes, core and stub (no dev server), 2026-10-26, 0
 - **A chain on a chat with no prompt row** (only dev data from before the unreleased migration):
   a request's new system or developer messages replace the chain's earlier ones instead of being
   added after them, since the chain's part is unknown ("The system prompt").
-- The SDK parse check was not run (the package is not in the repository).
+- The SDK parse check was not run in the repository's tests (the package is not a dependency); the
+  real-client tests below ran the official SDKs from outside it.
+
+## Real-client tests
+
+Run on 2026-10-27 against a server from this branch: an isolated `CLAUDIO_DATA_DIR`, the owner's
+own Claude Code login (a fresh `CLAUDE_CONFIG_DIR` has none), Claude Code 2.1.310 on `haiku`, every
+chat process capped with `--max-budget-usd 0.5`, a daily spend cap of 3 USD, loopback only.
+
+| Client | Result |
+|---|---|
+| `openai` for Node 7.45.0 | 9 of 9 checks: models, a whole turn and its follow-up in the same chat, streaming with usage, `json_schema`, one tool call and two parallel ones (results sent in reverse order), and `/v1/responses` with `previous_response_id`, its streamed events and a function call round trip. 0.037 USD |
+| `openai` for Python 3.39.0 | 4 of 4 after one fix: a whole turn, streaming, a tool round trip that resends the SDK's own echo of the assistant message, and `previous_response_id`. Streaming first failed: the `retry:` field the `/v1` streams opened with reached the SDK as an empty event, which it parsed as JSON. Fixed in this branch ("Streaming") |
+| Open WebUI (`ghcr.io/open-webui/open-webui:main`, 2026-10-25 build) | A three-turn conversation, every turn in the same chat, with the right answers and its first prompt as the chat's title. Its background tasks (a title, tags, and follow-up suggestions after each turn) are separate requests: the three turns made **6 API chats and 8 completions** (5 of the chats titled `### Task:`). Its tools reached the stub MCP server, whose `GET` answers 405 as Streamable HTTP allows |
+
+**What the tests showed about run slots.** Every API chat keeps its process between turns, and an
+idle process holds a run slot until the idle timeout (10 minutes). Each new conversation, and each
+of Open WebUI's background tasks, is a new chat, so about eight of them fill `maxConcurrentRuns` (8)
+and every other request, a person's chats included, answers `429` until they expire. Both SDK runs
+hit it when run one after the other, and Open WebUI reaches it in about three conversations. How
+to treat it is the owner's choice (open, 2026-10-27). Until then: in Open WebUI, turn off title,
+tag and follow-up generation (Admin Settings → Interface), or point its task model at another
+provider.
 
 ## Using it
 
