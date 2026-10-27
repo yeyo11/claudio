@@ -36,14 +36,22 @@ export type ItemStatus = 'in_progress' | 'completed' | 'incomplete';
 
 export type OutputItem = OutputMessage | FunctionCallItem;
 
-/** An input item as `GET /v1/responses/:id/input_items` lists it: what the request carried, with ids. */
-export type InputItem =
-  | { type: 'message'; id: string; status: 'completed'; role: 'user' | 'system' | 'developer'; content: InputContent[] }
+/**
+ * An input item with its images in the form `Image`: as the wire lists them (`InputItem`), as a
+ * request carried them (`ImageRef`, with the bytes) or as a stored row keeps them (a reference).
+ */
+export type InputItemOf<Image> =
+  | { type: 'message'; id: string; status: 'completed'; role: 'user' | 'system' | 'developer'; content: Array<{ type: 'input_text'; text: string } | Image> }
   | { type: 'message'; id: string; status: 'completed'; role: 'assistant'; content: Array<OutputText | { type: 'refusal'; refusal: string }> }
   | { type: 'function_call'; id: string; status: 'completed'; call_id: string; name: string; arguments: string }
   | { type: 'function_call_output'; id: string; status: 'completed'; call_id: string; output: string };
 
-export type InputContent = { type: 'input_text'; text: string } | { type: 'input_image'; image_url: string; detail: string };
+export type InputImage = { type: 'input_image'; image_url: string; detail: string };
+
+/** An input item as `GET /v1/responses/:id/input_items` lists it: what the request carried, with ids. */
+export type InputItem = InputItemOf<InputImage>;
+
+export type InputContent = { type: 'input_text'; text: string } | InputImage;
 
 // ---------- the response object ----------
 

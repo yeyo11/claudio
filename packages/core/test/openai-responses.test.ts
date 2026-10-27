@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { RunEvent, RunOutcome, TokenUsage, TranscriptEntry } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import type { ChatRuntime } from '../src/live-chat.ts';
-import { historyKey, keyAfterAnswer } from '../src/openai/conversation-key.ts';
+import { historyKey, imageDigest as openAiImageDigest, keyAfterAnswer } from '../src/openai/conversation-key.ts';
 import { OpenAiConversationStore } from '../src/openai/conversations.ts';
 import { ResponsesTranslator, responseUsage, type ResponsesTranslatorOptions } from '../src/openai/responses-events.ts';
 import { assistantOfOutput, keyAfterPrevious, parseResponsesRequest, responsesTurnOf, withPreviousOutput, type ResponsesRequest } from '../src/openai/responses-request.ts';
@@ -11,6 +11,7 @@ import { OpenAiResponseStore } from '../src/openai/responses-store.ts';
 import type { OutputItem, ResponseObject, ResponseStreamEvent } from '../src/openai/responses-wire.ts';
 import { sweepOpenAiChats } from '../src/openai/sweep.ts';
 import { effectiveSystemPrompt, hasSystemMessages, systemPromptParts } from '../src/openai/system-prompt.ts';
+import { listedInputItems, STORED_IMAGE_URL_MAX, storedInputItems } from '../src/openai/stored-images.ts';
 import { tempConfig } from './helpers.ts';
 
 // Phase 5's core (docs/openai-compatible-api.md): `POST /v1/responses` read into the request the
@@ -87,6 +88,34 @@ test('input items become the messages Chat Completions would carry, function cal
     ],
     'the reasoning item is dropped; ids the client sent are kept',
   );
+});
+
+test('back-to-back assistant messages, and two split by a developer message, stay separate assistant turns', () => {
+  const said = (role: string, text: string) => ({ type: 'message', role, content: role === 'assistant' ? [{ type: 'output_text', text }] : text });
+  const fewShot = parseOk({ input: [said('user', '2+2?'), said('assistant', '4'), said('assistant', 'Anything else?'), said('user', '3+3?')] });
+  assert.deepEqual(
+    fewShot.chat.messages.map((m) => [m.role, m.role === 'assistant' ? m.text : null]),
+    [
+      ['user', null],
+      ['assistant', '4'],
+      ['assistant', 'Anything else?'],
+      ['user', null],
+    ],
+  );
+  const split = parseOk({ input: [said('user', 'hi'), said('assistant', 'Hello.'), said('developer', 'Now answer in French.'), said('assistant', 'Bonjour.'), said('user', 'again')] });
+  assert.deepEqual(
+    split.chat.messages.map((m) => [m.role, m.role === 'assistant' ? m.text : null]),
+    [
+      ['user', null],
+      ['assistant', 'Hello.'],
+      ['developer', null],
+      ['assistant', 'Bonjour.'],
+      ['user', null],
+    ],
+  );
+  // A developer message between an assistant message and a call ends the message: the call starts its own
+  const call = parseOk({ input: [said('user', 'go'), said('assistant', 'Looking.'), said('developer', 'Be quick.'), { type: 'function_call', call_id: 'c', name: 'f', arguments: '{}' }, { type: 'function_call_output', call_id: 'c', output: 'ok' }] });
+  assert.deepEqual(call.chat.messages[3], { role: 'assistant', text: '', toolCalls: [{ id: 'c', type: 'function', function: { name: 'f', arguments: '{}' } }] });
 });
 
 test('a function call with no assistant message before it is an assistant message of its own', () => {
@@ -487,7 +516,7 @@ const responseObject = (id: string): ResponseObject => {
 test('a stored response is found again with its chat, key, object and input; deleting it removes only the row', () => {
   const { responses, db } = stores(() => '2026-10-26T10:00:00.000Z');
   try {
-    const inputItems = parseOk({ input: 'hi' }).inputItems;
+    const inputItems = storedInputItems(parseOk({ input: 'hi' }).inputItems, () => null);
     responses.save({ id: 'resp_a', chatId: 'chat-1', conversationKey: 'k1', response: responseObject('resp_a'), conversationSystem: 'Be brief.', inputItems });
     const found = responses.find('resp_a');
     assert.equal(found?.chatId, 'chat-1');
@@ -545,27 +574,50 @@ test('the sweep expires old stored responses, and an api chat a fresh one still 
   }
 });
 
-test('a large data URL image leaves a small stored row: the input lists a reference with its type and size', () => {
+test('a large data URL image leaves a small stored row, and the listed input reads it back from its upload', () => {
   const { responses, db } = stores(() => '2026-10-26T10:00:00.000Z');
   try {
     const bytes = 3 * 1024 * 1024;
-    const big = `data:image/png;base64,${Buffer.alloc(bytes, 7).toString('base64')}`;
+    const payload = Buffer.alloc(bytes, 7);
+    const big = `data:image/png;base64,${payload.toString('base64')}`;
     const link = 'https://example.com/cat.png';
-    const request = parseOk({ input: [{ role: 'user', content: [{ type: 'input_text', text: 'Both?' }, { type: 'input_image', image_url: big }, { type: 'input_image', image_url: link, detail: 'low' }] }] });
+    const long = `https://example.com/${'a'.repeat(STORED_IMAGE_URL_MAX)}`;
+    const request = parseOk({ input: [{ role: 'user', content: [{ type: 'input_text', text: 'All?' }, { type: 'input_image', image_url: big }, { type: 'input_image', image_url: link, detail: 'low' }, { type: 'input_image', image_url: long }] }] });
     // The turn still gets the image whole
     const user = request.chat.messages[0];
     assert.equal(user?.role === 'user' && user.parts[1]?.type === 'image' && user.parts[1].image.kind === 'data' ? user.parts[1].image.sizeBytes : null, bytes);
-    responses.save({ id: 'resp_img', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_img'), conversationSystem: null, inputItems: request.inputItems });
+    const inputItems = storedInputItems(request.inputItems, (image) => (image.kind === 'data' ? 'up-1' : null));
+    responses.save({ id: 'resp_img', chatId: 'chat-1', conversationKey: 'k', response: responseObject('resp_img'), conversationSystem: null, inputItems });
     const row = db.connection.prepare('SELECT length(input_items) AS n FROM openai_responses WHERE id = ?').get('resp_img') as { n: number };
     assert.ok(row.n < 1024, `the row holds ${String(row.n)} characters of input`);
-    const listed = responses.inputItems('resp_img')?.[0];
+    const stored = responses.inputItems('resp_img');
+    assert.ok(stored);
+    const digest = openAiImageDigest({ kind: 'data', mediaType: 'image/png', base64: payload.toString('base64'), sizeBytes: bytes });
+    assert.deepEqual(responses.uploadsOfImage('chat-1', digest), ['up-1'], 'a later row finds the upload by the image');
+    assert.deepEqual(responses.uploadsOfImage('chat-2', digest), []);
+
+    const read = (upload: string) => (upload === 'up-1' ? { bytes: payload, mediaType: 'image/png' } : null);
+    const listed = listedInputItems(stored, read)[0];
     assert.ok(listed?.type === 'message');
     assert.deepEqual(listed.content, [
-      { type: 'input_text', text: 'Both?' },
-      { type: 'input_image', image_url: `data:image/png;claudio-omitted-bytes=${String(bytes)},`, detail: 'auto' },
+      { type: 'input_text', text: 'All?' },
+      { type: 'input_image', image_url: big, detail: 'auto' },
       { type: 'input_image', image_url: link, detail: 'low' },
+      { type: 'input_image', image_url: `https://example.com/?claudio-omitted-chars=${String(long.length)}`, detail: 'auto' },
     ]);
+    // Without its upload, the image is a marker with its type and size
+    const gone = listedInputItems(stored, () => null)[0];
+    assert.ok(gone?.type === 'message');
+    assert.deepEqual(gone.content[1], { type: 'input_image', image_url: `data:image/png;claudio-omitted-bytes=${String(bytes)},`, detail: 'auto' });
   } finally {
     db.close();
   }
+});
+
+test('an image is the same in the conversation key however its bytes were base64-encoded', () => {
+  // `AB==` and `AA==` decode to the same byte: a client's encoding and the one read back from an upload
+  const withImage = (base64: string) => parseOk({ input: [{ role: 'user', content: [{ type: 'input_image', image_url: `data:image/png;base64,${base64}` }] }, { role: 'assistant', content: 'seen' }, { role: 'user', content: 'next' }] });
+  const a = withImage('AB==');
+  const b = withImage('AA==');
+  assert.equal(historyKey(responsesTurnOf(a).keySeed, a.chat.messages), historyKey(responsesTurnOf(b).keySeed, b.chat.messages));
 });

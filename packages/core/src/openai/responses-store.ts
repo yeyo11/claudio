@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { InputItem, ResponseObject } from './responses-wire.ts';
+import type { ResponseObject } from './responses-wire.ts';
+import { storedUploads, type StoredInputItem } from './stored-images.ts';
 
 /** One stored response of `POST /v1/responses`: what `previous_response_id` and `GET /v1/responses/:id` find. */
 export interface StoredResponse {
@@ -16,10 +17,10 @@ export interface StoredResponse {
    */
   conversationSystem: string | null;
   /**
-   * The request's input, as `GET /v1/responses/:id/input_items` lists it. Images are references
-   * (`parseResponsesRequest`), never their data: the upload holds the bytes already
+   * The request's input with ids. Images are references to the uploads that hold their bytes
+   * (`storedInputItems`), never their data; `listedInputItems` reads them back
    */
-  inputItems: InputItem[];
+  inputItems: StoredInputItem[];
   createdAt: string;
 }
 
@@ -70,9 +71,21 @@ export class OpenAiResponseStore {
   }
 
   /** The stored input of a response, for `GET /v1/responses/:id/input_items`; null when there is no such response. */
-  inputItems(id: string): InputItem[] | null {
+  inputItems(id: string): StoredInputItem[] | null {
     const row = this.sql.prepare('SELECT input_items FROM openai_responses WHERE id = ?').get(id) as { input_items: string } | undefined;
-    return row ? (JSON.parse(row.input_items) as InputItem[]) : null;
+    return row ? (JSON.parse(row.input_items) as StoredInputItem[]) : null;
+  }
+
+  /**
+   * The uploads earlier rows of the chat name for an image (by `imageDigest`), newest first: a resent
+   * history carries its earlier images again, but only the new ones were uploaded by this turn.
+   * The digest is in the row's text, so only rows that hold it are parsed.
+   */
+  uploadsOfImage(chatId: string, digest: string): string[] {
+    const rows = this.sql
+      .prepare("SELECT input_items FROM openai_responses WHERE chat_id = ? AND instr(input_items, ?) > 0 ORDER BY created_at DESC")
+      .all(chatId, digest) as Array<{ input_items: string }>;
+    return rows.flatMap((r) => storedUploads(JSON.parse(r.input_items) as StoredInputItem[]).flatMap((u) => (u.digest === digest ? [u.upload] : [])));
   }
 
   /** `DELETE /v1/responses/:id`: the row goes, the chat stays. */

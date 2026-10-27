@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { ChatMessage, ToolCall } from './wire.ts';
+import type { ChatMessage, ImageRef, ToolCall } from './wire.ts';
 
 /**
  * The conversation key: how a stateless client's request finds the Claudio chat that already holds
@@ -13,7 +13,7 @@ import type { ChatMessage, ToolCall } from './wire.ts';
  *   message, joined as `appendSystemPrompt` gets them) and the OpenAI `user`, so two end users with
  *   the same history never share a chat;
  * - then each other message in order, as a canonical JSON array:
- *   `["user", ...parts]` with text parts as text and images as the SHA-256 of their URL or data;
+ *   `["user", ...parts]` with text parts as text and images as their `imageDigest`;
  *   `["assistant", text, [[id, name, arguments]...]]`; `["tool", toolCallId, text]`.
  *
  * Normalised, because clients differ there without meaning anything: CRLF becomes LF and each
@@ -25,6 +25,16 @@ import type { ChatMessage, ToolCall } from './wire.ts';
 const KEY_VERSION = 'claudio-openai-conversation/1';
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+/**
+ * What an image is in the key and in a stored response's reference to it: the SHA-256 of its bytes
+ * for a data URL, so the same image comes back to the same key however it was base64-encoded (a
+ * client's own encoding, or `GET /v1/responses/:id/input_items` reading it back from its upload),
+ * and of the URL for a link, whose bytes are only known once fetched.
+ */
+export function imageDigest(image: ImageRef): string {
+  return image.kind === 'data' ? createHash('sha256').update(Buffer.from(image.base64, 'base64')).digest('hex') : sha256(image.url);
+}
 
 /** Text as both the key and the prompt read it. */
 export function normalizeText(text: string): string {
@@ -62,7 +72,7 @@ function canonical(message: ChatMessage): unknown[] | null {
     case 'user':
       return [
         'user',
-        ...message.parts.map((p) => (p.type === 'text' ? normalizeText(p.text) : ['image', sha256(p.image.kind === 'data' ? p.image.base64 : p.image.url)])),
+        ...message.parts.map((p) => (p.type === 'text' ? normalizeText(p.text) : ['image', imageDigest(p.image)])),
       ];
     case 'assistant':
       return ['assistant', normalizeText(message.text), canonicalCalls(message.toolCalls)];

@@ -23,6 +23,7 @@ import {
   failureOfThrown,
   fetchOpenAiImage,
   isOpenAiTurnError,
+  listedInputItems,
   OPENAI_CONVERSATION_TTL_MS,
   openAiError,
   openAiHttpErrorOf,
@@ -31,6 +32,7 @@ import {
   RunSlotRefusal,
   sameJsonSchema,
   STREAM_DONE,
+  storedInputItems,
   sweepOpenAiChats,
   systemPromptParts,
   translateOpenAiRequest,
@@ -41,6 +43,7 @@ import {
   type ConversationBase,
   type OpenAiChatTurn,
   type OpenAiClientCall,
+  type OpenAiImageRef,
   type OpenAiErrorResponse,
   type OpenAiToolCall,
   type OpenAiToolChoice,
@@ -544,8 +547,11 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
   write(stream: SseStream, item: Item): void;
   /** The conversation key the client's next request carries, after this answer */
   keyAfter(answered: { text: string; toolCalls: OpenAiToolCall[] }): string;
-  /** After a turn that answered (completed or cut short), with its chat, key and the system prompt it asked for */
-  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts): void;
+  /**
+   * After a turn that answered (completed or cut short), with its chat, key, the system prompt it
+   * asked for and the uploads this turn saved its images to
+   */
+  completed?(translator: T, chatId: string, key: string, system: SystemPromptParts, images: ReadonlyMap<OpenAiImageRef, string>): void;
   whole(translator: T): WholeAnswer;
 }
 
@@ -716,12 +722,13 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       write: (stream, event) => stream.send(event, { event: event.type }),
       keyAfter: (answered) =>
         previousKey !== null ? openAiKeyAfterPrevious(previousKey, fresh.chat.messages, answered) : openAiKeyAfterAnswer(turn.keySeed, request.chat.messages, answered),
-      completed: (translator, chatId, key, system) => {
+      completed: (translator, chatId, key, system, images) => {
         if (!request.store) return;
         const end = translator.end();
         if (end?.kind !== 'response') return;
+        const inputItems = storedInputItems(request.inputItems, (image, digest) => images.get(image) ?? earlierUpload(chatId, digest) ?? savedUpload(chatId, image));
         // The chain's part as the client asked for it, taken or not by a held turn: the next turn of the chain applies it
-        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, conversationSystem: system.conversation, inputItems: request.inputItems });
+        core.openaiResponses.save({ id, chatId, conversationKey: key, response: end.response, conversationSystem: system.conversation, inputItems });
       },
       whole: (translator) => wholeAnswer(translator.end(), (end) => end.response),
     });
@@ -754,9 +761,40 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (at < 0) throw fail({ kind: 'invalid-request', param: 'after', message: `No input item '${after}' in this response.` });
       start = at + 1;
     }
-    const data = items.slice(start, start + limit);
+    // Only the page's images are read back from their uploads
+    const data = listedInputItems(items.slice(start, start + limit), readUpload);
     return { object: 'list' as const, data, first_id: data[0]?.id ?? null, last_id: data.at(-1)?.id ?? null, has_more: start + limit < items.length };
   });
+
+  /** An upload's bytes and type, or null when it is gone. */
+  function readUpload(id: string): { bytes: Buffer; mediaType: string } | null {
+    try {
+      const { attachment, bytes } = core.uploads.read(id);
+      return { bytes, mediaType: attachment.mediaType };
+    } catch {
+      return null;
+    }
+  }
+
+  /** An upload an earlier stored response of the chat saved the image to, if it is still there. */
+  function earlierUpload(chatId: string, digest: string): string | null {
+    return core.openaiResponses.uploadsOfImage(chatId, digest).find((upload) => readUpload(upload) !== null) ?? null;
+  }
+
+  /**
+   * The bytes of a data URL image no upload holds yet (a history resent into a chat that never stored
+   * it, from Chat Completions say), saved now, once: the next row finds it by its digest
+   */
+  function savedUpload(chatId: string, image: OpenAiImageRef): string | null {
+    if (image.kind !== 'data') return null;
+    try {
+      const saved = core.uploads.save(`openai-image.${image.mediaType.split('/')[1] ?? 'bin'}`, Buffer.from(image.base64, 'base64'));
+      core.db.addChatUploads(chatId, [saved.id], new Date().toISOString());
+      return saved.id;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * One request's turn, whichever API shape it came in: the conversation's queue, the target chat,
@@ -835,6 +873,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         save: (name, bytes) => core.uploads.save(name, bytes),
       }, UPLOAD_LIMITS.image, names.results.param);
       if (!uploaded.ok) return answer(reply, uploaded.error);
+      const turnImages = new Map(prompt.images.flatMap((image, i): Array<[OpenAiImageRef, string]> => {
+        const upload = uploaded.value[i];
+        return upload === undefined ? [] : [[image, upload]];
+      }));
 
       // A chat keeps its session once it had client tools: its process may serve the stub still
       const tools = session ?? (wantsTools ? registry.create(request.tools) : null);
@@ -932,7 +974,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           req.log.error({ err, scope: 'openai', chatId }, 'storing the conversation key failed; the answer is served without it');
         }
         try {
-          plan.completed?.(translator, chatId, after, systemParts);
+          plan.completed?.(translator, chatId, after, systemParts, turnImages);
         } catch (err) {
           req.log.error({ err, scope: 'openai', chatId }, 'storing the response failed; the answer is served without it');
         }

@@ -825,3 +825,34 @@ test('new instructions on an idle chat with client tools while the API address i
   await ok(await post({ model: 'sonnet', previous_response_id: two.id, instructions: 'Answer like a poet.', input: 'three', tools: [lookup] }));
   assert.equal(turnsOf(chatId).at(-1)?.system, 'Answer like a poet.');
 });
+
+// ---------- input_items round trip ----------
+
+test('input_items replayed with the output as the next input reach the same chat, images read back from their uploads', async () => {
+  const image = { type: 'input_image', image_url: `data:image/png;base64,${PNG}`, detail: 'auto' };
+  const firstRes = await post({ model: 'sonnet', input: [{ role: 'developer', content: 'Describe images.' }, { role: 'user', content: [{ type: 'input_text', text: 'What is this?' }, image] }] });
+  const first = await ok(firstRes);
+  const chatId = chatOf(firstRes);
+  type Listed = { data: Array<Record<string, unknown> & { content?: Array<Record<string, unknown>> }> };
+  const listed = (await (await get(`/responses/${first.id}/input_items?order=asc`)).json()) as Listed;
+  assert.deepEqual(listed.data[1]?.content?.[1], image, 'the image comes back as it was sent');
+
+  // A stateless client rebuilds its history from what the API listed, and sends it again
+  const history = [...listed.data, ...first.output];
+  const secondRes = await post({ model: 'sonnet', input: [...history, { role: 'user', content: 'And now?' }] });
+  const second = await ok(secondRes);
+  assert.equal(chatOf(secondRes), chatId, 'the same conversation key');
+  assert.equal(turnsOf(chatId).at(-1)?.prompt, 'And now?', 'continued warm, not started again cold');
+
+  // The second row lists the first image too, although this turn uploaded nothing
+  const again = (await (await get(`/responses/${second.id}/input_items?order=asc`)).json()) as Listed;
+  assert.deepEqual(again.data[1]?.content?.[1], image);
+
+  // An upload that is gone leaves a marker with the image's type and size
+  const stored = core.openaiResponses.inputItems(first.id);
+  const part = stored?.[1]?.type === 'message' ? stored[1].content[1] : undefined;
+  assert.ok(part && 'stored' in part && part.stored.kind === 'data' && part.stored.upload);
+  rmSync(join(core.uploads.dir, part.stored.upload), { recursive: true, force: true });
+  const marked = (await (await get(`/responses/${first.id}/input_items?order=asc`)).json()) as Listed;
+  assert.match(String(marked.data[1]?.content?.[1]?.image_url), /^data:image\/png;claudio-omitted-bytes=\d+,$/);
+});

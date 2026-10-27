@@ -17,7 +17,8 @@ import {
   type ParseOptions,
   type Parsed,
 } from './request.ts';
-import type { InputContent, InputItem, OutputItem, ResponseFunctionTool, ResponseTextFormat, ResponseToolChoice } from './responses-wire.ts';
+import type { OutputItem, ResponseFunctionTool, ResponseTextFormat, ResponseToolChoice } from './responses-wire.ts';
+import type { RequestImage, RequestInputItem } from './stored-images.ts';
 import type { ChatCompletionRequest, ChatMessage, ClientTool, ImageRef, ResponseFormat, ToolCall, ToolChoice, UserPart } from './wire.ts';
 
 /**
@@ -34,8 +35,8 @@ export interface ResponsesRequest {
   /** `store` as sent, true when absent: the reference's default */
   store: boolean;
   metadata: Record<string, string>;
-  /** The input as `GET /v1/responses/:id/input_items` lists it */
-  inputItems: InputItem[];
+  /** The input with ids, as `GET /v1/responses/:id/input_items` lists it once stored (`storedInputItems`) */
+  inputItems: RequestInputItem[];
   /** What the response object repeats of the request */
   echo: ResponseEcho;
 }
@@ -151,28 +152,11 @@ function textParts(content: unknown, path: string, assistant: boolean): TextPart
 
 const joined = (parts: readonly TextPart[]): string => parts.map((p) => p.text).join('\n');
 
-/** The longest image URL kept as it is in the stored input */
-export const STORED_IMAGE_URL_MAX = 2048;
-
-/**
- * What the stored input says of an image: a reference, never its data. A data URL becomes one with
- * the same media type, its size as a parameter and no payload (`data:image/png;claudio-omitted-bytes=2048,`),
- * still a well-formed data URL; the bytes are in the upload the turn saved. Copying up to 5 MB of
- * base64 into every stored response's row, and parsing it again on each lookup, would buy nothing.
- * An http(s) URL is kept unless it is longer than `STORED_IMAGE_URL_MAX`, then only its origin with
- * how much was left out.
- */
-export function imageReference(image: ImageRef): string {
-  if (image.kind === 'data') return `data:${image.mediaType};claudio-omitted-bytes=${String(image.sizeBytes)},`;
-  if (image.url.length <= STORED_IMAGE_URL_MAX) return image.url;
-  return `${new URL(image.url).origin}/?claudio-omitted-chars=${String(image.url.length)}`;
-}
-
-function userContent(content: unknown, path: string, maxImageBytes: number): { parts: UserPart[]; items: InputContent[] } {
+function userContent(content: unknown, path: string, maxImageBytes: number): { parts: UserPart[]; items: Array<{ type: 'input_text'; text: string } | RequestImage> } {
   if (typeof content === 'string') return { parts: [{ type: 'text', text: content }], items: [{ type: 'input_text', text: content }] };
   if (!Array.isArray(content) || content.length === 0) throw invalid('`content` must be a string or a non-empty array of content parts.', path);
   const parts: UserPart[] = [];
-  const items: InputContent[] = [];
+  const items: Array<{ type: 'input_text'; text: string } | RequestImage> = [];
   for (const [j, part] of content.entries()) {
     const at = `${path}[${String(j)}]`;
     if (!isRecord(part)) throw invalid('A content part must be an object.', at);
@@ -186,7 +170,8 @@ function userContent(content: unknown, path: string, maxImageBytes: number): { p
       if (present(part.file_id) && !present(part.image_url)) throw unsupported('Images by `file_id` are not supported: send `image_url` as a data URL or an http(s) URL.', `${at}.file_id`);
       const image = parseImage(part.image_url, `${at}.image_url`, maxImageBytes);
       parts.push({ type: 'image', image });
-      items.push({ type: 'input_image', image_url: imageReference(image), detail: typeof part.detail === 'string' ? part.detail : 'auto' });
+      // The image itself, for the row to name where its bytes went (`storedInputItems`)
+      items.push({ type: 'input_image', image, detail: typeof part.detail === 'string' ? part.detail : 'auto' });
       continue;
     }
     throw unsupported(`Content parts of type \`${String(part.type)}\` are not supported.`, `${at}.type`);
@@ -211,22 +196,26 @@ function outputOf(output: unknown, path: string): string {
 const stringId = (value: unknown, prefix: string): string => (typeof value === 'string' && value ? value : newId(prefix));
 
 /**
- * The input as messages. A `function_call` item, and an assistant `message` item, join the assistant
- * message right before them (an output's messages and calls are one assistant turn, as Chat
- * Completions sends them and as `assistantOfOutput` reads a stored output), or start one of their
- * own; texts join with a blank line, as the answer's text does. `reasoning` items are dropped:
- * Claudio never returns them, and the CLI keeps its own thinking.
+ * The input as messages. A `function_call` item joins the assistant message right before it, or
+ * starts one of its own. An assistant `message` item joins one only right after a `function_call`:
+ * that is an output resent (text, calls, then the text after them are one assistant turn, as Chat
+ * Completions sends them and as `assistantOfOutput` reads a stored output); texts join with a blank
+ * line, as the answer's text does. Any other item ends the assistant message, a system or developer
+ * one included, so two assistant messages in a row (few-shot examples) stay two turns. `reasoning`
+ * items are dropped, and change nothing: Claudio never returns them, and the CLI keeps its own thinking.
  */
-function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessage[]; items: InputItem[] } {
+function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessage[]; items: RequestInputItem[] } {
   if (typeof raw === 'string') {
     if (!raw.trim()) throw invalid('`input` must not be empty.', 'input');
     return { messages: [{ role: 'user', parts: [{ type: 'text', text: raw }] }], items: [{ type: 'message', id: newId('msg'), status: 'completed', role: 'user', content: [{ type: 'input_text', text: raw }] }] };
   }
   if (!Array.isArray(raw) || raw.length === 0) throw invalid('`input` must be a string or a non-empty array of input items.', 'input');
   const messages: ChatMessage[] = [];
-  const items: InputItem[] = [];
+  const items: RequestInputItem[] = [];
   /** The assistant message a `function_call` right after it belongs to */
   let open: Extract<ChatMessage, { role: 'assistant' }> | null = null;
+  /** Whether the item before was a `function_call` of `open`: only then does an assistant message join it */
+  let afterCall = false;
   for (const [i, item] of raw.entries()) {
     const path = `input[${String(i)}]`;
     if (!isRecord(item)) throw invalid('An input item must be an object.', path);
@@ -239,18 +228,22 @@ function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessag
         messages.push({ role: 'user', parts });
         items.push({ type: 'message', id, status: 'completed', role: 'user', content: shown });
         open = null;
+        afterCall = false;
       } else if (item.role === 'system' || item.role === 'developer') {
         const parts = textParts(item.content, content, false);
         messages.push({ role: item.role, text: joined(parts) });
         items.push({ type: 'message', id, status: 'completed', role: item.role, content: parts.map((p) => ({ type: 'input_text', text: p.text })) });
+        open = null;
+        afterCall = false;
       } else if (item.role === 'assistant') {
         const parts = textParts(item.content, content, true);
         const text = joined(parts);
-        if (open) open.text = [open.text, text].filter(Boolean).join('\n\n');
+        if (open && afterCall) open.text = [open.text, text].filter(Boolean).join('\n\n');
         else {
           open = { role: 'assistant', text, toolCalls: [] };
           messages.push(open);
         }
+        afterCall = false;
         items.push({
           type: 'message',
           id,
@@ -274,6 +267,7 @@ function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessag
         open = { role: 'assistant', text: '', toolCalls: [call] };
         messages.push(open);
       }
+      afterCall = true;
       items.push({ type: 'function_call', id: stringId(item.id, 'fc'), status: 'completed', call_id: item.call_id, name: item.name, arguments: args });
       continue;
     }
@@ -283,6 +277,7 @@ function parseInput(raw: unknown, maxImageBytes: number): { messages: ChatMessag
       messages.push({ role: 'tool', toolCallId: item.call_id, text: output });
       items.push({ type: 'function_call_output', id: stringId(item.id, 'fco'), status: 'completed', call_id: item.call_id, output });
       open = null;
+      afterCall = false;
       continue;
     }
     if (type === 'reasoning') continue;

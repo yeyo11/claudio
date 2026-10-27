@@ -3,6 +3,7 @@
 // conversation and stored-response rows.
 export {
   chainKey as openAiChainKey,
+  imageDigest as openAiImageDigest,
   extendKey as openAiExtendKey,
   historyKey as openAiHistoryKey,
   keyAfterAnswer as openAiKeyAfterAnswer,
@@ -38,6 +39,7 @@ export {
   type TrailingResults,
 } from './client-tools.ts';
 export { OpenAiConversationStore, type OpenAiConversation } from './conversations.ts';
+export { listedInputItems, STORED_IMAGE_URL_MAX, storedInputItems, type RequestInputItem as ResponseRequestInputItem, type StoredInputItem as ResponseStoredInputItem } from './stored-images.ts';
 export { effectiveSystemPrompt, hasSystemMessages, OpenAiChatPromptStore, systemPromptParts, type ConversationBase, type SystemPromptParts } from './system-prompt.ts';
 export { OpenAiResponseStore, type StoredResponse as OpenAiStoredResponse, type StoredResponseHead as OpenAiStoredResponseHead } from './responses-store.ts';
 export {

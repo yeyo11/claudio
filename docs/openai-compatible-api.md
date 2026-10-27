@@ -130,7 +130,8 @@ epoch seconds. `Retry-After` is at least 1. A 5xx shows its message only when th
 
 The key is a SHA-256 hash chain. The seed is `["claudio-openai-conversation/1", model, systemPrompt,
 user]`. Each non-system message then extends it with its canonical JSON:
-`["user", ...text | ["image", sha256(url or data)]]`, `["assistant", text, [[id, name, args]...]]`,
+`["user", ...text | ["image", digest]]` (`imageDigest`: the SHA-256 of a data URL's decoded bytes,
+so the same image matches however it was base64-encoded, or of an http(s) URL), `["assistant", text, [[id, name, args]...]]`,
 or `["tool", toolCallId, text]`. The lookup key is the chain through the last assistant message.
 `keyAfterAnswer` gives the key the client's next request will carry, so phase 2 stores that one
 after answering.
@@ -665,6 +666,7 @@ repository's `node_modules`, and no dependency was added for it.
 | `input` as a string | One user message |
 | `message` items, roles `user`, `system`, `developer`, `assistant` (with or without `type`) | Messages, as in Chat Completions. Parts: `input_text`; `input_image` with `image_url` (data URL or http(s), the phase 2 fetcher and its 5 MB cap); `output_text` and `refusal` in an assistant's. `file_id` images, `input_file` and audio are `400 unsupported_parameter` |
 | `function_call` items | Tool calls of the assistant message right before them (an output's message and its calls are one assistant turn), or an assistant message of their own |
+| Assistant `message` items | An assistant message each; one right after a `function_call` joins that call's message instead (an output resent: text, calls and the text after them are one turn, as `assistantOfOutput` reads it). Any other item between, a system or developer message included, ends the assistant message, so back-to-back few-shot answers stay two |
 | `function_call_output` items | `tool` messages, matched by `call_id`; text output only (image and file parts are refused) |
 | `reasoning` items | Dropped: Claudio never returns them and the CLI keeps its own thinking |
 | `item_reference`, items of hosted tools | `400 unsupported_parameter`; any other type is `400 invalid_request_error` |
@@ -755,12 +757,25 @@ indexed on `chat_id` and `created_at`: one row per response the client asked to 
 prompt"), as the client sent it even when a held turn could not take it.
 `find` reads every column but `input_items`, which only the input-items route reads (`inputItems`).
 
-**Images in the stored input are references.** An `input_image` with a data URL is stored as a data
-URL with the same media type, its size and no payload, `data:image/png;claudio-omitted-bytes=48213,`
-(still well formed), and listed so by `GET /v1/responses/:id/input_items`: the bytes went to the
-chat as an upload, and copying up to 5 MB of base64 into every stored row (and parsing it on every
-lookup) would buy nothing. An http(s) URL is kept as sent up to 2,048 characters (`STORED_IMAGE_URL_MAX`);
-a longer one is stored as its origin and `?claudio-omitted-chars=<length>`. `detail` is kept.
+**Images in the stored input are references, read back on the way out** (`stored-images.ts`). A row
+never holds an image's bytes: copying up to 5 MB of base64 into every row, and parsing it on each
+lookup, would buy nothing. It holds where they are:
+
+- a data URL: its media type, size, `imageDigest` and the upload holding the bytes. That is the
+  upload this turn saved; else one an earlier row of the chat names for the same digest
+  (`uploadsOfImage`; a resent history carries its earlier images again, and a warm turn only
+  uploads the new ones); else, for a history no row of the chat stored yet (one from Chat
+  Completions, say), the bytes are saved as an upload of the chat now, once;
+- an http(s) URL: the URL itself, up to 32 KiB (`STORED_IMAGE_URL_MAX`); a longer one, its origin,
+  its length and the upload the turn fetched it into.
+
+`GET /v1/responses/:id/input_items` reads each image of the page back from its upload as a data URL,
+so a client that rebuilds its history from the list and sends it again sends the same image, and
+reaches the same chat (the digest of the bytes does not change with the encoding). When the upload is
+gone, the image is listed as a marker: a data URL with the type and size and no payload,
+`data:image/png;claudio-omitted-bytes=48213,`, or for a long link `<origin>/?claudio-omitted-chars=<length>`.
+Sending a marker back is refused (it is not base64) or fetches the origin, and misses the key; so
+does a long link read back as a data URL, whose key was its URL's. `detail` is kept.
 
 - **Stored when** `store` is not false and the turn answered: `completed` (with text or with
   `function_call` items) or `incomplete`. A failed response is not stored. The row is written
