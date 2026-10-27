@@ -1,5 +1,74 @@
 # Changelog
 
+## [0.10.0](https://github.com/yeyo11/claudio/compare/v0.9.0...v0.10.0) (2026-10-27)
+
+
+### Features
+
+* **api:** client tools on /v1/chat/completions, held at can_use_tool behind a stub MCP server ([5704b8f](https://github.com/yeyo11/claudio/commit/5704b8f0850184c202d34bc27e668ccce7335c45))
+* **api:** OpenAI-compatible /v1 routes, whole and streamed ([6e64f0a](https://github.com/yeyo11/claudio/commit/6e64f0af46f992803679978d782d3c17e42bb3f9))
+* **api:** response_format and structured output on /v1/chat/completions ([30ef7fe](https://github.com/yeyo11/claudio/commit/30ef7fe9812ce4a2df9c1fe6043a81deb816262c))
+* **api:** serve POST /v1/responses with stored responses, function tools and semantic events ([ba9aed3](https://github.com/yeyo11/claudio/commit/ba9aed3b1a1db3b7c0a5ebec83d2e08514e64db5))
+* **core:** openaiToolCallTimeoutMinutes setting, resettable with null ([66ceb40](https://github.com/yeyo11/claudio/commit/66ceb402665864eeda9e3754bb4e06df3af329b9))
+* **core:** translate the Responses API to the chat-completions turn, and store responses ([f5e4c7d](https://github.com/yeyo11/claudio/commit/f5e4c7d73185e0e20dce26de7072f893660bbc51))
+* **core:** translators and conversation table for the OpenAI-compatible API ([77081cd](https://github.com/yeyo11/claudio/commit/77081cd18da95fd2874bda5a48d8179ee0777242))
+
+
+### Bug fixes
+
+* **api:** /v1 streams no longer open with a retry field ([78b2ca2](https://github.com/yeyo11/claudio/commit/78b2ca25a189890adf2032aa5dd702a075622f55))
+* **api:** a failed store write never hangs or fails an OpenAI turn ([1824dcb](https://github.com/yeyo11/claudio/commit/1824dcb6bcaddc930fd60a5b83c597edfaaba7cd))
+* **api:** claim only new client calls per message, and cut API chat titles on whole characters ([8156188](https://github.com/yeyo11/claudio/commit/815618842c7bd46071df587f7ab945fb597fbca5))
+* **api:** client-tool calls are held only when claimed, survive refused requests, and can be dropped ([22847e4](https://github.com/yeyo11/claudio/commit/22847e427c8b0d9ee94b17681d3555854b1f78b5))
+* **api:** count client-tool calls as held only while the live process still holds one ([7b2253d](https://github.com/yeyo11/claudio/commit/7b2253d6d0265b93209500c6595ac0f5fc37b3de))
+* **api:** drop a chat's client-tool stub with the chat, and document phase 4 ([4377a32](https://github.com/yeyo11/claudio/commit/4377a3259829a932b3737dde195419bbe9f0aa18))
+* **api:** one stream item that cannot be written never drops the end of the stream ([86ab068](https://github.com/yeyo11/claudio/commit/86ab06810f069f2f2ccb6b5939b52d11c429ab2b))
+* **api:** refuse a message that drops held calls before interrupting the turn that holds them ([e5e9ae2](https://github.com/yeyo11/claudio/commit/e5e9ae2f9c36a1fa628bca37983334b38298ddaa))
+* **api:** scope /v1 to its own chats, bound its turns, fit inline images ([6a6d7d8](https://github.com/yeyo11/claudio/commit/6a6d7d8ca593a79deb64c6c8fddb97c257cca511))
+* **api:** take down the losing side of abandon()'s race with the interrupt ([96c2696](https://github.com/yeyo11/claudio/commit/96c269660b863d3db07a84571e92ba71c84c2eeb))
+* **api:** title an OpenAI-compatible chat with its first user message ([178913e](https://github.com/yeyo11/claudio/commit/178913e51872bf480791b57478b3db20e789a28d))
+* **api:** typed run-slot and not-found refusals, one credential check, and a stream that knows it is closed ([06615b5](https://github.com/yeyo11/claudio/commit/06615b59bb75844f4db4f58e206a794905e73d48))
+* **chat-ui:** make the origin badge's hint reachable by keyboard and screen readers ([ded264e](https://github.com/yeyo11/claudio/commit/ded264ecbc46dff872128f6bc8a8a4195b03e4e8))
+* **core:** a chat's added MCP servers get their own file, cleaned up, and survive a broken base config ([1310de5](https://github.com/yeyo11/claudio/commit/1310de5b27bf19e5a85292d44a972839f553471e))
+* **core:** evict the least recently used idle API process when a run needs a slot ([cbe289c](https://github.com/yeyo11/claudio/commit/cbe289c1ddd51ff3547a6ffdafdb467a02937b4b))
+* **core:** eviction routes every leaving chat cold and reserves a replacement's slot once ([ba853dc](https://github.com/yeyo11/claudio/commit/ba853dc0ea718e887dc7929cb84857768305e87f))
+* **core:** run-slot eviction never loses a turn and never ends a process for nothing ([1310e8a](https://github.com/yeyo11/claudio/commit/1310e8abaed0d789b314eb18bf1831feafe6f0e5))
+* **core:** stop requiring results for client-tool calls the CLI withdrew ([93a6cca](https://github.com/yeyo11/claudio/commit/93a6ccab82f7d792f26e4b2cb172465cc89a7dac))
+* **core:** store image references, not data URLs, in a response's input items ([4c57966](https://github.com/yeyo11/claudio/commit/4c5796640e78a60e58bf6c078b72fb3f95773427))
+* **core:** the stub's fallback matches a client result by tool name and arguments ([7cfba95](https://github.com/yeyo11/claudio/commit/7cfba954a8cb0b9d777978e59a416c8ce01c68db))
+* **core:** word an unreadable MCP config notice by its cause and owner, once per chat ([d491605](https://github.com/yeyo11/claudio/commit/d491605210aca9a5ba07b6deaeb387bac5e518e3))
+* **openai:** a failed turn whose end cannot be written breaks the stream ([2a6bf85](https://github.com/yeyo11/claudio/commit/2a6bf85b81f26ffd741b5aed26db6758d1fe147a))
+* **openai:** a stream never ends with a failure its turn did not have ([013ef20](https://github.com/yeyo11/claudio/commit/013ef20f40532248d347cb42abdaae3a732c8d85))
+* **openai:** input_items round-trip their images, and assistant messages merge only after a call ([2b69c6f](https://github.com/yeyo11/claudio/commit/2b69c6f9d986d142b74795db2876c05b769a787a))
+* **openai:** keep the system prompt in two parts, so a follow-up never loses its developer messages ([c47321f](https://github.com/yeyo11/claudio/commit/c47321f4f432c692764c92eb808843b7481b5563))
+* **openai:** never rebuild the conversation part from a joined prompt ([94c1745](https://github.com/yeyo11/claudio/commit/94c1745f6d9103e3afa6f5019cca1db2a346aef6))
+* **openai:** Responses words in refusals, no separator across items, one system-prompt rule ([cc8a881](https://github.com/yeyo11/claudio/commit/cc8a88197151b65954f338eaf9019621aee22988))
+* **openai:** stored images name the turn's uploads by digest and never save their own ([3e0ae60](https://github.com/yeyo11/claudio/commit/3e0ae602b404d8033ee60ae6959ae48bae136e90))
+* **openai:** x-claudio-ignored names what the live process does not run ([4b414f7](https://github.com/yeyo11/claudio/commit/4b414f7e9384338ce7150fa5f47a897f663f2ef4))
+
+
+### Refactoring
+
+* **openai:** keep the item-boundary rule in ResponsesTranslator, one writer guard, an images param name ([2ea12e3](https://github.com/yeyo11/claudio/commit/2ea12e388baa9d5ab3dce0f844c736143f887f1b))
+* **openai:** one whole-answer error shape, a required sweep store, no dead delete ([badf3d3](https://github.com/yeyo11/claudio/commit/badf3d3169af0e6a6ac4b68ccb850ba2d016f999))
+
+
+### Documentation
+
+* eviction results with real clients, its limits, and the owner's choices ([21bce3f](https://github.com/yeyo11/claudio/commit/21bce3fd68c0a2cb7370bc9541106c2aee609c26))
+* image and video results of the real-client tests ([9eb0da3](https://github.com/yeyo11/claudio/commit/9eb0da3275252fa274583ea01dd4e32bad9d50ba))
+* **openai:** name the Responses limits on stored images and chains without a prompt row ([9fdb2fc](https://github.com/yeyo11/claudio/commit/9fdb2fc82dbbd4345f217b47b0aa724e5f507a81))
+* plan and spike for an OpenAI-compatible API surface ([02554b5](https://github.com/yeyo11/claudio/commit/02554b554eba94b4c3bbda7f0ca799fedb1b3c69))
+* **readme:** link the launch article and the project's page on the blog ([#64](https://github.com/yeyo11/claudio/issues/64)) ([9ab3a28](https://github.com/yeyo11/claudio/commit/9ab3a28b46ecbc759088d05cf99ac37eb7c479a0))
+* real-client test results and the release goal for the OpenAI-compatible API ([0c20ce9](https://github.com/yeyo11/claudio/commit/0c20ce9a1286ef05801f606d3ed3ba7ca4a856bf))
+* record the real-CLI smoke run after the phase 4 review fixes ([a40f8f1](https://github.com/yeyo11/claudio/commit/a40f8f1584850cc346f99604a9686662cdf88ab4))
+* record the real-CLI smoke runs of POST /v1/responses ([23af870](https://github.com/yeyo11/claudio/commit/23af870aa4d077e3e5134bd06e6e9fcfc34ccf7f))
+
+
+### Build and packaging
+
+* **sluice:** install once per merge train with [queue] prepare ([e06ca97](https://github.com/yeyo11/claudio/commit/e06ca97aed98619f17971b10f308552afc7988cd))
+
 ## [0.9.0](https://github.com/yeyo11/claudio/compare/v0.8.1...v0.9.0) (2026-10-24)
 
 
