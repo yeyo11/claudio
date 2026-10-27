@@ -383,11 +383,13 @@ test('a /v1 turn for a chat whose leaving process already reserved its replaceme
 });
 
 test('the idle timeout does not end the input of a process the /v1 route holds for a turn', async () => {
-  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '100';
+  // Long enough that the hold is taken before the timer first fires even on a loaded machine (idleApiChat
+  // polls for idle after the answer), and the pause outlasts it, so the timer does fire while held
+  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '1000';
   try {
     const chat = await idleApiChat('alpha');
     const release = core.runtime.holdForTurn(chat);
-    await pause(300);
+    await pause(1500);
     assert.ok(live(chat), 'kept while held');
     assert.equal(core.runtime.isLeaving(chat), false);
     release();
