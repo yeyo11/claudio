@@ -905,11 +905,13 @@ here, `reasoning_effort` on Chat Completions; images that fail point at `input`.
 **Text after a call.** One API message can hold text, a client call and more text. The text after
 the call is a `message` item of its own, and it does not start with the `\n\n` that joins two text
 blocks: an item never inherits the separator, while two text blocks with no call between stay one
-item joined by it. The answer's text for the conversation key keeps the separator, which is how
+item joined by it. The rule is `ResponsesTranslator`'s alone: it strips the separator from the
+chunk that opens a new message item once some text went out, and Chat Completions' translator
+streams the text as it always did. The answer's text for the conversation key keeps the separator, which is how
 `assistantOfOutput` joins a stored output's message items, and a resent output reads back the same
-way: an assistant `message` item right after an assistant item or a `function_call` joins that
-assistant message (texts joined by a blank line), so `[…input, …response.output]` hits the same key
-as `previous_response_id` does.
+way: an assistant `message` item right after a `function_call` joins that call's assistant message
+(texts joined by a blank line), so `[…input, …response.output]` hits the same key as
+`previous_response_id` does. Any other item ends the assistant message.
 
 ### Evidence from the real CLI
 

@@ -269,9 +269,11 @@ interface ParamNames {
   results: ResultsVocabulary;
   /** The effort parameter, named in `x-claudio-ignored` when a live process cannot take it */
   effort: string;
+  /** Where the images are, named by a refusal of one (an upload that failed): `messages`, `input` */
+  images: string;
 }
-const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort' };
-const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort' };
+const CHAT_COMPLETION_PARAMS: ParamNames = { format: 'response_format', toolName: (i) => `tools[${String(i)}].function.name`, results: CHAT_COMPLETION_RESULTS, effort: 'reasoning_effort', images: 'messages' };
+const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `tools[${String(i)}].name`, results: RESPONSES_RESULTS, effort: 'reasoning.effort', images: 'input' };
 
 /**
  * What this surface refuses although the parser reads it: the legacy `functions`, tools it cannot
@@ -474,15 +476,13 @@ export class TurnRun<Item> {
     this.out(this.translator.failWith(failure));
   }
 
+  /** `deliver` catches every throw of the writer, so a turn that finished always gets to release. */
   private out(items: Item[]): void {
-    try {
-      if (items.length > 0) {
-        if (this.writer) this.deliver(this.writer, items);
-        else this.pending.push(...items);
-      }
-    } finally {
-      if (this.finished) this.release();
+    if (items.length > 0) {
+      if (this.writer) this.deliver(this.writer, items);
+      else this.pending.push(...items);
     }
+    if (this.finished) this.release();
   }
 
   /**
@@ -883,7 +883,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       const uploaded = await uploadOpenAiImages(prompt.images, {
         fetch: (url, maxBytes) => fetchOpenAiImage(url, maxBytes, images),
         save: (name, bytes) => core.uploads.save(name, bytes),
-      }, UPLOAD_LIMITS.image, names.results.param);
+      }, UPLOAD_LIMITS.image, names.images);
       if (!uploaded.ok) return answer(reply, uploaded.error);
       const turnImages = new Map(prompt.images.flatMap((image, i): Array<[OpenAiImageRef, string]> => {
         const upload = uploaded.value[i];

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { RunEvent, TokenUsage } from '@claudio/shared';
 import type { OpenAiFailure } from './errors.ts';
-import { ChatCompletionTranslator, type ChatCompletionTranslatorOptions, type TurnError, type TurnTranslator } from './events.ts';
+import { ChatCompletionTranslator, SEPARATOR, type ChatCompletionTranslatorOptions, type TurnError, type TurnTranslator } from './events.ts';
 import type { ResponseEcho } from './responses-request.ts';
 import type { FunctionCallItem, OutputItem, OutputMessage, OutputText, ResponseErrorCode, ResponseObject, ResponseStreamEvent, ResponseUsage } from './responses-wire.ts';
 import { STREAM_DONE, type ChatCompletionStreamItem, type FinishReason, type ToolCall, type ToolCallDelta } from './wire.ts';
@@ -64,6 +64,8 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
   private readonly inner: ChatCompletionTranslator;
   private seq = 0;
   private opened = false;
+  /** Whether any of the answer's text has gone out yet */
+  private textSent = false;
   private readonly output: OutputItem[] = [];
   private current: OpenItem | null = null;
   /** Output items of client calls, by the stream index the Chat Completions translator gives them */
@@ -81,7 +83,6 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
       model: opts.model,
       created: opts.createdAt,
       includeUsage: false,
-      itemPerStretch: true,
       ...(opts.structured ? { structured: true } : {}),
       ...(opts.clientTools ? { clientTools: opts.clientTools } : {}),
     });
@@ -196,8 +197,14 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
     return out;
   }
 
-  private text(delta: string, out: ResponseStreamEvent[]): void {
+  private text(chunk: string, out: ResponseStreamEvent[]): void {
+    let delta = chunk;
     if (this.current?.kind !== 'message') {
+      // Text after a call opens an item of its own, which must not start with the separator the
+      // answer's text puts between stretches. The answer keeps it (`answered()`, the conversation
+      // key): it is how the items join again when the output is read back (`assistantOfOutput`).
+      // The inner translator puts it before a block only once some text went out
+      if (this.textSent && delta.startsWith(SEPARATOR)) delta = delta.slice(SEPARATOR.length);
       this.close('completed', out);
       const item: OutputMessage = { type: 'message', id: this.itemId('msg'), status: 'in_progress', role: 'assistant', content: [] };
       const index = this.output.push(item) - 1;
@@ -207,6 +214,7 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
       item.content.push(part);
       out.push(this.event({ type: 'response.content_part.added', item_id: item.id, output_index: index, content_index: 0, part: clone(part) }));
     }
+    this.textSent = true;
     const { index, item } = this.current;
     const part = item.content[0];
     if (part) part.text += delta;
