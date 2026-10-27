@@ -335,12 +335,12 @@ export class KeyedLocks {
  * Subscribed before the turn is sent, so nothing of it is missed; what arrives before the answer is
  * open waits in `pending`.
  */
-class TurnRun<Item> {
+export class TurnRun<Item> {
   chatId: string | null = null;
   /** What this turn alone cost, from the process's cumulative figure (`ChatManager.lastTurn`) */
   costUsd: number | null = null;
   private pending: Item[] = [];
-  private writer: ((items: Item[]) => void) | null = null;
+  private writer: ((item: Item) => void) | null = null;
   private unsubscribe: () => void = () => {};
   private readonly seen = new Set<number>();
   private since = 0;
@@ -485,12 +485,24 @@ class TurnRun<Item> {
     }
   }
 
-  private deliver(write: (items: Item[]) => void, items: Item[]): void {
-    try {
-      write(items);
-    } catch (err) {
-      this.report(err);
-    }
+  /**
+   * Each item on its own: one that cannot be written (and is reported) must not take the ones after
+   * it along, the event that ends the turn above all. When that last one is what failed, the stream
+   * still ends, as a failure (`unwritableEnd`).
+   */
+  private deliver(write: (item: Item) => void, items: Item[]): void {
+    let lastFailed = false;
+    const one = (item: Item): boolean => {
+      try {
+        write(item);
+        return true;
+      } catch (err) {
+        this.report(err);
+        return false;
+      }
+    };
+    for (const item of items) lastFailed = !one(item);
+    if (lastFailed && this.finished) for (const item of this.translator.unwritableEnd('The end of the answer could not be written.')) one(item);
   }
 
   private release(): void {
@@ -500,10 +512,10 @@ class TurnRun<Item> {
     this.settle();
   }
 
-  /** Hands what was said so far, and everything after, to `write`. */
-  stream(write: (items: Item[]) => void): void {
+  /** Hands `opening`, what was said so far, and everything after, to `write`, one item at a time. */
+  stream(write: (item: Item) => void, opening: Item[] = []): void {
     this.writer = write;
-    const waiting = this.pending.splice(0);
+    const waiting = [...opening, ...this.pending.splice(0)];
     if (waiting.length > 0) this.deliver(write, waiting);
   }
 
@@ -988,12 +1000,11 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       if (turn.stream) {
         const stream: SseStream = openStream(req, reply, { headers: out, trailers: [COST_HEADER] });
         // The stream drops what comes after the client left or after its end (`SseStream.closed`)
-        const write = (items: Item[]): void => {
+        const write = (item: Item): void => {
           remember();
-          for (const item of items) plan.write(stream, item);
+          plan.write(stream, item);
         };
-        write(plan.opening(translator));
-        current.stream(write);
+        current.stream(write, plan.opening(translator));
         await settled(current);
         remember();
         stream.end(current.costUsd !== null ? { [COST_HEADER]: String(current.costUsd) } : {});

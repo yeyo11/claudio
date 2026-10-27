@@ -6,10 +6,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { ChatConflictError, ChatNotFoundError, Core, loadConfig, parseChatCompletionRequest, RunSlotRefusal, translateOpenAiRequest, type ChatCompletionRequest } from '@claudio/core';
+import { ChatCompletionTranslator, ChatConflictError, ChatNotFoundError, Core, loadConfig, parseChatCompletionRequest, ResponsesTranslator, RunSlotRefusal, STREAM_DONE, translateOpenAiRequest, type ChatCompletionRequest, type OpenAiTurnTranslator } from '@claudio/core';
 import type { ChatSummary, RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
-import { failureOf } from '../src/routes/openai.ts';
+import { failureOf, TurnRun } from '../src/routes/openai.ts';
 
 // The OpenAI-compatible routes over a real core and a fake CLI that keeps its process across turns
 // and reports its cost and token counts cumulative, as the real one does (docs/openai-compatible-api.md).
@@ -797,4 +797,62 @@ test('a request under X-Claudio-Chat-Id without system messages keeps the chat\'
   );
   assert.equal(turns[1]?.pid, turns[0]?.pid, 'no restart for a prompt that did not change');
   assert.notEqual(turns[2]?.pid, turns[0]?.pid, 'the third turn was a cold resume');
+});
+
+// ---------- a writer that throws ----------
+
+/** A turn fed by hand: the core it reads is only what `TurnRun` asks of a chat */
+function handFedTurn<Item>(translator: OpenAiTurnTranslator<Item>, reported: unknown[]): { run: TurnRun<Item>; feed(event: Omit<RunEvent, 'seq' | 'ts'>): void } {
+  let listener: (event: RunEvent) => void = () => {};
+  let seq = 0;
+  const fake = {
+    runtime: { streamPosition: () => null, nextResult: () => new Promise(() => {}), pulse: () => null, lastTurn: () => null },
+    chats: {
+      subscribe: (_id: string, cb: (event: RunEvent) => void) => {
+        listener = cb;
+        return () => {};
+      },
+      events: () => [],
+      interrupt: async () => {},
+    },
+  } as unknown as Core;
+  const run = new TurnRun<Item>(fake, translator, new Map(), (err) => reported.push(err));
+  run.attach('chat-hand-fed');
+  return { run, feed: (event) => listener({ seq: ++seq, ts: '2026-10-27T00:00:00Z', ...event } as RunEvent) };
+}
+
+const said = (text: string) => ({ kind: 'message' as const, entry: { uuid: `u-${text}`, role: 'assistant' as const, timestamp: null, model: 'claude', isSidechain: false, parentToolUseId: null, blocks: [{ type: 'text' as const, text }] } });
+const ended = { kind: 'result' as const, text: '', outcome: { isError: false, turns: 1, durationMs: 1, costUsd: 0, permissionDenials: [] } };
+
+test('a writer that throws on one item still gets every item after it, the end of the stream included', async () => {
+  const reported: unknown[] = [];
+  const { run, feed } = handFedTurn(new ChatCompletionTranslator({ id: 'chatcmpl-t', model: 'sonnet', created: 0, includeUsage: false, structured: false }), reported);
+  const written: unknown[] = [];
+  // The chunk with the finish reason goes in one batch with [DONE], right before it
+  const finishes = (item: unknown): boolean => typeof item === 'object' && item !== null && 'choices' in item && (item as { choices: Array<{ finish_reason: string | null }> }).choices.some((c) => c.finish_reason !== null);
+  run.stream((item) => {
+    if (finishes(item)) throw new Error('cannot serialise this chunk');
+    written.push(item);
+  });
+  feed(said('one'));
+  feed(ended);
+  await run.done;
+  assert.equal(reported.length, 1);
+  assert.equal(written.at(-1), STREAM_DONE, 'the stream still ends with [DONE]');
+});
+
+test('when the event that ends the turn cannot be written, the stream ends as a failure', async () => {
+  const reported: unknown[] = [];
+  const translator = new ResponsesTranslator({ id: 'resp_t', model: 'sonnet', createdAt: 0, instructions: null, previousResponseId: null, store: false, metadata: {}, echo: { tools: [], toolChoice: 'auto', text: { format: { type: 'text' } }, parallelToolCalls: true, reasoningEffort: null, maxOutputTokens: null, temperature: null, topP: null, truncation: 'disabled', user: null }, structured: false });
+  const { run, feed } = handFedTurn(translator, reported);
+  const written: string[] = [];
+  run.stream((event) => {
+    if (event.type === 'response.completed') throw new Error('cannot serialise the response');
+    written.push(event.type);
+  }, translator.open());
+  feed(said('hello'));
+  feed(ended);
+  await run.done;
+  assert.equal(reported.length, 1);
+  assert.equal(written.at(-1), 'response.failed');
 });

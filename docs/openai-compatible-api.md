@@ -788,7 +788,13 @@ does a long link read back as a data URL, whose key was its URL's. `detail` is k
   the client run it again. What is lost is the way back: the response is not found later (404),
   and a resent history without its key starts the chat again cold. The turn always settles and
   releases its conversation's queue, and the chat's event emitter never sees the throw: a throw
-  from the writer is caught and logged where the turn feeds it (`TurnRun.out`).
+  from the writer is caught and logged where the turn feeds it (`TurnRun.deliver`).
+- **A stream item that cannot be written** (a throw from the writer) is logged and skipped alone:
+  each item is written on its own, so the ones after it still go out, the stream's last event
+  (`response.completed`, `[DONE]`) above all. When that last event is the one that failed, the
+  stream ends as a mid-stream failure does (`unwritableEnd`): `response.failed` with a
+  `server_error`, or an error chunk and `[DONE]`. A stream that just stopped would read as a whole
+  answer to most clients. The stored response keeps the status the turn ended with.
 - **`store: false` writes nothing.** The response still has an id, but `GET` answers 404 and
   `previous_response_id` answers 404. The plan asked for a `stored` column; with nothing to keep for
   such a response, writing no row is the smaller and stricter choice.

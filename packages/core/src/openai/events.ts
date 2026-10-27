@@ -131,6 +131,11 @@ export interface TurnTranslator<Item> {
   takeNewClientCalls(): Array<{ id: string; name: string; input: unknown }>;
   /** The answer's text and calls once the turn completed (for the conversation key); null otherwise */
   answered(): { text: string; toolCalls: ToolCall[] } | null;
+  /**
+   * The end a stream gets when the event that ends the turn could not be written: a failure, as a
+   * mid-stream one ends, since a stream that just stops reads as a complete answer to most clients
+   */
+  unwritableEnd(message: string): Item[];
 }
 
 interface StreamedBlock {
@@ -366,6 +371,10 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
     else if (event.kind === 'message') this.message(event, out);
     else if (event.kind === 'result' && event.outcome) this.finish(event.outcome, event.text, context.usage ?? null, out);
     return out;
+  }
+
+  unwritableEnd(message: string): ChatCompletionStreamItem[] {
+    return [openAiError({ kind: 'server', message }).body, STREAM_DONE];
   }
 
   /** The turn failed outside the event stream (the process died, the client's chat was refused mid-way). */

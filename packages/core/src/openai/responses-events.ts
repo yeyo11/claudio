@@ -153,6 +153,12 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
     return this.map(this.inner.failWith(failure));
   }
 
+  unwritableEnd(message: string): ResponseStreamEvent[] {
+    this.status = 'failed';
+    this.error = { code: 'server_error', message };
+    return [this.event({ type: 'response.failed', response: this.response() })];
+  }
+
   handOff(): ResponseStreamEvent[] | null {
     const items = this.inner.handOff();
     return items ? this.map(items) : null;
