@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-26T19:30:00Z
-updated_at: 2026-10-27T12:00:00Z
+updated_at: 2026-10-27T13:00:00Z
 tags:
     - plan
     - goal
@@ -10,7 +10,7 @@ tags:
 ---
 # Goal: test, merge and release the OpenAI-compatible API
 
-Status: **set by the owner on 2026-10-26; in progress** (see "Progress" below). This document is the goal a Claude Code session works to
+Status: **released 2026-10-27; only the knowledge-base re-sync is left** (see "Progress" below). This document is the goal a Claude Code session works to
 until every box under "Done means" is ticked. It assumes the plan
 ([openai-compatible-api.md](openai-compatible-api.md)) and the spike
 ([openai-compatible-api-spike.md](openai-compatible-api-spike.md)).
@@ -53,6 +53,19 @@ until every box under "Done means" is ticked. It assumes the plan
   40443085076, the whole suite in 4 shards, passed on `e240bf472`.
 - **`/ui-review`** not repeated: the merge touched none of this stack's UI files, so both
   SHIPPABLE reviews stand.
+- **Landed.** PR #65 went through the Sluice merge queue (train `t-1793092901032-e25211`, approved by
+  the owner) and landed on `main` at `21bce3fd6` without a squash: the owner chose to land the
+  branch's commits as they are, so the changelog lists each of them rather than one squash title.
+- **Released.** v0.10.0 published 2026-10-27 (release PR #63, run 40484484074, the `release`
+  environment approved by the owner): Latest, with the .deb, AppImage, server bundle and both signed
+  manifests (Ed25519 signatures checked against `docker/keys/claudio-bundle-2026.pub`, the bundle's
+  sha256 against its manifest, the build-provenance attestation with `gh attestation verify`); image
+  `ghcr.io/yeyo11/claudio:0.10.0`, also `latest`; the apt repository lists 0.10.0, its `.deb` is the
+  release's byte for byte, and `InRelease` verifies with `gpgv` against the repository keyring.
+- **After the release.** Worktrees, branches (local and the merged remote one) and temp folders of
+  this work removed; local `main` fast-forwarded; project memory updated. The knowledge base re-syncs
+  from the owner's checkout, which was on another branch at the time: it picks these documents up on
+  the next re-sync from `main`.
 
 ## Done means
 
@@ -63,10 +76,10 @@ until every box under "Done means" is ticked. It assumes the plan
       `verify` passes **lint, typecheck, test and e2e** on the final tree.
 - [x] `/ui-review` is SHIPPABLE on the final tree for the screens the stack touches (run again only if
       the integration changed UI files).
-- [ ] One pull request into `main`, squash title `feat(api): an OpenAI-compatible /v1 surface over
+- [x] One pull request into `main`, squash title `feat(api): an OpenAI-compatible /v1 surface over
       Claude Code chats`, CI green, merged through Sluice's merge queue after the owner approved the
       train.
-- [ ] The release that contains it (expected **v0.10.0**) is published: GitHub release Latest with the
+- [x] The release that contains it (expected **v0.10.0**) is published: GitHub release Latest with the
       .deb, AppImage, signed server bundle and signed desktop manifest; image `ghcr.io/yeyo11/claudio`
       tagged; the apt repository lists it and `InRelease` verifies.
 - [ ] After the release: knowledge base indexed, project memory updated, worktrees, branches and temp
