@@ -105,7 +105,8 @@ ones; each pull request records what its flake was).
 
 Since then, on 2026-10-17 and 18: the browser suite moved to GitHub and never runs on this machine
 again (#29, `pnpm e2e:remote`; [decisions/e2e-on-github.md](decisions/e2e-on-github.md)), on shards
-balanced by their timings (#30). The **Claudio designer** came in with #26
+balanced by their timings (#30); since 2026-10-24 it runs here again, through Sluice's `e2e` gate
+([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)). The **Claudio designer** came in with #26
 ([plans/claudio-designer.md](plans/claudio-designer.md)). Refresh reads an account's real quota from
 the CLI's `get_usage` (#31, [accounts.md](accounts.md)). The process isolation study was written up
 and parked (#32, [plans/process-isolation.md](plans/process-isolation.md)). Settings were reorganised
@@ -218,12 +219,14 @@ plan disagree, the plan wins.
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm e2e:remote   # the browser suite, on GitHub Actions
+sluice run e2e -v -- [specs]   # the browser suite, through Sluice's queue
+pnpm e2e:remote                # the browser suite, on GitHub Actions
 ```
 
-Since 2026-10-17 the browser suite runs only on GitHub ([decisions/e2e-on-github.md](decisions/e2e-on-github.md)):
-every pull request runs it on four shards, and `pnpm e2e:remote` runs it, or a few specs, on a pushed
-branch. The local runs below are from before that.
+From 2026-10-17 to 2026-10-24 the browser suite ran only on GitHub ([decisions/e2e-on-github.md](decisions/e2e-on-github.md));
+since then it runs here as Sluice's `e2e` gate ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)).
+Every pull request runs it on four shards, and `pnpm e2e:remote` runs it, or a few specs, on a pushed
+branch. The local runs below are from before 2026-10-17.
 
 Last run on 2026-10-07 by the final verification of the two roadmap plans
 ([the checks](plans/roadmap-completion.md#the-checks-2026-10-07)), on `main` at `a0d6f2967`

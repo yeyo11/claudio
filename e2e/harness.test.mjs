@@ -444,16 +444,23 @@ test('the run limit of a sharded run closes every shard’s browser and server',
   assert.deepEqual(r.sandboxLeft, []);
 });
 
-test('outside CI the runner refuses to start unless E2E_ALLOW_LOCAL=1, and starts nothing', { skip }, async () => {
+test('outside CI the runner refuses to start unless inside a Sluice job or with E2E_ALLOW_LOCAL=1, and starts nothing', { skip }, async () => {
   const spec = probes['a.spec.mjs'];
-  for (const env of [{ CI: '', E2E_ALLOW_LOCAL: '' }, { CI: 'false', E2E_ALLOW_LOCAL: '0' }]) {
+  // This test itself runs inside Sluice's `test` gate, whose SLUICE_JOB the refused runs must not see
+  for (const env of [
+    { CI: '', SLUICE_JOB: '', E2E_ALLOW_LOCAL: '' },
+    { CI: 'false', SLUICE_JOB: '', E2E_ALLOW_LOCAL: '0' },
+  ]) {
     const r = await run({ specs: { 'a.spec.mjs': spec }, env });
     assert.equal(r.code, 2, r.output);
-    assert.match(r.output, /runs on GitHub Actions/);
+    assert.match(r.output, /runs through Sluice/);
+    assert.match(r.output, /gates \["e2e"\]/);
     assert.match(r.output, /pnpm e2e:remote/);
     assert.deepEqual(ran(r.output), []);
     assert.deepEqual(r.survivors, { chrome: [], server: false });
   }
-  const allowed = await run({ specs: { 'a.spec.mjs': spec }, env: { CI: '', E2E_ALLOW_LOCAL: '1' } });
+  const allowed = await run({ specs: { 'a.spec.mjs': spec }, env: { CI: '', SLUICE_JOB: '', E2E_ALLOW_LOCAL: '1' } });
   assert.equal(allowed.code, 0, allowed.output);
+  const queued = await run({ specs: { 'a.spec.mjs': spec }, env: { CI: '', SLUICE_JOB: 'job-1', E2E_ALLOW_LOCAL: '' } });
+  assert.equal(queued.code, 0, queued.output);
 });

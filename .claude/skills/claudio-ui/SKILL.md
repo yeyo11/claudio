@@ -72,4 +72,4 @@ the options first, then the design settled in a plan under `docs/plans/`, then t
 | `/ui-review <route>` | the `ui-reviewer` agent: rubric R1–R12 and the invariants, SHIPPABLE or NOT SHIPPABLE |
 | `node scripts/design-lint.mjs [files]` | the design lint (I15–I18); `apps/web/test/design-voice.test.ts` holds the tree to it |
 | `node scripts/ui-check.mjs --route <r>` | screenshots and invariants of a running screen (`--fast` for what the hook runs) |
-| `pnpm e2e:remote ui-invariants` | the invariants over the main screens with long content, in the e2e sandbox on GitHub (push first; the `e2e-on-github` skill) |
+| `verify` with `gates: ["e2e"]`, `extra_args: ["ui-invariants"]` | the invariants over the main screens with long content, in the e2e sandbox, through Sluice (the `run-e2e` skill; `pnpm e2e:remote ui-invariants` on GitHub) |

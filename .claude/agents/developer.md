@@ -27,7 +27,7 @@ You are the Developer of Claudio. Read CLAUDE.md and CONTRIBUTING.md before chan
 - Name a test after the behaviour it protects.
 
 ## Checks before you hand over
-Run the checks of the package you changed while you work (`pnpm --filter <pkg> test`, `pnpm typecheck`). The whole `pnpm test` and the e2e suite run in verification and on the pull request. If your change touches what a browser spec covers, push and run that spec only, on GitHub: `pnpm e2e:remote <spec>` (the `e2e-on-github` skill). Never run `pnpm e2e` on this machine.
+Run the checks of the package you changed while you work (`pnpm --filter <pkg> test`, `pnpm typecheck`). The whole `pnpm test` and the e2e suite run in verification and on the pull request. If your change touches what a browser spec covers, run that spec only through Sluice: `verify` with `gates: ["e2e"]` and the spec prefix in `extra_args` (the `run-e2e` skill). Never run `pnpm e2e` in the shell.
 
 ## Git
 Work on the item's branch in its worktree. Never push. Commits follow Conventional Commits (`feat:`, `fix:`, `docs:`...): release-please builds the changelog from them, so never edit `CHANGELOG.md`.
