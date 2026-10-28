@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T01:45:00Z
+updated_at: 2026-10-29T02:30:00Z
 tags:
     - plan
     - docker
@@ -377,7 +377,110 @@ network) and keeps its calls; then `stacks/claudio` is removed. Nothing is migra
 profile: D9 (a missing `cwd` is refused) and D8 (the `/v1` conversation key). Shipcast is told which
 version carries D7, D8, D10 and D11.
 
+## Contracts
+
+Written here so the first-stage tasks start in parallel; the task that owns a contract may refine a
+name, never the shape, and says so in its result.
+
+**Shared types** (`packages/shared/src/types.ts`; each owner adds its own part):
+
+```ts
+export type ServerProfile = 'full' | 'headless';                 // profile
+// SystemInfo (GET /api/system) gains `profile: ServerProfile`  // profile
+export type ReadyReason = 'cli-missing' | 'signed-out' | 'sign-in-expired' | 'starting';
+export interface ReadyStatus { ready: boolean; reason?: ReadyReason }   // profile
+
+export interface Workspace {                                   // workspaces
+  id: string;                       // `ws_` + random
+  source: 'url' | 'upload';
+  host: string | null;              // the URL's host; never the URL
+  bytes: number; files: number;
+  createdAt: string; lastUsedAt: string; expiresAt: string;
+  state: 'creating' | 'ready' | 'removing';
+}
+
+export interface ApiChatPolicy {                               // confined-chat
+  workspaceId: string | null;
+  allowedTools: string[];
+  maxTurns: number | null;
+  maxBudgetUsd: number;
+  schema: boolean;
+}
+// ChatStartOptions gains `workspaceId?: string`; a chat's view gains `policy: ApiChatPolicy | null`
+```
+
+**Core seams.** `core.workspaces` (workspaces) exposes `resolve(id)` → the working directory of a
+ready workspace, or throws a refusal with the codes of D7; `touch(id)`; `root`. `guards` exports one
+builder from `packages/core/src/guards/declared.ts` that turns an `ApiChatPolicy`, the working
+directory and the attachment paths into what a launch passes to arm the `declared-tools` rule;
+confined-chat calls it. `core.profile` (profile) is the `ServerProfile`.
+
+**Routes.** `POST /api/workspaces` (`{ url }` JSON or an `application/gzip` body) → `201 Workspace`;
+`GET /api/workspaces/:id` → `Workspace`; `DELETE /api/workspaces/:id` → `204`; `GET /api/ready` →
+`200 ReadyStatus` or `503 ReadyStatus`. REST refusals carry kebab-case codes, `/v1` snake_case ones
+(D16).
+
 ## Tasks
+
+One orchestration, every task on `opus`, each in its own worktree. Four stages in series:
+`{profile, cli-image, workspaces, guard} → confined-chat → v1 → {review, docs}`.
+
+| Task | Depends on | Builds | Owns (others touch these only where named) |
+|---|---|---|---|
+| `profile` | — | D1 (the allowlist and its enforcement), D2, D4, D6, D10, D11 (`/api/ready`), D15, plan task 1's inventory | `apps/api/src/app.ts`, `apps/api/src/security.ts`, `apps/api/src/server.ts`, `apps/api/src/routes/system.ts`, a new `apps/api/src/headless.ts` (the D1 allowlist, the one source of truth), `packages/core/src/index.ts` (subsystem gating), `packages/core/src/paths.ts`, `packages/core/src/launcher/`, a new retention sweeper in `packages/core/src/`, their tests |
+| `cli-image` | — | D3 (`claudio login`, `status`, `--json`), the image stage, the release build | a new `apps/api/src/cli/`, `apps/api/scripts/bundle.mjs`, `docker/Dockerfile`, `docker/entrypoint.sh`, `.github/workflows/image.yml`, their tests |
+| `workspaces` | — | D7 whole | a new `packages/core/src/workspaces/`, a migration in `packages/core/src/db.ts`, a new `apps/api/src/routes/workspaces.ts` and its one registration line in `app.ts`, `package.json` of core if a tar dependency is added, their tests |
+| `guard` | — | D14.5 (`declared-tools`), the corpus of the Design section | `packages/core/src/guards/`, `packages/core/test/guards-*` |
+| `confined-chat` | `workspaces`, `guard` | D14 (1–4, 6–8), D9, `workspaceId` on `POST /api/chats`, D16's REST codes | `packages/core/src/chats.ts`, `live-chat.ts`, `chat-service.ts`, `packages/core/src/providers/claude-code/args.ts`, `apps/api/src/routes/chats.ts`, `apps/api/src/routes/tool-presets.ts`, their tests |
+| `v1` | `confined-chat` | D8, D16 on `/v1`, the headless default of no tools | `apps/api/src/routes/openai.ts`, `apps/api/src/routes/openai-tools.ts`, `packages/core/src/openai/`, their tests |
+| `review` | all the above | Reviews the merged design against this plan: every D1–D16 present, the leak review's findings closed, no route outside the allowlist in headless | findings and small fixes only |
+| `docs` | all implementation tasks | Plan task 10: every doc it lists, the D14 decision record, this plan's Outcome, `status.md` | `docs/` |
+
+Every task that adds or changes a route adds its summary and tag in `apps/api/src/openapi/routes.ts`
+and its row in `docs/rest-api.md`, and regenerates the schemas when it changes `types.ts`.
+
+**Patterns to follow** (read at these places by the plan's author; open the file and find them by
+name):
+
+- Route registration: `apps/api/src/app.ts:210`; an unauthenticated route: the `OPEN` set,
+  `apps/api/src/security.ts:18`; the host check: `apps/api/src/security.ts:871`.
+- A route answering health: `apps/api/src/routes/system.ts:23`.
+- An environment setting refused when invalid: `spendCapFromEnv`, `packages/core/src/paths.ts:198`.
+- A SQLite table added by migration: `openai_conversations`, `packages/core/src/db.ts:1411`.
+- An outbound fetch with the address guard: `isPublicAddress` and `fetchImage`,
+  `packages/core/src/openai/fetch-image.ts:54` and `:124`.
+- A confined launch: `--restricted`, `--tools=`, `--setting-sources=`,
+  `packages/core/src/providers/claude-code/args.ts:47`; confinements built at
+  `packages/core/src/index.ts:2899` and `packages/core/src/claudio-mcp.ts:86`.
+- The chat token handed to a process: `packages/core/src/chats.ts:1863`; the `cwd` created at start:
+  `chats.ts:1014`.
+- `/v1`'s permission mode and its `cwd` check: `apps/api/src/routes/openai.ts:255` and `:234`.
+- Tool preset routes: `apps/api/src/routes/tool-presets.ts:9`.
+- The bundle entry points: `apps/api/scripts/bundle.mjs:26`; the image's runtime stage:
+  `docker/Dockerfile`, stage `runtime`.
+- Guards: no line was opened for this plan; read `docs/guards.md`, then `packages/core/src/guards/`
+  (`command.ts`, `files.ts`, `paths.ts`) and `packages/core/test/guards-corpus.ts`.
+- Tests: `apps/api/test/openai.test.ts`, `apps/api/test/security.test.ts`,
+  `packages/core/test/chats.test.ts`, `packages/core/test/claude-args.test.ts`,
+  `packages/core/test/guards-corpus.test.ts`, `packages/core/test/launcher.test.ts`.
+
+**Rules for every task.**
+
+- Read this plan whole first, then `CLAUDE.md` and `CONTRIBUTING.md`. Do exactly your task, touching
+  only what its row owns; the plan wins over older docs. Re-verify facts in the code before relying
+  on them.
+- TypeScript strict, no `any`, `noUncheckedIndexedAccess`; English for code, comments, docs and
+  commits; Conventional Commits with a body saying why; never push.
+- Run `pnpm typecheck` and the full test suites of the packages you touch
+  (`CI=1 pnpm --filter <pkg> test`, wrapped in `timeout`). Never run `pnpm e2e`.
+- Never start a Claudio server with the inherited environment (it is the owner's live app); if one is
+  needed, start it isolated with `env -u CLAUDIO_DATA_DIR -u PORT -u CLAUDIO_WEB_DIST -u
+  CLAUDIO_API_URL -u CLAUDIO_API_TOKEN`, a temp data dir and free ports, and kill its process group
+  after. Never spend tokens on a real Claude turn: tests drive the fake CLI. The steps the plan marks
+  "once, by hand" with the real CLI are the owner's, after the merge.
+- Never touch `/home/yeyo/Escritorio/shipcast` or `/home/yeyo/Escritorio/trading-bot`.
+
+### Checklist (what the tasks above cover)
 
 1. **Inventory** (read only): every route against D1 with its exact path; every started subsystem;
    the internal callers of `ChatManager.begin` that rely on it creating the `cwd` (D9); whether chat
