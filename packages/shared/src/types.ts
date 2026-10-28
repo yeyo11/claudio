@@ -509,6 +509,30 @@ export type WorkspaceRefusalCode =
   | 'workspace-download-failed'
   | 'workspace-timeout';
 
+/**
+ * What a confined API chat runs under, fixed when it is created and stored with it
+ * (docs/plans/headless-image.md, D14): every chat of a headless Claudio, and every chat in a
+ * workspace in any profile. Resume, fork and settings changes are not served for such a chat.
+ */
+export interface ApiChatPolicy {
+  /** The workspace it runs in, null for one in a working directory */
+  workspaceId: string | null;
+  /** The declared Claude Code permission rules; the only tools it has (`--tools`) */
+  allowedTools: string[];
+  maxTurns: number | null;
+  /** What it may spend; `CLAUDIO_CHAT_BUDGET_USD` when the request named none */
+  maxBudgetUsd: number;
+  /** It answers a JSON schema (`StructuredOutput`) */
+  schema: boolean;
+}
+
+/**
+ * Why a chat start was refused, beside the workspace codes: the `code` of the error answer.
+ * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
+ * a confined chat with another policy than its own.
+ */
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch';
+
 export interface TranscriptEntry {
   uuid: string;
   role: 'user' | 'assistant';
@@ -1439,6 +1463,8 @@ export interface Chat {
   compact?: ChatCompactAvailability;
   /** The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md) */
   guards?: ChatGuards | null;
+  /** The policy of a confined API chat, fixed at its creation; null for any other chat (docs/plans/headless-image.md, D14) */
+  policy?: ApiChatPolicy | null;
   /**
    * Which teammates' shared copies its agent may read now (docs/plans/collaborators-agent-access.md);
    * null when it may read none. Only on a chat read alone, decided on its live process
@@ -1665,6 +1691,11 @@ export interface ChatStartOptions {
   resumeSessionAt?: string;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
+  /**
+   * The workspace (`POST /workspaces`) a new chat runs in, instead of a `cwd`: the chat is a confined
+   * API chat ({@link ApiChatPolicy}). Only a new chat takes it.
+   */
+  workspaceId?: string;
 }
 
 /** Starts a new chat. */

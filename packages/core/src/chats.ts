@@ -79,6 +79,7 @@ import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
 import { LESSONS_ARG_MAX_BYTES } from './lessons/render.ts';
+import { ChatStartRefusal, CONFINED_PERMISSION_MODE, confinedGitEnv, confinementOf, cwdMissing } from './confined-chat.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, PermissionHost, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
@@ -202,6 +203,8 @@ export class ChatManager extends EventEmitter {
    * chat can call a guarded API. Core replaces it with the one its guard reads.
    */
   chatTokens = new ChatTokenStore();
+  /** The workspaces root (D7), where a confined API chat's git stops looking for a repository; Core sets it */
+  workspacesRoot: string | null = null;
   /**
    * What a Claudio assistant chat runs with, from the marker it stores. Core sets it; without it
    * such a chat is refused rather than started unconfined.
@@ -735,6 +738,7 @@ export class ChatManager extends EventEmitter {
     const room = this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }));
     const attachments = this.resolveAttachments(opts.attachments);
     const origin = opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : opts.apiClient ? 'api' : 'claudio';
+    if (opts.apiPolicy) opts.apiAttachments = attachments.map((a) => a.path);
     return this.begin(new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver), opts.prompt, attachments, room);
   }
 
@@ -758,6 +762,8 @@ export class ChatManager extends EventEmitter {
       chat.workingDir = adopt.cwd;
     }
     this.applyStartOptions(chat, request);
+    // The files a resume attaches join the ones a confined chat may read; its guard was armed with them
+    if (chat.opts.apiPolicy && attachments.length) chat.opts.apiAttachments = [...new Set([...(chat.opts.apiAttachments ?? []), ...attachments.map((a) => a.path)])];
     // A new execution is a new turn to see through: the replay it may need is its own, not one an
     // earlier execution of the chat already spent (a flow run continues its member's chat this way)
     chat.limitReplays = 0;
@@ -784,6 +790,7 @@ export class ChatManager extends EventEmitter {
   fork(sourceId: string, request: ResumeChatRequest & ResolvedTools & Pick<ExecutionExtras, 'handBack' | 'purpose' | 'guards'>, source: AdoptedChat): ChatRuntime {
     if (!request.prompt?.trim() && !request.attachments?.length) throw new ChatRefusal('prompt is required');
     const known = this.chats.get(sourceId);
+    if (known?.opts.apiPolicy) throw new ChatRefusal('a confined API chat cannot be forked: start a new chat with the policy it needs', 409);
     const driver = known?.driver ?? this.driverFor(request.provider);
     const room = this.admit(request, driver, classOfStart({ purpose: request.purpose }));
     const attachments = this.resolveAttachments(request.attachments);
@@ -1011,7 +1018,8 @@ export class ChatManager extends EventEmitter {
   }
 
   private begin(chat: LiveChat, prompt: string, attachments: Attachment[], room: readonly LiveChat[]): ChatRuntime {
-    if (!existsSync(chat.cwd)) mkdirSync(chat.cwd, { recursive: true });
+    // The working directory is never created here (D9): an empty folder in place of a missing one
+    // turned a mistyped path, or a volume that was not mounted, into a run that read nothing
     this.chats.set(chat.id, chat);
     try {
       this.spawnProcess(chat, sent(prompt, attachments), room);
@@ -1048,6 +1056,13 @@ export class ChatManager extends EventEmitter {
     if (known) return { ...known, duplicate: true };
     const attachments = this.resolveAttachments(attachmentIds);
     if (!text.trim() && attachments.length === 0) throw new Error('text is required');
+    if (chat.opts.apiPolicy) {
+      // Images and PDFs reach the model inline; any other file is read by path, which only the files
+      // its guard and `--add-dir` were given at the start or a resume can be
+      const known = new Set(chat.opts.apiAttachments ?? []);
+      const unread = attachments.find((a) => a.kind === 'file' && !known.has(a.path));
+      if (unread) throw new ChatStartRefusal(`a confined API chat reads attached files only from its start or a resume: ${unread.name} cannot be read now`, 400);
+    }
     const message: SentMessage = { id: messageId ?? randomUUID(), text, attachments, sentAt: now() };
     // The person has seen the chat since: what was lost before is theirs to have sent again or not
     chat.undelivered = [];
@@ -1129,6 +1144,16 @@ export class ChatManager extends EventEmitter {
       return;
     }
     for (const message of rest) this.writeUserMessage(chat, message, false);
+  }
+
+  /** The files a confined API chat was given so far, the ones its next guard allows again */
+  confinedFiles(id: string): string[] {
+    return [...(this.chats.get(id)?.opts.apiAttachments ?? [])];
+  }
+
+  /** The files of these uploads, for a confined API chat's guard to allow; a bad id is refused as at a start */
+  attachmentPaths(ids: string[] = []): string[] {
+    return this.resolveAttachments(ids).map((a) => a.path);
   }
 
   /** Looks the uploads up before anything starts, so a bad id fails the request, not the turn. */
@@ -1241,6 +1266,7 @@ export class ChatManager extends EventEmitter {
   async updateSettings(id: string, update: ChatSettingsUpdate): Promise<ChatRuntime> {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
+    if (chat.opts.apiPolicy) throw new ChatRefusal('a confined API chat keeps the settings it was created with', 409);
     const { permissionMode, model } = update;
     if (permissionMode !== undefined) {
       // A process on its way out reads nothing more: its replacement starts with the setting
@@ -1336,6 +1362,7 @@ export class ChatManager extends EventEmitter {
   async setClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
+    if (chat.opts.apiPolicy) throw new ChatRefusal('a confined API chat has no way back into Claudio', 409);
     const proc = chat.alive ? chat.proc : null;
     const session = proc ? chat.session : null;
     if (!proc || !session?.mcpSetServers || !session.mcpStatus) throw new ChatRefusal("This chat has no live process: choose Claudio's server when you resume it.");
@@ -1384,6 +1411,7 @@ export class ChatManager extends EventEmitter {
   async toggleMcpServer(id: string, name: string, enabled: boolean): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
+    if (chat.opts.apiPolicy) throw new ChatRefusal('a confined API chat loads no MCP server', 409);
     const session = chat.alive ? chat.session : null;
     if (!session?.mcpToggle) throw new ChatRefusal('This chat has no live process: choose its servers when you resume it.');
     await session.mcpToggle(name, enabled);
@@ -1513,6 +1541,33 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * Confines a process of a confined API chat (docs/plans/headless-image.md, D14) from its stored
+   * policy alone, over whatever a request or an earlier execution put in its options: only the
+   * declared tools, no settings file, no MCP server but the ones core adds (the `/v1` client-tool
+   * stub), `dontAsk`, no way back into Claudio, and never without its `declared-tools` guard.
+   */
+  private confineApiChat(chat: LiveChat): void {
+    const policy = chat.opts.apiPolicy;
+    if (!policy) return;
+    const { opts } = chat;
+    // A restart loses the guard's files and the schema: whoever continues the chat arms them again
+    if (!opts.guards) throw new ChatRefusal('a confined API chat runs only under its declared-tools guard: continue it through its resume', 409);
+    if (policy.schema && opts.jsonSchema === undefined) throw new ChatRefusal('this chat answers a JSON schema: continue it with the schema it was created with', 409);
+    for (const key of ['agent', 'agentsFile', 'worktree', 'mcp', 'toolPreset', 'claudioAssistant', 'internal'] as const) delete opts[key];
+    if (!policy.schema) delete opts.jsonSchema;
+    if (opts.toolConfig) opts.toolConfig = { ...opts.toolConfig, mcp: null, claudioMcp: false };
+    opts.api = false;
+    opts.uploads = false;
+    opts.permissionPrompts = 'none';
+    opts.allowedTools = [...policy.allowedTools];
+    opts.maxBudgetUsd = policy.maxBudgetUsd;
+    if (policy.maxTurns === null) delete opts.maxTurns;
+    else opts.maxTurns = policy.maxTurns;
+    opts.confine = confinementOf(policy, opts.apiAttachments ?? []);
+    chat.setSettings({ permissionMode: CONFINED_PERMISSION_MODE });
+  }
+
+  /**
    * The chat's own `appendSystemPrompt` and, per spawn, the Lessons section after it. The section is
    * read now so a lesson approved since the last process reaches this one, and it is never written
    * to `chat.opts`, which is what a resume or a fork carries on. Housekeeping, confined and assistant
@@ -1559,7 +1614,12 @@ export class ChatManager extends EventEmitter {
    * Added servers keep the chat's choice as it was: a chat that chose none still loads the servers
    * the CLI finds on its own, so the file only adds to them.
    */
-  private mcpLaunch(chat: LiveChat, reads: CollabMcpLaunch | null): Pick<SessionLaunch, 'mcpConfig' | 'mcpConfigAdds'> {
+  private mcpLaunch(chat: LiveChat, reads: CollabMcpLaunch | null): Pick<SessionLaunch, 'mcpConfig' | 'mcpConfigAdds' | 'strictMcpConfig'> {
+    if (chat.opts.apiPolicy) {
+      // Only what core adds, and nothing the CLI would find on its own: a repository's `.mcp.json` included
+      const added = chat.opts.extraMcpServers;
+      return added && Object.keys(added).length ? { mcpConfig: writeChatExtrasConfigSync(this.config.dataDir, chat.id, added) } : { strictMcpConfig: true };
+    }
     const base = reads ? reads.mcpConfig : (chat.opts.mcp?.config ?? null);
     const adds = reads ? reads.adds : base === null;
     const extra = chat.opts.extraMcpServers;
@@ -1823,7 +1883,10 @@ export class ChatManager extends EventEmitter {
           'a second process would carry on the same conversation beside it. Wait for it to finish, or stop it first.',
       );
     }
+    // D9: a start, a resume or a respawn whose folder is gone is refused; nothing creates it again
+    if (!existsSync(chat.cwd)) throw cwdMissing(chat.cwd, chat.opts.apiPolicy?.workspaceId ?? null);
     this.confineAssistant(chat);
+    this.confineApiChat(chat);
     const account = this.chooseAccount(chat);
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
@@ -1868,6 +1931,8 @@ export class ChatManager extends EventEmitter {
       token = this.chatTokens.mint(chat.id);
       env.CLAUDIO_API_TOKEN = token;
     } else delete env.CLAUDIO_API_URL;
+    // A confined API chat's git reads no configuration but the run's own (D14.7)
+    if (chat.opts.apiPolicy) Object.assign(env, confinedGitEnv(chat.cwd, this.workspacesRoot));
     // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
     const tmpDir = chat.opts.guards?.tmpDir;
     if (tmpDir) {
