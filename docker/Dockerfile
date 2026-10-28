@@ -53,6 +53,91 @@ RUN mkdir /out \
 FROM scratch AS bundle-export
 COPY --from=server-bundle /out /
 
+# The headless image (docs/plans/headless-image.md): one Claudio per project, an AI backend reached
+# only through its token-guarded API, built with `--target headless` and published as
+# `<version>-headless`. It runs the same api.mjs under CLAUDIO_PROFILE=headless, which registers only
+# the API a project calls. It carries what that needs and nothing a person's Claudio adds: no web
+# build, gh, glab, Tailscale, youtrack-app, pnpm, python3, node-pty and the terminal host, iroh and the
+# collaborators host, nor docker/keys, so it never offers an in-app update (D6): the image is the
+# version. It comes before `runtime` on purpose: a plain `docker build` builds the last stage, and the
+# server bundle hashes the last stage as the image's inputs (apps/api/scripts/server-bundle.mjs).
+FROM node:26-bookworm-slim AS headless
+
+# git and ripgrep are what Claude Code reads a workspace with; procps gives the server `ps` for its
+# children; curl is the installer's and the healthcheck's.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl git procps ripgrep \
+ && rm -rf /var/lib/apt/lists/*
+
+# /workspace is the default working directory and /workspaces holds the ephemeral workspaces (D7);
+# both live and die with the container, since a workspace is a copy and nothing in it is kept.
+# /app is root's and read-only, as in `runtime`: the agents run as `node` and must not rewrite the
+# server, its guard or its launcher.
+RUN mkdir -p /app /workspace /workspaces /data /home/node/.claude \
+ && chown -R node:node /workspace /workspaces /data /home/node
+USER node
+ENV HOME=/home/node \
+    PATH=/home/node/.local/bin:$PATH
+
+# Claude Code, pinned and its installer checksummed exactly as in `runtime` (see there for rotating
+# the digest). There is no in-app CLI install in headless, so no /data/cli overlay on the PATH.
+ARG CLAUDE_CODE_VERSION
+ARG CLAUDE_CODE_INSTALLER_SHA256=3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
+RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
+ && echo "${CLAUDE_CODE_INSTALLER_SHA256}  /tmp/claude-install.sh" | sha256sum -c - \
+ && bash /tmp/claude-install.sh ${CLAUDE_CODE_VERSION} \
+ && rm /tmp/claude-install.sh \
+ && claude --version
+ENV CLAUDIO_CLAUDE_CODE_PINNED=${CLAUDE_CODE_VERSION}
+
+WORKDIR /app
+# The server, the `/v1` client-tool stub (mcp.mjs), the guard, the launcher and what the image is,
+# root-owned and read-only like in `runtime`
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/api.mjs /app/api.mjs
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/mcp.mjs /app/mcp.mjs
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/guard.mjs /app/guard.mjs
+COPY --from=build --chown=root:root --chmod=0444 /app/apps/api/dist/launcher.mjs /app/launcher.mjs
+COPY --from=build --chown=root:root --chmod=0444 /image.json /app/image.json
+# `claudio login` and `claudio status` (apps/api/src/cli): `docker compose exec claudio claudio login`
+# signs the account in without a UI (D3). Executable, through its own `#!/usr/bin/env node`.
+COPY --from=build --chown=root:root --chmod=0555 /app/apps/api/dist/cli.mjs /app/cli.mjs
+USER root
+RUN ln -s /app/cli.mjs /usr/local/bin/claudio
+USER node
+
+# As in `runtime`, plus the profile and what it implies: no tunnel (no tailscaled to run it), chats
+# only in dontAsk (D14; the server refuses to start with another mode), no in-app server update (D6).
+# No CLAUDIO_WEB_DIST: there is no UI to serve.
+ENV NODE_ENV=production \
+    CLAUDIO_PID_FILE=/tmp/claudio.pid \
+    PORT=8797 \
+    HOST=0.0.0.0 \
+    CLAUDE_CONFIG_DIR=/home/node/.claude \
+    CLAUDIO_WORKSPACE_DIR=/workspace \
+    CLAUDIO_WORKSPACES_DIR=/workspaces \
+    CLAUDIO_DATA_DIR=/data \
+    CLAUDIO_PROFILE=headless \
+    CLAUDIO_TUNNEL=off \
+    CLAUDIO_DEFAULT_PERMISSION_MODE=dontAsk \
+    CLAUDIO_SERVER_UPDATE=off \
+    DISABLE_AUTOUPDATER=1 \
+    CLAUDIO_GUARD_ENTRY=/app/guard.mjs \
+    CLAUDIO_DISTRIBUTION=docker
+
+EXPOSE 8797
+# The sign-in and the server's state; the workspaces are not kept (D7)
+VOLUME ["/home/node/.claude", "/data"]
+
+# The same liveness probe as `runtime`: a signed-out Claudio is alive and must not be restarted (D11)
+COPY --chown=root:root --chmod=755 docker/healthcheck.sh /app/healthcheck.sh
+COPY --chown=root:root --chmod=755 docker/entrypoint.sh /app/entrypoint.sh
+HEALTHCHECK --interval=30s --timeout=15s --start-period=20s --retries=3 \
+  CMD ["/app/healthcheck.sh"]
+
+# The same start as `runtime`; with CLAUDIO_TUNNEL=off the entrypoint starts nothing and execs the launcher
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["node", "/app/launcher.mjs"]
+
 # The image proper
 FROM node:26-bookworm-slim AS runtime
 
