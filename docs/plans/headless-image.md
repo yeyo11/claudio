@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T01:15:00Z
+updated_at: 2026-10-29T01:45:00Z
 tags:
     - plan
     - docker
@@ -271,9 +271,9 @@ Size goal: under 500 MB, measured; the Outcome records the real number.
   `cwd`, `X-Claudio-Cwd` or project path may be, or contain, a folder under it (`400`): a workspace is
   reached only by its id, so only as a confined API chat (D14).
 - **Sources.** `{ url }`: `https` only; the host must be in `CLAUDIO_WORKSPACE_HOSTS` (default
-  `api.github.com,codeload.github.com`, so shipcast may pass GitHub's
-  `/repos/{o}/{r}/tarball/{ref}` link and its redirect is followed); at most three redirects, each to
-  an allowed host; every resolved address public, through the address guard of
+  `codeload.github.com`; shipcast resolves GitHub's `/repos/{o}/{r}/tarball/{ref}` redirect on its
+  own side and passes the `codeload` URL, so no GitHub token ever reaches Claudio, as its second reply
+  confirmed on 2026-10-28); at most three redirects, each to an allowed host; every resolved address public, through the address guard of
   `packages/core/src/openai/fetch-image.ts` applied at DNS lookup, so a rebinding name cannot reach a
   private address. The URL carries GitHub's short-lived token: it is never logged, stored, put in an
   error or an event; errors name the host only. The body: `application/gzip`, read as a stream by a
