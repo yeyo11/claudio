@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { RunEvent, TokenUsage } from '@claudio/shared';
 import type { OpenAiFailure } from './errors.ts';
-import { ChatCompletionTranslator, SEPARATOR, type ChatCompletionTranslatorOptions, type TurnError, type TurnTranslator } from './events.ts';
+import { ChatCompletionTranslator, SEPARATOR, type ChatCompletionTranslatorOptions, type TurnContext, type TurnError, type TurnTranslator } from './events.ts';
 import type { ResponseEcho } from './responses-request.ts';
 import type { FunctionCallItem, OutputItem, OutputMessage, OutputText, ResponseErrorCode, ResponseObject, ResponseStreamEvent, ResponseUsage } from './responses-wire.ts';
-import { STREAM_DONE, type ChatCompletionStreamItem, type FinishReason, type ToolCall, type ToolCallDelta } from './wire.ts';
+import { STREAM_DONE, type ChatCompletionStreamItem, type FinishReason, type OpenAiErrorCode, type ToolCall, type ToolCallDelta } from './wire.ts';
 
-export function responseUsage(usage: TokenUsage): ResponseUsage {
+export function responseUsage(usage: TokenUsage, costUsd: number | null = null): ResponseUsage {
   // As Chat Completions counts them: cached and cache-written tokens are input, and named apart
   const input = usage.input + usage.cacheRead + usage.cacheCreation;
   return {
@@ -15,6 +15,7 @@ export function responseUsage(usage: TokenUsage): ResponseUsage {
     output_tokens: usage.output,
     output_tokens_details: { reasoning_tokens: 0 },
     total_tokens: input + usage.output,
+    ...(costUsd !== null ? { cost_usd: costUsd } : {}),
   };
 }
 
@@ -71,6 +72,8 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
   /** Output items of client calls, by the stream index the Chat Completions translator gives them */
   private readonly calls = new Map<number, { index: number; item: FunctionCallItem }>();
   private usage: TokenUsage | null = null;
+  /** This turn's own cost, read with the `result` like the tokens */
+  private costUsd: number | null = null;
   private status: ResponseObject['status'] = 'in_progress';
   private error: ResponseObject['error'] = null;
   private incomplete: ResponseObject['incomplete_details'] = null;
@@ -118,7 +121,7 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
       tools: clone(opts.echo.tools),
       top_p: opts.echo.topP,
       truncation: opts.echo.truncation,
-      usage: this.usage && this.status !== 'failed' ? responseUsage(this.usage) : null,
+      usage: this.usage && this.status !== 'failed' ? responseUsage(this.usage, this.costUsd) : null,
       user: opts.echo.user,
       metadata: { ...opts.metadata },
       background: false,
@@ -145,8 +148,11 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
     return [this.event({ type: 'response.created', response: snapshot }), this.event({ type: 'response.in_progress', response: clone(snapshot) })];
   }
 
-  push(event: RunEvent, context: { usage?: TokenUsage | null } = {}): ResponseStreamEvent[] {
-    if (event.kind === 'result') this.usage = context.usage ?? null;
+  push(event: RunEvent, context: TurnContext = {}): ResponseStreamEvent[] {
+    if (event.kind === 'result') {
+      this.usage = context.usage ?? null;
+      this.costUsd = context.costUsd ?? null;
+    }
     return this.map(this.inner.push(event, context));
   }
 
@@ -179,7 +185,7 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
     for (const item of items) {
       if (item === STREAM_DONE) continue;
       if ('error' in item) {
-        this.fail(item.error.code === 'rate_limit_exceeded' ? 'rate_limit_exceeded' : 'server_error', item.error.message, out);
+        this.fail(responseErrorCode(item.error.code), item.error.message, out);
         continue;
       }
       const choice = item.choices[0];
@@ -280,5 +286,19 @@ export class ResponsesTranslator implements TurnTranslator<ResponseStreamEvent> 
     this.status = 'failed';
     this.error = { code, message };
     out.push(this.event({ type: 'response.failed', response: this.response() }));
+  }
+}
+
+/** The code a failed response carries: the rate limit and D16's run codes by name, anything else `server_error` */
+function responseErrorCode(code: OpenAiErrorCode | null): ResponseErrorCode {
+  switch (code) {
+    case 'rate_limit_exceeded':
+    case 'max_turns':
+    case 'max_budget':
+    case 'tool_blocked':
+    case 'no_structured_output':
+      return code;
+    default:
+      return 'server_error';
   }
 }

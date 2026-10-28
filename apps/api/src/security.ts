@@ -37,6 +37,15 @@ const HOST_CLAIM = `${API_PREFIX}/security/allowed-hosts/claim`;
 const WEBHOOK_RECEIVER = /^\/api\/webhooks\/(?:github|gitlab)\/[^/]+$/;
 
 /**
+ * The `/v1` client-tool stub a chat's CLI calls (`routes/openai-tools.ts`). Every `/v1` chat is a
+ * confined API chat, which holds no credential for this API (D14.3 of docs/plans/headless-image.md):
+ * its CLI presents the stub session's own secret, which opens that one session and nothing else, and
+ * the route checks it. Like a webhook delivery it answers to no actor and writes no audit line (one
+ * per tool call); the host allowlist still applies.
+ */
+const CLIENT_TOOL_STUB = /^\/api\/openai\/client-tools\/[^/]+\/mcp$/;
+
+/**
  * `EventSource` and the browser's own GETs (an `<img src>`, a link) cannot carry an
  * `Authorization` header, so these six accept the credential as `?token=`. They are the only
  * ones: a token in a query string ends up in access logs, and a route that can be called with
@@ -884,7 +893,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     // A CORS preflight carries no credential by definition, and answering it reveals nothing
     if (req.method === 'OPTIONS') return;
     const path = pathOf(req.url);
-    const receiver = req.method === 'POST' && WEBHOOK_RECEIVER.test(path);
+    const receiver = (req.method === 'POST' && WEBHOOK_RECEIVER.test(path)) || CLIENT_TOOL_STUB.test(path);
     const guarded = isGuarded(path) && !OPEN.has(path);
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether

@@ -775,8 +775,9 @@ export class ChatService {
       throw new ChatStartRefusal('cwd cannot be or hold a workspace folder: name the workspace with workspaceId', 400);
     }
     if (rest.workspaceId !== undefined && typeof rest.workspaceId !== 'string') throw new ChatStartRefusal('workspaceId must be a workspace id', 400);
-    // Every chat a request starts in headless, and every chat in a workspace, is a confined API chat (D14)
-    if (rest.workspaceId !== undefined || (this.deps.config.profile === 'headless' && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
+    // Every chat a request starts in headless, every chat in a workspace, and every chat of the
+    // OpenAI-compatible surface (`origin: 'api'`, in any profile) is a confined API chat (D14, D8)
+    if (rest.workspaceId !== undefined || origin === 'api' || (this.deps.config.profile === 'headless' && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
     const marked = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     const api = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
     const request = extraMcpServers ? { ...api, extraMcpServers } : api;
@@ -926,6 +927,8 @@ export class ChatService {
         ...(request.model ? { model: request.model } : {}),
         ...(request.effort ? { effort: request.effort } : {}),
         ...(request.account !== undefined ? { account: request.account } : {}),
+        // Instructions, not policy: `/v1` restarts a process with the system prompt its request asks for
+        ...(request.appendSystemPrompt !== undefined ? { appendSystemPrompt: request.appendSystemPrompt } : {}),
         provider: LEGACY_PROVIDER,
         guards,
         ...(extras.jsonSchema !== undefined && extras.jsonSchema !== null ? { jsonSchema: extras.jsonSchema } : {}),

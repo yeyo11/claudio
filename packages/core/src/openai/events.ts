@@ -1,4 +1,4 @@
-import type { RunEvent, RunOutcome, TokenUsage } from '@claudio/shared';
+import type { RunEvent, RunGuardEvent, RunOutcome, TokenUsage } from '@claudio/shared';
 import type { ModelUsage } from '../providers/driver.ts';
 import { openAiError, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
 import {
@@ -16,10 +16,17 @@ import {
 /** Between two stretches of the answer (two text blocks, or text before and after a tool ran). */
 export const SEPARATOR = '\n\n';
 
-export function completionUsage(usage: TokenUsage): ChatCompletionUsage {
+export function completionUsage(usage: TokenUsage, costUsd: number | null = null): ChatCompletionUsage {
   // OpenAI counts cached prompt tokens inside prompt_tokens and names the cached share apart
   const prompt = usage.input + usage.cacheRead + usage.cacheCreation;
-  return { prompt_tokens: prompt, completion_tokens: usage.output, total_tokens: prompt + usage.output, prompt_tokens_details: { cached_tokens: usage.cacheRead } };
+  return {
+    prompt_tokens: prompt,
+    completion_tokens: usage.output,
+    total_tokens: prompt + usage.output,
+    prompt_tokens_details: { cached_tokens: usage.cacheRead },
+    // In the body as well as `x-claudio-cost-usd`: on a stream that header is a trailer most SDKs never read
+    ...(costUsd !== null ? { cost_usd: costUsd } : {}),
+  };
 }
 
 /**
@@ -46,8 +53,17 @@ export function finishReasonOf(outcome: RunOutcome, calledTools: boolean): Finis
   return 'stop';
 }
 
+/** Claude Code's result subtypes for the two ceilings a request can set (`--max-turns`, `--max-budget-usd`) */
+const MAX_TURNS_SUBTYPE = 'error_max_turns';
+const MAX_BUDGET_SUBTYPE = 'error_max_budget_usd';
+
+function maxTurns(): OpenAiFailure {
+  return { kind: 'run-ended', code: 'max_turns', message: 'The run reached its turn limit before it answered.' };
+}
+
 /** What a failed `result` means to the client; null when the result is not a failure to report. */
 export function failureOfOutcome(outcome: RunOutcome, text: string | undefined): OpenAiFailure | null {
+  if (outcome.subtype === MAX_TURNS_SUBTYPE) return maxTurns();
   if (!outcome.isError || outcome.cause === 'budget') return null;
   if (outcome.cause === 'rate-limit') return { kind: 'usage-limit', resetsAt: null, ...(text ? { message: text } : {}) };
   if (outcome.cause === 'stopped') return { kind: 'server', message: 'The chat was stopped before it answered.' };
@@ -58,10 +74,33 @@ export function failureOfOutcome(outcome: RunOutcome, text: string | undefined):
  * A turn held to a schema that ended without its output: the model gave up on the schema (the CLI
  * then reports success with only prose, recorded in `review-schema-fail.jsonl`) or a budget cut it.
  */
-export function structuredFailure(outcome: RunOutcome, text: string | undefined): OpenAiFailure {
+export function structuredFailure(outcome: RunOutcome, text: string | undefined, blocked: RunGuardEvent | null = null): OpenAiFailure {
   const said = text?.trim();
-  if (outcome.cause === 'budget') return { kind: 'server', message: 'The run hit its budget before it produced the structured output `response_format` asked for.' };
-  return { kind: 'server', message: `The model did not produce output matching \`response_format\`${said ? `; it said: ${said}` : '.'}` };
+  if (outcome.subtype === MAX_TURNS_SUBTYPE) return maxTurns();
+  if (outcome.cause === 'budget' || outcome.subtype === MAX_BUDGET_SUBTYPE) {
+    return { kind: 'run-ended', code: 'max_budget', message: 'The run hit its budget before it produced the structured output `response_format` asked for.' };
+  }
+  if (blocked) return toolBlocked(blocked);
+  return { kind: 'run-ended', code: 'no_structured_output', message: `The model did not produce output matching \`response_format\`${said ? `; it said: ${said}` : '.'}` };
+}
+
+/**
+ * A turn that ended without its answer after the guard refused at least one of its calls (D16): the
+ * last refusal, whose reason names the subcommand or path and what was missing, is what a client
+ * fixes by declaring a rule.
+ */
+export function toolBlocked(guard: RunGuardEvent): OpenAiFailure {
+  const what = guard.reason.trim() || `${guard.toolName} was refused (${guard.matcher})`;
+  return { kind: 'run-ended', code: 'tool_blocked', message: `The run ended without an answer after the guard blocked a ${guard.toolName} call: ${what}` };
+}
+
+/**
+ * What the route knows about a turn that the events do not carry, passed with its `result`: the token
+ * counts and the cost of this turn alone (`ChatManager.lastTurn`), each null when the provider said nothing.
+ */
+export interface TurnContext {
+  usage?: TokenUsage | null;
+  costUsd?: number | null;
 }
 
 export interface ChatCompletionTranslatorOptions {
@@ -117,7 +156,7 @@ export function httpErrorOf(end: TurnError): OpenAiErrorResponse {
  */
 export interface TurnTranslator<Item> {
   readonly finished: boolean;
-  push(event: RunEvent, context?: { usage?: TokenUsage | null }): Item[];
+  push(event: RunEvent, context?: TurnContext): Item[];
   failWith(failure: OpenAiFailure): Item[];
   handOff(): Item[] | null;
   clientCalls(): Array<{ id: string; name: string; input: unknown }>;
@@ -160,6 +199,8 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
   /** Client calls streamed since `takeNewClientCalls()` last ran, with their input as the block had it */
   private fresh: Array<{ id: string; name: string; input: unknown }> = [];
   private ended: TurnEnd | null = null;
+  /** The last call of the turn the guard blocked: a turn that then ends with no answer names it */
+  private blocked: RunGuardEvent | null = null;
 
   constructor(private readonly opts: ChatCompletionTranslatorOptions) {}
 
@@ -284,7 +325,7 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
     return out;
   }
 
-  private finish(outcome: RunOutcome, text: string | undefined, usage: TokenUsage | null, out: ChatCompletionStreamItem[]): void {
+  private finish(outcome: RunOutcome, text: string | undefined, context: TurnContext, out: ChatCompletionStreamItem[]): void {
     const failure = failureOfOutcome(outcome, text);
     if (failure) {
       this.fail(failure, out);
@@ -293,20 +334,26 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
     if (this.opts.structured) {
       // Without the output there is no answer: an empty 200 would read as a valid, empty object
       if (outcome.structuredOutput === undefined || outcome.structuredOutput === null) {
-        this.fail(structuredFailure(outcome, text), out);
+        this.fail(structuredFailure(outcome, text, this.blocked), out);
         return;
       }
       this.emit({ text: '', started: false }, JSON.stringify(outcome.structuredOutput), out);
     }
+    // Nothing said and nothing called, after a refused call: the answer it owed is what was blocked.
+    // A budget that ran out keeps its own reading (`length`), as without a guard
+    if (!this.opts.structured && this.blocked && outcome.cause !== 'budget' && this.content.trim() === '' && this.calls.size === 0) {
+      this.fail(toolBlocked(this.blocked), out);
+      return;
+    }
     // A structured answer that arrived is whole, whatever the stop reason of the call that carried it
     const finishReason = this.opts.structured ? 'stop' : finishReasonOf(outcome, this.calls.size > 0);
-    this.complete(finishReason, outcome.costUsd, usage, out);
+    this.complete(finishReason, outcome.costUsd, context.usage ?? null, out, context.costUsd ?? null);
   }
 
-  private complete(finishReason: FinishReason, costUsd: number, usage: TokenUsage | null, out: ChatCompletionStreamItem[]): void {
+  private complete(finishReason: FinishReason, costUsd: number, usage: TokenUsage | null, out: ChatCompletionStreamItem[], turnCostUsd: number | null = null): void {
     const toolCalls = this.toolCallList();
     out.push(this.chunk(this.sentRole ? {} : { content: '' }, finishReason));
-    const counted = usage ? completionUsage(usage) : null;
+    const counted = usage ? completionUsage(usage, turnCostUsd) : null;
     if (this.opts.includeUsage && counted) {
       out.push({ id: this.opts.id, object: 'chat.completion.chunk', created: this.opts.created, model: this.opts.model, choices: [], usage: counted });
     }
@@ -346,12 +393,13 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
    * One event of the turn. `usage` is read only with the `result` event: `RunOutcome` has no token
    * counts, so the caller passes what the provider reported (see `tokenUsageOf`), or null.
    */
-  push(event: RunEvent, context: { usage?: TokenUsage | null } = {}): ChatCompletionStreamItem[] {
+  push(event: RunEvent, context: TurnContext = {}): ChatCompletionStreamItem[] {
     if (this.ended) return [];
     const out: ChatCompletionStreamItem[] = [];
     if (event.kind === 'partial') this.partial(event, out);
     else if (event.kind === 'message') this.message(event, out);
-    else if (event.kind === 'result' && event.outcome) this.finish(event.outcome, event.text, context.usage ?? null, out);
+    else if (event.kind === 'result' && event.outcome) this.finish(event.outcome, event.text, context, out);
+    else if (event.kind === 'guard' && event.guard?.outcome === 'blocked') this.blocked = event.guard;
     return out;
   }
 

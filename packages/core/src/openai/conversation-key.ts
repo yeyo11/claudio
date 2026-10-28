@@ -10,8 +10,10 @@ import type { ChatMessage, ImageRef, ToolCall } from './wire.ts';
  *
  * What is hashed, exactly:
  * - the seed: a version tag, the model id as sent, the system prompt (every `system` and `developer`
- *   message, joined as `appendSystemPrompt` gets them) and the OpenAI `user`, so two end users with
- *   the same history never share a chat;
+ *   message, joined as `appendSystemPrompt` gets them), the OpenAI `user`, so two end users with
+ *   the same history never share a chat, and the chat's policy (workspace, declared tools, turns,
+ *   budget, schema: D8 of docs/plans/headless-image.md), so the same history sent with another
+ *   policy is another conversation, never the old chat on new rules;
  * - then each other message in order, as a canonical JSON array:
  *   `["user", ...parts]` with text parts as text and images as their `imageDigest`;
  *   `["assistant", text, [[id, name, arguments]...]]`; `["tool", toolCallId, text]`.
@@ -22,7 +24,8 @@ import type { ChatMessage, ImageRef, ToolCall } from './wire.ts';
  * arguments that parse as JSON are compared with their keys sorted. Never normalised: whitespace
  * inside a message, letter case, or the model id (an alias is a different key).
  */
-const KEY_VERSION = 'claudio-openai-conversation/1';
+// 2: the policy joined the seed, so no key of a chat from before it (which ran unconfined) is found again
+const KEY_VERSION = 'claudio-openai-conversation/2';
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 
@@ -85,10 +88,17 @@ export interface KeySeed {
   model: string;
   systemPrompt: string | null;
   user: string | null;
+  /** The chat's policy as `policyKey` writes it; the route adds it, since it comes from headers and settings */
+  policy?: string | null;
 }
 
 export function seedKey(seed: KeySeed): string {
-  return sha256(JSON.stringify([KEY_VERSION, seed.model, seed.systemPrompt ?? '', seed.user ?? null]));
+  return sha256(JSON.stringify([KEY_VERSION, seed.model, seed.systemPrompt ?? '', seed.user ?? null, seed.policy ?? null]));
+}
+
+/** What a policy is in the seed: every field, the declared rules in the order given (as the chat stores them). */
+export function policyKey(policy: { workspaceId: string | null; allowedTools: readonly string[]; maxTurns: number | null; maxBudgetUsd: number; schema: boolean }): string {
+  return JSON.stringify([policy.workspaceId, [...policy.allowedTools], policy.maxTurns, policy.maxBudgetUsd, policy.schema]);
 }
 
 /** The chain one message further. System and developer messages leave it as it is: they are in the seed. */
