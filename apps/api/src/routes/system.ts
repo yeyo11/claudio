@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import type { SetCredentialsRequest, SystemSample } from '@claudio/shared';
+import type { ReadyStatus, SetCredentialsRequest, SystemSample } from '@claudio/shared';
 import { refuseNonOwner, sendRefusal } from './server-update.ts';
 
 const positive = (value: string | undefined, name: string): number | undefined => {
@@ -23,6 +23,15 @@ export const systemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   app.get('/health', () => {
     const { cli, loggedIn } = core.claudeHealth();
     return { ok: cli && loggedIn, cli, loggedIn };
+  });
+
+  // Readiness, open like liveness and as cheap: whether a chat started now would run, and why not
+  // (docs/plans/headless-image.md, D11). Liveness stays `/health`: a signed-out Claudio is alive, and
+  // a healthcheck that failed on it would have the container restarted for nothing
+  app.get('/ready', (_req, reply): ReadyStatus => {
+    const status = core.readiness();
+    void reply.status(status.ready ? 200 : 503);
+    return status;
   });
 
   app.get<{ Querystring: { refresh?: string } }>('/system', (req) => core.system(req.query.refresh === '1'));

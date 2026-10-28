@@ -54,6 +54,8 @@ import type {
   RunWorkflowRequest,
   SetupState,
   SetupTool,
+  ReadyStatus,
+  ServerProfile,
   SystemInfo,
   UpdateProjectRequest,
   Board,
@@ -86,6 +88,8 @@ import type {
   WorkOnWorkItemResult,
   FileDiff,
 } from '@claudio/shared';
+import { ChatRetention, type RetainedChat } from './chat-retention.ts';
+import { runsIn, type Subsystem } from './subsystems.ts';
 import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, workItemKey, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
@@ -259,7 +263,6 @@ import { TerminalStore } from './terminals/store.ts';
 import { OpenAiConversationStore } from './openai/conversations.ts';
 import { Workspaces, workspaceSettingsFromEnv } from './workspaces/index.ts';
 import { declaredToolsGuard } from './guards/declared.ts';
-import { chatBudgetFromEnv } from './confined-chat.ts';
 import { OpenAiResponseStore } from './openai/responses-store.ts';
 import { OpenAiChatPromptStore } from './openai/system-prompt.ts';
 
@@ -272,7 +275,9 @@ export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE, readDataDirLock, type DataDirLock, type DataDirLockHolder } from './data-dir-lock.ts';
-export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, dataDirFrom, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig } from './paths.ts';
+export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, DEFAULT_CHAT_BUDGET_USD, DEFAULT_CHAT_RETENTION_DAYS, dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig, type HeadlessStart } from './paths.ts';
+export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
+export { ChatRetention, type ChatRetentionOptions, type RetainedChat } from './chat-retention.ts';
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
 export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
@@ -457,7 +462,7 @@ const ACCOUNTS_CACHE_MS = 5 * 60_000;
 const ACCOUNT_CHECK_MS = 30 * 60_000;
 
 /** A system read before the account in use is added to it, which is done on every answer */
-type SystemRead = Omit<SystemInfo, 'uptimeSec' | 'models' | 'auth'> & { auth: CliAuth };
+type SystemRead = Omit<SystemInfo, 'uptimeSec' | 'models' | 'auth' | 'profile'> & { auth: CliAuth };
 
 /** A session's directory: the worktree the CLI recorded when it ran in one, else where it started. */
 const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ?? s.projectPath, updatedAt: s.updatedAt });
@@ -465,6 +470,11 @@ const placeOf = (s: TranscriptSummary): ChatPlace => ({ cwd: s.worktree?.path ??
 /** Facade wiring every core service together; the API layer only talks to this. */
 export class Core {
   readonly config: CoreConfig;
+  /** What this server registers and starts (`CLAUDIO_PROFILE`; docs/plans/headless-image.md, D2) */
+  readonly profile: ServerProfile;
+  private readonly startedSubsystems = new Set<Subsystem>();
+  /** Deletes idle chats in headless (D15); null in a profile that keeps them */
+  private retention: ChatRetention | null = null;
   readonly db: Db;
   /** Which chat a stateless OpenAI client's history belongs to (docs/openai-compatible-api.md) */
   readonly openaiConversations: OpenAiConversationStore;
@@ -669,6 +679,7 @@ export class Core {
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
+    this.profile = config.profile;
     // The default working directory is made once, here (D9): a chat's start never creates its folder
     mkdirSync(config.workspaceDir, { recursive: true });
     // Before anything spawns a CLI: every child environment reads its credentials from here
@@ -807,9 +818,11 @@ export class Core {
       audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
       events: this.events,
     });
-    this.serverUpdates.auditRollback();
-    // At start too, from the release the last check left: the card never offers what cannot install
-    void this.serverUpdates.inspect();
+    this.startSubsystem('serverUpdates', () => {
+      this.serverUpdates.auditRollback();
+      // At start too, from the release the last check left: the card never offers what cannot install
+      void this.serverUpdates.inspect();
+    });
     this.cliInstaller = new CliInstaller({
       dataDir: config.dataDir,
       distribution: config.distribution,
@@ -867,9 +880,9 @@ export class Core {
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
-    this.watchAccounts();
+    this.startSubsystem('accountsWatch', () => this.watchAccounts());
     this.sampler = new SystemSampler(this.db, () => this.chats.livePids(), () => admissionLimitsFrom(), samplerSettingsFrom());
-    this.sampler.start();
+    this.startSubsystem('sampler', () => this.sampler?.start());
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
@@ -907,7 +920,7 @@ export class Core {
     });
     this.orchestrator.guards = this.guardLauncher;
     // A broken guard is known before the first launch; the orchestrator's launches cannot wait for the self-test
-    this.guardLauncher.warm();
+    this.startSubsystem('guardSelfTest', () => this.guardLauncher.warm());
     this.spend = new SpendGate({
       db: this.db,
       cap: () => this.appSettings.dailySpendCapUsd,
@@ -929,7 +942,7 @@ export class Core {
     });
     this.appSettings.onSpendCapChange = () => this.spend.capChanged();
     this.runtime.on('spend-recorded', () => this.spend.recorded());
-    this.spend.start();
+    this.startSubsystem('spend', () => this.spend.start());
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.orchestrator.workflowJournal = (sessionId, runId, from) => this.sessions.workflowJournal(sessionId, runId, from);
     this.mcp = new McpConfig(config);
@@ -986,7 +999,7 @@ export class Core {
     );
     // c6 left this wiring to the routes' worker: without it `jev` is never registered
     this.decisions.register(new JevProvider({ getKey: () => this.decisionCredentials.getKey() }));
-    this.decisions.startPruning();
+    this.startSubsystem('decisionPruning', () => this.decisions.startPruning());
     this.lessonSignals = new SignalRecorder({ db: this.db, mode: (projectId) => this.decisions.effective('lesson.mine', projectId).mode });
     this.decisionResolvers = new DecisionResolvers({
       sql: this.db.connection,
@@ -1000,7 +1013,7 @@ export class Core {
     this.orchestrator.releaseWait = (chatId) => this.cancelWait(chatId);
     this.orchestrator.workflowLimit = (chatId, refusal) => this.runtime.limitReached(chatId, refusal);
     this.events.observe((event) => this.decisionResolvers.observe(event));
-    this.decisionResolvers.start();
+    this.startSubsystem('decisionResolvers', () => this.decisionResolvers.start());
     this.orchestrator.decisions = this.decisions;
     this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
     this.push.decisions = this.decisions;
@@ -1016,9 +1029,11 @@ export class Core {
       health: this.health,
       emit: (event) => this.events.emit(event),
       taskOf: (chat) => this.orchestrator.taskContext(chat.id),
-      onBad: (chat, task, signals) => void this.supervisor.wake(chat, task, signals),
+      onBad: (chat, task, signals) => {
+        if (runsIn(this.profile, 'supervisor')) void this.supervisor.wake(chat, task, signals);
+      },
     });
-    this.healthMonitor.start();
+    this.startSubsystem('healthMonitor', () => this.healthMonitor.start());
     this.chats = new ChatService({
       health: this.health,
       config,
@@ -1040,10 +1055,7 @@ export class Core {
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
       rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),
       workspaces: this.workspaces,
-      // The profile task gives Core its profile; until then the variable is read where it is needed
-      headless: process.env.CLAUDIO_PROFILE === 'headless',
       declaredGuard: (request) => declaredToolsGuard(this.guardLauncher, request),
-      chatBudgetUsd: chatBudgetFromEnv(process.env),
     });
     this.notes = new ChatNotes({
       db: this.db,
@@ -1081,7 +1093,7 @@ export class Core {
       if (started || event.type === 'run.created' || event.type === 'run.ended' || event.type === 'run.removed') this.chats.forgetHolders();
     });
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
-    this.changeWatcher.start();
+    this.startSubsystem('changeWatcher', () => this.changeWatcher.start());
     this.files = new SettingsFiles();
     this.explorer = new ConfigExplorer(config.configDir);
     this.plugins = new Plugins(config);
@@ -1215,7 +1227,7 @@ export class Core {
       emit: (event) => this.events.emit(event),
     });
     this.events.observe((event) => this.lessonQueue.observe(event));
-    this.lessonQueue.start();
+    this.startSubsystem('lessonQueue', () => this.lessonQueue.start());
     this.lessons = new LessonService({
       store: lessonStore,
       proposals: this.memoryProposals,
@@ -1229,7 +1241,7 @@ export class Core {
       const section = this.lessonSection(projectId, orchestrated ? 'worker' : 'chat');
       return section.text ? `${section.text}\n${PASTED_NOTE}` : '';
     };
-    this.lessons.start();
+    this.startSubsystem('lessons', () => this.lessons.start());
     this.checks = new ChecksService({ db: this.db.connection, resolve: (id) => this.changeRequests.target(id), emit: (event) => this.events.emit(event) });
     this.webhooks = new WebhookStore(this.db.connection);
     this.webhookSecrets = new WebhookSecrets(config);
@@ -1545,23 +1557,35 @@ export class Core {
       // Shut down before the chats came back: nothing may start, and the database is closed. Started
       // anyway, the pull request watcher and the scheduler armed timers no shutdown would ever clear
       if (this.closed) return;
-      this.orchestrator.recover();
-      void this.evals.load().catch(() => undefined);
+      this.startSubsystem('orchestrationRecovery', () => this.orchestrator.recover());
+      this.startSubsystem('evals', () => void this.evals.load().catch(() => undefined));
       try {
-        this.flow.recover();
+        this.startSubsystem('flow', () => this.flow.recover());
         // The waits this process owns: its chats are back, so their timers can be armed
         this.rotation.recover();
         // After the chats are back, so a merge moves an item nothing is about to resume on
-        this.pullRequestWatcher.start();
+        this.startSubsystem('pullRequestWatcher', () => this.pullRequestWatcher.start());
       } catch {
         // Shut down before the chats came back: the database is closed, and nothing may start anyway
       }
-      void this.assistant.recover().catch(() => undefined);
-      this.schedules.start();
-      schedulesStarted = true;
+      this.startSubsystem('assistant', () => void this.assistant.recover().catch(() => undefined));
+      this.startSubsystem('schedules', () => {
+        this.schedules.start();
+        schedulesStarted = true;
+      });
       // Every transcript is read once now rather than by whoever opens the first list, which
       // otherwise waits for seconds on a machine with hundreds of megabytes of them
-      void this.sessions.listSessions().catch(() => undefined);
+      this.startSubsystem('transcriptWarmRead', () => void this.sessions.listSessions().catch(() => undefined));
+      // Once the chats are back, so a chat a restart is about to resume is seen alive and kept
+      this.startSubsystem('chatRetention', () => {
+        this.retention = new ChatRetention({
+          days: config.chatRetentionDays,
+          chats: () => this.retainedChats(),
+          remove: (id) => this.chats.remove(id),
+          log: (line) => console.warn(line),
+        });
+        this.retention.start();
+      });
     });
     this.restored = restored.then(
       () => undefined,
@@ -1634,7 +1658,7 @@ export class Core {
         else if (move.subjectKind === 'assistant_run') this.assistant.waitEnded(move, end, reason);
       },
     });
-    this.rotation.start();
+    this.startSubsystem('rotation', () => this.rotation.start());
     this.terminals = new TerminalService({
       store: new TerminalStore(this.db.connection),
       settings: new TerminalSettingsStore(config),
@@ -1654,7 +1678,7 @@ export class Core {
       },
     });
     // Shells a previous server left running (it was killed hard) end before any new one opens
-    this.terminals.reapStrays();
+    this.startSubsystem('terminalStrays', () => this.terminals.reapStrays());
     // The serving side is handed reads only: nothing below can start a chat, a run or a flow
     const projectOfDir = (dir: string): string | null => this.projectOf(resolve(dir)).project?.id ?? null;
     const transcriptFile = async (sessionId: string): Promise<string | null> => {
@@ -1696,7 +1720,7 @@ export class Core {
         events: { subscribe: (listener) => this.events.observe(listener) },
       },
     });
-    void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${error instanceof Error ? error.message : String(error)}`));
+    this.startSubsystem('collaborators', () => void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${error instanceof Error ? error.message : String(error)}`)));
     this.settings = createSettingsRegistry({
       appSettings: this.appSettings,
       providers: this.providersSettings,
@@ -1762,6 +1786,51 @@ export class Core {
     };
   }
 
+  /**
+   * `GET /api/ready`, reachable with no credential like `/api/health`, so it spawns nothing either:
+   * it reads the last detection and the accounts as they were last read (D11). Ready means a chat
+   * started now would run: the store is open, the CLI is there and an account is signed in.
+   */
+  readiness(): ReadyStatus {
+    if (this.closed) return { ready: false, reason: 'starting' };
+    const status = this.providers.knownOne('claude-code');
+    // No detection has finished since the start: nothing is known yet, which is not a failure
+    if (status === null) return { ready: false, reason: 'starting' };
+    if (status.binaryPath === null || status.version === null) return { ready: false, reason: 'cli-missing' };
+    const accounts = this.accounts.list().filter((a) => a.enabled);
+    if (this.providers.knownSignedIn('claude-code') === true || accounts.some((a) => a.signedIn && a.signInState === 'ok')) return { ready: true };
+    return { ready: false, reason: accounts.some((a) => a.signInState === 'expired' || a.signInState === 'incomplete') ? 'sign-in-expired' : 'signed-out' };
+  }
+
+  /** Every subsystem this core and its server started, in the order they started */
+  get started(): ReadonlySet<Subsystem> {
+    return this.startedSubsystems;
+  }
+
+  /**
+   * Starts a subsystem when this profile runs it (`subsystems.ts`), and records that it did. The
+   * server's own (the daily checks, the watchers, the tunnel) go through here too, so one table
+   * says what a headless Claudio runs.
+   */
+  startSubsystem(subsystem: Subsystem, start: () => void): boolean {
+    if (!runsIn(this.profile, subsystem)) return false;
+    this.startedSubsystems.add(subsystem);
+    start();
+    return true;
+  }
+
+  /** The chats the retention sweeper judges, each with its last activity */
+  private retainedChats(): RetainedChat[] {
+    return this.db.loadChats().map(({ record, executions }) => {
+      let last = record.updatedAt;
+      for (const execution of executions) {
+        const at = execution.endedAt ?? execution.startedAt;
+        if (at > last) last = at;
+      }
+      return { id: record.id, lastActivityAt: last, alive: this.runtime.get(record.id)?.pid != null };
+    });
+  }
+
   /** What the last system read saw, whatever its age, without starting one */
   systemKnown(): SystemInfo | null {
     return this.systemCache ? this.withUptime(this.systemCache.value) : null;
@@ -1787,7 +1856,7 @@ export class Core {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while the models are the default account's stored `initialize` list
     // The account in use moves with rotation and sign-ins, faster than the system read is redone
-    return { ...value, auth: { ...value.auth, ...this.accountInUseRead() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    return { ...value, profile: this.profile, auth: { ...value.auth, ...this.accountInUseRead() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   /**
@@ -3803,6 +3872,7 @@ export class Core {
     if (this.accountsTimer) clearInterval(this.accountsTimer);
     this.sampler?.stop();
     this.rotation.close();
+    this.retention?.stop();
     // The rows that say the shells ended are written before this returns, while the database is open
     void this.terminals.shutdown();
     void this.collaborators.dispose();

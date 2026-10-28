@@ -299,7 +299,25 @@ export interface SystemSample {
   admitting: boolean;
 }
 
+/**
+ * What a server registers and starts, from `CLAUDIO_PROFILE`: `full` is the app; `headless` is an
+ * AI backend for one project, serving only the API routes such a client calls
+ * (docs/plans/headless-image.md, D1 and D2).
+ */
+export type ServerProfile = 'full' | 'headless';
+
+/** Why a server is not ready to run a chat (`GET /api/ready`) */
+export type ReadyReason = 'cli-missing' | 'signed-out' | 'sign-in-expired' | 'starting';
+
+/** `GET /api/ready`: 200 when ready, 503 with the reason otherwise. Says nothing more about the account */
+export interface ReadyStatus {
+  ready: boolean;
+  reason?: ReadyReason;
+}
+
 export interface SystemInfo {
+  /** What this server registers and starts */
+  profile: ServerProfile;
   cli: CliInfo;
   auth: AuthStatus;
   configDir: string;

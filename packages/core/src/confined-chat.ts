@@ -14,9 +14,6 @@ import { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 /** The one mode such a chat runs in: what is not declared is denied, and nobody is asked */
 export const CONFINED_PERMISSION_MODE: PermissionMode = 'dontAsk';
 
-/** What a chat that sends no budget may spend, when `CLAUDIO_CHAT_BUDGET_USD` is unset (D4) */
-export const DEFAULT_CHAT_BUDGET_USD = 1;
-
 /** Tools that write files: none may be declared in a workspace, a read-only copy of a source tree */
 const WRITE_TOOLS: ReadonlySet<string> = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 
@@ -41,18 +38,6 @@ export function cwdMissing(cwd: string, workspaceId: string | null): ChatStartRe
   return workspaceId
     ? new ChatStartRefusal(`workspace '${workspaceId}' has expired or was removed`, 410, 'workspace-expired')
     : new ChatStartRefusal(`the working directory ${cwd} does not exist`, 400, 'cwd-missing');
-}
-
-/**
- * `CLAUDIO_CHAT_BUDGET_USD`: what a confined API chat that names no budget may spend. Unset is
- * {@link DEFAULT_CHAT_BUDGET_USD}; anything but a positive number refuses the start of the server.
- */
-export function chatBudgetFromEnv(env: NodeJS.ProcessEnv = process.env): number {
-  const raw = env.CLAUDIO_CHAT_BUDGET_USD?.trim();
-  if (raw === undefined || raw === '') return DEFAULT_CHAT_BUDGET_USD;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value <= 0) throw new Error(`CLAUDIO_CHAT_BUDGET_USD must be a positive number of dollars, not '${raw}'`);
-  return value;
 }
 
 /** What of a start request decides a confined chat's policy, or is refused for one */

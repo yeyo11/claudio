@@ -7,9 +7,10 @@ import cors from '@fastify/cors';
 import etag from '@fastify/etag';
 import fastifyStatic from '@fastify/static';
 import websocket from '@fastify/websocket';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type RouteOptions } from 'fastify';
 import type { Core } from '@claudio/core';
 import { deliberate } from './errors.ts';
+import { enforceHeadless, headlessNotFound } from './headless.ts';
 import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
@@ -117,6 +118,8 @@ export interface AppOptions {
   webDist?: string;
   /** For tests that look into the OpenAI surface's client-tool sessions; one of its own when absent */
   clientTools?: ClientToolRegistry;
+  /** For tests that enumerate the routes: sees each one as its plugin registered it, before the profile does */
+  onRoute?: (route: RouteOptions) => void;
 }
 
 export async function buildApp(core: Core, options: AppOptions = {}): Promise<FastifyInstance> {
@@ -132,6 +135,15 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
     // keeps close() waiting until the orchestrator SIGKILLs the process
     forceCloseConnections: true,
   });
+
+  if (options.onRoute) app.addHook('onRoute', options.onRoute);
+  // Before any route: a headless Claudio serves the routes of docs/plans/headless-image.md (D1) only,
+  // and every other one is hidden where it is registered, so no plugin needs to know the profile
+  const headless = core.profile === 'headless';
+  if (headless) {
+    enforceHeadless(app);
+    headlessNotFound(app);
+  }
 
   // The UI never needs CORS: in dev it goes through the Vite proxy and in production it is served
   // from this same origin. Enable it only for external browser clients, and from the same list
@@ -177,14 +189,17 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   const guard = registerSecurity(app, core);
 
   // The terminal's byte stream. Registered before the routes so each socket route is seen as one;
-  // the sockets are closed with the server, whether or not their peer answers the handshake
-  await app.register(websocket, {
-    options: SOCKET_OPTIONS,
-    preClose(done) {
-      for (const client of this.websocketServer.clients) client.terminate();
-      done();
-    },
-  });
+  // the sockets are closed with the server, whether or not their peer answers the handshake.
+  // Headless opens no terminal, so it has no sockets at all
+  if (!headless) {
+    await app.register(websocket, {
+      options: SOCKET_OPTIONS,
+      preClose(done) {
+        for (const client of this.websocketServer.clients) client.terminate();
+        done();
+      },
+    });
+  }
 
   // The lists are JSON whose keys repeat on every row, so they shrink to a fifth or less; that is
   // what a phone behind the tunnel feels. The event streams are hijacked replies, which no hook
@@ -260,8 +275,9 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   );
 
   // In production the API also serves the built UI (single container, single port).
+  // Headless has no web UI, whatever folder the environment names
   const webDist = resolve(options.webDist ?? process.env.CLAUDIO_WEB_DIST ?? resolve(here, '../../web/dist'));
-  if (existsSync(webDist)) {
+  if (!headless && existsSync(webDist)) {
     const headers = Object.entries(uiHeaders(webDist));
     await app.register(fastifyStatic, {
       root: webDist,

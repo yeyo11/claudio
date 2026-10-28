@@ -81,7 +81,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { DECISION_EFFORTS } from './decisions/settings.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
-import { apiChatPolicy, ChatStartRefusal, CONFINED_PERMISSION_MODE, cwdMissing, declaredRules, DEFAULT_CHAT_BUDGET_USD } from './confined-chat.ts';
+import { apiChatPolicy, ChatStartRefusal, CONFINED_PERMISSION_MODE, cwdMissing, declaredRules } from './confined-chat.ts';
 import type { DeclaredGuardRequest } from './guards/declared.ts';
 import type { Workspaces } from './workspaces/index.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
@@ -239,12 +239,8 @@ export interface ChatServiceDeps {
   rewound?: (chat: ChatSummary, resumeSessionAt: string) => void;
   /** The ephemeral workspaces (D7): a chat in one is a confined API chat, and no `cwd` may name one's folder */
   workspaces?: Pick<Workspaces, 'resolve' | 'touch' | 'overlaps'>;
-  /** A headless Claudio: every chat a request starts is a confined API chat (docs/plans/headless-image.md, D14) */
-  headless?: boolean;
   /** Arms the `declared-tools` guard of a confined API chat (`guards/declared.ts`); without it such a chat is refused */
   declaredGuard?: (request: DeclaredGuardRequest) => Promise<ChatGuardPlan>;
-  /** What a confined API chat that names no budget may spend (`CLAUDIO_CHAT_BUDGET_USD`) */
-  chatBudgetUsd?: number;
 }
 
 /** The run, task or item a chat works for: what makes its limit the rotation's rather than a person's. */
@@ -780,7 +776,7 @@ export class ChatService {
     }
     if (rest.workspaceId !== undefined && typeof rest.workspaceId !== 'string') throw new ChatStartRefusal('workspaceId must be a workspace id', 400);
     // Every chat a request starts in headless, and every chat in a workspace, is a confined API chat (D14)
-    if (rest.workspaceId !== undefined || (this.deps.headless === true && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
+    if (rest.workspaceId !== undefined || (this.deps.config.profile === 'headless' && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
     const marked = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     const api = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
     const request = extraMcpServers ? { ...api, extraMcpServers } : api;
@@ -852,7 +848,7 @@ export class ChatService {
       if (!preset) throw new ChatStartRefusal(`tool preset '${request.toolPreset}' not found`, 404);
     }
     const declared = preset ? preset.allowedTools : declaredRules(request.allowedTools);
-    const policy = apiChatPolicy(request, { workspaceId, allowedTools: declared, budgetUsd: this.deps.chatBudgetUsd ?? DEFAULT_CHAT_BUDGET_USD });
+    const policy = apiChatPolicy(request, { workspaceId, allowedTools: declared, budgetUsd: this.deps.config.chatBudgetUsd });
     const attachments = this.deps.runtime.attachmentPaths(request.attachments ?? []);
     const guards = await this.declaredGuard({ policy, cwd, attachments });
     let started: ChatRuntime;
