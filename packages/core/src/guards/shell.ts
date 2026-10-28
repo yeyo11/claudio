@@ -73,6 +73,11 @@ export interface ShellContext {
   maxDepth: number;
   maxFilesRead: number;
   maxScriptBytes: number;
+  /**
+   * Also emit a wrapper whose command the reader takes as text (`watch`, `flock -c`, `su -c`,
+   * `env -S`), which is otherwise left out: `declared-tools` must see every program the line starts
+   */
+  emitWrappers?: boolean;
 }
 
 const MAX_COMMANDS = 10_000;
@@ -686,6 +691,7 @@ class Reader {
           this.scan('xargs', st.pipeRaw);
         }
         if (stripped.text !== undefined) {
+          if (this.ctx.emitWrappers) this.emit(st, argv, assigns);
           this.walk(stripped.text, st.cwd, st.depth + 1, null);
           return;
         }

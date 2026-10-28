@@ -2009,9 +2009,10 @@
       "push",
       "destructive",
       "secrets",
-      "protect-configs"
+      "protect-configs",
+      "declared-tools"
     ],
-    "description": "A rule of the guard program. `integrity` protects the guard itself and is always on whenever guards are; it is deliberately not a key of any settings or override type, so it cannot be switched off through the API ( {@link  GuardSwitchableRuleId } )."
+    "description": "A rule of the guard program. `integrity` protects the guard itself and is always on whenever guards are; it is deliberately not a key of any settings or override type, so it cannot be switched off through the API ( {@link  GuardSwitchableRuleId } ). `declared-tools` confines a confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is armed by the chat's launch from its stored policy, never by a setting."
   },
   "GuardMode": {
     "type": "string",
@@ -18910,7 +18911,7 @@
     "type": "object",
     "properties": {
       "id": {
-        "$ref": "#/components/schemas/GuardRuleId"
+        "$ref": "#/components/schemas/GuardSettingsRuleId"
       },
       "defaultOn": {
         "type": "boolean",
@@ -18927,6 +18928,18 @@
       "switchable"
     ],
     "description": "One rule as the UI lists it; the words are the UI's own (i18n), not the server's."
+  },
+  "GuardSettingsRuleId": {
+    "type": "string",
+    "enum": [
+      "integrity",
+      "no-verify",
+      "push",
+      "destructive",
+      "secrets",
+      "protect-configs"
+    ],
+    "description": "The rules Settings lists: every rule but `declared-tools`, which belongs to a chat's policy, not to a setting."
   },
   "UpdateGuardSettingsRequest": {
     "type": "object",
@@ -19117,7 +19130,7 @@
       "secrets",
       "protect-configs"
     ],
-    "description": "The rules a person can switch: every rule but `integrity`."
+    "description": "The rules a person can switch: every rule but `integrity` and `declared-tools`."
   },
   "GuardCheckResult": {
     "type": "object",
