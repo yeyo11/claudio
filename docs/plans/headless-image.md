@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T02:30:00Z
+updated_at: 2026-10-29T04:00:00Z
 tags:
     - plan
     - docker
@@ -564,6 +564,145 @@ content.
 
 None. Both consumers answered on 2026-10-28, the review's findings are in the decisions, and the owner
 approved the result the same day.
+
+## Inventory
+
+Plan task 1, recorded by the `profile` task on 2026-10-28 against the code of its branch. The
+allowlist is `apps/api/src/headless.ts` (`HEADLESS_ROUTES`, plus the `/api/v1/` and `/docs`
+subtrees) and the subsystem table is `packages/core/src/subsystems.ts` (`SUBSYSTEMS`). Both are the
+source of truth; this section says why.
+
+### Routes
+
+How it is enforced: every plugin still registers its routes. In headless an `onRoute` hook
+(`enforceHeadless`) turns each route outside the allowlist into one whose own `onRequest` answers
+`404 { error: 'route not found' }` before its body parser, hooks or handler run, with `schema.hide`
+so the OpenAPI document leaves it out. A `HEAD` is judged as its `GET`, and an unregistered path
+answers the same body. The websocket plugin and `fastifyStatic` are not registered, so there is no
+web UI and no socket. `apps/api/test/headless.test.ts` enumerates every registered route and checks
+it against the allowlist.
+
+Kept, with their exact paths (Fastify's names, under `/api`):
+
+| Routes | Plugin | Why |
+|---|---|---|
+| `GET /health`, `GET /ready` | `system.ts` | Probes, unauthenticated (`OPEN` in `security.ts`); `/ready` is new (D11) |
+| `GET /system` | `system.ts` | Carries `profile` |
+| `GET /chats`, `POST /chats`, `GET /chats/:id`, `POST /chats/:id/messages`, `POST /chats/:id/stop`, `DELETE /chats/:id` | `chats.ts` | The consumers' calls (D14) |
+| `POST /uploads` | `uploads.ts` | A chat's attachments. `GET /uploads/:id` and `/uploads/:id/content` are dropped: the chat reads its attachment by path (D14.6) and the caller already has the bytes |
+| `GET`, `POST`, `DELETE /openai/client-tools/:id/mcp` | `openai-tools.ts` | The `/v1` client-tool stub the CLI calls |
+| `/v1/*`: `GET /v1/models`, `GET /v1/models/:id`, `POST /v1/chat/completions`, `POST /v1/responses`, `GET` and `DELETE /v1/responses/:id`, `GET /v1/responses/:id/input_items` | `openai.ts` | D8, under D14 |
+| `POST /workspaces`, `GET /workspaces/:id`, `DELETE /workspaces/:id` | `workspaces.ts` (task `workspaces`) | D7; listed before the plugin exists, so the test checks their registration only once it does |
+| `GET /providers`, `GET /providers/:id/models` | `providers.ts` | The model list (`claude-code` is the one id) |
+| `GET /config/tool-presets` | `tool-presets.ts` | Read only (D14.8) |
+| `GET /accounts`, `POST /accounts`, `POST /accounts/refresh`, `POST /accounts/:id/refresh`, `POST /accounts/:id/login`, `GET /accounts/logins/:id`, `POST /accounts/logins/:id/code`, `DELETE /accounts/logins/:id`, `DELETE /accounts/:id` | `accounts.ts` | D3: list, add, sign-in with its code, state and cancel, refresh, remove |
+| `GET` and `PUT /accounts/settings`, `GET` and `POST /accounts/policies`, `PUT` and `DELETE /accounts/policies/:id` | `accounts.ts` | The rotation settings and policies: several accounts and rotation stay |
+| `GET /security/auth`, `POST /security/token` | `security.ts` | What the token needs: the guard's mode, and replacing a token, the first-run one included ([container-owner-token](../decisions/container-owner-token.md)) |
+| `GET /openapi.json`, `/docs` | `openapi/plugin.ts` | Outside `/api`; they describe only what is served, behind the token |
+
+Dropped, with the reason:
+
+- `/auth`, `/auth/credentials`, `/auth/verify`: a second way to hand Claude Code a credential;
+  sign-in is the accounts' paste-code flow (D3), and `/system` already carries `auth`.
+- `PUT /security/auth`, `DELETE /security/token`, `/security/allowed-hosts/claim`, `/audit`: they
+  could open the guard (D4 forbids `none` off loopback) or serve the audit screen; allowed hosts come
+  from `CLAUDIO_ALLOWED_HOSTS` and D10.
+- `POST /accounts/token`, `PATCH /accounts/:id`, `/accounts/:id/models`, `/accounts/model-fallbacks*`,
+  `/accounts/usage-history`, `/accounts/events`: not in D1's list. The token sign-in is legacy
+  (`CLAUDE_CODE_OAUTH_TOKEN` stays an environment variable); the rest feed Settings screens.
+- `/providers/refresh`, `/providers/settings`, `/providers/:id`, `/limits/waits*`: Settings and the
+  rotation's wait screen; readiness and the model list read the detector without them.
+- Every other route of `chats.ts`: resume, fork, `PATCH`, account switch, wait, interrupt, hint,
+  command cancel, `mcp`, `claudio-mcp`, context and compaction, notes, permissions, logs, stream,
+  export, changes, search, checklist, subagents, tasks, workflows, environments, `/usage*` (D1, D14.4).
+- `/system/*` (CLI version and install, release, server update, storage, load, processes, history)
+  and `/overview`: D6, and screens.
+- Whole plugins with nothing kept: projects, work items, team, evals, flow, documents, project docs,
+  assistant, events (SSE), orchestrations, config (MCP, plugins, agents, memory, settings files),
+  app settings, settings state, spend (the cap is the environment's), dashboard layout, tunnel,
+  plugins, connectors, memory, journal, lessons, schedules, supervisor, decisions, change requests,
+  hosts, trackers, setup, push, webhooks, terminals, collaborators, guards (the settings screen; the
+  guard itself runs) and server update.
+
+### Subsystems
+
+Gated through `Core.startSubsystem` (`packages/core/src/index.ts`, `apps/api/src/server.ts`), which
+records what started in `core.started`; `packages/core/test/profile.test.ts` checks both profiles.
+
+| Subsystem | Headless | Why |
+|---|---|---|
+| `spend` | kept | The daily cap D4 requires |
+| `healthMonitor` | kept | Live chats' health signals, which the chat view carries |
+| `rotation` (start and recover) | kept | Several accounts and rotation stay (D3) |
+| `accountsWatch` | kept | Usage caches and models lists: sign-in, rotation and the model list |
+| `guardSelfTest` | kept | The `declared-tools` rule runs in the guard (D14.5) |
+| `decisionPruning` | kept | A timer trimming old decision rows, nothing else |
+| `transcriptWarmRead` | kept | The first `GET /api/chats` does not wait for every transcript |
+| `providersWatch` (server) | kept | `/ready`, `/health` and `/system` answer from it |
+| `chatRetention` | headless only | D15 |
+| the workspace sweeper | kept | Started by task `workspaces` |
+| `sampler` | dropped | The Machine page's charts (`/system/history` is not served) |
+| `decisionResolvers` | dropped | Outcomes of the flow's, orchestrations' and reviews' decisions; none run |
+| `supervisor` (woken by the health monitor) | dropped | A hint is text the caller did not send (D14) |
+| `changeWatcher` | dropped | The orchestrations' Changes view |
+| `lessonQueue`, `lessons` | dropped | Mining spends model turns on transcripts that hold repository content |
+| `pullRequestWatcher`, `codeHostsWatch` (server) | dropped | No gh or glab in the image, no code-host routes |
+| `schedules` | dropped | No schedule routes |
+| `collaborators` | dropped | No iroh in the image |
+| `terminalStrays` | dropped | No terminals |
+| `serverUpdates`, `releaseWatch` (server) | dropped | D6 |
+| `cliVersionWatch` (server) | dropped | The image pins the CLI, and no install route is served |
+| `orchestrationRecovery`, `evals`, `flow`, `assistant` | dropped | None of them is served |
+| `tunnel` (server) | dropped | `CLAUDIO_TUNNEL=off`; the host's proxy serves the port |
+
+Constructed in both profiles but not started on their own: the stores, the push service (an
+observer of the bus, with no subscription to send to in headless), the permission broker, the
+sessions watcher; `runtime.restore` runs in both, so the chats come back after a restart.
+
+### D9: who relies on `ChatManager.begin` creating the `cwd`
+
+`begin` (`packages/core/src/chats.ts:1013`) is reached through `ChatManager.start` and `fork`. Their
+callers, and the directory each starts in:
+
+- `ChatService.create` and `fork` (`chat-service.ts:778`, `:898`): the person's or the API's `cwd`,
+  else the default working directory. This is the case D9 refuses; the default directory is created
+  by `loadConfig` at server start.
+- `Core.runWorkflow` (`index.ts`): `request.cwd` as given, else the default; it relied on `begin` for
+  a missing one, and is refused under D9 like a chat.
+- The orchestrator (`orchestrator.ts:3187`): the planner runs in `resolve(req.cwd ?? workspaceDir)`,
+  tasks in `join(worktree, subdir)` or the integration directory. Git makes the worktrees first, but
+  a task's `subdir` inside one, and a planner's missing `req.cwd`, were created by `begin`. Under D9 the
+  orchestrator has to create a task's `subdir` itself and refuse a missing planner `cwd` like a
+  chat's; that is task `confined-chat`'s, which owns `begin`.
+- One-shot chats (`one-shot.ts`: the decision engine's CLI provider, the lesson miner) and
+  `Core.verifyAuth`: no `cwd`, so the default directory, which exists from the start.
+- `Core.askSupervisor` (`question.cwd`, the worker's own directory), `project-docs.ts:299`, and the
+  eval runner (`evals/runner.ts:873`, `lane.path`, made by the runner) with its judge: directories
+  that exist before the chat starts.
+
+### D15: does deleting a chat remove the CLI's session files
+
+Yes, for what lives under `~/.claude/projects`, so nothing had to be fixed. `DELETE /api/chats/:id`
+calls `ChatService.remove` (`chat-service.ts:997`), which calls `SessionStore.deleteSession`
+(`sessions.ts:909`): it removes `<projects>/<dir>/<id>.jsonl` and its sidecar folder `<id>/`
+(subagent transcripts, tool results), and then the chat's rows (`ChatManager.remove`,
+`db.deleteChat`). Every account reads and writes one `projects/`, since an account's directory links
+it to the default one (`packages/accounts/src/dirs.ts`, `HISTORY`), so no copy is left under another
+account. A chat with a live process is refused (`409`), and the sweeper tries it again on its next
+pass. Not removed, and outside D15's scope: what the CLI keeps per session elsewhere in its config
+directory (`todos/`, `file-history/`, `session-env/`, `shell-snapshots/`, `debug/`). The retention
+sweeper (`packages/core/src/chat-retention.ts`) runs once the chats are restored and then hourly, and
+deletes through the same `ChatService.remove`.
+
+### Contract refinements
+
+- `core.profile` is the `ServerProfile`. `core.config.chatBudgetUsd` (`CLAUDIO_CHAT_BUDGET_USD`,
+  default 1) and `core.config.chatRetentionDays` (`CLAUDIO_CHAT_RETENTION_DAYS`, default 30) are read
+  in `loadConfig`; confined-chat applies the budget.
+- `core.readiness()` answers the `ReadyStatus`; `GET /api/ready` sends it with `200` or `503`.
+- `headlessStartProblems` (core) holds D4's three refusals; `startServer` throws with all of them.
+- The launcher ignores overlays when `CLAUDIO_PROFILE=headless` or the image carries no keys, and
+  writes nothing under `/data/app` then.
 
 ## Related
 

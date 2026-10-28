@@ -14,8 +14,11 @@ import { ROUTE_DOCS } from './openapi/routes.ts';
 const API_PREFIX = '/api';
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-/** Liveness has to answer a probe that carries no credential. It says nothing about the install. */
-const OPEN = new Set([`${API_PREFIX}/health`]);
+/**
+ * Liveness and readiness have to answer a probe that carries no credential. Neither says anything
+ * about the install beyond whether it is up and, for readiness, why it cannot run a chat yet.
+ */
+const OPEN = new Set([`${API_PREFIX}/health`, `${API_PREFIX}/ready`]);
 
 /**
  * The one route exempt from the host check: it is how the owner adds the host they are dialling.
@@ -104,10 +107,28 @@ function allowlist(patterns: readonly string[]): { names: ReadonlySet<string>; s
  * A request with no `Host` at all passes: HTTP/1.1 requires one and every browser sends one, so it
  * cannot be the rebinding case, and refusing it would only cost an HTTP/1.0 probe.
  */
-function hostAllowed(authority: string | undefined, allowed: ReturnType<typeof allowlist>, runtime: RuntimeHosts): boolean {
+function hostAllowed(authority: string | undefined, allowed: ReturnType<typeof allowlist>, runtime: RuntimeHosts, singleLabel: boolean): boolean {
   if (authority === undefined) return true;
   const name = hostNameOf(authority);
-  return LOOPBACK.test(name) || allowed.names.has(name) || allowed.suffixes.some((suffix) => name.endsWith(suffix)) || runtime.get(name) !== undefined;
+  return (
+    LOOPBACK.test(name) ||
+    (singleLabel && isSingleLabel(name)) ||
+    allowed.names.has(name) ||
+    allowed.suffixes.some((suffix) => name.endsWith(suffix)) ||
+    runtime.get(name) !== undefined
+  );
+}
+
+/**
+ * A name with no dot that is not an address: what Docker's embedded DNS answers for a compose
+ * service (`claudio`). A rebinding attack needs a name the attacker's resolver answers for, and a
+ * single label only reaches the local resolver and its search domains, which are the operator's.
+ * So a headless Claudio, which runs next to its project's containers, answers to one without the
+ * name being configured (docs/plans/headless-image.md, D10). A bare number is an IPv4 address in
+ * another spelling (`2130706433` is 127.0.0.1), and is never a name.
+ */
+export function isSingleLabel(name: string): boolean {
+  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name) && !/^(?:\d+|0x[0-9a-f]+)$/.test(name);
 }
 
 /**
@@ -868,7 +889,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
     // or not the caller holds one: under `mode: 'none'` there is no credential to refuse it by
-    if (guarded && path !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts)) {
+    if (guarded && path !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless')) {
       req.actor = 'anonymous';
       const host = hostNameOf(req.headers.host ?? '');
       if (req.method === 'GET' && prefersHtml(req.headers.accept)) {
