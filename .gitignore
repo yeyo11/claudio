@@ -6,6 +6,7 @@ dist
 .DS_Store
 data/
 workspace/
+workspaces/
 e2e-shots
 # Created by `claude --worktree`; the shareable parts of .claude/ stay tracked
 .claude/worktrees/

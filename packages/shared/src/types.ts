@@ -452,6 +452,45 @@ export interface Attachment {
   createdAt: string;
 }
 
+/**
+ * An ephemeral copy of a source tree made from a `tar.gz` (docs/plans/headless-image.md, D7). A chat
+ * names it by id; its folder is never returned, so nothing else can name it.
+ */
+export interface Workspace {
+  /** `ws_` + random */
+  id: string;
+  source: 'url' | 'upload';
+  /** The URL's host; never the URL, which carries the code host's short-lived token */
+  host: string | null;
+  /** Bytes extracted */
+  bytes: number;
+  /** Regular files extracted */
+  files: number;
+  createdAt: string;
+  lastUsedAt: string;
+  /** `lastUsedAt` plus the TTL: past it, and once its chats have ended, the workspace is removed */
+  expiresAt: string;
+  state: 'creating' | 'ready' | 'removing';
+}
+
+/** `POST /api/workspaces` with a JSON body: Claudio downloads the archive itself */
+export interface CreateWorkspaceRequest {
+  /** An `https` URL of a `tar.gz` on a host of `CLAUDIO_WORKSPACE_HOSTS` */
+  url: string;
+}
+
+/** Why a workspace request was refused: the `code` of the error answer */
+export type WorkspaceRefusalCode =
+  | 'workspace-host-not-allowed'
+  | 'workspace-address-blocked'
+  | 'workspace-too-large'
+  | 'workspace-bad-archive'
+  | 'workspace-limit'
+  | 'workspace-not-found'
+  | 'workspace-expired'
+  | 'workspace-download-failed'
+  | 'workspace-timeout';
+
 export interface TranscriptEntry {
   uuid: string;
   role: 'user' | 'assistant';

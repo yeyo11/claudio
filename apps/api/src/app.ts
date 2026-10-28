@@ -50,6 +50,7 @@ import { teamRoutes } from './routes/team.ts';
 import { evalRoutes } from './routes/evals.ts';
 import { toolPresetRoutes } from './routes/tool-presets.ts';
 import { uploadRoutes } from './routes/uploads.ts';
+import { workspaceRoutes } from './routes/workspaces.ts';
 import { workItemRoutes } from './routes/work-items.ts';
 import { projectDocsRoutes } from './routes/project-docs.ts';
 import { documentRoutes } from './routes/documents.ts';
@@ -235,6 +236,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(journalRoutes, { core });
       await api.register(lessonRoutes, { core });
       await api.register(uploadRoutes, { core });
+      await api.register(workspaceRoutes, { core });
       await api.register(scheduleRoutes, { core });
       await api.register(supervisorRoutes, { core });
       await api.register(decisionRoutes, { core });

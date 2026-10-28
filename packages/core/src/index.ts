@@ -257,6 +257,7 @@ import { TerminalService } from './terminals/service.ts';
 import { TerminalSettingsStore } from './terminals/settings.ts';
 import { TerminalStore } from './terminals/store.ts';
 import { OpenAiConversationStore } from './openai/conversations.ts';
+import { Workspaces, workspaceSettingsFromEnv } from './workspaces/index.ts';
 import { OpenAiResponseStore } from './openai/responses-store.ts';
 import { OpenAiChatPromptStore } from './openai/system-prompt.ts';
 
@@ -275,6 +276,7 @@ export { SecretVault } from './secret-vault.ts';
 export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
 export { AGENT_READ_MODES, agentReadScope, copyInScope, type AgentReadChat, type AgentReadDecision, type AgentReadRefusal } from './collab/agent-access.ts';
 export { DashboardLayoutStore } from './dashboard-layouts.ts';
+export { DEFAULT_WORKSPACE_HOSTS, WorkspaceRefusal, Workspaces, workspaceSettingsFromEnv, type WorkspaceChats, type WorkspaceSettings, type WorkspaceSource } from './workspaces/index.ts';
 export * from './openai/index.ts';
 export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
 export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
@@ -468,6 +470,8 @@ export class Core {
   readonly openaiResponses: OpenAiResponseStore;
   /** The two parts of each API chat's system prompt (docs/openai-compatible-api.md, "The system prompt") */
   readonly openaiChatPrompts: OpenAiChatPromptStore;
+  /** Ephemeral copies of source trees made from a `tar.gz` (docs/plans/headless-image.md, D7) */
+  readonly workspaces: Workspaces;
   private readonly reviewStore: ReviewStore;
   /** Every change worth telling a client about; what `GET /api/events` streams */
   readonly events = new EventBus();
@@ -838,6 +842,22 @@ export class Core {
     this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
     this.runtime.agentReadsLaunch = (chat) => this.agentReadsLaunch(chat);
     this.runtime.claudioServer = (chat) => this.claudioServer(chat);
+    this.workspaces = new Workspaces({
+      sql: this.db.connection,
+      settings: workspaceSettingsFromEnv(process.env, config),
+      chats: {
+        running: () => this.runtime.list().flatMap((chat) => (chat.pid === null ? [] : [{ id: chat.id, dirs: [chat.cwd, chat.workingDir] }])),
+        stop: (id) => {
+          try {
+            this.runtime.stop(id);
+          } catch {
+            // ended in between
+          }
+        },
+        exited: (id) => this.runtime.exited(id),
+      },
+    });
+    this.workspaces.start();
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
@@ -3776,6 +3796,7 @@ export class Core {
     // The rows that say the shells ended are written before this returns, while the database is open
     void this.terminals.shutdown();
     void this.collaborators.dispose();
+    this.workspaces.close();
     this.runtime.stopAll();
     this.repos.flush();
     this.db.close();
