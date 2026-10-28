@@ -781,6 +781,24 @@ curl -X POST localhost:8797/api/chats -H 'content-type: application/json' \
   -d "{\"prompt\":\"Explain this diagram\",\"attachments\":[\"$id\"]}"
 ```
 
+## Workspaces
+
+Ephemeral copies of a source tree made from a `tar.gz` ([plans/headless-image.md](plans/headless-image.md),
+D7), under `CLAUDIO_WORKSPACES_DIR` (`/workspaces` in the image). A chat names one by its id; its folder
+is never returned. A workspace expires two hours after its last use (each chat started in it moves
+that) and is removed once its chats have ended. Refusals carry a `code`.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/workspaces` | `{ url }` as JSON (an `https` URL on a host of `CLAUDIO_WORKSPACE_HOSTS`, `codeload.github.com` by default; at most three redirects, each to an allowed host and a public address), or the archive as the body with `Content-Type: application/gzip` → `201` with the `Workspace` (`id`, `source`, `host`, `bytes`, `files`, `expiresAt`…). The URL is never logged or stored, only its host. Regular files and directories only: a link, a device, an absolute path, a `..` or a `.git` folder is `400 workspace-bad-archive`. Over 100 MB compressed, 500 MB extracted, 50 000 entries or 2 GB under the root: `413 workspace-too-large`; past 60 s: `408 workspace-timeout`; with 20 workspaces: `429 workspace-limit`; a host off the list: `400 workspace-host-not-allowed`; a private address: `400 workspace-address-blocked`; a failed download: `502 workspace-download-failed`. Nothing is left on disk after a refusal |
+| GET | `/workspaces/:id` | The `Workspace`; `404 workspace-not-found` for an unknown id, `410 workspace-expired` for one that expired or was removed |
+| DELETE | `/workspaces/:id` | Stops the chats running in it, then removes it → `204` (also when already removed); `409` while it is still being created |
+
+```bash
+curl -X POST localhost:8797/api/workspaces -H "authorization: Bearer $TOKEN" \
+  -H 'content-type: application/gzip' --data-binary @repo.tar.gz
+```
+
 ## Schedules
 
 Recurring chats and orchestrations on a five-field cron expression (`minute hour day-of-month month
