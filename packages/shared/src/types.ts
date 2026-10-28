@@ -773,6 +773,12 @@ export interface RunOutcome {
    * limit or someone stopped it.
    */
   cause?: 'budget' | 'rate-limit' | 'stopped';
+  /**
+   * The provider's own word for how the turn ended, when it gave one (Claude Code's result `subtype`:
+   * `success`, `error_max_turns`, `error_max_budget_usd`…). `/v1` names a turn that ended without its
+   * answer from it (D16 of docs/plans/headless-image.md).
+   */
+  subtype?: string;
   /** The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said */
   stopReason?: string;
 }

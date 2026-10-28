@@ -7,6 +7,7 @@ import { after, afterEach, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig, RunSlotRefusal } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
+import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
 
 // Run slots against idle API chats (docs/openai-compatible-api.md, "Real-client tests"): every OpenAI
@@ -34,6 +35,7 @@ before(async () => {
       CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
+  standInGuard(core, join(root, 'guard'));
   mkdirSync(join(root, 'workspace'), { recursive: true });
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui'), clientTools: new ClientToolRegistry() });
   await app.listen({ port: 0, host: '127.0.0.1' });

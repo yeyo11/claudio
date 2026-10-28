@@ -14,6 +14,14 @@ import { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 /** The one mode such a chat runs in: what is not declared is denied, and nobody is asked */
 export const CONFINED_PERMISSION_MODE: PermissionMode = 'dontAsk';
 
+/**
+ * The mode of a confined chat that loads the `/v1` client-tool stub: the CLI's default, whose
+ * permission requests go to the chat's client-tool session (`permissionPrompts: 'host'`), which
+ * holds the client's calls and denies everything else at once. The same policy as `dontAsk`, which
+ * would deny the client's calls before anyone could hold them.
+ */
+export const CLIENT_TOOLS_PERMISSION_MODE: PermissionMode = 'manual';
+
 /** Tools that write files: none may be declared in a workspace, a read-only copy of a source tree */
 const WRITE_TOOLS: ReadonlySet<string> = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 

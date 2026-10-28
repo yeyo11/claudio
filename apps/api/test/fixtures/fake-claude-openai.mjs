@@ -10,6 +10,7 @@
 //   SLOW <ms>     waits that long, then echoes
 //   BACKGROUND    reports a background task started (`task_started`, never ended), then echoes
 //   BUDGET        streams the start of an answer, then ends as `--max-budget-usd` does (`error_max_budget_usd`)
+//   TURNS         ends the turn as `--max-turns` does (`error_max_turns`), with no answer
 //
 // Started with `--json-schema`, it answers as the CLI does there: a line of prose, then a call to the
 // `StructuredOutput` tool whose input is `{ "answer": "echo: <line>" }`, and a `result` carrying it
@@ -33,6 +34,9 @@
 //                      ends the turn (the requests withdrawn with `control_cancel_request`)
 //   TOOLS_DEAF <json>  TOOLS from a wedged CLI: from then on it ignores interrupts and the answers to
 //                      its requests, so the turn never ends
+//   BLOCKED <command>  a built-in `Bash` call the guard refuses, as its PreToolUse hook reports it
+//                      (`declared-tools.command`), then the turn ends with no answer: an empty
+//                      result, or under a schema prose only and no `structured_output`
 //   BASH [command]     a built-in `Bash` call (`ls` by default). As the CLI does, a call its own
 //                      `--allowedTools` rules allow (`Bash`, or `Bash(<prefix>:*)` matching the command)
 //                      runs without a `can_use_tool` request; any other is asked for
@@ -61,6 +65,10 @@ if (args[0] === 'auth') {
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
 const out = (msg) => process.stdout.write(`${JSON.stringify({ session_id: sessionId, ...msg })}\n`);
+
+// Every `/v1` chat runs under the guard (D14.5): its SessionStart hook says it armed before the CLI
+// reads anything, for the rules file the test's stand-in plan names (`rulesSha256` all zeros)
+out({ type: 'system', subtype: 'hook_response', hook_event: 'SessionStart', hook_name: 'SessionStart:startup', stderr: 'claudio-guard/1 armed - 0000000000000000', exit_code: 0 });
 
 let turns = 0;
 let initialised = false;
@@ -118,6 +126,9 @@ let askSeq = 0;
 let toolTurn = null;
 
 function askFor(toolUseId, name, input) {
+  // The guard's PreToolUse hook passes the call before the CLI decides on it: a call with no marker
+  // before its result would read as an unguarded run
+  out({ type: 'system', subtype: 'hook_response', hook_event: 'PreToolUse', hook_name: `PreToolUse:${name}`, stderr: `claudio-guard/1 pass ${toolUseId}`, exit_code: 0 });
   const requestId = `fake-ask-${String(++askSeq)}`;
   asked.set(requestId, { toolUseId, name, input });
   if (allowedByRules(name, input)) {
@@ -234,6 +245,21 @@ async function answer(prompt) {
     callTools(deaf ? 'TOOLS' : tools[1], JSON.parse(tools[2]));
     return;
   }
+  const blocked = /^BLOCKED (.+)$/.exec(last);
+  if (blocked) {
+    const id = `toolu_blocked_${String(turns)}_${String(process.pid)}`;
+    const command = blocked[1];
+    out({ type: 'assistant', parent_tool_use_id: null, message: { id: `msg_${String(turns)}`, role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }], stop_reason: 'tool_use' } });
+    const reason = `\`${command}\` matches no declared Bash rule`;
+    out({ type: 'system', subtype: 'hook_response', hook_event: 'PreToolUse', hook_name: 'PreToolUse:Bash', stderr: `claudio-guard/1 block ${id} declared-tools declared-tools.command\nClaudio guard blocked this (declared-tools): ${reason}`, exit_code: 2 });
+    out({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: [{ type: 'text', text: reason }], is_error: true }] } });
+    if (schema !== null) {
+      const prose = 'I could not read it.';
+      out({ type: 'assistant', parent_tool_use_id: null, message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: prose }], stop_reason: 'end_turn' } });
+      result(false, prose);
+    } else result(false, '');
+    return;
+  }
   const bash = /^BASH(?: (.+))?$/.exec(last);
   if (bash) {
     callTools('TOOLS', [{ name: 'Bash', input: { command: bash[1] ?? 'ls' } }]);
@@ -244,6 +270,10 @@ async function answer(prompt) {
     return;
   }
   if (last === 'EXIT') process.exit(0);
+  if (last === 'TURNS') {
+    result(true, '', undefined, 'error_max_turns');
+    return;
+  }
   if (last === 'BUDGET') {
     const cut = 'A long answer that the budget cut';
     out({ type: 'stream_event', parent_tool_use_id: null, event: { type: 'message_start', message: { role: 'assistant' } } });

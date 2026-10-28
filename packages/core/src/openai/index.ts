@@ -7,6 +7,7 @@ export {
   extendKey as openAiExtendKey,
   historyKey as openAiHistoryKey,
   keyAfterAnswer as openAiKeyAfterAnswer,
+  policyKey as openAiPolicyKey,
   seedKey as openAiSeedKey,
   type KeySeed as OpenAiKeySeed,
 } from './conversation-key.ts';
@@ -72,6 +73,7 @@ export {
   isTurnError as isOpenAiTurnError,
   structuredFailure as openAiStructuredFailure,
   tokenUsageOf,
+  toolBlocked as openAiToolBlocked,
   type ChatCompletionTranslatorOptions,
   type TurnTranslator as OpenAiTurnTranslator,
   type TurnEnd as OpenAiTurnEnd,
@@ -91,6 +93,10 @@ export {
   type Parsed as OpenAiParsed,
   type RenderedPrompt as OpenAiRenderedPrompt,
 } from './request.ts';
+// The confined API chat every `/v1` chat is (D14 of docs/plans/headless-image.md): the route reads a
+// request's policy the way a start does, to key the conversation and compare a continuation with it
+export { apiChatPolicy, CONFINED_PERMISSION_MODE, samePolicy } from '../confined-chat.ts';
+export { declaredToolsProblem } from '../guards/declared.ts';
 export {
   STREAM_DONE,
   type ChatCompletion,
@@ -103,6 +109,7 @@ export {
   type FinishReason as OpenAiFinishReason,
   type ImageRef as OpenAiImageRef,
   type OpenAiErrorBody,
+  type StartRefusedCode as OpenAiStartRefusedCode,
   type ToolCall as OpenAiToolCall,
   type ToolChoice as OpenAiToolChoice,
 } from './wire.ts';
