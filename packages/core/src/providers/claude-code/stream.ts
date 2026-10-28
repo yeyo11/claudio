@@ -289,6 +289,7 @@ export class ClaudeStream {
             durationMs: typeof raw.duration_ms === 'number' ? raw.duration_ms : 0,
             costUsd: typeof raw.total_cost_usd === 'number' ? raw.total_cost_usd : 0,
             ...(raw.structured_output !== undefined ? { structuredOutput: raw.structured_output } : {}),
+            ...(subtype ? { subtype } : {}),
             permissionDenials: denialsOf(raw.permission_denials),
           },
         },

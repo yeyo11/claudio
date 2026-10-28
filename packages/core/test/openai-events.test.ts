@@ -119,7 +119,7 @@ test('usage is never made up: with no counts there is no usage chunk and no usag
   assert.ok(end?.kind === 'completion' && !('usage' in end.completion));
 });
 
-test('the whole response carries usage and returns the cost apart, never in the body', () => {
+test("the whole response carries usage, and the process's cumulative cost stays out of the body", () => {
   const t = translator();
   run(t, [message(['Hi']), result({ costUsd: 0.5 })]);
   const end = t.end();
@@ -128,8 +128,21 @@ test('the whole response carries usage and returns the cost apart, never in the 
   assert.equal(end.costUsd, 0.5);
   assert.equal(end.completion.object, 'chat.completion');
   assert.equal(end.completion.usage?.total_tokens, 135);
-  assert.ok(!JSON.stringify(end.completion).includes('0.5'), 'the cost is not in the body');
+  assert.ok(!JSON.stringify(end.completion).includes('0.5'), 'the cumulative figure is not the turn cost');
   assert.equal(end.text, 'Hi');
+});
+
+test("the turn's own cost is usage.cost_usd, in the whole body and on the final usage chunk", () => {
+  const whole = translator();
+  for (const e of [message(['Hi']), result({ costUsd: 0.5 })]) whole.push(e, { usage: USAGE, costUsd: 0.0042 });
+  const end = whole.end();
+  assert.ok(end?.kind === 'completion');
+  if (end?.kind === 'completion') assert.equal(end.completion.usage?.cost_usd, 0.0042);
+  const streamed = translator(true);
+  const items = [message(['Hi']), result()].flatMap((e) => streamed.push(e, { usage: USAGE, costUsd: 0.0042 }));
+  assert.equal(chunksOf(items).at(-1)?.usage?.cost_usd, 0.0042);
+  // No figure from the provider: no field, never a made-up zero
+  assert.equal(completionUsage(USAGE).cost_usd, undefined);
 });
 
 test('the stream ends with the [DONE] sentinel, once, and nothing follows the end', () => {
@@ -247,12 +260,34 @@ test('a structured turn whose result carries no output is an error, never an emp
   const end = t.end();
   assert.equal(end?.kind, 'error');
   if (end?.kind === 'error') {
-    assert.equal(end.status, 500);
+    assert.equal(end.status, 422);
+    assert.equal(end.body.error.type, 'run_error');
+    assert.equal(end.body.error.code, 'no_structured_output');
     assert.match(end.body.error.message, /response_format.*I will not\./);
   }
   const budget = structured();
-  run(budget, [result({ isError: true, cause: 'budget' })]);
+  run(budget, [result({ isError: true, cause: 'budget', subtype: 'error_max_budget_usd' })]);
   const cut = budget.end();
   assert.equal(cut?.kind, 'error');
-  if (cut?.kind === 'error') assert.match(cut.body.error.message, /budget/);
+  if (cut?.kind === 'error') {
+    assert.equal(cut.status, 422);
+    assert.equal(cut.body.error.code, 'max_budget');
+    assert.match(cut.body.error.message, /budget/);
+  }
+});
+
+test('a turn cut by its turn limit is a final 422 max_turns, whole and streamed, with or without a schema', () => {
+  for (const make of [structured, () => translator(true)]) {
+    const t = make();
+    const items = run(t, [message(['Looking…']), result({ isError: true, subtype: 'error_max_turns' })]);
+    const error = items.find((i): i is OpenAiErrorBody => typeof i === 'object' && 'error' in i);
+    assert.equal(error?.error.code, 'max_turns', 'the stream says why before [DONE]');
+    assert.equal(items.at(-1), STREAM_DONE);
+    const end = t.end();
+    assert.ok(end?.kind === 'error');
+    if (end?.kind === 'error') {
+      assert.equal(end.status, 422);
+      assert.equal(end.body.error.type, 'run_error');
+    }
+  }
 });

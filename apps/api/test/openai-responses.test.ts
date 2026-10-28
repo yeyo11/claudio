@@ -83,7 +83,7 @@ interface ResponseBody {
   tool_choice: unknown;
   parallel_tool_calls: boolean;
   metadata: Record<string, string>;
-  usage: { input_tokens: number; input_tokens_details: { cached_tokens: number; cache_write_tokens: number }; output_tokens: number; total_tokens: number } | null;
+  usage: { input_tokens: number; input_tokens_details: { cached_tokens: number; cache_write_tokens: number }; output_tokens: number; total_tokens: number; cost_usd?: number } | null;
 }
 interface ErrorBody {
   error: { message: string; type: string; param: string | null; code: string | null };
@@ -204,11 +204,12 @@ test('a string input is answered whole as a response object, with usage, the cha
   assert.equal(message?.status, 'completed');
   assert.deepEqual(message?.content, [{ type: 'output_text', text: 'echo: Hello Responses', annotations: [], logprobs: [] }]);
   // The fake's first turn: 10 input, 100 cache read, 20 cache write, 5 output
-  assert.deepEqual(body.usage, { input_tokens: 130, input_tokens_details: { cached_tokens: 100, cache_write_tokens: 20 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 135 });
+  assert.deepEqual(body.usage, { input_tokens: 130, input_tokens_details: { cached_tokens: 100, cache_write_tokens: 20 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 135, cost_usd: 0.01 });
   assert.equal(res.headers.get('x-claudio-cost-usd'), '0.01');
   assert.equal(core.runtime.get(chatId)?.origin, 'api');
   assert.equal((await core.chats.get(chatId))?.title, 'Hello Responses');
-  assert.equal(JSON.stringify(body).includes('cost'), false, 'the cost stays in the header');
+  // The turn's cost is in usage only: no other field of the response carries it
+  assert.equal(JSON.stringify({ ...body, usage: null }).includes('cost'), false, 'the cost is only usage.cost_usd');
 });
 
 test('item input and instructions: messages of every role, instructions and developer text in the system prompt', async () => {

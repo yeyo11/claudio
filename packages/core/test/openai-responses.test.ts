@@ -455,6 +455,29 @@ test('a failure after the response was created is response.failed with its error
   if (end?.kind === 'error') assert.equal(end.status, 500);
 });
 
+test("the turn's own cost is response.usage.cost_usd on the whole response and on response.completed", () => {
+  const t = translator();
+  const events = [...t.open(), ...[message('Hi'), result()].flatMap((e) => t.push(e, { usage: USAGE, costUsd: 0.0031 }))];
+  const completed = events.at(-1);
+  assert.ok(completed?.type === 'response.completed');
+  assert.equal(completed.response.usage?.cost_usd, 0.0031);
+  const end = t.end();
+  assert.ok(end?.kind === 'response');
+  if (end?.kind === 'response') assert.equal(end.response.usage?.cost_usd, 0.0031);
+  assert.equal(responseUsage(USAGE).cost_usd, undefined, 'no figure, no field');
+});
+
+test('a turn cut by its turn limit fails the response with code max_turns, as a final 422', () => {
+  const t = translator();
+  const events = [...t.open(), ...t.push(result({ isError: true, subtype: 'error_max_turns' }))];
+  const failed = events.at(-1);
+  assert.ok(failed?.type === 'response.failed');
+  assert.equal(failed.response.error?.code, 'max_turns');
+  const end = t.end();
+  assert.ok(end?.kind === 'error');
+  if (end?.kind === 'error') assert.equal(end.status, 422);
+});
+
 test('a failure outside the events, before any output, still fails the response, and a usage limit says so', () => {
   const t = translator();
   const events = t.failWith({ kind: 'usage-limit', resetsAt: null, message: 'limit' });

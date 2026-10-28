@@ -454,7 +454,7 @@ export class TurnRun<Item> {
     if (event.kind === 'result') {
       const turn = this.core.runtime.lastTurn(this.chatId);
       this.costUsd = turn?.costUsd ?? null;
-      this.out(this.translator.push(event, { usage: turn?.tokens ?? null }));
+      this.out(this.translator.push(event, { usage: turn?.tokens ?? null, costUsd: turn?.costUsd ?? null }));
       return;
     }
     this.out(this.translator.push(event));
