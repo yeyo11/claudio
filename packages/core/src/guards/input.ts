@@ -4,7 +4,7 @@
  */
 
 /* Same unions as `@claudio/shared`; kept here so the guard program imports nothing outside `guards/` (a test checks they agree) */
-export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs';
+export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs' | 'declared-tools';
 export type GuardMode = 'enforce' | 'observe';
 
 export interface GuardLimits {
@@ -22,6 +22,23 @@ export const DEFAULT_LIMITS: Readonly<GuardLimits> = {
   maxDepth: 4,
   deadlineMs: 3000,
 };
+
+/**
+ * What a confined API chat declared, as `declared-tools` reads it (docs/plans/headless-image.md,
+ * D14.5). Its presence arms the rule, whatever `rules` and `mode` say.
+ */
+export interface DeclaredTools {
+  /** The chat's permission rules as declared: `Read`, `Bash(ls *)`, `mcp__server__tool` */
+  tools: string[];
+  /** Tools that always pass: `StructuredOutput` */
+  alwaysAllow: string[];
+  /** Name prefixes that always pass: the `/v1` client-tool stub's `mcp__client__` */
+  allowPrefixes: string[];
+  /** Real path of the chat's working directory; every path a call names must resolve inside it */
+  root: string;
+  /** Real paths of the chat's own attachment files, the only paths outside `root` a call may name */
+  attachments: string[];
+}
 
 /** The rules file the guard reads; internal to core, not part of the HTTP contract */
 export interface GuardRulesFile {
@@ -43,6 +60,8 @@ export interface GuardRulesFile {
   protectConfigs: string[];
   knownSecretSha256: string[];
   limits: GuardLimits;
+  /** A confined API chat's declared policy; absent for every other run */
+  declared?: DeclaredTools | null;
 }
 
 export interface HookInput {
