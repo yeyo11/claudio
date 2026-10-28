@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T00:30:00Z
+updated_at: 2026-10-29T01:15:00Z
 tags:
     - plan
     - docker
@@ -134,7 +134,21 @@ Defects found on the way, all fixed by this plan:
   (`docs/openai-compatible-api.md`, "It applies only when a chat is created"): the same history sent
   with another workspace or other tools is a new conversation, never the old chat on another policy.
   A continuation that names a chat (`X-Claudio-Chat-Id`, `previous_response_id`) with a policy that
-  differs from the chat's own answers `409 policy-mismatch`.
+  differs from the chat's own answers `409 policy_mismatch`. A request whose history has no assistant
+  message is never looked up (`packages/core/src/openai/request.ts:332`), so a one-shot run (system
+  and one user message) always starts a new chat, a retry included; no "new chat" header is added
+  (shipcast's second reply asked for one; answered 2026-10-28).
+- **D16. Typed run errors on `/v1`** (shipcast's second reply). A turn that ends without the answer it
+  owed is a non-retryable `422` in OpenAI's error shape whose `code` names why, instead of today's
+  `500 server_error`: `max_turns` (`X-Claudio-Max-Turns` reached), `max_budget` (the chat's budget
+  reached), `tool_blocked` (no answer, and the guard blocked at least one call in the turn; the message
+  names the last blocked subcommand or path and the missing rule), `no_structured_output` (the model
+  gave up on the schema with nothing blocked). Streamed, the same error is the last chunk before
+  `[DONE]` (Chat Completions) or `response.failed` with `error.code` (Responses). The workspace and
+  policy refusals use the same shape on `/v1`: `400 cwd_missing`, `404 workspace_not_found`,
+  `410 workspace_expired`, `409 policy_mismatch`. Codes are snake_case on `/v1`, as OpenAI's own
+  (`rate_limit_exceeded`), and kebab-case on the REST API, as Claudio's are there. The spend cap and
+  usage limits stay `429` with `Retry-After` (D13): those are retryable.
 - **D9. A chat's `cwd` must exist, at every start.** `ChatManager.begin` no longer creates its `cwd`;
   a start or a resume (a `/v1` cold resume included) whose `cwd` is missing is refused: `400
   cwd-missing`, or `410 workspace-expired` for a chat in a workspace. The default working directory
@@ -188,7 +202,14 @@ Defects found on the way, all fixed by this plan:
        chat's working directory or one of the chat's own attachment files. A variable expansion
        (`$X`, `${X}`), a command substitution or a process substitution anywhere in the line is
        blocked, since what it reads cannot be known in advance. A bare `Bash` or `Bash(*)` rule is
-       refused at creation (`400`);
+       refused at creation (`400`). Pipes and `&&`, `||`, `;` chains pass when every part does.
+       Path checks cover option values too (`grep -f FILE`, `--file=FILE`, `find -newer FILE`);
+     - a declared command that can write or run something passes only in its read-only forms,
+       whatever the rule says: `sed` only with `-n` and a script made of addresses and `p` (no `w`,
+       `W`, `r`, `R`, `e`, no `s///` flags `w` or `e`, no `-i`, `-f`, `--in-place`); `find` without
+       `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fprint`, `-fprint0`, `-fprintf`, `-fls`;
+       no output redirection but to `/dev/null`; `xargs` is blocked, since its arguments come from
+       stdin and cannot be checked;
      - a file tool passes only on a path inside the working directory or an attachment of the chat;
      - anything the reader cannot parse is blocked, as the guard already does.
      The rule cannot be switched off by the chat's own token, and a block is a transcript line and a
@@ -302,6 +323,11 @@ commands (blocked without their rules, passed with them); `cat ~/.claude/.creden
 `cat /proc/self/environ`, `cat /data/auth.json`, `head ../../data/wrapper.db`, `ls $HOME`,
 `cat $(echo /data/auth.json)`, a symlink-free path that climbs out with `..`; a WebFetch and an
 `mcp__*` call; trading-bot's exact request (`allowedTools: []`, a schema, `dontAsk`), which must pass.
+Under shipcast's declared rules (Read, Grep, Glob, `Bash(ls *)`, `Bash(find *)`, `Bash(cat *)`,
+`Bash(head *)`, `Bash(tail *)`, `Bash(sed -n *)`, `Bash(grep *)`, `Bash(wc *)`, `Bash(cut *)`):
+`grep -n x f | head -40` and `ls && cat package.json` pass; `sed -n '1,20p' README.md` passes;
+`sed -n '1w /tmp/x' f`, `sed -n '1e id' f`, `find . -exec cat {} +`, `find . -delete`,
+`cat f > out`, `ls | xargs cat` and `grep -f /data/auth.json x` are blocked.
 
 ### The `claudio` command (D3, D11)
 
@@ -380,8 +406,10 @@ version carries D7, D8, D10 and D11.
    hand, besides the unit test of the arguments); the chat's environment has no `CLAUDIO_*`; D9 at a
    cold `/v1` resume after the workspace is gone (`410`).
 6. **`declared-tools` guard** (D14.5): the rule and its corpus.
-7. **`/v1` parity** (D8): the headers on both endpoints, the key, `409 policy-mismatch`, the default
-   of no tools in headless.
+7. **`/v1` parity and typed run errors** (D8, D16): the headers on both endpoints, the key,
+   `409 policy_mismatch`, the default of no tools in headless, a one-shot retry starting a new chat,
+   and each D16 code whole and streamed on both endpoints (`max_turns`, `max_budget`, `tool_blocked`,
+   `no_structured_output`).
 8. **Retention** (D15): the sweeper and the session-file deletion.
 9. **Image and release**: the stage, `cli.mjs` in the bundle, the workflow. Checked by running it: a
    sign-in with the real CLI, a workspace from a real tarball, a `/v1` structured turn in it with
