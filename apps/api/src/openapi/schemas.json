@@ -2852,6 +2852,10 @@
         ],
         "description": "Why a failed result is not one to try again blindly: the budget ran out, the account hit its limit or someone stopped it."
       },
+      "subtype": {
+        "type": "string",
+        "description": "The provider's own word for how the turn ended, when it gave one (Claude Code's result `subtype`: `success`, `error_max_turns`, `error_max_budget_usd`…). `/v1` names a turn that ended without its answer from it (D16 of docs/plans/headless-image.md)."
+      },
       "stopReason": {
         "type": "string",
         "description": "The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said"

@@ -16,7 +16,11 @@ export interface OpenAiErrorBody {
   };
 }
 
-export type OpenAiErrorType = 'invalid_request_error' | 'rate_limit_error' | 'server_error';
+/** `run_error`: the turn ran and ended without the answer it owed, for a reason a retry would meet again */
+export type OpenAiErrorType = 'invalid_request_error' | 'rate_limit_error' | 'server_error' | 'run_error';
+
+/** Why a turn ended without its answer (D16); each is final for the request that met it */
+export type RunEndedCode = 'max_turns' | 'max_budget' | 'tool_blocked' | 'no_structured_output';
 
 export type OpenAiErrorCode =
   | 'invalid_api_key'
@@ -28,7 +32,8 @@ export type OpenAiErrorCode =
   | 'unsupported_parameter'
   | 'rate_limit_exceeded'
   | 'server_error'
-  | 'service_unavailable';
+  | 'service_unavailable'
+  | RunEndedCode;
 
 // ---------- tools ----------
 
@@ -109,6 +114,8 @@ export interface ChatCompletionUsage {
   completion_tokens: number;
   total_tokens: number;
   prompt_tokens_details: { cached_tokens: number };
+  /** Claudio's: what this turn alone cost in USD, when the provider reported it */
+  cost_usd?: number;
 }
 
 export interface ChatCompletion {

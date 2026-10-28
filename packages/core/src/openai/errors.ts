@@ -1,5 +1,5 @@
 import type { SpendCapRefusal } from '@claudio/shared';
-import type { OpenAiErrorBody, OpenAiErrorCode, OpenAiErrorType } from './wire.ts';
+import type { OpenAiErrorBody, OpenAiErrorCode, OpenAiErrorType, RunEndedCode } from './wire.ts';
 
 /** A failure as Claudio knows it, before it becomes OpenAI's shape. */
 export type OpenAiFailure =
@@ -15,6 +15,8 @@ export type OpenAiFailure =
   /** The account's usage limit; `resetsAt` as ISO text or epoch seconds, as the limit readings carry it */
   | { kind: 'usage-limit'; resetsAt: string | number | null; message?: string }
   | { kind: 'unavailable'; message: string }
+  /** The turn ran and ended without the answer it owed (D16): final, so a client does not retry it */
+  | { kind: 'run-ended'; code: RunEndedCode; message: string }
   | { kind: 'server'; message: string };
 
 export interface OpenAiErrorResponse {
@@ -74,6 +76,8 @@ export function openAiError(failure: OpenAiFailure, now: number = Date.now()): O
     }
     case 'unavailable':
       return { status: 503, body: body(failure.message, 'server_error', 'service_unavailable') };
+    case 'run-ended':
+      return { status: 422, body: body(failure.message, 'run_error', failure.code) };
     case 'server':
       return { status: 500, body: body(failure.message, 'server_error', 'server_error') };
   }

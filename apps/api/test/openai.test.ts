@@ -65,7 +65,7 @@ interface Completion {
   object: string;
   model: string;
   choices: Array<{ index: number; message: { role: string; content: string | null }; finish_reason: string }>;
-  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details: { cached_tokens: number } };
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details: { cached_tokens: number }; cost_usd?: number };
 }
 
 const auth = (): Record<string, string> => ({ authorization: `Bearer ${token}` });
@@ -87,7 +87,7 @@ function assertOpenAiError(body: unknown, code: string): OpenAiErrorBody {
   const shaped = body as OpenAiErrorBody;
   assert.equal(typeof shaped.error, 'object', JSON.stringify(body));
   assert.equal(typeof shaped.error.message, 'string');
-  assert.ok(['invalid_request_error', 'rate_limit_error', 'server_error'].includes(shaped.error.type), shaped.error.type);
+  assert.ok(['invalid_request_error', 'rate_limit_error', 'server_error', 'run_error'].includes(shaped.error.type), shaped.error.type);
   assert.ok('param' in shaped.error);
   assert.equal(shaped.error.code, code, JSON.stringify(body));
   return shaped;
@@ -152,7 +152,8 @@ test('a whole completion answers OpenAI\'s shape, names its chat and its cost in
   assert.equal(completion.choices[0]?.message.content, 'echo: hello');
   assert.equal(completion.choices[0]?.finish_reason, 'stop');
   // input 10 + cache read 100 + cache creation 20, as the fake reports one turn
-  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
+  // The turn's own cost in the body too (D16), the same figure as the header
+  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 }, cost_usd: 0.01 });
   assert.equal(core.runtime.get(chatId)?.origin, 'api');
 });
 
@@ -168,7 +169,7 @@ test('a resent history continues the same chat with only the new messages, and t
   const completion = (await second.json()) as Completion;
   assert.equal(completion.choices[0]?.message.content, 'echo: two');
   // The process reports 20/10/200/40 cumulative now; the turn is the growth since its first result
-  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
+  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 }, cost_usd: 0.01 });
   assert.equal(second.headers.get('x-claudio-cost-usd'), '0.01');
   const sent = promptsOf(chatId);
   assert.equal(sent.length, 2);
@@ -268,7 +269,8 @@ test('a streamed completion sends role first, the text, a final chunk, the usage
   assert.equal(chunks[0]?.choices[0]?.delta.role, 'assistant');
   const usage = chunks.at(-1);
   assert.deepEqual(usage?.choices, []);
-  assert.deepEqual(usage?.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
+  // The cost rides on the usage chunk: on a stream the header is a trailer most SDKs never read
+  assert.deepEqual(usage?.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 }, cost_usd: 0.01 });
   const final = chunks.at(-2);
   assert.equal(final?.choices[0]?.finish_reason, 'stop');
   assert.deepEqual(final?.choices[0]?.delta, {});
@@ -698,16 +700,16 @@ test('a schema change between turns of one conversation restarts its process wit
   assert.notEqual(sent[3]?.pid, sent[2]?.pid, 'dropping the schema needed a new process too');
 });
 
-test('a structured turn that ends without its output is an OpenAI error, never an empty 200', async () => {
+test('a structured turn that ends without its output is a final 422 no_structured_output, never an empty 200', async () => {
   const whole = await post({ model: 'sonnet', messages: [user('GIVE UP')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
-  assert.equal(whole.status, 500);
-  assert.match(assertOpenAiError(await whole.json(), 'server_error').error.message, /response_format.*cannot match that schema/s);
+  assert.equal(whole.status, 422, 'not a 5xx: a client must not retry a turn that would end the same way');
+  assert.match(assertOpenAiError(await whole.json(), 'no_structured_output').error.message, /response_format.*cannot match that schema/s);
 
   const streamed = await post({ model: 'sonnet', stream: true, messages: [user('GIVE UP')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
   assert.equal(streamed.status, 200);
   const lines = dataLines(await streamed.text());
   assert.equal(lines.at(-1), '[DONE]');
-  assertOpenAiError(JSON.parse(lines.at(-2) ?? '{}'), 'server_error');
+  assertOpenAiError(JSON.parse(lines.at(-2) ?? '{}'), 'no_structured_output');
   assert.ok(!lines.some((l) => l.includes('Here is the structured answer')), 'no prose reached the client');
 });
 
