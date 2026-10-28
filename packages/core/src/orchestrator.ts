@@ -1388,6 +1388,9 @@ export class Orchestrator {
       const name = worktreeName(orch, task);
       const prepared = isolated ? this.prepareWorktree(orch, task, name) : null;
       const cwd = prepared?.cwd ?? task.cwd ?? orch.cwd;
+      // A chat's start no longer creates its folder (D9): a task the plan placed in a folder that does
+      // not exist yet gets it here, as it always did
+      if (!prepared) mkdirSync(cwd, { recursive: true });
       // With `adopt` the CLI moves into the worktree itself, so the root is the worktree, not the cwd it is started in
       const guards = this.guardPlan(orch, 'worker', cwd, prepared ? task.worktree : null);
       const run = this.runs.start(

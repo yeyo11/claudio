@@ -75,7 +75,7 @@ function newChatBody(body: unknown): NewChatRequest {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('the body must be a JSON object with a prompt');
   const fields = body as Record<string, unknown>;
   // Core says when neither a prompt nor an attachment was sent: a chat may open with a file alone
-  for (const key of ['prompt', 'cwd', 'worktree', 'name', 'provider'] as const) {
+  for (const key of ['prompt', 'cwd', 'worktree', 'name', 'provider', 'workspaceId'] as const) {
     if (fields[key] !== undefined && fields[key] !== null && typeof fields[key] !== 'string') throw new Error(`${key} must be text`);
   }
   const { attachments } = fields;
@@ -152,7 +152,11 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     chats.search(req.params.id, req.query.q ?? '', { includeSidechains: req.query.sidechains === '1' }),
   );
 
-  app.post<{ Params: { id: string }; Body: ResumeChatRequest }>('/chats/:id/resume', { preHandler: spendGate(core) }, (req) => chats.resume(req.params.id, req.body ?? ({} as ResumeChatRequest)));
+  app.post<{ Params: { id: string }; Body: ResumeChatRequest }>('/chats/:id/resume', { preHandler: spendGate(core) }, (req) => {
+    // A confined API chat is continued with messages while it lives, and by `/v1`; its policy is not reopened here (D14)
+    if (core.runtime.get(req.params.id)?.policy) throw Object.assign(new Error('a confined API chat cannot be resumed here: start a new chat'), { statusCode: 409 });
+    return chats.resume(req.params.id, req.body ?? ({} as ResumeChatRequest));
+  });
 
   app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', { preHandler: spendGate(core) }, async (req, reply) =>
     reply.status(201).send(await chats.fork(req.params.id, req.body ?? ({} as ForkChatRequest))),
