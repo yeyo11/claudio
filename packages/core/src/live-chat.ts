@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { basename, join, resolve } from 'node:path';
 import type {
+  ApiChatPolicy,
   ClaudioAssistantMarker,
   Attachment,
   ChatActivity,
@@ -168,6 +169,14 @@ export interface NewChat extends NewChatRequest {
   /** Runs its processes under the guard's hooks (docs/plans/guards.md) */
   guards?: ChatGuardPlan;
   /**
+   * Core-only, never read from a request body: the policy of a confined API chat
+   * (docs/plans/headless-image.md, D14). Every process of the chat is confined from it alone
+   * (`ChatManager.confineApiChat`), after a restart too, since the chat's record keeps it.
+   */
+  apiPolicy?: ApiChatPolicy;
+  /** Core-only: the files attached to a confined API chat, the only ones outside its folder it may read */
+  apiAttachments?: string[];
+  /**
    * Core-only, never read from a request: `handoff` says the Lessons section is already in
    * `appendSystemPrompt` (the flow's journal handoff carries it), so `launchSpec` does not add it again.
    */
@@ -201,6 +210,11 @@ export interface ChatConfinement {
   tools: string[];
   /** `--setting-sources`: the settings files it loads; empty loads none, so no rule, hook or server of theirs applies */
   settingSources: Array<'user' | 'project' | 'local'>;
+  /**
+   * `--add-dir`: folders the file tools may reach beside the working directory. Core-only: a confined
+   * API chat's own attachment folders, never one a request names (`ChatService.create` drops it).
+   */
+  addDirs?: string[];
 }
 
 /**
@@ -322,6 +336,8 @@ export interface ChatRuntime {
   pending?: ChatPendingMessage[];
   /** The guards on its live process; absent when none runs or the chat is not guarded */
   guards?: ChatGuards | null;
+  /** The policy of a confined API chat; absent for any other chat */
+  policy?: ApiChatPolicy | null;
 }
 
 /** A shell command the process started and has had no answer to yet. */
@@ -611,6 +627,7 @@ export class LiveChat {
         ...(record.tools?.mcp?.config ? { mcp: record.tools.mcp } : {}),
         ...(record.claudioAssistant ? { claudioAssistant: record.claudioAssistant } : {}),
         ...(record.keepAlive === false ? { keepAlive: false } : {}),
+        ...(record.apiPolicy ? { apiPolicy: record.apiPolicy } : {}),
         // The purpose is not stored: what a person sends to a chat after a restart is theirs, and the
         // starters set their own again when they resume it
         ...(record.origin === 'orchestration' ? { purpose: 'orchestration' as const } : record.origin === 'claudio' || record.origin === 'external' || record.origin === 'api' ? { purpose: 'person' as const } : {}),
@@ -812,6 +829,7 @@ export class LiveChat {
       workflows: [...this.branches.workflows.values()],
       pending: this.pendingList(),
       ...(this.guards ? { guards: this.guards } : {}),
+      ...(this.opts.apiPolicy ? { policy: this.opts.apiPolicy } : {}),
     };
   }
 
@@ -845,6 +863,7 @@ export class LiveChat {
       tools: this.tools,
       ...(this.opts.claudioAssistant ? { claudioAssistant: this.opts.claudioAssistant } : {}),
       ...(this.opts.keepAlive === false ? { keepAlive: false as const } : {}),
+      ...(this.opts.apiPolicy ? { apiPolicy: this.opts.apiPolicy } : {}),
       ...(this.pending.size || this.undelivered.length ? { pending: this.pendingList() } : {}),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

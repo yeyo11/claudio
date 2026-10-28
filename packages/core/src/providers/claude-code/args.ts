@@ -41,10 +41,16 @@ export function buildArgs(spec: SessionLaunch): string[] {
   // the variadic flag from taking whatever follows it as another file. A chat that chose none and
   // only gets Claudio's reads of teammates' copies keeps the servers it always loaded.
   if (spec.mcpConfig) args.push(`--mcp-config=${spec.mcpConfig}`, ...(spec.mcpConfigAdds ? [] : ['--strict-mcp-config']));
+  // A confined API chat that loads no server says so too: without the flag the CLI would still load
+  // the user's and the project's servers (`--setting-sources` leaves `.mcp.json` to this flag)
+  else if (spec.strictMcpConfig) args.push('--strict-mcp-config');
   if (spec.confine) {
     // `--restricted` confines the file tools to the working directory, which is why no other
     // directory is added. The `=` forms keep an empty list a value of its flag.
     args.push('--restricted', `--tools=${spec.confine.tools.join(',')}`, `--setting-sources=${spec.confine.settingSources.join(',')}`);
+    // A confined API chat's own attachments, one folder per upload: `--restricted` keeps the file
+    // tools to these and the working directory, and never to the uploads folder as a whole
+    for (const dir of spec.confine.addDirs ?? []) args.push('--add-dir', dir);
   }
   // Attached files live outside every project; this is what lets Claude open them by path
   else if (spec.uploadsDir) args.push('--add-dir', spec.uploadsDir);

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { ChatNotFoundError } from './chat-errors.ts';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -258,6 +258,8 @@ import { TerminalSettingsStore } from './terminals/settings.ts';
 import { TerminalStore } from './terminals/store.ts';
 import { OpenAiConversationStore } from './openai/conversations.ts';
 import { Workspaces, workspaceSettingsFromEnv } from './workspaces/index.ts';
+import { declaredToolsGuard } from './guards/declared.ts';
+import { chatBudgetFromEnv } from './confined-chat.ts';
 import { OpenAiResponseStore } from './openai/responses-store.ts';
 import { OpenAiChatPromptStore } from './openai/system-prompt.ts';
 
@@ -667,6 +669,8 @@ export class Core {
 
   constructor(config: CoreConfig = loadConfig()) {
     this.config = config;
+    // The default working directory is made once, here (D9): a chat's start never creates its folder
+    mkdirSync(config.workspaceDir, { recursive: true });
     // Before anything spawns a CLI: every child environment reads its credentials from here
     this.vault = new SecretVault(config);
     this.releaseVault = useVaultForChildren(this.vault);
@@ -858,6 +862,7 @@ export class Core {
       },
     });
     this.workspaces.start();
+    this.runtime.workspacesRoot = this.workspaces.root;
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
@@ -1034,6 +1039,11 @@ export class Core {
       typedCompact: (id, request) => this.context.sendTyped(id, request),
       transcriptRead: (id, entries) => this.context.sawEntries(id, entries),
       rewound: (chat, resumeSessionAt) => void this.lessonSignals.rewound({ chatId: chat.id, projectId: chat.project?.id ?? null }, resumeSessionAt),
+      workspaces: this.workspaces,
+      // The profile task gives Core its profile; until then the variable is read where it is needed
+      headless: process.env.CLAUDIO_PROFILE === 'headless',
+      declaredGuard: (request) => declaredToolsGuard(this.guardLauncher, request),
+      chatBudgetUsd: chatBudgetFromEnv(process.env),
     });
     this.notes = new ChatNotes({
       db: this.db,
