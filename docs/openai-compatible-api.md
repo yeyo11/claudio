@@ -537,7 +537,8 @@ duplicates.
 
 A chat with client tools runs with `permissionPrompts: 'host'` and its session as the chat's
 `PermissionHost`. A confined chat runs in `dontAsk`, which denies a call nothing allows before any
-request is made, so a chat that loads the stub runs in the CLI's default mode (`manual`) instead
+request is made ("Auto-denies every call that would otherwise prompt", a mode "which never prompts":
+[permissions](https://code.claude.com/docs/en/permissions), read 2026-10-29), so a chat that loads the stub runs in the CLI's default mode (`manual`) instead
 (`CLIENT_TOOLS_PERMISSION_MODE`, set by `ChatManager.confineApiChat` at every spawn): what is not
 declared is still refused without a person, by the session, and the guard checks every call either
 way. Its session is the chat's `PermissionHost` (`ChatManager.setPermissionHost`). Every `can_use_tool` the
