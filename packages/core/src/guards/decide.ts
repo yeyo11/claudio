@@ -4,6 +4,7 @@
  */
 import { type Decision, type GuardRuleId, type GuardRulesFile, type HookInput, classify } from './input.ts';
 import { type Block, type RuleContext, snippet } from './rules/common.ts';
+import { declaredTools } from './rules/declared-tools.ts';
 import { destructive } from './rules/destructive.ts';
 import { integrity } from './rules/integrity.ts';
 import { noVerify } from './rules/no-verify.ts';
@@ -14,6 +15,7 @@ import { type Cmd, type Scan, readShell } from './shell.ts';
 
 const ORDER: readonly [GuardRuleId, (ctx: RuleContext) => Block | null][] = [
   ['integrity', integrity],
+  ['declared-tools', declaredTools],
   ['no-verify', noVerify],
   ['push', push],
   ['destructive', destructive],
@@ -38,6 +40,7 @@ export function decide(rules: GuardRulesFile, input: HookInput): Decision {
       maxDepth: rules.limits.maxDepth,
       maxFilesRead: rules.limits.maxFilesRead,
       maxScriptBytes: rules.limits.maxScriptBytes,
+      emitWrappers: !!rules.declared,
     });
     if (view.error === 'unparseable') return blockOf('integrity.unparseable', `the guard cannot parse this command line (${snippet(command)}); write it more plainly`);
     if (view.error === 'too-deep') return blockOf('integrity.too-deep', 'this command nests shells or scripts too deeply for the guard');
@@ -48,6 +51,8 @@ export function decide(rules: GuardRulesFile, input: HookInput): Decision {
 
   const enabled = new Set<GuardRuleId>(rules.rules);
   enabled.add('integrity');
+  // A declared policy arms its rule by being there: no list or switch can leave it out
+  if (rules.declared) enabled.add('declared-tools');
   const ctx: RuleContext = { rules, enabled, input, tool, cmds, scans, links, cwd, known: new Set(rules.knownSecretSha256) };
   for (const [id, check] of ORDER) {
     if (!enabled.has(id)) continue;

@@ -9790,12 +9790,14 @@ export interface DecisionPaletteResult {
 /**
  * A rule of the guard program. `integrity` protects the guard itself and is always on whenever
  * guards are; it is deliberately not a key of any settings or override type, so it cannot be
- * switched off through the API ({@link GuardSwitchableRuleId}).
+ * switched off through the API ({@link GuardSwitchableRuleId}). `declared-tools` confines a
+ * confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is
+ * armed by the chat's launch from its stored policy, never by a setting.
  */
-export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs';
+export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs' | 'declared-tools';
 
-/** The rules a person can switch: every rule but `integrity`. */
-export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity'>;
+/** The rules a person can switch: every rule but `integrity` and `declared-tools`. */
+export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity' | 'declared-tools'>;
 
 /** `enforce` blocks; `observe` records "would block" and passes, for rollback after a false positive. */
 export type GuardMode = 'enforce' | 'observe';
@@ -9837,9 +9839,12 @@ export interface ProjectGuardSettings {
   chats: boolean;
 }
 
+/** The rules Settings lists: every rule but `declared-tools`, which belongs to a chat's policy, not to a setting. */
+export type GuardSettingsRuleId = Exclude<GuardRuleId, 'declared-tools'>;
+
 /** One rule as the UI lists it; the words are the UI's own (i18n), not the server's. */
 export interface GuardRuleInfo {
-  id: GuardRuleId;
+  id: GuardSettingsRuleId;
   /** On in a fresh install */
   defaultOn: boolean;
   /** False for `integrity` only */
