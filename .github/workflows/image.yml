@@ -26,10 +26,11 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # About 3x the slowest successful run (2.2 min over 32), rounded up to 5 minutes. A release that
-    # runs long blocks the queue behind it; failing fast leaves a draft to rebuild with the release
-    # workflow's `tag` input.
-    timeout-minutes: 10
+    # About 3x the slowest successful run (2.2 min over 32), rounded up to 5 minutes, plus 5 for the
+    # headless image, which reuses the build stage and adds only its own. A release that runs long
+    # blocks the queue behind it; failing fast leaves a draft to rebuild with the release workflow's
+    # `tag` input.
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -74,4 +75,54 @@ jobs:
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      # The headless image (docs/plans/headless-image.md): the `headless` stage of the same Dockerfile,
+      # the same tags with `-headless` after them, so a release publishes `<version>-headless`, and
+      # `headless` where the full image gets `latest`. No server bundle is signed for it: it takes no
+      # in-app update (D6).
+      - id: meta-headless
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          tags: ${{ inputs.tags }}
+          flavor: |
+            suffix=-headless,onlatest=true
+          labels: |
+            org.opencontainers.image.title=Claudio headless
+            org.opencontainers.image.description=Claudio as one project's AI backend: the token-guarded API only, with confined chats and ephemeral workspaces
+            org.opencontainers.image.licenses=MIT
+
+      # metadata-action names the moving tag `latest-headless`; the published name is `headless`
+      - id: tags-headless
+        env:
+          TAGS: ${{ steps.meta-headless.outputs.tags }}
+        run: |
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "$TAGS" | sed 's/:latest-headless$/:headless/'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Its own cache scope, so the two builds do not overwrite each other's; it reads the full image's
+      # too, which holds the build stage both share
+      - id: build-headless
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: headless
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags-headless.outputs.tags }}
+          labels: ${{ steps.meta-headless.outputs.labels }}
+          cache-from: |
+            type=gha,scope=headless
+            type=gha
+          cache-to: type=gha,mode=max,scope=headless
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          subject-digest: ${{ steps.build-headless.outputs.digest }}
           push-to-registry: true
