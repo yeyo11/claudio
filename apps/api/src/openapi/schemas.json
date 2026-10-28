@@ -6955,6 +6955,95 @@
     ],
     "description": "A file uploaded to attach to a message. Images and PDFs reach Claude as content blocks; any other file by its path, which every run can read."
   },
+  "Workspace": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "`ws_` + random"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "url",
+          "upload"
+        ]
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The URL's host; never the URL, which carries the code host's short-lived token"
+      },
+      "bytes": {
+        "type": "number",
+        "description": "Bytes extracted"
+      },
+      "files": {
+        "type": "number",
+        "description": "Regular files extracted"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastUsedAt": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "description": "`lastUsedAt` plus the TTL: past it, and once its chats have ended, the workspace is removed"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "creating",
+          "ready",
+          "removing"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "source",
+      "host",
+      "bytes",
+      "files",
+      "createdAt",
+      "lastUsedAt",
+      "expiresAt",
+      "state"
+    ],
+    "description": "An ephemeral copy of a source tree made from a `tar.gz` (docs/plans/headless-image.md, D7). A chat names it by id; its folder is never returned, so nothing else can name it."
+  },
+  "CreateWorkspaceRequest": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "An `https` URL of a `tar.gz` on a host of `CLAUDIO_WORKSPACE_HOSTS`"
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "description": "`POST /api/workspaces` with a JSON body: Claudio downloads the archive itself"
+  },
+  "WorkspaceRefusalCode": {
+    "type": "string",
+    "enum": [
+      "workspace-host-not-allowed",
+      "workspace-address-blocked",
+      "workspace-too-large",
+      "workspace-bad-archive",
+      "workspace-limit",
+      "workspace-not-found",
+      "workspace-expired",
+      "workspace-download-failed",
+      "workspace-timeout"
+    ],
+    "description": "Why a workspace request was refused: the `code` of the error answer"
+  },
   "ClaudioEvent": {
     "anyOf": [
       {
