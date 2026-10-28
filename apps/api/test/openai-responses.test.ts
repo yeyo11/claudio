@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { ChatSummary } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
 
 // `POST /v1/responses` and its stored responses (docs/openai-compatible-api.md, phase 5), over a
@@ -36,6 +37,7 @@ before(async () => {
       CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
+  standInGuard(core, join(root, 'guard'));
   mkdirSync(join(root, 'workspace'), { recursive: true });
   await core.appSettings.update({ maxConcurrentRuns: 64 });
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui'), clientTools: registry });

@@ -1,4 +1,4 @@
-import type { RunEvent, RunOutcome, TokenUsage } from '@claudio/shared';
+import type { RunEvent, RunGuardEvent, RunOutcome, TokenUsage } from '@claudio/shared';
 import type { ModelUsage } from '../providers/driver.ts';
 import { openAiError, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
 import {
@@ -74,13 +74,24 @@ export function failureOfOutcome(outcome: RunOutcome, text: string | undefined):
  * A turn held to a schema that ended without its output: the model gave up on the schema (the CLI
  * then reports success with only prose, recorded in `review-schema-fail.jsonl`) or a budget cut it.
  */
-export function structuredFailure(outcome: RunOutcome, text: string | undefined): OpenAiFailure {
+export function structuredFailure(outcome: RunOutcome, text: string | undefined, blocked: RunGuardEvent | null = null): OpenAiFailure {
   const said = text?.trim();
   if (outcome.subtype === MAX_TURNS_SUBTYPE) return maxTurns();
   if (outcome.cause === 'budget' || outcome.subtype === MAX_BUDGET_SUBTYPE) {
     return { kind: 'run-ended', code: 'max_budget', message: 'The run hit its budget before it produced the structured output `response_format` asked for.' };
   }
+  if (blocked) return toolBlocked(blocked);
   return { kind: 'run-ended', code: 'no_structured_output', message: `The model did not produce output matching \`response_format\`${said ? `; it said: ${said}` : '.'}` };
+}
+
+/**
+ * A turn that ended without its answer after the guard refused at least one of its calls (D16): the
+ * last refusal, whose reason names the subcommand or path and what was missing, is what a client
+ * fixes by declaring a rule.
+ */
+export function toolBlocked(guard: RunGuardEvent): OpenAiFailure {
+  const what = guard.reason.trim() || `${guard.toolName} was refused (${guard.matcher})`;
+  return { kind: 'run-ended', code: 'tool_blocked', message: `The run ended without an answer after the guard blocked a ${guard.toolName} call: ${what}` };
 }
 
 /**
@@ -188,6 +199,8 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
   /** Client calls streamed since `takeNewClientCalls()` last ran, with their input as the block had it */
   private fresh: Array<{ id: string; name: string; input: unknown }> = [];
   private ended: TurnEnd | null = null;
+  /** The last call of the turn the guard blocked: a turn that then ends with no answer names it */
+  private blocked: RunGuardEvent | null = null;
 
   constructor(private readonly opts: ChatCompletionTranslatorOptions) {}
 
@@ -321,10 +334,16 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
     if (this.opts.structured) {
       // Without the output there is no answer: an empty 200 would read as a valid, empty object
       if (outcome.structuredOutput === undefined || outcome.structuredOutput === null) {
-        this.fail(structuredFailure(outcome, text), out);
+        this.fail(structuredFailure(outcome, text, this.blocked), out);
         return;
       }
       this.emit({ text: '', started: false }, JSON.stringify(outcome.structuredOutput), out);
+    }
+    // Nothing said and nothing called, after a refused call: the answer it owed is what was blocked.
+    // A budget that ran out keeps its own reading (`length`), as without a guard
+    if (!this.opts.structured && this.blocked && outcome.cause !== 'budget' && this.content.trim() === '' && this.calls.size === 0) {
+      this.fail(toolBlocked(this.blocked), out);
+      return;
     }
     // A structured answer that arrived is whole, whatever the stop reason of the call that carried it
     const finishReason = this.opts.structured ? 'stop' : finishReasonOf(outcome, this.calls.size > 0);
@@ -380,6 +399,7 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
     if (event.kind === 'partial') this.partial(event, out);
     else if (event.kind === 'message') this.message(event, out);
     else if (event.kind === 'result' && event.outcome) this.finish(event.outcome, event.text, context, out);
+    else if (event.kind === 'guard' && event.guard?.outcome === 'blocked') this.blocked = event.guard;
     return out;
   }
 

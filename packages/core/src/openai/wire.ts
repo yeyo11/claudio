@@ -22,6 +22,13 @@ export type OpenAiErrorType = 'invalid_request_error' | 'rate_limit_error' | 'se
 /** Why a turn ended without its answer (D16); each is final for the request that met it */
 export type RunEndedCode = 'max_turns' | 'max_budget' | 'tool_blocked' | 'no_structured_output';
 
+/**
+ * Why a start or a continuation was refused before anything ran (D16), the REST API's kebab-case
+ * codes in `/v1`'s snake_case: a `cwd` that does not exist, a workspace never created or gone, and a
+ * continuation naming a chat whose policy is not the request's.
+ */
+export type StartRefusedCode = 'cwd_missing' | 'workspace_not_found' | 'workspace_expired' | 'policy_mismatch';
+
 export type OpenAiErrorCode =
   | 'invalid_api_key'
   | 'permission_denied'
@@ -33,6 +40,7 @@ export type OpenAiErrorCode =
   | 'rate_limit_exceeded'
   | 'server_error'
   | 'service_unavailable'
+  | StartRefusedCode
   | RunEndedCode;
 
 // ---------- tools ----------

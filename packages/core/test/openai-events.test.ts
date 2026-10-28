@@ -291,3 +291,31 @@ test('a turn cut by its turn limit is a final 422 max_turns, whole and streamed,
     }
   }
 });
+
+test('a turn that ends with no answer after the guard blocked a call is 422 tool_blocked naming the last refusal', () => {
+  const guard = (reason: string, outcome: 'blocked' | 'observed' = 'blocked') =>
+    ev({ kind: 'guard', guard: { outcome, toolUseId: `t${String(++seq)}`, toolName: 'Bash', rule: 'declared-tools', matcher: 'declared-tools.path', reason, excerpt: '' } });
+  const plain = translator();
+  run(plain, [guard('`cat a` matches no declared Bash rule'), guard('`cat /data/auth.json`: /data/auth.json is outside the working directory'), result({}, '')]);
+  const end = plain.end();
+  assert.equal(end?.kind, 'error');
+  if (end?.kind === 'error') {
+    assert.equal(end.status, 422);
+    assert.equal(end.body.error.type, 'run_error');
+    assert.equal(end.body.error.code, 'tool_blocked');
+    assert.match(end.body.error.message, /Bash call: `cat \/data\/auth\.json`: \/data\/auth\.json is outside the working directory$/);
+  }
+  // Under a schema, the refusal is the reason given rather than the schema
+  const held = structured();
+  run(held, [guard('`ls ..`: .. is outside the working directory'), message(['I could not.']), result({}, 'I could not.')]);
+  const heldEnd = held.end();
+  assert.equal(heldEnd?.kind === 'error' ? heldEnd.body.error.code : null, 'tool_blocked');
+  // A block the model worked around is no failure: it answered
+  const answered = translator();
+  run(answered, [guard('`cat a` matches no declared Bash rule'), message(['Here it is.']), result({}, 'Here it is.')]);
+  assert.equal(answered.end()?.kind, 'completion');
+  // A call the guard only observed is no refusal
+  const observed = translator();
+  run(observed, [guard('would block', 'observed'), result({}, '')]);
+  assert.equal(observed.end()?.kind, 'completion');
+});

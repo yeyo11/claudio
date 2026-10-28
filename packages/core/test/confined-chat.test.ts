@@ -334,6 +334,34 @@ test('in headless every chat a request starts is confined: no tools by default, 
   }
 });
 
+test("a chat of the OpenAI surface is confined in the full profile too, and the client-tool stub is the one server it loads", async () => {
+  const { config, core, spawns, close } = rig();
+  try {
+    const stub = { type: 'http', url: 'http://127.0.0.1:9/api/openai/client-tools/s/mcp', headers: { Authorization: 'Bearer secret' } };
+    const chat = await core.chats.create({ prompt: 'with client tools', allowedTools: ['Read'] }, undefined, undefined, undefined, 'api', { client: stub, other: { command: 'sh' } });
+    const [spawn] = await until(() => spawns().length === 1 && spawns(), 'the process');
+    assert.ok(spawn);
+    assert.ok(spawn.argv.includes('--restricted'));
+    assert.ok(spawn.argv.includes('--strict-mcp-config'));
+    const file = spawn.argv.find((a) => a.startsWith('--mcp-config='))?.slice('--mcp-config='.length) ?? '';
+    assert.deepEqual(Object.keys((JSON.parse(readFileSync(file, 'utf8')) as { mcpServers: Record<string, unknown> }).mcpServers), ['client']);
+    // The client's calls are held at the permission request, which dontAsk never makes: the CLI's
+    // default mode asks the host, which refuses everything but a client call
+    assert.equal(flagValue(spawn.argv, '--permission-mode'), 'manual');
+    assert.equal(flagValue(spawn.argv, '--permission-prompts'), 'host');
+    assert.equal(spawn.env.CLAUDIO_API_TOKEN, undefined);
+    assert.equal(spawn.env.CLAUDIO_API_URL, undefined);
+    assert.deepEqual((await core.chats.get(chat.id))?.policy, { workspaceId: null, allowedTools: ['Read'], maxTurns: null, maxBudgetUsd: config.chatBudgetUsd, schema: false });
+    // Without the stub, the same surface's chat is dontAsk with no server at all
+    await core.chats.create({ prompt: 'no client tools' }, undefined, undefined, undefined, 'api');
+    const plain = (await until(() => spawns().length === 2 && spawns(), 'the second process'))[1];
+    assert.equal(flagValue(plain?.argv ?? [], '--permission-mode'), 'dontAsk');
+    assert.ok(!(plain?.argv ?? []).some((a) => a.startsWith('--mcp-config')));
+  } finally {
+    await close();
+  }
+});
+
 // ---------- D9 ----------
 
 test('a start or a resume whose working directory is missing is refused, and nothing creates it', async () => {

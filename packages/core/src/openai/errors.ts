@@ -1,5 +1,5 @@
 import type { SpendCapRefusal } from '@claudio/shared';
-import type { OpenAiErrorBody, OpenAiErrorCode, OpenAiErrorType, RunEndedCode } from './wire.ts';
+import type { OpenAiErrorBody, OpenAiErrorCode, OpenAiErrorType, RunEndedCode, StartRefusedCode } from './wire.ts';
 
 /** A failure as Claudio knows it, before it becomes OpenAI's shape. */
 export type OpenAiFailure =
@@ -17,7 +17,25 @@ export type OpenAiFailure =
   | { kind: 'unavailable'; message: string }
   /** The turn ran and ended without the answer it owed (D16): final, so a client does not retry it */
   | { kind: 'run-ended'; code: RunEndedCode; message: string }
+  /** A start or continuation refused before anything ran, with the code a client acts on (D16) */
+  | { kind: 'start-refused'; code: StartRefusedCode; message: string }
   | { kind: 'server'; message: string };
+
+/** The status each start refusal answers with, as the REST API answers its kebab-case twin */
+const START_REFUSED_STATUS: Record<StartRefusedCode, number> = {
+  cwd_missing: 400,
+  workspace_not_found: 404,
+  workspace_expired: 410,
+  policy_mismatch: 409,
+};
+
+/** Core's refusal reasons (`ChatStartRefusal`, `WorkspaceRefusal`) that `/v1` names by their code */
+const START_REFUSED_OF: Readonly<Record<string, StartRefusedCode>> = {
+  'cwd-missing': 'cwd_missing',
+  'workspace-not-found': 'workspace_not_found',
+  'workspace-expired': 'workspace_expired',
+  'policy-mismatch': 'policy_mismatch',
+};
 
 export interface OpenAiErrorResponse {
   status: number;
@@ -78,6 +96,8 @@ export function openAiError(failure: OpenAiFailure, now: number = Date.now()): O
       return { status: 503, body: body(failure.message, 'server_error', 'service_unavailable') };
     case 'run-ended':
       return { status: 422, body: body(failure.message, 'run_error', failure.code) };
+    case 'start-refused':
+      return { status: START_REFUSED_STATUS[failure.code], body: body(failure.message, 'invalid_request_error', failure.code) };
     case 'server':
       return { status: 500, body: body(failure.message, 'server_error', 'server_error') };
   }
@@ -99,6 +119,9 @@ function isSpendCapRefusal(value: unknown): value is SpendCapRefusal {
  */
 export function failureOfThrown(err: unknown): OpenAiFailure {
   if (isSpendCapRefusal(err)) return failureOfSpendCap(err);
+  const reason = (err as { reason?: unknown } | null)?.reason;
+  const refused = typeof reason === 'string' && Object.hasOwn(START_REFUSED_OF, reason) ? START_REFUSED_OF[reason] : undefined;
+  if (refused) return { kind: 'start-refused', code: refused, message: err instanceof Error ? err.message : String(err) };
   const status = typeof (err as { statusCode?: unknown } | null)?.statusCode === 'number' ? (err as { statusCode: number }).statusCode : 500;
   const message = err instanceof Error ? err.message : String(err);
   if (status === 401) return { kind: 'auth', message };
