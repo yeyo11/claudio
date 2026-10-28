@@ -40,10 +40,16 @@ export function serializeRules(rules: GuardRulesFile): string {
   return `${JSON.stringify(canonical(rules))}\n`;
 }
 
-export function buildSettings(command: string): string {
+/**
+ * The `--settings` file: Claudio's hooks only. A confined API chat (`confined`) passes no other
+ * settings file, so this one also makes the CLI's own file tools refuse reads outside the working
+ * directories (docs/plans/headless-image.md, D14.1).
+ */
+export function buildSettings(command: string, opts: { confined?: boolean } = {}): string {
   const hook = (event: string) => [{ type: 'command', command: `${command} --event ${event}`, timeout: HOOK_TIMEOUT_SECONDS }];
   const settings = {
     ...(FLAG_OVERRIDES_DISABLE_ALL_HOOKS ? { disableAllHooks: false } : {}),
+    ...(opts.confined ? { permissions: { blockReadsOutsideWorkingDirectories: true } } : {}),
     hooks: {
       SessionStart: [{ hooks: hook('session-start') }],
       PreToolUse: [{ matcher: '*', hooks: hook('pre-tool-use') }],
@@ -92,7 +98,7 @@ export function writeGuardFiles(dataDir: string, rules: GuardRulesFile, launch: 
   const rulesSha256 = sha256Hex(rulesBody);
   const rulesPath = ensureFile(dir, `${rulesSha256.slice(0, 16)}.rules.json`, rulesBody);
 
-  const settingsBody = buildSettings(guardCommand(launch, rulesPath, rulesSha256));
+  const settingsBody = buildSettings(guardCommand(launch, rulesPath, rulesSha256), { confined: !!rules.declared });
   const settingsPath = ensureFile(dir, `${sha256Hex(settingsBody).slice(0, 16)}.settings.json`, settingsBody);
   return { settingsPath, rulesPath, rulesSha256 };
 }

@@ -69,6 +69,23 @@ function setDeadline(ms: number): void {
   timer = setTimeout(() => failClosed('integrity.deadline', 'deadline', toolUseId), ms);
 }
 
+const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+/** Absent, null, or every field of a declared policy; anything else is a tampered file */
+function isDeclared(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== 'object') return false;
+  const declared = value as Record<string, unknown>;
+  return (
+    isStrings(declared.tools) &&
+    isStrings(declared.alwaysAllow) &&
+    isStrings(declared.allowPrefixes) &&
+    isStrings(declared.attachments) &&
+    typeof declared.root === 'string' &&
+    declared.root.startsWith('/')
+  );
+}
+
 function isRulesFile(value: unknown): value is GuardRulesFile {
   if (typeof value !== 'object' || value === null) return false;
   const file = value as Record<string, unknown>;
@@ -79,6 +96,7 @@ function isRulesFile(value: unknown): value is GuardRulesFile {
     Array.isArray(file.rules) &&
     Array.isArray(file.roots) &&
     Array.isArray(file.knownSecretSha256) &&
+    isDeclared(file.declared) &&
     typeof limits === 'object' &&
     limits !== null &&
     Object.values(limits).every((n) => typeof n === 'number' && n > 0)
@@ -133,7 +151,7 @@ function stable(value: unknown): string {
  * never allowed.
  */
 function takeAllowance(rules: GuardRulesFile, sessionId: string | undefined, rule: GuardRuleId, toolName: string, toolInput: unknown): boolean {
-  if (!rules.allowDir || rule === 'integrity' || !sessionId || !/^[\w-]{1,128}$/.test(sessionId)) return false;
+  if (!rules.allowDir || rule === 'integrity' || rule === 'declared-tools' || !sessionId || !/^[\w-]{1,128}$/.test(sessionId)) return false;
   const inputHash = createHash('sha256').update(stable({ tool: toolName, input: toolInput })).digest('hex').slice(0, 32);
   const file = join(rules.allowDir, `${sessionId}.${rule}.${inputHash}.json`);
   try {
@@ -178,7 +196,8 @@ async function main(): Promise<void> {
   const rule = decision.rule ?? 'integrity';
   const matcher = decision.matcher ?? `${rule}.unknown`;
   if (takeAllowance(rules, input.session_id, rule, input.tool_name, input.tool_input)) return finish(0, [`${MARK} allowed-once ${id} ${rule} ${matcher}`]);
-  if (rules.mode === 'observe') return finish(0, [`${MARK} observe ${id} ${rule} ${matcher}`]);
+  // A confined chat's policy is the chat's contract, not a rollout: it never only observes
+  if (rules.mode === 'observe' && rule !== 'declared-tools') return finish(0, [`${MARK} observe ${id} ${rule} ${matcher}`]);
   return finish(2, blockLines(rule, decision.reason ?? 'blocked', matcher, input.tool_use_id));
 }
 
