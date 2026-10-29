@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, readFileSync } from 'node:fs';
+import { Agent } from 'node:https';
+import { isIP } from 'node:net';
 import { join } from 'node:path';
 // `web-push` is CommonJS and builds its exports object from bound methods, which Node's lexer
 // cannot read as named exports: the default import is the whole module, and the only one that works.
@@ -26,6 +28,7 @@ import {
 import { writeAtomic } from './config/files.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { maskSecrets } from './decisions/redact.ts';
+import { guardedLookup, isPublicAddress } from './openai/fetch-image.ts';
 import type { Db, PushSubscriptionRecord } from './db.ts';
 import type { ToolCall } from './health.ts';
 import type { EventBus } from './events.ts';
@@ -115,7 +118,19 @@ export type PushTransport = (
   options: PushSendOptions,
 ) => Promise<unknown>;
 
-const defaultTransport: PushTransport = (subscription, payload, options) => webpush.sendNotification(subscription, payload, options);
+/**
+ * Every address a push service's name resolves to must be public, checked when the connection is
+ * made (the lookup of `fetch-image.ts`), so a name that rebinds to this machine or its network after
+ * it was registered is caught too. A literal address never goes through a lookup, so it is judged
+ * again here: a row stored before the registration check existed is not trusted either.
+ */
+const publicOnly = new Agent({ lookup: guardedLookup(isPublicAddress) });
+
+const defaultTransport: PushTransport = (subscription, payload, options) => {
+  const refusal = privateEndpoint(subscription.endpoint);
+  if (refusal) return Promise.reject(new Error(refusal));
+  return webpush.sendNotification(subscription, payload, { ...options, agent: publicOnly });
+};
 
 /**
  * `href` on the tunnel's public address, or null when there is no tunnel or the path is not one of
@@ -183,7 +198,28 @@ export function summaryOf(record: PushSubscriptionRecord): PushSubscriptionSumma
   };
 }
 
-/** An endpoint has to be an absolute https URL: it is a URL this server will POST to. */
+/**
+ * Why an endpoint is not a push service's, or null when it may be one. A push service is a public
+ * host on the internet; an endpoint on this machine, its network or a name only the local resolver
+ * answers would have this server POST to whatever listens there, for anyone who can register one
+ * (report §8.8). The name's addresses are judged at connect time (`defaultTransport`).
+ */
+export function privateEndpoint(endpoint: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return 'endpoint must be an absolute URL';
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const literal = isIP(host) !== 0;
+  if (literal ? !isPublicAddress(host) : host === 'localhost' || host.endsWith('.localhost') || !host.includes('.')) {
+    return 'endpoint must be a push service on a public address, not this machine or its network';
+  }
+  return null;
+}
+
+/** An endpoint has to be an absolute https URL on a public host: it is a URL this server will POST to. */
 function parseEndpoint(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) throw new Error('endpoint is required');
   const endpoint = value.trim();
@@ -195,6 +231,8 @@ function parseEndpoint(value: unknown): string {
     throw new Error('endpoint must be an absolute URL');
   }
   if (url.protocol !== 'https:') throw new Error('endpoint must be an https URL');
+  const refusal = privateEndpoint(endpoint);
+  if (refusal) throw new Error(refusal);
   return endpoint;
 }
 
