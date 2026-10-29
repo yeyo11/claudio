@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -203,6 +203,9 @@ for (const [what, archive] of [
   ['a .git folder', () => tgz(dir('top'), dir('top/.git'), file('top/.git/config', '[core]\n\tfsmonitor = touch /tmp/pwned\n'))],
   ['a .git file in any case', () => tgz(file('top/sub/.GIT', 'gitdir: /data'))],
   ['a name repeated', () => tgz(file('top/a.txt', 'a'), file('top/a.txt', 'b'))],
+  ['a file and then something under its name', () => tgz(file('top/a', 'a'), file('top/a/b.txt', 'b'))],
+  ['a file and then a folder of its name', () => tgz(file('top/a', 'a'), dir('top/a'))],
+  ['a folder that claims a body', () => tgz(file('top/d/', 'x'.repeat(600), { type: '5' }))],
   ['a damaged header', () => {
     const t = tar(file('top/a.txt', 'a'));
     t[10] = (t[10] ?? 0) ^ 0xff;
@@ -408,6 +411,16 @@ test('overlaps names the root, what is inside it and what holds it, so none can 
   assert.equal(r.ws.overlaps(join(r.root, 'ws_AAAAAAAAAAAAAAAA', 'x')), true);
   assert.equal(r.ws.overlaps(join(r.root, '..')), true);
   assert.equal(r.ws.overlaps(join(r.root, '..', 'workspace')), false);
+  // A link into the root names the folder it points at, whatever its own path says
+  const outside = mkdtempSync(join(tmpdir(), 'claudio-ws-link-'));
+  try {
+    mkdirSync(join(r.root, 'ws_LINKED'), { recursive: true });
+    symlinkSync(join(r.root, 'ws_LINKED'), join(outside, 'link'));
+    assert.equal(r.ws.overlaps(join(outside, 'link')), true);
+    assert.equal(r.ws.overlaps(outside), false);
+  } finally {
+    rmSync(outside, { recursive: true, force: true });
+  }
 });
 
 // ---------- settings ----------

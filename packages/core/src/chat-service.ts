@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
 import {
@@ -84,6 +84,7 @@ import type { ChatGuardPlan } from './live-chat.ts';
 import { apiChatPolicy, ChatStartRefusal, CONFINED_PERMISSION_MODE, cwdMissing, declaredRules } from './confined-chat.ts';
 import type { DeclaredGuardRequest } from './guards/declared.ts';
 import type { Workspaces } from './workspaces/index.ts';
+import { overlaps } from './workspaces/settings.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -841,6 +842,11 @@ export class ChatService {
     } else {
       cwd = resolve(request.cwd ?? this.deps.config.workspaceDir);
       if (!existsSync(cwd)) throw cwdMissing(cwd, null);
+      // In headless the caller's token runs model turns and nothing else: a chat whose folder is, or
+      // holds, Claudio's data or the CLI's sign-in would read with its file tools what the token cannot
+      if (this.deps.config.profile === 'headless' && holdsSecrets(cwd, [this.deps.config.dataDir, this.deps.config.configDir])) {
+        throw new ChatStartRefusal(`cwd cannot be or hold Claudio's data or the Claude configuration directory: ${cwd}`, 400);
+      }
     }
     // The declared rules, or a stored preset's when it names one; neither is no tool at all (D14.8)
     let preset: ToolPreset | null = null;
@@ -1392,4 +1398,16 @@ function confinementShape(value: unknown): boolean {
     Array.isArray(settingSources) &&
     settingSources.every((x) => x === 'user' || x === 'project' || x === 'local')
   );
+}
+
+/** Whether `cwd` is, sits inside or holds one of `dirs`, judged on the paths as they resolve too */
+function holdsSecrets(cwd: string, dirs: readonly string[]): boolean {
+  const real = (path: string): string => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return path;
+    }
+  };
+  return dirs.some((dir) => overlaps(cwd, resolve(dir)) || overlaps(real(cwd), real(resolve(dir))));
 }

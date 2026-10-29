@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import test from 'node:test';
@@ -329,6 +329,29 @@ test('in headless every chat a request starts is confined: no tools by default, 
     await assert.rejects(core.chats.create({ prompt: 'x', claudioMcp: true }), /no way back/);
     // A confinement sent in a body is no way around it
     await assert.rejects(core.chats.create({ prompt: 'x', confine: { tools: ['Bash'], settingSources: ['project'] } }), /its own confinement/);
+  } finally {
+    await close();
+  }
+});
+
+test("in headless a chat's folder may not be, hold or sit in Claudio's data or the CLI's sign-in", async () => {
+  const { config, core, close } = rig({ profile: 'headless' });
+  try {
+    const refusedFor = (cwd: string) =>
+      assert.rejects(core.chats.create({ prompt: 'x', cwd }), (err: Error & { statusCode?: number }) => err.statusCode === 400 && /Claude configuration directory|workspace folder/.test(err.message), cwd);
+    mkdirSync(config.configDir, { recursive: true });
+    await refusedFor(config.dataDir);
+    await refusedFor(join(config.dataDir, 'uploads'));
+    await refusedFor(config.configDir);
+    await refusedFor(dirname(config.dataDir));
+    // A link to it is the folder it names
+    const link = join(config.workspaceDir, 'data-link');
+    symlinkSync(config.dataDir, link);
+    await refusedFor(link);
+    // Nor is a workspace's folder a project, which would open it to unconfined chats
+    mkdirSync(join(core.workspaces.root, 'ws_PROJECT'), { recursive: true });
+    await assert.rejects(core.importProject({ path: join(core.workspaces.root, 'ws_PROJECT') }), /workspace folder/);
+    rmSync(join(core.workspaces.root, 'ws_PROJECT'), { recursive: true });
   } finally {
     await close();
   }

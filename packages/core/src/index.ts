@@ -2611,6 +2611,16 @@ export class Core {
   }
 
   /**
+   * A workspace is reached by its id only, so only as a confined API chat (D7): a project there would
+   * open it to orchestrations, flows and the person's own chats, none of them confined
+   */
+  private refuseWorkspaceProject(path: unknown): void {
+    if (typeof path === 'string' && path.trim() && this.workspaces.overlaps(path.trim())) {
+      throw new Error(`${path.trim()} is or holds a workspace folder, which cannot be a project`);
+    }
+  }
+
+  /**
    * Imports a directory and writes its settings from the template and modules asked for. A
    * directory that was a project before takes its old id back, and with it its settings and work
    * items.
@@ -2619,6 +2629,7 @@ export class Core {
     const setup = parseProjectSetup(req);
     const active = () => new Set(this.projectStore.list().map((p) => p.id));
     const imported = active();
+    this.refuseWorkspaceProject(req.path);
     const record = await this.projectStore.add({ path: req.path, ...(req.name ? { name: req.name } : {}) }, this.repos, (path, repo) =>
       this.projectSettingsStore.idForPath(path, active(), repo, (old) => {
         const placed = this.repos.place(old).repo;
@@ -2662,6 +2673,7 @@ export class Core {
     if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim())) throw new Error('name is required');
     const key = body.key === undefined ? undefined : parseKeyPrefix(body.key);
     const modules = body.modules === undefined ? undefined : parseModules(body.modules);
+    this.refuseWorkspaceProject(body.path);
     const repointed = body.path === undefined ? null : await this.projectStore.planRepoint(id, body.path, this.repos);
 
     const active = this.projectStore.list();

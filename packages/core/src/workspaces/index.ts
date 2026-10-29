@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { chmod, lstat, mkdir, readdir, rm } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { Transform, type Readable } from 'node:stream';
@@ -107,9 +107,21 @@ export class Workspaces {
     return join(this.root, id);
   }
 
-  /** Whether a path is the workspaces root, inside it, or holds it: such a path is never a `cwd` */
+  /**
+   * Whether a path is the workspaces root, inside it, or holds it: such a path is never a `cwd` or a
+   * project. Judged on the path as written and as it resolves, so a symlink to a workspace (or a
+   * `/proc/<pid>/cwd` of a chat running in one) names it too.
+   */
   overlaps(path: string): boolean {
-    return overlaps(resolve(path), this.root);
+    const real = (p: string): string => {
+      try {
+        return realpathSync(p);
+      } catch {
+        return p;
+      }
+    };
+    const given = resolve(path);
+    return overlaps(given, this.root) || overlaps(real(given), real(this.root));
   }
 
   async create(source: WorkspaceSource): Promise<Workspace> {
