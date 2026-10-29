@@ -720,20 +720,56 @@ export interface RunEvent {
 }
 
 /**
+ * Who a message written into a chat comes from. `person`: someone typed it (a message, a hint from
+ * the page). `supervisor`: the Supervisor sent it on its own, as a hint. `claudio`: Claudio wrote it
+ * for its own reasons, such as telling the agent a command was cancelled. Only a person's message is
+ * the person's to hurry ("Send now"); the others are notices.
+ */
+export type ChatMessageSource = 'person' | 'supervisor' | 'claudio';
+
+/**
+ * Why a message ended `undelivered`, for the page to act on. `cancelled`: withdrawn from the agent's
+ * queue before it read it (`DELETE /chats/:id/messages/:messageId`). `not-read`: the agent went on
+ * without it: its queue no longer held it after an interrupt or a result, and it never read it back.
+ */
+export type MessageUndeliveredReason = 'cancelled' | 'not-read';
+
+/**
  * What became of one message sent to a chat, by its id (docs/chat-delivery.md). `delivered`: the
- * agent took it, into the running turn or as a turn of its own. `undelivered`: its process went away
- * first, or the one that should have read it could not start; `message` carries it, so the page can
- * hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a replay).
+ * agent took it, into the running turn or as a turn of its own, at `at`. `undelivered`: its process
+ * went away first, the one that should have read it could not start, the agent went on without it
+ * (`reason: 'not-read'`) or it was withdrawn (`reason: 'cancelled'`); `message` carries it, so the
+ * page can hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a
+ * replay), under the same id.
  */
 export interface MessageDelivery {
   id: string;
   state: 'delivered' | 'undelivered' | 'carried';
   message?: ChatPendingMessage;
   chatId?: string;
+  /** Who the message comes from; absent on events streamed before it was recorded, which were a person's */
+  source?: ChatMessageSource;
+  /** For `undelivered`, when the page has something to do about it besides showing the sentence of `message.reason` */
+  reason?: MessageUndeliveredReason;
+  /** For `delivered`: when the agent took it, which for a message read mid-turn is later than when it was sent */
+  at?: string;
 }
 
 /** A file sent with a message, as the page shows it: no path on the server's disk. */
 export type ChatPendingAttachment = Pick<Attachment, 'id' | 'name' | 'mediaType' | 'kind' | 'sizeBytes'>;
+
+/**
+ * The call the agent's turn is inside of, which it reads no message before it returns: a foreground
+ * agent (`Agent`, `Task`) or a command. It can be sent to the background
+ * (`POST /chats/:id/commands/:toolUseId/background`), which returns it at once and lets the message in.
+ */
+export interface ChatPendingBlocker {
+  toolUseId: string;
+  /** The tool, as the agent names it: `Agent`, `Task`, `Bash` */
+  name: string;
+  /** What it does, in the agent's words: the agent's description, or the command */
+  description?: string;
+}
 
 /**
  * A message the agent has not taken yet, or one it never will. `written`: in the agent's own queue,
@@ -742,11 +778,16 @@ export type ChatPendingAttachment = Pick<Attachment, 'id' | 'name' | 'mediaType'
  */
 export interface ChatPendingMessage {
   id: string;
+  /** The words, without the framing Claudio wraps around a hint or a notice for the agent */
   text: string;
   attachments: ChatPendingAttachment[];
   state: 'written' | 'held' | 'undelivered';
   sentAt: string;
   reason?: string;
+  /** Who it comes from; `person` for a message stored before it was recorded */
+  source: ChatMessageSource;
+  /** On a `written` message, while the turn waits on a foreground call the agent will not read it before */
+  blockedBy?: ChatPendingBlocker;
 }
 
 /** What a session reports about itself when it starts. */

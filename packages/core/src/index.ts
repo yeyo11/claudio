@@ -972,9 +972,9 @@ export class Core {
       ask: (question) => this.askSupervisor(question),
       // A page is the newest entries, which is all the supervisor reads
       steps: async (chatId) => (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [],
-      hint: async (proposal) => {
+      hint: async (proposal, source) => {
         if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint);
-        else await this.chats.hint(proposal.chatId, { text: proposal.hint });
+        else await this.chats.hint(proposal.chatId, proposal.hint, { source });
       },
       emit: (event) => this.events.emit(event),
       spendOpen: () => this.spend.allows('supervisor'),

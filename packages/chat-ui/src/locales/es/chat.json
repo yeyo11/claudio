@@ -51,8 +51,21 @@
       "sendNow": "Enviar ahora",
       "sending": "Acabando el turno…",
       "sendNowHint": "Acaba el turno en el que está {{agent}}, para que lea lo que espera",
-      "undelivered": "No se ha entregado: {{agent}} se ha detenido antes de leerlo",
-      "restore": "Devolverlo al cuadro"
+      "undelivered": "No se ha entregado: {{agent}} no lo ha leído",
+      "restore": "Devolverlo al cuadro",
+      "blockedAgent": "Espera a que acabe el agente «{{what}}». Interrumpir el turno detiene ese agente",
+      "blockedCommand": "Espera a que acabe el comando «{{what}}». Interrumpir el turno detiene ese comando",
+      "background": "Pasar a segundo plano y entregar",
+      "backgrounding": "Pasando a segundo plano…",
+      "backgroundHint": "El trabajo sigue en segundo plano y {{agent}} lee ya lo que espera",
+      "interrupt": "Interrumpir el turno",
+      "withdraw": "Retirarlo al cuadro",
+      "withdrawHint": "Lo retira antes de que {{agent}} lo lea y lo devuelve al cuadro",
+      "fromSupervisor": "Pista del Supervisor:",
+      "fromClaudio": "Nota de Claudio:",
+      "noticeHint": "Claudio se lo ha escrito a {{agent}}, que lo lee en su siguiente paso",
+      "dismiss": "Descartar",
+      "dismissHint": "Lo retira antes de que {{agent}} lo lea"
     },
     "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él",
     "workItem": {
