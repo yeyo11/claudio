@@ -463,6 +463,29 @@ test('DELETE stops the chats running in the workspace before removing it', async
   await assert.rejects(r.ws.remove('ws_AAAAAAAAAAAAAAAA'), (err: WorkspaceRefusal) => err.reason === 'workspace-not-found');
 });
 
+test('one workspace that cannot be removed does not keep the others: the sweep goes on and reports it after', async () => {
+  const r = rig();
+  const stuck = await upload(r.ws, tgz(file('a', 'a')));
+  const other = await upload(r.ws, tgz(file('b', 'b')));
+  const target = r.ws as unknown as { removeFolder: (folder: string) => Promise<void> };
+  const removeFolder = target.removeFolder.bind(r.ws);
+  target.removeFolder = async (folder) => {
+    if (folder.endsWith(stuck.id)) throw new Error('EBUSY');
+    await removeFolder(folder);
+  };
+  r.clock.now += 3 * 60 * 60_000;
+  await assert.rejects(r.ws.sweep(), /EBUSY/);
+  assert.equal(existsSync(join(r.root, other.id)), false);
+  assert.ok(existsSync(join(r.root, stuck.id)));
+});
+
+test('a workspace being removed still counts against the total cap while its folder is on disk', async () => {
+  const r = rig({ maxTotalBytes: 6 });
+  const first = await upload(r.ws, tgz(file('a', 'abcd')));
+  r.sql.prepare(`UPDATE workspaces SET state = 'removing' WHERE id = ?`).run(first.id);
+  await refused(upload(r.ws, tgz(file('b', 'efgh'))), 'workspace-too-large');
+});
+
 test('the start sweep removes ws_* folders no row knows, and nothing else under the root or outside it', async () => {
   const r = rig();
   const kept = await upload(r.ws, tgz(file('a', 'a')));

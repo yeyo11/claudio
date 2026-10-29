@@ -40,6 +40,8 @@ test('a headless start is refused open off loopback, without a spend cap, and in
   // Open is allowed where only the machine itself reaches it
   assert.deepEqual(headlessStartProblems({ ...ok, authMode: 'none', host: '127.0.0.1' }), []);
   assert.deepEqual(headlessStartProblems({ ...ok, authMode: 'none', host: '::1' }), []);
+  for (const host of ['::ffff:127.0.0.1', '[::1]', '127.0.0.2', 'LOCALHOST']) assert.deepEqual(headlessStartProblems({ ...ok, authMode: 'none', host }), [], host);
+  for (const host of ['::', '::ffff:10.0.0.1', '127.0.0.256', '128.0.0.1']) assert.equal(headlessStartProblems({ ...ok, authMode: 'none', host }).length, 1, host);
   const open = headlessStartProblems({ ...ok, authMode: 'none' });
   assert.equal(open.length, 1);
   assert.match(open[0] ?? '', /CLAUDIO_AUTH_MODE=none on 0\.0\.0\.0/);
