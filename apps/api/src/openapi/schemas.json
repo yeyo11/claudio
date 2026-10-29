@@ -16,6 +16,10 @@
   "SystemInfo": {
     "type": "object",
     "properties": {
+      "profile": {
+        "$ref": "#/components/schemas/ServerProfile",
+        "description": "What this server registers and starts"
+      },
       "cli": {
         "$ref": "#/components/schemas/CliInfo"
       },
@@ -47,6 +51,7 @@
       }
     },
     "required": [
+      "profile",
       "cli",
       "auth",
       "configDir",
@@ -56,6 +61,14 @@
       "version",
       "uptimeSec"
     ]
+  },
+  "ServerProfile": {
+    "type": "string",
+    "enum": [
+      "full",
+      "headless"
+    ],
+    "description": "What a server registers and starts, from `CLAUDIO_PROFILE`: `full` is the app; `headless` is an AI backend for one project, serving only the API routes such a client calls (docs/plans/headless-image.md, D1 and D2)."
   },
   "CliInfo": {
     "type": "object",
@@ -282,6 +295,31 @@
       "strong"
     ],
     "description": "A provider's models by how fast or how strong they are; what model mapping across providers builds on."
+  },
+  "ReadyStatus": {
+    "type": "object",
+    "properties": {
+      "ready": {
+        "type": "boolean"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/ReadyReason"
+      }
+    },
+    "required": [
+      "ready"
+    ],
+    "description": "`GET /api/ready`: 200 when ready, 503 with the reason otherwise. Says nothing more about the account"
+  },
+  "ReadyReason": {
+    "type": "string",
+    "enum": [
+      "cli-missing",
+      "signed-out",
+      "sign-in-expired",
+      "starting"
+    ],
+    "description": "Why a server is not ready to run a chat (`GET /api/ready`)"
   },
   "SystemLoad": {
     "type": "object",

@@ -172,6 +172,32 @@ test('a trial that never answers is stopped and counted as a failed boot', async
   assert.deepEqual(readLauncherState(s).bad, ['0.7.0']);
 });
 
+test('a headless image boots /app only: a signed active overlay is not run, and state.json is left as it was', async () => {
+  const s = setup('exit0');
+  overlay(s, '0.7.0', 'exit0');
+  state(s, { active: '0.7.0' });
+  const before = readFileSync(join(s.dataDir, 'app', 'state.json'), 'utf8');
+  const result = await run(s, { env: { CLAUDIO_PROFILE: 'headless' } });
+  assert.equal(result.code, 0);
+  assert.equal(result.boots.length, 1);
+  assert.equal(result.boots[0]?.dir, s.appDir);
+  assert.equal(result.boots[0]?.web, null, "the image's own server, with no overlay's web build");
+  assert.equal(readFileSync(join(s.dataDir, 'app', 'state.json'), 'utf8'), before, 'an ignored overlay is neither marked bad nor collected');
+  assert.equal(existsSync(join(s.dataDir, 'app', '0.7.0')), true);
+});
+
+test('an image built without keys ignores overlays the same way, whatever the profile', async () => {
+  const s = setup('exit0');
+  overlay(s, '0.7.0', 'exit0');
+  rmSync(join(s.appDir, 'keys'), { recursive: true, force: true });
+  state(s, { trial: '0.7.0' });
+  const before = readFileSync(join(s.dataDir, 'app', 'state.json'), 'utf8');
+  const result = await run(s);
+  assert.equal(result.boots.length, 1);
+  assert.equal(result.boots[0]?.dir, s.appDir);
+  assert.equal(readFileSync(join(s.dataDir, 'app', 'state.json'), 'utf8'), before);
+});
+
 test('an overlay changed after it was signed is refused, marked bad, and the image runs', async () => {
   const s = setup('exit0');
   const dir = overlay(s, '0.7.0', 'exit0');
