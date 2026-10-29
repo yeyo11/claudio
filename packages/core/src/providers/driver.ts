@@ -114,6 +114,8 @@ export interface SessionLaunch {
   mcpConfig?: string;
   /** `mcpConfig` adds to the servers the CLI loads on its own instead of replacing them */
   mcpConfigAdds?: boolean;
+  /** No MCP server loads but those of `mcpConfig`, and none without one: a confined API chat's */
+  strictMcpConfig?: true;
   confine?: ChatConfinement;
   /** Where attached files live, when this session may read them */
   uploadsDir?: string;
