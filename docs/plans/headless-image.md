@@ -595,7 +595,14 @@ branch. Not released yet; the release note comes from the commits.
   [the decision](../decisions/confined-api-chat.md)).
 - **`/v1`** (D8, D13, D16): the four headers, the policy in the conversation key (seed version 2),
   `409 policy_mismatch`, the typed `422` run errors whole and streamed, the start refusals in OpenAI's
-  shape ([openai-compatible-api.md](../openai-compatible-api.md)).
+  shape, and the turn's own cost in the body (`usage.cost_usd`, `response.usage.cost_usd`), agreed
+  with Shipcast since a streamed `X-Claudio-Cost-Usd` is a trailer its SDK cannot read
+  ([openai-compatible-api.md](../openai-compatible-api.md)).
+- **The review task's fixes**: guard bypasses through grouped or attached `grep`/`rg` options,
+  programs run by plausible rules (`sort --compress-program`, `git grep -O`, `git log --output`,
+  `git diff --ext-diff`, `tar -I`, `tee`, `sort -o`), `Bash(**)`, `Bash(* *)` and `Bash(*:*)` accepted
+  at creation, glob patterns climbing out with `..`; a symlink into a workspace accepted as a `cwd`;
+  and, in headless, a `cwd` at or around the data and Claude config folders.
 
 ### Measures
 
@@ -624,7 +631,8 @@ no task ran the image's server or a real turn.
   refusing the root and anything inside it.
 - **D14.2: a `/v1` chat with client tools runs in `manual`**, with its client-tool session as the
   permission host, since `dontAsk` would deny the client's calls before the session could hold them.
-  The effective policy is the same; `review` was asked to validate it.
+  The effective policy is the same: the session denies every request but the client's own calls, and
+  the guard sits behind it (validated by `review`).
 - **Workspaces** gained two refusal codes, `workspace-timeout` (`408`) and `workspace-download-failed`
   (`502`). A `DELETE` while creating is `409`, of one already removed `204`; a removed id answers
   `410` for 30 days. The tar reader is Claudio's own over `node:zlib`. Outside the image the root
@@ -641,6 +649,23 @@ no task ran the image's server or a real turn.
   is harmless. `claudio status` reads `GET /api/accounts` too, for the last usage reading.
 - **D9**: the orchestrator now creates its task's folder itself, which `begin` used to.
 
+### Verification
+
+On 2026-10-29 the integration branch passed typecheck, the OpenAPI drift check, the full test suite
+(after the fixer refreshed the strings, module-graph and stream fixtures and the session-deletion
+order) and the build. The review gate (security always) blocked on 108 deterministic findings, each
+read by hand: 70 "secrets" are test tokens (`headless-test-token`, `?token=SECRET_TOKEN` in the tests
+that prove the URL is never logged), `${CLAUDIO_TOKEN:?}` placeholders and type fields named
+`token`; 38 "text addressed to an agent" are the feature's own `StructuredOutput` and
+`no_structured_output` identifiers. Six of its seven correctness reviewers ended without structured
+output on a diff this size; the `review` task's own review stands in for them. The gate needs the
+owner's acceptance with a written reason.
+
+Two incidents during the build: the `workspaces` task's unanchored `workspaces/` in `.gitignore` hid
+`packages/core/src/workspaces/` from its commit (fixed in `confined-chat`, anchored to `/workspaces/`),
+and the graph gave `confined-chat` no dependency on `profile` (it merged that branch on a hint). The
+orchestration cost 151.86 USD in tasks (65.69 of it `v1`), plus the review gate.
+
 ### What is not done
 
 - **The checks with the real CLI**, the owner's after the merge (Checklist 4, 5 and 9): a sign-in in
@@ -652,16 +677,10 @@ no task ran the image's server or a real turn.
 - **The after measures** of the container (memory, processes).
 - **No browser spec** was written or run for this plan; the API and core suites cover it.
 - **Follow-ups found on the way:**
-  - the start warning for a server with no account still says to sign in under Settings
-    (`apps/api/src/server.ts`); in headless it should name `claudio login`;
-  - `apps/api/test/headless.test.ts` still allows the workspaces routes to be missing, from before
-    their plugin existed;
   - after a restart a confined chat cannot read by path the attachments of earlier turns, and a file
     that is neither an image nor a PDF, sent later to a live process, is refused;
   - what the CLI keeps per session outside `projects/` (`todos/`, `file-history/`, `session-env/`,
-    `shell-snapshots/`, `debug/`) is not removed by retention;
-  - `docs/openai-compatible-api.md` links to this plan for workspaces; it should link to
-    [workspaces.md](../workspaces.md).
+    `shell-snapshots/`, `debug/`) is not removed by retention.
 - **The move on `apps-1`** (shipcast and trading-bot each on its own Claudio, then `stacks/claudio`
   removed) and telling shipcast which release carries D7, D8, D10 and D11 wait for the release.
 
