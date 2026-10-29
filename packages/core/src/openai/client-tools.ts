@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { PermissionDecision } from '@claudio/shared';
 import type { PermissionQuestion } from '../providers/driver.ts';
 import { stableStringify } from './conversation-key.ts';
@@ -108,13 +108,16 @@ export function sameTools(a: readonly ClientTool[], b: readonly ClientTool[]): b
 }
 
 /**
- * The stub's `--mcp-config` entry. The CLI connects over HTTP and sends the chat's own token, which
- * it expands from its environment (`CLAUDIO_API_TOKEN` is minted per process, as for Claudio's own
- * MCP server), so no secret is written to the file. `alwaysLoad`, or the model first spends a round
- * trip on `ToolSearch` and ignores a "you must call a tool" instruction (spike).
+ * The stub's `--mcp-config` entry. The CLI connects over HTTP and sends the session's own secret
+ * (`ClientToolSession.secret`). Every `/v1` chat is a confined API chat, which has no token for
+ * Claudio's API in its environment (D14.3 of docs/plans/headless-image.md), so the entry carries a
+ * credential that opens this one stub and nothing else. It sits in the `0600` config file under the
+ * data dir, which the chat's file tools and its guard keep it from reading. `alwaysLoad`, or the
+ * model first spends a round trip on `ToolSearch` and ignores a "you must call a tool" instruction
+ * (spike).
  */
-export function clientToolsServerEntry(url: string): Record<string, unknown> {
-  return { type: 'http', url, headers: { Authorization: 'Bearer ${CLAUDIO_API_TOKEN}' }, alwaysLoad: true };
+export function clientToolsServerEntry(url: string, secret: string): Record<string, unknown> {
+  return { type: 'http', url, headers: { Authorization: `Bearer ${secret}` }, alwaysLoad: true };
 }
 
 /**
@@ -269,6 +272,8 @@ export interface StubResult {
 export class ClientToolSession {
   /** In the stub's URL: a chat's id is only known once its process is spawned, after the URL was written */
   readonly id = randomUUID();
+  /** What the chat's process presents to its stub: a credential for this session only, never for the API */
+  readonly secret = randomBytes(32).toString('base64url');
   chatId: string | null = null;
   /** What the stub lists; fixed for a process, since the CLI reads the list when it connects */
   tools: ClientTool[];
@@ -297,6 +302,13 @@ export class ClientToolSession {
 
   constructor(tools: ClientTool[]) {
     this.tools = tools;
+  }
+
+  /** Whether `presented` is this session's secret; compared in constant time */
+  admits(presented: string): boolean {
+    const a = Buffer.from(presented);
+    const b = Buffer.from(this.secret);
+    return a.length === b.length && timingSafeEqual(a, b);
   }
 
   /**

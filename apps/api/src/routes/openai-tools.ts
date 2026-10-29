@@ -57,7 +57,7 @@ export class ClientToolRegistry {
   /** The `--mcp-config` servers that hand a chat its stub; null while the API's address is unknown */
   servers(core: Core, session: ClientToolSession): Record<string, Record<string, unknown>> | null {
     const api = core.runtime.apiUrl;
-    return api ? { [CLIENT_TOOLS_SERVER]: clientToolsServerEntry(`${api}${stubPath(session.id)}`) } : null;
+    return api ? { [CLIENT_TOOLS_SERVER]: clientToolsServerEntry(`${api}${stubPath(session.id)}`, session.secret) } : null;
   }
 }
 
@@ -68,17 +68,20 @@ function bearer(header: string | undefined): string | undefined {
 
 /**
  * The stub MCP server the CLI loads for a chat with client tools, over HTTP with plain JSON answers.
- * Only the chat's own process may call it: its `CLAUDIO_API_TOKEN`, which the CLI sends from the
- * config entry's `${CLAUDIO_API_TOKEN}`, must belong to the chat the session is bound to. The stub
- * never waits for anything: results are known before the CLI is let through to call it.
+ * Only the chat's own process may call it: it presents the session's secret, which the config entry
+ * carries (`clientToolsServerEntry`), and the session must be bound to a chat. The route checks it
+ * itself, since a confined API chat holds no credential for the rest of the API (`security.ts` lets
+ * this path through to here). The stub never waits for anything: results are known before the CLI
+ * is let through to call it.
  */
-export const openAiStubRoutes: FastifyPluginAsync<{ core: Core; registry: ClientToolRegistry }> = async (app, { core, registry }) => {
+export const openAiStubRoutes: FastifyPluginAsync<{ core: Core; registry: ClientToolRegistry }> = async (app, { registry }) => {
   app.post<{ Params: { id: string } }>('/openai/client-tools/:id/mcp', async (req, reply) => {
     const session = registry.ofId(req.params.id);
-    const token = bearer(req.headers.authorization);
-    const chatId = token === undefined ? null : core.security.chatTokens.verify(token);
-    // The same answer for an unknown session and a wrong token: neither says which sessions exist
-    if (!session || chatId === null || session.chatId !== chatId) return reply.status(401).send({ error: "only the chat's own process may call its client-tool server" });
+    const presented = bearer(req.headers.authorization);
+    // The same answer for an unknown session and a wrong secret: neither says which sessions exist
+    if (!session || presented === undefined || session.chatId === null || !session.admits(presented)) {
+      return reply.status(401).send({ error: "only the chat's own process may call its client-tool server" });
+    }
     const answered = answerOpenAiStub(req.body, session);
     if (answered.status === 202) return reply.status(202).send();
     return reply.status(answered.status).header('content-type', 'application/json').send(answered.body);

@@ -79,7 +79,8 @@ import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
 import { LESSONS_ARG_MAX_BYTES } from './lessons/render.ts';
-import { ChatStartRefusal, CONFINED_PERMISSION_MODE, confinedGitEnv, confinementOf, cwdMissing } from './confined-chat.ts';
+import { ChatStartRefusal, CLIENT_TOOLS_PERMISSION_MODE, CONFINED_PERMISSION_MODE, confinedGitEnv, confinementOf, cwdMissing } from './confined-chat.ts';
+import { CLIENT_TOOLS_SERVER } from './openai/client-tools.ts';
 
 // Every name `chats.ts` has ever exported stays importable from here
 export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExtras, NewChat, PermissionHost, ResolvedTools, RunMeta, RunningCommand, RunResult } from './live-chat.ts';
@@ -1558,13 +1559,20 @@ export class ChatManager extends EventEmitter {
     if (opts.toolConfig) opts.toolConfig = { ...opts.toolConfig, mcp: null, claudioMcp: false };
     opts.api = false;
     opts.uploads = false;
-    opts.permissionPrompts = 'none';
+    // The `/v1` client-tool stub is the one server such a chat may load; nothing else core adds stays
+    const stub = opts.extraMcpServers?.[CLIENT_TOOLS_SERVER];
+    if (stub) opts.extraMcpServers = { [CLIENT_TOOLS_SERVER]: stub };
+    else delete opts.extraMcpServers;
+    // A client's tool calls are held at the CLI's permission request (`ClientToolSession`), which
+    // `dontAsk` never makes. With the stub, the CLI's default mode asks the session, which denies
+    // every request but a client call: what is not declared is still refused without a person
+    opts.permissionPrompts = stub ? 'host' : 'none';
     opts.allowedTools = [...policy.allowedTools];
     opts.maxBudgetUsd = policy.maxBudgetUsd;
     if (policy.maxTurns === null) delete opts.maxTurns;
     else opts.maxTurns = policy.maxTurns;
     opts.confine = confinementOf(policy, opts.apiAttachments ?? []);
-    chat.setSettings({ permissionMode: CONFINED_PERMISSION_MODE });
+    chat.setSettings({ permissionMode: stub ? CLIENT_TOOLS_PERMISSION_MODE : CONFINED_PERMISSION_MODE });
   }
 
   /**
@@ -2181,6 +2189,14 @@ export class ChatManager extends EventEmitter {
   /** The JSON schema the chat's process was started with (`--json-schema`), if any: fixed until it ends. */
   jsonSchemaOf(id: string): unknown {
     return this.chats.get(id)?.opts.jsonSchema;
+  }
+
+  /**
+   * The model the chat's process was started with (`--model`), as it was asked for: the chat's
+   * `model` setting follows what the transcript reports (`claude-sonnet-5-5` for `sonnet`).
+   */
+  modelOf(id: string): string | undefined {
+    return this.chats.get(id)?.opts.model;
   }
 
   /**
