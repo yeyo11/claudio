@@ -908,8 +908,9 @@ export class SessionStore {
   async deleteSession(sessionId: string): Promise<void> {
     const found = await this.findFile(sessionId);
     if (!found) throw new Error('session not found');
-    await rm(found.file);
+    // The transcript goes last: it is what finds the session, so a deletion cut short can be retried
     await rm(found.file.slice(0, -'.jsonl'.length), { recursive: true, force: true });
+    await rm(found.file);
     this.transcripts.delete(found.file);
     this.files.delete(sessionId);
     // Its folds and its sidecar's go too: nothing else would ever let go of them
