@@ -74,7 +74,7 @@ describe('declared-tools: the builder', () => {
   after(() => rmSync(dir, { recursive: true, force: true }));
 
   it('refuses a bare Bash, Bash(*) and what is not a rule', () => {
-    for (const rule of ['Bash', 'Bash(*)', 'Bash(:*)', 'Bash()', ' Bash ( * ) ']) {
+    for (const rule of ['Bash', 'Bash(*)', 'Bash(:*)', 'Bash()', ' Bash ( * ) ', 'Bash(**)', 'Bash(* *)', 'Bash(*:*)']) {
       const problem = declaredToolsProblem(['Read', rule]);
       assert.ok(problem instanceof DeclaredToolsError, rule);
       assert.equal(problem.code, 'bash-unrestricted');
