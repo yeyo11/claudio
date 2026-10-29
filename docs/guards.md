@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-29T12:00:00Z
 tags:
     - guards
     - hooks
@@ -28,6 +28,7 @@ code is used.
 | `destructive` | on | yes | Force push, `git reset --hard`, and recursive deletion outside the worktree. Scratch files go in `$TMPDIR`: each guarded run has its own folder, `<data>/tmp/<id>`, removed when the run ends |
 | `secrets` | on | yes | Writing a secret into a file, through `Write`, `Edit`, a shell redirect or here-document, or a content field of an MCP tool |
 | `protect-configs` | off | yes | Edits to **existing** lint, format and CI configs, from a list of globs the person can edit |
+| `declared-tools` | on every confined API chat, and only there | no | Any tool, Bash subcommand or path the chat did not declare ([below](#declared-tools-the-confined-api-chat)) |
 
 A command is read by a shell reader (`packages/core/src/guards/shell.ts`) that follows wrappers,
 `cd`, `env`, `sudo`, `xargs`, `bash -c` and the like. A line it cannot read is blocked, and the
@@ -40,8 +41,11 @@ decision, so the CLI's normal permission flow still decides.
   verification fixer, the checks fix, the workflow engine, and flow runs.
 - **Opt in per project:** a person's interactive chats, with the project setting *Guards in this
   project's chats*.
-- **Never:** the planner and other read-only internal runs, confined chats and the assistant (the
-  restricted modes already confine them).
+- **Always, with `integrity` and `declared-tools` only:** every confined API chat (every chat of a
+  headless Claudio, every chat in a workspace, every `/v1` chat), whatever the settings say
+  ([security-model.md](security-model.md#the-confined-api-chat)).
+- **Never:** the planner and other read-only internal runs, the other confined runs (the lesson
+  miner, for one) and the assistant (the restricted modes already confine them).
 
 A graph or a flow stage can switch guards off or switch rules off for its own runs
 (`guards: { enabled?, rules? }`). `integrity` cannot be switched, and a chat's own token cannot
@@ -64,6 +68,67 @@ will run without the guards you switch off.
 
 The guard fails closed: bad input, oversized input, a tampered or missing rules file, an exception
 and the deadline (3 s) all block. The launch fails when the guard cannot be armed.
+
+## `declared-tools`: the confined API chat
+
+A confined API chat runs with a tool policy fixed at its creation (`allowedTools`, a list of Claude
+Code permission rules; [workspaces.md](workspaces.md), [D14 of the headless
+plan](plans/headless-image.md)). The CLI is confined first (`--restricted`, `--tools=` the declared
+tools, no settings sources), but under `dontAsk` Claude Code still runs its built-in read-only
+commands (`cat`, `head`, `find`, `grep`…) whatever the rules say, and lets them read outside the
+working directory ([permissions](https://code.claude.com/docs/en/permissions)). `declared-tools`
+(`packages/core/src/guards/rules/declared-tools.ts`) closes that gap. A call passes only when:
+
+- **its tool is declared.** `StructuredOutput` and the `/v1` client-tool stub's `mcp__client__*`
+  tools always pass; WebFetch, WebSearch, Task, any other `mcp__*` and the rest are blocked unless
+  declared;
+- **every Bash subcommand matches a declared `Bash(...)` rule**, with Claude Code's own wildcard
+  matching (a trailing ` *` or `:*` also matches the bare command). The shell reader follows pipes,
+  `&&`, `||`, `;`, wrappers, `bash -c`, `env -S` and `watch`. The wrappers Claude Code strips itself
+  (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`, `builtin`, `noglob`) need no rule; `cd`,
+  `pushd` and `popd` need none either, since they read nothing, but their target is checked as a path;
+- **every path it names resolves inside the working directory or one of the chat's own attachment
+  files**, after `~`, `..` and symlinks. Option values count (`grep -f FILE`, `--file=FILE`,
+  `find -newer FILE`, `git -C DIR`, `--output=FILE`), and a glob is checked through its expansions.
+  The file tools (`Read`, `Grep`, `Glob` and the others) are confined the same way, an absolute or
+  `..` Glob pattern included.
+
+Whatever the declared rules say, these are blocked, since what they read or run cannot be known in
+advance:
+
+- a variable (`$X`, `${X}`), a command substitution or a process substitution anywhere in the line;
+- a leading variable assignment, except `LANG`, `LC_*`, `TZ`, `NO_COLOR`, `TERM` and `COLUMNS`;
+- a here-document, `xargs`, and output redirection to anything but `/dev/null`;
+- `sed` except `-n` with a script of addresses and `p` (no `w`, `W`, `r`, `R`, `e`, no `-i`, `-f`,
+  `--in-place`);
+- `find` with `-exec`, `-execdir`, `-ok`, `-okdir`, `-delete`, `-fprint`, `-fprint0`, `-fprintf`,
+  `-fls`, `-files0-from`, `-follow` or `-L`;
+- `git -c`, `--config-env` and `--exec-path`, and `rg --pre` and `--pre-glob`;
+- an interpreter or a script (`awk`, `python`, `node`…), even when declared: the guard cannot read
+  the code it would run.
+
+A line the shell reader cannot parse is blocked by `integrity`, as on every guarded run.
+
+**It cannot be switched off.** The policy itself arms the rule: no setting, override or rule list
+drops it, it is not a switchable rule (the settings API refuses its name), it always enforces
+(observe mode and "Allow once" do not apply), and a tampered rules file blocks every call. A bare
+`Bash`, `Bash()`, `Bash(*)` or `Bash(:*)` is refused when the chat is created (`400`), since it would
+declare every command.
+
+**A block** is a `guard_events` row and a transcript line naming the subcommand or path and what was
+missing. On `/v1`, a turn that ends without its answer after a block is `422 tool_blocked`, naming
+the last one ([openai-compatible-api.md](openai-compatible-api.md)). The fix is a declared rule; a
+command that needs a variable or a substitution has to be written another way.
+
+**Its corpus** is `DECLARED_CORPUS` in `packages/core/test/guards-corpus.ts`: the plan's cases
+(shipcast's transcript commands with and without their rules, reads of credentials, `/proc`, `/data`
+and `..`, `$HOME`, substitutions, WebFetch and `mcp__*`, trading-bot's request) and about 60 more.
+Under rules such as `Read`, `Grep`, `Glob`, `Bash(ls *)`, `Bash(cat *)`, `Bash(head *)`,
+`Bash(sed -n *)` and `Bash(grep *)`, `grep -n x f | head -40`, `ls && cat package.json` and
+`sed -n '1,20p' README.md` pass; `sed -n '1w /tmp/x' f`, `find . -exec cat {} +`, `cat f > out`,
+`ls | xargs cat` and `grep -f /data/auth.json x` are blocked. A pipeline that lists tracked files
+and filters them needs a rule for each part: `Bash(git ls-files *)` as well as `Bash(grep *)` and
+`Bash(head *)`.
 
 ## Settings
 
@@ -126,4 +191,4 @@ under the guard (`rules-unavailable`); relaunch it.
 
 ## Related
 
-[[plans/guards.md]] · [[reports/ecc.md]] · [[security-model.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[chat-environment.md]] · [[deploy.md]] · [[desktop.md]] · [[design-system.md]] · [[status.md]]
+[[plans/guards.md]] · [[reports/ecc.md]] · [[security-model.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[chat-environment.md]] · [[deploy.md]] · [[desktop.md]] · [[design-system.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]] · [[status.md]]
