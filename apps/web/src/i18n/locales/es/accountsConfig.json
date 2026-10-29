@@ -204,7 +204,8 @@
     "rotateHint": "Apagado: el chat espera a que su cuenta se reinicie en lugar de pasar a otra.",
     "threshold": "Umbral",
     "thresholdAt": "cuenta como en su límite desde el {{percent}} de 5 h o 7 días",
-    "strategy": "Adónde va el trabajo cuando la cuenta preferida está llena",
+    "strategy": "Siguiente cuenta",
+    "strategyHint": "Adónde va el trabajo cuando la cuenta preferida está llena.",
     "strategies": {
       "order": "En orden",
       "least-used": "La menos usada"

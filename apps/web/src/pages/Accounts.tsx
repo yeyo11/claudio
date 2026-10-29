@@ -224,7 +224,8 @@ export function Accounts() {
               busy={busy}
               onToggle={() => toggle(account.id)}
               onRemove={() => remove(account.id)}
-              onPrefer={() => prefer(account.id)}
+              // With no preference, the account in use is already where new work starts: nothing to offer on it
+              {...(account.id === current && preferred === null ? {} : { onPrefer: () => prefer(account.id) })}
               onSignInAgain={() => setSigningIn(account.id)}
             />
           ))}

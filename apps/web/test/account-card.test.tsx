@@ -125,7 +125,7 @@ const renderWith = async (a: Account, props: { preferred?: boolean; onPrefer?: (
 const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 test('the organisation and the kind are one line with a separator between them', async () => {
-  assert.match(words(await render(account())), /Org · Sign-in/);
+  assert.match(words(await render(account())), /Org · Claude account/);
   setLanguage('es');
   await i18n.changeLanguage('es');
   const es = words(renderToStaticMarkup(<AccountCard account={account()} current={false} busy={false} onToggle={() => undefined} onRemove={() => undefined} onSignInAgain={() => undefined} />));

@@ -82,7 +82,7 @@
     "refreshing": "Reading usage…"
   },
   "kind": {
-    "login": "Sign-in",
+    "login": "Claude account",
     "token": "Token",
     "api-key": "API key"
   },
@@ -204,7 +204,8 @@
     "rotateHint": "Off: a chat waits for its account to reset instead of moving to another.",
     "threshold": "Threshold",
     "thresholdAt": "counts as at its limit from {{percent}} of 5 h or 7 days",
-    "strategy": "Where work goes when the preferred account is full",
+    "strategy": "Next account",
+    "strategyHint": "Where work goes when the preferred account is full.",
     "strategies": {
       "order": "In order",
       "least-used": "Least used"

@@ -97,14 +97,7 @@ export function RotationCard({ settings: saved, accounts }: { settings: Accounts
               onChange={(strategy) => edit({ strategy })}
               options={STRATEGIES.map((s) => ({ value: s, label: t(`rotation.strategies.${s}`) }))}
             />
-            {draft.strategy === 'order' && order.length > 1 && (
-              <>
-                <span className="sr-only" id={`${id}-order`}>
-                  {t('rotation.order')}
-                </span>
-                <AccountOrderList order={order} accounts={accounts} labelledBy={`${id}-order`} onChange={(next) => edit({ order: next })} />
-              </>
-            )}
+            <span className="field-hint">{t('rotation.strategyHint')}</span>
             {change('strategy', t('rotation.strategy'), 'strategy', (value) => t(`rotation.strategies.${STRATEGIES.find((s) => s === value) ?? 'order'}`))}
           </div>
           {/* Not a <label>: the stepper's own buttons would take its name */}
@@ -136,6 +129,15 @@ export function RotationCard({ settings: saved, accounts }: { settings: Accounts
             <span className="field-hint">{switching ? t('rotation.cooldownHint') : t('rotation.appliesWhenOn')}</span>
             {change('cooldown', t('rotation.cooldown'), 'cooldownSeconds')}
           </div>
+          {/* Its own row under the fields: in a quarter column every name folded onto three lines */}
+          {draft.strategy === 'order' && order.length > 1 && (
+            <div className="rotation-order">
+              <span className="section-label" id={`${id}-order`}>
+                {t('rotation.order')}
+              </span>
+              <AccountOrderList order={order} accounts={accounts} labelledBy={`${id}-order`} onChange={(next) => edit({ order: next })} />
+            </div>
+          )}
         </div>
 
         <div className="rotation-foot">

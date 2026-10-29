@@ -74,8 +74,10 @@ test('"In order" lists every enabled account once, the saved order first, with u
   assert.doesNotMatch(draw(settings({ strategy: 'least-used' }), [account('a'), account('b')]), /<ol/);
 });
 
-test('the strategy is named for what it decides once a preferred account is full', () => {
-  assert.match(words(draw(settings(), [account('a'), account('b')])), /Where work goes when the preferred account is full/);
+test('the strategy says what it decides once a preferred account is full, and the order is a row of its own', () => {
+  const html = draw(settings(), [account('a'), account('b')]);
+  assert.match(words(html), /Next account In order Least used Where work goes when the preferred account is full/);
+  assert.match(html, /class="rotation-order"/);
 });
 
 test('moveInOrder swaps one entry with its neighbour, and does nothing at an edge', () => {
