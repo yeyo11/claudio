@@ -19,6 +19,8 @@ const ROOT_TYPES = [
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
   'Attachment',
+  // Ephemeral workspaces (docs/plans/headless-image.md, D7)
+  'Workspace', 'CreateWorkspaceRequest', 'WorkspaceRefusalCode',
   'ClaudioEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Claudio's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatMessageResponse', 'ChatInterruptRequest', 'ChatSettingsUpdate', 'ChatMcpServers', 'ChatMcpToggle', 'ChatClaudioMcpToggle',

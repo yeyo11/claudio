@@ -76,7 +76,7 @@ class Blocked extends Error {}
  * a name that answers a public address to the check and a private one to the connection (DNS
  * rebinding) is then caught too.
  */
-function guardedLookup(allow: (address: string) => boolean): LookupFunction {
+export function guardedLookup(allow: (address: string) => boolean): LookupFunction {
   return (hostname, options: LookupOptions, callback) => {
     dnsLookup(hostname, { ...options, all: true }, (err, addresses: LookupAddress[]) => {
       if (err) return callback(err, '', 0);
