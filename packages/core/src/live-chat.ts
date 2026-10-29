@@ -174,6 +174,12 @@ export interface NewChat extends NewChatRequest {
    * (`ChatManager.confineApiChat`), after a restart too, since the chat's record keeps it.
    */
   apiPolicy?: ApiChatPolicy;
+  /**
+   * Core-only: what a `/v1` request declared for a chat that is NOT confined (the full profile, no
+   * workspace). Nothing enforces it: the OpenAI routes compare it with a continuation's, so a named
+   * chat asked for with other values answers `409 policy_mismatch` (D8).
+   */
+  apiAsked?: ApiChatPolicy;
   /** Core-only: the files attached to a confined API chat, the only ones outside its folder it may read */
   apiAttachments?: string[];
   /**
@@ -338,6 +344,8 @@ export interface ChatRuntime {
   guards?: ChatGuards | null;
   /** The policy of a confined API chat; absent for any other chat */
   policy?: ApiChatPolicy | null;
+  /** What a `/v1` request declared for this chat when it is not confined; only compared, never enforced */
+  asked?: ApiChatPolicy | null;
 }
 
 /** A shell command the process started and has had no answer to yet. */
@@ -628,6 +636,7 @@ export class LiveChat {
         ...(record.claudioAssistant ? { claudioAssistant: record.claudioAssistant } : {}),
         ...(record.keepAlive === false ? { keepAlive: false } : {}),
         ...(record.apiPolicy ? { apiPolicy: record.apiPolicy } : {}),
+        ...(record.apiAsked ? { apiAsked: record.apiAsked } : {}),
         // The purpose is not stored: what a person sends to a chat after a restart is theirs, and the
         // starters set their own again when they resume it
         ...(record.origin === 'orchestration' ? { purpose: 'orchestration' as const } : record.origin === 'claudio' || record.origin === 'external' || record.origin === 'api' ? { purpose: 'person' as const } : {}),
@@ -830,6 +839,7 @@ export class LiveChat {
       pending: this.pendingList(),
       ...(this.guards ? { guards: this.guards } : {}),
       ...(this.opts.apiPolicy ? { policy: this.opts.apiPolicy } : {}),
+      ...(this.opts.apiAsked ? { asked: this.opts.apiAsked } : {}),
     };
   }
 
@@ -864,6 +874,7 @@ export class LiveChat {
       ...(this.opts.claudioAssistant ? { claudioAssistant: this.opts.claudioAssistant } : {}),
       ...(this.opts.keepAlive === false ? { keepAlive: false as const } : {}),
       ...(this.opts.apiPolicy ? { apiPolicy: this.opts.apiPolicy } : {}),
+      ...(this.opts.apiAsked ? { apiAsked: this.opts.apiAsked } : {}),
       ...(this.pending.size || this.undelivered.length ? { pending: this.pendingList() } : {}),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

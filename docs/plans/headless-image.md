@@ -573,6 +573,8 @@ Built on 2026-10-29 by orchestration `f354f179`, one worktree per task (`profile
 `workspaces`, `guard`, then `confined-chat`, then `v1`, then `review` and `docs`), merged into one
 branch. Not released yet; the release note comes from the commits.
 
+2026-10-29: brought /v1 in the full profile and the cwd rule back to D14 as written.
+
 ### What was built
 
 - **Profile** (D1, D2, D4, D6, D10, D11, D15): `CLAUDIO_PROFILE`, the allowlist
@@ -611,8 +613,15 @@ no task ran the image's server or a real turn.
   document. `/api/auth` is dropped whole; `/accounts/refresh`, `/accounts/settings` and
   `/accounts/policies` stay for rotation; `GET /uploads/:id` is dropped. The supervisor does not run
   in headless.
-- **Every `/v1` chat is a confined API chat, in both profiles**, not only in headless or a workspace.
-  Without declared tools it has none in headless and the app's default preset in the full profile.
+- **Every `/v1` chat is a confined API chat in headless and with `X-Claudio-Workspace`**, as D14
+  says; in the full profile without a workspace it is the app's own kind of chat. (The first build
+  confined every `/v1` chat in both profiles; 2026-10-29: brought `/v1` in the full profile and the
+  cwd rule back to D14 as written.) Without declared tools a confined one has none; the full
+  profile's chat takes the app's default preset.
+- **The cwd rule splits by profile**: headless refuses a folder that is, holds or sits inside a
+  workspace folder; the full profile refuses only the workspaces root and what is inside it, since
+  a person's own folder (their home) may hold a root under `~/.config/Claudio`. Projects keep
+  refusing the root and anything inside it.
 - **D14.2: a `/v1` chat with client tools runs in `manual`**, with its client-tool session as the
   permission host, since `dontAsk` would deny the client's calls before the session could hold them.
   The effective policy is the same; `review` was asked to validate it.

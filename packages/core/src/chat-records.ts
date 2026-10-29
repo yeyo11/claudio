@@ -49,6 +49,8 @@ export interface ChatRecord {
   claudioAssistant?: ClaudioAssistantMarker | null;
   /** Set on a confined API chat: its policy, from which every process of it is confined again, after a restart too */
   apiPolicy?: ApiChatPolicy;
+  /** Set on a `/v1` chat that is not confined: what its request declared, compared with a continuation's */
+  apiAsked?: ApiChatPolicy;
   /** Messages the agent had not taken when this was written, and those lost before: a restart loses them, and says so */
   pending?: ChatPendingMessage[];
   createdAt: string;

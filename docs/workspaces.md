@@ -104,9 +104,10 @@ A chat names a workspace by its id, and only so:
 A chat in a workspace is a **confined API chat**, in every profile
 ([security-model.md](security-model.md#the-confined-api-chat)): it runs the tools it declared, read
 only, with no settings of the repository applied, no MCP server and no way back into Claudio, behind
-the `declared-tools` guard ([guards.md](guards.md#declared-tools-the-confined-api-chat)). No `cwd`,
-`X-Claudio-Cwd` or project path may be, or hold, a folder under the workspaces root (`400`), so
-nothing reaches a workspace as an ordinary chat would.
+the `declared-tools` guard ([guards.md](guards.md#declared-tools-the-confined-api-chat)). In headless no `cwd`,
+`X-Claudio-Cwd` or project path may be, hold or sit inside the workspaces root (`400`); in the full
+profile none may be the root or sit inside it, since a person's own folder may hold a root that
+lives under `~/.config/Claudio`. Either way nothing reaches a workspace as an ordinary chat would.
 
 An unknown id is `404 workspace-not-found`; an expired or removed one, or a chat continued after its
 workspace went, is `410 workspace-expired` (`workspace_not_found` and `workspace_expired` on `/v1`).

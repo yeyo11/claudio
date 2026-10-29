@@ -42,7 +42,7 @@ decision, so the CLI's normal permission flow still decides.
 - **Opt in per project:** a person's interactive chats, with the project setting *Guards in this
   project's chats*.
 - **Always, with `integrity` and `declared-tools` only:** every confined API chat (every chat of a
-  headless Claudio, every chat in a workspace, every `/v1` chat), whatever the settings say
+  headless Claudio, every chat in a workspace in any profile), whatever the settings say
   ([security-model.md](security-model.md#the-confined-api-chat)).
 - **Never:** the planner and other read-only internal runs, the other confined runs (the lesson
   miner, for one) and the assistant (the restricted modes already confine them).

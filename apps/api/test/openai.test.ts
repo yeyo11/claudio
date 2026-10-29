@@ -540,20 +540,21 @@ test("X-Claudio-Chat-Id and a conversation key only reach chats this surface sta
   assert.ok(!promptsOf(personId).some((p) => p.prompt.includes('next')));
 });
 
-test('a /v1 chat is a confined API chat: dontAsk, no host prompts, and settings nobody can change on its live process', async () => {
+test('a /v1 chat in the full profile without a workspace is the app\'s own kind of chat: not confined, never bypassing, no host prompts', async () => {
   const first = await post({ model: 'sonnet', messages: [user('live')] });
   const chatId = first.headers.get('x-claudio-chat-id') ?? '';
   await first.json();
   const runtime = core.runtime.get(chatId);
-  assert.equal(runtime?.permissionMode, 'dontAsk');
+  assert.equal(runtime?.policy ?? null, null, 'only headless and workspace chats are confined (D14)');
+  assert.notEqual(runtime?.permissionMode, 'bypassPermissions');
   assert.equal(runtime?.permissionPrompts, 'none');
-  assert.deepEqual(runtime?.policy, { workspaceId: null, allowedTools: [], maxTurns: null, maxBudgetUsd: core.config.chatBudgetUsd, schema: false });
-  await assert.rejects(core.runtime.updateSettings(chatId, { permissionMode: 'bypassPermissions' }), /keeps the settings it was created with/);
+  // What the request declared is kept only to compare a continuation's
+  assert.deepEqual(runtime?.asked, { workspaceId: null, allowedTools: core.toolPresets.defaultPreset()?.allowedTools ?? [], maxTurns: null, maxBudgetUsd: core.config.chatBudgetUsd, schema: false });
   const next = await post({ model: 'sonnet', messages: [user('live'), assistant('echo: live'), user('again')] });
   assert.equal(next.status, 200, await next.clone().text());
   assert.equal(next.headers.get('x-claudio-chat-id'), chatId);
   await next.json();
-  assert.equal(core.runtime.get(chatId)?.permissionMode, 'dontAsk');
+  assert.equal(core.runtime.get(chatId)?.permissionPrompts, 'none');
 });
 
 test('a turn that shows no sign of life for the idle period fails in OpenAI\'s shape and is interrupted', async () => {

@@ -258,7 +258,7 @@ test('a workspace chat refuses what would widen it, and a cwd may never name a w
       await assert.rejects(core.chats.create({ prompt: 'x', workspaceId: ws.id, ...extra }), (err: Error & { statusCode?: number }) => err.statusCode === status && message.test(err.message), String(message));
     }
     await assert.rejects(core.chats.create({ prompt: 'x', workspaceId: 'ws_AAAAAAAAAAAAAAAA' }), (err: Error & { statusCode?: number; reason?: string }) => err.statusCode === 404 && err.reason === 'workspace-not-found');
-    for (const cwd of [core.workspaces.root, core.workspaces.resolve(ws.id), dirname(core.workspaces.root)]) {
+    for (const cwd of [core.workspaces.root, core.workspaces.resolve(ws.id)]) {
       await assert.rejects(core.chats.create({ prompt: 'x', cwd }), (err: Error & { statusCode?: number }) => err.statusCode === 400 && /workspace folder/.test(err.message), cwd);
     }
     assert.equal(spawns().length, 0);
@@ -357,8 +357,8 @@ test("in headless a chat's folder may not be, hold or sit in Claudio's data or t
   }
 });
 
-test("a chat of the OpenAI surface is confined in the full profile too, and the client-tool stub is the one server it loads", async () => {
-  const { config, core, spawns, close } = rig();
+test("a chat of the OpenAI surface in headless is confined, and the client-tool stub is the one server it loads", async () => {
+  const { config, core, spawns, close } = rig({ profile: 'headless' });
   try {
     const stub = { type: 'http', url: 'http://127.0.0.1:9/api/openai/client-tools/s/mcp', headers: { Authorization: 'Bearer secret' } };
     const chat = await core.chats.create({ prompt: 'with client tools', allowedTools: ['Read'] }, undefined, undefined, undefined, 'api', { client: stub, other: { command: 'sh' } });
@@ -380,6 +380,51 @@ test("a chat of the OpenAI surface is confined in the full profile too, and the 
     const plain = (await until(() => spawns().length === 2 && spawns(), 'the second process'))[1];
     assert.equal(flagValue(plain?.argv ?? [], '--permission-mode'), 'dontAsk');
     assert.ok(!(plain?.argv ?? []).some((a) => a.startsWith('--mcp-config')));
+  } finally {
+    await close();
+  }
+});
+
+test('a chat of the OpenAI surface in the full profile without a workspace is not confined: the app\'s tools and sources, and what its request declared is kept to compare', async () => {
+  const { core, spawns, close } = rig();
+  try {
+    const asked = { workspaceId: null, allowedTools: ['Bash'], maxTurns: 3, maxBudgetUsd: 2, schema: false };
+    // A bare Bash is the app's to allow: only a confined chat refuses it
+    const chat = await core.chats.create({ prompt: 'plain', allowedTools: ['Bash'], maxTurns: 3, maxBudgetUsd: 2 }, undefined, undefined, undefined, 'api', undefined, asked);
+    const [spawn] = await until(() => spawns().length === 1 && spawns(), 'the process');
+    assert.ok(spawn);
+    assert.ok(!spawn.argv.includes('--restricted'));
+    assert.ok(!spawn.argv.some((a) => a.startsWith('--setting-sources=')));
+    assert.equal(flagValue(spawn.argv, '--max-turns'), '3');
+    assert.notEqual(flagValue(spawn.argv, '--permission-mode'), 'dontAsk');
+    const view = await core.chats.get(chat.id);
+    assert.equal(view?.policy, null);
+    assert.equal(view?.origin, 'api');
+    assert.deepEqual(core.runtime.get(chat.id)?.asked, asked);
+    // A body sent to the API never carries it: only core's callers do
+    const sent = await core.chats.create({ prompt: 'sent', apiAsked: asked } as unknown as Parameters<typeof core.chats.create>[0]);
+    assert.equal(core.runtime.get(sent.id)?.asked ?? null, null);
+  } finally {
+    await close();
+  }
+});
+
+test('in the full profile a chat may start in a folder that holds the workspaces root, and not in the root or inside it', async () => {
+  const { core, close } = rig();
+  try {
+    const holder = dirname(core.workspaces.root);
+    mkdirSync(core.workspaces.root, { recursive: true });
+    const inside = join(core.workspaces.root, 'not-a-workspace');
+    mkdirSync(inside, { recursive: true });
+    await core.chats.create({ prompt: 'x', cwd: holder });
+    for (const cwd of [core.workspaces.root, inside]) {
+      await assert.rejects(core.chats.create({ prompt: 'x', cwd }), (err: Error & { statusCode?: number }) => err.statusCode === 400 && /workspace folder/.test(err.message), cwd);
+    }
+    // A project follows the same line: the root and what is inside it are never one
+    await assert.rejects(core.importProject({ path: inside }), /workspace folder/);
+    await assert.rejects(core.importProject({ path: core.workspaces.root }), /workspace folder/);
+    // The close sweeps every folder under the root as a workspace
+    rmSync(inside, { recursive: true });
   } finally {
     await close();
   }

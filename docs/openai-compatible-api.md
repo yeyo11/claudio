@@ -172,14 +172,15 @@ conversation). The OpenAI `user` is part of the seed, so two end users with iden
 never share a chat.
 
 **The policy is part of the key** (D8 of [the headless plan](plans/headless-image.md)). Every `/v1`
-chat is a confined API chat whose policy (workspace, declared tools, turn and budget ceilings,
-whether it answers a schema) is fixed when it is created. The route reads the request's policy from
+chat has a policy (workspace, declared tools, turn and budget ceilings, whether it answers a
+schema) fixed when it is created; a confined API chat (headless, or with `X-Claudio-Workspace`) is
+enforced by it, and a chat of the full profile without a workspace only stores it to compare. The route reads the request's policy from
 its headers (below) the way a start would, and puts it in the seed, so the same history sent with
 another workspace, other tools, other ceilings or with and without `response_format` is a new
 conversation, never the old chat on new rules. Which schema it is stays outside the key: another
 schema on the same conversation restarts its process with it. Version 2 of the seed means no key
-stored before (whose chats ran unconfined) is found again; those conversations start a new chat.
-This changes the key for every `/v1` client, in every profile. A continuation that names its chat
+stored before is found again; those conversations start a new chat. This changes the key for every
+`/v1` client, in every profile. A continuation that names its chat
 (`X-Claudio-Chat-Id`, `previous_response_id`) is compared with the chat's stored policy instead,
 and a difference is `409 policy_mismatch`. A request whose history has no assistant message (a
 one-shot run: system and one user message) is never looked up, so it always starts a new chat, its
@@ -240,7 +241,8 @@ same delta, so the second turn of a process reports its own cost, not the proces
    `tool` messages must answer every call of the last assistant message, and nothing else. Then the
    model must be in the catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid, and the
    policy headers must read (`requestPolicyOf`): each invalid value is a `400 invalid_request_error`
-   naming its header, and so is a declared rule a confined chat cannot take (a bare `Bash`).
+   naming its header, and so is a declared rule a confined chat cannot take (a bare `Bash`); a chat
+of the full profile without a workspace is not confined, so it refuses no rule.
 2. **Serialised per conversation.** Requests wait in a queue keyed by the conversation key (or by
    `chat:<id>` with `X-Claudio-Chat-Id`), then also on `chat:<id>` once the chat is known, so a
    request that names the chat and one that finds it by history wait for each other. A queue rather
@@ -256,12 +258,19 @@ same delta, so the second turn of a process reports its own cost, not the proces
    new chat with the cold prompt, a hit continues with the delta.
 4. **Images** of the chosen prompt are uploaded (`uploadOpenAiImages`, with `fetchImage` and
    `core.uploads.save`) and attached to the message.
-5. **The turn.** A new chat is created as a **confined API chat** (D14 of
-   [the headless plan](plans/headless-image.md)), in every profile: origin `api`, `--restricted`,
-   `--tools=` the declared tools only, no settings file, `--strict-mcp-config` with no server but the
-   client-tool stub when the request carries client tools, `dontAsk`, no `CLAUDIO_API_URL` or token,
-   the `declared-tools` guard, and the policy of step 1 stored with it. A chat with a live idle
-   process gets the turn as a message (`chats.send`); its live settings never change
+5. **The turn.** A new chat in a headless Claudio, or with `X-Claudio-Workspace` in any profile, is
+   created as a **confined API chat** (D14 of [the headless plan](plans/headless-image.md), brought
+   back to its text on 2026-10-29): origin `api`, `--restricted`, `--tools=` the declared tools
+   only, no settings file, `--strict-mcp-config` with no server but the client-tool stub when the
+   request carries client tools, `dontAsk`, no `CLAUDIO_API_URL` or token, the `declared-tools`
+   guard, and the policy of step 1 stored with it. In the full profile **without a workspace** it is
+   the app's own kind of chat, as `/v1` made it before the headless profile: origin `api`, the app's
+   tool preset (or `X-Claudio-Tool-Preset`), the CLI's normal setting sources, never
+   `bypassPermissions`, the API token as before, and `X-Claudio-Cwd` honoured. The per-call headers
+   are plain options there: `X-Claudio-Max-Turns`, `X-Claudio-Max-Budget-Usd` and
+   `X-Claudio-Allowed-Tools` (no refusal of a bare `Bash`). The policy is stored with the chat
+   (`asked`) only to compare a continuation's, and the chat is not marked confined. A chat with a live idle
+   process gets the turn as a message (`chats.send`); a confined chat's live settings never change
    (`ChatManager.updateSettings` refuses them), so another model, schema, system prompt or client
    tool list ends the idle process and resumes the chat with it. A live chat that is busy is
    `409 conflict`. A chat nobody holds is resumed (`chats.resume`) on its stored policy: a `cwd` gone
@@ -271,13 +280,14 @@ same delta, so the second turn of a process reports its own cost, not the proces
    that changes accounts does not. Once the turn is sent, the chat's buffer is read from the last
    event before the turn (recorded when the runner attached), never from the start, so an earlier
    execution's `result` cannot answer this turn.
-   **Tools.** A chat runs the tools it declares and nothing else: `X-Claudio-Allowed-Tools`, else the
-   rules of `X-Claudio-Tool-Preset`, else, in the full profile, the app's default tool preset (the
-   owner's decision of 2026-10-27) and, in the headless profile, **none**: such a chat can only
-   answer (D14.8). The guard behind the confinement checks every Bash subcommand and path against
-   the declared rules ([guards](guards.md)). A preset holding a bare `Bash` or `Bash(*)` cannot be
-   declared: the request is a `400` naming it, so a full-profile default preset like that needs
-   `X-Claudio-Allowed-Tools` or another preset.
+   **Tools.** The declared tools are `X-Claudio-Allowed-Tools`, else the rules of
+   `X-Claudio-Tool-Preset`, else the app's default tool preset (the owner's decision of 2026-10-27)
+   in the full profile and **none** in headless: a headless chat can only answer (D14.8). In a
+   confined chat they are the only tools, and the guard behind the confinement checks every Bash
+   subcommand and path against them ([guards](guards.md)); a preset holding a bare `Bash` or
+   `Bash(*)` cannot be declared there (`400` naming it). In the full profile without a workspace
+   they are the chat's tool options as the app gives them, so a default preset with a bare `Bash`
+   works as it always did.
    **The idle limit.** A turn that shows no sign of life (no event, no CLI heartbeat for a command
    it runs) for `CLAUDIO_OPENAI_TURN_IDLE_MS`, **10 minutes** by default, is interrupted and answered
    `500 server_error` ("showed no activity"). It is what ends a turn stuck on a prompt nobody can
@@ -480,9 +490,8 @@ permission is what Claudio holds. The design and the real-CLI evidence are in
 
 Each chat with client tools gets a session with a random id and a stub MCP server at
 `/api/openai/client-tools/<id>/mcp`, passed to the CLI with `--mcp-config` and
-`--strict-mcp-config`: every `/v1` chat is a confined API chat, and the stub is the one server it
-loads (D14.1 of [the headless plan](plans/headless-image.md); core drops any other server a caller
-adds). The entry is `{ type: "http", url, headers: { Authorization: "Bearer <secret>" }, alwaysLoad:
+`--strict-mcp-config`: a confined `/v1` chat (headless, or in a workspace) loads the stub alone (D14.1 of [the headless plan](plans/headless-image.md); core drops any other server a caller
+adds); a full-profile chat without a workspace adds it to the servers the app gives its chats. The entry is `{ type: "http", url, headers: { Authorization: "Bearer <secret>" }, alwaysLoad:
 true }`, where the secret is the session's own (`ClientToolSession.secret`, 32 random bytes). A
 confined chat has no `CLAUDIO_API_TOKEN` (D14.3), so its CLI could not expand one; the secret opens
 this one session and nothing else of the API. It sits in the chat's `0600` config file under the

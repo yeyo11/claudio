@@ -12,9 +12,9 @@ import { buildApp } from '../src/app.ts';
 import { requestPolicyOf } from '../src/routes/openai.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 
-// `/v1` parity and typed run errors (docs/plans/headless-image.md, D8 and D16): every `/v1` chat is
-// a confined API chat whose policy comes from the X-Claudio-* headers, is part of the conversation
-// key and is fixed for the chat; a turn that ends without its answer is a final 422 that says why.
+// `/v1` parity and typed run errors (docs/plans/headless-image.md, D8 and D16): a `/v1` chat's policy
+// comes from the X-Claudio-* headers, is part of the conversation key and is fixed for the chat (it is
+// enforced on a confined chat, headless or in a workspace, and compared on the app's own kind); a turn that ends without its answer is a final 422 that says why.
 
 const FAKE = fileURLToPath(new URL('./fixtures/fake-claude-openai.mjs', import.meta.url));
 
@@ -177,7 +177,6 @@ test('an invalid header value is a 400 invalid_request_error naming the header, 
     [{ 'x-claudio-max-budget-usd': 'NaN' }, /X-Claudio-Max-Budget-Usd/],
     [{ 'x-claudio-allowed-tools': 'Read' }, /X-Claudio-Allowed-Tools/],
     [{ 'x-claudio-allowed-tools': '[1]' }, /X-Claudio-Allowed-Tools/],
-    [{ 'x-claudio-allowed-tools': '["Bash"]' }, /X-Claudio-Allowed-Tools.*every command/],
     [{ 'x-claudio-allowed-tools': '["Read"]', 'x-claudio-tool-preset': 'read-only' }, /X-Claudio-Allowed-Tools and X-Claudio-Tool-Preset/],
     [{ 'x-claudio-workspace': '../etc' }, /X-Claudio-Workspace/],
     [{ 'x-claudio-workspace': 'ws_abc', 'x-claudio-cwd': join(root, 'workspace') }, /X-Claudio-Workspace and X-Claudio-Cwd/],
@@ -322,9 +321,12 @@ async function assertRunError(directive: string, code: string, opts: { schema?: 
 
 test('a turn the guard blocked and that ended with no answer is 422 tool_blocked naming the command and the missing rule', async () => {
   const blocked = /guard blocked a Bash call: `cat \/data\/auth\.json` matches no declared Bash rule/;
-  await assertRunError('BLOCKED cat /data/auth.json', 'tool_blocked', { headers: { 'x-claudio-allowed-tools': '["Bash(ls *)"]' }, message: blocked });
+  // The guard belongs to a confined chat: in the full profile, one in a workspace
+  const ws = await workspace();
+  const inWs = { 'x-claudio-workspace': ws.id };
+  await assertRunError('BLOCKED cat /data/auth.json', 'tool_blocked', { headers: { ...inWs, 'x-claudio-allowed-tools': '["Bash(ls *)"]' }, message: blocked });
   // Under a schema, a blocked call before a give-up is what the client fixes, not the schema
-  await assertRunError('BLOCKED cat /data/auth.json', 'tool_blocked', { schema: true, message: blocked });
+  await assertRunError('BLOCKED cat /data/auth.json', 'tool_blocked', { schema: true, headers: inWs, message: blocked });
 });
 
 test('the turn ceilings and a model that gives up on the schema are 422 max_turns, max_budget and no_structured_output', async () => {

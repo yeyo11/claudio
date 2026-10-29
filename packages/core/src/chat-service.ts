@@ -239,7 +239,7 @@ export interface ChatServiceDeps {
   /** A person continued a chat from an earlier message (`resumeSessionAt`): the lessons' S-rewound */
   rewound?: (chat: ChatSummary, resumeSessionAt: string) => void;
   /** The ephemeral workspaces (D7): a chat in one is a confined API chat, and no `cwd` may name one's folder */
-  workspaces?: Pick<Workspaces, 'resolve' | 'touch' | 'overlaps'>;
+  workspaces?: Pick<Workspaces, 'resolve' | 'touch' | 'overlaps' | 'insideRoot'>;
   /** Arms the `declared-tools` guard of a confined API chat (`guards/declared.ts`); without it such a chat is refused */
   declaredGuard?: (request: DeclaredGuardRequest) => Promise<ChatGuardPlan>;
 }
@@ -751,6 +751,8 @@ export class ChatService {
     origin?: 'api',
     /** Only core's callers pass it (the OpenAI surface's stub server): one in a body is dropped, since an entry is a command to run */
     extraMcpServers?: Record<string, Record<string, unknown>>,
+    /** Only the OpenAI-compatible routes pass it, for a chat that is not confined: kept to compare a continuation's values */
+    apiAsked?: ApiChatPolicy,
   ): Promise<ChatSummary> {
     // The name before the rename is dropped too, so a stored or replayed old body cannot carry it in
     const {
@@ -760,6 +762,7 @@ export class ChatService {
       apiClient: _api,
       extraMcpServers: _servers,
       apiPolicy: _policy,
+      apiAsked: _asked,
       apiAttachments: _files,
       ...rest
     } = body as typeof body & {
@@ -769,19 +772,30 @@ export class ChatService {
       apiClient?: unknown;
       extraMcpServers?: unknown;
       apiPolicy?: unknown;
+      apiAsked?: unknown;
       apiAttachments?: unknown;
     };
     // A workspace is reached by its id only, so only as a confined API chat: no folder may name one
-    if (typeof rest.cwd === 'string' && this.deps.workspaces?.overlaps(resolve(rest.cwd))) {
-      throw new ChatStartRefusal('cwd cannot be or hold a workspace folder: name the workspace with workspaceId', 400);
+    // Headless refuses a folder that is, holds or is inside the root; the full profile only one that
+    // is or is inside it, since a person's own folder (~) may hold a root under ~/.config (D14)
+    if (typeof rest.cwd === 'string') {
+      const cwd = resolve(rest.cwd);
+      const headless = this.deps.config.profile === 'headless';
+      if (headless ? this.deps.workspaces?.overlaps(cwd) : this.deps.workspaces?.insideRoot(cwd)) {
+        throw new ChatStartRefusal(
+          headless ? 'cwd cannot be or hold a workspace folder: name the workspace with workspaceId' : 'cwd cannot be the workspaces root or inside a workspace folder: name the workspace with workspaceId',
+          400,
+        );
+      }
     }
     if (rest.workspaceId !== undefined && typeof rest.workspaceId !== 'string') throw new ChatStartRefusal('workspaceId must be a workspace id', 400);
-    // Every chat a request starts in headless, every chat in a workspace, and every chat of the
-    // OpenAI-compatible surface (`origin: 'api'`, in any profile) is a confined API chat (D14, D8)
-    if (rest.workspaceId !== undefined || origin === 'api' || (this.deps.config.profile === 'headless' && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
+    // Every chat a request starts in headless and every chat in a workspace is a confined API chat
+    // (D14, D8); a /v1 chat in the full profile without a workspace is not, so it keeps its tools
+    if (rest.workspaceId !== undefined || (this.deps.config.profile === 'headless' && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
     const marked = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     const api = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
-    const request = extraMcpServers ? { ...api, extraMcpServers } : api;
+    const withServers = extraMcpServers ? { ...api, extraMcpServers } : api;
+    const request = origin === 'api' && apiAsked ? { ...withServers, apiAsked } : withServers;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a

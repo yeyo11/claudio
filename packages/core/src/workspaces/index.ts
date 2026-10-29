@@ -9,7 +9,7 @@ import { createGunzip } from 'node:zlib';
 import type { Workspace } from '@claudio/shared';
 import { openDownload, type DownloadOptions } from './download.ts';
 import { refuse, WorkspaceRefusal } from './refusal.ts';
-import { overlaps, type WorkspaceSettings } from './settings.ts';
+import { inside, overlaps, type WorkspaceSettings } from './settings.ts';
 import { WorkspaceStore, type WorkspaceRecord } from './store.ts';
 import { extractTar, within, type ExtractResult } from './tar.ts';
 
@@ -122,6 +122,23 @@ export class Workspaces {
     };
     const given = resolve(path);
     return overlaps(given, this.root) || overlaps(real(given), real(this.root));
+  }
+
+  /**
+   * Whether a path is the workspaces root or inside it. The full profile refuses only these: a
+   * person's folder that merely holds the root (their home, when the root sits under `~/.config`)
+   * is theirs to work in (D14).
+   */
+  insideRoot(path: string): boolean {
+    const real = (p: string): string => {
+      try {
+        return realpathSync(p);
+      } catch {
+        return p;
+      }
+    };
+    const given = resolve(path);
+    return inside(given, this.root) || inside(real(given), real(this.root));
   }
 
   async create(source: WorkspaceSource): Promise<Workspace> {

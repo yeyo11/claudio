@@ -399,10 +399,12 @@ the UI.
 
 A chat a program starts reads code someone else wrote and runs under a token that program holds, so
 it gets a policy fixed at creation and nothing beyond it. Every chat of a headless Claudio
-(`CLAUDIO_PROFILE=headless`), every chat in a workspace in any profile, and every `/v1` chat is a
-confined API chat ([the decision](decisions/confined-api-chat.md), D14 of
-[the headless plan](plans/headless-image.md)). In the full profile a person's chats,
-orchestrations, flows and the assistant are unchanged. The code is
+(`CLAUDIO_PROFILE=headless`) and every chat in a workspace in any profile is a confined API chat
+([the decision](decisions/confined-api-chat.md), D14 of [the headless plan](plans/headless-image.md)).
+That includes every `/v1` chat in headless and one with `X-Claudio-Workspace`. In the full profile a
+person's chats, orchestrations, flows and the assistant are unchanged, and so is a `/v1` chat
+without a workspace: it is the app's own kind of chat, with the app's tools and the permission mode
+it never lets bypass. The code is
 `packages/core/src/confined-chat.ts` and `ChatService.createConfined`.
 
 - **Its policy is stored with it**: workspace, declared tools, turns, budget (the request's, else
@@ -439,8 +441,9 @@ orchestrations, flows and the assistant are unchanged. The code is
   ([guards.md](guards.md#declared-tools-the-confined-api-chat)). A server whose guard cannot be armed
   refuses the chat rather than run it unguarded.
 - **Its working directory must exist** (`400 cwd-missing`, or `410 workspace-expired` in a
-  workspace), at every start and resume. No `cwd` may be or hold a workspace folder: a workspace is
-  named by its id only.
+  workspace), at every start and resume. In headless no `cwd` may be, hold or sit inside a workspace folder; in
+  the full profile none may be the workspaces root or sit inside it (a person's own folder may hold
+  the root, which is under `~/.config` on the desktop app). A workspace is named by its id only.
 
 What is kept and for how long: in headless, a chat idle `CLAUDIO_CHAT_RETENTION_DAYS` (30) is deleted
 with its rows and the CLI's session file and sidecar folder under `projects/`, since both hold what it

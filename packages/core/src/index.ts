@@ -2615,7 +2615,7 @@ export class Core {
    * open it to orchestrations, flows and the person's own chats, none of them confined
    */
   private refuseWorkspaceProject(path: unknown): void {
-    if (typeof path === 'string' && path.trim() && this.workspaces.overlaps(path.trim())) {
+    if (typeof path === 'string' && path.trim() && (this.profile === 'headless' ? this.workspaces.overlaps(path.trim()) : this.workspaces.insideRoot(path.trim()))) {
       throw new Error(`${path.trim()} is or holds a workspace folder, which cannot be a project`);
     }
   }

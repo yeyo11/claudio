@@ -157,8 +157,8 @@ test('a client tool call ends the turn with tool_calls, the process waits, and t
   assert.ok(stub);
   assert.equal(stub.type, 'http');
   assert.equal(stub.alwaysLoad, true);
-  // A /v1 chat is a confined API chat: the stub is the one server it loads (D14.1)
-  assert.equal(stub.strict, true);
+  // Only a confined API chat loads the stub alone (D14.1); this one is the app's own kind, which adds it to its servers
+  assert.ok(!stub.strict);
   assert.equal(stub.discover, -32601);
   assert.equal(stub.init, 200);
   assert.equal(stub.unauthorized, 401);

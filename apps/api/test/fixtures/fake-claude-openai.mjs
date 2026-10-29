@@ -44,7 +44,7 @@
 // recorded and skipped when the directive is read.
 //
 //   FAKE_OPENAI_LINGER_MS=<ms>  exits that long after its input ends, as a real CLI takes a moment to
-//   FAKE_OPENAI_PROMPTS=<file>  appends `{ pid, resume, sessionId, prompt, images, schema, prompts, system, stub, instruction }` per turn
+//   FAKE_OPENAI_PROMPTS=<file>  appends `{ args, pid, resume, sessionId, prompt, images, schema, prompts, system, stub, instruction }` per turn
 import { appendFileSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
@@ -366,7 +366,7 @@ lines.on('line', (line) => {
   const blocks = typeof content === 'string' ? [{ type: 'text', text: content }] : (content ?? []);
   const prompt = blocks.map((b) => b.text ?? '').join('\n');
   if (process.env.FAKE_OPENAI_PROMPTS) {
-    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema, prompts: permissionPrompts, system: flag('--append-system-prompt') ?? null, instruction: prompt.split('\n').find((l) => l.startsWith('(For this turn:')) ?? null })}\n`);
+    appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ args, pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema, prompts: permissionPrompts, system: flag('--append-system-prompt') ?? null, instruction: prompt.split('\n').find((l) => l.startsWith('(For this turn:')) ?? null })}\n`);
   }
   void answer(prompt).then(() => {
     if (process.env.FAKE_OPENAI_PROMPTS && stubSeen) appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, sessionId, stub: stubSeen })}\n`);

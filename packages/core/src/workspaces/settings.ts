@@ -49,12 +49,14 @@ function hostsFrom(value: string | undefined): string[] {
   return hosts;
 }
 
+/** Whether `child` is `parent` or inside it. */
+export function inside(child: string, parent: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
 /** Whether one path is the other, or either holds the other. */
 export function overlaps(a: string, b: string): boolean {
-  const inside = (child: string, parent: string): boolean => {
-    const rel = relative(parent, child);
-    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-  };
   return inside(a, b) || inside(b, a);
 }
 

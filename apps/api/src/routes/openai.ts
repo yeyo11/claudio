@@ -67,7 +67,7 @@ import {
   type ResultsVocabulary,
   type SystemPromptParts,
 } from '@claudio/core';
-import type { ApiChatPolicy, ModelOption, RunEvent, SpendCapRefusal } from '@claudio/shared';
+import type { ApiChatPolicy, ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
 import { deliberate } from '../errors.ts';
 import { openStream, type SseStream } from '../sse.ts';
 import { ClientToolRegistry } from './openai-tools.ts';
@@ -269,6 +269,13 @@ export function cwdOf(core: Pick<Core, 'config' | 'projectOf'>, value: string): 
   throw refuse('must be the workspace or inside a project imported into Claudio');
 }
 
+/** The mode a chat that is not confined runs in: nobody is there to answer a prompt. */
+function permissionModeOf(core: Core): PermissionMode {
+  const mode = core.appSettings.defaultPermissionMode;
+  // An unattended request that can run anything without asking is the one thing this surface never does
+  return mode === 'bypassPermissions' ? 'manual' : mode;
+}
+
 /** A header's value refused: OpenAI's 400, naming the header, since no body field is at fault. */
 const badHeader = (name: string, why: string): V1Failure => fail({ kind: 'invalid-request', message: `${headerName(name)} ${why}`, param: null });
 
@@ -280,11 +287,22 @@ const WHOLE = /^[1-9]\d{0,5}$/;
 const AMOUNT = /^\d{1,6}(?:\.\d{1,6})?$/;
 
 /**
- * The policy a request asks for (D8, D14): every `/v1` chat is a confined API chat, and this is what
- * it is created with and what a continuation is compared with. The declared tools are
+ * Whether a request's chat is a confined API chat (D14): every chat of a headless Claudio, and a
+ * chat in a workspace in any profile. In the full profile without a workspace a `/v1` chat is the
+ * person's own kind of chat, with the app's tools, as it was before the headless profile.
+ */
+export function isConfinedRequest(core: Pick<Core, 'profile'>, read: (name: string) => string | undefined): boolean {
+  return core.profile === 'headless' || read(WORKSPACE_HEADER) !== undefined;
+}
+
+/**
+ * The policy a request asks for (D8, D14): what a confined chat is created with, and what any `/v1`
+ * chat's continuation is compared with. The declared tools are
  * `X-Claudio-Allowed-Tools`, else the rules of `X-Claudio-Tool-Preset`, else the app's default
  * preset in the full profile and none at all in headless (D14.8). The budget falls back to
- * `CLAUDIO_CHAT_BUDGET_USD`. Every invalid value is a 400 naming its header.
+ * `CLAUDIO_CHAT_BUDGET_USD`. Every invalid value is a 400 naming its header. For a chat that is not
+ * confined (`isConfinedRequest`) the policy is only what is compared: its declared rules are
+ * not refused (a preset with a bare `Bash` works there, as it always did).
  */
 export function requestPolicyOf(
   core: Pick<Core, 'config' | 'profile' | 'toolPresets'>,
@@ -323,6 +341,15 @@ export function requestPolicyOf(
     const preset = core.profile === 'headless' ? null : core.toolPresets.defaultPreset();
     declared = preset?.allowedTools ?? [];
     from = `the default tool preset '${preset?.id ?? ''}' (send ${headerName(ALLOWED_TOOLS_HEADER)} instead)`;
+  }
+  if (!isConfinedRequest(core, read)) {
+    return {
+      workspaceId: null,
+      allowedTools: [...declared],
+      maxTurns: turns !== undefined ? Number(turns) : null,
+      maxBudgetUsd: budgetUsd ?? core.config.chatBudgetUsd,
+      schema: context.schema,
+    };
   }
   const problem = declaredToolsProblem(declared);
   if (problem) throw fail({ kind: 'invalid-request', message: `${from}: ${problem.message}`, param: null });
@@ -1034,7 +1061,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       const report = (err: unknown): void => req.log.error({ err, scope: 'openai' }, 'writing the answer failed');
       const current = new TurnRun<Item>(core, translator, openTurns, report, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
-      const startOpts = { provider: model.provider, cwd, policy, ignored, effortName: names.effort, tools, wantsTools, requestTools: request.tools, apply, system };
+      const confined = isConfinedRequest(core, (name) => header(req, name));
+      const asked = { toolPreset: header(req, TOOL_PRESET_HEADER), allowedTools: header(req, ALLOWED_TOOLS_HEADER) !== undefined, maxBudget: header(req, MAX_BUDGET_HEADER) !== undefined };
+      const startOpts = { provider: model.provider, cwd, policy, confined, asked, ignored, effortName: names.effort, tools, wantsTools, requestTools: request.tools, apply, system };
       /** Whether the chat's process runs with `system` now; false when it had to keep its own */
       let applied: boolean;
       try {
@@ -1277,9 +1306,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     return core.runtime.get(id)?.origin === 'api' && (await core.chats.get(id)) !== null;
   }
 
-  /** Whether a chat runs with the policy a request asks for; a chat from before policies (none stored) never does */
+  /** Whether a chat runs with the policy a request asks for, confined (its policy) or not (what its request declared); a chat from before policies (none stored) never does */
   function runsWith(chatId: string, policy: ApiChatPolicy): boolean {
-    const own = core.runtime.get(chatId)?.policy ?? null;
+    const live = core.runtime.get(chatId);
+    const own = live?.policy ?? live?.asked ?? null;
     return own !== null && samePolicy(own, policy);
   }
 
@@ -1333,7 +1363,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   function existingTurnPlan(
     id: string,
     turn: OpenAiChatTurn,
-    opts: { tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools']; system: string },
+    opts: { confined: boolean; tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools']; system: string },
     ending: boolean,
   ): { runtime: NonNullable<ReturnType<Core['runtime']['get']>>; restart: boolean; keepsPrompt: boolean } {
     const { tools } = opts;
@@ -1358,8 +1388,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     // there is no room), as after the idle timeout
     const leaving = core.runtime.isLeaving(id);
     // A confined chat's live settings do not change (`ChatManager.updateSettings` refuses them): another
-    // model is a new process, resumed with it
-    const modelChanged = turn.model !== (core.runtime.modelOf(id) ?? runtime.model);
+    // model is a new process, resumed with it. Any other chat takes the new model on its live process
+    const modelChanged = opts.confined && turn.model !== (core.runtime.modelOf(id) ?? runtime.model);
     const restart = runtime.pid !== null && (schemaChanged || toolsChanged || systemChanged || modelChanged || leaving);
     if (tools && (restart || runtime.pid === null) && !registry.servers(core, tools)) {
       // A new prompt alone is not worth refusing the turn for: the live process, which serves the
@@ -1372,9 +1402,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
   /**
    * Sends the turn: a new chat, a message to a live process that is idle, or a resume of one nobody
-   * holds. The run is attached before anything is sent, so no event of the turn is missed. Every chat
-   * is a confined API chat (D14): `dontAsk`, the declared tools only, no MCP server but the client-tool
-   * stub. A chat with client tools has its session as the permission host, which holds the client's
+   * holds. The run is attached before anything is sent, so no event of the turn is missed. A confined
+   * chat (headless, or in a workspace; D14) runs `dontAsk` with the declared tools only and no MCP
+   * server but the client-tool stub; in the full profile without a workspace the chat is the app's own
+   * kind, with its tool preset and the app's permission mode. A chat with client tools has its session as the permission host, which holds the client's
    * calls and refuses everything else at once (spike change 1); core starts its process in the mode
    * that asks the host (`ChatManager.confineApiChat`).
    * Resolves to whether the chat's process runs with `opts.system`: false only when a live process
@@ -1389,8 +1420,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     opts: {
       provider: string;
       cwd: string | undefined;
-      /** The confined API chat's policy (`requestPolicyOf`): a new chat is created with it, an existing one runs with it */
+      /** The request's policy (`requestPolicyOf`): a confined chat is created with it and runs with it; any other only stores it to compare */
       policy: ApiChatPolicy;
+      /** Whether the chat is a confined API chat (`isConfinedRequest`) */
+      confined: boolean;
+      /** What the request named itself, which an unconfined chat is given as plain options: the preset, the rules, the budget */
+      asked: { toolPreset: string | undefined; allowedTools: boolean; maxBudget: boolean };
       ignored: string[];
       /** What `x-claudio-ignored` calls the effort a live process cannot take */
       effortName: string;
@@ -1402,7 +1437,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       system: string;
     },
   ): Promise<boolean> {
-    const { tools, policy } = opts;
+    const { tools, policy, confined } = opts;
+    // Nobody is there to answer a prompt: the app's mode, never one that runs anything unasked
+    const permissionMode = confined ? CONFINED_PERMISSION_MODE : permissionModeOf(core);
+    const prompts = tools ? 'host' : 'none';
     const servers = (): Record<string, Record<string, unknown>> => {
       const listed = tools ? registry.servers(core, tools) : null;
       if (!listed) throw fail({ kind: 'unavailable', message: "Client tools need the API's own address, which is not known yet." });
@@ -1431,11 +1469,22 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           ...(opts.system ? { appendSystemPrompt: opts.system } : {}),
           ...(turn.jsonSchema ? { jsonSchema: turn.jsonSchema } : {}),
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
-          ...(policy.workspaceId !== null ? { workspaceId: policy.workspaceId } : {}),
-          allowedTools: [...policy.allowedTools],
-          ...(policy.maxTurns !== null ? { maxTurns: policy.maxTurns } : {}),
-          maxBudgetUsd: policy.maxBudgetUsd,
-          permissionMode: CONFINED_PERMISSION_MODE,
+          ...(confined
+            ? {
+                ...(policy.workspaceId !== null ? { workspaceId: policy.workspaceId } : {}),
+                allowedTools: [...policy.allowedTools],
+                ...(policy.maxTurns !== null ? { maxTurns: policy.maxTurns } : {}),
+                maxBudgetUsd: policy.maxBudgetUsd,
+                permissionMode,
+              }
+            : {
+                // The tools are the app's: the rules a request declared, the preset it named, else the default preset
+                ...(opts.asked.allowedTools ? { allowedTools: [...policy.allowedTools] } : opts.asked.toolPreset ? { toolPreset: opts.asked.toolPreset } : {}),
+                ...(policy.maxTurns !== null ? { maxTurns: policy.maxTurns } : {}),
+                ...(opts.asked.maxBudget ? { maxBudgetUsd: policy.maxBudgetUsd } : {}),
+                permissionMode,
+                permissionPrompts: prompts,
+              }),
         },
         (started) => {
           host(started.id);
@@ -1445,6 +1494,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         undefined,
         'api',
         extra,
+        confined ? undefined : policy,
       );
       if (current.chatId) served(current.chatId);
       return true;
@@ -1466,7 +1516,14 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       opts.apply();
       host(id);
       if (runtime.pid !== null && !restart) {
-        // The live process runs as its policy started it: a model, a schema or a stub that differs restarted it above
+        // A confined chat's live process runs as its policy started it: a model, a schema or a stub that
+        // differs restarted it above
+        if (!confined) {
+          // The same rules as a start or a resume, on the live process: nobody answers a prompt here
+          if (runtime.permissionPrompts !== prompts) core.runtime.setPermissionPrompts(id, prompts);
+          if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
+          if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
+        }
         if (turn.effort) opts.ignored.push(opts.effortName);
         current.attach(id);
         await core.chats.send(id, { text: prompt, attachments });
@@ -1483,7 +1540,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         // prompt holds the conversation's part whether or not this request resent it, so it is empty
         // only when the conversation has none and the request no `instructions`
         appendSystemPrompt: opts.system,
-        permissionMode: CONFINED_PERMISSION_MODE,
+        ...(!confined && opts.asked.toolPreset ? { toolPreset: opts.asked.toolPreset } : {}),
+        permissionMode,
+        ...(confined ? {} : { permissionPrompts: prompts }),
       }, { jsonSchema: turn.jsonSchema ?? null, extraMcpServers: tools ? servers() : null });
       served(id);
       current.replay();

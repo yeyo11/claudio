@@ -423,6 +423,14 @@ test('overlaps names the root, what is inside it and what holds it, so none can 
   }
 });
 
+test('insideRoot names the root and what is inside it, not what holds it', () => {
+  const r = rig();
+  assert.equal(r.ws.insideRoot(r.root), true);
+  assert.equal(r.ws.insideRoot(join(r.root, 'ws_AAAAAAAAAAAAAAAA', 'x')), true);
+  assert.equal(r.ws.insideRoot(join(r.root, '..')), false);
+  assert.equal(r.ws.insideRoot(join(r.root, '..', 'workspace')), false);
+});
+
 // ---------- settings ----------
 
 test('settings default to codeload.github.com and the plan caps, and refuse a root that overlaps Claudio\'s own folders', () => {

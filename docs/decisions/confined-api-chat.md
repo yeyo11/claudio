@@ -38,9 +38,10 @@ and that the first form broke attachments and the full profile's chats.
 
 ## Decision
 
-**Every chat of a headless Claudio, every chat in a workspace in any profile, and every `/v1` chat is
-a confined API chat.** There is no other kind in headless. In the full profile, a person's chats,
-orchestrations, flows and the assistant are unchanged. A confined API chat:
+**Every chat of a headless Claudio and every chat in a workspace in any profile is a confined API
+chat.** There is no other kind in headless. In the full profile, a person's chats, orchestrations,
+flows and the assistant are unchanged, and so is a `/v1` chat without a workspace (the first build
+confined it too, which broke the app; brought back on 2026-10-29). A confined API chat:
 
 1. **Starts confined**, through the confinement Claudio already had for its own runs:
    `--restricted`, `--tools=` the declared tools only (plus `StructuredOutput` for a schema),
