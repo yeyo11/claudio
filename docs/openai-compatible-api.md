@@ -307,7 +307,7 @@ of the full profile without a workspace is not confined, so it refuses no rule.
 |---|---|---|
 | `Authorization: Bearer <token>` | in | The owner's API token, or a chat's own `CLAUDIO_API_TOKEN` from this machine |
 | `X-Claudio-Chat-Id` | in | Continue this chat; its policy must be the request's (`409 policy_mismatch`) |
-| `X-Claudio-Workspace` | in | A workspace id from `POST /api/workspaces` ([D7 of the headless plan](plans/headless-image.md)): the chat runs in its copy of the source tree, read only. Unknown is `404 workspace_not_found`, expired `410 workspace_expired`; together with `X-Claudio-Cwd` a `400`. Part of the policy and the key |
+| `X-Claudio-Workspace` | in | A workspace id from `POST /api/workspaces` ([workspaces.md](workspaces.md)): the chat runs in its copy of the source tree, read only. Unknown is `404 workspace_not_found`, expired `410 workspace_expired`; together with `X-Claudio-Cwd` a `400`. Part of the policy and the key |
 | `X-Claudio-Max-Turns` | in | `maxTurns`: a whole number from 1. Reaching it is `422 max_turns`. Part of the policy and the key |
 | `X-Claudio-Max-Budget-Usd` | in | `maxBudgetUsd`: a positive amount; absent, `CLAUDIO_CHAT_BUDGET_USD` (1 USD by default). Part of the policy and the key |
 | `X-Claudio-Allowed-Tools` | in | The declared tools, a JSON array of Claude Code permission rules (`["Read","Grep","Bash(ls *)"]`); `[]` is none. A bare `Bash` or `Bash(*)` is a `400`, and so is a write tool in a workspace; together with `X-Claudio-Tool-Preset` a `400`. Part of the policy and the key |
