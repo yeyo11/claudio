@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-10-29T12:00:00Z
 tags:
     - deploy
     - docker
@@ -8,6 +8,7 @@ tags:
     - tls
     - operations
     - updates
+    - headless
 ---
 # Deploying Claudio
 
@@ -251,6 +252,96 @@ One thing the allowlist does not do: it only stops a browser, which cannot choos
 sends. Anything scripted sets its own `Host` and walks past it. It closes DNS rebinding; it is not
 access control, and it is no substitute for turning the guard on.
 
+## Headless, next to a project
+
+When Claudio is a project's AI backend rather than a person's app, run the **headless image**: the
+same server under `CLAUDIO_PROFILE=headless`, which serves only the API such a program calls (chats,
+`/v1`, the model list, [workspaces](workspaces.md), the sign-in and the probes) and answers
+`404 route not found` to everything else. There is no web UI, no websocket, no terminal, no tunnel
+and no in-app update: the image is the version, and a new one is a new tag. Every chat is a
+[confined API chat](security-model.md#the-confined-api-chat). The plan is
+[plans/headless-image.md](plans/headless-image.md).
+
+Run **one per project**, each with its own data and sign-in volumes, sharing no filesystem with the
+project: code reaches Claudio as a workspace (`POST /api/workspaces`, a `tar.gz` from a URL or the
+request body), never through a volume both mount.
+
+```yaml
+services:
+  claudio:
+    image: ghcr.io/yeyo11/claudio:<version>-headless
+    init: true
+    restart: unless-stopped
+    environment:
+      CLAUDIO_AUTH_MODE: token
+      CLAUDIO_AUTH_TOKEN: ${CLAUDIO_TOKEN:?}
+      CLAUDIO_DAILY_SPEND_CAP_USD: "5"
+    volumes:
+      - claude-config:/home/node/.claude
+      - claudio-data:/data
+    stop_grace_period: 30s
+  app:
+    environment:
+      CLAUDIO_URL: http://claudio:8797
+      CLAUDIO_TOKEN: ${CLAUDIO_TOKEN:?}
+
+volumes:
+  claude-config:
+  claudio-data:
+```
+
+Then sign the Claude account in, once:
+
+```bash
+docker compose exec claudio claudio login
+```
+
+`claudio login` asks the server to start Claude Code's own paste-code sign-in, prints the page to
+open, reads the code without echoing it, sends it and waits until the sign-in ends; Ctrl-C cancels
+it on the server too. `claudio status` says whether the server can take work, and `--json` adds the
+account and its last usage reading. Both talk to the server over HTTP only, so they work from another
+machine as well:
+
+```text
+claudio login  [--url URL] [--token TOKEN] [--account default]
+claudio status [--url URL] [--token TOKEN] [--json]
+```
+
+The URL defaults to `http://127.0.0.1:$PORT` (8797), the token to `--token`, then
+`CLAUDIO_AUTH_TOKEN`, then the first-run token file in the data directory. Exit codes: 0 done (or
+ready), 1 failed or expired (or not ready), 2 a usage or connection error, a refused token included.
+If the server cannot start at all, `docker compose run --rm --entrypoint claude claudio auth login`
+signs the CLI in directly; Claudio learns of it at its next check.
+
+What the headless profile requires and changes:
+
+- **It refuses to start** without `CLAUDIO_DAILY_SPEND_CAP_USD`, with `CLAUDIO_AUTH_MODE=none` unless
+  it listens on loopback only, or with a permission mode other than `dontAsk` (the image sets it).
+  Every problem is named at once. Unset auth variables still give the [first-run
+  token](#the-first-run-token). A chat that names no budget gets `CLAUDIO_CHAT_BUDGET_USD` (1 USD).
+  [configuration.md](configuration.md#headless) has every variable.
+- **The compose service name reaches it.** A single-label `Host` such as `claudio`, which only
+  Docker's embedded DNS answers for, is accepted besides loopback and `CLAUDIO_ALLOWED_HOSTS`. A
+  program on the host network reaches it on `127.0.0.1:8797` instead.
+- **Readiness.** `GET /api/ready`, with no credential, answers `200 { ready: true }`, or `503` with
+  `reason` `cli-missing`, `signed-out`, `sign-in-expired` or `starting`; it spawns nothing. The
+  image's healthcheck stays on `/api/health`, since a signed-out Claudio is alive and must not be
+  restarted.
+- **Retention.** A chat idle 30 days (`CLAUDIO_CHAT_RETENTION_DAYS`) is deleted, with the CLI's
+  session file, since both hold what it read of a repository.
+- **Workspaces live in `/workspaces`** inside the container, not on a volume: each is a copy, gone two
+  hours after its last use.
+
+The image is built from the `headless` stage of `docker/Dockerfile` and published by `image.yml`
+beside the full one, tagged `<version>-headless` and `headless` (where the full image gets
+`latest`). It carries Node, Claude Code (pinned and checksummed as in the full image), `git`,
+`ripgrep`, `procps`, `curl` (for the healthcheck), and `/app/api.mjs`, `mcp.mjs` (the `/v1`
+client-tool stub), `guard.mjs`, `launcher.mjs` and `cli.mjs` (linked as `/usr/local/bin/claudio`).
+It leaves out the web build, gh, glab, Tailscale, `youtrack-app`, pnpm, python3, node-pty and the
+terminal host, iroh and the collaborators host, and `docker/keys`. It measured 648 MB on
+2026-10-29, against 1.43 GB for the full 0.10.0 image: Claude Code's binary alone is 273 MB and the Node base
+about 245 MB.
+
 ## Kubernetes (Helm)
 
 ```bash
@@ -485,7 +576,7 @@ like the rest of the volume. A `login` account is signed in from the Accounts pa
 Set `CLAUDIO_DAILY_SPEND_CAP_USD` in `.env` (or `dailySpendCapUsd` in Settings → Runs & spend) to stop an
 unattended deployment from spending without limit: over the cap new flow runs, orchestration tasks,
 schedule fires and decisions wait until the server's local midnight, and a person's new turn asks
-first. Nothing running is stopped. The figure is the sum of the `total_cost_usd` of each `result`
+first. Nothing running is stopped. A headless server does not start without it ([Headless](#headless-next-to-a-project)). The figure is the sum of the `total_cost_usd` of each `result`
 the CLI reports, so on a subscription account it is the API price of the same use. Unset means no
 cap. The setting follows the layers of [layered-settings.md](layered-settings.md): a value from the
 environment wins over the file and cannot be changed from Settings.
@@ -713,4 +804,4 @@ Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_perio
 
 ## Related
 
-[[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[updates.md]] · [[decisions/container-owner-token.md]] · [[decisions/container-in-app-updates.md]] · [[security-model.md]] · [[securing.md]] · [[configuration.md]] · [[rest-api.md]]
+[[workspaces.md]] · [[plans/headless-image.md]] · [[guards.md]] · [[desktop.md]] · [[status.md]] · [[plans/mobile.md]] · [[plans/app-updates.md]] · [[tunnel.md]] · [[plans/tunnel.md]] · [[code-hosts.md]] · [[container-state.md]] · [[setup.md]] · [[updates.md]] · [[decisions/container-owner-token.md]] · [[decisions/container-in-app-updates.md]] · [[security-model.md]] · [[securing.md]] · [[configuration.md]] · [[rest-api.md]]

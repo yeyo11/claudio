@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-10-29T12:00:00Z
 tags:
     - security
     - secrets
@@ -122,6 +122,8 @@ the one rule, applied by `childEnv`, by the accounts' `envFor`, by `runCommand` 
   switches of the browser suite's fake Claude Code. A variable the server adds tomorrow is dropped
   without anyone remembering to;
 - the terminal is stricter: its shell gets no `CLAUDIO_*` at all (`terminals/env.ts`).
+- a confined API chat is stricter too: no `CLAUDIO_API_URL` and no token, only `CLAUDIO_CHAT_ID`
+  ([The confined API chat](#the-confined-api-chat)).
 
 Why: on 2026-10-18 a worker ran `pnpm dev` in its worktree, and the dev server read the desktop's
 `CLAUDIO_DATA_DIR` and `PORT` from the worker's environment. It opened the owner's live data
@@ -393,6 +395,68 @@ departure or an unshare describes an unmodified Claudio; a modified one keeps wh
 Transcripts are shared as they are, tool output included, which is the group's trust and is stated in
 the UI.
 
+## The confined API chat
+
+A chat a program starts reads code someone else wrote and runs under a token that program holds, so
+it gets a policy fixed at creation and nothing beyond it. Every chat of a headless Claudio
+(`CLAUDIO_PROFILE=headless`), every chat in a workspace in any profile, and every `/v1` chat is a
+confined API chat ([the decision](decisions/confined-api-chat.md), D14 of
+[the headless plan](plans/headless-image.md)). In the full profile a person's chats,
+orchestrations, flows and the assistant are unchanged. The code is
+`packages/core/src/confined-chat.ts` and `ChatService.createConfined`.
+
+- **Its policy is stored with it**: workspace, declared tools, turns, budget (the request's, else
+  `CLAUDIO_CHAT_BUDGET_USD`, 1 USD by default), and whether it answers a schema. The chat's view
+  carries it as `policy`. Each of its processes, a resume included, starts from that policy alone.
+- **It starts confined**, with the confinement Claudio already used for its own runs: `--restricted`
+  (the file tools stay in the working directory), `--tools=` the declared tools only (plus
+  `StructuredOutput` for a schema), `--setting-sources=` empty (no user, project or local settings,
+  so a repository's `.claude/settings.json`, its hooks, permission rules and `additionalDirectories`
+  are never read), `--strict-mcp-config` with no server but the `/v1` client-tool stub when the
+  request carries client tools, and the guard's settings file, which sets
+  `permissions.blockReadsOutsideWorkingDirectories`. One `--add-dir` per folder of the chat's own
+  attachments, never the uploads folder.
+- **It runs in `dontAsk`.** Another `permissionMode` is a `400`; a headless server refuses to start
+  with another default mode. The one exception is a `/v1` chat with client tools, which runs in
+  `manual` with its client-tool session as the permission host: that session holds the client's
+  calls and denies everything else at once, the same policy, because `dontAsk` would deny the client's
+  calls before anyone could hold them ([openai-compatible-api.md](openai-compatible-api.md)).
+- **It has no way back into Claudio**: no `CLAUDIO_API_URL`, no `CLAUDIO_API_TOKEN`; `claudioMcp`,
+  `mcp`, a worktree, an agent or host prompts in the request are a `400`. The client-tool stub
+  authenticates with a secret of its own session, not with an API token.
+- **It cannot be widened.** `PATCH`, fork, `resume` over REST and the MCP switches answer `409`. A
+  `/v1` continuation with another policy is `409 policy_mismatch`. A bare `Bash` or `Bash(*)` and a
+  write tool (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) in a workspace are refused at creation.
+- **It defaults to no tools.** With none declared and no preset it can only answer. Presets are read
+  only in headless.
+- **Git reads only the run's configuration**: `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`
+  and `GIT_CEILING_DIRECTORIES` at the workspaces root and the folder holding the working directory,
+  so a hostile `.git` above it is never found. A workspace cannot hold a `.git` folder at all
+  ([workspaces.md](workspaces.md)).
+- **The `declared-tools` guard is behind it**, always enforcing, as defence in depth: Claude Code's
+  built-in read-only commands run under `dontAsk` whatever the rules say, and may read outside the
+  working directory; the guard blocks every subcommand and path the chat did not declare
+  ([guards.md](guards.md#declared-tools-the-confined-api-chat)). A server whose guard cannot be armed
+  refuses the chat rather than run it unguarded.
+- **Its working directory must exist** (`400 cwd-missing`, or `410 workspace-expired` in a
+  workspace), at every start and resume. No `cwd` may be or hold a workspace folder: a workspace is
+  named by its id only.
+
+What is kept and for how long: in headless, a chat idle `CLAUDIO_CHAT_RETENTION_DAYS` (30) is deleted
+with its rows and the CLI's session file and sidecar folder under `projects/`, since both hold what it
+read of a repository.
+
+Limits:
+
+- `CLAUDIO_CHAT_ID` stays in the chat's environment: it finds stray processes, and is an id, not a
+  credential.
+- After a restart a confined chat can no longer read by path the attachments of earlier turns: only
+  the files of the turn being sent are added again.
+- A file that is neither an image nor a PDF, sent later to a live process, is refused (`400`): the
+  running guard does not know it.
+- What the CLI keeps per session outside `projects/` (`todos/`, `file-history/`, `session-env/`,
+  `shell-snapshots/`, `debug/`) is not removed by the retention sweep.
+
 ## Guards
 
 Orchestration workers and the flow run with deterministic `PreToolUse` hooks that block skipping git
@@ -437,4 +501,4 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 ## Related
 
 [[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]]
+[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]]

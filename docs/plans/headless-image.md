@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T04:00:00Z
+updated_at: 2026-10-29T12:00:00Z
 tags:
     - plan
     - docker
@@ -12,7 +12,9 @@ tags:
 ---
 # Plan: a headless image, one Claudio per project
 
-Status: **planned**, decisions taken by the owner on 2026-10-28; nothing is built. The design is the
+Status: **built** on 2026-10-29 by orchestration `f354f179`, every decision D1–D16 in code, not yet
+released; the checks with the real CLI are the owner's ([Outcome](#outcome)). Decisions taken by the
+owner on 2026-10-28. The design is the
 definitive one: no interim path (shared volumes, fallbacks to another surface) is planned or kept,
 by the owner's decision and the consumers' replies (below). It was reviewed for leaks on 2026-10-28
 ([Review](#review-2026-10-28)), which reshaped D12 into the confined API chat (D14).
@@ -565,6 +567,95 @@ content.
 None. Both consumers answered on 2026-10-28, the review's findings are in the decisions, and the owner
 approved the result the same day.
 
+## Outcome
+
+Built on 2026-10-29 by orchestration `f354f179`, one worktree per task (`profile`, `cli-image`,
+`workspaces`, `guard`, then `confined-chat`, then `v1`, then `review` and `docs`), merged into one
+branch. Not released yet; the release note comes from the commits.
+
+### What was built
+
+- **Profile** (D1, D2, D4, D6, D10, D11, D15): `CLAUDIO_PROFILE`, the allowlist
+  `apps/api/src/headless.ts` and the subsystem table `packages/core/src/subsystems.ts` (both recorded
+  in the [Inventory](#inventory)), the start refusals (`headlessStartProblems`), `profile` on
+  `GET /api/system`, `GET /api/ready` (`core.readiness()`), the launcher ignoring overlays, the
+  single-label `Host`, and the retention sweeper `packages/core/src/chat-retention.ts`.
+- **The command and the image** (D3): `claudio login` and `claudio status [--json]` in
+  `apps/api/src/cli/`, bundled as `cli.mjs`; the `headless` stage of `docker/Dockerfile`, before
+  `runtime`; `image.yml` builds and tags it.
+- **Workspaces** (D7): `packages/core/src/workspaces/`, the `workspaces` table, the three routes
+  ([workspaces.md](../workspaces.md)).
+- **The `declared-tools` guard** (D14.5): `packages/core/src/guards/rules/declared-tools.ts`, the
+  builder `guards/declared.ts` and `DECLARED_CORPUS` ([guards.md](../guards.md#declared-tools-the-confined-api-chat)).
+- **The confined API chat** (D14 1–4, 6–8) and D9: `packages/core/src/confined-chat.ts`,
+  `ChatService.createConfined` and its resume, `workspaceId` and `policy` on chats, `cwd-missing`
+  ([security-model.md](../security-model.md#the-confined-api-chat),
+  [the decision](../decisions/confined-api-chat.md)).
+- **`/v1`** (D8, D13, D16): the four headers, the policy in the conversation key (seed version 2),
+  `409 policy_mismatch`, the typed `422` run errors whole and streamed, the start refusals in OpenAI's
+  shape ([openai-compatible-api.md](../openai-compatible-api.md)).
+
+### Measures
+
+The headless image measured **648 MB** (cli-image, 2026-10-29), against 1.43 GB for 0.10.0: over the
+500 MB goal. The Claude Code 2.1.302 binary alone is 273 MB and the `node:26-bookworm-slim` base
+about 245 MB, so the goal cannot be reached on this base; `git` and the `perl` it pulls in add about
+90 MB. The container's memory and process count with a finished workspace chat were not measured:
+no task ran the image's server or a real turn.
+
+### What differs from the plan
+
+- **D1 is enforced by hiding, not by registering route by route.** Every plugin still registers its
+  routes; in headless an `onRoute` hook turns each one outside the allowlist into a `404 route not
+  found` that runs before its body parser, hooks or handler, and leaves it out of the OpenAPI
+  document. `/api/auth` is dropped whole; `/accounts/refresh`, `/accounts/settings` and
+  `/accounts/policies` stay for rotation; `GET /uploads/:id` is dropped. The supervisor does not run
+  in headless.
+- **Every `/v1` chat is a confined API chat, in both profiles**, not only in headless or a workspace.
+  Without declared tools it has none in headless and the app's default preset in the full profile.
+- **D14.2: a `/v1` chat with client tools runs in `manual`**, with its client-tool session as the
+  permission host, since `dontAsk` would deny the client's calls before the session could hold them.
+  The effective policy is the same; `review` was asked to validate it.
+- **Workspaces** gained two refusal codes, `workspace-timeout` (`408`) and `workspace-download-failed`
+  (`502`). A `DELETE` while creating is `409`, of one already removed `204`; a removed id answers
+  `410` for 30 days. The tar reader is Claudio's own over `node:zlib`. Outside the image the root
+  defaults to `workspaces` beside the data directory.
+- **The guard's choices**: `cd`, `pushd` and `popd` need no rule (their target is checked as a path);
+  leading variable assignments are blocked except `LANG`, `LC_*`, `TZ`, `NO_COLOR`, `TERM`,
+  `COLUMNS`; only the wrappers Claude Code strips itself pass undeclared; interpreters such as `awk`
+  are blocked even when declared. Shipcast's `git ls-files | grep | head` needs `Bash(git ls-files *)`,
+  which the plan's rule list lacks. `GuardRuleId` gained `declared-tools`, kept out of the switchable
+  ids.
+- **D15** needed no fix: deleting a chat already removed its session file and sidecar folder.
+- **The image** keeps `curl` (the healthcheck uses it). Its tag suffix also gives the shorter version
+  tags, `edge` and `sha` a `-headless` copy. `cli.mjs` also lands in the signed server bundle, which
+  is harmless. `claudio status` reads `GET /api/accounts` too, for the last usage reading.
+- **D9**: the orchestrator now creates its task's folder itself, which `begin` used to.
+
+### What is not done
+
+- **The checks with the real CLI**, the owner's after the merge (Checklist 4, 5 and 9): a sign-in in
+  the image, a workspace from a real GitHub tarball, the caps against a large real repository, the
+  hostile workspace (hooks, `permissions.allow`, `.mcp.json`) with the real CLI, a `/v1` structured
+  turn in a workspace with declared tools, a blocked read of `/data/auth.json` through a declared
+  `Bash(cat *)`, a `429` at the spend cap, trading-bot's request; whether `--tools` accepts
+  `StructuredOutput`; and the `/v1` client-tool flow in a confined chat.
+- **The after measures** of the container (memory, processes).
+- **No browser spec** was written or run for this plan; the API and core suites cover it.
+- **Follow-ups found on the way:**
+  - the start warning for a server with no account still says to sign in under Settings
+    (`apps/api/src/server.ts`); in headless it should name `claudio login`;
+  - `apps/api/test/headless.test.ts` still allows the workspaces routes to be missing, from before
+    their plugin existed;
+  - after a restart a confined chat cannot read by path the attachments of earlier turns, and a file
+    that is neither an image nor a PDF, sent later to a live process, is refused;
+  - what the CLI keeps per session outside `projects/` (`todos/`, `file-history/`, `session-env/`,
+    `shell-snapshots/`, `debug/`) is not removed by retention;
+  - `docs/openai-compatible-api.md` links to this plan for workspaces; it should link to
+    [workspaces.md](../workspaces.md).
+- **The move on `apps-1`** (shipcast and trading-bot each on its own Claudio, then `stacks/claudio`
+  removed) and telling shipcast which release carries D7, D8, D10 and D11 wait for the release.
+
 ## Inventory
 
 Plan task 1, recorded by the `profile` task on 2026-10-28 against the code of its branch. The
@@ -706,4 +797,4 @@ deletes through the same `ChatService.remove`.
 
 ## Related
 
-[[openai-compatible-api.md]] · [[plans/openai-compatible-api.md]] · [[plans/container-polish.md]] · [[guards.md]] · [[plans/guards.md]] · [[security-model.md]] · [[decisions/claude-sign-in-paste-code.md]] · [[decisions/container-owner-token.md]] · [[decisions/container-in-app-updates.md]] · [[deploy.md]] · [[rest-api.md]] · [[cli-surfaces.md]] · [[status.md]]
+[[openai-compatible-api.md]] · [[plans/openai-compatible-api.md]] · [[plans/container-polish.md]] · [[guards.md]] · [[plans/guards.md]] · [[security-model.md]] · [[decisions/claude-sign-in-paste-code.md]] · [[decisions/container-owner-token.md]] · [[decisions/container-in-app-updates.md]] · [[deploy.md]] · [[rest-api.md]] · [[cli-surfaces.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[configuration.md]] · [[status.md]]
