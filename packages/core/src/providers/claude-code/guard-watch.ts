@@ -12,7 +12,7 @@ export const GUARD_MARK = 'claudio-guard/1 ';
  */
 export const GUARD_UNHOOKED_TOOLS: ReadonlySet<string> = new Set(['StructuredOutput']);
 
-const RULES: ReadonlySet<string> = new Set(['integrity', 'no-verify', 'push', 'destructive', 'secrets', 'protect-configs']);
+const RULES: ReadonlySet<string> = new Set(['integrity', 'no-verify', 'push', 'destructive', 'secrets', 'protect-configs', 'declared-tools']);
 /** Block markers the guard prints when it failed rather than judged: the call was blocked, the cause is ours */
 const FAULT_MATCHERS: ReadonlySet<string> = new Set(['integrity.guard-error', 'integrity.deadline', 'integrity.rules-unavailable', 'integrity.input-too-large', 'integrity.bad-input']);
 const EXCERPT_MAX = 240;
