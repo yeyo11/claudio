@@ -1,4 +1,4 @@
-import type { AccountsSettings, SettingDefault } from '@claudio/shared';
+import type { Account, AccountsSettings, SettingDefault } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,14 +8,19 @@ import { NumberInput, Slider, Switch } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Segmented } from '@claudio/ui/components/ui';
 import { ServerSettingChange } from '../config/SettingChange';
+import { rotationOrder, settingsView, type AccountsSettingsView } from '../../lib/accounts';
+import { AccountOrderList } from './AccountOrderList';
 
 const STRATEGIES = ['order', 'least-used'] as const;
 
 /**
  * `accounts.json` as one card: when work moves to another account and which one it takes. Nothing
- * applies until Save, so a half-edited threshold never reaches a chat that is about to start.
+ * applies until Save, so a half-edited threshold never reaches a chat that is about to start. With
+ * "In order", the order itself is listed under the strategy; while switching at the limit is off,
+ * the fields that only apply to a switch are read-only.
  */
-export function RotationCard({ settings }: { settings: AccountsSettings }) {
+export function RotationCard({ settings: saved, accounts }: { settings: AccountsSettings; accounts: readonly Account[] }) {
+  const settings = settingsView(saved);
   const { t } = useTranslation(['accountsConfig', 'config']);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -24,13 +29,17 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
   // top. A new saved copy (after a Reset or a Save elsewhere) is then shown at once for every field
   // nobody edited, with nothing to keep in step: two writers of a whole draft raced in the PR #55
   // reviews, and either flashed Discard or kept a stale value that Save wrote back
-  const [edits, setEdits] = useState<Partial<AccountsSettings>>({});
-  const draft: AccountsSettings = { ...settings, ...edits };
-  const edit = (patch: Partial<AccountsSettings>) => setEdits((now) => ({ ...now, ...patch }));
+  const [edits, setEdits] = useState<Partial<AccountsSettingsView>>({});
+  const draft: AccountsSettingsView = { ...settings, ...edits };
+  const edit = (patch: Partial<AccountsSettingsView>) => setEdits((now) => ({ ...now, ...patch }));
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  const order = rotationOrder(draft.order, accounts);
+  const switching = draft.rotateOnLimit;
 
+  // Only the edited fields are sent: the preferred account is set from its card, and a Save here
+  // must not write back the copy this card had before that
   const mutation = useMutation({
-    mutationFn: (next: Partial<AccountsSettings>) => api.putAccountsSettings(next),
+    mutationFn: (next: Partial<AccountsSettingsView>) => api.putAccountsSettings(next),
     onSuccess: (saved) => {
       // The saved copy first, so dropping the edits never shows the old values for a frame
       queryClient.setQueryData(keys.accountsSettings, saved);
@@ -42,12 +51,12 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
   });
 
   // A Reset drops that field's unsaved edit, if any, so it shows the saved default; the other edits stay
-  const dropEdit = (field: keyof AccountsSettings) => () =>
+  const dropEdit = (field: keyof AccountsSettingsView) => () =>
     setEdits((now) => {
       const { [field]: _dropped, ...rest } = now;
       return rest;
     });
-  const change = (setting: string, label: string, field: keyof AccountsSettings, wording?: (value: SettingDefault) => string) => (
+  const change = (setting: string, label: string, field: keyof AccountsSettingsView, wording?: (value: SettingDefault) => string) => (
     <ServerSettingChange id={`accounts.${setting}`} label={label} {...(wording ? { wording } : {})} invalidate={[keys.accountsSettings]} onReset={dropEdit(field)} />
   );
 
@@ -57,7 +66,7 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
         className="rotation-form"
         onSubmit={(e) => {
           e.preventDefault();
-          mutation.mutate(draft);
+          mutation.mutate(edits);
         }}
       >
         <div className="rotation-head">
@@ -76,8 +85,8 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
         <div className="rotation-grid">
           <div className="rotation-field setting-change-row" data-setting="accounts.threshold">
             <span className="section-label">{t('rotation.threshold')}</span>
-            <Slider aria-label={t('rotation.threshold')} min={50} max={99} value={draft.threshold} onChange={(threshold) => edit({ threshold })} />
-            <span className="field-hint">{t('rotation.thresholdAt', { percent: formatPercent(draft.threshold) })}</span>
+            <Slider aria-label={t('rotation.threshold')} min={50} max={99} value={draft.threshold} disabled={!switching} onChange={(threshold) => edit({ threshold })} />
+            <span className="field-hint">{switching ? t('rotation.thresholdAt', { percent: formatPercent(draft.threshold) }) : t('rotation.appliesWhenOn')}</span>
             {change('threshold', t('rotation.threshold'), 'threshold', (value) => (typeof value === 'number' ? formatPercent(value) : ''))}
           </div>
           <div className="rotation-field setting-change-row" data-setting="accounts.strategy">
@@ -88,6 +97,14 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
               onChange={(strategy) => edit({ strategy })}
               options={STRATEGIES.map((s) => ({ value: s, label: t(`rotation.strategies.${s}`) }))}
             />
+            {draft.strategy === 'order' && order.length > 1 && (
+              <>
+                <span className="sr-only" id={`${id}-order`}>
+                  {t('rotation.order')}
+                </span>
+                <AccountOrderList order={order} accounts={accounts} labelledBy={`${id}-order`} onChange={(next) => edit({ order: next })} />
+              </>
+            )}
             {change('strategy', t('rotation.strategy'), 'strategy', (value) => t(`rotation.strategies.${STRATEGIES.find((s) => s === value) ?? 'order'}`))}
           </div>
           {/* Not a <label>: the stepper's own buttons would take its name */}
@@ -99,9 +116,10 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
               max={50}
               step={1}
               value={draft.hysteresis}
+              disabled={!switching}
               onChange={(hysteresis) => edit({ hysteresis: hysteresis ?? 0 })}
             />
-            <span className="field-hint">{t('rotation.hysteresisHint')}</span>
+            <span className="field-hint">{switching ? t('rotation.hysteresisHint') : t('rotation.appliesWhenOn')}</span>
             {change('hysteresis', t('rotation.hysteresis'), 'hysteresis')}
           </div>
           <div className="rotation-field setting-change-row" data-setting="accounts.cooldown">
@@ -112,9 +130,10 @@ export function RotationCard({ settings }: { settings: AccountsSettings }) {
               max={86_400}
               step={60}
               value={draft.cooldownSeconds}
+              disabled={!switching}
               onChange={(cooldownSeconds) => edit({ cooldownSeconds: cooldownSeconds ?? 0 })}
             />
-            <span className="field-hint">{t('rotation.cooldownHint')}</span>
+            <span className="field-hint">{switching ? t('rotation.cooldownHint') : t('rotation.appliesWhenOn')}</span>
             {change('cooldown', t('rotation.cooldown'), 'cooldownSeconds')}
           </div>
         </div>

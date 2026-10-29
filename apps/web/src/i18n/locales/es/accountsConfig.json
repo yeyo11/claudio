@@ -82,7 +82,7 @@
     "refreshing": "Leyendo el uso…"
   },
   "kind": {
-    "login": "Inicio de sesión",
+    "login": "Cuenta de Claude",
     "token": "Token",
     "api-key": "Clave de API"
   },
@@ -94,6 +94,7 @@
   "card": {
     "inUse": "en uso",
     "default": "predeterminada",
+    "preferred": "Preferida",
     "free": "libre",
     "exhausted": "agotada",
     "runningHigh": "casi al límite",
@@ -102,6 +103,8 @@
     "signedOut": "sin sesión",
     "holdOut": "Apartar",
     "returnToRotation": "Volver a la rotación",
+    "prefer": "Usar esta cuenta",
+    "preferFor": "Usar esta cuenta: {{name}}",
     "remove": "Quitar cuenta",
     "more": "Más acciones de {{name}}",
     "noUsage": "Aún no se ha leído el uso.",
@@ -133,6 +136,8 @@
     "backInRotationFailed": "No se ha podido devolver {{name}} a la rotación",
     "removed": "{{name}} quitada",
     "removeFailed": "No se ha podido quitar {{name}}",
+    "preferred": "El trabajo nuevo empieza en {{name}}",
+    "preferFailed": "No se ha podido hacer de {{name}} la cuenta preferida",
     "signedInAgain": "{{name}} ha vuelto a iniciar sesión",
     "refreshFailed": "No se ha podido leer el uso de {{names}}",
     "refreshError": "No se ha podido leer el uso"
@@ -140,6 +145,11 @@
   "remove": {
     "title": "¿Quitar {{name}}?",
     "body": "Claudio olvida la cuenta y borra su directorio de configuración. Los chats iniciados en ella conservan sus transcripciones."
+  },
+  "holdOut": {
+    "title": "¿Apartar {{name}}?",
+    "preferredBody": "Es tu cuenta preferida: el trabajo nuevo empezará en otra.",
+    "lastBody": "Claudio se quedará sin ninguna cuenta en la que empezar trabajo."
   },
   "dialog": {
     "title": "Añadir una cuenta",
@@ -194,7 +204,7 @@
     "rotateHint": "Apagado: el chat espera a que su cuenta se reinicie en lugar de pasar a otra.",
     "threshold": "Umbral",
     "thresholdAt": "cuenta como en su límite desde el {{percent}} de 5 h o 7 días",
-    "strategy": "Qué cuenta primero",
+    "strategy": "Adónde va el trabajo cuando la cuenta preferida está llena",
     "strategies": {
       "order": "En orden",
       "least-used": "La menos usada"
@@ -204,6 +214,8 @@
     "cooldown": "Enfriamiento (segundos)",
     "cooldownHint": "Cuánto se deja en paz a una cuenta que llegó a un límite si no se conoce su reinicio.",
     "offHint": "Nada se aplica hasta que guardes.",
+    "appliesWhenOn": "Se aplica cuando el cambio al llegar al límite está activado",
+    "order": "El orden en que se toman las cuentas",
     "updated": "Ajustes guardados",
     "updateFailed": "No se han podido guardar los ajustes"
   },

@@ -369,7 +369,7 @@ function LimitRow({ chat }: { chat: Chat }) {
     <>
       <dt>{t('limit.row.title')}</dt>
       <dd>
-        <Tag tone="warn">{waiting ? t('limit.row.waiting') : t('limit.row.reached')}</Tag> {windowOf(state.status?.limit?.window)}
+        <Tag tone="warn">{waiting ? t('limit.row.waiting') : t('limit.row.reached')}</Tag> {windowOf(state.window)}
         <div className="small muted tnum">{at === null ? t('limit.row.resetUnknown') : t(waiting ? 'limit.row.resumes' : 'limit.row.until', { at: formatHour(at) })}</div>
       </dd>
     </>

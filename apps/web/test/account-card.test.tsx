@@ -114,3 +114,52 @@ test('opening Accounts reads the CLI when an account has no answer from it or an
   assert.equal(usageStale([account({ limits: null, signedIn: false })], NOW), false, 'a signed-out account cannot answer');
   assert.equal(usageStale([account({ limits: null, enabled: false })], NOW), false);
 });
+
+// ---------- the Accounts page items of assistant-everything §6 and C4's preference ----------
+
+const renderWith = async (a: Account, props: { preferred?: boolean; onPrefer?: () => void } = {}): Promise<string> => {
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  return renderToStaticMarkup(<AccountCard account={a} current={false} busy={false} onToggle={() => undefined} onRemove={() => undefined} onSignInAgain={() => undefined} {...props} />);
+};
+const words = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+test('the organisation and the kind are one line with a separator between them', async () => {
+  assert.match(words(await render(account())), /Org · Sign-in/);
+  setLanguage('es');
+  await i18n.changeLanguage('es');
+  const es = words(renderToStaticMarkup(<AccountCard account={account()} current={false} busy={false} onToggle={() => undefined} onRemove={() => undefined} onSignInAgain={() => undefined} />));
+  assert.match(es, /Org · Cuenta de Claude/);
+});
+
+test('Hold out is the card\'s own button and is not in its menu again', async () => {
+  const html = await render(account({ id: 'work' }));
+  assert.equal((words(html).match(/Hold out/g) ?? []).length, 1);
+  // The default account cannot be removed, so it has no menu at all
+  assert.doesNotMatch(await render(account()), /account-more/);
+});
+
+test('Use this account sets the preference; the preferred one carries the tag instead', async () => {
+  const offered = await renderWith(account({ id: 'work' }), { onPrefer: () => undefined });
+  assert.match(words(offered), /Use this account/);
+  assert.doesNotMatch(words(offered), /Preferred/);
+  const chosen = await renderWith(account({ id: 'work' }), { preferred: true, onPrefer: () => undefined });
+  assert.doesNotMatch(words(chosen), /Use this account/);
+  assert.match(chosen, /<span class="badge badge-muted"><span class="badge-text">Preferred<\/span><\/span>/);
+  // An account that cannot take work cannot be preferred
+  assert.doesNotMatch(words(await renderWith(account({ id: 'off', enabled: false }), { onPrefer: () => undefined })), /Use this account/);
+});
+
+test('a fresh reading does not repeat the page\'s "read … ago"; an old one says how old it is', async () => {
+  const fresh = { ...limit(), observedAt: new Date().toISOString() };
+  assert.doesNotMatch(words(await render(account({ limits: fresh }))), /read from/);
+  const old = { ...limit(), observedAt: new Date(Date.now() - 3 * 3_600_000).toISOString() };
+  assert.match(words(await render(account({ limits: old }))), /read from the CLI/);
+});
+
+test('a window running high is a warn tag even when its bar is bad; only a spent window is bad', async () => {
+  const high = { ...limit(), windows: { five_hour: { utilization: 0.8, resetsAt: later(3600) } } };
+  const html = await render(account({ limits: high }));
+  assert.match(html, /badge-warn[^>]*>(<[^>]+>)*[^<]*running high/);
+  assert.doesNotMatch(html, /badge-bad/);
+});

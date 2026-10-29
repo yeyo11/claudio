@@ -1,6 +1,6 @@
 import type { Account, Project, RotationPolicy } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Check, Pencil, Plus, Route, Trash2, X } from 'lucide-react';
+import { Check, Pencil, Plus, Route, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatPercent } from '@claudio/ui/lib/format';
@@ -11,6 +11,7 @@ import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field } from '@claudio/ui/components/ui';
+import { AccountOrderList } from './AccountOrderList';
 
 interface Draft {
   /** Absent while a new policy is being written */
@@ -66,16 +67,6 @@ function PolicyForm({
     },
   });
 
-  const move = (index: number, by: -1 | 1) => {
-    const next = [...draft.order];
-    const other = index + by;
-    const a = next[index];
-    const b = next[other];
-    if (a === undefined || b === undefined) return;
-    next[index] = b;
-    next[other] = a;
-    onChange({ ...draft, order: next });
-  };
   const toggleProject = (id: string) =>
     onChange({ ...draft, projects: draft.projects.includes(id) ? draft.projects.filter((p) => p !== id) : [...draft.projects, id] });
 
@@ -137,25 +128,13 @@ function PolicyForm({
         {draft.order.length === 0 ? (
           <p className="muted small">{t('policies.orderEmpty')}</p>
         ) : (
-          <ol className="list" aria-labelledby="policy-order">
-            {draft.order.map((id, i) => (
-              <li key={id} className="list-row list-row-flow small">
-                <span className="count">{i + 1}</span>
-                <span className="break">{nameOf(accounts, id)}</span>
-                <span className="row-actions">
-                  <button type="button" className="icon-btn" disabled={i === 0} aria-label={t('policies.moveEarlier', { name: nameOf(accounts, id) })} onClick={() => move(i, -1)}>
-                    <ArrowUp {...ICON_SM} />
-                  </button>
-                  <button type="button" className="icon-btn" disabled={i === draft.order.length - 1} aria-label={t('policies.moveLater', { name: nameOf(accounts, id) })} onClick={() => move(i, 1)}>
-                    <ArrowDown {...ICON_SM} />
-                  </button>
-                  <button type="button" className="icon-btn" aria-label={t('policies.removeAccount', { name: nameOf(accounts, id) })} onClick={() => onChange({ ...draft, order: draft.order.filter((n) => n !== id) })}>
-                    <X {...ICON_SM} />
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ol>
+          <AccountOrderList
+            order={draft.order}
+            accounts={accounts}
+            labelledBy="policy-order"
+            onChange={(order) => onChange({ ...draft, order })}
+            onRemove={(id) => onChange({ ...draft, order: draft.order.filter((n) => n !== id) })}
+          />
         )}
         <div className="chips" role="group" aria-label={t('policies.addAccount')}>
           {accounts
