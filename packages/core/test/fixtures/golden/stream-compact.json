@@ -135,6 +135,7 @@
           "isError": false,
           "turns": 0,
           "costUsd": 0.0040927,
+          "subtype": "success",
           "permissionDenials": []
         }
       }
@@ -223,6 +224,7 @@
           "isError": false,
           "turns": 0,
           "costUsd": 0.010194425,
+          "subtype": "success",
           "permissionDenials": []
         }
       }

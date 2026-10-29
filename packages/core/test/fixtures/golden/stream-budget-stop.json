@@ -111,6 +111,7 @@
         "isError": true,
         "turns": 2,
         "costUsd": 1.01,
+        "subtype": "error_max_budget_usd",
         "permissionDenials": [],
         "cause": "budget"
       }

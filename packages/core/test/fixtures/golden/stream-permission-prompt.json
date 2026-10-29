@@ -94,6 +94,7 @@
         "isError": false,
         "turns": 1,
         "costUsd": 0.01,
+        "subtype": "success",
         "permissionDenials": []
       }
     },
