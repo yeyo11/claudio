@@ -536,7 +536,7 @@ declaredBash((env) => `cat ${env.dataDir}/wrapper.db`, SHIPCAST, 'declared-tools
 declaredBash("cat 'README.md", SHIPCAST, 'integrity', 'integrity.unparseable');
 
 // Option values of a declared command
-declaredBash('git log --output=/tmp/x', ['Bash(git log *)'], 'declared-tools', 'declared-tools.path');
+declaredBash('git log --output=/tmp/x', ['Bash(git log *)'], 'declared-tools', 'declared-tools.option');
 declaredBash('git -C /data log', ['Bash(git *)'], 'declared-tools', 'declared-tools.path');
 declaredBash('git -c core.fsmonitor=./x log', ['Bash(git *)'], 'integrity', 'integrity.git-config-key');
 declaredBash('git -c color.ui=never log', ['Bash(git *)'], 'declared-tools', 'declared-tools.option');
@@ -544,6 +544,53 @@ declaredBash('rg --pre cat x', ['Bash(rg *)'], 'declared-tools', 'declared-tools
 // A line the reader cannot read: an output process substitution
 declaredBash('grep x README.md > >(cat)', SHIPCAST, 'integrity', 'integrity.unparseable');
 declaredBash('git log --oneline -5', ['Bash(git log *)'], 'pass');
+
+// Short options grouped or with their value attached, and long ones abbreviated: the pattern they
+// carry is not the first operand, which is the path read
+for (const command of ['grep -e. /data/auth.json', 'grep -ve^$ /etc/passwd', 'grep -Ee. /etc/passwd', 'grep --regex=. /etc/passwd', 'grep --rege . /etc/passwd', 'grep -hf/data/auth.json x', 'grep -rf /data/auth.json x .', 'grep -Fxf /etc/passwd README.md']) {
+  declaredBash(command, ['Bash(grep *)'], 'declared-tools', 'declared-tools.path');
+}
+for (const command of ['rg -e. /etc/passwd', 'rg -wf /data/auth.json README.md', 'rg --files /etc', 'rg --files ../..']) {
+  declaredBash(command, ['Bash(rg *)'], 'declared-tools', 'declared-tools.path');
+}
+// Options that run a program, write a file or follow links out, whatever rule declares the command
+for (const [command, rule] of [
+  ['sort -S 1 --compress-program=sh README.md', 'Bash(sort *)'],
+  ['sort --compress=sh README.md', 'Bash(sort *)'],
+  ['sort -o README.md README.md', 'Bash(sort *)'],
+  ['sort -uo out README.md', 'Bash(sort *)'],
+  ['tee out', 'Bash(tee *)'],
+  ['tee -a README.md', 'Bash(tee *)'],
+  ['git grep -Osh -l x', 'Bash(git grep *)'],
+  ['git grep --open-files-in-pager=sh -l x', 'Bash(git grep *)'],
+  ['git log -1 --format=%B --output=.git/config', 'Bash(git log *)'],
+  ['git diff --ext-diff', 'Bash(git diff *)'],
+  ['git show --textconv HEAD', 'Bash(git show *)'],
+  ['git config diff.external ./x.sh', 'Bash(git config *)'],
+  ['git config --add diff.external ./x.sh', 'Bash(git config *)'],
+  ['tar -I id -tf x.tar', 'Bash(tar *)'],
+  ['tar --to-command=sh -xf x.tar', 'Bash(tar *)'],
+  ['tar --checkpoint-action=exec=id -tf x.tar', 'Bash(tar *)'],
+  ['grep -R x .', 'Bash(grep *)'],
+  ['rg -L x', 'Bash(rg *)'],
+] as const) {
+  declaredBash(command, [rule], 'declared-tools', 'declared-tools.option');
+}
+// Their read-only forms still pass
+for (const [command, rule] of [
+  ['grep -rn x .', 'Bash(grep *)'],
+  ['grep -e foo -e bar README.md', 'Bash(grep *)'],
+  ['grep -A3 x README.md', 'Bash(grep *)'],
+  ['rg --files', 'Bash(rg *)'],
+  ['rg -n x src', 'Bash(rg *)'],
+  ['sort -k2 -t, README.md', 'Bash(sort *)'],
+  ['git config --get user.name', 'Bash(git config *)'],
+  ['git config --list', 'Bash(git config *)'],
+  ['git diff HEAD~1 --stat', 'Bash(git diff *)'],
+  ['head -n5 README.md', 'Bash(head *)'],
+] as const) {
+  declaredBash(command, [rule], 'pass');
+}
 
 // Tools: only the declared ones, besides StructuredOutput and the /v1 client-tool stub's
 declaredTool('WebFetch undeclared', 'WebFetch', () => ({ url: 'https://example.com', prompt: 'x' }), SHIPCAST, 'declared-tools', 'declared-tools.tool');
@@ -569,6 +616,10 @@ declaredTool('Grep outside', 'Grep', () => ({ pattern: 'token', path: '/data' })
 declaredTool('Glob in the workspace', 'Glob', () => ({ pattern: '**/*.ts' }), SHIPCAST, 'pass');
 declaredTool('Glob with an absolute pattern', 'Glob', () => ({ pattern: '/data/**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
 declaredTool('Glob climbing out', 'Glob', () => ({ pattern: '../../**/*.json' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob climbing out after a wildcard', 'Glob', () => ({ pattern: '**/../../x' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob climbing out in a brace', 'Glob', () => ({ pattern: '{..,.}/../**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob absolute in a brace', 'Glob', () => ({ pattern: '{/,.}data/**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob with a brace inside', 'Glob', () => ({ pattern: 'src/**/*.{ts,tsx}' }), SHIPCAST, 'pass');
 
 // Trading-bot's exact request: no tools and a schema; the answer passes, nothing else
 declaredTool('trading-bot: StructuredOutput', 'StructuredOutput', () => ({ action: 'hold', confidence: 0.4 }), TRADING_BOT, 'pass');

@@ -236,16 +236,22 @@ export async function extractTar(source: AsyncIterable<Buffer>, dest: string, op
     if (++entries > opts.maxEntries) throw refuse('workspace-too-large', `the archive holds more than ${String(opts.maxEntries)} entries`);
     const bodyPadding = (BLOCK - (size % BLOCK)) % BLOCK;
 
+    // A file where the archive later puts a folder, or the other way round, is a damaged archive, not a server error
+    const folder = (path: string): Promise<unknown> =>
+      mkdir(path, { recursive: true, mode: 0o755 }).catch(() => {
+        throw bad(`'${shown(name)}' cannot be written where the archive puts it`);
+      });
     if (type === '5') {
-      if (rel) await mkdir(join(dest, rel), { recursive: true, mode: 0o755 });
-      await input.skip(size + bodyPadding);
+      // A folder has no body: a size on one would be decompressed past every cap for nothing
+      if (size !== 0) throw bad(`'${shown(name)}' is a folder that claims a body`);
+      if (rel) await folder(join(dest, rel));
       continue;
     }
     if (!rel || name.endsWith('/')) throw bad(`'${shown(name)}' is a file without a name`);
     // Refused before anything is read, and again as each chunk is written
     if (bytes + size > opts.maxBytes) throw refuse('workspace-too-large', `the archive holds more than ${String(Math.floor(opts.maxBytes / (1024 * 1024)))} MB`);
     const target = join(dest, rel);
-    await mkdir(dirname(target), { recursive: true, mode: 0o755 });
+    await folder(dirname(target));
     // `wx`: a name the archive holds twice, or a file where a folder already is, is refused, never overwritten
     const file = await open(target, 'wx', 0o444).catch((err: NodeJS.ErrnoException) => {
       throw bad(err.code === 'EEXIST' ? `'${shown(name)}' appears twice in the archive` : `'${shown(name)}' cannot be written where the archive puts it`);

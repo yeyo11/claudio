@@ -55,7 +55,6 @@ async function wrapper(env: NodeJS.ProcessEnv = {}): Promise<Wrapper> {
 const auth = { authorization: `Bearer ${TOKEN}` };
 /** A path that matches a registered url, its parameters filled in */
 const concrete = (url: string) => url.replace(/:[A-Za-z]+/g, 'x').replace(/\*$/, 'x');
-const WORKSPACES = /^[A-Z]+ \/api\/workspaces/;
 
 test('every route a headless Claudio registers is in the allowlist or answers 404 route not found', async (t) => {
   const { app, core, routes } = await wrapper();
@@ -72,9 +71,9 @@ test('every route a headless Claudio registers is in the allowlist or answers 40
   }
   assert.deepEqual(leaks, []);
 
-  // Each D1 route is really registered (the workspaces ones arrive with their own task's plugin)
+  // Each D1 route is really registered
   const registered = new Set(routes.map((r) => `${r.method} ${r.url}`));
-  const missing = [...HEADLESS_ROUTES].filter((route) => !registered.has(route) && !WORKSPACES.test(route));
+  const missing = [...HEADLESS_ROUTES].filter((route) => !registered.has(route));
   assert.deepEqual(missing, []);
 });
 
@@ -264,4 +263,22 @@ test('a headless server does not start without a spend cap or in a mode but dont
     await server.close();
   }
   assert.equal(existsSync(join(root, 'data')), true);
+});
+
+test('over the daily spend cap a headless /v1 call is a 429 with Retry-After, on both endpoints (D13)', async (t) => {
+  const { app, core } = await wrapper({ CLAUDIO_DAILY_SPEND_CAP_USD: '1' });
+  t.after(async () => {
+    await app.close();
+    await core.shutdown();
+  });
+  core.db.addSpend({ at: new Date().toISOString(), chatId: 'seed', executionId: 'seed', usd: 5, reported: true, purpose: 'flow', account: null, accountKind: null, projectId: null, orchestrationId: null });
+  for (const [url, payload] of [
+    ['/api/v1/chat/completions', { model: 'sonnet', messages: [{ role: 'user', content: 'x' }] }],
+    ['/api/v1/responses', { model: 'sonnet', input: 'x' }],
+  ] as const) {
+    const res = await app.inject({ method: 'POST', url, headers: { ...auth, 'content-type': 'application/json' }, payload });
+    assert.equal(res.statusCode, 429, `${url}: ${res.body.slice(0, 200)}`);
+    assert.ok(Number(res.headers['retry-after']) >= 1, url);
+    assert.equal(res.json<{ error: { code: string } }>().error.code, 'rate_limit_exceeded', url);
+  }
 });

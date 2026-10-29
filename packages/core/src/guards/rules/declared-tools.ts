@@ -22,9 +22,14 @@ export function parsePermissionRule(rule: string): { tool: string; spec: string 
   return { tool: match[1], spec: match[2] ?? null };
 }
 
-/** `Bash`, `Bash()`, `Bash(*)` and `Bash(:*)` allow every command, which a confined chat may not declare */
+/**
+ * `Bash`, `Bash()`, `Bash(*)`, `Bash(:*)`, and any rule whose command is itself a wildcard
+ * (`Bash(**)`, `Bash(* *)`, `Bash(*:*)`) allow every command, which a confined chat may not declare
+ */
 export function isUnrestrictedBash(spec: string | null): boolean {
-  return spec === null || ['', '*', ':*'].includes(spec.trim());
+  if (spec === null) return true;
+  const command = spec.trim().replace(/:\*$/, ' *').split(/\s+/)[0] ?? '';
+  return command === '' || command.includes('*');
 }
 
 /**
@@ -154,8 +159,12 @@ interface Shape {
   files?: ReadonlySet<string>;
   /** Options whose value is neither a path nor a pattern to skip */
   values?: ReadonlySet<string>;
-  /** Options that run a program or rewrite what the command runs */
+  /** Options that run a program, rewrite what the command runs, write a file or follow links out */
   refused?: ReadonlySet<string>;
+  /** Options after which there is no pattern operand (`rg --files`) */
+  noPattern?: ReadonlySet<string>;
+  /** Every operand is a file the command writes: refused unless it is `/dev/null` (`tee`) */
+  writesOperands?: boolean;
 }
 
 const set = (...items: string[]): ReadonlySet<string> => new Set(items);
@@ -165,6 +174,8 @@ const GREP: Shape = {
   patternFiles: set('-f', '--file'),
   files: set('--exclude-from'),
   values: set('-A', '-B', '-C', '-m', '-d', '-D', '--max-count', '--after-context', '--before-context', '--context', '--color', '--colour', '--binary-files', '--devices', '--directories', '--label', '--exclude', '--include', '--exclude-dir', '--group-separator'),
+  // `-R` follows every link, out of the working directory too, as `find -L` would
+  refused: set('-R', '--dereference-recursive'),
 };
 const SHAPES: Record<string, Shape> = {
   grep: GREP,
@@ -176,18 +187,31 @@ const SHAPES: Record<string, Shape> = {
     patternFiles: set('-f', '--file'),
     files: set('--ignore-file'),
     values: set('-A', '-B', '-C', '-m', '-g', '--glob', '--iglob', '-t', '--type', '-T', '--type-not', '--type-add', '-M', '--max-columns', '-j', '--threads', '--max-depth', '-d', '--sort', '--sortr', '-E', '--encoding', '--color', '--colors', '-r', '--replace', '--max-filesize', '--context-separator', '--field-match-separator', '--path-separator'),
-    refused: set('--pre', '--pre-glob'),
+    refused: set('--pre', '--pre-glob', '-L', '--follow'),
+    noPattern: set('--files', '--type-list'),
   },
   cut: { values: set('-d', '-f', '-b', '-c', '--delimiter', '--fields', '--bytes', '--characters', '--output-delimiter') },
   head: { values: set('-n', '-c', '--lines', '--bytes') },
   tail: { values: set('-n', '-c', '--lines', '--bytes', '--pid', '-s', '--sleep-interval') },
-  sort: { values: set('-t', '-k', '--field-separator', '--key', '-S', '--buffer-size', '--parallel') },
+  // `--compress-program` runs a program on sort's temporary files, and `-o` writes one
+  sort: { values: set('-t', '-k', '--field-separator', '--key', '-S', '--buffer-size', '--parallel'), refused: set('--compress-program', '-o', '--output', '--files0-from') },
+  tee: { writesOperands: true },
+  tar: { refused: set('-I', '--use-compress-program', '--to-command', '--checkpoint-action', '-F', '--info-script', '--new-volume-script', '--rsh-command', '--rmt-command') },
   ls: { values: set('-I', '--ignore', '--hide', '-w', '--width', '--format', '--sort', '--time', '--time-style', '-T', '--tabsize', '--block-size', '--quoting-style', '--indicator-style', '--color') },
-  // `-c` and `--config-env` set configuration that makes git run programs (`core.fsmonitor`, `diff.external`)
-  git: { refused: set('-c', '--config-env', '--exec-path') },
+  // `-c` and `--config-env` set configuration that makes git run programs (`core.fsmonitor`,
+  // `diff.external`); `--output` writes a file, `.git/config` included; `--ext-diff`, `--textconv`
+  // and `grep -O` run programs; `--upload-pack` and the like run one for a remote
+  git: { refused: set('-c', '--config-env', '--exec-path', '--output', '--ext-diff', '--textconv', '-O', '--open-files-in-pager', '--upload-pack', '--receive-pack', '--exec') },
 };
 
 const sub = (word: Word, text: string): Word => ({ ...word, text });
+
+/** What a long option stands for: itself, or the known ones it abbreviates (getopt takes a unique prefix) */
+function longOptions(name: string, shape: Shape): string[] {
+  const known = [shape.refused, shape.patternOpts, shape.patternFiles, shape.files, shape.values, shape.noPattern].flatMap((group) => [...(group ?? [])]);
+  if (known.includes(name)) return [name];
+  return known.filter((option) => option.startsWith('--') && option.startsWith(name));
+}
 
 /** The words of a command that may name a path, options' values included */
 function pathWords(argv: readonly Word[], shape: Shape): { words: Word[]; refused: string | null } {
@@ -195,6 +219,29 @@ function pathWords(argv: readonly Word[], shape: Shape): { words: Word[]; refuse
   const operands: Word[] = [];
   let ended = false;
   let patternGiven = false;
+  let noPattern = false;
+  /** What the options `names` (one, or the ones an abbreviation may stand for) do with their value */
+  const apply = (names: readonly string[], value: () => Word | null): string | 'value' | null => {
+    const refused = names.find((name) => shape.refused?.has(name));
+    if (refused) return refused;
+    if (names.some((name) => shape.noPattern?.has(name))) noPattern = true;
+    if (names.some((name) => shape.patternFiles?.has(name) || shape.files?.has(name))) {
+      if (names.some((name) => shape.patternFiles?.has(name))) patternGiven = true;
+      const taken = value();
+      if (taken) words.push(taken);
+      return 'value';
+    }
+    if (names.some((name) => shape.patternOpts?.has(name))) {
+      patternGiven = true;
+      value();
+      return 'value';
+    }
+    if (names.some((name) => shape.values?.has(name))) {
+      value();
+      return 'value';
+    }
+    return null;
+  };
   for (let i = 1; i < argv.length; i++) {
     const word = argv[i];
     if (!word) continue;
@@ -207,25 +254,42 @@ function pathWords(argv: readonly Word[], shape: Shape): { words: Word[]; refuse
       operands.push(word);
       continue;
     }
-    const eq = text.startsWith('--') ? text.indexOf('=') : -1;
-    const name = eq > 0 ? text.slice(0, eq) : text;
-    const inline = eq > 0 ? text.slice(eq + 1) : null;
-    if (shape.refused?.has(name)) return { words, refused: name };
-    const takeValue = (): Word | null => (inline !== null ? sub(word, inline) : (argv[++i] ?? null));
-    if (shape.patternOpts?.has(name)) {
-      patternGiven = true;
-      takeValue();
-    } else if (shape.patternFiles?.has(name) || shape.files?.has(name)) {
-      if (shape.patternFiles?.has(name)) patternGiven = true;
-      const value = takeValue();
-      if (value) words.push(value);
-    } else if (shape.values?.has(name)) takeValue();
-    else if (inline !== null) words.push(sub(word, inline));
-    // `-f/data/x`: a short option with its value attached
-    else if (!text.startsWith('--') && text.length > 2 && text.includes('/')) words.push(sub(word, text.slice(2)));
+    if (text.startsWith('--')) {
+      const eq = text.indexOf('=');
+      const name = eq > 0 ? text.slice(0, eq) : text;
+      const inline = eq > 0 ? text.slice(eq + 1) : null;
+      const found = apply(longOptions(name, shape), () => (inline !== null ? sub(word, inline) : (argv[++i] ?? null)));
+      if (found !== null && found !== 'value') return { words, refused: found };
+      // An option nobody listed, with a value attached: the value may be a path
+      if (found === null && inline !== null) words.push(sub(word, inline));
+      continue;
+    }
+    // A group of short options (`-rhf FILE`, `-ve.`), letter by letter as getopt reads it: the first
+    // that takes a value takes the rest of the group, or the next word
+    let taken = false;
+    for (let k = 1; k < text.length && !taken; k++) {
+      const rest = text.slice(k + 1);
+      const found = apply([`-${text.charAt(k)}`], () => (rest !== '' ? sub(word, rest) : (argv[++i] ?? null)));
+      if (found !== null && found !== 'value') return { words, refused: found };
+      taken = found === 'value';
+    }
+    // `-f/data/x` of a command whose options are not known: its value may be attached
+    if (!taken && text.length > 2 && text.includes('/')) words.push(sub(word, text.slice(2)));
   }
-  if (shape.pattern && !patternGiven) operands.shift();
+  if (shape.writesOperands) {
+    const written = operands.find((operand) => operand.text !== '/dev/null');
+    if (written) return { words, refused: `writing ${written.text}` };
+  }
+  if (shape.pattern && !patternGiven && !noPattern) operands.shift();
   return { words: [...words, ...operands], refused: null };
+}
+
+/** Whether a `git config` writes: a value it sets could name a program git runs later (`core.fsmonitor`) */
+function gitConfigWrites(argv: readonly Word[]): boolean {
+  const texts = argv.slice(1).map((word) => word.text);
+  const at = texts.findIndex((text) => !text.startsWith('-'));
+  if (at < 0 || texts[at] !== 'config') return false;
+  return !texts.slice(at + 1).some((text) => ['--get', '--get-all', '--get-regexp', '--list', '-l', 'get', 'list'].includes(text));
 }
 
 /**
@@ -448,8 +512,9 @@ function checkCommand(cmd: Cmd, ctx: RuleContext, declared: DeclaredTools, polic
     if ('matcher' in found) return found;
     paths = found.files;
   } else {
+    if (base === 'git' && gitConfigWrites(cmd.argv)) return block('option', `${where}: git config may only read in a confined chat (--get, --list)`);
     const found = pathWords(cmd.argv, SHAPES[base] ?? {});
-    if (found.refused) return block('option', `${where}: ${base} ${found.refused} runs a program or changes what runs`);
+    if (found.refused) return block('option', `${where}: ${base} ${found.refused} runs a program, writes a file or reads outside the working directory`);
     paths = found.words;
   }
   for (const word of paths) {
@@ -474,10 +539,21 @@ function checkFileTool(ctx: RuleContext, declared: DeclaredTools): Block | null 
     if (found) return found;
   }
   const pattern = input.pattern;
-  if (ctx.input.tool_name === 'Glob' && typeof pattern === 'string' && (pattern.startsWith('/') || pattern.startsWith('~') || pattern.split('/').includes('..'))) {
+  if (ctx.input.tool_name === 'Glob' && typeof pattern === 'string') {
+    // Each alternative of a brace on its own (`{..,.}/**`), and a `..` after a wildcard (`**/../x`),
+    // which no prefix check can place
+    const items = expandBraces(pattern);
+    if (items === null) return block('path', `${where}: the guard cannot tell which paths ${snippet(pattern)} names`);
     const base = typeof input.path === 'string' ? resolveLexical(input.path, cwd) : cwd;
-    const found = checkPath(staticPrefix(pattern) || '.', false, base, ctx, declared, where);
-    if (found) return found;
+    for (const item of items) {
+      const parts = item.split('/');
+      const wild = parts.findIndex((part) => GLOB_CHARS.test(part));
+      if (wild >= 0 && parts.slice(wild).includes('..')) return block('path', `${where}: ${snippet(item)} climbs with .. after a wildcard`);
+      if (item.startsWith('/') || item.startsWith('~') || parts.includes('..')) {
+        const found = checkPath(staticPrefix(item) || '.', false, base, ctx, declared, where);
+        if (found) return found;
+      }
+    }
   }
   return null;
 }
