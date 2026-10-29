@@ -299,7 +299,25 @@ export interface SystemSample {
   admitting: boolean;
 }
 
+/**
+ * What a server registers and starts, from `CLAUDIO_PROFILE`: `full` is the app; `headless` is an
+ * AI backend for one project, serving only the API routes such a client calls
+ * (docs/plans/headless-image.md, D1 and D2).
+ */
+export type ServerProfile = 'full' | 'headless';
+
+/** Why a server is not ready to run a chat (`GET /api/ready`) */
+export type ReadyReason = 'cli-missing' | 'signed-out' | 'sign-in-expired' | 'starting';
+
+/** `GET /api/ready`: 200 when ready, 503 with the reason otherwise. Says nothing more about the account */
+export interface ReadyStatus {
+  ready: boolean;
+  reason?: ReadyReason;
+}
+
 export interface SystemInfo {
+  /** What this server registers and starts */
+  profile: ServerProfile;
   cli: CliInfo;
   auth: AuthStatus;
   configDir: string;
@@ -451,6 +469,69 @@ export interface Attachment {
   path: string;
   createdAt: string;
 }
+
+/**
+ * An ephemeral copy of a source tree made from a `tar.gz` (docs/plans/headless-image.md, D7). A chat
+ * names it by id; its folder is never returned, so nothing else can name it.
+ */
+export interface Workspace {
+  /** `ws_` + random */
+  id: string;
+  source: 'url' | 'upload';
+  /** The URL's host; never the URL, which carries the code host's short-lived token */
+  host: string | null;
+  /** Bytes extracted */
+  bytes: number;
+  /** Regular files extracted */
+  files: number;
+  createdAt: string;
+  lastUsedAt: string;
+  /** `lastUsedAt` plus the TTL: past it, and once its chats have ended, the workspace is removed */
+  expiresAt: string;
+  state: 'creating' | 'ready' | 'removing';
+}
+
+/** `POST /api/workspaces` with a JSON body: Claudio downloads the archive itself */
+export interface CreateWorkspaceRequest {
+  /** An `https` URL of a `tar.gz` on a host of `CLAUDIO_WORKSPACE_HOSTS` */
+  url: string;
+}
+
+/** Why a workspace request was refused: the `code` of the error answer */
+export type WorkspaceRefusalCode =
+  | 'workspace-host-not-allowed'
+  | 'workspace-address-blocked'
+  | 'workspace-too-large'
+  | 'workspace-bad-archive'
+  | 'workspace-limit'
+  | 'workspace-not-found'
+  | 'workspace-expired'
+  | 'workspace-download-failed'
+  | 'workspace-timeout';
+
+/**
+ * What a confined API chat runs under, fixed when it is created and stored with it
+ * (docs/plans/headless-image.md, D14): every chat of a headless Claudio, and every chat in a
+ * workspace in any profile. Resume, fork and settings changes are not served for such a chat.
+ */
+export interface ApiChatPolicy {
+  /** The workspace it runs in, null for one in a working directory */
+  workspaceId: string | null;
+  /** The declared Claude Code permission rules; the only tools it has (`--tools`) */
+  allowedTools: string[];
+  maxTurns: number | null;
+  /** What it may spend; `CLAUDIO_CHAT_BUDGET_USD` when the request named none */
+  maxBudgetUsd: number;
+  /** It answers a JSON schema (`StructuredOutput`) */
+  schema: boolean;
+}
+
+/**
+ * Why a chat start was refused, beside the workspace codes: the `code` of the error answer.
+ * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
+ * a confined chat with another policy than its own.
+ */
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch';
 
 export interface TranscriptEntry {
   uuid: string;
@@ -692,6 +773,12 @@ export interface RunOutcome {
    * limit or someone stopped it.
    */
   cause?: 'budget' | 'rate-limit' | 'stopped';
+  /**
+   * The provider's own word for how the turn ended, when it gave one (Claude Code's result `subtype`:
+   * `success`, `error_max_turns`, `error_max_budget_usd`…). `/v1` names a turn that ended without its
+   * answer from it (D16 of docs/plans/headless-image.md).
+   */
+  subtype?: string;
   /** The main agent's last stop reason in the turn (`end_turn`, `tool_use`, `max_tokens`…), when the provider said */
   stopReason?: string;
 }
@@ -1382,6 +1469,8 @@ export interface Chat {
   compact?: ChatCompactAvailability;
   /** The guards on its live process; absent when none runs or the chat is not guarded (docs/plans/guards.md) */
   guards?: ChatGuards | null;
+  /** The policy of a confined API chat, fixed at its creation; null for any other chat (docs/plans/headless-image.md, D14) */
+  policy?: ApiChatPolicy | null;
   /**
    * Which teammates' shared copies its agent may read now (docs/plans/collaborators-agent-access.md);
    * null when it may read none. Only on a chat read alone, decided on its live process
@@ -1608,6 +1697,11 @@ export interface ChatStartOptions {
   resumeSessionAt?: string;
   /** `host` sends permissions, questions and plans to the panel; `none`, the default, denies them */
   permissionPrompts?: 'host' | 'none';
+  /**
+   * The workspace (`POST /workspaces`) a new chat runs in, instead of a `cwd`: the chat is a confined
+   * API chat ({@link ApiChatPolicy}). Only a new chat takes it.
+   */
+  workspaceId?: string;
 }
 
 /** Starts a new chat. */
@@ -9790,12 +9884,14 @@ export interface DecisionPaletteResult {
 /**
  * A rule of the guard program. `integrity` protects the guard itself and is always on whenever
  * guards are; it is deliberately not a key of any settings or override type, so it cannot be
- * switched off through the API ({@link GuardSwitchableRuleId}).
+ * switched off through the API ({@link GuardSwitchableRuleId}). `declared-tools` confines a
+ * confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is
+ * armed by the chat's launch from its stored policy, never by a setting.
  */
-export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs';
+export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs' | 'declared-tools';
 
-/** The rules a person can switch: every rule but `integrity`. */
-export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity'>;
+/** The rules a person can switch: every rule but `integrity` and `declared-tools`. */
+export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity' | 'declared-tools'>;
 
 /** `enforce` blocks; `observe` records "would block" and passes, for rollback after a false positive. */
 export type GuardMode = 'enforce' | 'observe';
@@ -9837,9 +9933,12 @@ export interface ProjectGuardSettings {
   chats: boolean;
 }
 
+/** The rules Settings lists: every rule but `declared-tools`, which belongs to a chat's policy, not to a setting. */
+export type GuardSettingsRuleId = Exclude<GuardRuleId, 'declared-tools'>;
+
 /** One rule as the UI lists it; the words are the UI's own (i18n), not the server's. */
 export interface GuardRuleInfo {
-  id: GuardRuleId;
+  id: GuardSettingsRuleId;
   /** On in a fresh install */
   defaultOn: boolean;
   /** False for `integrity` only */

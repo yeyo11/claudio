@@ -12,7 +12,7 @@ import type { FlowStage, GuardOverride, ProjectSettings, ProviderCapability } fr
 import type { ChatGuardPlan } from '../live-chat.ts';
 import type { GuardLaunch } from './command.ts';
 import { writeGuardFiles } from './files.ts';
-import { DEFAULT_LIMITS, type GuardRulesFile } from './input.ts';
+import { DEFAULT_LIMITS, type DeclaredTools, type GuardRulesFile } from './input.ts';
 import { GUARD_ENTRY_ENV, GuardPreflight, GuardUnavailableError, type GuardUnavailableCode, type PreflightInput } from './preflight.ts';
 import { type GuardRunKind, type ResolvedGuards, resolveGuards } from './resolve.ts';
 import type { GuardSettingsStore } from './settings.ts';
@@ -101,7 +101,7 @@ export class GuardLauncher {
     };
   }
 
-  private plan(resolved: ResolvedGuards, request: GuardRequest, launch: GuardLaunch): ChatGuardPlan {
+  private plan(resolved: ResolvedGuards, request: GuardRequest, launch: GuardLaunch, declared?: DeclaredTools): ChatGuardPlan {
     const roots = [...new Set([request.worktree || request.cwd, ...resolved.extraRoots].map(realOrSelf))];
     // The run's own scratch dir (Resolved question 1); the chat exports it as TMPDIR and removes it when the run ends
     const tmpDir = join(resolve(this.deps.dataDir), 'tmp', randomUUID());
@@ -121,6 +121,7 @@ export class GuardLauncher {
       protectConfigs: resolved.protectConfigs,
       knownSecretSha256: [],
       limits: { ...DEFAULT_LIMITS },
+      ...(declared ? { declared } : {}),
     };
     const files = writeGuardFiles(this.deps.dataDir, rules, launch);
     return {
@@ -140,6 +141,19 @@ export class GuardLauncher {
     const launch = this.launch();
     await this.preflight.verify(this.input(launch, request));
     return this.plan(resolved, request, launch);
+  }
+
+  /**
+   * A confined API chat's guard (docs/plans/headless-image.md, D14.5): `integrity` and
+   * `declared-tools`, enforcing, whatever the stored settings say. The chat's policy is fixed at its
+   * creation, so no setting, override or chat token reaches this. Called through
+   * `declaredToolsGuard` (`declared.ts`), which builds `declared`.
+   */
+  async prepareDeclared(cwd: string, declared: DeclaredTools): Promise<ChatGuardPlan> {
+    const request: GuardRequest = { kind: 'chat', cwd };
+    const launch = this.launch();
+    await this.preflight.verify(this.input(launch, request));
+    return this.plan({ rules: ['integrity', 'declared-tools'], mode: 'enforce', protectConfigs: [], extraRoots: [] }, request, launch, declared);
   }
 
   /**

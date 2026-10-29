@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { acquireDataDirLock, Core, dataDirFrom, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
+import { acquireDataDirLock, Core, dataDirFrom, headlessStartProblems, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
@@ -58,6 +58,21 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     lock.release();
     throw err;
   }
+  // A headless Claudio serves programs that hold its token, and refuses to start where that would be
+  // unsafe or unbounded (docs/plans/headless-image.md, D4); checked once the guard has read its mode
+  if (core.profile === 'headless') {
+    const problems = headlessStartProblems({
+      authMode: core.security.mode,
+      host,
+      defaultPermissionMode: core.appSettings.defaultPermissionMode,
+      envSpendCapUsd: core.config.dailySpendCapUsd,
+    });
+    if (problems.length > 0) {
+      await core.shutdown();
+      lock.release();
+      throw new Error(`a headless Claudio does not start: ${problems.join('; ')}`);
+    }
+  }
   // Read into the guard by now. Every chat, command and check the server starts inherits
   // `process.env`, and the desktop app's secret is not theirs to hold, nor to write to a transcript
   delete process.env.CLAUDIO_DESKTOP_TOKEN;
@@ -79,14 +94,16 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     );
   }
 
-  core.cliVersion.startDaily();
-  core.release.startDaily();
+  core.startSubsystem('cliVersionWatch', () => core.cliVersion.startDaily());
+  core.startSubsystem('releaseWatch', () => core.release.startDaily());
 
   const system = await core.system();
   // Installing or signing in in a terminal shows up on its own; the first full detection runs beside start-up
-  void core.providers.refresh().then(() => core.providers.startWatching()).catch(() => undefined);
-  void core.hosts.refresh().then(() => core.hosts.startWatching()).catch(() => undefined);
+  core.startSubsystem('providersWatch', () => void core.providers.refresh().then(() => core.providers.startWatching()).catch(() => undefined));
+  core.startSubsystem('codeHostsWatch', () => void core.hosts.refresh().then(() => core.hosts.startWatching()).catch(() => undefined));
   if (!system.cli.installed) app.log.error(`Claude Code CLI not detected: ${system.cli.error}`);
+  // A headless Claudio has no Settings screen: its sign-in is the `claudio login` command (D3)
+  else if (!system.auth.loggedIn && core.profile === 'headless') app.log.warn('Claude Code is installed but no account is signed in: run `claudio login` (docker compose exec claudio claudio login).');
   else if (!system.auth.loggedIn) app.log.warn('Claude Code is installed but no account is signed in: open Claudio and sign in under Settings → Claude Code, or set ANTHROPIC_API_KEY.');
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
@@ -123,7 +140,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   if (!process.env.CLAUDIO_GUARD_ENTRY && existsSync(bundledGuard)) process.env.CLAUDIO_GUARD_ENTRY = bundledGuard;
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
   // when "start with Claudio" is on
-  core.tunnel.attach(port, urlHost, lock.id);
+  core.startSubsystem('tunnel', () => core.tunnel.attach(port, urlHost, lock.id));
   let closing: Promise<void> | undefined;
   const close = () => {
     closing ??= (async () => {

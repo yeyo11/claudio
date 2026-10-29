@@ -8,7 +8,8 @@ import { tempConfig } from './helpers.ts';
 
 // The servers core's callers add to a chat's `--mcp-config` (`extraMcpServers`, the OpenAI surface's
 // stub): one file per chat that goes with the chat and does not outlive a restart, and a chat's own
-// config that cannot be read never makes the spawn throw.
+// config that cannot be read never makes the spawn throw. An `api` chat is confined and loads the stub
+// alone (confined-chat.test.ts), so the join is shown on a chat of no origin.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude-control.mjs', import.meta.url));
 const EXTRA = { client: { type: 'http', url: 'http://127.0.0.1:1/api/openai/client-tools/x/mcp' } };
@@ -45,7 +46,7 @@ async function stopped(core: Core, id: string): Promise<void> {
 test("a chat's added servers go in one file named for the chat, joined to its own servers, and it goes with the chat", async () => {
   const { config, core, spawns, mcpConfigOf } = setup();
   try {
-    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, 'api', EXTRA);
+    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, undefined, EXTRA);
     await until(() => spawns().length === 1, 'the first process');
     const file = mcpConfigOf(spawns()[0]);
     assert.match(file, new RegExp(`/mcp/extra-${chat.id}-[0-9a-f]{16}\\.json$`));
@@ -63,7 +64,7 @@ test("a chat's added servers go in one file named for the chat, joined to its ow
 test("a chat's own config that is gone or broken starts the process with the added servers only, and says so in the chat", async () => {
   const { core, spawns, mcpConfigOf } = setup();
   try {
-    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, 'api', EXTRA);
+    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, undefined, EXTRA);
     await until(() => spawns().length === 1, 'the first process');
     const base = (await core.chats.get(chat.id))?.tools?.mcp?.config;
     assert.ok(base);
@@ -120,7 +121,7 @@ test("a restart deletes the added-servers files of chats with no process, and no
 test("a config that cannot be read is told apart from one that is not JSON, and each problem is told once however often the chat respawns", async () => {
   const { core, spawns } = setup();
   try {
-    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, 'api', EXTRA);
+    const chat = await core.chats.create({ prompt: 'x', mcp: { servers: ['docs'] } }, undefined, undefined, undefined, undefined, EXTRA);
     await until(() => spawns().length === 1, 'the first process');
     const base = (await core.chats.get(chat.id))?.tools?.mcp?.config;
     assert.ok(base);
@@ -148,7 +149,7 @@ test("Claudio's own config that cannot be read is named as Claudio's, without as
     const broken = join(config.dataDir, 'claudio-reads.json');
     writeFileSync(broken, '{ not json');
     core.runtime.agentReadsLaunch = () => ({ mcpConfig: broken, adds: true, allowedTools: [] });
-    const chat = await core.chats.create({ prompt: 'x' }, undefined, undefined, undefined, 'api', EXTRA);
+    const chat = await core.chats.create({ prompt: 'x' }, undefined, undefined, undefined, undefined, EXTRA);
     await until(() => spawns().length === 1, 'the first process');
     assert.deepEqual(Object.keys((JSON.parse(readFileSync(mcpConfigOf(spawns()[0]), 'utf8')) as { mcpServers: object }).mcpServers), ['client']);
     const notice = await until(() => core.runtime.events(chat.id).find((e) => e.kind === 'notice' && /config/.test(e.text ?? '')), 'the notice');

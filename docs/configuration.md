@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-10-29T12:00:00Z
 tags:
     - configuration
     - environment
@@ -24,10 +24,11 @@ README's.
 | `PORT` / `HOST` | `8797` / `127.0.0.1` (`0.0.0.0` in the image) | API listen address. Loopback by default because the API runs commands on the machine and starts with no credential; the image opens it because Compose publishes the container on `127.0.0.1` anyway. Binding every interface while the mode is `none` logs a warning |
 | `CLAUDE_BIN` | `claude` | CLI binary to use |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude config dir (`/home/node/.claude` in the image) |
-| `CLAUDIO_WORKSPACE_DIR` | `./workspace` | Default working directory for runs |
+| `CLAUDIO_WORKSPACE_DIR` | `./workspace` | Default working directory for runs. Created once at server start; a chat whose `cwd` is missing is refused (`400 cwd-missing`), never created |
+| `CLAUDIO_PROFILE` | `full` | What the server registers and starts: `full` is the app; `headless` is an AI backend for one project, serving only the API such a client calls, with every chat a confined API chat ([workspaces.md](workspaces.md), [deploy.md](deploy.md#headless-next-to-a-project)). The headless image sets it. Any other value stops the start. `GET /api/system` carries it as `profile` |
 | `CLAUDIO_DATA_DIR` | `./data` | Wrapper state. One server at a time: it takes `<data>/server.lock` first, and a second one on the same directory exits with code 73 without touching it ([security-model.md](security-model.md)) |
 | `CLAUDIO_SECRET_KEY` | – | 32 bytes as hex: the key the secret vault (`secrets.json`) seals the keys and tokens Claudio hands a CLI with. The desktop app passes its own. Without it the Docker image makes one beside the data on the first write (`secret.key`, mode 600), which protects a copy of the files but not the volume, so passing it here is the recommended setup; a source install without it keeps the values plain at 0600. The server drops it from its environment once read |
-| `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image) | Mode for runs that do not set one. Without the variable it is editable in Settings → Runs & spend and applies to the next run; set, it is shown read-only there. Empty counts as unset |
+| `CLAUDIO_DEFAULT_PERMISSION_MODE` | `acceptEdits` (`bypassPermissions` in the image, `dontAsk` in the headless one) | Mode for runs that do not set one. A headless server refuses to start with any mode but `dontAsk`. Without the variable it is editable in Settings → Runs & spend and applies to the next run; set, it is shown read-only there. Empty counts as unset |
 | `CLAUDIO_MAX_CONCURRENT_RUNS` | `8` | Max simultaneous `claude` processes (1 to 64). Editable in Settings → Runs & spend unless set here, like the mode above. Empty counts as unset |
 | `CLAUDIO_SETUP_SEEN` | off | `on` records that the setup assistant was finished or skipped. Without the variable the assistant writes it to `app-settings.json` (`POST /api/setup/seen`). The older `CLAUDIO_PROVIDERS_STEP_SEEN`, and a `providersStepSeen` already stored, still count. Empty counts as unset |
 | `CLAUDIO_PUSH_SUBJECT` | `https://github.com/yeyo11/claudio` | The VAPID `sub` claim of every Web Push this server signs: a `mailto:` or `https:` a push service can complain to, naming a real domain — Apple refuses the whole JWT with `403 BadJwtToken` for something like `mailto:claudio@localhost`. Changing it takes effect on the next start, keypair and registered installs untouched |
@@ -60,6 +61,8 @@ README's.
 | `CLAUDIO_WEB_DIST` | `apps/web/dist` (`/app/web` in the image) | Built UI the API serves (the desktop app points it at its bundled copy) |
 | `CLAUDIO_MCP_ENTRY` | the `mcp.mjs` beside the API bundle, when it exists | The bundle of Claudio's own MCP server a confined chat's CLI starts; from source it runs `packages/mcp` with tsx. See [docs/claudio-mcp-server.md](claudio-mcp-server.md) |
 | `CLAUDIO_GUARD_ENTRY` | the `guard.mjs` beside the API bundle | The bundle of Claudio's guard, the program the CLI runs on each tool call. It must not be group- or world-writable or sit under a project; from source it runs `packages/core/src/guards/main.ts`. See [docs/guards.md](guards.md) |
+| `CLAUDIO_CHAT_BUDGET_USD` | `1` | The budget of a confined API chat that names none (`maxBudgetUsd`, `X-Claudio-Max-Budget-Usd`), in USD, above 0 and up to the spend cap's maximum; another value stops the start |
+| `CLAUDIO_CHAT_RETENTION_DAYS` | `30` | Headless only: a chat idle this many days is deleted with its rows and the CLI's session files, by a sweep at start and every hour. A whole number from 1 to 3650 |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 Claudio sets two variables for every chat it starts, so an agent that calls the REST API reaches the
@@ -67,6 +70,41 @@ wrapper that runs it and not another one on the same machine: `CLAUDIO_API_URL` 
 e.g. `http://127.0.0.1:34331/api`) and `CLAUDIO_CHAT_ID` (the chat's own id). With authentication on,
 the agent still needs a token of its own.
 
+A confined API chat (every chat of a headless Claudio, and every chat in a workspace) gets
+`CLAUDIO_CHAT_ID` only: no URL and no token, so it has no way back into Claudio
+([security-model.md](security-model.md#the-confined-api-chat)).
+
+## Headless
+
+A server with `CLAUDIO_PROFILE=headless` refuses to start, naming every problem at once, unless:
+
+- `CLAUDIO_DAILY_SPEND_CAP_USD` is set (in the full profile unset means no cap);
+- the guard has a credential (`CLAUDIO_AUTH_MODE=token` with `CLAUDIO_AUTH_TOKEN`, or the image's
+  first-run token), unless it listens on loopback only;
+- the permission mode is `dontAsk` (`CLAUDIO_DEFAULT_PERMISSION_MODE=dontAsk`, which the headless
+  image sets).
+
+In headless a single-label `Host` such as `claudio`, the name Docker's embedded DNS answers for a
+compose service, is accepted besides loopback and `CLAUDIO_ALLOWED_HOSTS`; the full profile keeps
+its allowlist. The launcher ignores any update overlay under `/data/app`: the image is the version.
+
+### Workspaces
+
+The ephemeral workspaces of [workspaces.md](workspaces.md) are bounded by these variables, read at
+start in any profile. A value that is not a whole number above 0 stops the start rather than run with
+a cap nobody chose.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `CLAUDIO_WORKSPACES_DIR` | `/workspaces` in the image; elsewhere `workspaces` beside the data directory | Where the `ws_<id>` folders live. It may not be, hold or sit inside `CLAUDIO_WORKSPACE_DIR`, `CLAUDIO_DATA_DIR` or `CLAUDE_CONFIG_DIR`, nor be `/`: the start refuses it. The sweeper never removes anything outside it |
+| `CLAUDIO_WORKSPACE_HOSTS` | `codeload.github.com` | Hosts a `{ url }` source and each of its redirects may name, separated by commas or spaces |
+| `CLAUDIO_WORKSPACE_MAX_COMPRESSED_MB` | `100` | The archive as sent or downloaded (`413 workspace-too-large`) |
+| `CLAUDIO_WORKSPACE_MAX_EXTRACTED_MB` | `500` | What the extraction writes, counted as bytes are written (`413`) |
+| `CLAUDIO_WORKSPACE_MAX_FILES` | `50000` | Files and directories of one archive (`413`) |
+| `CLAUDIO_WORKSPACE_TIMEOUT_SECONDS` | `60` | Download and extraction together (`408 workspace-timeout`) |
+| `CLAUDIO_WORKSPACE_MAX_COUNT` | `20` | Workspaces at once, the ones being created included (`429 workspace-limit`) |
+| `CLAUDIO_WORKSPACES_MAX_TOTAL_MB` | `2048` | Every workspace together under the root (`413`) |
+| `CLAUDIO_WORKSPACE_TTL_MINUTES` | `120` | Lifetime from the last use; a chat started in it moves it |
 
 ## Set elsewhere
 
@@ -74,7 +112,7 @@ Variables that belong to one feature, described where that feature is:
 
 | Variable | What it does | Where |
 | --- | --- | --- |
-| `CLAUDIO_DAILY_SPEND_CAP_USD` | The daily spend cap, fixed from the environment | [deploy.md](deploy.md#the-daily-spend-cap), [layered-settings.md](layered-settings.md) |
+| `CLAUDIO_DAILY_SPEND_CAP_USD` | The daily spend cap, fixed from the environment; required in headless ([Headless](#headless)) | [deploy.md](deploy.md#the-daily-spend-cap), [layered-settings.md](layered-settings.md) |
 | `CLAUDIO_TERMINAL` | `off` vetoes the terminal for the whole deployment, `on` switches it on | [terminal.md](terminal.md), [deploy.md](deploy.md#the-terminal) |
 | `CLAUDIO_TASK_MAX_MINUTES` | The default time limit of an orchestration task that sets none (180 minutes); `0` turns the default off | [resource-control.md](resource-control.md) |
 | `CLAUDIO_ADMIT_MEMORY_PRESSURE` / `CLAUDIO_ADMIT_MEMORY_FLOOR_MB` | When the machine is too loaded to admit a new chat | [resource-control.md](resource-control.md) |

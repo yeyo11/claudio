@@ -88,8 +88,10 @@ export async function launch(options: LauncherOptions): Promise<number> {
       now: Date.now,
       log: o.log,
       trialMs: o.trialMs,
-      // The person's recovery for one start: the image's own server, whatever state.json says
-      ignoreOverlays: env.CLAUDIO_PAYLOAD === 'bundled',
+      // The person's recovery for one start: the image's own server, whatever state.json says. A
+      // headless image, and any image built without keys, has no updates (docs/plans/headless-image.md,
+      // D6): the image is the version, so nothing under /data/app may run, whoever wrote it there
+      ignoreOverlays: env.CLAUDIO_PAYLOAD === 'bundled' || env.CLAUDIO_PROFILE?.trim().toLowerCase() === 'headless' || loadKeys(join(o.appDir, 'keys')).length === 0,
       base: () => {
         image = readImageInfo(join(o.appDir, 'image.json'));
         // The server runs on this launcher's Node, so its ABI is the one a bundle must be built for

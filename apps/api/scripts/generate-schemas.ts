@@ -11,7 +11,7 @@ const out = resolve(here, '../src/openapi/schemas.json');
 
 // Root types used by the routes; everything they reference is pulled in automatically.
 const ROOT_TYPES = [
-  'ApiError', 'SystemInfo', 'SystemLoad', 'SystemSample', 'ProcessUsageReport', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest',
+  'ApiError', 'SystemInfo', 'ReadyStatus', 'SystemLoad', 'SystemSample', 'ProcessUsageReport', 'Overview', 'AuthStatus', 'AuthVerification', 'SetCredentialsRequest',
   'CreateProjectRequest', 'TranscriptSearchResult',
   'RunEvent', 'EffectiveEnvironment', 'BackgroundTaskOutput', 'AgentTranscript', 'WorkflowDefinition', 'RunWorkflowRequest', 'SaveOrchestrationWorkflowRequest',
   'Orchestration', 'OrchestrationSummary', 'OrchestrationSpec', 'OrchestrationTimings', 'PlanRequest', 'PlanDraftSummary', 'PermissionRequest', 'PermissionDecision', 'ResumeOrchestrationRequest',
@@ -19,6 +19,8 @@ const ROOT_TYPES = [
   'ConfigFileRoot', 'ConfigFileNode', 'ConfigFileContent', 'WriteConfigFileRequest',
   'MemoryFile', 'MemoryProjectSummary', 'PluginsOverview', 'AvailablePlugin', 'PluginActionRequest', 'CliTextResult',
   'Attachment',
+  // Ephemeral workspaces (docs/plans/headless-image.md, D7)
+  'Workspace', 'CreateWorkspaceRequest', 'WorkspaceRefusalCode',
   'ClaudioEvent', 'StreamHelloEvent', 'StreamResyncEvent',
   // Claudio's own model: chats, executions, projects
   'Chat', 'ChatSummary', 'ChatDetail', 'ChatBackgroundTaskEntry', 'ChatSubagentEntry', 'ChatWorkflowEntry', 'NewChatRequest', 'ResumeChatRequest', 'ForkChatRequest', 'ChatMessageRequest', 'ChatMessageResponse', 'ChatInterruptRequest', 'ChatSettingsUpdate', 'ChatMcpServers', 'ChatMcpToggle', 'ChatClaudioMcpToggle',

@@ -80,3 +80,20 @@ test('a server error shows its message only when it is meant for the caller', ()
   assert.ok(!hidden.body.error.message.includes('/home/someone'));
   assert.equal(openAiError(failureOfThrown('a string')).status, 500);
 });
+
+test("a start refused with a code a client acts on keeps it, in /v1's snake_case and with the REST status", () => {
+  const refusal = (reason: string, statusCode: number) => Object.assign(new Error(`refused: ${reason}`), { statusCode, reason });
+  const cases: Array<[string, number, string]> = [
+    ['cwd-missing', 400, 'cwd_missing'],
+    ['workspace-not-found', 404, 'workspace_not_found'],
+    ['workspace-expired', 410, 'workspace_expired'],
+    ['policy-mismatch', 409, 'policy_mismatch'],
+  ];
+  for (const [reason, status, code] of cases) {
+    const shaped = openAiError(failureOfThrown(refusal(reason, status)));
+    assert.equal(shaped.status, status, reason);
+    assert.deepEqual(shaped.body.error, { message: `refused: ${reason}`, type: 'invalid_request_error', param: null, code });
+  }
+  // Any other reason keeps the reading by status
+  assert.equal(openAiError(failureOfThrown(refusal('workspace-too-large', 413))).body.error.code, 'invalid_request_error');
+});

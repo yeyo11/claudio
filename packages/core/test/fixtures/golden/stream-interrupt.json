@@ -91,6 +91,7 @@
         "isError": true,
         "turns": 1,
         "costUsd": 0.01,
+        "subtype": "error_during_execution",
         "permissionDenials": [],
         "cause": "stopped"
       }

@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
+import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
 
 // Client tools on /v1/chat/completions (docs/openai-compatible-api.md, phase 4): over a real core,
@@ -35,6 +36,7 @@ before(async () => {
       CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
+  standInGuard(core, join(root, 'guard'));
   mkdirSync(join(root, 'workspace'), { recursive: true });
   await core.appSettings.update({ maxConcurrentRuns: 64 });
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui'), clientTools: registry });
@@ -155,8 +157,8 @@ test('a client tool call ends the turn with tool_calls, the process waits, and t
   assert.ok(stub);
   assert.equal(stub.type, 'http');
   assert.equal(stub.alwaysLoad, true);
-  // Claudio's usual servers still load: the stub's file adds to them
-  assert.equal(stub.strict, false);
+  // Only a confined API chat loads the stub alone (D14.1); this one is the app's own kind, which adds it to its servers
+  assert.ok(!stub.strict);
   assert.equal(stub.discover, -32601);
   assert.equal(stub.init, 200);
   assert.equal(stub.unauthorized, 401);
@@ -649,27 +651,32 @@ test('a new chat whose start fails after its session was bound leaves no session
 
 // ---------- refusals ----------
 
-test("a chat's stub goes with the chat: once the chat is removed its URL answers 401 even to a valid token of that chat", async () => {
+test("a chat's stub answers only its session's secret, and goes with the chat: once the chat is removed its URL answers 401", async () => {
   const res = await post({ model: 'sonnet', messages: [user('hello with tools')], tools: [weather] });
   assert.equal(res.status, 200);
   const chatId = chatOf(res);
   await res.json();
   await until(() => logged(chatId).some((l) => l.stub));
   const url = logged(chatId).find((l) => l.stub)?.stub?.url ?? '';
-  // A token of the chat's own, as its process holds, outlives the removal here on purpose: only the stub's teardown refuses it
-  const own = core.security.chatTokens.mint(chatId);
-  const list = (): Promise<Response> =>
-    fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${own}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
-  assert.equal((await list()).status, 200);
-  // The chat's own --mcp-config, found by its name, goes with it too
+  // The chat's own --mcp-config, found by its name, carries the secret; it goes with the chat too
   const files = (): string[] => readdirSync(join(root, 'data', 'mcp')).filter((f) => f.startsWith(`extra-${chatId}-`));
   assert.equal(files().length, 1);
+  const config = JSON.parse(readFileSync(join(root, 'data', 'mcp', files()[0] ?? ''), 'utf8')) as { mcpServers: { client: { headers: { Authorization: string } } } };
+  const secret = config.mcpServers.client.headers.Authorization;
+  assert.match(secret, /^Bearer [\w-]{40,}$/);
+  const list = (authorization: string): Promise<Response> =>
+    fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+  assert.equal((await list(secret)).status, 200);
+  // A confined chat has no token for the API, and one minted for it opens nothing here either
+  const own = core.security.chatTokens.mint(chatId);
+  assert.equal((await list(`Bearer ${own}`)).status, 401);
+  assert.equal((await list(`Bearer ${token}`)).status, 401, "not even the owner's token: the stub is the chat's process's");
+  core.security.chatTokens.revoke(own);
   core.runtime.stop(chatId);
   await until(() => core.runtime.get(chatId)?.pid === null || core.runtime.get(chatId)?.pid === undefined);
   await until(() => core.runtime.remove(chatId), 5000);
-  assert.equal((await list()).status, 401);
+  assert.equal((await list(secret)).status, 401);
   assert.deepEqual(files(), []);
-  core.security.chatTokens.revoke(own);
 });
 
 test('tool names that collide with a built-in, are too long or repeat, and the legacy functions, are refused', async () => {

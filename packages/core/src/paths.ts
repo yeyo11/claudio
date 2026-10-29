@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
-import type { AppSettingValues, PermissionMode } from '@claudio/shared';
+import type { AppSettingValues, PermissionMode, ServerProfile } from '@claudio/shared';
 
 /**
  * What the environment may say about the guard. Read here with everything else the environment
@@ -23,6 +23,16 @@ const AUTH_ENV_KEYS = [
 export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
 
 export interface CoreConfig {
+  /**
+   * What this server registers and starts, from `CLAUDIO_PROFILE` (`full` unless it says
+   * `headless`): one bundle that behaves by profile is one bundle to test
+   * (docs/plans/headless-image.md, D2)
+   */
+  profile: ServerProfile;
+  /** The budget of a chat that names none, from `CLAUDIO_CHAT_BUDGET_USD` (1 USD by default); the confined API chat applies it (D4) */
+  chatBudgetUsd: number;
+  /** Days after its last activity that a headless chat is deleted, from `CLAUDIO_CHAT_RETENTION_DAYS` (30 by default; D15) */
+  chatRetentionDays: number;
   claudeBin: string;
   /** The `tailscale` CLI the tunnel runs, from `TAILSCALE_BIN`: the one on the `PATH` unless someone points at another */
   tailscaleBin: string;
@@ -203,6 +213,65 @@ function spendCapFromEnv(value: string | undefined): number | null {
   return cap;
 }
 
+/** `CLAUDIO_PROFILE`: unset is the app; a value that names no profile stops the start rather than run the wrong one */
+function profileFromEnv(value: string | undefined): ServerProfile {
+  if (!isSet(value)) return 'full';
+  const profile = value.trim().toLowerCase();
+  if (profile === 'full' || profile === 'headless') return profile;
+  throw new Error(`CLAUDIO_PROFILE: '${value}' is neither 'full' nor 'headless'`);
+}
+
+/** A chat's budget when it names none: the D4 default, enough for a few one-shot turns and no runaway */
+export const DEFAULT_CHAT_BUDGET_USD = 1;
+
+function chatBudgetFromEnv(value: string | undefined): number {
+  if (!isSet(value)) return DEFAULT_CHAT_BUDGET_USD;
+  const budget = normalizeSpendCap(Number(value.trim()));
+  if (budget === null) throw new Error(`CLAUDIO_CHAT_BUDGET_USD: '${value}' is not an amount above 0 and up to ${String(MAX_DAILY_SPEND_CAP_USD)}`);
+  return budget;
+}
+
+/** What a headless start is judged on: the guard's mode and the address it binds, and the settings in force */
+export interface HeadlessStart {
+  authMode: string;
+  /** The address the server listens on */
+  host: string;
+  /** The permission mode in force (the environment's, else `app-settings.json`'s) */
+  defaultPermissionMode: PermissionMode;
+  /** `CLAUDIO_DAILY_SPEND_CAP_USD` as the environment set it; null when it did not */
+  envSpendCapUsd: number | null;
+}
+
+const LOOPBACK_BIND = new Set(['127.0.0.1', '::1', 'localhost']);
+
+/**
+ * Why a headless server must not start, one sentence each; empty when it may (D4). A headless
+ * Claudio runs model turns for a program that holds its token, so an open guard is allowed only
+ * where nothing but the machine itself can reach it, an unbounded day of spend is never its
+ * default, and every chat runs in `dontAsk`, the one mode a confined API chat takes (D14).
+ */
+export function headlessStartProblems(start: HeadlessStart): string[] {
+  const problems: string[] = [];
+  if (start.authMode === 'none' && !LOOPBACK_BIND.has(start.host.trim().toLowerCase())) {
+    problems.push(`CLAUDIO_AUTH_MODE=none on ${start.host}: a headless Claudio needs a token (CLAUDIO_AUTH_MODE=token with CLAUDIO_AUTH_TOKEN) unless it listens on loopback only`);
+  }
+  if (start.envSpendCapUsd === null) problems.push('CLAUDIO_DAILY_SPEND_CAP_USD is not set: a headless Claudio needs a daily spend cap');
+  if (start.defaultPermissionMode !== 'dontAsk') {
+    problems.push(`the permission mode is '${start.defaultPermissionMode}': a headless Claudio runs every chat in 'dontAsk' (CLAUDIO_DEFAULT_PERMISSION_MODE=dontAsk)`);
+  }
+  return problems;
+}
+
+/** How long a headless chat outlives its last activity: its transcript holds what it read of a repository */
+export const DEFAULT_CHAT_RETENTION_DAYS = 30;
+
+function retentionFromEnv(value: string | undefined): number {
+  if (!isSet(value)) return DEFAULT_CHAT_RETENTION_DAYS;
+  const days = Number(value.trim());
+  if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error(`CLAUDIO_CHAT_RETENTION_DAYS: '${value}' is not a whole number of days from 1 to 3650`);
+  return days;
+}
+
 /** The longest an OpenAI client's tool call may be held: a day, past which nobody is coming back */
 export const MAX_OPENAI_TOOL_CALL_TIMEOUT_MINUTES = 1440;
 
@@ -302,6 +371,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
   }
   ensureProviderHomes(env, dataDir);
   return {
+    profile: profileFromEnv(env.CLAUDIO_PROFILE),
+    chatBudgetUsd: chatBudgetFromEnv(env.CLAUDIO_CHAT_BUDGET_USD),
+    chatRetentionDays: retentionFromEnv(env.CLAUDIO_CHAT_RETENTION_DAYS),
     claudeBin: env.CLAUDE_BIN ?? 'claude',
     tailscaleBin: env.TAILSCALE_BIN?.trim() || 'tailscale',
     tunnelEnabled: parseTunnelSwitch(env.CLAUDIO_TUNNEL, env.CLAUDIO_DISTRIBUTION?.trim().toLowerCase() !== 'docker' || parseYes(env.CLAUDIO_TAILSCALE_MANAGED)),

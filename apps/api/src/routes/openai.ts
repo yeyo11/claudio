@@ -6,6 +6,13 @@ import type { Core, FetchImageOptions, OpenAiFailure, RunResult } from '@claudio
 import {
   abandonsClientCalls,
   allowedToolNames,
+  apiChatPolicy,
+  CONFINED_PERMISSION_MODE,
+  declaredToolsProblem,
+  openAiHistoryKey,
+  openAiPolicyKey,
+  samePolicy,
+  type OpenAiKeySeed,
   CHAT_COMPLETION_RESULTS,
   ChatCompletionTranslator,
   CLIENT_TOOL_PREFIX,
@@ -60,7 +67,7 @@ import {
   type ResultsVocabulary,
   type SystemPromptParts,
 } from '@claudio/core';
-import type { ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
+import type { ApiChatPolicy, ModelOption, PermissionMode, RunEvent, SpendCapRefusal } from '@claudio/shared';
 import { deliberate } from '../errors.ts';
 import { openStream, type SseStream } from '../sse.ts';
 import { ClientToolRegistry } from './openai-tools.ts';
@@ -70,6 +77,16 @@ import { spendGate } from './spend.ts';
 export const CHAT_ID_HEADER = 'x-claudio-chat-id';
 export const CWD_HEADER = 'x-claudio-cwd';
 export const TOOL_PRESET_HEADER = 'x-claudio-tool-preset';
+/**
+ * The per-call options `POST /chats` takes as body fields (D8 of docs/plans/headless-image.md): a
+ * workspace by id, the turn and budget ceilings, and the declared tools as a JSON array of Claude
+ * Code permission rules. With the preset and the schema they are the chat's policy, part of the
+ * conversation key, and fixed for the chat.
+ */
+export const WORKSPACE_HEADER = 'x-claudio-workspace';
+export const MAX_TURNS_HEADER = 'x-claudio-max-turns';
+export const MAX_BUDGET_HEADER = 'x-claudio-max-budget-usd';
+export const ALLOWED_TOOLS_HEADER = 'x-claudio-allowed-tools';
 export const COST_HEADER = 'x-claudio-cost-usd';
 export const IGNORED_HEADER = 'x-claudio-ignored';
 /** `cold` when the client's tool results resumed a chat whose process had gone (decision 2's fallback) */
@@ -228,8 +245,9 @@ function within(dir: string, root: string): boolean {
 
 /**
  * `X-Claudio-Cwd`: an absolute path to an existing directory inside the wrapper's workspace or an
- * imported project. Stricter than `cwd` on `POST /chats`, which takes any text and creates the
- * directory: a client that may run Bash should not also choose an arbitrary place to run it.
+ * imported project. Stricter than `cwd` on `POST /chats`, which takes any existing directory: a client
+ * that may run Bash should not also choose an arbitrary place to run it. A workspace folder is never
+ * one (`ChatService.create` refuses it): a workspace is named by `X-Claudio-Workspace`.
  */
 export function cwdOf(core: Pick<Core, 'config' | 'projectOf'>, value: string): string {
   const refuse = (why: string) => fail({ kind: 'invalid-request', message: `${CWD_HEADER} ${why}`, param: null });
@@ -251,11 +269,94 @@ export function cwdOf(core: Pick<Core, 'config' | 'projectOf'>, value: string): 
   throw refuse('must be the workspace or inside a project imported into Claudio');
 }
 
-/** The tools and permissions every chat of this surface runs with: nobody is there to answer a prompt. */
+/** The mode a chat that is not confined runs in: nobody is there to answer a prompt. */
 function permissionModeOf(core: Core): PermissionMode {
   const mode = core.appSettings.defaultPermissionMode;
   // An unattended request that can run anything without asking is the one thing this surface never does
   return mode === 'bypassPermissions' ? 'manual' : mode;
+}
+
+/** A header's value refused: OpenAI's 400, naming the header, since no body field is at fault. */
+const badHeader = (name: string, why: string): V1Failure => fail({ kind: 'invalid-request', message: `${headerName(name)} ${why}`, param: null });
+
+/** `x-claudio-max-turns` as the docs write it: `X-Claudio-Max-Turns` */
+const headerName = (name: string): string => name.replace(/(^|-)([a-z])/g, (_, dash: string, c: string) => `${dash}${c.toUpperCase()}`);
+
+const WORKSPACE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const WHOLE = /^[1-9]\d{0,5}$/;
+const AMOUNT = /^\d{1,6}(?:\.\d{1,6})?$/;
+
+/**
+ * Whether a request's chat is a confined API chat (D14): every chat of a headless Claudio, and a
+ * chat in a workspace in any profile. In the full profile without a workspace a `/v1` chat is the
+ * person's own kind of chat, with the app's tools, as it was before the headless profile.
+ */
+export function isConfinedRequest(core: Pick<Core, 'profile'>, read: (name: string) => string | undefined): boolean {
+  return core.profile === 'headless' || read(WORKSPACE_HEADER) !== undefined;
+}
+
+/**
+ * The policy a request asks for (D8, D14): what a confined chat is created with, and what any `/v1`
+ * chat's continuation is compared with. The declared tools are
+ * `X-Claudio-Allowed-Tools`, else the rules of `X-Claudio-Tool-Preset`, else the app's default
+ * preset in the full profile and none at all in headless (D14.8). The budget falls back to
+ * `CLAUDIO_CHAT_BUDGET_USD`. Every invalid value is a 400 naming its header. For a chat that is not
+ * confined (`isConfinedRequest`) the policy is only what is compared: its declared rules are
+ * not refused (a preset with a bare `Bash` works there, as it always did).
+ */
+export function requestPolicyOf(
+  core: Pick<Core, 'config' | 'profile' | 'toolPresets'>,
+  read: (name: string) => string | undefined,
+  context: { cwd: string | undefined; schema: boolean },
+): ApiChatPolicy {
+  const workspace = read(WORKSPACE_HEADER);
+  if (workspace !== undefined && !WORKSPACE_ID.test(workspace)) throw badHeader(WORKSPACE_HEADER, 'must be a workspace id (from POST /api/workspaces).');
+  if (workspace !== undefined && context.cwd !== undefined) throw badHeader(WORKSPACE_HEADER, `and ${headerName(CWD_HEADER)} cannot both be sent: a chat runs in a workspace or in a folder.`);
+  const turns = read(MAX_TURNS_HEADER);
+  if (turns !== undefined && !WHOLE.test(turns)) throw badHeader(MAX_TURNS_HEADER, 'must be a whole number of turns, at least 1.');
+  const budget = read(MAX_BUDGET_HEADER);
+  const budgetUsd = budget === undefined ? undefined : Number(budget);
+  if (budgetUsd !== undefined && (!AMOUNT.test(budget ?? '') || !(budgetUsd > 0))) throw badHeader(MAX_BUDGET_HEADER, 'must be a positive amount of US dollars, such as 0.5.');
+  const presetId = read(TOOL_PRESET_HEADER);
+  const listed = read(ALLOWED_TOOLS_HEADER);
+  if (listed !== undefined && presetId !== undefined) throw badHeader(ALLOWED_TOOLS_HEADER, `and ${headerName(TOOL_PRESET_HEADER)} cannot both be sent: declare the rules, or name a preset.`);
+  let declared: string[];
+  let from: string;
+  if (listed !== undefined) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(listed);
+    } catch {
+      throw badHeader(ALLOWED_TOOLS_HEADER, 'must be a JSON array of Claude Code permission rules, such as ["Read","Bash(ls *)"].');
+    }
+    if (!Array.isArray(parsed) || parsed.some((rule) => typeof rule !== 'string')) throw badHeader(ALLOWED_TOOLS_HEADER, 'must be a JSON array of Claude Code permission rules, such as ["Read","Bash(ls *)"].');
+    declared = parsed as string[];
+    from = headerName(ALLOWED_TOOLS_HEADER);
+  } else if (presetId !== undefined) {
+    const preset = core.toolPresets.get(presetId);
+    if (!preset) throw fail({ kind: 'invalid-request', message: `${headerName(TOOL_PRESET_HEADER)}: no tool preset '${presetId}' (see GET /api/config/tool-presets).`, param: null });
+    declared = preset.allowedTools;
+    from = `${headerName(TOOL_PRESET_HEADER)} '${presetId}'`;
+  } else {
+    const preset = core.profile === 'headless' ? null : core.toolPresets.defaultPreset();
+    declared = preset?.allowedTools ?? [];
+    from = `the default tool preset '${preset?.id ?? ''}' (send ${headerName(ALLOWED_TOOLS_HEADER)} instead)`;
+  }
+  if (!isConfinedRequest(core, read)) {
+    return {
+      workspaceId: null,
+      allowedTools: [...declared],
+      maxTurns: turns !== undefined ? Number(turns) : null,
+      maxBudgetUsd: budgetUsd ?? core.config.chatBudgetUsd,
+      schema: context.schema,
+    };
+  }
+  const problem = declaredToolsProblem(declared);
+  if (problem) throw fail({ kind: 'invalid-request', message: `${from}: ${problem.message}`, param: null });
+  return apiChatPolicy(
+    { ...(turns !== undefined ? { maxTurns: Number(turns) } : {}), ...(budgetUsd !== undefined ? { maxBudgetUsd: budgetUsd } : {}), ...(context.schema ? { jsonSchema: {} } : {}) },
+    { workspaceId: workspace ?? null, allowedTools: declared, budgetUsd: core.config.chatBudgetUsd },
+  );
 }
 
 /**
@@ -454,7 +555,7 @@ export class TurnRun<Item> {
     if (event.kind === 'result') {
       const turn = this.core.runtime.lastTurn(this.chatId);
       this.costUsd = turn?.costUsd ?? null;
-      this.out(this.translator.push(event, { usage: turn?.tokens ?? null }));
+      this.out(this.translator.push(event, { usage: turn?.tokens ?? null, costUsd: turn?.costUsd ?? null }));
       return;
     }
     this.out(this.translator.push(event));
@@ -586,8 +687,8 @@ interface TurnPlan<Item, T extends OpenAiTurnTranslator<Item>> {
   /** What a stream opens with before anything of the turn (Responses' `response.created`) */
   opening(translator: T): Item[];
   write(stream: SseStream, item: Item): void;
-  /** The conversation key the client's next request carries, after this answer */
-  keyAfter(answered: { text: string; toolCalls: OpenAiToolCall[] }): string;
+  /** The conversation key the client's next request carries, after this answer; `seed` holds the request's policy */
+  keyAfter(answered: { text: string; toolCalls: OpenAiToolCall[] }, seed: OpenAiKeySeed): string;
   /**
    * After a turn that answered (completed or cut short), with its chat, key, the system prompt it
    * asked for and the uploads this turn saved its images to
@@ -702,7 +803,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       make: (options) => new ChatCompletionTranslator({ id, model: request.model, created, includeUsage: turn.includeUsage, ...options }),
       opening: () => [],
       write: (stream, item) => (item === STREAM_DONE ? stream.sendData(STREAM_DONE) : stream.send(item)),
-      keyAfter: (answered) => openAiKeyAfterAnswer(turn.keySeed, request.messages, answered),
+      keyAfter: (answered, seed) => openAiKeyAfterAnswer(seed, request.messages, answered),
       whole: (translator) => wholeAnswer(translator.end(), (end) => end.completion),
     });
   });
@@ -761,8 +862,8 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       opening: (translator) => translator.open(),
       // The reference's stream names each event on an `event:` line as well as in its `type`
       write: (stream, event) => stream.send(event, { event: event.type }),
-      keyAfter: (answered) =>
-        previousKey !== null ? openAiKeyAfterPrevious(previousKey, fresh.chat.messages, answered) : openAiKeyAfterAnswer(turn.keySeed, request.chat.messages, answered),
+      keyAfter: (answered, seed) =>
+        previousKey !== null ? openAiKeyAfterPrevious(previousKey, fresh.chat.messages, answered) : openAiKeyAfterAnswer(seed, request.chat.messages, answered),
       completed: (translator, chatId, key, system, images) => {
         if (!request.store) return;
         const end = translator.end();
@@ -852,8 +953,11 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const named = header(req, CHAT_ID_HEADER);
     const cwdHeader = header(req, CWD_HEADER);
     const cwd = cwdHeader === undefined ? undefined : cwdOf(core, cwdHeader);
-    const toolPreset = header(req, TOOL_PRESET_HEADER);
-    if (toolPreset !== undefined && !core.toolPresets.get(toolPreset)) throw fail({ kind: 'invalid-request', message: `${TOOL_PRESET_HEADER}: no tool preset '${toolPreset}' (see GET /api/config/tool-presets).`, param: null });
+    const policy = requestPolicyOf(core, (name) => header(req, name), { cwd, schema: turn.jsonSchema !== undefined });
+    // The policy is in the seed: the same history with another workspace, other tools or other
+    // ceilings is another conversation, never the old chat on new rules (D8)
+    const seed: OpenAiKeySeed = { ...turn.keySeed, policy: openAiPolicyKey(policy) };
+    const historyKey = openAiHistoryKey(seed, request.messages);
     const ignored = [...turn.ignored, ...plan.ignored];
     const wantsTools = request.tools.length > 0 && request.toolChoice.kind !== 'none';
 
@@ -878,10 +982,10 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
     const releases: Array<() => void> = [];
     try {
-      const key = named !== undefined ? `chat:${named}` : plan.previous ? `chat:${plan.previous.chatId}` : turn.historyKey !== null ? `key:${turn.historyKey}` : null;
+      const key = named !== undefined ? `chat:${named}` : plan.previous ? `chat:${plan.previous.chatId}` : historyKey !== null ? `key:${historyKey}` : null;
       if (key) releases.push(await locks.acquire(key));
       if (gone) return reply;
-      const target = await targetOf(named, turn, plan.previous);
+      const target = await targetOf(named, historyKey, plan.previous, policy);
       if (target.kind === 'existing' && key !== `chat:${target.chatId}`) releases.push(await locks.acquire(`chat:${target.chatId}`));
       if (gone) return reply;
 
@@ -957,7 +1061,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       const report = (err: unknown): void => req.log.error({ err, scope: 'openai' }, 'writing the answer failed');
       const current = new TurnRun<Item>(core, translator, openTurns, report, tools, tools ? (calls) => handOff(tools, calls) : null);
       run = current;
-      const startOpts = { provider: model.provider, cwd, toolPreset, ignored, effortName: names.effort, tools, wantsTools, requestTools: request.tools, apply, system };
+      const confined = isConfinedRequest(core, (name) => header(req, name));
+      const asked = { toolPreset: header(req, TOOL_PRESET_HEADER), allowedTools: header(req, ALLOWED_TOOLS_HEADER) !== undefined, maxBudget: header(req, MAX_BUDGET_HEADER) !== undefined };
+      const startOpts = { provider: model.provider, cwd, policy, confined, asked, ignored, effortName: names.effort, tools, wantsTools, requestTools: request.tools, apply, system };
       /** Whether the chat's process runs with `system` now; false when it had to keep its own */
       let applied: boolean;
       try {
@@ -1022,7 +1128,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         remembered = true;
         const answered = translator.answered();
         if (!answered) return;
-        const after = plan.keyAfter(answered);
+        const after = plan.keyAfter(answered, seed);
         try {
           core.openaiConversations.remember(after, chatId, turn.user);
         } catch (err) {
@@ -1200,15 +1306,35 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     return core.runtime.get(id)?.origin === 'api' && (await core.chats.get(id)) !== null;
   }
 
+  /** Whether a chat runs with the policy a request asks for, confined (its policy) or not (what its request declared); a chat from before policies (none stored) never does */
+  function runsWith(chatId: string, policy: ApiChatPolicy): boolean {
+    const live = core.runtime.get(chatId);
+    const own = live?.policy ?? live?.asked ?? null;
+    return own !== null && samePolicy(own, policy);
+  }
+
+  /** A continuation naming a chat whose policy is not the request's: fixed at creation, so never changed by a turn (D8) */
+  function policyMismatch(chatId: string): V1Failure {
+    return fail({
+      kind: 'start-refused',
+      code: 'policy_mismatch',
+      message: `Chat ${chatId} runs with another policy than this request's (workspace, allowed tools, max turns, budget or response format); send the values it was created with, or start a new conversation.`,
+    });
+  }
+
   /**
    * The chat the request continues: the one it names, or the one its history leads to. A row whose
    * chat was deleted since (or pruned) is a miss, and the conversation starts again from the history.
+   * A named chat (`X-Claudio-Chat-Id`, `previous_response_id`) must run with the request's policy (a
+   * `409 policy_mismatch` otherwise); one found by the key does, since the policy is in the key, and
+   * a row that leads elsewhere is a miss.
    */
-  async function targetOf(named: string | undefined, turn: OpenAiChatTurn, previous: Previous | null): Promise<Target> {
+  async function targetOf(named: string | undefined, historyKey: string | null, previous: Previous | null, policy: ApiChatPolicy): Promise<Target> {
     if (previous) {
       // A stored response of a chat that is no longer this surface's (or no longer there) is not one
       // this client may continue: the same 404 as an unknown id
       if (!(await isApiChat(previous.chatId))) throw fail(previous.refusal);
+      if (!runsWith(previous.chatId, policy)) throw policyMismatch(previous.chatId);
       return { kind: 'existing', chatId: previous.chatId };
     }
     if (named !== undefined) {
@@ -1216,12 +1342,14 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       // person's chat, an orchestration's or the assistant's, and run it with this surface's rules.
       // The same 404 as an unknown id, so the answer does not say which chats exist
       if (!(await isApiChat(named))) throw fail({ kind: 'not-found', message: `No chat ${named} (from ${CHAT_ID_HEADER}).` });
+      if (!runsWith(named, policy)) throw policyMismatch(named);
       return { kind: 'existing', chatId: named };
     }
-    if (turn.historyKey === null) return { kind: 'new' };
-    const row = core.openaiConversations.find(turn.historyKey);
+    // A history with no answer in it (a one-shot run, its retries included) is never looked up
+    if (historyKey === null) return { kind: 'new' };
+    const row = core.openaiConversations.find(historyKey);
     if (!row) return { kind: 'new' };
-    if (await isApiChat(row.chatId)) return { kind: 'existing', chatId: row.chatId };
+    if ((await isApiChat(row.chatId)) && runsWith(row.chatId, policy)) return { kind: 'existing', chatId: row.chatId };
     if (!(await core.chats.get(row.chatId))) core.openaiConversations.forgetChat(row.chatId);
     return { kind: 'new' };
   }
@@ -1235,7 +1363,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
   function existingTurnPlan(
     id: string,
     turn: OpenAiChatTurn,
-    opts: { tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools']; system: string },
+    opts: { confined: boolean; tools: ClientToolSession | null; wantsTools: boolean; requestTools: OpenAiChatTurn['tools']; system: string },
     ending: boolean,
   ): { runtime: NonNullable<ReturnType<Core['runtime']['get']>>; restart: boolean; keepsPrompt: boolean } {
     const { tools } = opts;
@@ -1259,11 +1387,14 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     // this request's. The turn waits for its exit and resumes cold, through admission (a 429 when
     // there is no room), as after the idle timeout
     const leaving = core.runtime.isLeaving(id);
-    const restart = runtime.pid !== null && (schemaChanged || toolsChanged || systemChanged || leaving);
+    // A confined chat's live settings do not change (`ChatManager.updateSettings` refuses them): another
+    // model is a new process, resumed with it. Any other chat takes the new model on its live process
+    const modelChanged = opts.confined && turn.model !== (core.runtime.modelOf(id) ?? runtime.model);
+    const restart = runtime.pid !== null && (schemaChanged || toolsChanged || systemChanged || modelChanged || leaving);
     if (tools && (restart || runtime.pid === null) && !registry.servers(core, tools)) {
       // A new prompt alone is not worth refusing the turn for: the live process, which serves the
       // stub already, answers it with the prompt it has, and `x-claudio-ignored` says so
-      if (runtime.pid !== null && !schemaChanged && !toolsChanged && !leaving) return { runtime, restart: false, keepsPrompt: true };
+      if (runtime.pid !== null && !schemaChanged && !toolsChanged && !modelChanged && !leaving) return { runtime, restart: false, keepsPrompt: true };
       throw fail({ kind: 'unavailable', message: "Client tools need the API's own address, which is not known yet." });
     }
     return { runtime, restart, keepsPrompt: false };
@@ -1271,9 +1402,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
 
   /**
    * Sends the turn: a new chat, a message to a live process that is idle, or a resume of one nobody
-   * holds. The run is attached before anything is sent, so no event of the turn is missed. A chat
-   * with client tools runs with `permissionPrompts: 'host'` and its session as the host, which holds
-   * the client's calls and refuses everything else at once, as `'none'` would (spike change 1).
+   * holds. The run is attached before anything is sent, so no event of the turn is missed. A confined
+   * chat (headless, or in a workspace; D14) runs `dontAsk` with the declared tools only and no MCP
+   * server but the client-tool stub; in the full profile without a workspace the chat is the app's own
+   * kind, with its tool preset and the app's permission mode. A chat with client tools has its session as the permission host, which holds the client's
+   * calls and refuses everything else at once (spike change 1); core starts its process in the mode
+   * that asks the host (`ChatManager.confineApiChat`).
    * Resolves to whether the chat's process runs with `opts.system`: false only when a live process
    * had to keep its own (`existingTurnPlan`).
    */
@@ -1286,7 +1420,12 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     opts: {
       provider: string;
       cwd: string | undefined;
-      toolPreset: string | undefined;
+      /** The request's policy (`requestPolicyOf`): a confined chat is created with it and runs with it; any other only stores it to compare */
+      policy: ApiChatPolicy;
+      /** Whether the chat is a confined API chat (`isConfinedRequest`) */
+      confined: boolean;
+      /** What the request named itself, which an unconfined chat is given as plain options: the preset, the rules, the budget */
+      asked: { toolPreset: string | undefined; allowedTools: boolean; maxBudget: boolean };
       ignored: string[];
       /** What `x-claudio-ignored` calls the effort a live process cannot take */
       effortName: string;
@@ -1298,8 +1437,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       system: string;
     },
   ): Promise<boolean> {
-    const permissionMode = permissionModeOf(core);
-    const { tools } = opts;
+    const { tools, policy, confined } = opts;
+    // Nobody is there to answer a prompt: the app's mode, never one that runs anything unasked
+    const permissionMode = confined ? CONFINED_PERMISSION_MODE : permissionModeOf(core);
     const prompts = tools ? 'host' : 'none';
     const servers = (): Record<string, Record<string, unknown>> => {
       const listed = tools ? registry.servers(core, tools) : null;
@@ -1329,9 +1469,22 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
           ...(opts.system ? { appendSystemPrompt: opts.system } : {}),
           ...(turn.jsonSchema ? { jsonSchema: turn.jsonSchema } : {}),
           ...(opts.cwd ? { cwd: opts.cwd } : {}),
-          ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
-          permissionMode,
-          permissionPrompts: prompts,
+          ...(confined
+            ? {
+                ...(policy.workspaceId !== null ? { workspaceId: policy.workspaceId } : {}),
+                allowedTools: [...policy.allowedTools],
+                ...(policy.maxTurns !== null ? { maxTurns: policy.maxTurns } : {}),
+                maxBudgetUsd: policy.maxBudgetUsd,
+                permissionMode,
+              }
+            : {
+                // The tools are the app's: the rules a request declared, the preset it named, else the default preset
+                ...(opts.asked.allowedTools ? { allowedTools: [...policy.allowedTools] } : opts.asked.toolPreset ? { toolPreset: opts.asked.toolPreset } : {}),
+                ...(policy.maxTurns !== null ? { maxTurns: policy.maxTurns } : {}),
+                ...(opts.asked.maxBudget ? { maxBudgetUsd: policy.maxBudgetUsd } : {}),
+                permissionMode,
+                permissionPrompts: prompts,
+              }),
         },
         (started) => {
           host(started.id);
@@ -1341,6 +1494,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         undefined,
         'api',
         extra,
+        confined ? undefined : policy,
       );
       if (current.chatId) served(current.chatId);
       return true;
@@ -1362,11 +1516,15 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
       opts.apply();
       host(id);
       if (runtime.pid !== null && !restart) {
-        // The same rules as a start or a resume, on the live process: nobody answers a prompt here
-        if (runtime.permissionPrompts !== prompts) core.runtime.setPermissionPrompts(id, prompts);
-        if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
+        // A confined chat's live process runs as its policy started it: a model, a schema or a stub that
+        // differs restarted it above
+        if (!confined) {
+          // The same rules as a start or a resume, on the live process: nobody answers a prompt here
+          if (runtime.permissionPrompts !== prompts) core.runtime.setPermissionPrompts(id, prompts);
+          if (runtime.permissionMode !== permissionMode) await core.runtime.updateSettings(id, { permissionMode });
+          if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
+        }
         if (turn.effort) opts.ignored.push(opts.effortName);
-        if (turn.model !== runtime.model) await core.runtime.updateSettings(id, { model: turn.model });
         current.attach(id);
         await core.chats.send(id, { text: prompt, attachments });
         current.replay();
@@ -1382,9 +1540,9 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
         // prompt holds the conversation's part whether or not this request resent it, so it is empty
         // only when the conversation has none and the request no `instructions`
         appendSystemPrompt: opts.system,
-        ...(opts.toolPreset ? { toolPreset: opts.toolPreset } : {}),
+        ...(!confined && opts.asked.toolPreset ? { toolPreset: opts.asked.toolPreset } : {}),
         permissionMode,
-        permissionPrompts: prompts,
+        ...(confined ? {} : { permissionPrompts: prompts }),
       }, { jsonSchema: turn.jsonSchema ?? null, extraMcpServers: tools ? servers() : null });
       served(id);
       current.replay();

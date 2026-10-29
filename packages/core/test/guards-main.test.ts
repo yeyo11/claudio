@@ -97,6 +97,25 @@ describe('guard program', () => {
     assert.match(run.stderr, /^claudio-guard\/1 observe toolu_01 push push\.\S+\n$/);
   });
 
+  it('declared-tools blocks in observe mode too, and takes no "Allow once"', async () => {
+    const allowDir = join(env.dataDir, 'allow-declared');
+    mkdirSync(allowDir, { recursive: true });
+    const rules = { ...env.declared(['Bash(cat *)']), mode: 'observe' as const, allowDir };
+    const run = await runGuard({ ...rulesFile(rules), stdin: hook('Bash', { command: 'cat /data/auth.json' }, { cwd: env.workspace }) });
+    assert.equal(run.code, 2);
+    assert.match(run.stderr, /^Claudio guard blocked this \(declared-tools\): `cat \/data\/auth\.json`: \/data\/auth\.json is outside/);
+    assert.match(run.stderr, /\nclaudio-guard\/1 block toolu_01 declared-tools declared-tools\.path\n$/);
+    const passes = await runGuard({ ...rulesFile(rules), stdin: hook('Bash', { command: 'cat README.md' }, { cwd: env.workspace }) });
+    assert.equal(passes.code, 0);
+  });
+
+  it('a tampered declared policy blocks every call', async () => {
+    const rules = { ...env.declared(['Bash(cat *)']), declared: { tools: 'Bash(*)', root: '/' } };
+    const run = await runGuard({ ...rulesFile(JSON.stringify(rules)), stdin: hook('Bash', { command: 'ls' }, { cwd: env.workspace }) });
+    assert.equal(run.code, 2);
+    assert.match(run.stderr, /integrity\.rules-unavailable/);
+  });
+
   it('session-start: armed marker with the session id, the rules hash prefix and the rule ids', async () => {
     const file = rulesFile(env.rules());
     const run = await runGuard({ ...file, event: 'session-start', stdin: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'sess-9' }) });

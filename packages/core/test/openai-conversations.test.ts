@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import type { ApiChatPolicy } from '@claudio/shared';
 import { Db, migrate } from '../src/db.ts';
-import { historyKey, keyAfterAnswer, stableStringify, type KeySeed } from '../src/openai/conversation-key.ts';
+import { historyKey, keyAfterAnswer, policyKey, stableStringify, type KeySeed } from '../src/openai/conversation-key.ts';
 import { OpenAiConversationStore } from '../src/openai/conversations.ts';
 import { parseChatCompletionRequest } from '../src/openai/request.ts';
 import type { ChatMessage } from '../src/openai/wire.ts';
@@ -46,6 +47,18 @@ test('a changed earlier message, model, system prompt or user is another convers
   assert.notEqual(keyOf(history, { model: 'opus' }), base);
   assert.notEqual(keyOf(history, { user: 'alice' }), base);
   assert.notEqual(keyOf(history, { user: 'alice' }), keyOf(history, { user: 'bob' }));
+});
+
+test("the chat's policy is in the seed: any field of it changed is another conversation (D8)", () => {
+  const { seed, messages } = messagesOf(history);
+  const policy: ApiChatPolicy = { workspaceId: null, allowedTools: ['Read'], maxTurns: null, maxBudgetUsd: 1, schema: false };
+  const keyed = (patch: Partial<ApiChatPolicy>): string | null => historyKey({ ...seed, policy: policyKey({ ...policy, ...patch }) }, messages);
+  const base = keyed({});
+  assert.equal(keyed({}), base);
+  assert.notEqual(base, historyKey(seed, messages), 'a key with a policy is never one without');
+  for (const patch of [{ workspaceId: 'ws_a' }, { allowedTools: ['Read', 'Grep'] }, { allowedTools: [] }, { maxTurns: 3 }, { maxBudgetUsd: 0.5 }, { schema: true }]) {
+    assert.notEqual(keyed(patch), base, JSON.stringify(patch));
+  }
 });
 
 test('what clients change without meaning anything does not change the key', () => {

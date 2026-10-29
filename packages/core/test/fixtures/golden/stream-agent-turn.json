@@ -312,6 +312,7 @@
         "isError": false,
         "turns": 3,
         "costUsd": 0.05,
+        "subtype": "success",
         "permissionDenials": [],
         "stopReason": "end_turn"
       }

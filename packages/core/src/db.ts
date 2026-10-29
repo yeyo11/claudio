@@ -1443,6 +1443,25 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      conversation TEXT NOT NULL,
      updated_at   TEXT NOT NULL
    );`,
+
+  // Ephemeral workspaces (docs/plans/headless-image.md, D7): records that come and go, shared by
+  // the processes on one data dir. `host` is the source URL's host, never the URL, which carries a
+  // code host's token. A removed one keeps its row with `removed_at`, so a chat naming it is told
+  // it expired rather than that it never existed
+  `CREATE TABLE workspaces (
+     id           TEXT PRIMARY KEY,
+     source       TEXT NOT NULL,
+     host         TEXT,
+     bytes        INTEGER NOT NULL DEFAULT 0,
+     files        INTEGER NOT NULL DEFAULT 0,
+     top_dir      TEXT,
+     created_at   TEXT NOT NULL,
+     last_used_at TEXT NOT NULL,
+     expires_at   TEXT NOT NULL,
+     state        TEXT NOT NULL,
+     removed_at   TEXT
+   );
+   CREATE INDEX workspaces_removed ON workspaces (removed_at);`,
 ];
 
 /**

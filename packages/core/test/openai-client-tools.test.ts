@@ -345,13 +345,17 @@ test('sameTools ignores order, and the cold results prompt says the session rest
   assert.match(toolChoiceInstruction({ kind: 'function', name: 'a' }) ?? '', /mcp__client__a/);
 });
 
-test('the stub entry loads up front and sends the chat token by reference, never a literal secret', () => {
-  assert.deepEqual(clientToolsServerEntry('http://127.0.0.1:1/api/openai/client-tools/x/mcp'), {
+test("the stub entry loads up front and sends the session's own secret, which only that session admits", () => {
+  const session = new ClientToolSession([tool('a')]);
+  assert.deepEqual(clientToolsServerEntry('http://127.0.0.1:1/api/openai/client-tools/x/mcp', session.secret), {
     type: 'http',
     url: 'http://127.0.0.1:1/api/openai/client-tools/x/mcp',
-    headers: { Authorization: 'Bearer ${CLAUDIO_API_TOKEN}' },
+    headers: { Authorization: `Bearer ${session.secret}` },
     alwaysLoad: true,
   });
+  assert.ok(session.admits(session.secret));
+  assert.ok(!session.admits(new ClientToolSession([tool('a')]).secret));
+  assert.ok(!session.admits(''));
 });
 
 // ---------- the stub's JSON-RPC ----------

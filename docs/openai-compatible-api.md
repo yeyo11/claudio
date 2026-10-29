@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-27T12:00:00Z
+updated_at: 2026-10-29T09:00:00Z
 tags:
     - api
     - openai
@@ -97,8 +97,11 @@ the whole response or the error once the turn is over.
   `content` is `null` in those chunks. Phase 4 feeds it from the main agent's `tool_use` blocks
   (option `clientTools`) and ends the turn with `handOff()`.
 - Usage: `prompt_tokens` = input + cache read + cache creation, with `prompt_tokens_details.cached_tokens`
-  = cache read. `completion_tokens` = output. `costUsd` is returned beside the body for
-  `x-claudio-cost-usd` and never placed in it.
+  = cache read. `completion_tokens` = output. `cost_usd` is this turn's own cost (phase 2's per-turn
+  figure), in the whole body's `usage` and on the final usage chunk with `include_usage`, beside
+  `x-claudio-cost-usd`: on a stream that header is a trailer most SDKs never read (agreed with
+  Shipcast, 2026-10-28). It is left out when the provider reported none, never a made-up zero. The
+  process's cumulative `costUsd` never reaches the body.
 
 **Where the tokens come from.** `RunOutcome` carries no token counts, only `costUsd`. The CLI reports
 them per model on its `result` (`modelUsage`, which reaches `ChatManager` as the driver's `ModelUsage[]`),
@@ -117,9 +120,32 @@ which counts the caller passes (below, "The tokens of one turn").
 | bad request | 400 | `invalid_request_error` | `invalid_request_error` |
 | unsupported parameter or part | 400 | `invalid_request_error` | `unsupported_parameter` |
 | conflict (`ChatConflictError`) | 409 | `invalid_request_error` | `conflict` |
+| a `cwd` that no longer exists (D9) | 400 | `invalid_request_error` | `cwd_missing` |
+| unknown workspace (`X-Claudio-Workspace`) | 404 | `invalid_request_error` | `workspace_not_found` |
+| a workspace expired or removed | 410 | `invalid_request_error` | `workspace_expired` |
+| a named chat with another policy | 409 | `invalid_request_error` | `policy_mismatch` |
+| the turn reached `X-Claudio-Max-Turns` | 422 | `run_error` | `max_turns` |
+| the chat's budget ran out before a structured answer | 422 | `run_error` | `max_budget` |
+| no answer, after the guard blocked a call of the turn | 422 | `run_error` | `tool_blocked` |
+| the model gave up on the schema, nothing blocked | 422 | `run_error` | `no_structured_output` |
 | daily spend cap, usage limit | 429 | `rate_limit_error` | `rate_limit_exceeded` |
 | no account can run (`ChatRefusal` 503) | 503 | `server_error` | `service_unavailable` |
 | anything else | 500 | `server_error` | `server_error` |
+
+**Typed run errors** (D16 of [the headless plan](plans/headless-image.md)). A turn that ran and ended
+without the answer it owed is final: a `422` of type `run_error` whose `code` says why, so a client
+does not retry what would end the same way. `max_turns` comes from the CLI's `error_max_turns`
+result, `max_budget` from `error_max_budget_usd` (or a budget cause) on a structured turn; a plain
+turn a budget cut is still a `200` with `finish_reason: "length"`, as it carries what was said.
+`tool_blocked` is a turn that said nothing and called nothing (or, under a schema, produced no
+output) after the guard refused at least one of its calls: its message names the last refusal, the
+subcommand or path and what was missing (`` `cat /data/auth.json` matches no declared Bash rule``),
+which the client fixes by declaring a rule. The turn ceilings come first, then `tool_blocked`, then
+`no_structured_output`. Streamed, the same error body is the last chunk before `[DONE]`; on
+Responses it is `response.failed` with `error.code`. The refusals of a start (`cwd_missing`,
+`workspace_not_found`, `workspace_expired`, `policy_mismatch`) are the REST API's kebab-case codes
+(`cwd-missing`…) in OpenAI's snake_case, with the same status. The spend cap and the usage limits
+stay `429` with `Retry-After`: those are retryable.
 
 The spend gate answers `409 { code: 'spend-cap', spend }` today. Under `/v1` that becomes a 429
 whose `retryAfterSeconds` counts to `spend.resetsAt`. The usage limit takes its reset as ISO text or
@@ -128,8 +154,10 @@ epoch seconds. `Retry-After` is at least 1. A 5xx shows its message only when th
 
 ### The conversation key
 
-The key is a SHA-256 hash chain. The seed is `["claudio-openai-conversation/1", model, systemPrompt,
-user]`. Each non-system message then extends it with its canonical JSON:
+The key is a SHA-256 hash chain. The seed is `["claudio-openai-conversation/2", model, systemPrompt,
+user, policy]`, where `policy` is the chat's policy as `policyKey` writes it:
+`[workspaceId, allowedTools, maxTurns, maxBudgetUsd, schema]`, the declared rules in the order sent.
+Each non-system message then extends it with its canonical JSON:
 `["user", ...text | ["image", digest]]` (`imageDigest`: the SHA-256 of a data URL's decoded bytes,
 so the same image matches however it was base64-encoded, or of an http(s) URL), `["assistant", text, [[id, name, args]...]]`,
 or `["tool", toolCallId, text]`. The lookup key is the chain through the last assistant message.
@@ -142,6 +170,21 @@ text is trimmed at both ends, string content equals one text part, `null` assist
 normalised: whitespace inside a message, letter case, and the model id (an alias is a different
 conversation). The OpenAI `user` is part of the seed, so two end users with identical histories
 never share a chat.
+
+**The policy is part of the key** (D8 of [the headless plan](plans/headless-image.md)). Every `/v1`
+chat has a policy (workspace, declared tools, turn and budget ceilings, whether it answers a
+schema) fixed when it is created; a confined API chat (headless, or with `X-Claudio-Workspace`) is
+enforced by it, and a chat of the full profile without a workspace only stores it to compare. The route reads the request's policy from
+its headers (below) the way a start would, and puts it in the seed, so the same history sent with
+another workspace, other tools, other ceilings or with and without `response_format` is a new
+conversation, never the old chat on new rules. Which schema it is stays outside the key: another
+schema on the same conversation restarts its process with it. Version 2 of the seed means no key
+stored before is found again; those conversations start a new chat. This changes the key for every
+`/v1` client, in every profile. A continuation that names its chat
+(`X-Claudio-Chat-Id`, `previous_response_id`) is compared with the chat's stored policy instead,
+and a difference is `409 policy_mismatch`. A request whose history has no assistant message (a
+one-shot run: system and one user message) is never looked up, so it always starts a new chat, its
+retries included; there is no "new chat" header.
 
 ### The table
 
@@ -196,8 +239,10 @@ same delta, so the second turn of a process reports its own cost, not the proces
    `response_format`. Tool names the stub cannot serve are `400 invalid_request_error` (phase 4,
    below). `tools` with `tool_choice: "none"` are left out and named in `x-claudio-ignored`. Trailing
    `tool` messages must answer every call of the last assistant message, and nothing else. Then the
-   model must be in the catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid and
-   `X-Claudio-Tool-Preset` must name a stored preset.
+   model must be in the catalogue (`404 model_not_found`), `X-Claudio-Cwd` must be valid, and the
+   policy headers must read (`requestPolicyOf`): each invalid value is a `400 invalid_request_error`
+   naming its header, and so is a declared rule a confined chat cannot take (a bare `Bash`); a chat
+of the full profile without a workspace is not confined, so it refuses no rule.
 2. **Serialised per conversation.** Requests wait in a queue keyed by the conversation key (or by
    `chat:<id>` with `X-Claudio-Chat-Id`), then also on `chat:<id>` once the chat is known, so a
    request that names the chat and one that finds it by history wait for each other. A queue rather
@@ -213,26 +258,36 @@ same delta, so the second turn of a process reports its own cost, not the proces
    new chat with the cold prompt, a hit continues with the delta.
 4. **Images** of the chosen prompt are uploaded (`uploadOpenAiImages`, with `fetchImage` and
    `core.uploads.save`) and attached to the message.
-5. **The turn.** A new chat is created with `permissionPrompts: 'none'` (`'host'` when it has client
-   tools: phase 4), the default tool preset (or
-   the header's), the app's default permission mode, except that `bypassPermissions` becomes `manual`,
-   and origin `api`. A chat with a live idle process gets the turn as a message
-   (`chats.send`), after its live process is set to the same rules: prompts denied
-   (`ChatManager.setPermissionPrompts`) and the same permission mode (`bypassPermissions` becomes
-   `manual`). A live chat that is busy is `409 conflict`. A chat nobody holds is resumed
-   (`chats.resume`) with the same mode and prompt settings. The runner subscribes to the chat **before** the turn is sent (inside
+5. **The turn.** A new chat in a headless Claudio, or with `X-Claudio-Workspace` in any profile, is
+   created as a **confined API chat** (D14 of [the headless plan](plans/headless-image.md), brought
+   back to its text on 2026-10-29): origin `api`, `--restricted`, `--tools=` the declared tools
+   only, no settings file, `--strict-mcp-config` with no server but the client-tool stub when the
+   request carries client tools, `dontAsk`, no `CLAUDIO_API_URL` or token, the `declared-tools`
+   guard, and the policy of step 1 stored with it. In the full profile **without a workspace** it is
+   the app's own kind of chat, as `/v1` made it before the headless profile: origin `api`, the app's
+   tool preset (or `X-Claudio-Tool-Preset`), the CLI's normal setting sources, never
+   `bypassPermissions`, the API token as before, and `X-Claudio-Cwd` honoured. The per-call headers
+   are plain options there: `X-Claudio-Max-Turns`, `X-Claudio-Max-Budget-Usd` and
+   `X-Claudio-Allowed-Tools` (no refusal of a bare `Bash`). The policy is stored with the chat
+   (`asked`) only to compare a continuation's, and the chat is not marked confined. A chat with a live idle
+   process gets the turn as a message (`chats.send`); a confined chat's live settings never change
+   (`ChatManager.updateSettings` refuses them), so another model, schema, system prompt or client
+   tool list ends the idle process and resumes the chat with it. A live chat that is busy is
+   `409 conflict`. A chat nobody holds is resumed (`chats.resume`) on its stored policy: a `cwd` gone
+   since is `400 cwd_missing`, a workspace gone since `410 workspace_expired`. The runner subscribes to the chat **before** the turn is sent (inside
    `create`'s `onStart` for a new chat) and asks `ChatManager.nextResult` when the turn is over, so a
    process that dies without a result, or a stop, ends the answer as an error and a limit replay
    that changes accounts does not. Once the turn is sent, the chat's buffer is read from the last
    event before the turn (recorded when the runner attached), never from the start, so an earlier
    execution's `result` cannot answer this turn.
-   **Tools.** An API chat runs with the app's default tool preset and default permission mode
-   (`bypassPermissions` becomes `manual`, and a tool that would need a prompt is denied, since
-   nobody answers one). So a client can have the model run Claude Code's own tools (read files, run
-   commands, edit) in the chat's working directory, as far as that preset allows without asking. A
-   client that only chats should send `X-Claudio-Tool-Preset: read-only`, or the id of a preset with
-   no tools. Keeping the app's preset as the default is the owner's decision of 2026-10-27; the risk
-   it accepts is that any holder of an API token reaches whatever that preset allows.
+   **Tools.** The declared tools are `X-Claudio-Allowed-Tools`, else the rules of
+   `X-Claudio-Tool-Preset`, else the app's default tool preset (the owner's decision of 2026-10-27)
+   in the full profile and **none** in headless: a headless chat can only answer (D14.8). In a
+   confined chat they are the only tools, and the guard behind the confinement checks every Bash
+   subcommand and path against them ([guards](guards.md)); a preset holding a bare `Bash` or
+   `Bash(*)` cannot be declared there (`400` naming it). In the full profile without a workspace
+   they are the chat's tool options as the app gives them, so a default preset with a bare `Bash`
+   works as it always did.
    **The idle limit.** A turn that shows no sign of life (no event, no CLI heartbeat for a command
    it runs) for `CLAUDIO_OPENAI_TURN_IDLE_MS`, **10 minutes** by default, is interrupted and answered
    `500 server_error` ("showed no activity"). It is what ends a turn stuck on a prompt nobody can
@@ -251,9 +306,13 @@ same delta, so the second turn of a process reports its own cost, not the proces
 | Header | Direction | Meaning |
 |---|---|---|
 | `Authorization: Bearer <token>` | in | The owner's API token, or a chat's own `CLAUDIO_API_TOKEN` from this machine |
-| `X-Claudio-Chat-Id` | in | Continue this chat |
-| `X-Claudio-Cwd` | in | Where a new chat runs: an absolute, existing directory inside the workspace or an imported project. Stricter than `cwd` on `POST /chats`, which only checks the type and creates the directory. **It applies only when a chat is created**: on a chat that exists it is ignored, and named in `x-claudio-ignored` when it differs from the chat's directory. It is not part of the conversation key (the key's seed is phase 1's `model`, system prompt and `user`), so the same history from two directories continues one chat. UTF-8 bytes are read as UTF-8 |
-| `X-Claudio-Tool-Preset` | in | A stored tool preset id instead of the default preset |
+| `X-Claudio-Chat-Id` | in | Continue this chat; its policy must be the request's (`409 policy_mismatch`) |
+| `X-Claudio-Workspace` | in | A workspace id from `POST /api/workspaces` ([workspaces.md](workspaces.md)): the chat runs in its copy of the source tree, read only. Unknown is `404 workspace_not_found`, expired `410 workspace_expired`; together with `X-Claudio-Cwd` a `400`. Part of the policy and the key |
+| `X-Claudio-Max-Turns` | in | `maxTurns`: a whole number from 1. Reaching it is `422 max_turns`. Part of the policy and the key |
+| `X-Claudio-Max-Budget-Usd` | in | `maxBudgetUsd`: a positive amount; absent, `CLAUDIO_CHAT_BUDGET_USD` (1 USD by default). Part of the policy and the key |
+| `X-Claudio-Allowed-Tools` | in | The declared tools, a JSON array of Claude Code permission rules (`["Read","Grep","Bash(ls *)"]`); `[]` is none. A bare `Bash` or `Bash(*)` is a `400`, and so is a write tool in a workspace; together with `X-Claudio-Tool-Preset` a `400`. Part of the policy and the key |
+| `X-Claudio-Cwd` | in | Where a new chat runs: an absolute, existing directory inside the workspace or an imported project, never a workspace folder. Stricter than `cwd` on `POST /chats`, which takes any existing directory. **It applies only when a chat is created**: on a chat that exists it is ignored, and named in `x-claudio-ignored` when it differs from the chat's directory. It is not part of the conversation key, so the same history from two directories continues one chat. UTF-8 bytes are read as UTF-8 |
+| `X-Claudio-Tool-Preset` | in | A stored tool preset id whose rules are the declared tools (read only in headless). Part of the policy and the key through those rules |
 | `X-Claudio-Spend-Override: 1` | in | Past the daily spend cap, as on `POST /chats` |
 | `X-Claudio-Chat-Id` | out | The chat, on every answer once it is known, errors after the start included |
 | `X-Claudio-Cost-Usd` | out | This turn's cost; an HTTP trailer on a streamed answer, since it is known only at the end |
@@ -332,7 +391,8 @@ too. Every redirect is checked again.
 - Client tools together with `response_format` are refused (phase 4).
 - A structured answer is not streamed as it is written: it arrives as one chunk at the end (phase 3).
 - A chat continued by `X-Claudio-Chat-Id` keeps its live process's effort for that turn (named in
-  `x-claudio-ignored`); its model does change. Its system prompt follows phase 5's rule ("The system
+  `x-claudio-ignored`); its model does change, by ending the idle process and resuming the chat with
+  it, since a confined chat's live settings never change. Its system prompt follows phase 5's rule ("The system
   prompt"): system messages in the body replace the chat's, a body without any keeps them, and a
   live idle process started with another effective prompt is ended and the chat resumed with the new
   one, as a schema change does (phase 3).
@@ -374,9 +434,9 @@ then the model called the tool. So the prose is never the answer.
 
 **When there is no output.** A model that gives up on the schema ends with `subtype: success`, prose
 and no `structured_output` (recorded in `packages/core/test/fixtures/replay/review-schema-fail.jsonl`).
-That is a `500 server_error` "The model did not produce output matching `response_format`; it said:
-…", whole, or an error chunk and `[DONE]` when streamed. A budget that cut the turn first is the same
-error with its own message. A failed result (`error_max_structured_output_retries`, say) is the usual
+That is a `422 run_error` `no_structured_output` "The model did not produce output matching
+`response_format`; it said: …", whole, or an error chunk and `[DONE]` when streamed (D16, above). A
+budget that cut the turn first is `max_budget`, and a call the guard blocked first `tool_blocked`. A failed result (`error_max_structured_output_retries`, say) is the usual
 failed-run error. Never an empty 200.
 
 **A schema change on one conversation.** `--json-schema` is a launch flag, fixed while the process
@@ -429,12 +489,16 @@ permission is what Claudio holds. The design and the real-CLI evidence are in
 ### The stub server
 
 Each chat with client tools gets a session with a random id and a stub MCP server at
-`/api/openai/client-tools/<id>/mcp`, passed to the CLI with `--mcp-config` beside the servers the
-chat loads anyway (the file adds to them, so `--strict-mcp-config` stays off). The entry is
-`{ type: "http", url, headers: { Authorization: "Bearer ${CLAUDIO_API_TOKEN}" }, alwaysLoad: true }`:
-the CLI expands the chat's own per-process token from its environment, so no secret is written to
-the file, and the stub accepts only that token, for the chat the session is bound to (`401`
-otherwise, the same for an unknown id). `alwaysLoad` saves a `ToolSearch` round trip and makes
+`/api/openai/client-tools/<id>/mcp`, passed to the CLI with `--mcp-config` and
+`--strict-mcp-config`: a confined `/v1` chat (headless, or in a workspace) loads the stub alone (D14.1 of [the headless plan](plans/headless-image.md); core drops any other server a caller
+adds); a full-profile chat without a workspace adds it to the servers the app gives its chats. The entry is `{ type: "http", url, headers: { Authorization: "Bearer <secret>" }, alwaysLoad:
+true }`, where the secret is the session's own (`ClientToolSession.secret`, 32 random bytes). A
+confined chat has no `CLAUDIO_API_TOKEN` (D14.3), so its CLI could not expand one; the secret opens
+this one session and nothing else of the API. It sits in the chat's `0600` config file under the
+data dir, which the chat's file tools (`--restricted`) and its guard keep it from reading. The stub
+route checks it itself, in constant time, for a session bound to a chat (`401` otherwise, the same
+for an unknown id); `security.ts` lets the stub's path through to it without an API credential, as
+it does a webhook delivery, with the host allowlist still applied and no audit line per call. `alwaysLoad` saves a `ToolSearch` round trip and makes
 `tool_choice` instructions work (spike). `tools/list` lists the client's tools with
 `readOnlyHint: true`, so the CLI asks for every call of a message at once and runs them together.
 The stub changes nothing itself; the client acts on its own side.
@@ -480,8 +544,13 @@ duplicates.
 
 ### Who answers the permission requests
 
-A chat with client tools runs with `permissionPrompts: 'host'` (never `bypassPermissions`), and its
-session is the chat's `PermissionHost` (`ChatManager.setPermissionHost`). Every `can_use_tool` the
+A chat with client tools runs with `permissionPrompts: 'host'` and its session as the chat's
+`PermissionHost`. A confined chat runs in `dontAsk`, which denies a call nothing allows before any
+request is made ("Auto-denies every call that would otherwise prompt", a mode "which never prompts":
+[permissions](https://code.claude.com/docs/en/permissions), read 2026-10-29), so a chat that loads the stub runs in the CLI's default mode (`manual`) instead
+(`CLIENT_TOOLS_PERMISSION_MODE`, set by `ChatManager.confineApiChat` at every spawn): what is not
+declared is still refused without a person, by the session, and the guard checks every call either
+way. Its session is the chat's `PermissionHost` (`ChatManager.setPermissionHost`). Every `can_use_tool` the
 CLI sends goes to it, before Claudio's tool policy, and **none reaches `PermissionBroker`**: its
 10-minute deny and the panel's buttons cannot answer a client's call, `pendingPrompts` stays 0, and
 the chat's permission list and notices show nothing. The session holds a request for one of the
@@ -490,10 +559,9 @@ translator tells the session each main-agent `mcp__client__*` block it streams t
 block's message arrives, and the CLI writes that message before it asks. A request for a call nobody
 claimed (a subagent's call, one `parallel_tool_calls: false` or a named `tool_choice` left out, a late
 ask) is denied at once with "This call was not handed to the client." rather than held until a
-watchdog. A built-in tool is denied at once with the message `permissionPrompts: 'none'` gives. Built-in tools that the chat's tool preset and permission mode
-allow without asking still run in the same turn, as in any API chat: a preset reaches the CLI as its
-own `--allowedTools` and `--disallowedTools`, which it applies before it would send `can_use_tool`,
-so nothing Claudio answers can take them away. This surface gives its chats no Claudio tool policy
+watchdog. A built-in tool is denied at once with the message `permissionPrompts: 'none'` gives. Built-in tools the chat declares
+still run in the same turn, as in any API chat: they reach the CLI as its own `--allowedTools`,
+which it applies before it would send `can_use_tool`, so nothing Claudio answers can take them away. This surface gives its chats no Claudio tool policy
 (`toolConfig.policy` comes only from automated work), so there is no policy verdict for the host to
 skip. An `api` chat whose host is not attached (after a restart) denies every request rather than
 asking a person.
@@ -881,7 +949,9 @@ reference calls it an SDK-only convenience the Python and JavaScript SDKs comput
   `cached_tokens` (read) and `cache_write_tokens` (creation), `output_tokens`,
   `output_tokens_details.reasoning_tokens: 0` (the CLI does not report them apart), `total_tokens`;
   phase 2's per-turn figures, null when the CLI reported none, and null on a response that handed
-  calls over (the CLI reports usage with the turn's result). The cost stays in `X-Claudio-Cost-Usd`.
+  calls over (the CLI reports usage with the turn's result). `usage.cost_usd` is this turn's own
+  cost, as on Chat Completions, in the whole body and on `response.completed`; `X-Claudio-Cost-Usd`
+  stays.
 - A whole answer that failed is an HTTP error in OpenAI's error shape, as on Chat Completions; an
   `incomplete` one is a 200.
 

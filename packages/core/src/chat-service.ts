@@ -1,3 +1,4 @@
+import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
 import {
@@ -41,6 +42,8 @@ import {
   type ChatStartOptions,
   type ChatToolConfig,
   type ToolPolicy,
+  type ToolPreset,
+  type ApiChatPolicy,
   type ProjectProvidersSettings,
   type ProviderMove,
   type ProviderMoveDecider,
@@ -78,6 +81,10 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { DECISION_EFFORTS } from './decisions/settings.ts';
 import type { AdoptedChat, ChatManager, ChatRuntime, ExecutionExtras, NewChat } from './chats.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
+import { apiChatPolicy, ChatStartRefusal, CONFINED_PERMISSION_MODE, cwdMissing, declaredRules } from './confined-chat.ts';
+import type { DeclaredGuardRequest } from './guards/declared.ts';
+import type { Workspaces } from './workspaces/index.ts';
+import { overlaps } from './workspaces/settings.ts';
 import type { CliSession, TranscriptSummary } from './cli-facts.ts';
 import type { HealthService } from './health-service.ts';
 import { backgroundLogs, isLiveCliSession, listActiveCliSessions, stopBackgroundSession } from './cli.ts';
@@ -231,6 +238,10 @@ export interface ChatServiceDeps {
   transcriptRead?: (id: string, entries: TranscriptEntry[]) => void;
   /** A person continued a chat from an earlier message (`resumeSessionAt`): the lessons' S-rewound */
   rewound?: (chat: ChatSummary, resumeSessionAt: string) => void;
+  /** The ephemeral workspaces (D7): a chat in one is a confined API chat, and no `cwd` may name one's folder */
+  workspaces?: Pick<Workspaces, 'resolve' | 'touch' | 'overlaps' | 'insideRoot'>;
+  /** Arms the `declared-tools` guard of a confined API chat (`guards/declared.ts`); without it such a chat is refused */
+  declaredGuard?: (request: DeclaredGuardRequest) => Promise<ChatGuardPlan>;
 }
 
 /** The run, task or item a chat works for: what makes its limit the rotation's rather than a person's. */
@@ -441,6 +452,7 @@ export class ChatService {
       ...(runtime?.pendingAccount ? { pendingAccount: runtime.pendingAccount } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
       ...(runtime?.guards ? { guards: runtime.guards } : {}),
+      policy: runtime?.policy ?? null,
       state,
       control,
       // Our process, or a terminal's or another program's: the one fact every branch is read against
@@ -739,18 +751,51 @@ export class ChatService {
     origin?: 'api',
     /** Only core's callers pass it (the OpenAI surface's stub server): one in a body is dropped, since an entry is a command to run */
     extraMcpServers?: Record<string, Record<string, unknown>>,
+    /** Only the OpenAI-compatible routes pass it, for a chat that is not confined: kept to compare a continuation's values */
+    apiAsked?: ApiChatPolicy,
   ): Promise<ChatSummary> {
     // The name before the rename is dropped too, so a stored or replayed old body cannot carry it in
-    const { claudioAssistant: _sent, agentryAssistant: _legacy, guards: _plan, apiClient: _api, extraMcpServers: _servers, ...rest } = body as typeof body & {
+    const {
+      claudioAssistant: _sent,
+      agentryAssistant: _legacy,
+      guards: _plan,
+      apiClient: _api,
+      extraMcpServers: _servers,
+      apiPolicy: _policy,
+      apiAsked: _asked,
+      apiAttachments: _files,
+      ...rest
+    } = body as typeof body & {
       claudioAssistant?: unknown;
       agentryAssistant?: unknown;
       guards?: unknown;
       apiClient?: unknown;
       extraMcpServers?: unknown;
+      apiPolicy?: unknown;
+      apiAsked?: unknown;
+      apiAttachments?: unknown;
     };
+    // A workspace is reached by its id only, so only as a confined API chat: no folder may name one
+    // Headless refuses a folder that is, holds or is inside the root; the full profile only one that
+    // is or is inside it, since a person's own folder (~) may hold a root under ~/.config (D14)
+    if (typeof rest.cwd === 'string') {
+      const cwd = resolve(rest.cwd);
+      const headless = this.deps.config.profile === 'headless';
+      if (headless ? this.deps.workspaces?.overlaps(cwd) : this.deps.workspaces?.insideRoot(cwd)) {
+        throw new ChatStartRefusal(
+          headless ? 'cwd cannot be or hold a workspace folder: name the workspace with workspaceId' : 'cwd cannot be the workspaces root or inside a workspace folder: name the workspace with workspaceId',
+          400,
+        );
+      }
+    }
+    if (rest.workspaceId !== undefined && typeof rest.workspaceId !== 'string') throw new ChatStartRefusal('workspaceId must be a workspace id', 400);
+    // Every chat a request starts in headless and every chat in a workspace is a confined API chat
+    // (D14, D8); a /v1 chat in the full profile without a workspace is not, so it keeps its tools
+    if (rest.workspaceId !== undefined || (this.deps.config.profile === 'headless' && !claudioAssistant)) return this.createConfined(rest, onStart, origin, extraMcpServers);
     const marked = claudioAssistant ? { ...rest, claudioAssistant } : rest;
     const api = origin === 'api' ? { ...marked, apiClient: true as const } : marked;
-    const request = extraMcpServers ? { ...api, extraMcpServers } : api;
+    const withServers = extraMcpServers ? { ...api, extraMcpServers } : api;
+    const request = origin === 'api' && apiAsked ? { ...withServers, apiAsked } : withServers;
     // Refused before anything is resolved or spawned: no driver is a 400, and so is a gate
     const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null, worktree: request.worktree !== undefined });
     // `--agents` reads the file it is given: only the definitions the flow writes, never a path a
@@ -760,6 +805,8 @@ export class ChatService {
     }
     // For the same reason, each value of a confinement becomes a flag's argument only in its known shape
     if (request.confine !== undefined && !confinementShape(request.confine)) throw new Error('confine is not a set of tool names and setting sources');
+    // Only its two lists: the folders a confinement adds are core's, for a confined API chat's own files
+    if (request.confine) request.confine = { tools: request.confine.tools, settingSources: request.confine.settingSources };
     // `toolPreset: null` is how a request says it wants no preset, the default included
     const fallback = request.toolPreset === undefined && request.allowedTools === undefined ? this.deps.tools.presets.defaultPreset() : null;
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
@@ -781,6 +828,139 @@ export class ChatService {
       throw startFailure(err);
     }
     return this.require(started.id);
+  }
+
+  /**
+   * Starts a confined API chat (docs/plans/headless-image.md, D14): in its workspace or an existing
+   * working directory, with the declared tools only, `dontAsk`, no MCP server but what core adds, no
+   * credential for Claudio's API, and its `declared-tools` guard armed before the process starts. Its
+   * policy is stored with it; the request's other options shape nothing else the chat can reach.
+   */
+  private async createConfined(
+    request: NewChatRequest & Pick<NewChat, 'agent' | 'agentsFile' | 'systemPromptSnapshot' | 'uploads' | 'keepAlive' | 'confine' | 'purpose'> & { policy?: ToolPolicy; name?: string },
+    onStart: ((chat: ChatRuntime) => void) | undefined,
+    origin: 'api' | undefined,
+    extraMcpServers: Record<string, Record<string, unknown>> | undefined,
+  ): Promise<ChatSummary> {
+    const provider = this.gate(request.provider, request, { schema: request.jsonSchema !== undefined && request.jsonSchema !== null });
+    if (provider !== LEGACY_PROVIDER) throw new ChatStartRefusal('a confined API chat runs on Claude Code only', 400);
+    if (request.agent !== undefined || request.agentsFile !== undefined || request.confine !== undefined) {
+      throw new ChatStartRefusal('a confined API chat runs as no agent and under its own confinement', 400);
+    }
+    const workspaceId = request.workspaceId ?? null;
+    let cwd: string;
+    if (workspaceId !== null) {
+      if (request.cwd !== undefined && request.cwd !== null) throw new ChatStartRefusal('cwd and workspaceId cannot both be given', 400);
+      if (!this.deps.workspaces) throw new ChatStartRefusal(`workspace '${workspaceId}' does not exist`, 404, 'workspace-not-found');
+      cwd = this.deps.workspaces.resolve(workspaceId);
+    } else {
+      cwd = resolve(request.cwd ?? this.deps.config.workspaceDir);
+      if (!existsSync(cwd)) throw cwdMissing(cwd, null);
+      // In headless the caller's token runs model turns and nothing else: a chat whose folder is, or
+      // holds, Claudio's data or the CLI's sign-in would read with its file tools what the token cannot
+      if (this.deps.config.profile === 'headless' && holdsSecrets(cwd, [this.deps.config.dataDir, this.deps.config.configDir])) {
+        throw new ChatStartRefusal(`cwd cannot be or hold Claudio's data or the Claude configuration directory: ${cwd}`, 400);
+      }
+    }
+    // The declared rules, or a stored preset's when it names one; neither is no tool at all (D14.8)
+    let preset: ToolPreset | null = null;
+    if (request.allowedTools === undefined && typeof request.toolPreset === 'string') {
+      preset = this.deps.tools.presets.get(request.toolPreset) ?? null;
+      if (!preset) throw new ChatStartRefusal(`tool preset '${request.toolPreset}' not found`, 404);
+    }
+    const declared = preset ? preset.allowedTools : declaredRules(request.allowedTools);
+    const policy = apiChatPolicy(request, { workspaceId, allowedTools: declared, budgetUsd: this.deps.config.chatBudgetUsd });
+    const attachments = this.deps.runtime.attachmentPaths(request.attachments ?? []);
+    const guards = await this.declaredGuard({ policy, cwd, attachments });
+    let started: ChatRuntime;
+    try {
+      const effort = request.effort ?? recommendedEffort(request.model, 'chat') ?? undefined;
+      started = this.deps.runtime.start({
+        prompt: request.prompt,
+        ...(request.attachments ? { attachments: request.attachments } : {}),
+        ...(request.name ? { name: request.name } : {}),
+        ...(request.model ? { model: request.model } : {}),
+        ...(effort ? { effort } : {}),
+        ...(request.account !== undefined ? { account: request.account } : {}),
+        ...(request.fallbackModel ? { fallbackModel: request.fallbackModel } : {}),
+        ...(request.thinking ? { thinking: request.thinking } : {}),
+        ...(request.maxThinkingTokens ? { maxThinkingTokens: request.maxThinkingTokens } : {}),
+        ...(request.thinkingDisplay ? { thinkingDisplay: request.thinkingDisplay } : {}),
+        ...(request.appendSystemPrompt ? { appendSystemPrompt: request.appendSystemPrompt } : {}),
+        ...(request.systemPromptSnapshot ? { systemPromptSnapshot: request.systemPromptSnapshot } : {}),
+        ...(request.keepAlive !== undefined ? { keepAlive: request.keepAlive } : {}),
+        ...(policy.schema ? { jsonSchema: request.jsonSchema } : {}),
+        ...(request.disallowedTools ? { disallowedTools: request.disallowedTools } : {}),
+        purpose: request.purpose ?? 'person',
+        provider,
+        cwd,
+        permissionMode: CONFINED_PERMISSION_MODE,
+        allowedTools: policy.allowedTools,
+        maxBudgetUsd: policy.maxBudgetUsd,
+        ...(policy.maxTurns !== null ? { maxTurns: policy.maxTurns } : {}),
+        toolConfig: { preset, allowedTools: policy.allowedTools, disallowedTools: request.disallowedTools ?? [], mcp: null },
+        guards,
+        apiPolicy: policy,
+        api: false,
+        uploads: false,
+        ...(origin === 'api' ? { apiClient: true as const } : {}),
+        // The seam of the `/v1` client-tool stub: the one server such a chat may load
+        ...(extraMcpServers ? { extraMcpServers } : {}),
+      });
+      onStart?.(started);
+    } catch (err) {
+      throw startFailure(err);
+    }
+    if (workspaceId !== null) this.deps.workspaces?.touch(workspaceId);
+    return this.require(started.id);
+  }
+
+  /** Arms a confined API chat's guard; a server without one refuses the chat rather than run it unguarded */
+  private declaredGuard(request: DeclaredGuardRequest): Promise<ChatGuardPlan> {
+    if (!this.deps.declaredGuard) throw new ChatStartRefusal('a confined API chat needs the guard, which is not available here', 409);
+    return this.deps.declaredGuard(request);
+  }
+
+  /**
+   * Continues a confined API chat on its stored policy, which no request changes: its workspace must
+   * still be ready (`410` once it expired), its folder must exist (D9), and its guard is armed again
+   * with the files it was given so far and the ones this turn attaches. Core's continuations (the
+   * `/v1` cold resume, a compaction) come here; the REST API serves no resume of such a chat.
+   */
+  private async resumeConfined(id: string, chat: ChatSummary, policy: ApiChatPolicy, request: ResumeChatRequest, extras: ExecutionExtras): Promise<ChatSummary> {
+    if (request.permissionMode !== undefined && request.permissionMode !== CONFINED_PERMISSION_MODE) {
+      throw new ChatStartRefusal(`permissionMode must be ${CONFINED_PERMISSION_MODE} for a confined API chat`, 400);
+    }
+    const adoption = await this.adoptionOf(chat);
+    if (policy.workspaceId !== null) {
+      if (!this.deps.workspaces) throw cwdMissing(adoption.cwd, policy.workspaceId);
+      this.deps.workspaces.resolve(policy.workspaceId);
+    }
+    if (!existsSync(adoption.cwd)) throw cwdMissing(adoption.cwd, policy.workspaceId);
+    const attachments = [...this.deps.runtime.confinedFiles(id), ...this.deps.runtime.attachmentPaths(request.attachments ?? [])];
+    const guards = await this.declaredGuard({ policy, cwd: adoption.cwd, attachments });
+    this.deps.runtime.resume(
+      id,
+      {
+        prompt: request.prompt,
+        ...(request.attachments ? { attachments: request.attachments } : {}),
+        ...(request.model ? { model: request.model } : {}),
+        ...(request.effort ? { effort: request.effort } : {}),
+        ...(request.account !== undefined ? { account: request.account } : {}),
+        // Instructions, not policy: `/v1` restarts a process with the system prompt its request asks for
+        ...(request.appendSystemPrompt !== undefined ? { appendSystemPrompt: request.appendSystemPrompt } : {}),
+        provider: LEGACY_PROVIDER,
+        guards,
+        ...(extras.jsonSchema !== undefined && extras.jsonSchema !== null ? { jsonSchema: extras.jsonSchema } : {}),
+        ...(extras.extraMcpServers !== undefined ? { extraMcpServers: extras.extraMcpServers } : {}),
+        ...(extras.keepAlive !== undefined ? { keepAlive: extras.keepAlive } : {}),
+        purpose: extras.purpose ?? 'person',
+        ...(extras.housekeeping ? { housekeeping: extras.housekeeping } : {}),
+      },
+      adoption,
+    );
+    if (policy.workspaceId !== null) this.deps.workspaces?.touch(policy.workspaceId);
+    return this.require(id);
   }
 
   /**
@@ -838,6 +1018,8 @@ export class ChatService {
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to resume.', null);
     if (chat.control.mode === 'readOnly') throw new ChatConflictError(chat.control.reason, chat.control.action);
     if (chat.control.mode === 'interactive') throw new ChatConflictError('This chat already has a live execution: send it a message instead.', null);
+    const policy = this.deps.runtime.get(id)?.policy;
+    if (policy) return this.resumeConfined(id, chat, policy, request, extras);
     const provider = this.gate(this.deps.runtime.get(id)?.provider ?? request.provider, request, { schema: extras.jsonSchema !== undefined && extras.jsonSchema !== null });
     const adoption = await this.adoptionOf(chat);
     // A person continuing a chat a member ran gets a chat again: none of the run's rules, and the
@@ -886,6 +1068,7 @@ export class ChatService {
     const chat = await this.summaryOf(id);
     if (!chat) throw new ChatNotFoundError();
     if (chat.origin === 'internal') throw new ChatConflictError('This chat is housekeeping and keeps no transcript to fork.', null);
+    if (this.deps.runtime.get(id)?.policy) throw new ChatConflictError('A confined API chat cannot be forked: start a new chat with the policy it needs.', null);
     const provider = this.gate(this.deps.runtime.get(id)?.provider ?? request.provider, request, { fork: true });
     const adoption = await this.adoptionOf(chat);
     const handBack = this.deps.memberChat?.(id) ?? false;
@@ -1229,4 +1412,16 @@ function confinementShape(value: unknown): boolean {
     Array.isArray(settingSources) &&
     settingSources.every((x) => x === 'user' || x === 'project' || x === 'local')
   );
+}
+
+/** Whether `cwd` is, sits inside or holds one of `dirs`, judged on the paths as they resolve too */
+function holdsSecrets(cwd: string, dirs: readonly string[]): boolean {
+  const real = (path: string): string => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return path;
+    }
+  };
+  return dirs.some((dir) => overlaps(cwd, resolve(dir)) || overlaps(real(cwd), real(resolve(dir))));
 }

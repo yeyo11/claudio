@@ -9,6 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { ChatCompletionTranslator, ChatConflictError, ChatNotFoundError, Core, loadConfig, parseChatCompletionRequest, ResponsesTranslator, RunSlotRefusal, STREAM_DONE, translateOpenAiRequest, type ChatCompletionRequest, type OpenAiTurnTranslator } from '@claudio/core';
 import type { ChatSummary, RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { standInGuard } from './fixtures/declared-guard.ts';
 import { failureOf, TurnRun } from '../src/routes/openai.ts';
 
 // The OpenAI-compatible routes over a real core and a fake CLI that keeps its process across turns
@@ -37,6 +38,7 @@ before(async () => {
       CLAUDIO_DATA_DIR: join(root, 'data'),
     }),
   );
+  standInGuard(core, join(root, 'guard'));
   mkdirSync(join(root, 'workspace', 'sub'), { recursive: true });
   // Each chat keeps its process up between turns, as it does for a person, and this file starts many
   await core.appSettings.update({ maxConcurrentRuns: 64 });
@@ -65,7 +67,7 @@ interface Completion {
   object: string;
   model: string;
   choices: Array<{ index: number; message: { role: string; content: string | null }; finish_reason: string }>;
-  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details: { cached_tokens: number } };
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; prompt_tokens_details: { cached_tokens: number }; cost_usd?: number };
 }
 
 const auth = (): Record<string, string> => ({ authorization: `Bearer ${token}` });
@@ -87,7 +89,7 @@ function assertOpenAiError(body: unknown, code: string): OpenAiErrorBody {
   const shaped = body as OpenAiErrorBody;
   assert.equal(typeof shaped.error, 'object', JSON.stringify(body));
   assert.equal(typeof shaped.error.message, 'string');
-  assert.ok(['invalid_request_error', 'rate_limit_error', 'server_error'].includes(shaped.error.type), shaped.error.type);
+  assert.ok(['invalid_request_error', 'rate_limit_error', 'server_error', 'run_error'].includes(shaped.error.type), shaped.error.type);
   assert.ok('param' in shaped.error);
   assert.equal(shaped.error.code, code, JSON.stringify(body));
   return shaped;
@@ -152,7 +154,8 @@ test('a whole completion answers OpenAI\'s shape, names its chat and its cost in
   assert.equal(completion.choices[0]?.message.content, 'echo: hello');
   assert.equal(completion.choices[0]?.finish_reason, 'stop');
   // input 10 + cache read 100 + cache creation 20, as the fake reports one turn
-  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
+  // The turn's own cost in the body too (D16), the same figure as the header
+  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 }, cost_usd: 0.01 });
   assert.equal(core.runtime.get(chatId)?.origin, 'api');
 });
 
@@ -168,7 +171,7 @@ test('a resent history continues the same chat with only the new messages, and t
   const completion = (await second.json()) as Completion;
   assert.equal(completion.choices[0]?.message.content, 'echo: two');
   // The process reports 20/10/200/40 cumulative now; the turn is the growth since its first result
-  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
+  assert.deepEqual(completion.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 }, cost_usd: 0.01 });
   assert.equal(second.headers.get('x-claudio-cost-usd'), '0.01');
   const sent = promptsOf(chatId);
   assert.equal(sent.length, 2);
@@ -268,7 +271,8 @@ test('a streamed completion sends role first, the text, a final chunk, the usage
   assert.equal(chunks[0]?.choices[0]?.delta.role, 'assistant');
   const usage = chunks.at(-1);
   assert.deepEqual(usage?.choices, []);
-  assert.deepEqual(usage?.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 } });
+  // The cost rides on the usage chunk: on a stream the header is a trailer most SDKs never read
+  assert.deepEqual(usage?.usage, { prompt_tokens: 130, completion_tokens: 5, total_tokens: 135, prompt_tokens_details: { cached_tokens: 100 }, cost_usd: 0.01 });
   const final = chunks.at(-2);
   assert.equal(final?.choices[0]?.finish_reason, 'stop');
   assert.deepEqual(final?.choices[0]?.delta, {});
@@ -536,20 +540,21 @@ test("X-Claudio-Chat-Id and a conversation key only reach chats this surface sta
   assert.ok(!promptsOf(personId).some((p) => p.prompt.includes('next')));
 });
 
-test('a turn on a live chat runs without host prompts and never in bypassPermissions', async () => {
+test('a /v1 chat in the full profile without a workspace is the app\'s own kind of chat: not confined, never bypassing, no host prompts', async () => {
   const first = await post({ model: 'sonnet', messages: [user('live')] });
   const chatId = first.headers.get('x-claudio-chat-id') ?? '';
   await first.json();
-  core.runtime.setPermissionPrompts(chatId, 'host');
-  await core.runtime.updateSettings(chatId, { permissionMode: 'bypassPermissions' });
-  assert.notEqual(core.runtime.get(chatId)?.pid, null, 'the process is still up');
+  const runtime = core.runtime.get(chatId);
+  assert.equal(runtime?.policy ?? null, null, 'only headless and workspace chats are confined (D14)');
+  assert.notEqual(runtime?.permissionMode, 'bypassPermissions');
+  assert.equal(runtime?.permissionPrompts, 'none');
+  // What the request declared is kept only to compare a continuation's
+  assert.deepEqual(runtime?.asked, { workspaceId: null, allowedTools: core.toolPresets.defaultPreset()?.allowedTools ?? [], maxTurns: null, maxBudgetUsd: core.config.chatBudgetUsd, schema: false });
   const next = await post({ model: 'sonnet', messages: [user('live'), assistant('echo: live'), user('again')] });
   assert.equal(next.status, 200, await next.clone().text());
   assert.equal(next.headers.get('x-claudio-chat-id'), chatId);
   await next.json();
-  const runtime = core.runtime.get(chatId);
-  assert.equal(runtime?.permissionPrompts, 'none');
-  assert.notEqual(runtime?.permissionMode, 'bypassPermissions');
+  assert.equal(core.runtime.get(chatId)?.permissionPrompts, 'none');
 });
 
 test('a turn that shows no sign of life for the idle period fails in OpenAI\'s shape and is interrupted', async () => {
@@ -673,7 +678,7 @@ test('a schema change between turns of one conversation restarts its process wit
 
   const second = await post({ model: 'sonnet', messages: [...h1, user('s2')], response_format: jsonSchemaFormat(other) });
   assert.equal(second.status, 200, await second.clone().text());
-  assert.equal(second.headers.get('x-claudio-chat-id'), chatId, 'the conversation key does not depend on the schema');
+  assert.equal(second.headers.get('x-claudio-chat-id'), chatId, 'the conversation key does not depend on which schema');
   const a2 = ((await second.json()) as Completion).choices[0]?.message.content ?? '';
   assert.deepEqual(JSON.parse(a2), { answer: 'echo: s2' });
   const h2 = [...h1, user('s2'), assistant(a2)];
@@ -685,29 +690,33 @@ test('a schema change between turns of one conversation restarts its process wit
   const a3 = ((await third.json()) as Completion).choices[0]?.message.content ?? '';
   const h3 = [...h2, user('s3'), assistant(a3)];
 
+  // Whether a chat answers a schema is its policy (D14.4): the same history with none is another
+  // conversation, and naming the chat without one is a 409
   const fourth = await post({ model: 'sonnet', messages: [...h3, user('s4')] });
   assert.equal(fourth.status, 200, await fourth.clone().text());
-  assert.equal(fourth.headers.get('x-claudio-chat-id'), chatId);
-  assert.equal(((await fourth.json()) as Completion).choices[0]?.message.content, 'echo: s4', 'a turn with no schema after one is plain text again');
+  assert.notEqual(fourth.headers.get('x-claudio-chat-id'), chatId);
+  assert.equal(((await fourth.json()) as Completion).choices[0]?.message.content, 'echo: s4', 'a turn with no schema is plain text');
+  const named = await post({ model: 'sonnet', messages: [user('s5')] }, { 'x-claudio-chat-id': chatId });
+  assert.equal(named.status, 409);
+  assertOpenAiError(await named.json(), 'policy_mismatch');
 
   const sent = promptsOf(chatId);
-  assert.deepEqual(sent.map((p) => p.prompt), ['s1', 's2', 's3', 's4'], 'every turn after the first is a delta of the same chat');
-  assert.deepEqual(sent.map((p) => p.schema), [JSON.stringify(ANSWER_SCHEMA), JSON.stringify(other), JSON.stringify(other), null]);
+  assert.deepEqual(sent.map((p) => p.prompt), ['s1', 's2', 's3'], 'every turn after the first is a delta of the same chat');
+  assert.deepEqual(sent.map((p) => p.schema), [JSON.stringify(ANSWER_SCHEMA), JSON.stringify(other), JSON.stringify(other)]);
   assert.notEqual(sent[1]?.pid, sent[0]?.pid, 'a new schema needed a new process');
   assert.equal(sent[2]?.pid, sent[1]?.pid, 'the same schema kept the process');
-  assert.notEqual(sent[3]?.pid, sent[2]?.pid, 'dropping the schema needed a new process too');
 });
 
-test('a structured turn that ends without its output is an OpenAI error, never an empty 200', async () => {
+test('a structured turn that ends without its output is a final 422 no_structured_output, never an empty 200', async () => {
   const whole = await post({ model: 'sonnet', messages: [user('GIVE UP')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
-  assert.equal(whole.status, 500);
-  assert.match(assertOpenAiError(await whole.json(), 'server_error').error.message, /response_format.*cannot match that schema/s);
+  assert.equal(whole.status, 422, 'not a 5xx: a client must not retry a turn that would end the same way');
+  assert.match(assertOpenAiError(await whole.json(), 'no_structured_output').error.message, /response_format.*cannot match that schema/s);
 
   const streamed = await post({ model: 'sonnet', stream: true, messages: [user('GIVE UP')], response_format: jsonSchemaFormat(ANSWER_SCHEMA) });
   assert.equal(streamed.status, 200);
   const lines = dataLines(await streamed.text());
   assert.equal(lines.at(-1), '[DONE]');
-  assertOpenAiError(JSON.parse(lines.at(-2) ?? '{}'), 'server_error');
+  assertOpenAiError(JSON.parse(lines.at(-2) ?? '{}'), 'no_structured_output');
   assert.ok(!lines.some((l) => l.includes('Here is the structured answer')), 'no prose reached the client');
 });
 

@@ -3,10 +3,11 @@
  * the rule that must name it, and every input it must pass. It grows with the security audit.
  */
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_PROTECTED_CONFIGS } from '@claudio/shared';
+import { declaredToolsSection } from '../src/guards/declared.ts';
 import { DEFAULT_LIMITS, type GuardRuleId, type GuardRulesFile } from '../src/guards/input.ts';
 
 /** A deterministic run of letters and digits with no repeats long enough to look like a placeholder */
@@ -29,6 +30,8 @@ export const GITLAB = `glpat-${synthetic(24, 5)}`;
 export const CHAT_TOKEN = `agc_${synthetic(30, 6)}`;
 export const VAULT_VALUE = `vault-${synthetic(30, 7)}`;
 export const ALL_RULES: GuardRuleId[] = ['integrity', 'no-verify', 'push', 'destructive', 'secrets', 'protect-configs'];
+/** The rules a confined API chat's launch arms (`GuardLauncher.prepareDeclared`) */
+export const DECLARED_RULES: GuardRuleId[] = ['integrity', 'declared-tools'];
 
 export interface CorpusEnv {
   base: string;
@@ -37,7 +40,15 @@ export interface CorpusEnv {
   dataDir: string;
   claudeDir: string;
   tmpDir: string;
+  /** A confined API chat's working directory: a workspace with a README, a roadmap and a link that leaves it */
+  workspace: string;
+  /** One of the chat's own attachment files, outside the workspace */
+  attachment: string;
+  /** Another chat's attachment, in the same uploads folder */
+  otherUpload: string;
   rules: (options?: { off?: GuardRuleId[]; tmp?: boolean }) => GuardRulesFile;
+  /** The rules file of a confined API chat that declared `tools`, built with the launch's own builder */
+  declared: (tools: readonly string[]) => GuardRulesFile;
 }
 
 /** A scratch world: a worktree with the files the rows touch, a main checkout, Claudio's data dir and a Claude config dir */
@@ -62,8 +73,35 @@ export function makeCorpusEnv(): CorpusEnv {
   chmodSync(join(worktree, 'run.sh'), 0o755);
   writeFileSync(join(worktree, 'package.json'), JSON.stringify({ scripts: { ship: 'git push --follow-tags', build: 'tsc' } }));
   writeFileSync(join(dataDir, 'wrapper.db'), '');
+  const workspace = join(base, 'workspaces', 'ws_1', 'owner-repo-abc');
+  const attachment = join(base, 'uploads', 'chat1', 'notes.txt');
+  const otherUpload = join(base, 'uploads', 'chat2', 'other.txt');
+  for (const dir of [join(workspace, 'src'), join(base, 'uploads', 'chat1'), join(base, 'uploads', 'chat2')]) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(workspace, 'package.json'), '{"name":"x"}\n');
+  writeFileSync(join(workspace, 'README.md'), '# x\n');
+  writeFileSync(join(workspace, 'ROADMAP.md'), '# roadmap\n');
+  writeFileSync(join(workspace, 'src', 'a.ts'), 'export {};\n');
+  symlinkSync(join(dataDir, 'wrapper.db'), join(workspace, 'db-link'));
+  writeFileSync(attachment, 'notes\n');
+  writeFileSync(otherUpload, 'other\n');
+  const declared = (tools: readonly string[]): GuardRulesFile => ({
+    version: 1,
+    mode: 'enforce',
+    rules: [...DECLARED_RULES],
+    roots: [workspace],
+    mainCheckout: null,
+    hooksPathDir: null,
+    tmpDir: null,
+    dataDir,
+    guardDir: join(dataDir, 'guards'),
+    claudeConfigDirs: [claudeDir],
+    protectConfigs: [],
+    knownSecretSha256: [],
+    limits: { ...DEFAULT_LIMITS },
+    declared: declaredToolsSection({ policy: { allowedTools: tools, schema: true }, cwd: workspace, attachments: [attachment] }),
+  });
   return {
-    base, worktree, mainCheckout, dataDir, claudeDir, tmpDir,
+    base, worktree, mainCheckout, dataDir, claudeDir, tmpDir, workspace, attachment, otherUpload, declared,
     rules: (options = {}) => ({
       version: 1,
       mode: 'enforce',
@@ -367,3 +405,225 @@ mcp('mcp set tool writes settings.json', 'mcp__fs__set', (env) => ({ path: join(
 mcp('mcp write_file names the file with name', 'mcp__fs__write_file', (env) => ({ name: join(env.worktree, '.claude', 'settings.json'), content: '{}' }), 'integrity', 'medium');
 
 export const CORPUS: readonly CorpusRow[] = rows;
+
+// ── declared-tools (docs/plans/headless-image.md, D14.5) ─────────────────────────────────────────
+// A confined API chat in a workspace: every row runs with `integrity` and `declared-tools` only, as
+// its launch arms them, under the tools the row declares.
+
+export interface DeclaredRow {
+  name: string;
+  tool: string;
+  input: (env: CorpusEnv) => Record<string, unknown>;
+  /** The chat's declared tools (`allowedTools`) */
+  tools: readonly string[];
+  expect: 'pass' | 'declared-tools' | 'integrity';
+  /** A matcher id (or its prefix) the block must carry */
+  matcher?: string;
+}
+
+/** What shipcast declared when its transcripts were read (docs/plans/headless-image.md, "Context") */
+export const SHIPCAST_BEFORE: readonly string[] = ['Bash(ls:*)', 'Bash(git log:*)', 'Bash(git tag:*)', 'Bash(git show:*)', 'Read', 'Grep', 'Glob'];
+/** Shipcast's declared rules for a content pack (the plan's Design section) */
+export const SHIPCAST: readonly string[] = ['Read', 'Grep', 'Glob', 'Bash(ls *)', 'Bash(find *)', 'Bash(cat *)', 'Bash(head *)', 'Bash(tail *)', 'Bash(sed -n *)', 'Bash(grep *)', 'Bash(wc *)', 'Bash(cut *)'];
+/** The four commands of shipcast's transcripts, with the rules each needs beyond `SHIPCAST` */
+export const SHIPCAST_TRANSCRIPT: readonly (readonly [string, readonly string[]])[] = [
+  ['ls && cat package.json && head -150 README.md', []],
+  ["git ls-files | grep -E '\\.(ts|md)$' | head -50", ['Bash(git ls-files *)']],
+  ['sed -n 150,260p README.md', []],
+  ['cat ROADMAP.md | head -120', []],
+];
+/** Trading-bot's request: `allowedTools: []`, a schema, `dontAsk` */
+export const TRADING_BOT: readonly string[] = [];
+
+const declaredRows: DeclaredRow[] = [];
+
+function declaredBash(command: string | ((env: CorpusEnv) => string), tools: readonly string[], expect: DeclaredRow['expect'], matcher?: string): void {
+  declaredRows.push({
+    name: typeof command === 'string' ? command : command({ workspace: '<ws>', attachment: '<attachment>', otherUpload: '<other>', dataDir: '<data>' } as CorpusEnv),
+    tool: 'Bash',
+    input: (env) => ({ command: typeof command === 'string' ? command : command(env) }),
+    tools,
+    expect,
+    ...(matcher ? { matcher } : {}),
+  });
+}
+
+function declaredTool(name: string, tool: string, input: (env: CorpusEnv) => Record<string, unknown>, tools: readonly string[], expect: DeclaredRow['expect'], matcher?: string): void {
+  declaredRows.push({ name, tool, input, tools, expect, ...(matcher ? { matcher } : {}) });
+}
+
+// Shipcast's transcripts: blocked under what it declared then, passed under the rules it declares now
+for (const [command, extra] of SHIPCAST_TRANSCRIPT) {
+  declaredBash(command, SHIPCAST_BEFORE, 'declared-tools', 'declared-tools.command');
+  declaredBash(command, [...SHIPCAST, ...extra], 'pass');
+}
+
+// Under shipcast's rules
+for (const command of [
+  'grep -n x README.md | head -40', 'ls && cat package.json', "sed -n '1,20p' README.md", "sed -n -e '/^#/,/^$/p' -e '$p' README.md", 'sed -n 1p README.md',
+  'head -150 README.md', 'tail -n 20 README.md', 'wc -l *.md', "find . -name '*.md' -type f", 'find src -newer README.md', 'cut -d / -f 1 README.md',
+  "grep -rn '/api/chats' .", 'grep --include=*.ts -rn x src', 'cat README.md 2>/dev/null', 'cat README.md >/dev/null 2>&1', 'ls -la src/',
+  'timeout 5 cat package.json', 'cd src && cat a.ts', 'cat ./src/../README.md', 'ls',
+]) {
+  declaredBash(command, SHIPCAST, 'pass');
+}
+declaredBash((env) => `cat ${env.attachment}`, SHIPCAST, 'pass');
+declaredBash((env) => `head -5 ${env.workspace}/README.md`, SHIPCAST, 'pass');
+
+for (const [command, matcher] of [
+  // Credentials and the process environment, through a declared read-only command
+  ['cat ~/.claude/.credentials.json', 'declared-tools.path'],
+  ['cat /proc/self/environ', 'declared-tools.path'],
+  ['cat /data/auth.json', 'declared-tools.path'],
+  ['head ../../data/wrapper.db', 'declared-tools.path'],
+  ['cat ../../../wt/package.json', 'declared-tools.path'],
+  ['cat db-link', 'declared-tools.path'],
+  ['ls /', 'declared-tools.path'],
+  ['cat /etc/*', 'declared-tools.path'],
+  ['cd .. && cat ROADMAP.md', 'declared-tools.path'],
+  ['grep -f /data/auth.json x', 'declared-tools.path'],
+  ['grep --file=/data/auth.json x README.md', 'declared-tools.path'],
+  ['grep -f/data/auth.json x', 'declared-tools.path'],
+  ['find . -newer /data/auth.json', 'declared-tools.path'],
+  ['find /data -name auth.json', 'declared-tools.path'],
+  ['cat < /data/auth.json', 'declared-tools.path'],
+  // Expansions and substitutions
+  ['ls $HOME', 'declared-tools.expansion'],
+  ['cat "${HOME}/.claude/.credentials.json"', 'declared-tools.expansion'],
+  ['cat $(echo /data/auth.json)', 'declared-tools.expansion'],
+  ['cat `echo /data/auth.json`', 'declared-tools.expansion'],
+  ['cat <(cat /data/auth.json)', 'declared-tools.expansion'],
+  ['(( $(cat /data/auth.json) ))', 'declared-tools.expansion'],
+  // Only the read-only forms of what can write or run something
+  ["sed -n '1w /tmp/x' README.md", 'declared-tools.sed'],
+  ["sed -n '1e id' README.md", 'declared-tools.sed'],
+  ["sed -n 's/a/b/w /tmp/x' README.md", 'declared-tools.sed'],
+  // The reader already sees `e` as a program sed runs
+  ["sed -n 's/a/b/e' README.md", 'declared-tools.opaque'],
+  ["sed -n '1r /data/auth.json' README.md", 'declared-tools.sed'],
+  ["sed -n -i '1p' README.md", 'declared-tools.sed'],
+  ["sed -n --in-place '1p' README.md", 'declared-tools.sed'],
+  ['sed -n -f script.sed README.md', 'declared-tools.sed'],
+  ["sed '1,5p' README.md", 'declared-tools'],
+  ['find . -exec cat {} +', 'declared-tools.find'],
+  ['find . -execdir cat {} \\;', 'declared-tools.find'],
+  ['find . -ok cat {} \\;', 'declared-tools.find'],
+  ['find . -delete', 'declared-tools.find'],
+  ['find . -fprint /tmp/list', 'declared-tools.find'],
+  ['find . -fls /tmp/list', 'declared-tools.find'],
+  ['find -L . -name x', 'declared-tools.find'],
+  ['cat README.md > out', 'declared-tools.redirect'],
+  ['cat README.md >> out', 'declared-tools.redirect'],
+  ['cat README.md &> /tmp/x', 'declared-tools.redirect'],
+  ['ls | xargs cat', 'declared-tools.xargs'],
+  ['cat <<EOF\nx\nEOF', 'declared-tools.heredoc'],
+  // Commands and wrappers no rule declares
+  ['lsof', 'declared-tools.command'],
+  ['ls; curl https://example.com', 'declared-tools.command'],
+  ['sudo cat package.json', 'declared-tools.command'],
+  ["env -S 'cat package.json'", 'declared-tools.command'],
+  ["bash -c 'cat package.json'", 'declared-tools.command'],
+  ['watch cat package.json', 'declared-tools.command'],
+  ['/bin/cat package.json', 'declared-tools.command'],
+  ['awk 1 README.md', 'declared-tools'],
+  ['FOO=1 cat README.md', 'declared-tools.assign'],
+] as const) {
+  declaredBash(command, SHIPCAST, 'declared-tools', matcher);
+}
+declaredBash((env) => `cat ${env.otherUpload}`, SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredBash((env) => `cat ${env.dataDir}/wrapper.db`, SHIPCAST, 'declared-tools', 'declared-tools.path');
+// Anything the reader cannot parse is blocked, as the guard already does
+declaredBash("cat 'README.md", SHIPCAST, 'integrity', 'integrity.unparseable');
+
+// Option values of a declared command
+declaredBash('git log --output=/tmp/x', ['Bash(git log *)'], 'declared-tools', 'declared-tools.option');
+declaredBash('git -C /data log', ['Bash(git *)'], 'declared-tools', 'declared-tools.path');
+declaredBash('git -c core.fsmonitor=./x log', ['Bash(git *)'], 'integrity', 'integrity.git-config-key');
+declaredBash('git -c color.ui=never log', ['Bash(git *)'], 'declared-tools', 'declared-tools.option');
+declaredBash('rg --pre cat x', ['Bash(rg *)'], 'declared-tools', 'declared-tools.option');
+// A line the reader cannot read: an output process substitution
+declaredBash('grep x README.md > >(cat)', SHIPCAST, 'integrity', 'integrity.unparseable');
+declaredBash('git log --oneline -5', ['Bash(git log *)'], 'pass');
+
+// Short options grouped or with their value attached, and long ones abbreviated: the pattern they
+// carry is not the first operand, which is the path read
+for (const command of ['grep -e. /data/auth.json', 'grep -ve^$ /etc/passwd', 'grep -Ee. /etc/passwd', 'grep --regex=. /etc/passwd', 'grep --rege . /etc/passwd', 'grep -hf/data/auth.json x', 'grep -rf /data/auth.json x .', 'grep -Fxf /etc/passwd README.md']) {
+  declaredBash(command, ['Bash(grep *)'], 'declared-tools', 'declared-tools.path');
+}
+for (const command of ['rg -e. /etc/passwd', 'rg -wf /data/auth.json README.md', 'rg --files /etc', 'rg --files ../..']) {
+  declaredBash(command, ['Bash(rg *)'], 'declared-tools', 'declared-tools.path');
+}
+// Options that run a program, write a file or follow links out, whatever rule declares the command
+for (const [command, rule] of [
+  ['sort -S 1 --compress-program=sh README.md', 'Bash(sort *)'],
+  ['sort --compress=sh README.md', 'Bash(sort *)'],
+  ['sort -o README.md README.md', 'Bash(sort *)'],
+  ['sort -uo out README.md', 'Bash(sort *)'],
+  ['tee out', 'Bash(tee *)'],
+  ['tee -a README.md', 'Bash(tee *)'],
+  ['git grep -Osh -l x', 'Bash(git grep *)'],
+  ['git grep --open-files-in-pager=sh -l x', 'Bash(git grep *)'],
+  ['git log -1 --format=%B --output=.git/config', 'Bash(git log *)'],
+  ['git diff --ext-diff', 'Bash(git diff *)'],
+  ['git show --textconv HEAD', 'Bash(git show *)'],
+  ['git config diff.external ./x.sh', 'Bash(git config *)'],
+  ['git config --add diff.external ./x.sh', 'Bash(git config *)'],
+  ['tar -I id -tf x.tar', 'Bash(tar *)'],
+  ['tar --to-command=sh -xf x.tar', 'Bash(tar *)'],
+  ['tar --checkpoint-action=exec=id -tf x.tar', 'Bash(tar *)'],
+  ['grep -R x .', 'Bash(grep *)'],
+  ['rg -L x', 'Bash(rg *)'],
+] as const) {
+  declaredBash(command, [rule], 'declared-tools', 'declared-tools.option');
+}
+// Their read-only forms still pass
+for (const [command, rule] of [
+  ['grep -rn x .', 'Bash(grep *)'],
+  ['grep -e foo -e bar README.md', 'Bash(grep *)'],
+  ['grep -A3 x README.md', 'Bash(grep *)'],
+  ['rg --files', 'Bash(rg *)'],
+  ['rg -n x src', 'Bash(rg *)'],
+  ['sort -k2 -t, README.md', 'Bash(sort *)'],
+  ['git config --get user.name', 'Bash(git config *)'],
+  ['git config --list', 'Bash(git config *)'],
+  ['git diff HEAD~1 --stat', 'Bash(git diff *)'],
+  ['head -n5 README.md', 'Bash(head *)'],
+] as const) {
+  declaredBash(command, [rule], 'pass');
+}
+
+// Tools: only the declared ones, besides StructuredOutput and the /v1 client-tool stub's
+declaredTool('WebFetch undeclared', 'WebFetch', () => ({ url: 'https://example.com', prompt: 'x' }), SHIPCAST, 'declared-tools', 'declared-tools.tool');
+declaredTool('WebSearch undeclared', 'WebSearch', () => ({ query: 'x' }), SHIPCAST, 'declared-tools', 'declared-tools.tool');
+declaredTool('an mcp tool undeclared', 'mcp__fs__read_file', () => ({ path: 'README.md' }), SHIPCAST, 'declared-tools', 'declared-tools.tool');
+declaredTool('Task undeclared', 'Task', () => ({ prompt: 'x', description: 'x' }), SHIPCAST, 'declared-tools', 'declared-tools.tool');
+declaredTool('Write undeclared', 'Write', (env) => ({ file_path: join(env.workspace, 'x'), content: 'x' }), SHIPCAST, 'declared-tools', 'declared-tools.tool');
+declaredTool('WebFetch declared', 'WebFetch', () => ({ url: 'https://example.com', prompt: 'x' }), ['WebFetch(domain:example.com)'], 'pass');
+declaredTool('an mcp tool declared by its server', 'mcp__docs__search', () => ({ query: 'x' }), ['mcp__docs'], 'pass');
+declaredTool('an mcp tool declared by a wildcard', 'mcp__docs__search', () => ({ query: 'x' }), ['mcp__docs__*'], 'pass');
+declaredTool('the client-tool stub', 'mcp__client__lookup', () => ({ id: 1 }), TRADING_BOT, 'pass');
+
+// File tools: the working directory and the chat's own attachments only
+declaredTool('Read in the workspace', 'Read', () => ({ file_path: 'README.md' }), SHIPCAST, 'pass');
+declaredTool('Read the attachment', 'Read', (env) => ({ file_path: env.attachment }), SHIPCAST, 'pass');
+declaredTool("Read another chat's upload", 'Read', (env) => ({ file_path: env.otherUpload }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Read /data/auth.json', 'Read', () => ({ file_path: '/data/auth.json' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Read the credentials', 'Read', () => ({ file_path: '~/.claude/.credentials.json' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Read through a link that leaves', 'Read', () => ({ file_path: 'db-link' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Read climbing out with ..', 'Read', (env) => ({ file_path: join(env.workspace, '..', '..', '..', 'data', 'wrapper.db') }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Grep in the workspace', 'Grep', () => ({ pattern: 'x', path: 'src' }), SHIPCAST, 'pass');
+declaredTool('Grep outside', 'Grep', () => ({ pattern: 'token', path: '/data' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob in the workspace', 'Glob', () => ({ pattern: '**/*.ts' }), SHIPCAST, 'pass');
+declaredTool('Glob with an absolute pattern', 'Glob', () => ({ pattern: '/data/**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob climbing out', 'Glob', () => ({ pattern: '../../**/*.json' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob climbing out after a wildcard', 'Glob', () => ({ pattern: '**/../../x' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob climbing out in a brace', 'Glob', () => ({ pattern: '{..,.}/../**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob absolute in a brace', 'Glob', () => ({ pattern: '{/,.}data/**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
+declaredTool('Glob with a brace inside', 'Glob', () => ({ pattern: 'src/**/*.{ts,tsx}' }), SHIPCAST, 'pass');
+
+// Trading-bot's exact request: no tools and a schema; the answer passes, nothing else
+declaredTool('trading-bot: StructuredOutput', 'StructuredOutput', () => ({ action: 'hold', confidence: 0.4 }), TRADING_BOT, 'pass');
+declaredTool('trading-bot: Bash', 'Bash', () => ({ command: 'ls' }), TRADING_BOT, 'declared-tools', 'declared-tools.tool');
+declaredTool('trading-bot: Read', 'Read', () => ({ file_path: 'README.md' }), TRADING_BOT, 'declared-tools', 'declared-tools.tool');
+
+export const DECLARED_CORPUS: readonly DeclaredRow[] = declaredRows;

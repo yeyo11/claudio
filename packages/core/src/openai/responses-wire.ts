@@ -5,6 +5,8 @@
  * Kept in core beside the Chat Completions types, for the same reason: somebody else's protocol.
  */
 
+import type { RunEndedCode } from './wire.ts';
+
 // ---------- items ----------
 
 export interface OutputText {
@@ -77,12 +79,14 @@ export interface ResponseUsage {
   output_tokens: number;
   output_tokens_details: { reasoning_tokens: number };
   total_tokens: number;
+  /** Claudio's: what this turn alone cost in USD, when the provider reported it */
+  cost_usd?: number;
 }
 
 export type ResponseStatus = 'in_progress' | 'completed' | 'incomplete' | 'failed';
 
 /** The `code` a failed response's `error` carries: the reference's enum has only these two that fit Claudio. */
-export type ResponseErrorCode = 'server_error' | 'rate_limit_exceeded';
+export type ResponseErrorCode = 'server_error' | 'rate_limit_exceeded' | RunEndedCode;
 
 export interface ResponseObject {
   id: string;

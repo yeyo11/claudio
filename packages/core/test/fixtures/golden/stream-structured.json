@@ -101,6 +101,7 @@
             "b"
           ]
         },
+        "subtype": "success",
         "permissionDenials": [],
         "stopReason": "max_tokens"
       }
