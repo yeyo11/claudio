@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type {
   Account,
+  AccountInUseResponse,
   AccountLoginSession,
   AccountsRefreshResult,
   AccountsSettings,
@@ -13,7 +14,7 @@ import type {
   RotationPolicyRequest,
   UsageHistoryPoint,
 } from '@claudio/shared';
-import { DEFAULT_ID } from '@claudio/accounts';
+import { AccountInUseError, DEFAULT_ID } from '@claudio/accounts';
 import { AccountLogins } from '../account-logins.ts';
 
 /**
@@ -82,7 +83,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.get('/accounts', (): Account[] => {
     core.accounts.reload();
     // The CLI's own login is left out while it has no credential at all: an empty ghost beside the real accounts
-    return core.accounts.listed();
+    return core.accounts.list();
   });
 
   app.post<{ Body: unknown }>('/accounts', async (req, reply): Promise<AccountLoginSession> => {
@@ -223,8 +224,14 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return account;
   });
 
-  app.delete<{ Params: { id: string } }>('/accounts/:id', async (req): Promise<{ deleted: true }> => {
-    await core.accounts.remove(req.params.id);
+  app.delete<{ Params: { id: string } }>('/accounts/:id', async (req, reply): Promise<{ deleted: true } | AccountInUseResponse> => {
+    try {
+      await core.accounts.remove(req.params.id);
+    } catch (err) {
+      // The chats a person has to stop or move first, by id, so the page can name them
+      if (err instanceof AccountInUseError) return reply.status(409).send({ error: err.message, code: err.reason, chats: [...err.chats] });
+      throw err;
+    }
     return { deleted: true };
   });
 };

@@ -57,7 +57,7 @@ Types live in [`packages/shared/src/types.ts`](../packages/shared/src/types.ts).
 | GET | `/system/load` | What the machine is doing now (load average, memory, PSI of CPU, memory and I/O) and whether it admits a new chat; read from `/proc`, Linux only |
 | GET | `/system/processes` | What each live chat's process tree uses: processes, resident memory (MB) and CPU seconds so far; read from `/proc`, Linux only |
 | GET | `/system/history` | The machine's stored readings, oldest first, one a minute for 7 days: `?since=&until=&limit=&bucket=<seconds>` folds a long range into a few hundred points |
-| GET | `/overview` | Everything the dashboard needs in one call |
+| GET | `/overview` | Everything the dashboard needs in one call; `accounts` is the account view (`inUse` with its own reading, every account, `atLimit`, `nextReset`, the settings) and Claude's entry in `limits` is the reading of the account in use |
 
 ## Account credentials
 
@@ -68,7 +68,7 @@ environment and to no other, and never returned by any endpoint.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/auth` | Fresh auth status, including where the credential comes from and `inUse`: the account new work would start on (`id`, `label`, `kind`, `signInState`, `checkedAt`), null when none can take work |
+| GET | `/auth` | Fresh auth status, including where the credential comes from and `inUse`: the account new work would start on (`id`, `label`, `kind`, `signInState`, `checkedAt`, its own `limit` and `plan`), the same as `overview.accounts.inUse`; null when none can take work |
 | PUT | `/auth/credentials` | `{ oauthToken }` or `{ apiKey }` (exactly one). `oauthToken` is deprecated: the UI signs in with `POST /accounts/default/login` instead, but a script that sends it keeps working |
 | DELETE | `/auth/credentials` | Remove the stored credential; falls back to the container environment |
 | POST | `/auth/verify` | Sends a minimal real request (one short message, which counts against the plan) on the account in use and records `checkedAt`. `claude auth status` only reports what is configured, and `get_usage` cannot refuse a credential, so this is the check that proves a login or an OAuth token (an API key is checked for free by `POST /accounts/:id/refresh`) |
@@ -309,9 +309,9 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | POST | `/accounts/logins/:id/code` | Hand the CLI the code the page showed, when its browser could not open: `{ code }`; `409` when the sign-in is over |
 | DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |
 | PATCH | `/accounts/:id` | `{ alias?, enabled? }`; a disabled account is never chosen for new work |
-| DELETE | `/accounts/:id` | Remove an account and its dir; `400` for `default` |
-| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds` and `strategy` from `accounts.json` |
-| PUT | `/accounts/settings` | Change them, validated |
+| DELETE | `/accounts/:id` | Remove an account and its dir; `400` for `default`; `409 account-in-use` with the live chats' ids (`chats`) while one runs on it |
+| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds`, `strategy`, `preferred` and `order` from `accounts.json` |
+| PUT | `/accounts/settings` | Change them, validated: `preferred` an enabled account or null, `order` every enabled account once |
 | GET | `/accounts/:id/models` | The models an account can run, from the CLI's `initialize` (no tokens), cached per account; `?refresh=true` reads it again; `404` for an unknown account |
 | GET | `/accounts/model-fallbacks` | The accepted `{ from, to, origin, at }` model fallbacks from `model-fallbacks.json` |
 | PUT | `/accounts/model-fallbacks` | Replace the list: `{ fallbacks: [{ from, to, origin? }] }`, validated |

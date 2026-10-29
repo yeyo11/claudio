@@ -34,9 +34,8 @@ import type {
   Overview,
   Account,
   AccountInUse,
-  AuthStatus,
+  AccountView,
   AccountsRefreshResult,
-  AccountsSnapshot,
   PermissionDecision,
   PermissionMode,
   PermissionRequest,
@@ -95,7 +94,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
+import { AccountStore, DEFAULT_ID, isOut, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -229,7 +228,7 @@ import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts';
-import { accountsAtLimit } from './accounts-at-limit.ts';
+import { providerLimitOf, type ProviderLimitSource } from './providers/limits.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
@@ -277,6 +276,7 @@ export { parseVariant, type ConfigScope } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE, readDataDirLock, type DataDirLock, type DataDirLockHolder } from './data-dir-lock.ts';
 export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, DEFAULT_CHAT_BUDGET_USD, DEFAULT_CHAT_RETENTION_DAYS, dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig, type HeadlessStart } from './paths.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
+export { installProcessGuards } from './launcher/process-guards.ts';
 export { ChatRetention, type ChatRetentionOptions, type RetainedChat } from './chat-retention.ts';
 export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
 export { SecretVault } from './secret-vault.ts';
@@ -458,6 +458,10 @@ const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
+/** A burst of account changes (a refresh reads every account in turn) is one `accounts.changed` */
+const ACCOUNTS_CHANGED_DEBOUNCE_MS = 250;
+/** The provider whose limit is the account in use's */
+const CLAUDE_PROVIDER: ProviderId = 'claude-code';
 /** How long a check of the account in use is good for */
 const ACCOUNT_CHECK_MS = 30 * 60_000;
 
@@ -701,13 +705,16 @@ export class Core {
         const env = childEnv('claude-code');
         return Boolean(env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY);
       },
+      // Read when an account is removed, by which time the runtime exists
+      liveChatsOn: (account) => this.runtime.liveChatsOn(account),
     });
+    this.accounts.onChange(() => this.accountsChangedSoon());
     this.providers = new ProviderDetector({
       processes: this.children,
       config,
       otherAccount: () => this.readyAccountLabel(),
-      defaultExpired: () => this.accounts.list().find((a) => a.id === DEFAULT_ID)?.signInState === 'expired',
-      accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
+      defaultExpired: () => this.accounts.find(DEFAULT_ID)?.signInState === 'expired',
+      limits: this.claudeLimits(),
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
@@ -850,8 +857,6 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db, drivers);
-    // The detector was built before the runtime that keeps the limits: every status carries its limit from here on
-    this.providers.useLimits(this.runtime.limits);
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
@@ -993,7 +998,7 @@ export class Core {
         runtime: this.runtime,
         settings: this.decisionSettings,
         // A decision chat never waits: Claude Code answers, or says that every account is at its limit
-        route: (cli) => decisionRoute(cli, this.accounts.list()),
+        route: (cli) => decisionRoute(cli, this.accountView().atLimit),
         spendOpen: () => this.spend.allows('decision'),
       }),
     );
@@ -1223,7 +1228,8 @@ export class Core {
       },
       projectKey: (projectId) => this.projectStore.get(projectId)?.name ?? projectId,
       mine: (input, opts) => runMiner({ runtime: this.runtime, settings: currentLessonSettings }, input, opts),
-      limitResetsAt: () => this.limitReadings().find((l) => l.resetsAt)?.resetsAt ?? null,
+      // The earliest account back: the job ran on one that is out now
+      limitResetsAt: () => this.accountView().nextReset,
       emit: (event) => this.events.emit(event),
     });
     this.events.observe((event) => this.lessonQueue.observe(event));
@@ -1856,7 +1862,8 @@ export class Core {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while the models are the default account's stored `initialize` list
     // The account in use moves with rotation and sign-ins, faster than the system read is redone
-    return { ...value, profile: this.profile, auth: { ...value.auth, ...this.accountInUseRead() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    const view = this.accountView();
+    return { ...value, profile: this.profile, auth: { ...value.auth, inUse: view.inUse, inUseReason: view.inUseReason }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   /**
@@ -3705,10 +3712,11 @@ export class Core {
       this.chats.list({ origins: ['claudio', 'external', 'orchestration'] }),
       this.chats.allActivity(),
     ]);
+    const view = this.accountView();
     return {
       system,
-      limits: this.limitReadings(),
-      accounts: this.accountsSnapshot(),
+      limits: this.limitReadings(view),
+      accounts: view,
       counts: {
         projects: this.projectStore.list().length,
         chats: chats.length,
@@ -3723,11 +3731,90 @@ export class Core {
     };
   }
 
-  /** What the dashboard shows of the accounts: how many can take work, and the one new work would start on. */
-  private accountsSnapshot(): AccountsSnapshot {
-    const list = this.accounts.listed();
-    const ready = list.filter((a) => a.enabled && a.signedIn);
-    return { total: list.length, ready: ready.length, current: this.accountInUse()?.id ?? null };
+  /**
+   * The accounts as every screen reads them (D2 of docs/plans/regression-fixes-2026-10-29.md): the
+   * account new work starts on, chosen by the same `choose` a chat's launch runs (pin-less, so it
+   * honours `preferred`), the list, and whether every account that could take work is out.
+   * `GET /auth.inUse`, `overview.accounts`, Claude's provider limit and the decision route read this
+   * and nothing else, so the status bar, the chip and the cards cannot disagree.
+   */
+  accountView(now: number = Date.now()): AccountView {
+    const accounts = this.accounts.list(now);
+    const choice = this.accounts.pick({ current: null, now });
+    const account = choice.account ? accounts.find((a) => a.id === choice.account) : undefined;
+    const ready = accounts.filter((a) => a.enabled && a.signedIn);
+    const out = ready.filter((a) => isOut(a.limits, now));
+    const resets = out.flatMap((a) => (a.limits?.resetsAt ? [a.limits.resetsAt] : [])).sort((a, b) => Date.parse(a) - Date.parse(b));
+    const inUse: AccountInUse | null = account
+      ? {
+          id: account.id,
+          label: account.alias ?? account.email ?? account.id,
+          kind: account.kind,
+          signInState: account.signInState,
+          checkedAt: account.checkedAt,
+          limit: account.limits,
+          plan: account.plan,
+        }
+      : null;
+    return {
+      inUse,
+      inUseReason: inUse ? null : ready.length ? 'limit' : 'signed-out',
+      accounts,
+      atLimit: ready.length > 0 && out.length === ready.length,
+      nextReset: resets[0] ?? null,
+      settings: this.accounts.settings(),
+    };
+  }
+
+  /** The account new work would start on; null when none can take work */
+  private accountInUse(): AccountInUse | null {
+    return this.accountView().inUse;
+  }
+
+  /**
+   * Claude's limit is the account in use's. With every account out none is in use, and the reading
+   * shown is the one of the account that is back first.
+   */
+  private claudeLimit(view: AccountView): ProviderLimit | null {
+    const back = view.atLimit ? view.accounts.find((a) => a.limits?.resetsAt === view.nextReset && isOut(a.limits, Date.now())) : undefined;
+    return providerLimitOf(CLAUDE_PROVIDER, view.inUse?.limit ?? back?.limits ?? null);
+  }
+
+  /** Where the provider detector reads Claude's limit, and hears that an account changed. */
+  private claudeLimits(): ProviderLimitSource {
+    return {
+      get: (provider) => (provider === CLAUDE_PROVIDER ? this.claudeLimit(this.accountView()) : null),
+      atLimit: (provider) => provider === CLAUDE_PROVIDER && this.accountView().atLimit,
+      onChange: (listener) => {
+        this.accountListeners.add(listener);
+        return () => void this.accountListeners.delete(listener);
+      },
+    };
+  }
+
+  private readonly accountListeners = new Set<() => void>();
+  private accountsChangedTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * An account's reading or stored state changed (`AccountStore.onChange`). Before 2026-10-29 nothing
+   * said so: the web refetched the accounts only on a rotation or a page action. One
+   * `accounts.changed` per burst, and the detector looks at Claude's status again.
+   */
+  private accountsChangedSoon(): void {
+    if (this.accountsChangedTimer || this.closed) return;
+    this.accountsChangedTimer = setTimeout(() => {
+      this.accountsChangedTimer = null;
+      if (this.closed) return;
+      this.events.emit({ type: 'accounts.changed', title: 'Accounts changed' });
+      for (const listener of [...this.accountListeners]) {
+        try {
+          listener();
+        } catch {
+          // A listener's failure is its own: the event went out all the same
+        }
+      }
+    }, ACCOUNTS_CHANGED_DEBOUNCE_MS);
+    this.accountsChangedTimer.unref();
   }
 
   /** A signed-in account other than the CLI's own login, when there is one: Claude can run on it though the CLI itself is signed out. */
@@ -3757,26 +3844,7 @@ export class Core {
         failed.push({ id, error: e instanceof Error ? e.message : String(e) });
       }
     }
-    return { accounts: this.accounts.listed(), failed };
-  }
-
-  /** `inUse` with, when it is null, why: no credential at all, or every signed-in account at its limit */
-  private accountInUseRead(): Pick<AuthStatus, 'inUse' | 'inUseReason'> {
-    const inUse = this.accountInUse();
-    if (inUse) return { inUse, inUseReason: null };
-    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
-    const signedIn = this.accounts.list().some((a) => a.enabled && a.signedIn && !(ghost && a.id === DEFAULT_ID));
-    return { inUse: null, inUseReason: signedIn ? 'limit' : 'signed-out' };
-  }
-
-  /** The account new work would start on, as Settings and the status bar name it; null when none can take work */
-  private accountInUse(): AccountInUse | null {
-    // The CLI's own login is assumed signed in until read: with no credential at all it is a ghost, not an account
-    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
-    const id = this.accounts.pick({ current: null, ...(ghost ? { failedOn: [DEFAULT_ID] } : {}) }).account;
-    const account = id ? this.accounts.list().find((a) => a.id === id) : undefined;
-    if (!account) return null;
-    return { id: account.id, label: account.alias ?? account.email ?? account.id, kind: account.kind, signInState: account.signInState, checkedAt: account.checkedAt };
+    return { accounts: this.accounts.list(), failed };
   }
 
   private checkingInUse = false;
@@ -3842,11 +3910,9 @@ export class Core {
   }
 
   /** One reading per provider that has one, for the overview and the status bar. */
-  private limitReadings(): ProviderLimit[] {
-    return this.runtime.providers.list().flatMap((m) => {
-      const limit = this.runtime.limits.get(m.id);
-      return limit ? [limit] : [];
-    });
+  private limitReadings(view: AccountView = this.accountView()): ProviderLimit[] {
+    const claude = this.claudeLimit(view);
+    return claude ? [claude] : [];
   }
 
   /**
@@ -3882,6 +3948,7 @@ export class Core {
     this.permissions.close();
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
+    if (this.accountsChangedTimer) clearTimeout(this.accountsChangedTimer);
     this.sampler?.stop();
     this.rotation.close();
     this.retention?.stop();

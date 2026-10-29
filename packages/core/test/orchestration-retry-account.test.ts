@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import type { Orchestration } from '@claudio/shared';
 import { Core } from '../src/index.ts';
-import { tempConfig } from './helpers.ts';
+import { signInDefault, tempConfig } from './helpers.ts';
 
 // A task retried in the same chat chooses its account again (R4), and a limit hit by the retried
 // turn moves it to another account instead of ending the task failed (R5). The fake Claude fails
@@ -42,6 +42,7 @@ async function rig() {
   process.env.CLAUDE_CONFIG_DIR = config.configDir;
   process.env.FAKE_CLAUDE_ACCOUNTS = spawns;
   delete process.env.FAKE_CLAUDE_LIMITED_DIRS;
+  signInDefault(config);
   const core = new Core(config);
   await core.accounts.setSettings({ strategy: 'order' });
   const alpha = await core.accounts.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });

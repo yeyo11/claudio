@@ -187,6 +187,24 @@
           "string",
           "null"
         ]
+      },
+      "limit": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountLimit"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The account's own reading: what the status bar draws for \"Claude\", never another account's"
+      },
+      "plan": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Subscription type (`max`, `pro`, ...); null when none is known"
       }
     },
     "required": [
@@ -194,7 +212,9 @@
       "label",
       "kind",
       "signInState",
-      "checkedAt"
+      "checkedAt",
+      "limit",
+      "plan"
     ],
     "description": "The account new work would start on, as Settings and the status bar name it"
   },
@@ -216,6 +236,220 @@
       "unknown"
     ],
     "description": "How far an account's sign-in can be trusted."
+  },
+  "AccountLimit": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/ProviderLimitState"
+      },
+      "window": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The window that binds (`five_hour`, `seven_day`), when it is known"
+      },
+      "utilization": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Use of that window, 0..1; null when nothing was read"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the binding window resets; null when unknown"
+      },
+      "windows": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/RateLimitWindow"
+        }
+      },
+      "observedAt": {
+        "type": "string",
+        "description": "When the reading was taken: the cache can be days old, so the UI says how old"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "stream",
+          "cli",
+          "cache",
+          "failure"
+        ],
+        "description": "`stream`: a run reported it; `cli`: the CLI answered `get_usage`; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it"
+      },
+      "cli": {
+        "$ref": "#/components/schemas/AccountCliUsage",
+        "description": "The last `get_usage` answer, kept even when a newer stream reading supplied the windows: the per-model limits and the credits come from it only. Absent until the account was refreshed."
+      }
+    },
+    "required": [
+      "state",
+      "window",
+      "utilization",
+      "resetsAt",
+      "windows",
+      "observedAt",
+      "source"
+    ],
+    "description": "One account's usage, folded from its stream events, the CLI's `get_usage` and, when idle, the CLI's cache."
+  },
+  "ProviderLimitState": {
+    "type": "string",
+    "enum": [
+      "ok",
+      "near",
+      "exhausted",
+      "unknown"
+    ],
+    "description": "`unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading."
+  },
+  "RateLimitWindow": {
+    "type": "object",
+    "properties": {
+      "utilization": {
+        "type": "number"
+      },
+      "resetsAt": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "utilization",
+      "resetsAt"
+    ]
+  },
+  "AccountCliUsage": {
+    "type": "object",
+    "properties": {
+      "observedAt": {
+        "type": "string",
+        "description": "ISO time the CLI was asked"
+      },
+      "plan": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Subscription type as the CLI states it (`max`, `pro`, `team`, `enterprise`); null for none"
+      },
+      "available": {
+        "type": "boolean",
+        "description": "False for an API-key account: it has no subscription limits to read"
+      },
+      "scoped": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ScopedRateLimit"
+        }
+      },
+      "credits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountCredits"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "observedAt",
+      "plan",
+      "available",
+      "scoped",
+      "credits"
+    ],
+    "description": "What only the CLI's `get_usage` control request states about an account; kept beside the folded windows."
+  },
+  "ScopedRateLimit": {
+    "type": "object",
+    "properties": {
+      "utilization": {
+        "type": "number"
+      },
+      "resetsAt": {
+        "type": "number"
+      },
+      "model": {
+        "type": "string",
+        "description": "The model's display name as the CLI states it (`Fable`)"
+      },
+      "window": {
+        "type": "string",
+        "description": "The window it counts in; today always `seven_day`"
+      }
+    },
+    "required": [
+      "model",
+      "resetsAt",
+      "utilization",
+      "window"
+    ],
+    "description": "A weekly limit that applies to one model only (`Fable`), beside the account-wide windows."
+  },
+  "AccountCredits": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "usedMinor": {
+        "type": "number",
+        "description": "Spent this month, in minor units"
+      },
+      "limitMinor": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The monthly cap in minor units; null when there is none"
+      },
+      "currency": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO 4217 code; null when the CLI states none"
+      },
+      "exponent": {
+        "type": "number",
+        "description": "Decimal places of the currency (2 for USD, EUR)"
+      },
+      "limitReached": {
+        "type": "boolean",
+        "description": "The cap is reached: nothing more is spent until the month turns"
+      },
+      "disabledReason": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why the CLI says they are off, when it does"
+      },
+      "everEnabled": {
+        "type": "boolean",
+        "description": "They were on once: tells \"never set up\" from \"turned off\""
+      }
+    },
+    "required": [
+      "enabled",
+      "usedMinor",
+      "limitMinor",
+      "currency",
+      "exponent",
+      "limitReached",
+      "disabledReason",
+      "everEnabled"
+    ],
+    "description": "The usage credits of a subscription account: what it may spend beyond its plan limits. Amounts are in minor units (`1230` with `exponent: 2` is 12.30), as the CLI states them."
   },
   "AccountInUseReason": {
     "type": "string",
@@ -602,11 +836,11 @@
         "items": {
           "$ref": "#/components/schemas/ProviderLimit"
         },
-        "description": "One reading per provider that has one"
+        "description": "One reading per provider that has one; Claude's is derived from the account in use (`accounts.inUse.limit`)"
       },
       "accounts": {
-        "$ref": "#/components/schemas/AccountsSnapshot",
-        "description": "The accounts, without the full list: what the dashboard shows; absent until the server runs the accounts package"
+        "$ref": "#/components/schemas/AccountView",
+        "description": "The account view every screen reads; absent until the server runs the accounts package"
       },
       "counts": {
         "type": "object",
@@ -733,31 +967,6 @@
     "type": "string",
     "description": "An agent provider, by the id its manifest declares (`claude-code`). A string and not a closed union, so adding a provider is adding a folder in core and never a change here."
   },
-  "ProviderLimitState": {
-    "type": "string",
-    "enum": [
-      "ok",
-      "near",
-      "exhausted",
-      "unknown"
-    ],
-    "description": "`unknown`: nothing was read, or the reset has passed since; never `ok` without a new reading."
-  },
-  "RateLimitWindow": {
-    "type": "object",
-    "properties": {
-      "utilization": {
-        "type": "number"
-      },
-      "resetsAt": {
-        "type": "number"
-      }
-    },
-    "required": [
-      "utilization",
-      "resetsAt"
-    ]
-  },
   "ProviderLimitOverage": {
     "type": "object",
     "properties": {
@@ -786,30 +995,204 @@
     ],
     "description": "The overage side of a limit reading: whether the account is spending past its window, and until when."
   },
-  "AccountsSnapshot": {
+  "AccountView": {
     "type": "object",
     "properties": {
-      "total": {
-        "type": "number"
+      "inUse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountInUse"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The account new work would start on: the pin-less choice, which honours `settings.preferred`; null when none can take work"
       },
-      "ready": {
-        "type": "number",
-        "description": "Accounts that are enabled and signed in"
+      "inUseReason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountInUseReason"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why `inUse` is null; null while it is set"
       },
-      "current": {
+      "accounts": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Account"
+        },
+        "description": "Every account, the CLI's own login left out while it has no credential"
+      },
+      "atLimit": {
+        "type": "boolean",
+        "description": "Every enabled, signed-in account is out (exhausted, with its reset ahead or unknown)"
+      },
+      "nextReset": {
         "type": [
           "string",
           "null"
         ],
-        "description": "Id of the account new work would start on; null when none is ready"
+        "description": "ISO time of the earliest reset among the accounts that are out; null when none is or none gave one"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/AccountsSettings"
       }
     },
     "required": [
-      "total",
-      "ready",
-      "current"
+      "inUse",
+      "inUseReason",
+      "accounts",
+      "atLimit",
+      "nextReset",
+      "settings"
     ],
-    "description": "What the dashboard needs about accounts, without the full list."
+    "description": "The accounts as every screen reads them, computed once (`Core.accountView()`): the account new work starts on, the list, and whether every account that could take work is out. `GET /auth.inUse` and `overview.accounts` are this view, so the status bar, the chip and the cards cannot disagree."
+  },
+  "Account": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/AccountKind"
+      },
+      "alias": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Shown instead of the email; required for `token` and `api-key`, which have no identity"
+      },
+      "email": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "From `claude auth status`; null for `token` and `api-key`"
+      },
+      "organization": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "plan": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Subscription type (`max`, `pro`, ...); null when the CLI reports none"
+      },
+      "enabled": {
+        "type": "boolean",
+        "description": "A disabled account is never chosen for new work"
+      },
+      "signedIn": {
+        "type": "boolean",
+        "description": "`claude auth status` says it is logged in"
+      },
+      "signInState": {
+        "$ref": "#/components/schemas/AccountSignInState",
+        "description": "Whether the sign-in can be relied on: `expired` after a run on it failed to authenticate, `incomplete` when its credentials file has no refresh token (a broken copy), `ok` when neither is so and the account is signed in, `unknown` when nothing says either way. Anything but `ok` or `unknown` makes `signedIn` false."
+      },
+      "authFailedAt": {
+        "type": "string",
+        "description": "ISO time a run on it failed because the CLI could not authenticate; cleared when the account signs in again. Absent while it can authenticate"
+      },
+      "checkedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the credential was last checked with `get_usage` (no turn) or a test message; null when never"
+      },
+      "limits": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountLimit"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null until something was read"
+      }
+    },
+    "required": [
+      "id",
+      "kind",
+      "alias",
+      "email",
+      "organization",
+      "plan",
+      "enabled",
+      "signedIn",
+      "signInState",
+      "checkedAt",
+      "limits"
+    ],
+    "description": "One Claude account: a config directory of its own, chosen per process."
+  },
+  "AccountsSettings": {
+    "type": "object",
+    "properties": {
+      "rotateOnLimit": {
+        "type": "boolean",
+        "description": "Switch account at a limit; off waits for the reset instead"
+      },
+      "threshold": {
+        "type": "number",
+        "description": "Utilization (0-100) of an account's binding window from which it counts as at its limit"
+      },
+      "hysteresis": {
+        "type": "number",
+        "description": "Points (0-100) below the threshold an account must fall before it is chosen again"
+      },
+      "cooldownSeconds": {
+        "type": "number",
+        "description": "Seconds an account is left alone after a rejection that gave no reset (or one of extra usage): recorded on that account's reading, which reads exhausted until then"
+      },
+      "strategy": {
+        "$ref": "#/components/schemas/AccountStrategy"
+      },
+      "preferred": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The account new work starts on while it has room and the chat's policy allows it; null leaves the choice to the strategy. A pin wins over it, and a project policy that does not list it too. `PUT /accounts/settings` accepts an enabled account's id."
+      },
+      "order": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The global order of the accounts, which the `order` strategy follows; empty means the order they are listed in. `PUT /accounts/settings` accepts every enabled account's id once (disabled ones may be listed too); an account added later goes after the ones named."
+      }
+    },
+    "required": [
+      "rotateOnLimit",
+      "threshold",
+      "hysteresis",
+      "cooldownSeconds",
+      "strategy",
+      "preferred",
+      "order"
+    ],
+    "description": "`accounts.json`: when and how work moves to another account."
+  },
+  "AccountStrategy": {
+    "type": "string",
+    "enum": [
+      "order",
+      "least-used"
+    ],
+    "description": "Which account new work takes among the eligible ones."
   },
   "ChatSummary": {
     "type": "object",
@@ -7137,6 +7520,9 @@
         "$ref": "#/components/schemas/AccountSwitchedEvent"
       },
       {
+        "$ref": "#/components/schemas/AccountsChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/TaskStartedEvent"
       },
       {
@@ -8068,6 +8454,33 @@
       "auth"
     ],
     "description": "Why the chosen account changed."
+  },
+  "AccountsChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "accounts.changed"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "title",
+      "type"
+    ],
+    "description": "An account's reading or stored state changed (a reading kept, a sign-in marked or cleared, an account added, removed or enabled, the settings). Debounced to one per 250 ms; it carries nothing: the reader refetches the accounts, the auth status, the overview and the providers."
   },
   "TaskStartedEvent": {
     "type": "object",
@@ -28517,320 +28930,30 @@
     ],
     "description": "Why `POST /limits/waits/:id/run-now` was refused (409): the wait is over (`wait-over`), its chat runs in another Claudio process on the same data directory (`not-owned`), or every account's reading says it is out (`no-room`)."
   },
-  "Account": {
+  "AccountInUseResponse": {
     "type": "object",
     "properties": {
-      "id": {
+      "error": {
         "type": "string"
       },
-      "kind": {
-        "$ref": "#/components/schemas/AccountKind"
-      },
-      "alias": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Shown instead of the email; required for `token` and `api-key`, which have no identity"
-      },
-      "email": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "From `claude auth status`; null for `token` and `api-key`"
-      },
-      "organization": {
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "plan": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Subscription type (`max`, `pro`, ...); null when the CLI reports none"
-      },
-      "enabled": {
-        "type": "boolean",
-        "description": "A disabled account is never chosen for new work"
-      },
-      "signedIn": {
-        "type": "boolean",
-        "description": "`claude auth status` says it is logged in"
-      },
-      "signInState": {
-        "$ref": "#/components/schemas/AccountSignInState",
-        "description": "Whether the sign-in can be relied on: `expired` after a run on it failed to authenticate, `incomplete` when its credentials file has no refresh token (a broken copy), `ok` when neither is so and the account is signed in, `unknown` when nothing says either way. Anything but `ok` or `unknown` makes `signedIn` false."
-      },
-      "authFailedAt": {
+      "code": {
         "type": "string",
-        "description": "ISO time a run on it failed because the CLI could not authenticate; cleared when the account signs in again. Absent while it can authenticate"
+        "const": "account-in-use"
       },
-      "checkedAt": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "When the credential was last checked with `get_usage` (no turn) or a test message; null when never"
-      },
-      "limits": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountLimit"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "description": "Null until something was read"
-      }
-    },
-    "required": [
-      "id",
-      "kind",
-      "alias",
-      "email",
-      "organization",
-      "plan",
-      "enabled",
-      "signedIn",
-      "signInState",
-      "checkedAt",
-      "limits"
-    ],
-    "description": "One Claude account: a config directory of its own, chosen per process."
-  },
-  "AccountLimit": {
-    "type": "object",
-    "properties": {
-      "state": {
-        "$ref": "#/components/schemas/ProviderLimitState"
-      },
-      "window": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "The window that binds (`five_hour`, `seven_day`), when it is known"
-      },
-      "utilization": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "Use of that window, 0..1; null when nothing was read"
-      },
-      "resetsAt": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "ISO time the binding window resets; null when unknown"
-      },
-      "windows": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/components/schemas/RateLimitWindow"
-        }
-      },
-      "observedAt": {
-        "type": "string",
-        "description": "When the reading was taken: the cache can be days old, so the UI says how old"
-      },
-      "source": {
-        "type": "string",
-        "enum": [
-          "stream",
-          "cli",
-          "cache",
-          "failure"
-        ],
-        "description": "`stream`: a run reported it; `cli`: the CLI answered `get_usage`; `cache`: read from the account dir's `cachedUsageUtilization`; `failure`: a turn died on it"
-      },
-      "cli": {
-        "$ref": "#/components/schemas/AccountCliUsage",
-        "description": "The last `get_usage` answer, kept even when a newer stream reading supplied the windows: the per-model limits and the credits come from it only. Absent until the account was refreshed."
-      }
-    },
-    "required": [
-      "state",
-      "window",
-      "utilization",
-      "resetsAt",
-      "windows",
-      "observedAt",
-      "source"
-    ],
-    "description": "One account's usage, folded from its stream events, the CLI's `get_usage` and, when idle, the CLI's cache."
-  },
-  "AccountCliUsage": {
-    "type": "object",
-    "properties": {
-      "observedAt": {
-        "type": "string",
-        "description": "ISO time the CLI was asked"
-      },
-      "plan": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Subscription type as the CLI states it (`max`, `pro`, `team`, `enterprise`); null for none"
-      },
-      "available": {
-        "type": "boolean",
-        "description": "False for an API-key account: it has no subscription limits to read"
-      },
-      "scoped": {
+      "chats": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/ScopedRateLimit"
-        }
-      },
-      "credits": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/AccountCredits"
-          },
-          {
-            "type": "null"
-          }
-        ]
+          "type": "string"
+        },
+        "description": "Ids of the live chats whose process runs on the account"
       }
     },
     "required": [
-      "observedAt",
-      "plan",
-      "available",
-      "scoped",
-      "credits"
+      "error",
+      "code",
+      "chats"
     ],
-    "description": "What only the CLI's `get_usage` control request states about an account; kept beside the folded windows."
-  },
-  "ScopedRateLimit": {
-    "type": "object",
-    "properties": {
-      "utilization": {
-        "type": "number"
-      },
-      "resetsAt": {
-        "type": "number"
-      },
-      "model": {
-        "type": "string",
-        "description": "The model's display name as the CLI states it (`Fable`)"
-      },
-      "window": {
-        "type": "string",
-        "description": "The window it counts in; today always `seven_day`"
-      }
-    },
-    "required": [
-      "model",
-      "resetsAt",
-      "utilization",
-      "window"
-    ],
-    "description": "A weekly limit that applies to one model only (`Fable`), beside the account-wide windows."
-  },
-  "AccountCredits": {
-    "type": "object",
-    "properties": {
-      "enabled": {
-        "type": "boolean"
-      },
-      "usedMinor": {
-        "type": "number",
-        "description": "Spent this month, in minor units"
-      },
-      "limitMinor": {
-        "type": [
-          "number",
-          "null"
-        ],
-        "description": "The monthly cap in minor units; null when there is none"
-      },
-      "currency": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "ISO 4217 code; null when the CLI states none"
-      },
-      "exponent": {
-        "type": "number",
-        "description": "Decimal places of the currency (2 for USD, EUR)"
-      },
-      "limitReached": {
-        "type": "boolean",
-        "description": "The cap is reached: nothing more is spent until the month turns"
-      },
-      "disabledReason": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "description": "Why the CLI says they are off, when it does"
-      },
-      "everEnabled": {
-        "type": "boolean",
-        "description": "They were on once: tells \"never set up\" from \"turned off\""
-      }
-    },
-    "required": [
-      "enabled",
-      "usedMinor",
-      "limitMinor",
-      "currency",
-      "exponent",
-      "limitReached",
-      "disabledReason",
-      "everEnabled"
-    ],
-    "description": "The usage credits of a subscription account: what it may spend beyond its plan limits. Amounts are in minor units (`1230` with `exponent: 2` is 12.30), as the CLI states them."
-  },
-  "AccountsSettings": {
-    "type": "object",
-    "properties": {
-      "rotateOnLimit": {
-        "type": "boolean",
-        "description": "Switch account at a limit; off waits for the reset instead"
-      },
-      "threshold": {
-        "type": "number",
-        "description": "Utilization (0-100) of an account's binding window from which it counts as at its limit"
-      },
-      "hysteresis": {
-        "type": "number",
-        "description": "Points (0-100) below the threshold an account must fall before it is chosen again"
-      },
-      "cooldownSeconds": {
-        "type": "number",
-        "description": "Seconds an account that hit a limit is left alone, when its reset is unknown"
-      },
-      "strategy": {
-        "$ref": "#/components/schemas/AccountStrategy"
-      }
-    },
-    "required": [
-      "rotateOnLimit",
-      "threshold",
-      "hysteresis",
-      "cooldownSeconds",
-      "strategy"
-    ],
-    "description": "`accounts.json`: when and how work moves to another account."
-  },
-  "AccountStrategy": {
-    "type": "string",
-    "enum": [
-      "order",
-      "least-used"
-    ],
-    "description": "Which account new work takes among the eligible ones."
+    "description": "`DELETE /accounts/:id` refused with 409: live chats run on the account; stop them or move them first."
   },
   "RotationPolicy": {
     "type": "object",

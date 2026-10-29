@@ -702,6 +702,9 @@ test('a burst of readers costs one detection, and the open health route spawns n
   const script = ['#!/bin/sh', `echo "$@" >> '${log}'`, 'case "$1" in', "  --version) echo '9.9.9 (Claude Code)';;", '  auth) echo \'{"loggedIn":true}\';;', 'esac', ''];
   writeFileSync(bin, script.join('\n'), { mode: 0o755 });
   const ran = (args: string) => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith(args)).length : 0);
+  // A credential, so the CLI's own login is an account whose model list the boot reads
+  mkdirSync(join(root, 'claude-config'), { recursive: true });
+  writeFileSync(join(root, 'claude-config', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
 
   const probe = new Core(
     loadConfig({
