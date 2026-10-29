@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
+import { DESKTOP_ACTOR, MAX_AUDIT_PATH, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
 import type { HostRefusal } from '@claudio/shared';
-import { ROUTE_DOCS } from './openapi/routes.ts';
+import { allowedOrigin } from './origins.ts';
+import { ROUTE_DOCS, accessOf } from './openapi/routes.ts';
 
 /**
  * The guard in front of every route, and the audit trail behind every write.
@@ -15,35 +17,37 @@ const API_PREFIX = '/api';
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /**
- * Liveness and readiness have to answer a probe that carries no credential. Neither says anything
- * about the install beyond whether it is up and, for readiness, why it cannot run a chat yet.
+ * The routes that check their own proof, keyed as `ROUTE_DOCS` keys them; each is `open` there. The
+ * receivers a code host delivers to cannot send a bearer token: a delivery is believed by its
+ * signature (or token header), checked over the raw body inside the route. The `/v1` client-tool stub
+ * a chat's CLI calls (`routes/openai-tools.ts`) is reached by a confined API chat, which holds no
+ * credential for this API (D14.3 of docs/plans/headless-image.md): its CLI presents the stub
+ * session's own secret, which opens that one session and nothing else. They answer to no actor and
+ * write no audit line (a delivery is not the person's change, and a host or a CLI may send many),
+ * stay open in read-only mode, since a delivery only moves a next read to now, and the host
+ * allowlist still applies. Every other `open` route is a probe, which skips the host check too.
  */
-const OPEN = new Set([`${API_PREFIX}/health`, `${API_PREFIX}/ready`]);
+const RECEIVERS = new Set([
+  'POST /webhooks/github/:registrationId',
+  'POST /webhooks/gitlab/:registrationId',
+  'POST /openai/client-tools/:id/mcp',
+  'GET /openai/client-tools/:id/mcp',
+  'DELETE /openai/client-tools/:id/mcp',
+]);
 
 /**
  * The one route exempt from the host check: it is how the owner adds the host they are dialling.
  * It still needs the owner's bearer token, which a DNS-rebinding page cannot hold (it lives in the
  * real origin's storage and a browser never sends an `Authorization` header by itself).
  */
-const HOST_CLAIM = `${API_PREFIX}/security/allowed-hosts/claim`;
+const HOST_CLAIM = 'POST /security/allowed-hosts/claim';
 
 /**
- * The receivers a code host delivers to. The host cannot send a bearer token; a delivery is
- * believed by its signature (or token header), checked over the raw body inside the route. They
- * answer to no actor, write no audit line (a delivery is not the person's change, and a host may
- * send many) and stay open in read-only mode, since a delivery only moves a next read to now. The
- * host allowlist still applies.
+ * The write that compares the `Origin` itself, against the authority the dev server forwarded when it
+ * is believed, and records a refusal in the terminal's history where the person looks for it: the
+ * cross-site check of an open install leaves it to the route rather than answer first with less.
  */
-const WEBHOOK_RECEIVER = /^\/api\/webhooks\/(?:github|gitlab)\/[^/]+$/;
-
-/**
- * The `/v1` client-tool stub a chat's CLI calls (`routes/openai-tools.ts`). Every `/v1` chat is a
- * confined API chat, which holds no credential for this API (D14.3 of docs/plans/headless-image.md):
- * its CLI presents the stub session's own secret, which opens that one session and nothing else, and
- * the route checks it. Like a webhook delivery it answers to no actor and writes no audit line (one
- * per tool call); the host allowlist still applies.
- */
-const CLIENT_TOOL_STUB = /^\/api\/openai\/client-tools\/[^/]+\/mcp$/;
+const OWN_ORIGIN_CHECK = new Set(['POST /terminals/:id/ticket']);
 
 /**
  * `EventSource` and the browser's own GETs (an `<img src>`, a link) cannot carry an
@@ -55,14 +59,14 @@ const CLIENT_TOOL_STUB = /^\/api\/openai\/client-tools\/[^/]+\/mcp$/;
  * would hold it twice in memory for no gain. A project export is the same download, only longer,
  * and so is an eval run's.
  */
-const QUERY_TOKEN = [
-  /^\/api\/events$/,
-  /^\/api\/chats\/[^/]+\/stream$/,
-  /^\/api\/uploads\/[^/]+\/content$/,
-  /^\/api\/chats\/[^/]+\/export$/,
-  /^\/api\/projects\/[^/]+\/export$/,
-  /^\/api\/eval-runs\/[^/]+\/export$/,
-];
+const QUERY_TOKEN = new Set([
+  'GET /events',
+  'GET /chats/:id/stream',
+  'GET /uploads/:id/content',
+  'GET /chats/:id/export',
+  'GET /projects/:id/export',
+  'GET /eval-runs/:runId/export',
+]);
 
 /**
  * Loopback is always ours: it is where a local install lives, and it is the address a rebinding
@@ -142,10 +146,13 @@ export function isSingleLabel(name: string): boolean {
 
 /**
  * The key `FailureBackoff` counts a failed credential under. Only a presented credential gets
- * here: for local traffic the key is `127.0.0.1`, shared by every process on the machine, so a
+ * here: for local traffic the address is `127.0.0.1`, shared by every process on the machine, so a
  * request carrying none is refused without touching the count (see `FailureBackoff`).
- * Everything through a tunnel arrives from loopback, so keyed by `req.ip` a stranger's ten wrong
- * guesses would make the owner wait too.
+ * The address alone is not enough: behind `socat`, Docker's published ports or a tunnel, every
+ * client arrives from loopback, and keyed by `req.ip` a stranger's ten wrong guesses on the LAN
+ * name would make the desktop on `localhost` wait too. So the key is the address and the name the
+ * client dialled (`${ip}|${host}`), and the owner's own credential skips the wait altogether once it
+ * has worked (`FailureBackoff.retryAfter`).
  * A request on a runtime host is keyed by the header its owner said carries the client's address,
  * and only there: on any other host nobody vouches for that header, and anybody on the machine
  * could set it to spend someone else's budget. Without a header, or without a value in it, the
@@ -155,7 +162,7 @@ function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
   // No `Host` is no runtime host: the empty name is never one
   const name = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
   const host = runtime.get(name);
-  if (!host) return req.ip;
+  if (!host) return `${req.ip}|${name}`;
   const header = host.clientIpHeader ? req.headers[host.clientIpHeader] : undefined;
   // The last hop is the one the provider added; whatever comes before it the client could write
   const client = (Array.isArray(header) ? header.at(-1) : header)?.split(',').at(-1)?.trim();
@@ -232,235 +239,14 @@ export function fromLocalMachineStrict(req: FastifyRequest, runtime: RuntimeHost
   });
 }
 
-/**
- * What a chat's own token cannot do: administer the guard in front of it. A prompt injection
- * holding it could otherwise rotate the owner's token, switch the guard off or open the tunnel.
- * Stopping the tunnel stays allowed, because it only reduces exposure.
+/*
+ * What a chat's own token may call is the route's access class in `ROUTE_DOCS` (`person`, `work`;
+ * docs/security-model.md, "Chat tokens"), checked once the token is authenticated under a guarded
+ * mode. Under `mode: none` the token only labels the request, and nothing but the three exceptions
+ * below refuses it: the review gate, Collaborators and the terminal, whose routes check the label
+ * themselves because an open install is still the person's, and what these guard must stay theirs
+ * there too.
  */
-const CHAT_FORBIDDEN = new Set([
-  `PUT ${API_PREFIX}/security/auth`,
-  `POST ${API_PREFIX}/security/token`,
-  `DELETE ${API_PREFIX}/security/token`,
-  `POST ${API_PREFIX}/tunnel/start`,
-  `PUT ${API_PREFIX}/tunnel/settings`,
-  // It names a binary Claudio will run, so a prompt injection must not be able to point it at one
-  `PUT ${API_PREFIX}/providers/settings`,
-  `POST ${API_PREFIX}/providers/refresh`,
-  // Letting a graph run past the daily spend cap is the person's click: an agent that could grant itself the pass would have no cap
-  `POST ${API_PREFIX}/orchestrations/:id/spend-pass`,
-  `POST ${API_PREFIX}/work-items/:itemId/spend-pass`,
-  // Same for the code hosts: the settings name the gh or glab binary Claudio will run
-  `PUT ${API_PREFIX}/hosts/settings`,
-  `POST ${API_PREFIX}/hosts/refresh`,
-  // And the trackers: the same binaries
-  `PUT ${API_PREFIX}/trackers/settings`,
-  `POST ${API_PREFIX}/trackers/refresh`,
-  // YouTrack's token is the one tracker secret Claudio keeps: a chat neither reads where it points nor changes it
-  `GET ${API_PREFIX}/trackers/youtrack/credentials`,
-  `PUT ${API_PREFIX}/trackers/youtrack/credentials`,
-  `DELETE ${API_PREFIX}/trackers/youtrack/credentials`,
-  // Only a person weakens or probes a guard: an agent that could switch its own off, or ask what it blocks, would have none
-  `PUT ${API_PREFIX}/settings/guards`,
-  `POST ${API_PREFIX}/guards/check`,
-]);
-
-/**
- * A sign-in hands a CLI a key or shows a device code meant for the person: a prompt injection must
- * not start one, read one's code, end one or sign a tool out. What is set up (`GET /setup`) stays readable.
- */
-const CHAT_FORBIDDEN_SETUP = new Set([
-  `POST ${API_PREFIX}/setup/seen`,
-  `POST ${API_PREFIX}/setup/logins`,
-  `GET ${API_PREFIX}/setup/logins/:id`,
-  `DELETE ${API_PREFIX}/setup/logins/:id`,
-  `DELETE ${API_PREFIX}/setup/credentials/:tool`,
-]);
-
-/**
- * An account is a sign-in or a secret on this machine: adding, signing in, removing, enabling,
- * renaming and the rotation settings and policies are the person's. A chat's token cannot even read
- * a sign-in (it carries the page the person opens). The accounts, their usage and the events stay
- * readable.
- */
-const CHAT_FORBIDDEN_ACCOUNTS = new Set([
-  `POST ${API_PREFIX}/accounts`,
-  `POST ${API_PREFIX}/accounts/token`,
-  `POST ${API_PREFIX}/accounts/:id/login`,
-  `POST ${API_PREFIX}/accounts/refresh`,
-  `POST ${API_PREFIX}/accounts/:id/refresh`,
-  `POST ${API_PREFIX}/chats/:id/account`,
-  `GET ${API_PREFIX}/accounts/logins/:id`,
-  `POST ${API_PREFIX}/accounts/logins/:id/code`,
-  `DELETE ${API_PREFIX}/accounts/logins/:id`,
-  `PATCH ${API_PREFIX}/accounts/:id`,
-  `DELETE ${API_PREFIX}/accounts/:id`,
-  `PUT ${API_PREFIX}/accounts/settings`,
-  `PUT ${API_PREFIX}/accounts/model-fallbacks`,
-  `POST ${API_PREFIX}/accounts/policies`,
-  `PUT ${API_PREFIX}/accounts/policies/:id`,
-  `DELETE ${API_PREFIX}/accounts/policies/:id`,
-]);
-
-/**
- * Adding a host to the allowlist, updating Claudio itself or its Claude Code CLI, and reverting
- * either: each changes what runs here or who may reach it, so they are the person's, never a chat's.
- */
-export const CHAT_FORBIDDEN_SYSTEM = new Set([
-  `POST ${API_PREFIX}/security/allowed-hosts/claim`,
-  `POST ${API_PREFIX}/system/server-update/download`,
-  `POST ${API_PREFIX}/system/server-update/apply`,
-  `DELETE ${API_PREFIX}/system/server-update/scheduled`,
-  `POST ${API_PREFIX}/system/server-update/revert`,
-  `POST ${API_PREFIX}/system/cli-version/install`,
-  `DELETE ${API_PREFIX}/system/cli-version/install`,
-]);
-
-/** How Home is laid out is the person's own setting; a chat may read it. */
-const CHAT_FORBIDDEN_LAYOUT = new Set([`PUT ${API_PREFIX}/dashboard/layout`, `DELETE ${API_PREFIX}/dashboard/layout`]);
-
-/**
- * What a limit does with the person's work is theirs to choose: a prompt injection in a transcript
- * must not be able to start a wait or stop one. The waits stay readable.
- */
-const CHAT_FORBIDDEN_ROTATION = new Set([
-  `POST ${API_PREFIX}/chats/:id/wait`,
-  `POST ${API_PREFIX}/limits/waits/:id/cancel`,
-  `POST ${API_PREFIX}/limits/waits/:id/run-now`,
-]);
-
-/**
- * Registering a webhook puts a URL and a secret on the person's repository, and removing one stops
- * Claudio hearing from it: the person's click, never a chat's. Reading them stays open.
- */
-const CHAT_FORBIDDEN_WEBHOOKS = new Set([
-  `POST ${API_PREFIX}/projects/:id/webhooks`,
-  `POST ${API_PREFIX}/projects/:id/webhooks/:registrationId/test`,
-  `DELETE ${API_PREFIX}/projects/:id/webhooks/:registrationId`,
-]);
-
-/** Authorising a connector signs the person's account in to a service: their click, never a chat's. */
-const CHAT_FORBIDDEN_CONNECTORS = new Set([`POST ${API_PREFIX}/connectors/:id/authorise`]);
-
-/**
- * Approving a memory proposal writes its text into `CLAUDE.md`, a memory file or the journal, which
- * every later run of the project reads as instructions: a chat that could approve (or reject) its
- * own proposals would write its own standing orders. Deciding is the person's click; proposing stays
- * open to a chat.
- */
-const CHAT_FORBIDDEN_MEMORY = new Set([
-  `POST ${API_PREFIX}/memory-proposals/:proposalId/approve`,
-  `POST ${API_PREFIX}/memory-proposals/:proposalId/reject`,
-]);
-
-/**
- * A lesson rests on the person's corrections and is handed to every later run of the project, so a
- * chat that could approve, edit, promote or mine one would write its own standing orders. Reading
- * lessons stays open. Deciding a `lesson` proposal, or an `instructions` proposal made from a lesson,
- * is covered by `CHAT_FORBIDDEN_MEMORY`: a chat's token decides no memory proposal.
- */
-const CHAT_FORBIDDEN_LESSONS = new Set([
-  `PATCH ${API_PREFIX}/lessons/:lessonId`,
-  `POST ${API_PREFIX}/lessons/:lessonId/confirm`,
-  `POST ${API_PREFIX}/lessons/:lessonId/retire`,
-  `POST ${API_PREFIX}/lessons/:lessonId/restore`,
-  `DELETE ${API_PREFIX}/lessons/:lessonId`,
-  `POST ${API_PREFIX}/lessons/:lessonId/promote`,
-  `POST ${API_PREFIX}/lessons/:lessonId/demote`,
-  `POST ${API_PREFIX}/lessons/:lessonId/instructions`,
-  `POST ${API_PREFIX}/chats/:id/lessons/mine`,
-  `PUT ${API_PREFIX}/lessons/settings`,
-]);
-
-/**
- * Importing, linking and syncing issues writes the person's work items and their tracker, and an
- * issue's text is untrusted: an injection in one must not be able to import more issues, link or
- * unlink them, change which tracker a project uses or write to the tracker through a chat's token.
- * Reading the tracker's issues and a project's tracker stays open.
- */
-const CHAT_FORBIDDEN_TRACKERS = new Set([
-  `PUT ${API_PREFIX}/projects/:id/tracker`,
-  `POST ${API_PREFIX}/projects/:id/tracker/import`,
-  `POST ${API_PREFIX}/work-items/:itemId/issues`,
-  `DELETE ${API_PREFIX}/work-items/:itemId/issues/:key`,
-  `POST ${API_PREFIX}/work-items/:itemId/issues/:key/sync`,
-]);
-
-/**
- * An instruction eval spends the person's account and runs commands a file asks for, and a consent
- * is the person's alone: an injection in a chat must not write an eval file, consent to one, start
- * or resume a run, or delete a run's results. Reading, estimating and cancelling stay open.
- */
-const CHAT_FORBIDDEN_EVALS = new Set([
-  `PUT ${API_PREFIX}/projects/:id/evals/:name`,
-  `DELETE ${API_PREFIX}/projects/:id/evals/:name`,
-  `POST ${API_PREFIX}/projects/:id/evals/:name/consent`,
-  `POST ${API_PREFIX}/projects/:id/evals/:name/runs`,
-  `POST ${API_PREFIX}/eval-runs/:runId/resume`,
-  `POST ${API_PREFIX}/eval-runs/:runId/rejudge`,
-  `POST ${API_PREFIX}/eval-runs/:runId/accept-judge`,
-  `POST ${API_PREFIX}/projects/:id/evals/:name/draft-cases`,
-  `DELETE ${API_PREFIX}/eval-runs/:runId`,
-]);
-
-/**
- * Adding, creating, refreshing, removing and asking about a project's Claude Docs spends the
- * person's account on the Docs connector, and a document's text is untrusted: a chat's token
- * cannot reach the connector through these. Reading the registry stays open.
- */
-const CHAT_FORBIDDEN_PROJECT_DOCS = new Set([
-  `POST ${API_PREFIX}/projects/:id/docs`,
-  `POST ${API_PREFIX}/projects/:id/docs/refresh`,
-  `DELETE ${API_PREFIX}/projects/:id/docs/:docId`,
-  `POST ${API_PREFIX}/projects/:id/docs/:docId/ask`,
-]);
-
-/**
- * A re-run, a cancel or a fix spends the person's CI minutes or pushes their branch, and log text
- * is untrusted: an injection in a job's output must not be able to ask for any of them through a
- * chat's token. Reading the checks and their logs stays open.
- */
-const CHAT_FORBIDDEN_CHECKS = new Set([
-  `POST ${API_PREFIX}/change-requests/:id/checks/rerun`,
-  `POST ${API_PREFIX}/change-requests/:id/checks/cancel`,
-  `POST ${API_PREFIX}/change-requests/:id/checks/:checkId/run`,
-  `POST ${API_PREFIX}/change-requests/:id/checks/fix`,
-  `POST ${API_PREFIX}/change-requests/:id/push-fix`,
-]);
-
-/**
- * Merging is the person's click, never a run's, a decision's or a chat's: it changes the base
- * branch for everyone, and a review comment or a log line is untrusted text that could ask for it.
- * Arming, turning off, updating the branch and marking ready are refused with it. Reading the
- * merge state stays open.
- */
-const CHAT_FORBIDDEN_MERGE = new Set([
-  `POST ${API_PREFIX}/change-requests/:id/merge`,
-  `POST ${API_PREFIX}/change-requests/:id/auto-merge`,
-  `DELETE ${API_PREFIX}/change-requests/:id/auto-merge`,
-  `POST ${API_PREFIX}/change-requests/:id/update-branch`,
-  `POST ${API_PREFIX}/change-requests/:id/ready`,
-]);
-
-/**
- * A review is posted under the person's name, and thread text is untrusted: an injection in a
- * comment must not be able to post, approve, resolve or hand threads to an agent through a chat's
- * token. Reading the threads, the drafts, the approval and the reviewers stays open.
- */
-const CHAT_FORBIDDEN_REVIEWS = new Set([
-  `POST ${API_PREFIX}/change-requests/:id/review-drafts`,
-  `PUT ${API_PREFIX}/change-requests/:id/review-drafts/:draftId`,
-  `DELETE ${API_PREFIX}/change-requests/:id/review-drafts/:draftId`,
-  `POST ${API_PREFIX}/change-requests/:id/reviews`,
-  `POST ${API_PREFIX}/change-requests/:id/reviews/:postId/publish-saved`,
-  `POST ${API_PREFIX}/change-requests/:id/reviews/:postId/discard-saved`,
-  `POST ${API_PREFIX}/change-requests/:id/threads/:threadId/reply`,
-  `POST ${API_PREFIX}/change-requests/:id/threads/:threadId/resolve`,
-  `POST ${API_PREFIX}/change-requests/:id/threads/:threadId/unresolve`,
-  `POST ${API_PREFIX}/change-requests/:id/approval`,
-  `DELETE ${API_PREFIX}/change-requests/:id/approval`,
-  `POST ${API_PREFIX}/change-requests/:id/reviewers`,
-  `POST ${API_PREFIX}/change-requests/:id/address`,
-]);
 
 /**
  * The review gate fails closed, so what opens it is the person's: a chat must not accept its own
@@ -472,45 +258,6 @@ const CHAT_FORBIDDEN_REVIEW_GATE = new Set([
   `POST ${API_PREFIX}/projects/:id/review-roles/:role`,
 ]);
 const CHAT_REVIEW_GATE_REFUSAL = "a chat's token cannot accept a review gate or write a reviewer's role: that is the person's";
-
-/**
- * Consent is the owner's (D12): these widen what the decision engine sends off the machine, so a
- * prompt injection in a chat must not be able to consent to a point or switch the provider to Jev.
- * A project's own override, which does not touch consent, stays open through the project settings.
- */
-const CHAT_FORBIDDEN_DECISIONS = new Set([
-  `PUT ${API_PREFIX}/decisions/settings`,
-  `PUT ${API_PREFIX}/decisions/credentials`,
-  `DELETE ${API_PREFIX}/decisions/credentials`,
-  `PUT ${API_PREFIX}/decisions/points/:point/consent`,
-  // The deprecated door to the `supervisor.intervene` point's mode, which `PUT /decisions/settings` already keeps from a chat
-  `PUT ${API_PREFIX}/settings/supervisor`,
-  // What the person did is theirs to report: a chat must not write the signal a resolver judges by
-  `POST ${API_PREFIX}/decisions/:id/palette-action`,
-  `POST ${API_PREFIX}/decisions/notification-opened`,
-]);
-
-/**
- * Compacting a chat and asking it for a note are paid turns the person chose to spend; the chat
- * that is running must not be able to spend them on itself or on another. Reads stay open.
- */
-const CHAT_FORBIDDEN_CONTEXT = new Set([
-  `POST ${API_PREFIX}/chats/:id/compact`,
-  `POST ${API_PREFIX}/chats/:id/notes`,
-  `DELETE ${API_PREFIX}/chats/:id/notes/:noteId`,
-]);
-
-const CHAT_CANNOT_COMPACT = "a chat's token cannot compact a chat or ask it for a note: that is the person's click";
-
-/**
- * The same paid turn reached through a text the CLI reads as its own `/compact`: the field of each
- * route that becomes a user turn. Read once the body is parsed, so in `preHandler`.
- */
-const CHAT_FORBIDDEN_COMPACT_TEXT = new Map([
-  [`POST ${API_PREFIX}/chats/:id/messages`, 'text'],
-  [`POST ${API_PREFIX}/chats/:id/resume`, 'prompt'],
-  [`POST ${API_PREFIX}/chats/:id/fork`, 'prompt'],
-]);
 
 /**
  * The terminal is the person's own shell: a chat's token cannot open, read or type into one, and
@@ -622,7 +369,7 @@ export async function agentReadRefusal(core: Pick<Core, 'agentReadScope' | 'coll
  * The route checks it, after the host allowlist, read-only and the gate, and a wrong one counts in
  * the back-off like a wrong token.
  */
-const TERMINAL_SOCKET = /^\/api\/terminals\/[^/]+\/socket$/;
+const TERMINAL_SOCKET = 'GET /terminals/:id/socket';
 
 /**
  * The desktop app's secret exists to let its tray read what is live, so it reads and nothing
@@ -652,6 +399,8 @@ const MAX_WAIT_MS = 60_000;
 const FORGET_AFTER_MS = 15 * 60_000;
 /** The map is fed by whoever can reach the port, so it is bounded rather than trusted. */
 const MAX_CLIENTS = 1024;
+/** Credentials remembered as having worked: the owner's token, a few chats', an OIDC token or two */
+const MAX_TRUSTED = 64;
 
 interface Failures {
   count: number;
@@ -659,8 +408,11 @@ interface Failures {
   at: number;
 }
 
+/** A credential is remembered by its hash only, so the map never holds a secret */
+const credentialHash = (credential: string): string => createHash('sha256').update(credential).digest('hex');
+
 /**
- * Failed authentications per client address, with a wait that doubles.
+ * Failed authentications per client, with a wait that doubles.
  *
  * Written here rather than pulled in as a rate-limiting plugin, for the reason `cron.ts` gives for
  * its own parser: what this needs is a count and an instant per address, and a plugin would bring
@@ -668,8 +420,11 @@ interface Failures {
  * bytes and out of reach of guessing, but a token someone chooses is accepted from 16 characters,
  * and 16 characters under an unlimited online attack are not enough.
  *
- * The wait is per address and not per credential, so an honest client sharing an address with an
- * attacker pays it too: the cap is what keeps that to a minute instead of a lockout.
+ * The wait is per client (`backoffKey`: the address and the name dialled), not per credential, so
+ * whoever shares both with an attacker would pay it too. What keeps the owner out of it is the
+ * credential itself: one whose hash last succeeded is never made to wait, since being able to
+ * present it is the proof the wait exists to ask for. A success does not wipe the count either: on
+ * a shared key that would hand the guesser beside the owner a fresh allowance at every poll.
  *
  * Only a credential that was presented and failed is counted. A request with none at all is not a
  * guess: it cannot get closer to the token by repeating itself, and on a local install every
@@ -678,12 +433,18 @@ interface Failures {
  */
 export class FailureBackoff {
   private readonly clients = new Map<string, Failures>();
+  /** Hashes of the credentials that last succeeded, least recent first */
+  private readonly trusted = new Set<string>();
 
   /** The clock is a parameter so a test can watch a wait grow and a client be forgotten. */
   constructor(private readonly now: () => number = Date.now) {}
 
-  /** Seconds before this client's credential is looked at again; 0 when it may try now. */
-  retryAfter(client: string): number {
+  /**
+   * Seconds before this client's credential is looked at again; 0 when it may try now. A credential
+   * that last succeeded is looked at at once: if it no longer works, `fail` forgets it.
+   */
+  retryAfter(client: string, credential?: string): number {
+    if (credential !== undefined && this.trusted.has(credentialHash(credential))) return 0;
     const seen = this.clients.get(client);
     if (!seen) return 0;
     const now = this.now();
@@ -692,7 +453,9 @@ export class FailureBackoff {
     return remaining > 0 ? Math.ceil(remaining / 1_000) : 0;
   }
 
-  fail(client: string): void {
+  fail(client: string, credential?: string): void {
+    // Revoked or rotated since it last worked: it waits like any other guess from now on
+    if (credential !== undefined) this.trusted.delete(credentialHash(credential));
     const now = this.now();
     const seen = this.clients.get(client);
     const count = seen && now - seen.at < FORGET_AFTER_MS ? seen.count + 1 : 1;
@@ -702,8 +465,15 @@ export class FailureBackoff {
     this.evict(now);
   }
 
-  succeed(client: string): void {
-    this.clients.delete(client);
+  /** Remembers the credential that worked; the client's failures stay counted (see the class) */
+  succeed(credential: string): void {
+    const hash = credentialHash(credential);
+    this.trusted.delete(hash);
+    this.trusted.add(hash);
+    for (const old of this.trusted) {
+      if (this.trusted.size <= MAX_TRUSTED) break;
+      this.trusted.delete(old);
+    }
   }
 
   /** Addresses remembered right now. Bounded by `MAX_CLIENTS`, which is what a test checks. */
@@ -735,22 +505,60 @@ export class FailureBackoff {
  * chat has to be able to unblock it. The guard's own switch stays reachable because a switch that
  * cannot be turned back is a trap, and it is administration of the wrapper, not of its work.
  */
-const READ_ONLY_ALLOWED = new Set([`POST ${API_PREFIX}/chats/:id/permissions/:requestId`, `PUT ${API_PREFIX}/security/auth`]);
+const READ_ONLY_ALLOWED = new Set(['POST /chats/:id/permissions/:requestId', 'PUT /security/auth']);
 
 /** The OpenAI-compatible surface, which needs a credential in every mode */
 const OPENAI_SURFACE = new RegExp(`^${API_PREFIX}/v1(?:/|$)`);
 
-/** Only what this process serves is guarded; the UI bundle is public so a 401 has a page to show. */
-const isGuarded = (path: string): boolean => path === '/openapi.json' || path === '/docs' || path.startsWith('/docs/') || path.startsWith(`${API_PREFIX}/`);
+/** A path this process serves itself and guards: the API and its documentation */
+const guardedPath = (path: string): boolean => path === '/openapi.json' || path === '/docs' || path.startsWith('/docs/') || path.startsWith(`${API_PREFIX}/`);
+
+/**
+ * Whether a request is guarded. The matched route decides: Fastify routes on the decoded path, so
+ * the raw target is only a spelling of it (report §8.1: `/%61pi/chats` reached `/api/chats`
+ * unguarded). A request no route took is guarded unless it is the web app's own, a file of the
+ * bundle or the page the router falls back to: the UI is public so a 401 has a page to show. The
+ * raw path can be read for that because `plainTarget` refused every other spelling first.
+ */
+const isGuarded = (routeUrl: string | undefined, path: string): boolean => (routeUrl !== undefined && guardedPath(routeUrl)) || guardedPath(path);
+
+/** The matched route keyed as `ROUTE_DOCS` keys it (`POST /chats/:id/stop`), or null for what is not an API route */
+function apiRoute(req: FastifyRequest): string | null {
+  const url = req.routeOptions.url;
+  return url?.startsWith(`${API_PREFIX}/`) ? `${req.method} ${url.slice(API_PREFIX.length)}` : null;
+}
 
 const pathOf = (url: string): string => url.split('?')[0] ?? url;
 
-function credentialOf(req: FastifyRequest, path: string): string | undefined {
+/**
+ * The letters, digits and `-._~` of RFC 3986: a client never has to percent-encode them, so an
+ * encoded one is only ever another spelling of a path (`/%61pi`, `/%2e%2e/`).
+ */
+const ENCODED_UNRESERVED = /%(?:[46][1-9a-f]|[57][0-9a]|3[0-9]|2[de]|5f|7e)/i;
+const DOT_SEGMENT = /(?:^|\/)\.{1,2}(?:\/|$)/;
+
+/**
+ * Whether the request target is a plain origin-form path, the one spelling the guard reads. An
+ * absolute-form target (`GET http://x/api/health`), a dot segment, a malformed escape or an encoded
+ * unreserved character is refused before anything else. Escapes of anything else stay: a file or
+ * server name with a space or an accent in it is a real path, and the route is what decides.
+ */
+function plainTarget(url: string, path: string): boolean {
+  if (!url.startsWith('/') || DOT_SEGMENT.test(path) || ENCODED_UNRESERVED.test(path)) return false;
+  try {
+    decodeURI(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function credentialOf(req: FastifyRequest, route: string | null): string | undefined {
   const [scheme, ...rest] = (req.headers.authorization ?? '').split(' ');
   // An empty bearer is no credential rather than a wrong one, so it is not counted as a guess
   if (scheme?.toLowerCase() === 'bearer' && rest.length) return rest.join(' ').trim() || undefined;
   // A header that is not a bearer token (a proxy's own `Basic`, say) is not ours: fall through
-  if (req.method !== 'GET' || !QUERY_TOKEN.some((re) => re.test(path))) return undefined;
+  if (route === null || !QUERY_TOKEN.has(route)) return undefined;
   const token = (req.query as { token?: unknown } | undefined)?.token;
   return typeof token === 'string' && token ? token : undefined;
 }
@@ -845,25 +653,24 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   const backoff = new FailureBackoff();
   // Requests a chat's token authenticated under a guarded mode: `preHandler` reads their bodies
   const chatCredentials = new WeakSet<FastifyRequest>();
-  const desktopUpdateWrite = (req: FastifyRequest, path: string): boolean =>
-    core.serverUpdates.desktopHost && DESKTOP_UPDATE_WRITES.has(`${req.method} ${req.routeOptions.url ?? path}`);
+  const desktopUpdateWrite = (req: FastifyRequest): boolean => core.serverUpdates.desktopHost && DESKTOP_UPDATE_WRITES.has(`${req.method} ${req.routeOptions.url ?? ''}`);
 
   /**
    * Checks the credential a request presents, the one flow every guarded check goes through: no
-   * credential is refused without touching the back-off, a client in its back-off waits (429), a
-   * wrong credential counts and is refused, a right one clears the count and names the actor.
-   * `resolve` says whose a credential is; `refuse` writes the 401 of the caller's rule. Returns the
-   * actor, or null once the reply has been sent.
+   * credential is refused without touching the back-off, a client in its back-off waits (429) unless
+   * the credential is one that last worked, a wrong credential counts and is refused, a right one is
+   * remembered and names the actor. `resolve` says whose a credential is; `refuse` writes the 401 of
+   * the caller's rule. Returns the actor, or null once the reply has been sent.
    */
   const authenticate = async (
     req: FastifyRequest,
     reply: FastifyReply,
-    path: string,
+    route: string | null,
     mode: string,
     refuse: () => unknown,
     resolve: (credential: string) => Promise<{ actor: string; chat: boolean } | null>,
   ): Promise<{ actor: string; chat: boolean } | null> => {
-    const credential = credentialOf(req, path);
+    const credential = credentialOf(req, route);
     // Nothing to check is nothing guessed: neither counted nor made to wait, so a local process
     // polling without a credential cannot lock the owner out of their own install
     if (credential === undefined) {
@@ -871,7 +678,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       return null;
     }
     const client = backoffKey(req, runtimeHosts);
-    const wait = backoff.retryAfter(client);
+    const wait = backoff.retryAfter(client, credential);
     if (wait > 0) {
       req.actor = 'anonymous';
       // Not counted as another failure: a client that kept trying would never serve its wait
@@ -880,25 +687,38 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     }
     const found = await resolve(credential);
     if (!found) {
-      backoff.fail(client);
+      backoff.fail(client, credential);
       void refuse();
       return null;
     }
-    backoff.succeed(client);
+    backoff.succeed(credential);
     req.actor = found.actor;
     return found;
   };
 
   app.addHook('onRequest', async (req, reply) => {
+    const path = pathOf(req.url);
+    // Before anything else, a preflight included: every rule below reads one spelling of the path
+    if (!plainTarget(req.url, path)) {
+      req.actor = 'anonymous';
+      void reply.status(400).send({
+        error: 'the request target must be a plain path: no absolute URL, no `.` or `..` segment, and no letter, digit or `-._~` percent-encoded',
+        code: 'request-target',
+      });
+      return reply;
+    }
     // A CORS preflight carries no credential by definition, and answering it reveals nothing
     if (req.method === 'OPTIONS') return;
-    const path = pathOf(req.url);
-    const receiver = (req.method === 'POST' && WEBHOOK_RECEIVER.test(path)) || CLIENT_TOOL_STUB.test(path);
-    const guarded = isGuarded(path) && !OPEN.has(path);
+    const route = apiRoute(req);
+    const guarded = isGuarded(req.routeOptions.url, path);
+    // A request no route took needs a credential, and there is nothing behind it to refuse a chat
+    const access = route ? accessOf(req.method, route.slice(route.indexOf(' ') + 1)) : 'work';
+    const receiver = guarded && access === 'open' && route !== null && RECEIVERS.has(route);
+    const probe = guarded && access === 'open' && !receiver;
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
     // or not the caller holds one: under `mode: 'none'` there is no credential to refuse it by
-    if (guarded && path !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless')) {
+    if (guarded && !probe && route !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless')) {
       req.actor = 'anonymous';
       const host = hostNameOf(req.headers.host ?? '');
       if (req.method === 'GET' && prefersHtml(req.headers.accept)) {
@@ -916,12 +736,21 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       void reply.status(421).send(refusal);
       return reply;
     }
+    if (probe) return;
     if (receiver) {
       req.actor = 'webhook';
       return;
     }
+    // With nothing to authenticate, the browser itself is the only thing that tells a page of this
+    // app from a page of any other site that posts here: a body-less POST is a simple request no
+    // preflight stops (report §8.8). Guarded modes need a bearer token, which no page sends unasked
+    if (mode === 'none' && guarded && MUTATING.has(req.method) && !(route !== null && OWN_ORIGIN_CHECK.has(route)) && crossSite(req)) {
+      req.actor = 'anonymous';
+      void reply.status(403).send({ error: 'a page of another site cannot change anything here', code: 'cross-site' });
+      return reply;
+    }
     // A socket's ticket is its credential; the route checks it once the gate has had its say
-    const ticketed = req.method === 'GET' && TERMINAL_SOCKET.test(path);
+    const ticketed = route === TERMINAL_SOCKET;
     if (ticketed && mode !== 'none') req.actor = 'anonymous';
     if (guarded && mode !== 'none' && !ticketed) {
       // Still audited when it is a write, and as what it was: nobody we could name
@@ -934,7 +763,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
           .status(401)
           .send({ error: 'authentication required', mode, ...(core.security.firstRunPending ? { firstRunToken: true } : {}) });
       };
-      const found = await authenticate(req, reply, path, mode, refuse, async (credential) => {
+      const found = await authenticate(req, reply, route, mode, refuse, async (credential) => {
         const owner = await core.security.actorFor(credential, fromLocalMachine(req));
         // The owner's credential first; a chat token is only ever the fallback, and fails the same
         // way. Told apart by where it came from, not by its prefix: an OIDC subject could be anything
@@ -943,94 +772,16 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         return actor ? { actor, chat: chat !== null } : null;
       });
       if (!found) return reply;
-      const actor = found.actor;
-      const chat = found.chat ? actor : null;
-      if (actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method) && !desktopUpdateWrite(req, path)) {
+      if (found.actor === DESKTOP_ACTOR && !DESKTOP_METHODS.has(req.method) && !desktopUpdateWrite(req)) {
         void reply.status(403).send({ error: "the desktop app's own credential only reads; sign in with the API token to change anything" });
         return reply;
       }
-      if (chat !== null && CHAT_FORBIDDEN.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot change the API's authentication" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_CONTEXT.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: CHAT_CANNOT_COMPACT });
-        return reply;
-      }
-      if (chat !== null) chatCredentials.add(req);
-      if (chat !== null && CHAT_FORBIDDEN_SYSTEM.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot add an allowed host, update Claudio or install a Claude Code version: that is the person's" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_DECISIONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot change what the decision engine sends" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_ROTATION.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot start or stop a wait for work: what a limit does is the person's choice" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_CHECKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot re-run, cancel or fix a change request's checks" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_MERGE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot merge, arm auto-merge, update the branch or mark ready a change request: that is the person's click" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_REVIEWS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot post, approve, resolve or hand out a change request's review" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_WEBHOOKS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot register, test or remove a repository's webhook: that is the person's click" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_LAYOUT.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot change how Home is laid out: that is the person's setting" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_SETUP.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot start, read or cancel a sign-in, or sign a tool out: that is the person's" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_ACCOUNTS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot add, sign in, change or remove an account, or change how work moves between them: that is the person's" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_PROJECT_DOCS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot add, create, refresh, remove or ask about a project's Claude Docs: that is the person's click" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_CONNECTORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot authorise a connector: that is the person's click" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_MEMORY.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot approve or reject a memory proposal: what is written into memory is the person's decision" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_LESSONS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot decide, change or mine lessons: that is the person's" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_EVALS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot write, consent to, start, resume, re-judge, draft cases for or delete an eval: that spends money and runs commands on the person's behalf" });
-        return reply;
-      }
-      if (chat !== null && CHAT_FORBIDDEN_TRACKERS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-        void reply.status(403).send({ error: "a chat's token cannot import, link, unlink or sync issues, or change a project's tracker" });
-        return reply;
-      }
+      if (found.chat) chatCredentials.add(req);
     }
     // The OpenAI-compatible routes start chats that may run commands for whoever calls them, so an
     // open install still asks them for a credential: the owner's token, or a chat's own from this
     // machine (docs/openai-compatible-api.md). Guarded modes already asked above
-    if (mode === 'none' && guarded && OPENAI_SURFACE.test(path)) {
+    if (mode === 'none' && guarded && (OPENAI_SURFACE.test(req.routeOptions.url ?? '') || OPENAI_SURFACE.test(path))) {
       const refuse = (): void => {
         req.actor = 'anonymous';
         const error = core.security.config.tokenSet
@@ -1038,7 +789,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
           : 'authentication required: this API runs commands for its callers, so it needs a token even with authentication off. Set one in Settings → Access & safety (or `POST /api/security/token`) and send it as `Authorization: Bearer <token>`';
         void reply.header('WWW-Authenticate', 'Bearer realm="Claudio"').status(401).send({ error, mode });
       };
-      const found = await authenticate(req, reply, path, mode, refuse, async (credential) => {
+      const found = await authenticate(req, reply, route, mode, refuse, async (credential) => {
         // The owner's API token whatever the mode, or a chat's own from this machine
         const actor = core.security.credentialActorFor(credential, fromLocalMachineStrict(req, runtimeHosts));
         return actor ? { actor, chat: actor.startsWith('chat:') } : null;
@@ -1047,33 +798,35 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     }
     // Open mode grants everything already, so a chat's token only labels who wrote: a missing, wrong
     // or expired one leaves `local` and is never refused
-    if (mode === 'none' && req.actor === null && desktopUpdateWrite(req, path) && core.security.isDesktopCredential(credentialOf(req, path), fromLocalMachine(req))) {
+    if (mode === 'none' && req.actor === null && desktopUpdateWrite(req) && core.security.isDesktopCredential(credentialOf(req, route), fromLocalMachine(req))) {
       req.actor = DESKTOP_ACTOR;
     }
     if (mode === 'none' && req.actor === null) {
-      const presented = credentialOf(req, path);
+      const presented = credentialOf(req, route);
       const chatId = presented === undefined ? null : core.security.chatTokens.verify(presented);
       if (chatId !== null) req.actor = chatActor(chatId);
     }
     req.actor ??= 'local';
 
-    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
-      void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL });
+    // The three exceptions, which hold in every mode (see the note above the review gate's set)
+    const key = `${req.method} ${req.routeOptions.url ?? path}`;
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(key)) {
+      void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL, code: 'chat-forbidden' });
       return reply;
     }
 
-    if (req.actor.startsWith('chat:') && AGENT_READABLE.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+    if (req.actor.startsWith('chat:') && AGENT_READABLE.has(key)) {
       const refusal = await agentReadRefusal(core, req.actor.slice('chat:'.length), req.params as { owner?: unknown; shareId?: unknown } | undefined);
       if (refusal) {
         void reply.status(403).send(refusal);
         return reply;
       }
-    } else if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_COLLABORATORS.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+    } else if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_COLLABORATORS.has(key)) {
       void reply.status(403).send({ error: CHAT_COLLABORATORS_REFUSAL, code: 'collaborators.chat-token' });
       return reply;
     }
 
-    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_TERMINAL.has(`${req.method} ${req.routeOptions.url ?? path}`)) {
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_TERMINAL.has(key)) {
       const id = (req.params as { id?: unknown } | undefined)?.id;
       core.terminals.recordRefusal({
         terminalId: typeof id === 'string' && core.terminals.get(id) ? id : null,
@@ -1090,9 +843,18 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       return reply;
     }
 
-    if (core.security.readOnly && MUTATING.has(req.method) && isGuarded(path)) {
-      const routeUrl = req.routeOptions.url;
-      if (!routeUrl || !READ_ONLY_ALLOWED.has(`${req.method} ${routeUrl}`)) {
+    // The class of the matched route, for a chat's token a guarded mode authenticated
+    if (chatCredentials.has(req) && access === 'person') {
+      const summary = route ? ROUTE_DOCS[route]?.summary : undefined;
+      void reply.status(403).send({
+        error: `a chat's token cannot do this${summary ? ` (${summary.charAt(0).toLowerCase()}${summary.slice(1)})` : ''}: it is the person's`,
+        code: 'chat-forbidden',
+      });
+      return reply;
+    }
+
+    if (core.security.readOnly && MUTATING.has(req.method) && guarded) {
+      if (route === null || !READ_ONLY_ALLOWED.has(route)) {
         void reply.status(405).send({
           error: 'read-only mode is on: this wrapper accepts no changes. Turn it off with PUT /api/security/auth, which stays open for exactly that.',
         });
@@ -1102,35 +864,71 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     return;
   });
 
+  // The body of a `work` write a chat's token sends holds only the fields the route lists for it
+  // (`workFields`): a sibling started with `bypassPermissions` or a wider tool list would undo the
+  // rules the class enforces (report §8.3). Read once the body is parsed, so in `preHandler`
   app.addHook('preHandler', async (req, reply) => {
     if (!chatCredentials.has(req)) return;
-    const field = CHAT_FORBIDDEN_COMPACT_TEXT.get(`${req.method} ${req.routeOptions.url ?? ''}`);
-    const text = field ? (req.body as Record<string, unknown> | null | undefined)?.[field] : undefined;
-    if (typeof text === 'string' && TYPED_COMPACT.test(text.trim())) {
-      void reply.status(403).send({ error: CHAT_CANNOT_COMPACT });
-      return reply;
-    }
-    return;
+    const route = apiRoute(req);
+    const fields = route ? ROUTE_DOCS[route]?.workFields : undefined;
+    const body: unknown = req.body;
+    if (!fields || body === null || typeof body !== 'object' || Array.isArray(body)) return;
+    const field = Object.keys(body).find((name) => !fields.includes(name));
+    if (field === undefined) return;
+    void reply.status(403).send({
+      error: `a chat's token cannot set \`${field}\` here: it is the person's. An agent may send ${fields.map((name) => `\`${name}\``).join(', ')}`,
+      code: 'chat-forbidden-field',
+      field,
+    });
+    return reply;
   });
 
   app.addHook('onResponse', async (req, reply) => {
-    if (!MUTATING.has(req.method)) return;
+    if (!MUTATING.has(req.method) || req.actor === 'webhook') return;
     const path = pathOf(req.url);
-    if (!path.startsWith(`${API_PREFIX}/`)) return;
-    if (req.actor === 'webhook') return;
-    core.db.appendAudit({
+    const anonymous = req.actor === 'anonymous';
+    // A refused spelling of a path is a refusal like the others, whatever it looked like
+    if (!anonymous && !(req.routeOptions.url ?? path).startsWith(`${API_PREFIX}/`) && !path.startsWith(`${API_PREFIX}/`)) return;
+    const stored = path.length > MAX_AUDIT_PATH ? path.slice(0, MAX_AUDIT_PATH) : path;
+    const entry = {
       at: new Date().toISOString(),
       actor: req.actor ?? 'local',
       method: req.method,
       // The query string is dropped: it can carry `?token=`, and the path is what a filter needs
-      path,
+      path: stored,
       status: reply.statusCode,
-      summary: auditSummary(req.method, req.routeOptions.url, path),
+      summary: auditSummary(req.method, req.routeOptions.url, stored),
       route: auditRoute(req.method, req.routeOptions.url),
-    });
+    };
+    // Whoever can reach the port writes these, so they go to their own small ring and can never
+    // push what identified callers did out of the log
+    if (anonymous) core.db.appendAuditRefusal(entry);
+    else core.db.appendAudit(entry);
   });
 
   return { backoff, backoffKey: (req) => backoffKey(req, runtimeHosts) };
+}
+
+/**
+ * Whether a write comes from a page of another site. A request with no `Origin` and no
+ * `Sec-Fetch-Site` is not a browser's (a CLI, a script, a chat's `curl`) and passes; an origin on
+ * `CLAUDIO_CORS_ORIGIN` passes; otherwise the page must have been served from the authority it is
+ * writing to (behind the dev server, the one it forwarded). An opaque origin (`null`) is never ours.
+ */
+function crossSite(req: FastifyRequest): boolean {
+  const origin = req.headers.origin;
+  if (origin !== undefined && allowedOrigin(origin) !== null) return false;
+  if (req.headers['sec-fetch-site'] === 'cross-site') return true;
+  if (origin === undefined) return false;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return true;
+  }
+  const forwarding = forwardingOf(req);
+  const own = typeof forwarding === 'object' ? forwarding.host : req.headers.host;
+  return own === undefined || host.toLowerCase() !== own.toLowerCase();
 }
 
 declare module 'fastify' {

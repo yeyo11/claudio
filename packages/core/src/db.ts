@@ -1462,6 +1462,26 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      removed_at   TEXT
    );
    CREATE INDEX workspaces_removed ON workspaces (removed_at);`,
+
+  // Writes refused before their caller was identified (docs/security-model.md, "Chat tokens"): a
+  // ring of its own, so whoever can reach the port cannot push the trail of what identified callers
+  // did out of the 50 000 rows `audit` keeps. The newest refusals already logged move over, and the
+  // rest leave the log they were flooding
+  `CREATE TABLE audit_refusals (
+     id      INTEGER PRIMARY KEY AUTOINCREMENT,
+     at      TEXT NOT NULL,
+     actor   TEXT NOT NULL,
+     method  TEXT NOT NULL,
+     path    TEXT NOT NULL,
+     status  INTEGER NOT NULL,
+     summary TEXT NOT NULL,
+     route   TEXT
+   );
+   INSERT INTO audit_refusals (at, actor, method, path, status, summary, route)
+     SELECT at, actor, method, substr(path, 1, 512), status, summary, route
+     FROM (SELECT * FROM audit WHERE actor = 'anonymous' ORDER BY id DESC LIMIT 1000)
+     ORDER BY id;
+   DELETE FROM audit WHERE actor = 'anonymous';`,
 ];
 
 /**
@@ -1555,6 +1575,8 @@ export const COLLAB_DENIALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof 
 
 /** The migration that gave audit rows their route: a test starts a database from just before it */
 export const AUDIT_ROUTE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ALTER TABLE audit ADD COLUMN route')) + 1;
+/** The migration that moved anonymous refusals into their own ring: a test starts a database from just before it */
+export const AUDIT_REFUSALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE audit_refusals')) + 1;
 
 /**
  * Applies the migrations a database has not run yet, up to schema version `until` (every one by
@@ -1604,6 +1626,15 @@ export interface CommandRun {
 const KEEP_AUDIT = 50_000;
 /** Pruning on every insert would cost a delete per request; this is often enough to bound it. */
 const AUDIT_PRUNE_EVERY = 500;
+/**
+ * The anonymous refusals kept. Anyone who can reach the port writes them, so the ring is small and
+ * trimmed on every insert: what it is for is the recent shape of an attack, not its whole history.
+ */
+const KEEP_AUDIT_REFUSALS = 1_000;
+/** A path is stored up to here: a request target can be as long as the server reads, and a row should not */
+export const MAX_AUDIT_PATH = 512;
+
+const auditPath = (path: string): string => (path.length > MAX_AUDIT_PATH ? path.slice(0, MAX_AUDIT_PATH) : path);
 
 interface JsonRow {
   json: string;
@@ -2096,11 +2127,26 @@ export class Db {
    */
   appendAudit(entry: Omit<AuditEntry, 'id' | 'route'> & { route?: string | null }): AuditEntry {
     const route = entry.route ?? null;
+    const path = auditPath(entry.path);
     const result = this.db
       .prepare('INSERT INTO audit (at, actor, method, path, status, summary, route) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(entry.at, entry.actor, entry.method, entry.path, entry.status, entry.summary, route);
+      .run(entry.at, entry.actor, entry.method, path, entry.status, entry.summary, route);
     if (++this.auditWrites % AUDIT_PRUNE_EVERY === 0) this.pruneAudit();
-    return { ...entry, route, id: String(result.lastInsertRowid) };
+    return { ...entry, path, route, id: String(result.lastInsertRowid) };
+  }
+
+  /**
+   * Appends a write refused before its caller was identified (`anonymous`). Kept apart from the log,
+   * in a ring trimmed to its newest rows on every insert, so a flood of them evicts only itself.
+   */
+  appendAuditRefusal(entry: Omit<AuditEntry, 'id' | 'route'> & { route?: string | null }): AuditEntry {
+    const route = entry.route ?? null;
+    const path = auditPath(entry.path);
+    const result = this.db
+      .prepare('INSERT INTO audit_refusals (at, actor, method, path, status, summary, route) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(entry.at, entry.actor, entry.method, path, entry.status, entry.summary, route);
+    this.db.prepare('DELETE FROM audit_refusals WHERE id <= ?').run(Number(result.lastInsertRowid) - KEEP_AUDIT_REFUSALS);
+    return { ...entry, path, route, id: String(result.lastInsertRowid) };
   }
 
   /**
@@ -2108,6 +2154,15 @@ export class Db {
    * `method` and `status` narrow it further, and every filter narrows `total` with the page.
    */
   auditPage(opts: { limit?: number; from?: number } & AuditFilter = {}): AuditPage {
+    return this.auditTablePage('audit', opts);
+  }
+
+  /** The anonymous refusals, newest first, with the filters and paging of `auditPage` */
+  auditRefusalsPage(opts: { limit?: number; from?: number } & AuditFilter = {}): AuditPage {
+    return this.auditTablePage('audit_refusals', opts);
+  }
+
+  private auditTablePage(table: 'audit' | 'audit_refusals', opts: { limit?: number; from?: number } & AuditFilter): AuditPage {
     const limit = Math.min(Math.max(Math.trunc(opts.limit ?? 50), 1), 500);
     const from = Math.max(Math.trunc(opts.from ?? 0), 0);
     const clauses: string[] = [];
@@ -2130,9 +2185,9 @@ export class Db {
       params.push(range[0], range[1]);
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-    const totalRow = this.db.prepare(`SELECT COUNT(*) AS n FROM audit ${where}`).get(...params) as { n: number } | undefined;
+    const totalRow = this.db.prepare(`SELECT COUNT(*) AS n FROM ${table} ${where}`).get(...params) as { n: number } | undefined;
     const rows = this.db
-      .prepare(`SELECT * FROM audit ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
+      .prepare(`SELECT * FROM ${table} ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
       .all(...params, limit, from) as unknown as Array<{ id: number; at: string; actor: string; method: string; path: string; status: number; summary: string; route: string | null }>;
     return {
       entries: rows.map((row) => ({ ...row, id: String(row.id), route: row.route ?? null })),

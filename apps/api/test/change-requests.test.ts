@@ -254,7 +254,7 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
     for (const [method, url, body] of merging) {
       const res = await guarded.inject({ method, url, ...fromChat(token, body ?? {}) });
       assert.equal(res.statusCode, 403, `${method} ${url}`);
-      assert.match(res.json<{ error: string }>().error, /merge/);
+      assert.equal(res.json<{ code: string }>().code, 'chat-forbidden');
     }
     for (const path of ['threads', 'review-drafts', 'review-posts', 'approval', 'reviewers', 'merge']) {
       const read = await guarded.inject({ url: `/api/change-requests/${id}/${path}`, ...fromChat(token) });

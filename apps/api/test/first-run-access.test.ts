@@ -7,7 +7,8 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { ClaimHostResult, HostRefusal } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
-import { CHAT_FORBIDDEN_SYSTEM, hostRefusalPage } from '../src/security.ts';
+import { accessOf } from '../src/openapi/routes.ts';
+import { hostRefusalPage } from '../src/security.ts';
 
 /*
  * D3 and D5 of docs/plans/container-polish.md: the owner token a container makes on its first start,
@@ -168,15 +169,18 @@ test('a chat token may not claim a host, update Claudio or install a CLI', async
   const chat = core.security.chatTokens.mint('chat-42');
   const claim = await app.inject({ method: 'POST', url: '/api/security/allowed-hosts/claim', ...bearer(chat) });
   assert.equal(claim.statusCode, 403);
-  assert.deepEqual([...CHAT_FORBIDDEN_SYSTEM].sort(), [
-    'DELETE /api/system/cli-version/install',
-    'DELETE /api/system/server-update/scheduled',
-    'POST /api/security/allowed-hosts/claim',
-    'POST /api/system/cli-version/install',
-    'POST /api/system/server-update/apply',
-    'POST /api/system/server-update/download',
-    'POST /api/system/server-update/revert',
-  ]);
+  for (const route of [
+    'DELETE /system/cli-version/install',
+    'DELETE /system/server-update/scheduled',
+    'POST /security/allowed-hosts/claim',
+    'POST /system/cli-version/install',
+    'POST /system/server-update/apply',
+    'POST /system/server-update/download',
+    'POST /system/server-update/revert',
+  ]) {
+    const [method, path] = route.split(' ') as [string, string];
+    assert.equal(accessOf(method, path), 'person', route);
+  }
 });
 
 // ---------- the terminal in a container ----------

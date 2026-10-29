@@ -37,7 +37,7 @@ const refusal = (status: number, message: string): Error => Object.assign(new Er
 
 /**
  * Only a person can weaken a guard (D11). This is checked in the handlers as well as in
- * `CHAT_FORBIDDEN`, because under `mode: none` a chat's token only labels the request.
+ * their `person` class, because under `mode: none` a chat's token only labels the request.
  */
 export function refuseChat(req: FastifyRequest, what: string): void {
   if (fromChat(req)) throw refusal(403, `a chat's token cannot ${what}: guards are the person's to weaken`);
