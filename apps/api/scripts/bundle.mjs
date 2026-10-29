@@ -6,6 +6,7 @@
 //   launcher.mjs  what the container starts: it runs api.mjs from /app or a verified update (packages/core/src/launcher/main.ts)
 //   terminal-host.mjs  the process the server forks for the person's terminals (packages/core/src/terminals/host/main.ts)
 //   collab-host.mjs  the process the server forks for the Collaborators iroh endpoint (packages/core/src/collab/host/main.ts)
+//   cli.mjs     `claudio login` and `claudio status`, the operator's command over the API (src/cli/main.ts)
 // Only node: builtins stay external (node:sqlite among them), so no file needs node_modules, a source
 // tree or a transpiler beside it. The exceptions are the two native modules Claudio ships, staged beside
 // the bundles below: node-pty, which only terminal-host.mjs loads, and @number0/iroh, which only
@@ -33,6 +34,8 @@ await build({
     guard: `${root}../../packages/core/src/guards/main.ts`,
     // The container's launcher (packages/core/src/launcher/main.ts): root-owned in the image like the guard, never part of an update
     launcher: `${root}../../packages/core/src/launcher/main.ts`,
+    // `claudio`, the operator's command (src/cli/main.ts): the headless image links it as /usr/local/bin/claudio
+    cli: `${root}src/cli/main.ts`,
   },
   external: ['node-pty', '@number0/iroh'],
   outdir: `${root}dist`,
