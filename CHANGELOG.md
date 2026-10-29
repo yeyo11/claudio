@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0](https://github.com/yeyo11/claudio/compare/v0.10.0...v0.11.0) (2026-10-29)
+
+
+### Features
+
+* headless image and profile, one Claudio per project ([#71](https://github.com/yeyo11/claudio/issues/71)) ([5f76d19](https://github.com/yeyo11/claudio/commit/5f76d19bafd0708bb6f39e94a66aa4d22d455065))
+
+
+### Documentation
+
+* close the OpenAI-compatible API release goal ([e8cfa93](https://github.com/yeyo11/claudio/commit/e8cfa938a9a3f113c537fd2b646d693195ce2c15))
+
+
+### Build and packaging
+
+* run the e2e suite here through Sluice's e2e gate ([4e888d8](https://github.com/yeyo11/claudio/commit/4e888d8ff4ad6a95a1e43429787a6d817f4b5e92))
+
 ## [0.10.0](https://github.com/yeyo11/claudio/compare/v0.9.0...v0.10.0) (2026-10-27)
 
 
