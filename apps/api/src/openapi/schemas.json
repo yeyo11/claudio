@@ -12051,7 +12051,22 @@
       },
       "port": {
         "type": "number",
-        "description": "The HTTPS port on the tailnet name that Claudio's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default)"
+        "description": "The HTTPS port on the tailnet name that Claudio's Serve rule uses: the rule's own while one stands, else the one the next start takes (`settings.port`, or `CLAUDIO_TUNNEL_PORT`; 8444 by default)"
+      },
+      "portSource": {
+        "$ref": "#/components/schemas/AppSettingSource",
+        "description": "Where `port` comes from: `env` (`CLAUDIO_TUNNEL_PORT`, read-only here), `file` or `default`"
+      },
+      "portTaken": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TunnelPortTaken"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "While `failed` with `tunnel.portTaken`: what holds the port, and the next free one"
       },
       "settings": {
         "$ref": "#/components/schemas/TunnelSettings"
@@ -12067,6 +12082,8 @@
       "managed",
       "tailscale",
       "port",
+      "portSource",
+      "portTaken",
       "settings"
     ],
     "description": "`GET /tunnel`, and what `tunnel.changed` carries."
@@ -12156,18 +12173,48 @@
     ],
     "description": "Whether this machine's Tailscale can carry the tunnel. The whole Remote access section depends on it, so each way it is not ready is its own state, with a reason the UI explains:\n\n- `missing`: no `tailscale` CLI to run;\n- `unsupported`: a CLI older than 1.52, whose `serve` takes other arguments;\n- `daemonDown`: the CLI is there but `tailscaled` does not answer it;\n- `loggedOut`: the node is not signed in to a tailnet (`NeedsLogin`, `NeedsMachineAuth`);\n- `stopped`: signed in but not connected (`Stopped`, or any state other than `Running`);\n- `httpsDisabled`: MagicDNS or HTTPS certificates are off for the tailnet, so Serve has no   `https://<node>.<tailnet>.ts.net` to answer on;\n- `ready`: Serve can be used.\n\nA Tailscale that belongs to the machine (a source checkout, the desktop app) is never signed in, started or configured by Claudio: it says what to run. Only the `tailscaled` the Docker image starts for Claudio (`TunnelStatus.managed`) is signed in and out from the app (docs/setup.md)."
   },
+  "TunnelPortTaken": {
+    "type": "object",
+    "properties": {
+      "port": {
+        "type": "number"
+      },
+      "holder": {
+        "type": "string",
+        "description": "What holds it, from `tailscale serve status --json`, in a few words: the address and where it forwards to (another Claudio shows as its own `127.0.0.1:<port>`), a TCP forwarder, or a `tailscale serve` running in a terminal"
+      },
+      "nextFree": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The first port above it that the node's Serve config leaves free; null when there is none"
+      }
+    },
+    "required": [
+      "port",
+      "holder",
+      "nextFree"
+    ],
+    "description": "The port a start found serving something else (`tunnel.portTaken`)."
+  },
   "TunnelSettings": {
     "type": "object",
     "properties": {
       "startWithClaudio": {
         "type": "boolean",
         "description": "Open the tunnel whenever Claudio starts; off unless the person turns it on"
+      },
+      "port": {
+        "type": "number",
+        "description": "The HTTPS port of Claudio's Serve rule on the tailnet name, 1024–65535, 8444 by default. Changed only while the tunnel is stopped or failed, and read-only where `CLAUDIO_TUNNEL_PORT` sets it"
       }
     },
     "required": [
-      "startWithClaudio"
+      "startWithClaudio",
+      "port"
     ],
-    "description": "What the tunnel may be told to do beside starting and stopping it."
+    "description": "What the tunnel may be told to do beside starting and stopping it (`tunnel-settings.json`)."
   },
   "TerminalChangedEvent": {
     "type": "object",
@@ -27849,9 +27896,12 @@
       "startWithClaudio": {
         "type": "boolean",
         "description": "Open the tunnel whenever Claudio starts; off unless the person turns it on"
+      },
+      "port": {
+        "type": "number",
+        "description": "The HTTPS port of Claudio's Serve rule on the tailnet name, 1024–65535, 8444 by default. Changed only while the tunnel is stopped or failed, and read-only where `CLAUDIO_TUNNEL_PORT` sets it"
       }
     },
-    "additionalProperties": false,
     "description": "`PUT /tunnel/settings`: the settings to change, and only those."
   },
   "CreateTerminalRequest": {
@@ -35200,6 +35250,17 @@
       "connection": {
         "$ref": "#/components/schemas/CollaboratorsConnection"
       },
+      "connectionError": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CollaboratorsConnectionError"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set while `connection` is `error`"
+      },
       "homeRelay": {
         "type": [
           "string",
@@ -35213,6 +35274,7 @@
       "settings",
       "endpointId",
       "connection",
+      "connectionError",
       "homeRelay"
     ],
     "description": "`GET /collaborators`."
@@ -35284,9 +35346,31 @@
       "starting",
       "online",
       "no-relay",
-      "offline"
+      "offline",
+      "error"
     ],
-    "description": "This install's own connection, in the words of the You card:\n\n- `off`: Collaborators is off, or unavailable;\n- `starting`: the endpoint is binding and waiting to be online;\n- `online`: reachable, with a home relay;\n- `no-relay`: bound, but no relay answered in time (`online()` never resolves without one), so   only direct paths can work;\n- `offline`: no network at all."
+    "description": "This install's own connection, in the words of the You card:\n\n- `off`: Collaborators is off, or unavailable;\n- `starting`: the endpoint is binding and waiting to be online;\n- `online`: reachable, with a home relay;\n- `no-relay`: bound, but no relay answered in time (`online()` never resolves without one), so   only direct paths can work;\n- `offline`: no network at all;\n- `error`: the endpoint did not bind (a port taken, a relay URL it cannot use); `connectionError`   says why, and it is tried again with a backoff until it binds."
+  },
+  "CollaboratorsConnectionError": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string",
+        "description": "The binding's own words, first line"
+      },
+      "retryAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "When the next bind is tried; null while none is planned (the host itself is restarting)"
+      }
+    },
+    "required": [
+      "message",
+      "retryAt"
+    ],
+    "description": "Why the endpoint did not bind, while `connection` is `error`."
   },
   "UpdateCollaboratorsRequest": {
     "type": "object",

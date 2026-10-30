@@ -1861,7 +1861,19 @@
       "body": "Esta página llegó por el túnel, así que su dirección ya no funciona. Para volver a abrirlo, usa Claudio en su propia máquina o en tu red local."
     },
     "stopFailed": "No se ha podido cerrar el túnel",
-    "saveFailed": "No se ha podido guardar el ajuste del túnel"
+    "saveFailed": "No se ha podido guardar el ajuste del túnel",
+    "port": {
+      "label": "Puerto en el nombre de la tailnet",
+      "hint": "La dirección es https://<nombre>:<puerto>. Elige otro puerto si otra cosa de esta máquina ya sirve este.",
+      "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio.",
+      "whileOpen": "Cierra el túnel para cambiar su puerto.",
+      "save": "Guardar el puerto",
+      "saveFailed": "No se ha podido cambiar el puerto"
+    },
+    "portTaken": {
+      "holder": "Lo ocupa:",
+      "useNext": "Usar el siguiente puerto libre ({{port}})"
+    }
   },
   "appSettings": {
     "fromEnv": "Fijado por el entorno",

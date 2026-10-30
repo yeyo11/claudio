@@ -23,6 +23,8 @@ export const tunnelRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { co
   // Asks the CLI again, briefly cached, so a `tailscale up` run in a terminal shows without a restart
   app.get('/tunnel', () => core.tunnel.refresh());
 
+  app.get('/tunnel/settings', () => core.tunnel.settingsView());
+
   app.put<{ Body: unknown }>('/tunnel/settings', (req) => core.tunnel.updateSettings(req.body));
 
   app.post('/tunnel/start', () => core.tunnel.start());

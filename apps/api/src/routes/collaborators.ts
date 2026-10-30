@@ -101,7 +101,12 @@ export const collaboratorRoutes: FastifyPluginAsync<{ core: Core }> = async (app
   app.put<{ Params: { id: string }; Body: TransferGroupOwnershipRequest }>('/collaborators/groups/:id/owner', (req) => collab.transferOwnership(req.params.id, bodyOf(req.body).endpointId));
 
   // ---- Joins
-  app.post<{ Body: JoinGroupRequest }>('/collaborators/join', (req) => collab.join(bodyOf(req.body).invite));
+  // `202` while nobody answered yet: the join is kept and goes on trying, and its outcome arrives as events
+  app.post<{ Body: JoinGroupRequest }>('/collaborators/join', async (req, reply) => {
+    const result = await collab.join(bodyOf(req.body).invite);
+    if (result.state === 'pending') reply.code(202);
+    return result;
+  });
   app.delete<{ Params: { groupId: string } }>('/collaborators/join/:groupId', async (req) => {
     await collab.cancelJoin(req.params.groupId);
     return { ok: true };

@@ -28,6 +28,8 @@ export interface CollabHostDeps {
   log(message: string): void;
   platform?: string;
   arch?: string;
+  /** How long a dial may take before the peer counts as not answering; `DIAL_TIMEOUT_MS` by default, shorter in tests */
+  dialTimeoutMs?: number;
 }
 
 /** The targets `@number0/iroh` 1.1.0 ships a prebuild for (its `napi.targets`); there is no macOS Intel one */
@@ -97,6 +99,10 @@ export class CollabHostCore {
   private nextStream = 1;
 
   constructor(private readonly deps: CollabHostDeps) {}
+
+  private get dialTimeoutMs(): number {
+    return this.deps.dialTimeoutMs ?? DIAL_TIMEOUT_MS;
+  }
 
   handle(message: CoreToHost): void {
     switch (message.type) {
@@ -457,8 +463,14 @@ export class CollabHostCore {
         ? iroh.EndpointTicket.fromString(target.ticket).endpointAddr()
         : new iroh.EndpointAddr(iroh.EndpointId.fromBytes([...Buffer.from(target.endpointId, 'hex')]), null, []);
       if (hex(addr.id().toBytes()) !== target.endpointId) throw new Error('the ticket is for another endpoint');
-      const outcome = await within(endpoint.connect(addr, [...ALPN_BYTES]), DIAL_TIMEOUT_MS);
-      if (outcome === 'timeout') throw new Error('the peer did not answer');
+      const connecting = endpoint.connect(addr, [...ALPN_BYTES]);
+      const outcome = await within(connecting, this.dialTimeoutMs);
+      if (outcome === 'timeout') {
+        // A dial given up on may still complete: that connection is nobody's, so it is closed rather
+        // than left for requests to land on and hang until the idle timer
+        connecting.then((late) => late.close(0n, []), () => undefined);
+        throw new Error('the peer did not answer');
+      }
       this.adopt(outcome);
       return outcome;
     })();

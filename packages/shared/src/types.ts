@@ -5379,14 +5379,40 @@ export interface TailscaleReadiness {
   reason: Localized | null;
 }
 
-/** What the tunnel may be told to do beside starting and stopping it. */
+/** What the tunnel may be told to do beside starting and stopping it (`tunnel-settings.json`). */
 export interface TunnelSettings {
   /** Open the tunnel whenever Claudio starts; off unless the person turns it on */
   startWithClaudio: boolean;
+  /**
+   * The HTTPS port of Claudio's Serve rule on the tailnet name, 1024–65535, 8444 by default. Changed
+   * only while the tunnel is stopped or failed, and read-only where `CLAUDIO_TUNNEL_PORT` sets it
+   */
+  port: number;
 }
 
 /** `PUT /tunnel/settings`: the settings to change, and only those. */
 export type UpdateTunnelSettingsRequest = Partial<TunnelSettings>;
+
+/** `GET /tunnel/settings`: the settings in effect, where each comes from, and their defaults. */
+export interface TunnelSettingsView {
+  settings: TunnelSettings;
+  /** `env` is read-only here (`CLAUDIO_TUNNEL_PORT`); `file` was saved from the app */
+  sources: Record<keyof TunnelSettings, AppSettingSource>;
+  defaults: TunnelSettings;
+}
+
+/** The port a start found serving something else (`tunnel.portTaken`). */
+export interface TunnelPortTaken {
+  port: number;
+  /**
+   * What holds it, from `tailscale serve status --json`, in a few words: the address and where it
+   * forwards to (another Claudio shows as its own `127.0.0.1:<port>`), a TCP forwarder, or a
+   * `tailscale serve` running in a terminal
+   */
+  holder: string;
+  /** The first port above it that the node's Serve config leaves free; null when there is none */
+  nextFree: number | null;
+}
 
 /** `GET /tunnel`, and what `tunnel.changed` carries. */
 export interface TunnelStatus {
@@ -5423,8 +5449,15 @@ export interface TunnelStatus {
   managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
-  /** The HTTPS port on the tailnet name that Claudio's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default) */
+  /**
+   * The HTTPS port on the tailnet name that Claudio's Serve rule uses: the rule's own while one
+   * stands, else the one the next start takes (`settings.port`, or `CLAUDIO_TUNNEL_PORT`; 8444 by default)
+   */
   port: number;
+  /** Where `port` comes from: `env` (`CLAUDIO_TUNNEL_PORT`, read-only here), `file` or `default` */
+  portSource: AppSettingSource;
+  /** While `failed` with `tunnel.portTaken`: what holds the port, and the next free one */
+  portTaken: TunnelPortTaken | null;
   settings: TunnelSettings;
 }
 
@@ -5462,9 +5495,19 @@ export interface CollaboratorsUnavailable {
  * - `online`: reachable, with a home relay;
  * - `no-relay`: bound, but no relay answered in time (`online()` never resolves without one), so
  *   only direct paths can work;
- * - `offline`: no network at all.
+ * - `offline`: no network at all;
+ * - `error`: the endpoint did not bind (a port taken, a relay URL it cannot use); `connectionError`
+ *   says why, and it is tried again with a backoff until it binds.
  */
-export type CollaboratorsConnection = 'off' | 'starting' | 'online' | 'no-relay' | 'offline';
+export type CollaboratorsConnection = 'off' | 'starting' | 'online' | 'no-relay' | 'offline' | 'error';
+
+/** Why the endpoint did not bind, while `connection` is `error`. */
+export interface CollaboratorsConnectionError {
+  /** The binding's own words, first line */
+  message: string;
+  /** When the next bind is tried; null while none is planned (the host itself is restarting) */
+  retryAt: string | null;
+}
 
 /** `<dataDir>/collaborators/settings.json`. */
 export interface CollaboratorsSettings {
@@ -5490,6 +5533,8 @@ export interface CollaboratorsStatus {
   /** This install's endpoint id; null until Collaborators is turned on for the first time */
   endpointId: EndpointId | null;
   connection: CollaboratorsConnection;
+  /** Set while `connection` is `error` */
+  connectionError: CollaboratorsConnectionError | null;
   /** The relay the endpoint calls home, while it has one */
   homeRelay: string | null;
 }

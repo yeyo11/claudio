@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, CopyButton, Field } from '@claudio/ui/components/ui';
+import { formatClock } from '@claudio/ui/lib/format';
 import { collaboratorsKeys } from '../../lib/api/collaborators';
 import { ServerSettingChange } from '../config/SettingChange';
 import { connectionWord, initialOf, shortId, type CollabTone, type ConnectionKey } from './model';
@@ -16,6 +17,7 @@ const CONNECTION_ICON: Record<ConnectionKey, LucideIcon> = {
   'connection.noRelay': TriangleAlert,
   'connection.offline': WifiOff,
   'connection.off': CloudOff,
+  'connection.error': TriangleAlert,
 };
 
 /** A word in its tone, with the icon that says it without the colour. */
@@ -146,6 +148,13 @@ export function YouCard({
             <ToneText tone={connection.tone} icon={CONNECTION_ICON[connection.key]}>
               {t(connection.key)}
             </ToneText>
+            {/* The binding's own words, and when it is tried again: no toggling Collaborators to recover */}
+            {status.connectionError && (
+              <span className="small" role="status" data-testid="collab-connection-error">
+                <span className="mono break">{status.connectionError.message}</span>{' '}
+                {status.connectionError.retryAt && <span className="muted">{t('you.bindRetry', { time: formatClock(status.connectionError.retryAt) })}</span>}
+              </span>
+            )}
             <span className="small muted">
               {settings.relayUrl ? (
                 <>

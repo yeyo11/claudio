@@ -2,7 +2,7 @@ import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { join } from 'node:path';
-import type { AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelSettings, TunnelState, TunnelStatus } from '@claudio/shared';
+import type { AppSettingSource, AuthMode, Localized, LocalizedParams, TailscaleReadiness, TunnelPortTaken, TunnelSettings, TunnelSettingsView, TunnelState, TunnelStatus } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { ClaudioEventInput } from './events.ts';
 import type { RuntimeHostOptions } from './app-settings.ts';
@@ -18,8 +18,19 @@ import type { RuntimeHostOptions } from './app-settings.ts';
  * nothing in the node's Serve config that Claudio did not add is ever changed.
  */
 
-/** The HTTPS port of Claudio's Serve rule unless `CLAUDIO_TUNNEL_PORT` says otherwise: not 443, which the person's own `tailscale serve` takes by default. */
+/** The HTTPS port of Claudio's Serve rule unless the settings or `CLAUDIO_TUNNEL_PORT` say otherwise: not 443, which the person's own `tailscale serve` takes by default. */
 export const DEFAULT_TUNNEL_PORT = 8444;
+
+/** The ports the setting accepts: none of the privileged ones, so 443 (the person's own `tailscale serve`) is never chosen from the app */
+export const MIN_TUNNEL_PORT = 1024;
+export const MAX_TUNNEL_PORT = 65535;
+
+/**
+ * How long `shutdown()` may spend taking the rule away. The desktop kills the server 5 s after it
+ * asked it to stop (`server-process.ts`), and the database closes after the tunnel: what does not
+ * fit stays in the record, for the next start to reconcile.
+ */
+const SHUTDOWN_BOUND_MS = 4_000;
 
 /** `tailscale serve` took its current arguments (`--bg`, `--https=<port>`, `off`) in 1.52 */
 export const MIN_TAILSCALE_VERSION: readonly [number, number] = [1, 52];
@@ -61,7 +72,11 @@ export interface TunnelDeps {
   dataDir: string;
   /** The `tailscale` CLI, from `TAILSCALE_BIN` */
   tailscaleBin: string;
-  /** The HTTPS port on the node's tailnet name; `DEFAULT_TUNNEL_PORT` when left out */
+  /**
+   * The HTTPS port on the node's tailnet name as the environment fixes it (`CLAUDIO_TUNNEL_PORT`):
+   * the setting is then read-only. Left out, the port is `tunnel-settings.json`'s, else
+   * `DEFAULT_TUNNEL_PORT`.
+   */
   port?: number;
   /**
    * Whether this deploy offers the tunnel (`CoreConfig.tunnelEnabled`); true when left out. False
@@ -113,9 +128,12 @@ const REASONS = {
   permission: () =>
     reason('tunnel.servePermission', "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again."),
   // A string, so the page does not group its digits as it would a count
-  portTaken: (port: number) =>
-    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name is already served by something else, and Claudio leaves it alone. Free it, or set CLAUDIO_TUNNEL_PORT to another port.`, { port: String(port) }),
+  portTaken: (port: number, holder: string) =>
+    reason('tunnel.portTaken', `Port ${port} of this machine's tailnet name already serves ${holder}, and Claudio leaves it alone. Choose another port for the tunnel, or free this one.`, { port: String(port), holder }),
   serveFailed: (detail: string) => reason('tunnel.serveFailed', `tailscale serve did not accept the rule: ${detail}`, { detail }),
+  serveStatusFailed: (detail: string) => reason('tunnel.serveStatusFailed', `tailscale serve status did not answer with the Serve config: ${detail}`, { detail }),
+  portFromEnv: () => reason('tunnel.portFromEnv', 'The tunnel port is set by CLAUDIO_TUNNEL_PORT where Claudio runs, so it cannot be changed here.'),
+  portWhileRunning: () => reason('tunnel.portWhileRunning', 'Close the tunnel before changing its port: the rule on the current port is taken away first.'),
   unverified: () => reason('tunnel.unverified', "The Serve rule was sent, but this machine's Serve config does not show it pointing at Claudio."),
   ruleRemoved: () => reason('tunnel.ruleRemoved', "Claudio's Serve rule was removed or changed outside Claudio, so the tunnel is closed."),
   // Where Claudio runs tailscaled itself (the Docker image) there is no terminal to send anyone to
@@ -136,9 +154,9 @@ interface CliResult {
   stderr: string;
 }
 
-function runCli(bin: string, args: string[], timeoutMs: number): Promise<CliResult> {
+function runCli(bin: string, args: string[], timeoutMs: number, signal?: AbortSignal): Promise<CliResult> {
   return new Promise((resolve) => {
-    execFile(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (error, stdout, stderr) => {
+    execFile(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8', ...(signal ? { signal } : {}) }, (error, stdout, stderr) => {
       if (!error) {
         resolve({ ok: true, missing: false, unanswered: false, stdout, stderr });
         return;
@@ -154,6 +172,17 @@ function runCli(bin: string, args: string[], timeoutMs: number): Promise<CliResu
 
 /** The first line a CLI wrote on stderr, short enough to show; it never carries a secret here. */
 const firstLine = (text: string): string => (text.split('\n').find((line) => line.trim())?.trim() ?? '').slice(0, 200);
+
+/**
+ * What a failed `tailscale` call said, to show: its first line, and the first address it gave when
+ * that is on a later line. "Serve is not enabled on your tailnet." is followed, lines below, by the
+ * admin page that turns it on, and without it the reason sends the person nowhere.
+ */
+export function cliDetail(text: string): string {
+  const first = firstLine(text);
+  const url = /https?:\/\/\S+/.exec(text)?.[0];
+  return url && !first.includes(url) ? `${first} ${url.slice(0, 300)}`.trim() : first;
+}
 
 /** `1.102.4` from the first line of `tailscale version`, as numbers; null when it is not a version. */
 export function parseTailscaleVersion(output: string): [number, number, number] | null {
@@ -193,6 +222,30 @@ interface ServeConfigJson {
   Foreground?: Record<string, ServeConfigJson | null> | null;
 }
 
+/**
+ * One reading of `tailscale serve status --json`: the config, or why there is none. `unanswered`
+ * is a call that timed out or could not be spawned, which says nothing about Tailscale itself.
+ */
+type ServeRead = { config: ServeConfigJson } | { error: Localized; unanswered: boolean };
+
+/** The one parser of `tailscale serve status --json`, for every caller: opening, checking, removing, shutting down */
+function parseServeStatus(result: CliResult, managed: boolean): ServeRead {
+  if (result.unanswered) return { error: REASONS.notAnswering(), unanswered: true };
+  if (result.missing) return { error: REASONS.missing(), unanswered: false };
+  if (!result.ok) {
+    if (/access denied/i.test(result.stderr)) return { error: REASONS.permission(), unanswered: false };
+    if (/tailscaled|not running/i.test(result.stderr)) return { error: managed ? REASONS.managedDaemonDown() : REASONS.daemonDown(), unanswered: false };
+    return { error: REASONS.serveStatusFailed(cliDetail(result.stderr) || 'no output'), unanswered: false };
+  }
+  try {
+    const json = JSON.parse(result.stdout) as unknown;
+    if (json && typeof json === 'object' && !Array.isArray(json)) return { config: json as ServeConfigJson };
+  } catch {
+    // Not JSON: said below
+  }
+  return { error: REASONS.serveStatusFailed('the answer is not a JSON object'), unanswered: false };
+}
+
 /** Whether a port of the node's Serve config is free, holds exactly the rule Claudio would add, or holds anything else. */
 export type ServePortUse = 'free' | 'match' | 'other';
 
@@ -216,6 +269,41 @@ export function servePortUse(config: ServeConfigJson, port: number, host: string
   const only = webKeys.length === 1 && paths.length === 1 && paths[0] === '/';
   return only && tcp?.HTTPS === true && sameTarget(handlers['/']?.Proxy, target) ? 'match' : 'other';
 }
+
+/**
+ * What holds `port` in a Serve config, in a few words a person can act on: the address and where
+ * it forwards to, a TCP forwarder, or a foreground `tailscale serve`. Another Claudio on the same
+ * node shows as its own `127.0.0.1:<port>`.
+ */
+export function servePortHolder(config: ServeConfigJson, port: number): string {
+  const key = String(port);
+  const parts: string[] = [];
+  const inForeground = Object.values(config.Foreground ?? {}).some((c) => !!c && (c.TCP?.[key] !== undefined || Object.keys(c.Web ?? {}).some((name) => name.endsWith(`:${key}`))));
+  if (inForeground) parts.push('a tailscale serve running in a terminal');
+  for (const [name, web] of Object.entries(config.Web ?? {})) {
+    if (!name.endsWith(`:${key}`)) continue;
+    for (const [path, handler] of Object.entries(web?.Handlers ?? {})) {
+      const h = (handler ?? {}) as { Proxy?: unknown; Path?: unknown; Text?: unknown };
+      const to = typeof h.Proxy === 'string' ? h.Proxy : typeof h.Path === 'string' ? h.Path : h.Text !== undefined ? 'a fixed text' : 'something';
+      parts.push(`https://${name}${path} → ${to}`);
+    }
+  }
+  const tcp = config.TCP?.[key] as { TCPForward?: unknown; HTTPS?: unknown } | undefined;
+  if (tcp && typeof tcp.TCPForward === 'string') parts.push(`TCP → ${tcp.TCPForward}`);
+  else if (tcp && !parts.length) parts.push(tcp.HTTPS === true ? 'an HTTPS listener' : 'a TCP listener');
+  return (parts.join('; ') || 'another rule').slice(0, 300);
+}
+
+/** The first port after `port` that nothing in the Serve config uses; null when there is none up to 65535 */
+export function nextFreeServePort(config: ServeConfigJson, port: number): number | null {
+  for (let next = Math.max(port + 1, MIN_TUNNEL_PORT); next <= MAX_TUNNEL_PORT; next++) {
+    if (servePortUse(config, next, '', '') === 'free') return next;
+  }
+  return null;
+}
+
+/** A port the setting accepts */
+const validPort = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= MIN_TUNNEL_PORT && value <= MAX_TUNNEL_PORT;
 
 /** The rule Claudio added, kept on disk so a crash cannot leave it behind unnoticed. */
 interface ServeRecord {
@@ -252,7 +340,7 @@ function targetAnswers(target: string, timeoutMs = 1_000): Promise<boolean> {
   });
 }
 
-const DEFAULT_SETTINGS: TunnelSettings = { startWithClaudio: false };
+const DEFAULT_SETTINGS: TunnelSettings = { startWithClaudio: false, port: DEFAULT_TUNNEL_PORT };
 /** `startWithClaudio` as it was called before the rename, read from old settings files and old clients */
 const LEGACY_START_KEY = 'startWithAgentry';
 
@@ -279,8 +367,11 @@ export class TunnelManager {
   private readonly recordFile: string;
   private readonly settingsFile: string;
   private readonly timing: TunnelTiming;
-  private readonly port: number;
   private settings: TunnelSettings = { ...DEFAULT_SETTINGS };
+  /** The keys `tunnel-settings.json` holds, under today's names: what a reset can take away */
+  private stored = new Set<keyof TunnelSettings>();
+  /** What held the port the last start found taken, while the tunnel is `failed` for it */
+  private taken: TunnelPortTaken | null = null;
   private state: TunnelState = 'stopped';
   private reason: Localized | null = null;
   private tailscale: TailscaleReadiness = UNPROBED;
@@ -299,6 +390,12 @@ export class TunnelManager {
   /** Aborted whenever the tunnel stops or gives up, so a call still in flight changes nothing after it */
   private run = new AbortController();
   private opening: Promise<void> | null = null;
+  /**
+   * Resolves once the start in flight has read Tailscale's readiness, which is when `start()`
+   * answers: a second start while one is in flight answers with the same state instead of opening
+   * a second rule.
+   */
+  private readied: Promise<void> = Promise.resolve();
   private stopping: Promise<void> | null = null;
   /** A leftover rule being taken away; a start waits for it, so it never removes the new one */
   private cleaning: Promise<void> = Promise.resolve();
@@ -319,8 +416,16 @@ export class TunnelManager {
     this.recordFile = join(this.dir, 'serve-rule.json');
     this.settingsFile = join(deps.dataDir, 'tunnel-settings.json');
     this.timing = { ...DEFAULT_TIMING, ...deps.timing };
-    this.port = deps.port ?? DEFAULT_TUNNEL_PORT;
     this.settings = this.readSettings();
+  }
+
+  /** The port the next rule goes on: the environment's, else the setting's */
+  private get port(): number {
+    return this.deps.port ?? this.settings.port;
+  }
+
+  private get portSource(): AppSettingSource {
+    return this.deps.port !== undefined ? 'env' : this.stored.has('port') ? 'file' : 'default';
   }
 
   status(): TunnelStatus {
@@ -334,8 +439,20 @@ export class TunnelManager {
       enabled: this.enabled,
       managed: this.deps.managed ?? false,
       tailscale: { ...this.tailscale },
-      port: this.port,
+      // The rule's own port while one stands, so the address and the port never disagree
+      port: this.rule?.port ?? this.port,
+      portSource: this.portSource,
+      portTaken: this.state === 'failed' && this.taken ? { ...this.taken } : null,
       settings: { ...this.settings },
+    };
+  }
+
+  /** `GET /tunnel/settings`: what is saved, and where each value comes from */
+  settingsView(): TunnelSettingsView {
+    return {
+      settings: { ...this.settings, port: this.port },
+      sources: { startWithClaudio: this.stored.has('startWithClaudio') ? 'file' : 'default', port: this.portSource },
+      defaults: { ...DEFAULT_SETTINGS },
     };
   }
 
@@ -354,7 +471,8 @@ export class TunnelManager {
   }
 
   private urlOf(host: string): string {
-    return this.port === 443 ? `https://${host}` : `https://${host}:${this.port}`;
+    const port = this.rule?.port ?? this.port;
+    return port === 443 ? `https://${host}` : `https://${host}:${port}`;
   }
 
   /**
@@ -408,8 +526,8 @@ export class TunnelManager {
     return readinessFromStatus(json, shown, this.deps.managed ?? false);
   }
 
-  private cli(args: string[]): Promise<CliResult> {
-    return runCli(this.deps.tailscaleBin, args, this.timing.commandTimeoutMs);
+  private cli(args: string[], signal?: AbortSignal): Promise<CliResult> {
+    return runCli(this.deps.tailscaleBin, args, this.timing.commandTimeoutMs, signal);
   }
 
   /**
@@ -438,32 +556,48 @@ export class TunnelManager {
     if (!this.enabled) throw new TunnelRefusedError(REASONS.disabled());
     if (this.deps.security.mode === 'none') throw new TunnelRefusedError(REASONS.authRequired());
     if (!this.target) throw new TunnelRefusedError(REASONS.noPort());
-    await this.stopping;
-    await this.cleaning;
-    if (this.wanted) return this.status();
-    const readiness = await this.probe();
-    if (!readiness) {
-      this.fail(REASONS.notAnswering());
-      return this.status();
-    }
-    if (readiness.state !== 'ready' || !readiness.host) {
-      this.fail(readiness.reason ?? REASONS.missing());
+    // Wanted from here on, before anything is awaited: a second start (a click racing "start with
+    // Claudio") joins this one instead of opening a second rule and taking the first for someone
+    // else's, and a stop in the window aborts this run instead of finding nothing to stop
+    if (this.wanted) {
+      await this.readied;
       return this.status();
     }
     this.cancelRecovery();
     this.wanted = true;
     this.misses = 0;
-    this.run = new AbortController();
+    const run = new AbortController();
+    this.run = run;
+    let answer = (): void => undefined;
+    this.readied = new Promise<void>((resolve) => (answer = resolve));
+    this.opening = this.begin(actor, run, () => answer()).finally(() => {
+      answer();
+      if (this.run === run) this.opening = null;
+    });
+    await this.readied;
+    return this.status();
+  }
+
+  /** What `start` set going: waits for a stop or a clean-up in flight, reads Tailscale, then opens */
+  private async begin(actor: 'request' | 'claudio' | 'recovery', run: AbortController, answer: () => void): Promise<void> {
+    await this.stopping;
+    await this.cleaning;
+    if (run.signal.aborted) return;
+    const readiness = await this.probe();
+    if (run.signal.aborted) return;
+    if (!readiness || readiness.state !== 'ready' || !readiness.host) {
+      this.wanted = false;
+      this.fail(!readiness ? REASONS.notAnswering() : (readiness.reason ?? REASONS.missing()));
+      return;
+    }
     if (actor !== 'request') {
       const summary = actor === 'recovery' ? 'Start the tunnel again: Tailscale is ready' : 'Start the tunnel with Claudio';
       this.deps.audit?.({ method: 'POST', path: '/api/tunnel/start', summary });
     }
+    this.taken = null;
     this.set('starting');
-    const run = this.run;
-    this.opening = this.open(readiness.host, run).finally(() => {
-      if (this.run === run) this.opening = null;
-    });
-    return this.status();
+    answer();
+    await this.open(readiness.host, run);
   }
 
   /** Closes the tunnel: its host leaves the allowlist first, then Claudio's Serve rule goes. */
@@ -491,33 +625,67 @@ export class TunnelManager {
     return this.status();
   }
 
+  /**
+   * `PUT /tunnel/settings`. The port changes only while no rule stands (a stop takes the one on the
+   * old port away first) and never where the environment fixes it.
+   */
   async updateSettings(input: unknown): Promise<TunnelStatus> {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('tunnel settings must be a JSON object');
     const body = input as Record<string, unknown>;
-    const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithClaudio' && key !== LEGACY_START_KEY);
-    if (unknownKeys.length) throw new Error(`unknown tunnel settings: ${unknownKeys.join(', ')}; the known one is startWithClaudio`);
+    const unknownKeys = Object.keys(body).filter((key) => key !== 'startWithClaudio' && key !== LEGACY_START_KEY && key !== 'port');
+    if (unknownKeys.length) throw new Error(`unknown tunnel settings: ${unknownKeys.join(', ')}; the known ones are startWithClaudio and port`);
     // A client built before the rename still sends the old name; the new one wins when both are sent
     const start = body.startWithClaudio ?? body[LEGACY_START_KEY];
-    if (start === undefined) return this.refresh();
-    if (typeof start !== 'boolean') throw new Error('startWithClaudio must be a boolean');
-    const next = { ...this.settings, startWithClaudio: start };
-    await writeAtomic(this.settingsFile, `${JSON.stringify(next, null, 2)}\n`);
-    this.settings = next;
+    if (start !== undefined && typeof start !== 'boolean') throw new Error('startWithClaudio must be a boolean');
+    const port = body.port;
+    if (port !== undefined && !validPort(port)) throw new Error(`port must be a whole number from ${String(MIN_TUNNEL_PORT)} to ${String(MAX_TUNNEL_PORT)}`);
+    const portChanges = port !== undefined && port !== this.port;
+    if (portChanges) {
+      if (this.deps.port !== undefined) throw new TunnelRefusedError(REASONS.portFromEnv());
+      if (this.running) throw new TunnelRefusedError(REASONS.portWhileRunning());
+    }
+    if (start === undefined && port === undefined) return this.refresh();
+    const savePort = port !== undefined && this.deps.port === undefined;
+    const next: TunnelSettings = { ...this.settings, ...(start !== undefined ? { startWithClaudio: start } : {}), ...(savePort ? { port } : {}) };
+    const keys = new Set(this.stored);
+    if (start !== undefined) keys.add('startWithClaudio');
+    if (savePort) keys.add('port');
+    await this.writeSettings(next, keys);
+    // A failure about the old port says nothing about the new one
+    if (portChanges && this.state === 'failed') {
+      this.taken = null;
+      this.cancelRecovery();
+      this.set('stopped');
+    }
     // The event carries the whole status, readiness included, so it is read first
     await this.refresh();
     this.changed();
     return this.status();
   }
 
+  /** A rule stands or is on its way, or is being taken away */
+  private get running(): boolean {
+    return this.wanted || !!this.opening || !!this.stopping || this.rule !== null || (this.state !== 'stopped' && this.state !== 'failed');
+  }
+
   /** Whether `tunnel-settings.json` holds `startWithClaudio`, under its name of today or of before the rename */
   startStored(): boolean {
-    if (!existsSync(this.settingsFile)) return false;
+    this.stored = this.storedOnDisk();
+    return this.stored.has('startWithClaudio');
+  }
+
+  /** The keys the file holds now: the settings page reads it as it is, whoever wrote it last */
+  private storedOnDisk(): Set<keyof TunnelSettings> {
+    const keys = new Set<keyof TunnelSettings>();
     try {
       const raw: unknown = JSON.parse(readFileSync(this.settingsFile, 'utf8'));
-      return !!raw && typeof raw === 'object' && !Array.isArray(raw) && (('startWithClaudio' in raw) || (LEGACY_START_KEY in raw));
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return keys;
+      if ('startWithClaudio' in raw || LEGACY_START_KEY in raw) keys.add('startWithClaudio');
+      if (validPort((raw as { port?: unknown }).port)) keys.add('port');
     } catch {
-      return false;
+      // No file, or one nobody can read: nothing is stored
     }
+    return keys;
   }
 
   /** The value `startWithClaudio` reads when nothing is stored */
@@ -526,25 +694,41 @@ export class TunnelManager {
   }
 
   /**
-   * Removes `startWithClaudio` (and its old name) from the file, so the default applies again.
-   * Tells the pages as `updateSettings` does. The tunnel that is open stays open: the setting is
-   * about the next start.
+   * Removes the stored values of `keys` (`startWithClaudio` with its old name, and `port`) from the
+   * file, so their defaults apply again. Tells the pages as `updateSettings` does. The tunnel that
+   * is open stays open: the settings are about the next start, and the port is not moved from
+   * under a rule that stands on it (`409 tunnel.portWhileRunning`, as `updateSettings`).
    */
-  async resetSettings(): Promise<TunnelStatus> {
-    if (!this.startStored()) return this.status();
-    await writeAtomic(this.settingsFile, '{}\n');
-    this.settings = { ...DEFAULT_SETTINGS };
+  async resetSettings(keys: ReadonlyArray<keyof TunnelSettings> = ['startWithClaudio']): Promise<TunnelStatus> {
+    this.stored = this.storedOnDisk();
+    const drop = keys.filter((key) => this.stored.has(key));
+    if (drop.includes('port') && this.settings.port !== DEFAULT_TUNNEL_PORT && this.running) throw new TunnelRefusedError(REASONS.portWhileRunning());
+    if (!drop.length) return this.status();
+    const left = new Set([...this.stored].filter((key) => !drop.includes(key)));
+    const next: TunnelSettings = { ...this.settings };
+    for (const key of drop) Object.assign(next, { [key]: DEFAULT_SETTINGS[key] });
+    await this.writeSettings(next, left);
     await this.refresh();
     this.changed();
     return this.status();
   }
 
+  /** Writes only the keys the person set, so a default that changes later still applies to the rest */
+  private async writeSettings(next: TunnelSettings, keys: ReadonlySet<keyof TunnelSettings>): Promise<void> {
+    const doc: Partial<TunnelSettings> = {};
+    for (const key of keys) Object.assign(doc, { [key]: next[key] });
+    await writeAtomic(this.settingsFile, `${JSON.stringify(doc, null, 2)}\n`);
+    this.settings = next;
+    this.stored = new Set(keys);
+  }
+
   /**
-   * Synchronous, for the process that is going away: there is no later to wait in. The Serve rule
-   * outlives the process unless it is taken away now; when that fails, the record stays for the
-   * next start to reconcile.
+   * For the process that is going away. The host leaves the allowlist at once, while the database
+   * that records it is still open; then the rule this process added is taken away within
+   * `SHUTDOWN_BOUND_MS`, since the Serve rule outlives the process unless it goes now. A call still
+   * running at the bound is killed, and the record stays for the next start to reconcile.
    */
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     this.wanted = false;
     this.cancelRecovery();
     this.run.abort();
@@ -554,28 +738,25 @@ export class TunnelManager {
     // bind its port, say) has nothing to take away, whatever the record says
     const record = this.rule;
     if (!record) return;
-    const run = (args: string[]) => spawnSync(this.deps.tailscaleBin, args, { encoding: 'utf8', timeout: this.timing.commandTimeoutMs });
     try {
-      const status = run(['serve', 'status', '--json']);
-      if (status.status !== 0) return;
-      const use = servePortUse(JSON.parse(status.stdout) as ServeConfigJson, record.port, record.host, record.target);
-      if (use === 'match') {
-        const off = run(['serve', '--yes', `--https=${record.port}`, 'off']);
-        if (off.status !== 0 && !/handler does not exist/i.test(off.stderr)) return;
-      }
-      this.rule = null;
-      this.dropRecord(record);
+      if (await this.removeRecorded(record, AbortSignal.timeout(SHUTDOWN_BOUND_MS))) this.rule = null;
     } catch {
       // The record stays: the next start takes the rule away
     }
   }
 
   private readSettings(): TunnelSettings {
+    this.stored = new Set();
     if (!existsSync(this.settingsFile)) return { ...DEFAULT_SETTINGS };
     try {
-      const raw = JSON.parse(readFileSync(this.settingsFile, 'utf8')) as Partial<TunnelSettings> & { [LEGACY_START_KEY]?: unknown };
+      const raw = JSON.parse(readFileSync(this.settingsFile, 'utf8')) as (Partial<TunnelSettings> & { [LEGACY_START_KEY]?: unknown }) | null;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...DEFAULT_SETTINGS };
       // A file written before the rename holds the old key; the next save writes the new one only
-      return { startWithClaudio: (raw.startWithClaudio ?? raw[LEGACY_START_KEY]) === true };
+      const start = raw.startWithClaudio ?? raw[LEGACY_START_KEY];
+      if (start !== undefined) this.stored.add('startWithClaudio');
+      // A port nobody could have saved through the API is not trusted: the default applies
+      if (validPort(raw.port)) this.stored.add('port');
+      return { startWithClaudio: start === true, port: validPort(raw.port) ? raw.port : DEFAULT_TUNNEL_PORT };
     } catch {
       // Off is the safe reading of a file nobody can read: the tunnel only opens when asked
       return { ...DEFAULT_SETTINGS };
@@ -605,15 +786,9 @@ export class TunnelManager {
     if (!onDisk || sameRule(onDisk, rule)) rmSync(this.recordFile, { force: true });
   }
 
-  private async serveConfig(): Promise<ServeConfigJson | null> {
-    const result = await this.cli(['serve', 'status', '--json']);
-    if (!result.ok) return null;
-    try {
-      const json = JSON.parse(result.stdout) as unknown;
-      return json && typeof json === 'object' ? (json as ServeConfigJson) : null;
-    } catch {
-      return null;
-    }
+  /** The node's Serve config, or why it could not be read */
+  private async serveConfig(signal?: AbortSignal): Promise<ServeRead> {
+    return parseServeStatus(await this.cli(['serve', 'status', '--json'], signal), this.deps.managed ?? false);
   }
 
   private targetUrl(): string | null {
@@ -629,23 +804,29 @@ export class TunnelManager {
     const target = this.targetUrl();
     if (!target) return;
     const live = (): boolean => !run.signal.aborted && this.wanted;
+    const port = this.port;
     const before = await this.serveConfig();
     if (!live()) return;
-    if (!before) return this.giveUp(REASONS.daemonDown());
-    if (servePortUse(before, this.port, host, target) !== 'free') return this.giveUp(REASONS.portTaken(this.port));
-    const rule: ServeRecord = { port: this.port, host, target, ...(this.lockId ? { lock: this.lockId } : {}) };
+    if ('error' in before) return this.giveUp(before.error);
+    if (servePortUse(before.config, port, host, target) !== 'free') {
+      const holder = servePortHolder(before.config, port);
+      this.taken = { port, holder, nextFree: nextFreeServePort(before.config, port) };
+      return this.giveUp(REASONS.portTaken(port, holder));
+    }
+    const rule: ServeRecord = { port, host, target, ...(this.lockId ? { lock: this.lockId } : {}) };
     this.rule = rule;
     this.writeRecord(rule);
-    const added = await this.cli(['serve', '--bg', '--yes', `--https=${this.port}`, target]);
+    const added = await this.cli(['serve', '--bg', '--yes', `--https=${port}`, target]);
     if (!added.ok) {
-      const detail = firstLine(added.stderr);
+      const detail = cliDetail(added.stderr);
       return this.giveUp(/access denied/i.test(added.stderr) ? REASONS.permission() : REASONS.serveFailed(detail || 'no output'));
     }
     if (!live()) return;
     this.set('verifying');
     const after = await this.serveConfig();
     if (!live()) return;
-    if (!after || servePortUse(after, this.port, host, target) !== 'match') return this.giveUp(REASONS.unverified());
+    if ('error' in after && !after.unanswered) return this.giveUp(after.error);
+    if ('error' in after || servePortUse(after.config, port, host, target) !== 'match') return this.giveUp(REASONS.unverified());
     if (this.deps.security.mode === 'none') {
       void this.stop('unguarded');
       return;
@@ -691,11 +872,11 @@ export class TunnelManager {
    * someone else took over, is not Claudio's any more: the record goes and nothing is touched. When
    * Tailscale cannot be asked, the record stays for the next try. True once the rule is gone.
    */
-  private async removeRecorded(record: ServeRecord): Promise<boolean> {
-    const config = await this.serveConfig();
-    if (!config) return false;
-    if (servePortUse(config, record.port, record.host, record.target) === 'match') {
-      const off = await this.cli(['serve', '--yes', `--https=${record.port}`, 'off']);
+  private async removeRecorded(record: ServeRecord, signal?: AbortSignal): Promise<boolean> {
+    const read = await this.serveConfig(signal);
+    if ('error' in read) return false;
+    if (servePortUse(read.config, record.port, record.host, record.target) === 'match') {
+      const off = await this.cli(['serve', '--yes', `--https=${record.port}`, 'off'], signal);
       if (!off.ok && !/handler does not exist/i.test(off.stderr)) return false;
     }
     this.dropRecord(record);
@@ -774,21 +955,15 @@ export class TunnelManager {
       return 'answered';
     }
     const record = this.rule;
-    const result = await this.cli(['serve', 'status', '--json']);
+    const read = await this.serveConfig();
     if (run.signal.aborted || this.state !== 'active') return 'answered';
-    if (result.unanswered) return 'unknown';
-    let config: ServeConfigJson | null = null;
-    try {
-      const json = result.ok ? (JSON.parse(result.stdout) as unknown) : null;
-      config = json && typeof json === 'object' ? (json as ServeConfigJson) : null;
-    } catch {
-      config = null;
-    }
-    if (!config) {
-      // No Serve config at all is the CLI failing to reach tailscaled, the one case that is the daemon's
-      if (++this.misses >= this.timing.maxMisses) this.giveUp(REASONS.daemonDown());
+    if ('error' in read) {
+      if (read.unanswered) return 'unknown';
+      // No Serve config is an answer, said in its own words: twice in a row before the tunnel closes
+      if (++this.misses >= this.timing.maxMisses) this.giveUp(read.error);
       return 'answered';
     }
+    const config = read.config;
     // Tailscale answered: a rule that is not there, or not Claudio's, was removed or changed. What
     // is on disk does not decide it; the record is only how a crash is reconciled
     if (!record || servePortUse(config, record.port, readiness.host, record.target) !== 'match') {

@@ -51,8 +51,11 @@ export interface CoreConfig {
   tailscaleManaged: boolean;
   /** The node name a managed `tailscaled` signs in with, from `CLAUDIO_TAILSCALE_HOSTNAME`; `claudio` by default */
   tailscaleHostname: string;
-  /** The HTTPS port of Claudio's `tailscale serve` rule, from `CLAUDIO_TUNNEL_PORT`; 8444 by default */
-  tunnelPort: number;
+  /**
+   * The HTTPS port of Claudio's `tailscale serve` rule as `CLAUDIO_TUNNEL_PORT` fixes it; null when
+   * unset, so the port is the tunnel's setting (`tunnel-settings.json`, 8444 by default)
+   */
+  tunnelPort: number | null;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
   globalConfigFile: string;
@@ -165,8 +168,8 @@ function parseTailscaleHostname(value: string | undefined): string {
 }
 
 /** A port that is not a port is refused at startup rather than guessed: it decides where a rule lands in the node's shared Serve config. */
-function parseTunnelPort(value: string | undefined): number {
-  if (!isSet(value)) return 8444;
+function parseTunnelPort(value: string | undefined): number | null {
+  if (!isSet(value)) return null;
   const port = Number(value.trim());
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`CLAUDIO_TUNNEL_PORT: '${value}' is not a port between 1 and 65535`);
   return port;

@@ -10,7 +10,7 @@ import { COLLABORATORS_KINDS } from '@claudio/shared';
 export type CollabTone = 'ok' | 'warn' | 'bad' | 'idle' | 'muted';
 
 /** The keys of `collaborators.json` the words below come from. */
-export type ConnectionKey = `connection.${'online' | 'relay' | 'starting' | 'noRelay' | 'offline' | 'off'}`;
+export type ConnectionKey = `connection.${'online' | 'relay' | 'starting' | 'noRelay' | 'offline' | 'off' | 'error'}`;
 export type PresenceKey = `presence.${'direct' | 'relay' | 'lastSeen' | 'never'}`;
 export type SyncKey = `sync.${'live' | 'synced' | 'offline' | 'offlineNever' | 'pending' | 'paused'}`;
 
@@ -40,6 +40,8 @@ export function connectionWord(status: CollaboratorsStatus, groups: readonly Gro
       return { key: 'connection.noRelay', tone: 'warn' };
     case 'offline':
       return { key: 'connection.offline', tone: 'bad' };
+    case 'error':
+      return { key: 'connection.error', tone: 'bad' };
     case 'off':
       return { key: 'connection.off', tone: 'muted' };
   }

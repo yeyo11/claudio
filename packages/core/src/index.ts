@@ -790,7 +790,7 @@ export class Core {
     this.tunnel = new TunnelManager({
       dataDir: config.dataDir,
       tailscaleBin: config.tailscaleBin,
-      port: config.tunnelPort,
+      ...(config.tunnelPort !== null ? { port: config.tunnelPort } : {}),
       enabled: config.tunnelEnabled,
       managed: config.tailscaleManaged,
       security: this.security,
@@ -3860,8 +3860,9 @@ export class Core {
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();
-    // First, while the database is still open for the row that says its host left
-    this.tunnel.shutdown();
+    // First, while the database is still open for the row that says its host left; taking its
+    // Serve rule away goes on, bounded, and the returned promise waits for it
+    const tunnel = this.tunnel.shutdown();
     this.logins.close();
     this.lessons.stop();
     this.cliVersion.stop();
@@ -3892,6 +3893,6 @@ export class Core {
     this.runtime.stopAll();
     this.repos.flush();
     this.db.close();
-    return this.children.close();
+    return Promise.all([this.children.close(), tunnel]).then(() => undefined);
   }
 }

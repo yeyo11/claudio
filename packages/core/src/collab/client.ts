@@ -181,7 +181,8 @@ export interface KnownShare {
 }
 
 interface CatalogDoc {
-  [owner: string]: { at: string; shares: KnownShare[] };
+  /** `synced`: when each share was last pulled, by share key; absent in a file written before it was kept */
+  [owner: string]: { at: string; shares: KnownShare[]; synced?: Record<string, string> };
 }
 
 /**
@@ -199,8 +200,13 @@ class CatalogCache {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as unknown;
       if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
         for (const [owner, entry] of Object.entries(raw as Record<string, unknown>)) {
-          const e = entry as { at?: unknown; shares?: unknown };
-          if (isEndpointId(owner) && typeof e?.at === 'string' && Array.isArray(e.shares)) this.doc[owner] = { at: e.at, shares: e.shares as KnownShare[] };
+          const e = entry as { at?: unknown; shares?: unknown; synced?: unknown };
+          if (!isEndpointId(owner) || typeof e?.at !== 'string' || !Array.isArray(e.shares)) continue;
+          const synced = Object.create(null) as Record<string, string>;
+          if (e.synced && typeof e.synced === 'object') {
+            for (const [key, at] of Object.entries(e.synced as Record<string, unknown>)) if (typeof at === 'string') synced[key] = at;
+          }
+          this.doc[owner] = { at: e.at, shares: e.shares as KnownShare[], synced };
         }
       }
     } catch {
@@ -216,13 +222,31 @@ class CatalogCache {
     return this.doc[owner]?.shares ?? [];
   }
 
-  at(owner: string): string | null {
-    return this.doc[owner]?.at ?? null;
+  /** When a share was last pulled, across restarts; null when it never was */
+  syncedAt(owner: string, shareKey: string): string | null {
+    return this.doc[owner]?.synced?.[shareKey] ?? null;
   }
 
   set(owner: string, shares: KnownShare[] | null): Promise<void> {
-    if (shares) this.doc[owner] = { at: new Date().toISOString(), shares };
-    else delete this.doc[owner];
+    if (shares) {
+      // A share the catalog no longer lists forgets when it was pulled
+      const kept = Object.create(null) as Record<string, string>;
+      const before = this.doc[owner]?.synced ?? {};
+      for (const share of shares) if (before[share.shareKey]) kept[share.shareKey] = before[share.shareKey] as string;
+      this.doc[owner] = { at: new Date().toISOString(), shares, synced: kept };
+    } else delete this.doc[owner];
+    return this.write();
+  }
+
+  /** Keeps when a share was pulled; a share the cache does not list is not kept */
+  setSynced(owner: string, shareKey: string, at: string): Promise<void> {
+    const entry = this.doc[owner];
+    if (!entry) return Promise.resolve();
+    entry.synced = { ...entry.synced, [shareKey]: at };
+    return this.write();
+  }
+
+  private write(): Promise<void> {
     const text = `${JSON.stringify(this.doc, null, 2)}\n`;
     const run = this.lock.then(() => writeAtomic(this.file, text));
     this.lock = run.catch(() => undefined);
@@ -308,6 +332,11 @@ interface PeerState {
   lock: Promise<unknown>;
   notices: Set<string>;
   noticeTimer: NodeJS.Timeout | null;
+  /**
+   * `watch` streams in a row the peer ended with an error. A run around them succeeds, so the run's
+   * own failures stay at zero: the wait before the next run grows with this instead
+   */
+  watchRefusals: number;
 }
 
 const RECONCILE_MS = 10 * 60 * 1000;
@@ -362,7 +391,7 @@ export class SyncClient {
   constructor(private readonly deps: SyncDeps) {
     this.catalog = new CatalogCache(join(deps.dir, 'catalog.json'));
     for (const owner of this.catalog.owners()) {
-      for (const share of this.catalog.of(owner)) this.shares.set(stateKey(owner, share.shareKey), { owner, share, lastSyncedAt: null, error: null });
+      for (const share of this.catalog.of(owner)) this.shares.set(stateKey(owner, share.shareKey), { owner, share, lastSyncedAt: this.catalog.syncedAt(owner, share.shareKey), error: null });
     }
   }
 
@@ -400,7 +429,7 @@ export class SyncClient {
     }
     for (const id of wanted) {
       if (this.peers.has(id)) continue;
-      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, refused: false, refusals: 0, lastFailure: null, lock: Promise.resolve(), notices: new Set(), noticeTimer: null };
+      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, refused: false, refusals: 0, lastFailure: null, lock: Promise.resolve(), notices: new Set(), noticeTimer: null, watchRefusals: 0 };
       this.peers.set(id, peer);
       this.start(peer);
     }
@@ -494,8 +523,11 @@ export class SyncClient {
   private schedule(peer: PeerState, ok: boolean): void {
     if (this.stopped || this.peers.get(peer.id) !== peer) return;
     const reconcile = this.deps.reconcileMs ?? RECONCILE_MS;
-    const delay = ok
+    const refusedWatch = peer.watchRefusals > 0 && !peer.watch;
+    const delay = ok && !refusedWatch
       ? reconcile
+      : ok
+        ? Math.min(reconcile, (this.deps.retryMs ?? RETRY_MS) * 2 ** Math.min(peer.watchRefusals - 1, 10))
       : peer.refused
         ? Math.max(reconcile, Math.min(this.deps.refusedMaxMs ?? REFUSED_MAX_MS, reconcile * 2 ** Math.min(peer.refusals - 1, 20)))
         : Math.min(reconcile, (this.deps.retryMs ?? RETRY_MS) * 2 ** Math.min(peer.failures - 1, 10));
@@ -831,6 +863,7 @@ export class SyncClient {
     if (transcripts.length && state.share.kinds.includes('artifacts')) await this.pullKind(owner, state, 'artifacts', to);
     state.lastSyncedAt = new Date().toISOString();
     state.error = null;
+    await this.catalog.setSynced(owner, shareKey, state.lastSyncedAt);
     this.deps.synced(owner, shareKey, kind);
   }
 
@@ -882,11 +915,16 @@ export class SyncClient {
     });
   }
 
-  /** Pulls one kind of a copy now, as a route that wants it fresh asks */
+  /**
+   * Pulls one kind of a copy now, as a route that wants it fresh asks. An owner the last run did not
+   * reach is not dialled from a request: its run's own backoff decides when to try again, and the
+   * copy held answers at once.
+   */
   async pull(owner: string, shareKey: string, kind: CollaboratorsKind): Promise<void> {
     const state = this.shares.get(stateKey(owner, shareKey));
     const peer = this.peers.get(owner);
     if (!state || !peer) throw new PeerError('not-found');
+    if (!peer.online) throw new PeerError('unreachable', 'the owner is offline');
     await this.exclusive(peer, () => this.pullKind(owner, state, kind));
   }
 
@@ -912,6 +950,7 @@ export class SyncClient {
     // Leaving the loop from outside: the stream's `next` may wait for a notice that never comes
     const aborted = new Promise<null>((resolve) => controller.signal.addEventListener('abort', () => resolve(null), { once: true }));
     let lost = false;
+    let refused = false;
     try {
       const stream = this.deps.transport.request(this.to(peer.id), { type: 'watch', shareKeys: keys });
       for (;;) {
@@ -924,8 +963,14 @@ export class SyncClient {
         const part = next.value;
         if (!('frame' in part)) continue;
         const reply = part.frame as WireReply | null;
-        if (reply?.type === 'changed' && typeof reply.shareKey === 'string') this.notice(peer, reply.shareKey, reply.kind);
-        else if (reply?.type === 'error') break;
+        if (reply?.type === 'changed' && typeof reply.shareKey === 'string') {
+          peer.watchRefusals = 0;
+          this.notice(peer, reply.shareKey, reply.kind);
+        }
+        else if (reply?.type === 'error') {
+          refused = true;
+          break;
+        }
       }
     } catch {
       lost = true;
@@ -939,6 +984,11 @@ export class SyncClient {
       peer.failures = Math.max(peer.failures, 1);
       for (const state of this.sharesOf(peer.id)) this.deps.synced(peer.id, state.share.shareKey, state.share.kinds[0] ?? 'chats');
       this.schedule(peer, false);
+    } else if (refused) {
+      // The peer refused the watch (a share it still lists in its cached catalog but no longer
+      // serves, say): a run at once would get the same answer, so the next waits, longer each time
+      peer.watchRefusals += 1;
+      if (!peer.run) this.schedule(peer, true);
     } else {
       // The peer ended it: what it shares changed, or this install is no longer listed
       this.start(peer);
@@ -982,10 +1032,11 @@ export class SyncClient {
   }
 
   /** How current a copy is, in the words of §5.1 */
-  state(owner: string, shareKey: string, presence: { path: CollaboratorsPath | null; lastSeenAt: string | null }): SyncState {
+  state(owner: string, shareKey: string, presence: { path: CollaboratorsPath | null }): SyncState {
     const state = this.shares.get(stateKey(owner, shareKey));
     const peer = this.peers.get(owner);
-    const lastSyncedAt = state?.lastSyncedAt ?? this.catalog.at(owner) ?? presence.lastSeenAt;
+    // Only a pull dates a copy: when its catalog was read, or its owner last seen, is not when it synced
+    const lastSyncedAt = state?.lastSyncedAt ?? this.catalog.syncedAt(owner, shareKey);
     const online = !!peer?.online;
     const error = state?.error ?? null;
     // A stopped client reaches nobody, which is not the owner being away: it says so
