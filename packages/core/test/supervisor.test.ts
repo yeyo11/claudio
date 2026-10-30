@@ -585,9 +585,17 @@ test('a question refused for room, a full slot or short memory, is retried and n
     return { text: 'Check the port.', costUsd: 0.01, isError: false };
   });
   await h.enable();
-  const proposal = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]);
-  assert.equal(proposal?.hint, 'Check the port.');
-  assert.equal(h.asked.length, 3);
+  // The pause between tries is unref'd, so a wait for room never holds the process on its way out;
+  // in a test it is the only thing pending, and the loop would end before the timer fires (Node 22
+  // reports the promise as never resolved). The test keeps the loop alive itself.
+  const alive = setInterval(() => undefined, 50);
+  try {
+    const proposal = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]);
+    assert.equal(proposal?.hint, 'Check the port.');
+    assert.equal(h.asked.length, 3);
+  } finally {
+    clearInterval(alive);
+  }
 
   // No room in time: nothing is recorded, and the next announcement asks again
   const full = harness(() => {
