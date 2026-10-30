@@ -352,7 +352,9 @@ a.badge:hover {
   box-shadow: var(--shadow-raised);
 }
 
-.state-empty strong {
+.state-empty strong,
+.state-empty .state-title {
+  margin: 0;
   color: var(--fg);
   font-weight: var(--fw-strong);
   font-size: var(--fs-body);

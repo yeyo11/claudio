@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouteError } from 'react-router-dom';
@@ -14,6 +15,11 @@ export function RouteError() {
   const { t } = useTranslation('shell');
   const error = useRouteError();
   const stale = isChunkLoadError(error);
+  const title = t(stale ? 'reload.stalePage' : 'routeError.title');
+  // The page that failed left its own title behind
+  useEffect(() => {
+    document.title = `${title} · Claudio`;
+  }, [title]);
   useEffect(() => {
     // A chunk deployed away has its own story (the reload offer); anything else is a bug worth a trace
     if (stale) noticeStaleChunk();
@@ -21,11 +27,11 @@ export function RouteError() {
   }, [error, stale]);
   return (
     <main className="route-error">
+      {/* The compact icon version: no drawing of the set says "this page broke" (not-found is a 404) */}
       <Empty
-        illustration="not-found"
-        tone="bad"
-        size="md"
-        title={t(stale ? 'reload.stalePage' : 'routeError.title')}
+        icon={TriangleAlert}
+        heading
+        title={title}
         action={
           <span className="route-error-actions">
             <ReloadButton />

@@ -1482,6 +1482,13 @@ a.link-more {
   gap: 8px;
 }
 
+/* Outside the shell, so the phone's touch targets are its own to set */
+@media (max-width: 767px) {
+  .route-error-actions .btn {
+    min-height: var(--touch);
+  }
+}
+
 /* The sign-in screen: the whole app when the API answered 401, so it centres on its own under the
    one halo a page may have */
 .signin {
