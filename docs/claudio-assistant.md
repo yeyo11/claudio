@@ -155,9 +155,9 @@ fake CLI and the real MCP server, the guard and the audit) and
 
 ## Known gaps
 
-- The worded prompts (`packages/chat-ui/src/lib/write-prompts.ts`) cover the first nine write tools;
-  the orchestration and chat tools added on 2026-10-30 show the CLI's own prompt until they get a
-  title in en/es. The `chat.api-write` cause copy in the history is still to do.
+- Every write tool has a worded prompt in en/es (`packages/chat-ui/src/lib/write-prompts.ts`, checked by
+  `apps/web/test/write-prompts.test.ts`). The `chat.api-write` cause copy in the history is
+  still to do.
 - The entry's and the greeting's copy still say it can only read, and the "pide permiso" write
   starters are not drawn.
 - `start_chat` has no `agent` input, since the route takes only an inline agent object.

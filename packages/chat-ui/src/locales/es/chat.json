@@ -562,6 +562,19 @@
       "startChat": "Iniciar un chat",
       "acceptProposal": "Aceptar una propuesta del asistente",
       "discardProposal": "Descartar una propuesta del asistente",
+      "checkCriterion": "Marcar un criterio de aceptación de {{item}}",
+      "uncheckCriterion": "Desmarcar un criterio de aceptación de {{item}}",
+      "planOrchestration": "Planificar una orquestación",
+      "launchOrchestration": "Lanzar la orquestación {{name}}",
+      "launchPlannedOrchestration": "Lanzar la orquestación planificada",
+      "stopOrchestration": "Detener una orquestación",
+      "resumeOrchestration": "Reanudar una orquestación detenida",
+      "sendChatMessage": "Enviar un mensaje a otro chat",
+      "hintChat": "Enviar una pista a otro chat",
+      "interruptChat": "Interrumpir el turno de otro chat",
+      "stopChat": "Detener otro chat",
+      "resumeChat": "Reanudar un chat",
+      "forkChat": "Crear un fork de un chat",
       "fields": {
         "title": "Título: {{value}}",
         "status": "Columna: {{value}}",
@@ -569,7 +582,8 @@
         "type": "Tipo: {{value}}",
         "labels": "Etiquetas: {{value}}",
         "criteria": "Criterios de aceptación: {{value}}",
-        "model": "Modelo: {{value}}"
+        "model": "Modelo: {{value}}",
+        "tasks": "Tareas: {{value}}"
       }
     }
   },

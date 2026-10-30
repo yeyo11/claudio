@@ -302,7 +302,7 @@ the work links take no such choice; it can be switched on from the chat once it 
 
 Skip, rerun and delete tools, settings, accounts and security, moving a card to Done, and listing
 `claudio` in the person's MCP settings: it is internal, given to the chats Claudio confines and to the
-chats a person switches it on for. The chat-ui words a prompt for the first nine write tools only
-(`packages/chat-ui/src/lib/write-prompts.ts`); the others show the CLI's own prompt.
+chats a person switches it on for. The chat-ui words the prompt of every write tool in the person's
+language (`packages/chat-ui/src/lib/write-prompts.ts`).
 
 Related: [[plans/regression-fixes-2026-10-29.md]], [[reports/regression-audit-2026-10-29.md]], [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]], [[collaborators.md]], [[plans/collaborators-agent-access.md]]
