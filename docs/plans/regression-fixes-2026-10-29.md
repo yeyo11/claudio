@@ -664,6 +664,19 @@ is on `main`; each item names where it lives.
   fixtures while feature commits do; align the headers with practice.
 - [ ] The `chat.api-write` cause text is missing from a work item's history.
 
+**The review gate** (seen when this branch was verified, 2026-10-30)
+
+- [ ] The deterministic `secret` rule of `packages/core/src/review-scan.ts` fires on identifiers,
+  not on credentials: type annotations (`token: string`), parameter names (`credential:`),
+  `secrets: false` in guard fixtures, `input_tokens`, `authMode="…"` in tests and route
+  descriptions that mention a token. It reported 48 blocking findings on this branch, every one a
+  false positive, and the gate was accepted over them. The rule should match credential-shaped
+  values, never names, and a fixture or a test file should count as advisory.
+- [ ] Every model run of the gate (8 chunks × 4 dimensions, and the verifier) ended "without
+  structured output" on this diff (569 files), four rounds in a row, for 86 USD. A chunk that
+  cannot be answered within `maxRunCostUsd` should be split or declared `not-reviewable` before
+  it is sent, and a round whose runs are all invalid should stop instead of trying the fixer.
+
 **The owner's install**
 
 - [ ] The desktop updater fails on the owner's machine with `pkexec must be setuid root`
