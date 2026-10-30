@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, LogIn, SquareTerminal, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
-import { api, keys, useAccounts, useSpend } from '../../api';
-import { accountName, connectionOf, signInProblem, usagePct, windowRows, type ConnectionKind } from '../../lib/accounts';
+import { api, keys, useSpend } from '../../api';
+import { accountName, accountReading, connectionOf, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type AccountView, type ConnectionKind } from '../../lib/accounts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
@@ -48,27 +48,31 @@ export interface Connection {
  * settings, where each of these is fixed.
  */
 export function useConnection(overview: Now['overview'], feedOpen: boolean): Connection {
-  const { t } = useTranslation(['components', 'providers']);
+  const { t } = useTranslation(['components', 'providers', 'accountsConfig']);
   const auth = overview.data?.system.auth;
   const cli = overview.data?.system.cli;
-  // The account new work starts on, not the CLI's own login: a login account added beside an empty
-  // default runs chats, and `auth status` alone says "signed in" for a credential that was refused
-  const inUse = auth?.inUse ?? null;
+  // The account view is the one source: the account new work starts on, its plan, its reading and
+  // the rotation's switch. Without one (a server without accounts) `/auth`'s account in use, the
+  // same fact without its reading, stands in, and the CLI's own login names the plan
+  const view = overview.data?.accounts ?? null;
+  const inUse = view ? view.inUse : (auth?.inUse ?? null);
   const claude = useProviders().data?.find((s) => s.id === CLAUDE_CODE_ID);
-  const accounts = useAccounts().data ?? [];
-  const rotation = useQuery({ queryKey: keys.accountsSettings, queryFn: ({ signal }) => api.accountsSettings({ signal }) }).data?.rotateOnLimit;
   const kind = connectionOf({
     cliInstalled: cli?.installed === true,
     inUse,
-    inUseReason: auth?.inUseReason,
-    accounts,
+    inUseReason: view ? view.inUseReason : auth?.inUseReason,
+    accounts: view?.accounts ?? [],
     provider: claude ? { state: claude.state, reason: claude.reason } : null,
   });
   const healthy = kind === 'ready';
   const feedDown = !feedOpen && overview.data !== undefined;
-  const account = [auth?.subscriptionType ?? auth?.authMethod, inUse?.label].filter(Boolean).join(' · ') || t('components:shell.loggedIn');
+  const plan = view?.inUse ? planOf(view.inUse) : null;
+  const planText = plan ? ('key' in plan ? t(`accountsConfig:plan.${plan.key}`) : plan.raw) : null;
+  // The plan and the name of one account, never the default login's plan beside another account's name
+  const account = (view ? [planText, inUse?.label] : [auth?.subscriptionType ?? auth?.authMethod]).filter(Boolean).join(' · ') || t('components:shell.loggedIn');
   const label = inUse?.label ?? null;
-  const resetsAt = limitReading(claude?.limit)?.resetsAt ?? null;
+  const resetsAt = view ? (view.inUse ? (accountReading(view.inUse.limit)?.resetsAt ?? null) : view.nextReset) : (limitReading(claude?.limit)?.resetsAt ?? null);
+  const rotation = view?.settings.rotateOnLimit;
   // A limit says when it ends, when that is known
   const back = resetsAt ? t('components:shell.limitBack', { time: resetWhen(resetsAt) }) : t('components:shell.checkUsage');
   const tone: DotTone = overview.isError ? 'bad' : kind === 'limit' ? 'bad' : healthy && !feedDown ? 'ok' : 'warn';
@@ -181,7 +185,8 @@ export function ProviderCard({ now, connection }: { now: Now; connection: Connec
  */
 export function AccountCard({ now, connection }: { now: Now; connection: Connection }) {
   const { t } = useTranslation('shell');
-  const accounts = useAccounts().data ?? [];
+  const view = useAccountView();
+  const accounts = view?.accounts ?? [];
   // An account whose sign-in ended is out of rotation: say so beside the card, with the way back
   const problem = accounts.find((a) => signInProblem(a) !== null) ?? null;
   const kind = problem ? signInProblem(problem) : null;
@@ -197,26 +202,23 @@ export function AccountCard({ now, connection }: { now: Now; connection: Connect
     ) : null;
   return (
     <>
-      <CurrentAccountCard now={now} connection={connection} />
+      {view?.inUse ? <CurrentAccountCard view={view} connection={connection} /> : <ProviderCard now={now} connection={connection} />}
       {alert}
     </>
   );
 }
 
-function CurrentAccountCard({ now, connection }: { now: Now; connection: Connection }) {
+function CurrentAccountCard({ view, connection }: { view: AccountView; connection: Connection }) {
   const { t } = useTranslation('shell');
   const windowOf = useLimitWindowName();
-  const accounts = useAccounts().data ?? [];
-  const view = now.overview.data?.accounts;
-  const current = accounts.find((a) => a.id === view?.inUse?.id) ?? null;
-  const total = view?.accounts.length ?? 0;
-  const ready = view?.accounts.filter((a) => a.enabled && a.signedIn).length ?? 0;
-  if (!current) return <ProviderCard now={now} connection={connection} />;
-  const name = accountName(current);
-  const exhausted = current.limits?.state === 'exhausted';
-  const rows = windowRows(current.limits).filter((row) => row.key === 'five_hour' || row.key === 'seven_day');
-  const tone: DotTone = exhausted ? 'bad' : current.limits?.state === 'near' ? 'warn' : 'ok';
-  const word = exhausted ? t('statusbar.limit.exhausted') : current.limits?.state === 'near' ? t('statusbar.limit.near') : t('account.ready');
+  const inUse = view.inUse;
+  if (!inUse) return null;
+  const name = inUse.label;
+  const total = view.accounts.length;
+  const exhausted = inUse.limit?.state === 'exhausted';
+  const rows = windowRows(inUse.limit).filter((row) => row.key === 'five_hour' || row.key === 'seven_day');
+  const tone: DotTone = exhausted ? 'bad' : inUse.limit?.state === 'near' ? 'warn' : 'ok';
+  const word = exhausted ? t('statusbar.limit.exhausted') : inUse.limit?.state === 'near' ? t('statusbar.limit.near') : t('account.ready');
   return (
     <Tooltip content={t('account.card')}>
       <NavLink to="/accounts" className="card grad-border glow-top more-account">
@@ -228,7 +230,7 @@ function CurrentAccountCard({ now, connection }: { now: Now; connection: Connect
             <span className="more-account-name ellipsis">{name}</span>
             <span className="more-account-meta ellipsis">
               <StatusDot tone={tone} live={connection.live && tone === 'ok' && rows.length === 0} />
-              {[word, total > 1 ? t('account.ofTotal', { ready, total }) : null].filter(Boolean).join(' · ')}
+              {[word, total > 1 ? t('account.ofTotal', { ready: readyCount(view.accounts), total }) : null].filter(Boolean).join(' · ')}
             </span>
           </span>
           <ChevronRight {...ICON} className="more-cell-chevron" />
@@ -246,17 +248,16 @@ function CurrentAccountCard({ now, connection }: { now: Now; connection: Connect
 }
 
 /** The account new work starts on, with the share used of its binding window; only when there is a choice of accounts. */
-function AccountChip({ now }: { now: Now }) {
+function AccountChip({ view }: { view: AccountView | null }) {
   const { t } = useTranslation('shell');
-  const accounts = useAccounts().data ?? [];
-  const current = accounts.find((a) => a.id === now.overview.data?.accounts?.inUse?.id);
-  if (!current || accounts.length < 2) return null;
-  const pct = usagePct(current.limits);
-  const tone = pct === null ? 'neutral' : usageTone(pct, current.limits?.state === 'exhausted');
+  const inUse = view?.inUse;
+  if (!view || !inUse || view.accounts.length < 2) return null;
+  const pct = usagePct(inUse.limit);
+  const tone = pct === null ? 'neutral' : usageTone(pct, inUse.limit?.state === 'exhausted');
   return (
     <Tooltip content={t('statusbar.account')} side="top">
       <NavLink to="/accounts" className="statusbar-item">
-        <span className="ellipsis">{accountName(current)}</span>
+        <span className="ellipsis">{inUse.label}</span>
         {pct !== null && <span className={tone === 'neutral' ? undefined : `statusbar-${tone}`}>{formatPercent(pct)}</span>}
       </NavLink>
     </Tooltip>
@@ -333,6 +334,7 @@ function TerminalItem() {
  */
 export function StatusBar({ now, connection, agents }: { now: Now; connection: Connection; agents: number }) {
   const { t } = useTranslation('shell');
+  const view = useAccountView();
   return (
     <footer className="statusbar" aria-label={t('statusbar.label')}>
       <Tooltip content={[connection.title, connection.detail].filter(Boolean).join(' · ')} side="top">
@@ -356,8 +358,8 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
         </NavLink>
       )}
       <SpendItem />
-      <AccountChip now={now} />
-      <ProviderDots limits={now.limits} />
+      <AccountChip view={view} />
+      <ProviderDots limits={now.limits} inUse={view?.inUse ?? null} />
     </footer>
   );
 }

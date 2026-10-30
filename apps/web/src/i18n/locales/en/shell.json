@@ -54,7 +54,7 @@
     "label": "Status bar",
     "running": "{{count}} running",
     "today": "today {{cost}}",
-    "todayNone": "today, no cost",
+    "todayNone": "today, cost not reported",
     "limit": {
       "near": "limit",
       "exhausted": "limit reached",
@@ -62,6 +62,7 @@
       "used": "{{provider}}: {{percent}} of the {{window}} window used",
       "tipWindow": "{{window}} · {{percent}} used",
       "tipReset": "resets {{when}}",
+      "tipAccount": "account {{name}}",
       "tipAge": "read {{age}}",
       "unknown": "Its last reading is out of date, so its limit is not known",
       "none": "{{provider}} does not report its limit"

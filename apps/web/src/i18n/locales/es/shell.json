@@ -54,7 +54,7 @@
     "label": "Barra de estado",
     "running": "{{count}} en marcha",
     "today": "hoy {{cost}}",
-    "todayNone": "hoy, sin coste",
+    "todayNone": "hoy, coste sin datos",
     "limit": {
       "near": "límite",
       "exhausted": "límite agotado",
@@ -62,6 +62,7 @@
       "used": "{{provider}}: {{percent}} de la ventana de {{window}} usado",
       "tipWindow": "{{window}} · {{percent}} usado",
       "tipReset": "vuelve {{when}}",
+      "tipAccount": "cuenta {{name}}",
       "tipAge": "lectura {{age}}",
       "unknown": "Su última lectura está desfasada, así que no se conoce su límite",
       "none": "{{provider}} no informa de su límite"

@@ -296,12 +296,13 @@ export function targetsFor(event: ClaudioEvent): Target[] {
         [keys.providers, NOW], [['providers', 'waits'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
         [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
       ];
+    case 'accounts.changed':
+      // Every account fact on screen reads these: the list and the settings (['accounts'] prefix),
+      // the view (`overview.accounts`), the account in use (`/auth`) and the providers' readings
+      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.providers, NOW]];
     case 'run.accountRotated':
     case 'account.switched':
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
-    case 'accounts.changed':
-      // An account's reading or state moved: the one account view behind every screen is read again
-      return [[keys.accounts, NOW], [keys.auth, NOW], [keys.overview, NOW], [keys.providers, NOW]];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit
       return [[keys.accounts, NOW], [keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];

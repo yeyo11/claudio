@@ -1,8 +1,9 @@
+import type { AccountsSettings } from '@claudio/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, keys, useAccounts, useOverview } from '../api';
+import { api, keys, useAccounts } from '../api';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
@@ -10,7 +11,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { formatDateTime, timeAgo, toMs } from '@claudio/ui/lib/format';
-import { accountName, sortAccounts, usageStale } from '../lib/accounts';
+import { accountName, accountUsable, sortAccounts, usageStale, useAccountView } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { SignInAgainDialog } from './accounts/SignInAgainDialog';
@@ -26,15 +27,15 @@ import { UsageHistoryCard } from './accounts/UsageHistoryCard';
 export function Accounts() {
   const { t } = useTranslation(['accountsConfig', 'common']);
   const { data, error, isLoading } = useAccounts();
-  const overview = useOverview();
+  const view = useAccountView();
   const settings = useQuery({ queryKey: keys.accountsSettings, queryFn: ({ signal }) => api.accountsSettings({ signal }) });
   const policies = useQuery({ queryKey: keys.accountPolicies, queryFn: ({ signal }) => api.accountPolicies({ signal }) });
   const fallbacks = useQuery({ queryKey: keys.modelFallbacks, queryFn: ({ signal }) => api.modelFallbacks({ signal }) });
   const [fullHistory, setFullHistory] = useState(false);
+  // No poll: `accounts.changed` and the switch events refetch everything under ['accounts']
   const events = useQuery({
     queryKey: [...keys.accountEvents, fullHistory ? 500 : 40],
     queryFn: ({ signal }) => api.accountEvents(fullHistory ? 500 : 40, { signal }),
-    refetchInterval: 10_000,
   });
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -100,7 +101,8 @@ export function Accounts() {
 
   const accounts = sortAccounts(data);
   const signingAgain = data.find((a) => a.id === signingIn) ?? null;
-  const current = overview.data?.accounts?.inUse?.id ?? null;
+  const current = view?.inUse?.id ?? null;
+  const preferred = settings.data?.preferred ?? null;
   const lastRead = data.reduce<string | null>((latest, a) => ((toMs(a.limits?.observedAt) ?? 0) > (toMs(latest) ?? 0) ? (a.limits?.observedAt ?? latest) : latest), null);
   // The rotation's own reasons are said in words; any other text (a wait's cause) is shown as it was recorded
   const reasonText = (reason: string | null): string | null => {
@@ -126,15 +128,44 @@ export function Accounts() {
     return found ? accountName(found) : id;
   };
 
+  const putSettings = (patch: Partial<AccountsSettings>) => api.putAccountsSettings(patch);
   const toggle = (id: string) => {
     const account = data.find((a) => a.id === id);
     if (!account) return;
     const name = accountName(account);
-    void act(
-      account.enabled ? t('toast.heldOut', { name }) : t('toast.backInRotation', { name }),
-      account.enabled ? t('toast.heldOutFailed', { name }) : t('toast.backInRotationFailed', { name }),
-      () => api.updateAccount(id, { enabled: !account.enabled }),
-    );
+    const flip = (clearPreference: boolean) =>
+      act(
+        account.enabled ? t('toast.heldOut', { name }) : t('toast.backInRotation', { name }),
+        account.enabled ? t('toast.heldOutFailed', { name }) : t('toast.backInRotationFailed', { name }),
+        async () => {
+          // A held-out account cannot be the preferred one: the preference goes first, so new work never waits on it
+          if (clearPreference) await putSettings({ preferred: null });
+          await api.updateAccount(id, { enabled: !account.enabled });
+        },
+      );
+    const isPreferred = preferred === id;
+    const last = accountUsable(account) && !data.some((a) => a.id !== id && accountUsable(a));
+    // Returning one to rotation, or holding out one whose absence changes nothing, needs no question
+    if (!account.enabled || (!isPreferred && !last)) {
+      void flip(false);
+      return;
+    }
+    void confirm({
+      title: t('holdOut.title', { name }),
+      body: last ? t('holdOut.lastBody') : t('holdOut.preferredBody'),
+      confirmLabel: t('card.holdOut'),
+    }).then((ok) => {
+      if (ok) void flip(isPreferred);
+    });
+  };
+  const prefer = (id: string) => {
+    const account = data.find((a) => a.id === id);
+    if (!account) return;
+    const name = accountName(account);
+    void act(t('toast.preferred', { name }), t('toast.preferFailed', { name }), async () => {
+      const saved = await putSettings({ preferred: id });
+      queryClient.setQueryData(keys.accountsSettings, saved);
+    });
   };
   const remove = (id: string) => {
     const account = data.find((a) => a.id === id);
@@ -186,18 +217,29 @@ export function Accounts() {
       ) : (
         <ul className="account-grid">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} current={account.id === current} busy={busy} onToggle={() => toggle(account.id)} onRemove={() => remove(account.id)} onSignInAgain={() => setSigningIn(account.id)} />
+            <AccountCard
+              key={account.id}
+              account={account}
+              current={account.id === current}
+              preferred={account.id === preferred}
+              busy={busy}
+              onToggle={() => toggle(account.id)}
+              onRemove={() => remove(account.id)}
+              // With no preference, the account in use is already where new work starts: nothing to offer on it
+              {...(account.id === current && preferred === null ? {} : { onPrefer: () => prefer(account.id) })}
+              onSignInAgain={() => setSigningIn(account.id)}
+            />
           ))}
         </ul>
       )}
 
-      {settings.data && <RotationCard settings={settings.data} />}
+      {settings.data && <RotationCard settings={settings.data} accounts={data} />}
 
       <PoliciesCard policies={policies.data ?? []} accounts={data} />
 
       <ModelFallbacksCard fallbacks={fallbacks.data ?? []} />
 
-      <UsageHistoryCard accounts={data} threshold={settings.data?.threshold ?? 85} />
+      <UsageHistoryCard accounts={data} threshold={settings.data?.threshold ?? 90} />
 
       <Card
         className="rotation-log"

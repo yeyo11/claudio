@@ -1,12 +1,12 @@
 import type { Account } from '@claudio/shared';
-import { CircleCheck, CirclePause, LogIn, Trash2, TriangleAlert } from 'lucide-react';
+import { CircleCheck, CirclePause, LogIn, Star, Trash2, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { MoreActions, type MenuItem } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
-import { formatDateTime, formatPercent, timeAgo } from '@claudio/ui/lib/format';
-import { accountExhausted, accountName, canSignInAgain, creditsView, isDefaultAccount, planOf, scopedRows, signInProblem, timeToReset, usagePct, windowRows, type ScopedRow, type WindowRow } from '../../lib/accounts';
+import { formatDateTime, formatPercent, timeAgo, toMs } from '@claudio/ui/lib/format';
+import { accountExhausted, accountName, canSignInAgain, creditsView, isDefaultAccount, planOf, scopedRows, signInProblem, timeToReset, USAGE_MAX_AGE_MS, usagePct, windowRows, type ScopedRow, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */
 function useResetText() {
@@ -30,7 +30,8 @@ function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
     <div className="account-meter">
       <div className="account-meter-head">
         <span className="account-meter-label">{label}</span>
-        {spent ? <Tag tone="bad">{t('card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone={tone === 'bad' ? 'bad' : 'warn'}>{t('card.runningHigh')}</Tag> : null}
+        {/* Near the limit is a warning whatever the bar's colour: only a spent window is bad */}
+        {spent ? <Tag tone="bad">{t('card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone="warn">{t('card.runningHigh')}</Tag> : null}
         {reset && <span className="account-meter-reset">{reset}</span>}
         {row.resetsAt && <span className="sr-only">({formatDateTime(row.resetsAt)})</span>}
         <span className="account-meter-pct">
@@ -58,21 +59,33 @@ function CreditsLine({ account }: { account: Account }) {
   );
 }
 
+/** Whether a card says how old its reading is: only one older than the page's own "read … ago" can be trusted to, so a fresh one is not said twice. */
+function readingStale(observedAt: string, now = Date.now()): boolean {
+  const at = toMs(observedAt);
+  return at === null || now - at > USAGE_MAX_AGE_MS;
+}
+
 /** One account: who it is, how much of each window it used and how old that reading is, and what can be done with it. */
 export function AccountCard({
   account,
   current,
+  preferred = false,
   busy,
   onToggle,
   onRemove,
+  onPrefer,
   onSignInAgain,
 }: {
   account: Account;
   /** New work would start on this account */
   current: boolean;
+  /** The person chose it as the account new work starts on while it has room */
+  preferred?: boolean;
   busy: boolean;
   onToggle: () => void;
   onRemove: () => void;
+  /** Makes it the preferred account; absent where no preference can be set */
+  onPrefer?: () => void;
   onSignInAgain: () => void;
 }) {
   const { t } = useTranslation(['accountsConfig', 'common']);
@@ -81,16 +94,17 @@ export function AccountCard({
   const exhausted = accountExhausted(account);
   const pct = usagePct(account.limits);
   const backIn = exhausted ? resetText(account.limits?.resetsAt ?? null, true) : null;
-  const sub = [account.alias ? account.email : null, account.organization].filter(Boolean).join(' · ');
+  // The plan tag already says "API key", so its kind is not said again
+  const sub = [account.alias ? account.email : null, account.organization, account.kind !== 'api-key' ? t(`kind.${account.kind}`) : null].filter(Boolean).join(' · ');
   const plan = planOf(account);
   const planText = plan ? ('key' in plan ? t(`plan.${plan.key}`) : plan.raw) : null;
   const toggleLabel = account.enabled ? t('card.holdOut') : t('card.returnToRotation');
   const rows = [...windowRows(account.limits), ...scopedRows(account.limits)];
   const problem = signInProblem(account);
 
-  const toggleItem: MenuItem = { id: 'toggle', label: toggleLabel, icon: account.enabled ? CirclePause : CircleCheck, disabled: busy, onSelect: onToggle };
-  const removeItem: MenuItem = { id: 'remove', label: t('card.remove'), icon: Trash2, destructive: true, disabled: busy, onSelect: onRemove };
-  const menu = isDefaultAccount(account) ? [toggleItem] : [toggleItem, removeItem];
+  // Hold out is the card's own button; the menu holds only what is not on the card
+  const menu: MenuItem[] = isDefaultAccount(account) ? [] : [{ id: 'remove', label: t('card.remove'), icon: Trash2, destructive: true, disabled: busy, onSelect: onRemove }];
+  const canPrefer = onPrefer !== undefined && !preferred && account.enabled && account.signedIn;
   const classes = ['card', 'account-card', current ? 'grad-border glow-top is-active' : '', exhausted || problem ? 'is-exhausted' : ''].filter(Boolean).join(' ');
 
   return (
@@ -103,6 +117,7 @@ export function AccountCard({
           <span className="account-name">
             <span className="account-email">{name}</span>
             {planText && <Tag tone="muted">{planText}</Tag>}
+            {preferred && <Tag tone="muted">{t('card.preferred')}</Tag>}
             {current && <span className="badge badge-grad">{t('card.inUse')}</span>}
             {isDefaultAccount(account) && <Tag tone="muted">{t('card.default')}</Tag>}
             {!account.enabled && <Tag tone="muted">{t('card.outOfRotation')}</Tag>}
@@ -115,11 +130,11 @@ export function AccountCard({
             )}
             {exhausted && <Tag tone="bad">{t('card.exhausted')}</Tag>}
           </span>
-          <span className="account-sub">
-            {sub && <span className="account-org">{sub}</span>}
-            {/* The plan tag already says "API key" */}
-            {account.kind !== 'api-key' && <span>{t(`kind.${account.kind}`)}</span>}
-          </span>
+          {sub && (
+            <span className="account-sub">
+              <span className="account-org">{sub}</span>
+            </span>
+          )}
         </span>
         {pct !== null && (
           <span className="account-figure">
@@ -146,8 +161,8 @@ export function AccountCard({
           <p className="muted small">{account.kind === 'api-key' ? t('card.noLimitsApiKey') : account.limits?.cli?.available === false ? t('card.noLimitsToken') : t('card.noUsage')}</p>
         )}
         <CreditsLine account={account} />
-        {account.limits && (
-          // The cache can be days old and a stream reading is as old as the run that sent it: say how old
+        {account.limits && readingStale(account.limits.observedAt) && (
+          // The cache can be days old and a stream reading is as old as the run that sent it: an old one says how old
           <p className="muted small tnum" title={formatDateTime(account.limits.observedAt)}>
             {t(`card.source.${account.limits.source}`, { ago: timeAgo(account.limits.observedAt) })}
           </p>
@@ -162,11 +177,17 @@ export function AccountCard({
               <span className="account-action-text">{t('card.signInAgain')}</span>
             </button>
           )}
+          {canPrefer && (
+            <button type="button" className="btn btn-small" onClick={onPrefer} disabled={busy} aria-label={t('card.preferFor', { name })}>
+              <Star {...ICON_SM} />
+              <span className="account-action-text">{t('card.prefer')}</span>
+            </button>
+          )}
           <button type="button" className="btn btn-small" onClick={onToggle} disabled={busy} aria-label={`${toggleLabel}: ${name}`}>
             {account.enabled ? <CirclePause {...ICON_SM} /> : <CircleCheck {...ICON_SM} />}
             <span className="account-action-text">{toggleLabel}</span>
           </button>
-          <MoreActions label={t('card.more', { name })} title={name} entries={menu} className="account-more" />
+          {menu.length > 0 && <MoreActions label={t('card.more', { name })} title={name} entries={menu} className="account-more" />}
         </span>
       </div>
     </li>
