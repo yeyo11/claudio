@@ -5,6 +5,7 @@ import { execCli } from './cli.ts';
 import { childEnv } from './child-env.ts';
 import type { CoreConfig } from './paths.ts';
 import { probeMcpServers, startMcpAuth } from './providers/claude-code/mcp-probe.ts';
+import { errorMessage } from '@claudio/shared';
 
 // `claude mcp list` connects to every server, so it takes seconds: an answer is reused for a minute
 // unless the caller asks for a fresh one.
@@ -219,7 +220,7 @@ export class Connectors {
       return started;
     } catch (err) {
       // The CLI's own words, without a link: its refusals carry none
-      throw new ConnectorAuthError(`the CLI could not start the sign-in: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300), 502);
+      throw new ConnectorAuthError(`the CLI could not start the sign-in: ${errorMessage(err)}`.slice(0, 300), 502);
     }
   }
 }

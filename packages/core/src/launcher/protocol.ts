@@ -5,6 +5,7 @@
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { errorMessage } from '@claudio/shared';
 
 /** The server exits with it to be started again by the launcher, onto whatever `state.json` says now */
 export const RESTART_EXIT_CODE = 75;
@@ -328,7 +329,7 @@ export function verifyFiles(dir: string, manifest: BundleManifest): string | nul
     const failed = walk('');
     if (failed) return failed;
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    return errorMessage(err);
   }
   const missing = Object.keys(manifest.files).find((path) => !seen.has(path));
   return missing ? `${missing} is missing` : null;

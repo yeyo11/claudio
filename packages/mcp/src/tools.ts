@@ -1,25 +1,8 @@
 import type { ApiClient, Query } from './client.ts';
 import type { ClaudioMcpToolName } from './names.ts';
-import {
-  accountRows,
-  boardRows,
-  chatRows,
-  chatView,
-  documentPage,
-  documentRows,
-  flowRunRows,
-  isObj,
-  journalRows,
-  milestoneRows,
-  objs,
-  orchestrationRows,
-  projectRows,
-  proposalRows,
-  providerRows,
-  teamRows,
-  type Obj,
-} from './fields.ts';
+import { accountRows, boardRows, chatRows, chatView, documentPage, documentRows, flowRunRows, journalRows, milestoneRows, objs, orchestrationRows, projectRows, proposalRows, providerRows, teamRows, type Obj } from './fields.ts';
 import type { Property, Schema } from './schema.ts';
+import { errorMessage, isRecord } from '@claudio/shared';
 
 export interface Tool {
   name: ClaudioMcpToolName;
@@ -93,7 +76,7 @@ export function pick(args: Record<string, unknown>, keys: readonly string[]): Qu
 /** The server's local day, as the daily spend counts it: what "today" means to the person */
 async function serverDay(api: ApiClient): Promise<string> {
   const spend = await api.get('/spend');
-  if (isObj(spend) && typeof spend.day === 'string') return spend.day;
+  if (isRecord(spend) && typeof spend.day === 'string') return spend.day;
   throw new Error('the server did not say what day it is (GET /spend has no day): give from and to');
 }
 
@@ -108,14 +91,14 @@ export async function projectOf(api: ApiClient, id: string): Promise<Obj> {
 async function proposalsOf(api: ApiClient, project: string, status: string, kind: string | undefined): Promise<Obj[]> {
   const runs = objs(await api.get(`/projects/${seg(project)}/assistant/runs`));
   const holding = runs.filter((run) => {
-    if (!isObj(run.counts)) return true;
-    return Object.entries(run.counts).some(([k, c]) => (!kind || k === kind) && isObj(c) && typeof c[status] === 'number' && c[status] > 0);
+    if (!isRecord(run.counts)) return true;
+    return Object.entries(run.counts).some(([k, c]) => (!kind || k === kind) && isRecord(c) && typeof c[status] === 'number' && c[status] > 0);
   });
   const out: Obj[] = [];
   for (const run of holding.slice(0, PROPOSAL_RUNS_MAX)) {
     if (typeof run.id !== 'string') continue;
     const detail = await api.get(`/assistant/runs/${seg(run.id)}`);
-    if (!isObj(detail)) continue;
+    if (!isRecord(detail)) continue;
     for (const proposal of objs(detail.proposals)) if (proposal.status === status && (!kind || proposal.kind === kind)) out.push(proposal);
   }
   return out;
@@ -318,7 +301,7 @@ export const TOOLS: readonly Tool[] = [
       const [detail, permissions] = await Promise.all([
         api.get(`/chats/${id}`, { limit: num(args, 'limit') ?? ENTRIES_DEFAULT, ...(before !== undefined ? { before } : {}) }),
         // Read beside the detail; a failure is said in the answer, never taken for "no prompt"
-        api.get(`/chats/${id}/permissions`).catch((err: unknown) => ({ error: err instanceof Error ? err.message : String(err) })),
+        api.get(`/chats/${id}/permissions`).catch((err: unknown) => ({ error: errorMessage(err) })),
       ]);
       return chatView(detail, permissions, text(args, 'entries') === 'full');
     },

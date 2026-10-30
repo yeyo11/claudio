@@ -88,30 +88,6 @@ export function claudioChildren(): Array<{ pid: number; chatId: string; argv: st
  */
 export const AGENT_RUN_ENV = 'CLAUDIO_AGENT_RUN';
 
-/**
- * Pids of the processes that carry {@link AGENT_RUN_ENV}. A process whose environment cannot be read
- * (another user's) is not listed; neither is a chat's CLI, which {@link claudioChildren} finds.
- */
-export function agentRunProcesses(): number[] {
-  let names: string[];
-  try {
-    names = readdirSync('/proc');
-  } catch {
-    return [];
-  }
-  const found: number[] = [];
-  for (const name of names) {
-    if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
-    try {
-      const environ = readFileSync(`/proc/${name}/environ`, 'utf8').split('\0');
-      if (environ.some((entry) => entry.startsWith(`${AGENT_RUN_ENV}=`))) found.push(Number(name));
-    } catch {
-      // gone, or not ours to read
-    }
-  }
-  return found;
-}
-
 /** One CLI process as its own record says, the shape `claude agents --json` lists. */
 export interface CliSessionRecord {
   pid: number;

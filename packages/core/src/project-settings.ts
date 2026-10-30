@@ -21,7 +21,7 @@ import type {
   WorkItemStatus,
   WorkItemType,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, isTeamCommandPattern, isTeamToolName, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, isRecord, isTeamCommandPattern, isTeamToolName, MAX_CHECKS_FIX_ATTEMPTS, MAX_FLOW_COST_USD, MAX_FLOW_PARALLEL, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, PROJECT_MODULES, PROJECT_TEMPLATE_IDS, WORK_ITEM_KEY_PREFIX_PATTERN, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import { parseProjectDecisions } from './decisions/settings.ts';
 import { parseGuardOverride } from './guards/settings.ts';
@@ -63,7 +63,6 @@ const GITHUB_REPO = new RegExp(`^${REPO_SEGMENT}/${REPO_SEGMENT}$`);
 const GITLAB_REPO = new RegExp(`^${REPO_SEGMENT}(?:/${REPO_SEGMENT})+$`);
 const AGENT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const isModule = (value: unknown): value is ProjectModule => (PROJECT_MODULES as readonly unknown[]).includes(value);
 const isTemplateId = (value: unknown): value is ProjectTemplateId => (PROJECT_TEMPLATE_IDS as readonly unknown[]).includes(value);
 const isType = (value: unknown): value is WorkItemType => (WORK_ITEM_TYPES as readonly unknown[]).includes(value);
@@ -173,7 +172,7 @@ function relativePath(value: unknown, field: string): string {
 }
 
 function parseBoard(value: unknown): BoardSettings {
-  if (!isObject(value)) throw new Error('board must be an object');
+  if (!isRecord(value)) throw new Error('board must be an object');
   if (!Array.isArray(value.types) || value.types.length === 0) throw new Error('board.types must list at least one type');
   const types: WorkItemType[] = [];
   for (const t of value.types) {
@@ -181,7 +180,7 @@ function parseBoard(value: unknown): BoardSettings {
     if (!types.includes(t)) types.push(t);
   }
   const limits = value.columnLimits ?? {};
-  if (!isObject(limits)) throw new Error('board.columnLimits must be an object');
+  if (!isRecord(limits)) throw new Error('board.columnLimits must be an object');
   const columnLimits: BoardSettings['columnLimits'] = {};
   for (const [column, limit] of Object.entries(limits)) {
     if (!isStatus(column)) throw new Error(`unknown column ${column}; expected one of ${WORK_ITEM_STATUSES.join(', ')}`);
@@ -196,10 +195,10 @@ function parseBoard(value: unknown): BoardSettings {
 }
 
 export function parseTeam(value: unknown): ProjectTeamSettings {
-  if (!isObject(value) || !Array.isArray(value.members)) throw new Error('team.members must be an array');
+  if (!isRecord(value) || !Array.isArray(value.members)) throw new Error('team.members must be an array');
   if (value.members.length > MAX_TEAM) throw new Error(`team has more than ${MAX_TEAM} members`);
   const members = value.members.map((raw: unknown, i): ProjectTeamMember => {
-    if (!isObject(raw)) throw new Error(`team member ${i} must be an object`);
+    if (!isRecord(raw)) throw new Error(`team member ${i} must be an object`);
     const agent = text(raw.agent, `team member ${i} agent`, 64);
     if (!AGENT_NAME.test(agent)) throw new Error(`team member ${i} agent must be an agent file name without .md`);
     const member: ProjectTeamMember = {
@@ -240,10 +239,10 @@ export function parseTeam(value: unknown): ProjectTeamSettings {
 }
 
 function parseFlow(value: unknown): ProjectFlowSettings {
-  if (!isObject(value)) throw new Error('flow must be an object');
+  if (!isRecord(value)) throw new Error('flow must be an object');
   if (typeof value.enabled !== 'boolean') throw new Error('flow.enabled must be a boolean');
   const raw = value.columns ?? {};
-  if (!isObject(raw)) throw new Error('flow.columns must be an object');
+  if (!isRecord(raw)) throw new Error('flow.columns must be an object');
   const columns: ProjectFlowSettings['columns'] = {};
   for (const [column, role] of Object.entries(raw)) {
     if (!isStatus(column)) throw new Error(`unknown column ${column}; expected one of ${WORK_ITEM_STATUSES.join(', ')}`);
@@ -288,7 +287,7 @@ function parseFlow(value: unknown): ProjectFlowSettings {
   }
   // Per-stage guard overrides; an empty stage says nothing, so it is not kept
   if (value.guards !== undefined && value.guards !== null) {
-    if (!isObject(value.guards)) throw new Error('flow.guards must be an object');
+    if (!isRecord(value.guards)) throw new Error('flow.guards must be an object');
     const guards: NonNullable<ProjectFlowSettings['guards']> = {};
     for (const [stage, override] of Object.entries(value.guards)) {
       if (stage !== 'refine' && stage !== 'work' && stage !== 'verify') throw new Error(`flow.guards.${stage} is not a flow stage; known are refine, work, verify`);
@@ -301,13 +300,13 @@ function parseFlow(value: unknown): ProjectFlowSettings {
 }
 
 function parseGuards(value: unknown): ProjectGuardSettings {
-  if (!isObject(value)) throw new Error('guards must be an object');
+  if (!isRecord(value)) throw new Error('guards must be an object');
   if (typeof value.chats !== 'boolean') throw new Error('guards.chats must be true or false');
   return { chats: value.chats };
 }
 
 function parseDocuments(value: unknown): ProjectDocumentsSettings {
-  if (!isObject(value)) throw new Error('documents must be an object');
+  if (!isRecord(value)) throw new Error('documents must be an object');
   return { path: relativePath(value.path, 'documents.path') };
 }
 
@@ -317,7 +316,7 @@ function parseDocuments(value: unknown): ProjectDocumentsSettings {
  * short name, which its adapter checks. GitHub and GitLab sync only `done`, as a close.
  */
 function parseTracker(value: unknown): ProjectTrackerSettings {
-  if (!isObject(value)) throw new Error('tracker must be an object');
+  if (!isRecord(value)) throw new Error('tracker must be an object');
   const { id } = value;
   if (!isTrackerId(id)) throw new Error(`unknown tracker ${String(id)}; expected one of ${TRACKER_IDS.join(', ')}`);
   const scope = text(value.scope, 'tracker.scope', MAX_SHORT);
@@ -329,7 +328,7 @@ function parseTracker(value: unknown): ProjectTrackerSettings {
   if (typeof query !== 'string') throw new Error('tracker.query must be a string');
   if (query.length > MAX_TRACKER_QUERY) throw new Error(`tracker.query is longer than ${MAX_TRACKER_QUERY} characters`);
   const raw = value.statusMap ?? {};
-  if (!isObject(raw)) throw new Error('tracker.statusMap must be an object');
+  if (!isRecord(raw)) throw new Error('tracker.statusMap must be an object');
   const statusMap: ProjectTrackerSettings['statusMap'] = {};
   for (const [column, status] of Object.entries(raw)) {
     if (!(TRACKER_MAPPED as readonly string[]).includes(column)) {
@@ -352,7 +351,7 @@ function parseTracker(value: unknown): ProjectTrackerSettings {
  * so nothing is filled in here. The `order` an old file may hold is dropped: there is one provider.
  */
 function parseProviders(value: unknown): ProjectProvidersSettings {
-  if (!isObject(value)) throw new Error('providers must be an object');
+  if (!isRecord(value)) throw new Error('providers must be an object');
   const result: ProjectProvidersSettings = {};
   if (value.onLimit !== undefined && value.onLimit !== null) {
     const onLimit = parseOnLimit(value.onLimit, 'providers.onLimit');
@@ -367,7 +366,7 @@ function parseProviders(value: unknown): ProjectProvidersSettings {
  * since the team, the flow and the Documents module read them as stored. Unknown fields are dropped.
  */
 export function parseProjectSettings(input: unknown): ProjectSettings {
-  if (!isObject(input)) throw new Error('project settings must be a JSON object');
+  if (!isRecord(input)) throw new Error('project settings must be a JSON object');
   const settings: ProjectSettings = {
     modules: parseModules(input.modules),
     template: input.template === undefined || input.template === null ? null : parseTemplateId(input.template),
@@ -407,7 +406,7 @@ const REMOTE_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
  * document that stores either kind.
  */
 export function parseSharing(value: unknown): ProjectSharingSettings {
-  if (!isObject(value)) throw new Error('sharing must be an object');
+  if (!isRecord(value)) throw new Error('sharing must be an object');
   if (!Array.isArray(value.groups)) throw new Error('sharing.groups must be a list');
   if (value.groups.length > MAX_SHARE_GROUPS) throw new Error(`sharing.groups has at most ${String(MAX_SHARE_GROUPS)} groups`);
   const groups: string[] = [];
@@ -453,7 +452,7 @@ export class ShareKeyInUse extends Error {
 
 /** The three delivery switches: a missing one is on, and one that is not true or false is refused */
 function parseLessons(value: unknown): ProjectLessonsSettings {
-  if (!isObject(value)) throw new Error('lessons must be an object');
+  if (!isRecord(value)) throw new Error('lessons must be an object');
   const flag = (field: 'deliverToChats' | 'deliverToWorkers' | 'useGlobal'): boolean => {
     const v = value[field];
     if (v === undefined) return true;
@@ -469,7 +468,7 @@ function parseLessons(value: unknown): ProjectLessonsSettings {
  * bad limit does not also switch the modules off.
  */
 function sanitizeSettings(value: unknown, fallbackPrefix: string): ProjectSettings {
-  const raw = isObject(value) ? value : {};
+  const raw = isRecord(value) ? value : {};
   const attempt = <T>(parse: () => T, fallback: T): T => {
     try {
       return parse();
@@ -526,7 +525,7 @@ export interface SettingsDoc {
 
 function repoOfDoc(raw: Record<string, unknown>): SettingsDoc['repo'] {
   const repo = raw.repo;
-  if (!isObject(repo) || typeof repo.commonDir !== 'string' || !repo.commonDir || typeof repo.subdir !== 'string') return null;
+  if (!isRecord(repo) || typeof repo.commonDir !== 'string' || !repo.commonDir || typeof repo.subdir !== 'string') return null;
   return { commonDir: repo.commonDir, subdir: repo.subdir };
 }
 
@@ -591,7 +590,7 @@ export class ProjectSettingsStore {
     if (!existsSync(file)) return null;
     try {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as unknown;
-      if (!isObject(raw)) return { projectId, path: '', repo: null, settings: null };
+      if (!isRecord(raw)) return { projectId, path: '', repo: null, settings: null };
       return { projectId, path: typeof raw.path === 'string' ? raw.path : '', repo: repoOfDoc(raw), settings: raw.settings };
     } catch {
       return { projectId, path: '', repo: null, settings: null };
@@ -623,7 +622,7 @@ export class ProjectSettingsStore {
   }
 
   private prefixOf(doc: SettingsDoc): string | null {
-    const prefix = isObject(doc.settings) ? doc.settings.keyPrefix : null;
+    const prefix = isRecord(doc.settings) ? doc.settings.keyPrefix : null;
     return typeof prefix === 'string' && WORK_ITEM_KEY_PREFIX_PATTERN.test(prefix) ? prefix : null;
   }
 
@@ -735,7 +734,7 @@ export class ProjectSettingsStore {
     }
     // A clash is repaired on disk, and only the prefix changes there, so nothing the file holds that
     // this version does not read is lost. Anything else unusable is answered in memory only
-    const persist = stored && isObject(doc.settings) ? { ...doc.settings, keyPrefix: prefix } : null;
+    const persist = stored && isRecord(doc.settings) ? { ...doc.settings, keyPrefix: prefix } : null;
     return { settings: { ...sanitizeSettings(doc.settings, prefix), keyPrefix: prefix }, persist };
   }
 
@@ -746,7 +745,7 @@ export class ProjectSettingsStore {
         throw new Error(`key ${settings.keyPrefix} is already used by another project`);
       }
       const before = this.docOf(project.id)?.settings;
-      this.checkShareKey(project.id, isObject(before) ? shareKeyIn(before) : null, settings.sharing?.shareKey ?? null, active);
+      this.checkShareKey(project.id, isRecord(before) ? shareKeyIn(before) : null, settings.sharing?.shareKey ?? null, active);
       await this.writeDoc(project, settings);
     });
   }
@@ -775,7 +774,7 @@ export class ProjectSettingsStore {
       if (!settingsChanges(current, after).length) return { before: current, after: current };
       const raw = this.docOf(project.id)?.settings;
       // A file that does not parse has no part worth keeping: the whole document is written
-      if (!isObject(raw)) {
+      if (!isRecord(raw)) {
         await this.writeDoc(project, after);
         return { before: current, after };
       }
@@ -813,7 +812,7 @@ export class ProjectSettingsStore {
           ...(modules ? { modules: normalizeModules(modules) } : {}),
           ...(setup.template ? { template: setup.template } : {}),
         };
-        await this.writeDoc(project, { ...(isObject(existing.settings) ? existing.settings : {}), ...overrides });
+        await this.writeDoc(project, { ...(isRecord(existing.settings) ? existing.settings : {}), ...overrides });
         return { settings: { ...sanitizeSettings(existing.settings, prefix), ...overrides }, previous };
       }
       const settings = settingsFromTemplate(
@@ -849,7 +848,7 @@ export class ProjectSettingsStore {
       active.find((p) => {
         if (p.id === projectId) return false;
         const settings = this.docOf(p.id)?.settings;
-        return isObject(settings) && shareKeyIn(settings) === shareKey;
+        return isRecord(settings) && shareKeyIn(settings) === shareKey;
       }) ?? null
     );
   }

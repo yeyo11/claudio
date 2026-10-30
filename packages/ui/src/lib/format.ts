@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { intlLocale } from '../i18n/language';
+import { errorMessage as baseErrorMessage } from '@claudio/shared';
 
 // Everything here follows the active UI language through Intl. The English output is the text
 // these helpers produced by hand before (5s ago, 2h 5m, $0.12, 1.5 KB), which the e2e specs and
@@ -191,13 +192,15 @@ export function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+/**
+ * What an error says to a person: the shared {@link baseErrorMessage}, with the `detail` an API
+ * error carries after it; empty when nothing was thrown.
+ */
 export function errorMessage(error: unknown): string {
   if (!error) return '';
-  if (error instanceof Error) {
-    const detail = (error as { detail?: unknown }).detail;
-    return typeof detail === 'string' && detail ? `${error.message} — ${detail}` : error.message;
-  }
-  return String(error);
+  const detail = error instanceof Error ? (error as { detail?: unknown }).detail : undefined;
+  const message = baseErrorMessage(error);
+  return typeof detail === 'string' && detail ? `${message} — ${detail}` : message;
 }
 
 /**

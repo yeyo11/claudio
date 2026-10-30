@@ -1,3 +1,4 @@
+import { errorMessage } from '@claudio/shared';
 /** Exit codes of `claudio` (docs/plans/headless-image.md, "The claudio command"). */
 export const EXIT = { ok: 0, failed: 1, usage: 2 } as const;
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
@@ -83,5 +84,5 @@ function reason(err: unknown): string {
   const cause = err instanceof Error ? err.cause : undefined;
   if (cause && typeof cause === 'object' && 'code' in cause && typeof cause.code === 'string') return cause.code;
   if (cause instanceof Error) return cause.message;
-  return err instanceof Error ? err.message : String(err);
+  return errorMessage(err);
 }

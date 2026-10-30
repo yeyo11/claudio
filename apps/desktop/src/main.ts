@@ -54,6 +54,7 @@ import {
   type UpdateState,
 } from './updater.ts';
 import { restoreWindowState } from './window-state.ts';
+import { errorMessage } from '@claudio/shared';
 
 const isDev = !app.isPackaged || process.argv.includes('--dev');
 
@@ -179,7 +180,7 @@ async function runServer(): Promise<void> {
     mkdirSync(workspaceDir, { recursive: true });
     PATH = await resolveUserPath();
   } catch (err) {
-    showError('Claudio could not start its server', err instanceof Error ? err.message : String(err));
+    showError('Claudio could not start its server', errorMessage(err));
     return;
   }
   const host = new PayloadHost({
@@ -730,7 +731,7 @@ async function switchToAppImage(request: InstallRequest): Promise<InstallAnswer>
     desktopLog.line(`switching to the AppImage ${version}`);
     await downloadTo(`${RELEASE_DOWNLOADS}/v${version}/${packageFileName(version, 'appimage')}`, file);
   } catch (err) {
-    return failed('fetch-failed', err instanceof Error ? err.message : String(err));
+    return failed('fetch-failed', errorMessage(err));
   }
   const res = resolveResources();
   const checked = await verifyDownload({ version, kind: 'appimage', file, keys: loadKeys(res.keysDir), running: app.getVersion(), allowSame: true });
@@ -738,7 +739,7 @@ async function switchToAppImage(request: InstallRequest): Promise<InstallAnswer>
   try {
     installAppImage(file, paths, res.icon, (line) => desktopLog.line(line));
   } catch (err) {
-    return failed('other', err instanceof Error ? err.message : String(err));
+    return failed('other', errorMessage(err));
   }
   void (async () => {
     await stopServer();
@@ -933,7 +934,7 @@ if (!app.requestSingleInstanceLock()) {
       redrawTray();
     } catch (err) {
       // A desktop without a status area is no reason to fail: the window still has everything
-      desktopLog.line(`no tray: ${err instanceof Error ? err.message : String(err)}`);
+      desktopLog.line(`no tray: ${errorMessage(err)}`);
     }
   });
 }

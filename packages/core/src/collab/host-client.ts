@@ -7,6 +7,7 @@ import type { CollaboratorsUnavailableCode } from '@claudio/shared';
 import { IROH_MODULE_ENV, type CoreToHost, type HostStartOptions, type HostTarget, type HostToCore } from './host/protocol.ts';
 import type { ReplySink } from './serve.ts';
 import type { WireReply } from './wire.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The core's side of the Collaborators host (docs/plans/collaborators.md §3.2): forks
@@ -472,7 +473,7 @@ export class CollabHost {
     };
     void this.opts
       .serve(from, frame, sink)
-      .catch((error: unknown) => this.opts.listener?.log?.(`collab: serving ${from.slice(0, 10)} failed: ${error instanceof Error ? error.message : String(error)}`))
+      .catch((error: unknown) => this.opts.listener?.log?.(`collab: serving ${from.slice(0, 10)} failed: ${errorMessage(error)}`))
       .finally(() => {
         if (this.incoming.get(stream) !== controller) return;
         this.incoming.delete(stream);

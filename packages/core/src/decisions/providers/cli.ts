@@ -14,9 +14,6 @@ import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engin
 /** The part of the chat runtime this provider drives; the tests hand it the real one over a fake CLI */
 export type CliRuntime = OneShotRuntime;
 
-/** What a decision chat may do: nothing. The same policy every one-shot chat runs under. */
-export const DECISION_POLICY: ToolPolicy = NO_TOOLS_POLICY;
-
 /** Where the chat runs: the provider, and the model and effort it is started with */
 export interface CliRoute {
   provider: ProviderId;

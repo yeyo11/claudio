@@ -1,72 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
-import {
-  EFFORT_LEVELS,
-  entrySearchText,
-  isEffort,
-  recommendedEffort,
-  searchPattern,
-  TranscriptSearch,
-  TRANSCRIPT_PAGE_MAX,
-  runsElapsedMs,
-  type AgentTranscript,
-  type ClaudioAssistantMarker,
-  type BackgroundTaskOutput,
-  type CancelCommandRequest,
-  type CancelCommandResult,
-  type Chat,
-  type ChatBackgroundTaskEntry,
-  type AgentReadScope,
-  type ChatCompactAvailability,
-  type ChatControl,
-  type ChatDetail,
-  type ChatEnvironment,
-  type ChatInterruptRequest,
-  type ChatMessageReceipt,
-  type ChatMessageRequest,
-  type ChatMessageResponse,
-  type ChatOrchestration,
-  type OrchestrationChatRole,
-  type ChatOrigin,
-  type ChatProject,
-  type ChatRef,
-  type ChatSettingsUpdate,
-  type ChatState,
-  type ChatSubagentEntry,
-  type ChatMcpServers,
-  type ChatSummary,
-  type ChatWorkflowEntry,
-  type ChatWorktree,
-  type ChatExport,
-  type Execution,
-  type ChatStartOptions,
-  type ChatToolConfig,
-  type ToolPolicy,
-  type ToolPreset,
-  type ApiChatPolicy,
-  type ProjectProvidersSettings,
-  type ProviderMove,
-  type ProviderMoveDecider,
-  type ProviderMoveSubjectKind,
-  type ProviderStatus,
-  type ProvidersSettings,
-  type EditStep,
-  type ForkChatRequest,
-  type ProviderCapability,
-  type ModelOption,
-  type ProviderId,
-  type ChatMessageSource,
-  type NewChatRequest,
-  type ResumeChatRequest,
-  type RunEvent,
-  type TranscriptEntry,
-  type TranscriptSearchResult,
-  type UsageBreakdown,
-  type UsageBucket,
-  type UsageReport,
-  type UsageSeries,
-} from '@claudio/shared';
+import { EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
@@ -155,7 +90,7 @@ export class ChatStartError extends Error {
  */
 export function startFailure(err: unknown): Error {
   if (err instanceof Error && typeof (err as { statusCode?: unknown }).statusCode === 'number') return err;
-  const message = err instanceof Error ? err.message : String(err);
+  const message = errorMessage(err);
   return new ChatStartError(`the chat could not start: ${message}`, { cause: err });
 }
 
@@ -1199,7 +1134,7 @@ export class ChatService {
     try {
       cancelled = this.deps.runtime.cancelCommand(id, toolUseId);
     } catch (err) {
-      throw new ChatConflictError(err instanceof Error ? err.message : String(err), null);
+      throw new ChatConflictError(errorMessage(err), null);
     }
     const reason = request?.reason?.trim();
     const byPerson = (opts.source ?? 'person') === 'person';

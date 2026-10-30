@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AccountCliUsage, AccountLimit, ProviderLimitState, RateLimitWindow, ScopedRateLimit } from '@claudio/shared';
-import { isRecord, writeAtomic } from './fs.ts';
+import { writeAtomic } from './fs.ts';
 import { EXHAUSTED, NEAR } from './thresholds.ts';
+import { isRecord } from '@claudio/shared';
 
 /** What one source saw of one account, before it is folded into an {@link AccountLimit}. */
 export interface Reading {

@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type { LoginSession, SetupState, SignOutResult } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
-const notFound = (id: string): Error => Object.assign(new Error(`sign-in ${id} not found`), { statusCode: 404 });
+const notFound = (id: string): Error => Object.assign(new NotFoundError(`sign-in ${id} not found`), { statusCode: 404 });
 
 /**
  * The first setup (docs/setup.md): what is done and what is not, and the sign-ins that do the rest.

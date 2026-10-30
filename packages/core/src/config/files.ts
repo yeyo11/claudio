@@ -4,11 +4,19 @@ import { dirname } from 'node:path';
 import type { ConfigFileVariant, InstructionsDoc, SettingsDoc } from '@claudio/shared';
 import { restoreSecrets } from '../security/redact.ts';
 import { instructionsPath, settingsPath, type ConfigScope } from './scope.ts';
+import { isRecord } from '@claudio/shared';
 
-export async function readJson(file: string): Promise<Record<string, unknown>> {
-  if (!existsSync(file)) return {};
+/**
+ * A JSON object file: null when it does not exist or is empty. Throws when it holds something that
+ * is not a JSON object, so a config the CLI cannot read either is reported rather than overwritten.
+ */
+export async function readJson(file: string): Promise<Record<string, unknown> | null> {
+  if (!existsSync(file)) return null;
   const text = await readFile(file, 'utf8');
-  return text.trim() ? (JSON.parse(text) as Record<string, unknown>) : {};
+  if (!text.trim()) return null;
+  const value: unknown = JSON.parse(text);
+  if (!isRecord(value)) throw new Error(`${file} does not hold a JSON object`);
+  return value;
 }
 
 /**
@@ -27,7 +35,7 @@ export async function writeAtomic(file: string, content: string, mode?: number):
 export class SettingsFiles {
   async getSettings(scope: ConfigScope, variant: ConfigFileVariant = 'shared'): Promise<SettingsDoc> {
     const path = settingsPath(scope, variant);
-    return { path, exists: existsSync(path), settings: await readJson(path) };
+    return { path, exists: existsSync(path), settings: (await readJson(path)) ?? {} };
   }
 
   async setSettings(scope: ConfigScope, variant: ConfigFileVariant, settings: unknown): Promise<SettingsDoc> {
@@ -37,7 +45,7 @@ export class SettingsFiles {
     // `env` holds credentials the CLI passes to every process, and the API returns a placeholder
     // for each one; a write that sends the placeholder back keeps what is on disk.
     const path = settingsPath(scope, variant);
-    const merged = restoreSecrets(settings as Record<string, unknown>, await readJson(path));
+    const merged = restoreSecrets(settings as Record<string, unknown>, (await readJson(path)) ?? {});
     await writeAtomic(path, `${JSON.stringify(merged, null, 2)}\n`);
     return this.getSettings(scope, variant);
   }

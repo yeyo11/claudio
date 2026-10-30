@@ -11,6 +11,7 @@ import type { WireReply } from '../src/collab/wire.ts';
 import { CollabStore, Db } from '../src/db.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
 import { tempConfig } from './helpers.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 /*
  * How a join that will not be signed ends (docs/collaborators.md, joins): the owner denies it, and the
@@ -209,7 +210,6 @@ async function until<T>(what: string, probe: () => T | null | undefined | false 
   }
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function on(i: Install): Promise<void> {
   await i.service.update({ enabled: true, displayName: i.name });

@@ -9658,9 +9658,6 @@ export interface StreamResyncEvent {
   reason: 'buffer-overflow' | 'server-restarted';
 }
 
-/** Names of the SSE `event:` lines the feed uses besides the ones of {@link ClaudioEventType}. */
-export type StreamControlEventType = StreamHelloEvent['type'] | StreamResyncEvent['type'];
-
 // ---------- Decision engine ----------
 
 /** The three typed questions, named as Jev names them: a choice, a score on a rubric, a yes/no. */

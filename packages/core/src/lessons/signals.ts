@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { normalizeMessage, type DecisionMode, type LessonSignalKind, type PermissionDecision, type PermissionRequest, type TranscriptEntry } from '@claudio/shared';
+import { asRecord, normalizeMessage, type DecisionMode, type LessonSignalKind, type PermissionDecision, type PermissionRequest, type TranscriptEntry } from '@claudio/shared';
 import { RESUME_PROMPT } from '../assistant-answer.ts';
 import { CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX } from '../chat-service.ts';
 import type { Db } from '../db.ts';
@@ -161,7 +161,6 @@ export function emptyCorrections(): CorrectionState {
   };
 }
 
-const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 /**
@@ -309,12 +308,6 @@ export const CORRECTION_FOLD: JsonlFold<CorrectionState> = {
   }),
   add: (state, line: JsonLine) => addCorrectionEntry(state, normalizeMessage(line)),
 };
-
-export function correctionsFromEntries(entries: Iterable<TranscriptEntry>): CorrectionState {
-  const state = emptyCorrections();
-  for (const entry of entries) addCorrectionEntry(state, entry);
-  return state;
-}
 
 // ---------- What the fold says ----------
 

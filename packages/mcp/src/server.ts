@@ -6,6 +6,7 @@ import { validate } from './schema.ts';
 import { TOOLS, type Tool } from './tools.ts';
 import { TextResult } from './untrusted.ts';
 import { WRITE_TOOLS } from './write-tools.ts';
+import { errorMessage } from '@claudio/shared';
 
 /** Newest first: the version the client asked for is used when it is in this list */
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const;
@@ -66,7 +67,7 @@ export function createServer(options: { api: ApiClient; version: string; tools?:
       return outcome(result instanceof TextResult ? result.text : render(result, undefined, tool.paging ?? DEFAULT_HINT), false);
     } catch (err) {
       if (err instanceof ApiError) return outcome(`${tool.name} failed: ${err.message}`, true);
-      return outcome(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`, true);
+      return outcome(`${tool.name} failed: ${errorMessage(err)}`, true);
     }
   }
 

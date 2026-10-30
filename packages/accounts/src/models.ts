@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import type { ModelOption, ModelTier } from '@claudio/shared';
 import { controlRequest } from './control.ts';
 import { envFor, type AccountRef } from './env.ts';
-import { isRecord, writeAtomic } from './fs.ts';
+import { writeAtomic } from './fs.ts';
 import { cliLogin } from './usage.ts';
+import { isRecord } from '@claudio/shared';
 
 /** What `initialize` says about the account besides its models. */
 export interface InitializeAccount {

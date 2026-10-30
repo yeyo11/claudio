@@ -1,5 +1,5 @@
 import { isAbsolute, relative, sep } from 'node:path';
-import { addedDiff, normalizeMessage, toolRisk, unifiedOf, type EditStep, type EditStepTool, type ToolRiskContext, type TranscriptEntry } from '@claudio/shared';
+import { addedDiff, asRecord, normalizeMessage, toolRisk, unifiedOf, type EditStep, type EditStepTool, type ToolRiskContext, type TranscriptEntry } from '@claudio/shared';
 import type { JsonlFold } from './jsonl-cache.ts';
 import type { JsonLine } from './transcript-index.ts';
 
@@ -36,7 +36,6 @@ export interface EditStepsState {
   results: Map<string, StepResult>;
 }
 
-const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 function clip(text: string): string | null {

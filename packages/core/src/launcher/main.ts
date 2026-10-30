@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { NODE_FILES, TRIAL_MS, run, type Boot, type Running } from './machine.ts';
 import { installProcessGuards } from './process-guards.ts';
 import { VERSION, compareVersions, imageBase, loadKeys, readImageInfo, withServerThreadpool, type ImageInfo } from './protocol.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const POLL_MS = 1000;
 
@@ -26,7 +27,6 @@ export interface LauncherOptions {
   log?: (line: string) => void;
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGKILL: 9 } as Record<string, number>;
 
 /** A CLI installed in-app gives way to a newer image's pin, and versions nobody uses go */

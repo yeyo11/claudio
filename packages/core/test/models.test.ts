@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { ModelOption } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { modelNames, modelOptions } from '../src/providers/claude-code/models.ts';
-import { tempConfig } from './helpers.ts';
+import { signInDefault, tempConfig } from './helpers.ts';
 
 // The CLI's `initialize` list is the only model list: what `/model` shows, in its order, with its
 // names. Before it has been read there is no list at all, never one of Claudio's own guesses.
@@ -54,6 +54,8 @@ test('the server reads the list at boot with no account action, and again when t
   process.env.FAKE_CLAUDE_VERSION = '2.1.0 (Claude Code)';
   delete process.env.FAKE_CLAUDE_INIT_MODELS;
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  // The CLI's own login is an account only with a credential (regression audit 2026-10-29, §2.9)
+  signInDefault(config);
   const core = new Core(config);
   try {
     // Whatever moment the overview is read at, it holds the CLI's list or nothing

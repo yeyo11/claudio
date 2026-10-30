@@ -1,4 +1,4 @@
-import type { ProviderLimit, ProviderStatus } from '@claudio/shared';
+import type { AccountInUse, ProviderLimit, ProviderStatus } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { PROVIDERS_SETTINGS_PATH, useEnabledProviders } from '../../lib/provider-status';
@@ -11,7 +11,7 @@ import { resetWhen } from '../../lib/reset-when';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { StatusDot, usageTone, type DotTone } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
-import { accountReading, type AccountInUseView } from '../../lib/accounts';
+import { accountReading } from '../../lib/accounts';
 import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 
 /**
@@ -32,7 +32,7 @@ export function limitDotFacts(status: Pick<ProviderStatus, 'state' | 'reason'>, 
  * "Claude Code · limit reached resets 14:05" at it; "Claude Code · signed out" when it needs a person. The
  * limit is always said in a word beside its colour, and a provider that reports none shows no bar.
  */
-function ProviderDot({ status, limit, account }: { status: ProviderStatus; limit: ProviderLimit | null | undefined; account: AccountInUseView | null }) {
+function ProviderDot({ status, limit, account }: { status: ProviderStatus; limit: ProviderLimit | null | undefined; account: AccountInUse | null }) {
   const { t } = useTranslation('providers');
   const { t: ts } = useTranslation('shell');
   const reason = useProviderReason(status);
@@ -114,7 +114,7 @@ function ProviderDot({ status, limit, account }: { status: ProviderStatus; limit
  * overview's readings, fresher than the ones the statuses carry; `inUse` is the account view's
  * account in use, whose reading Claude Code's dot shows.
  */
-export function ProviderDots({ limits = [], inUse = null }: { limits?: readonly ProviderLimit[]; inUse?: AccountInUseView | null }) {
+export function ProviderDots({ limits = [], inUse = null }: { limits?: readonly ProviderLimit[]; inUse?: AccountInUse | null }) {
   const { t } = useTranslation('providers');
   const { statuses, loading } = useEnabledProviders();
   if (loading)

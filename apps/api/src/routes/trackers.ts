@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type { TrackerStatus, TrackersSettings, YoutrackCredentialsStatus } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 /**
  * The issue trackers Claudio reads and writes through a CLI: what detection found, derived from the
@@ -48,7 +49,7 @@ export const trackerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   app.get<{ Params: { id: string } }>('/trackers/:id', async (req): Promise<TrackerStatus> => {
     const status = (await core.trackers.statuses()).find((s) => s.id === req.params.id);
-    if (!status) throw Object.assign(new Error(`tracker ${req.params.id} not found`), { statusCode: 404 });
+    if (!status) throw Object.assign(new NotFoundError(`tracker ${req.params.id} not found`), { statusCode: 404 });
     return status;
   });
 };

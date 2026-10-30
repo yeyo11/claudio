@@ -4,8 +4,8 @@ import type { CodeHostId, CodeHostsSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { CODE_HOST_MANIFESTS } from './registry.ts';
+import { isRecord } from '@claudio/shared';
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Every host on, searching for its binary: what an absent file reads as. */
 export function defaultCodeHostsSettings(ids: readonly CodeHostId[] = CODE_HOST_MANIFESTS.map((m) => m.id)): CodeHostsSettings {
@@ -52,13 +52,13 @@ export class CodeHostsSettingsStore {
   }
 
   private parse(input: unknown): CodeHostsSettings {
-    if (!isObject(input)) throw new Error('settings must be an object');
+    if (!isRecord(input)) throw new Error('settings must be an object');
     const result = defaultCodeHostsSettings(this.ids);
     if (input.hosts === undefined) return result;
-    if (!isObject(input.hosts)) throw new Error('hosts must be an object');
+    if (!isRecord(input.hosts)) throw new Error('hosts must be an object');
     for (const [id, entry] of Object.entries(input.hosts)) {
       if (!(this.ids as readonly string[]).includes(id)) throw new Error(`hosts key must be one of ${this.ids.join(', ')}`);
-      if (!isObject(entry)) throw new Error(`hosts.${id} must be an object`);
+      if (!isRecord(entry)) throw new Error(`hosts.${id} must be an object`);
       if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') throw new Error(`hosts.${id}.enabled must be a boolean`);
       const path = entry.binaryPath ?? null;
       if (path !== null && (typeof path !== 'string' || path.length > 4096 || !isAbsolute(path))) {

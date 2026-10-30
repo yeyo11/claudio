@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { envFor, type AccountRef } from './env.ts';
-import { isRecord } from './fs.ts';
+import { isRecord } from '@claudio/shared';
 
 export interface ControlOptions {
   claude?: string;

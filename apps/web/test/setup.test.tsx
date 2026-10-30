@@ -12,7 +12,7 @@ import { keys } from '../src/api';
 import { DeviceCode, SignInPanel } from '../src/components/setup/SignInPanel';
 import { SignInSession } from '../src/components/setup/SignInSession';
 import { useConnection } from '../src/components/shell/StatusBar';
-import type { AccountView } from '../src/lib/accounts';
+import type { AccountView } from '@claudio/shared';
 import i18n from '../src/i18n';
 import {
   advance,

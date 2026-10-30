@@ -2,43 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
-import {
-  COLLABORATORS_KINDS,
-  type AgentReadEntry,
-  type AgentReadScope,
-  type CollaboratorsConnection,
-  type CollaboratorsKind,
-  type CollaboratorsPath,
-  type CollaboratorsSettings,
-  type CollaboratorsStatus,
-  type CollaboratorsChangeScope,
-  type Group,
-  type GroupInvite,
-  type GroupList,
-  type GroupMember,
-  type JoinGroupResult,
-  type JoinAnswer,
-  type JoinRequest,
-  type JournalEntry,
-  type Localized,
-  type Milestone,
-  type PeerPresence,
-  type PendingJoin,
-  type PendingJoinState,
-  type ProjectSettings,
-  type ProjectSharing,
-  type ProjectSharingSettings,
-  type SharedArtifact,
-  type SharedBoard,
-  type SharedChat,
-  type SharedDocument,
-  type SharedMemoryFile,
-  type SharedProject,
-  type SharingRemote,
-  type UpdateCollaboratorsRequest,
-  type UpdateProjectSharingRequest,
-  type WorkItemDetail,
-} from '@claudio/shared';
+import { COLLABORATORS_KINDS, errorMessage, isRecord, type AgentReadEntry, type AgentReadScope, type CollaboratorsChangeScope, type CollaboratorsConnection, type CollaboratorsKind, type CollaboratorsPath, type CollaboratorsSettings, type CollaboratorsStatus, type Group, type GroupInvite, type GroupList, type GroupMember, type JoinAnswer, type JoinGroupResult, type JoinRequest, type JournalEntry, type Localized, type Milestone, type PeerPresence, type PendingJoin, type PendingJoinState, type ProjectSettings, type ProjectSharing, type ProjectSharingSettings, type SharedArtifact, type SharedBoard, type SharedChat, type SharedDocument, type SharedMemoryFile, type SharedProject, type SharingRemote, type UpdateCollaboratorsRequest, type UpdateProjectSharingRequest, type WorkItemDetail } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CollabStore } from '../db.ts';
 import type { ClaudioEventInput } from '../events.ts';
@@ -191,7 +155,6 @@ interface PendingLeave {
 
 const now = (): string => new Date().toISOString();
 const short = (id: string): string => id.slice(0, 8);
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function defaultName(): string {
   try {
@@ -406,7 +369,7 @@ export class CollaboratorsService {
     try {
       patch = parseCollaboratorsUpdate(input);
     } catch (error) {
-      throw new CollaboratorsError('invalid', error instanceof Error ? error.message : String(error));
+      throw new CollaboratorsError('invalid', errorMessage(error));
     }
     const { before, after } = await this.settings.update(patch);
     return this.settingsChanged(before, after);
@@ -729,7 +692,7 @@ export class CollaboratorsService {
           if (held && theirs) this.conflicts.set(groupId, { version: held.version, hashes: [headOf([held]).hash, headOf([theirs]).hash].sort() });
           this.changed('roster', groupId);
         }
-        this.log(`collab: a roster from ${this.who(from)} was refused: ${error instanceof Error ? error.message : String(error)}`);
+        this.log(`collab: a roster from ${this.who(from)} was refused: ${errorMessage(error)}`);
         return;
       }
       if (next.length > chain.length) await this.commit(groupId, next);
@@ -789,7 +752,7 @@ export class CollaboratorsService {
       const raw = JSON.parse(readFileSync(this.leavesFile, 'utf8')) as unknown;
       if (!Array.isArray(raw)) return [];
       return raw.flatMap((l: unknown): PendingLeave[] =>
-        isObject(l) && typeof l.groupId === 'string' && typeof l.endpointId === 'string' && typeof l.since === 'string' ? [{ groupId: l.groupId, endpointId: l.endpointId, since: l.since }] : [],
+        isRecord(l) && typeof l.groupId === 'string' && typeof l.endpointId === 'string' && typeof l.since === 'string' ? [{ groupId: l.groupId, endpointId: l.endpointId, since: l.since }] : [],
       );
     } catch {
       return [];
@@ -944,7 +907,7 @@ export class CollaboratorsService {
       const raw = JSON.parse(readFileSync(this.pendingFile, 'utf8')) as unknown;
       if (!Array.isArray(raw)) return [];
       return raw.flatMap((p: unknown): OwnPendingJoin[] => {
-        if (!isObject(p) || !isObject(p.invite) || typeof p.sentAt !== 'string') return [];
+        if (!isRecord(p) || !isRecord(p.invite) || typeof p.sentAt !== 'string') return [];
         try {
           const invite = decodeInvite(encodeInvite(p.invite as unknown as Invite));
           const state = PENDING_STATES.find((s) => s === p.state) ?? 'waiting';
@@ -1040,7 +1003,7 @@ export class CollaboratorsService {
     if (!this.hostStatus) return;
     const me = this.endpointId();
     if (!me) return;
-    await this.sendLeaves().catch((error: unknown) => this.log(`collab: sending the leaves failed: ${error instanceof Error ? error.message : String(error)}`));
+    await this.sendLeaves().catch((error: unknown) => this.log(`collab: sending the leaves failed: ${errorMessage(error)}`));
     for (const p of this.readPending()) {
       if ((p.state ?? 'waiting') !== 'waiting') continue;
       // The join's first attempt still runs: it is not sent a second time beside it
@@ -1071,7 +1034,7 @@ export class CollaboratorsService {
           }
         }
       } catch (error) {
-        this.log(`collab: the join of ${short(p.invite.groupId)} is still waiting: ${error instanceof Error ? error.message : String(error)}`);
+        this.log(`collab: the join of ${short(p.invite.groupId)} is still waiting: ${errorMessage(error)}`);
       }
     }
   }
@@ -1115,7 +1078,7 @@ export class CollaboratorsService {
       leave: async (from, group) => {
         const head = this.chains.get(group.groupId)?.at(-1);
         if (head && head.owner === this.endpointId() && from !== head.owner && isMember(head, from)) {
-          await this.removeMember(group.groupId, from).catch((error: unknown) => this.log(`collab: removing ${this.who(from)} who left failed: ${error instanceof Error ? error.message : String(error)}`));
+          await this.removeMember(group.groupId, from).catch((error: unknown) => this.log(`collab: removing ${this.who(from)} who left failed: ${errorMessage(error)}`));
         }
         return { type: 'ack' };
       },
@@ -1582,7 +1545,7 @@ export class CollaboratorsService {
       return await this.client.blob(owner, share.shareKey, sha256);
     } catch (error) {
       if (error instanceof PeerError && error.code === 'not-found') throw new CollaboratorsError('not-found', 'The owner no longer has it');
-      throw new CollaboratorsError('unreachable', `The owner could not be reached: ${error instanceof Error ? error.message : String(error)}`);
+      throw new CollaboratorsError('unreachable', `The owner could not be reached: ${errorMessage(error)}`);
     }
   }
 

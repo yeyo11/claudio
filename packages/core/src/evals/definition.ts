@@ -1,27 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  EFFORT_LEVELS,
-  EVAL_CALL_SCOPES,
-  EVAL_CASE_ID_PATTERN,
-  EVAL_DIR,
-  EVAL_FILE_VERSIONS,
-  EVAL_KINDS,
-  EVAL_PRESSURES,
-  EVAL_LIMITS,
-  EVAL_NAME_PATTERN,
-  EVAL_OUTCOMES,
-  EVAL_PIN_PATTERN,
-  EVAL_REGEX_FLAGS,
-  EVAL_SCOPES,
-  EVAL_STAGES,
-  EXPECTATION_KINDS,
-  EXPECTATION_KINDS_V2,
-  type EvalDefinition,
-  type EvalFile,
-  type EvalTarget,
-} from '@claudio/shared';
+import { EFFORT_LEVELS, EVAL_CALL_SCOPES, EVAL_CASE_ID_PATTERN, EVAL_DIR, EVAL_FILE_VERSIONS, EVAL_KINDS, EVAL_LIMITS, EVAL_NAME_PATTERN, EVAL_OUTCOMES, EVAL_PIN_PATTERN, EVAL_PRESSURES, EVAL_REGEX_FLAGS, EVAL_SCOPES, EVAL_STAGES, EXPECTATION_KINDS, EXPECTATION_KINDS_V2, isRecord, type EvalDefinition, type EvalFile, type EvalTarget } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import { resourcePath } from '../config/resources.ts';
 import { instructionsPath, projectScope, userScope, type ConfigScope } from '../config/scope.ts';
@@ -66,11 +46,10 @@ class Problems {
   }
 }
 
-const isObject = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
 const at = (path: string, key: string): string => (path ? `${path}.${key}` : key);
 
 function object(p: Problems, value: unknown, path: string, keys: readonly string[]): Json | null {
-  if (!isObject(value)) {
+  if (!isRecord(value)) {
     p.add(path, 'must be an object');
     return null;
   }
@@ -179,7 +158,7 @@ function commandRules(p: Problems, value: unknown, path: string): void {
   }
   value.forEach((rule, i) => {
     const at_ = `${path}[${i}]`;
-    if (!isObject(rule)) return p.add(at_, 'must be an object');
+    if (!isRecord(rule)) return p.add(at_, 'must be an object');
     if ('pattern' in rule) {
       object(p, rule, at_, ['pattern']);
       text(p, rule.pattern, at(at_, 'pattern'), 1, 1000);
@@ -196,7 +175,7 @@ function matcher(p: Problems, value: unknown, path: string): void {
     if (!value) p.add(path, 'must not be empty');
     return;
   }
-  if (!isObject(value)) return p.add(path, 'must be a glob string or an object (equals, contains, regex)');
+  if (!isRecord(value)) return p.add(path, 'must be a glob string or an object (equals, contains, regex)');
   const keys = Object.keys(value);
   const form = keys.find((k) => k === 'equals' || k === 'contains' || k === 'regex');
   if (!form) return p.add(path, 'must have one of equals, contains, regex');
@@ -233,7 +212,7 @@ function call(p: Problems, value: unknown, path: string): void {
   if (o.command !== undefined) matcher(p, o.command, at(path, 'command'));
   if (o.path !== undefined) matcher(p, o.path, at(path, 'path'));
   if (o.input !== undefined) {
-    if (!isObject(o.input)) p.add(at(path, 'input'), 'must be an object of field matchers');
+    if (!isRecord(o.input)) p.add(at(path, 'input'), 'must be an object of field matchers');
     else for (const [field, m] of Object.entries(o.input)) matcher(p, m, `${at(path, 'input')}.${field}`);
   }
   if (o.outcome !== undefined) oneOf(p, o.outcome, at(path, 'outcome'), EVAL_OUTCOMES);
@@ -270,7 +249,7 @@ function judged(p: Problems, value: Json, path: string): void {
 }
 
 function expectation(p: Problems, value: unknown, path: string): void {
-  if (!isObject(value)) return p.add(path, 'must be an object');
+  if (!isRecord(value)) return p.add(path, 'must be an object');
   const kind = oneOf(p, value.kind, at(path, 'kind'), p.v2 ? EXPECTATION_KINDS_V2 : EXPECTATION_KINDS);
   if (!kind) return;
   const fields: Record<string, readonly string[]> = {
@@ -366,11 +345,11 @@ function evalCase(p: Problems, value: unknown, path: string, seen: Set<string>):
 /** Every problem of a value as an eval definition, without throwing. Empty means it parses. */
 export function evalDefinitionProblems(value: unknown): string[] {
   const p = new Problems();
-  if (isObject(value) && !(EVAL_FILE_VERSIONS as readonly unknown[]).includes(value.version)) {
+  if (isRecord(value) && !(EVAL_FILE_VERSIONS as readonly unknown[]).includes(value.version)) {
     p.add('version', 'unsupported-version');
     return p.list;
   }
-  p.v2 = isObject(value) && value.version === 2;
+  p.v2 = isRecord(value) && value.version === 2;
   const o = object(p, value, '', p.v2 ? ['version', 'title', 'target', 'runAs', 'pin', 'samples', 'k', 'limits', 'policy', 'setup', 'cases'] : ['version', 'title', 'target', 'runAs', 'pin', 'samples', 'limits', 'policy', 'setup', 'cases']);
   if (!o) return p.list.map((m) => m.replace(/^: /, ''));
   text(p, o.title, 'title', EVAL_LIMITS.titleChars.min, EVAL_LIMITS.titleChars.max);
@@ -596,7 +575,7 @@ export class EvalConsents {
       if (!Array.isArray(doc.consents)) return [];
       return doc.consents.filter(
         (c): c is ConsentEntry =>
-          isObject(c) && typeof c.project === 'string' && typeof c.name === 'string' && typeof c.sha === 'string' && typeof c.grantedAt === 'string',
+          isRecord(c) && typeof c.project === 'string' && typeof c.name === 'string' && typeof c.sha === 'string' && typeof c.grantedAt === 'string',
       );
     } catch {
       return []; // missing or damaged: nothing is consented to, which is the safe reading

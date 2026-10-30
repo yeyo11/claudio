@@ -1,3 +1,4 @@
+import { errorMessage } from '@claudio/shared';
 /** What the sweeper needs to know of a chat */
 export interface RetainedChat {
   id: string;
@@ -73,7 +74,7 @@ export class ChatRetention {
         removed.push(chat.id);
       } catch (error) {
         // A chat that started again since the list was read is kept; the next pass judges it anew
-        this.o.log?.(`retention: chat ${chat.id} was not deleted: ${error instanceof Error ? error.message : String(error)}`);
+        this.o.log?.(`retention: chat ${chat.id} was not deleted: ${errorMessage(error)}`);
       }
     }
     return removed;

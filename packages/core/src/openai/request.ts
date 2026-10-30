@@ -3,6 +3,7 @@ import { sniffMediaType, UPLOAD_LIMITS } from '../uploads.ts';
 import { historyKey, normalizeText, stableStringify, type KeySeed } from './conversation-key.ts';
 import { openAiError, type OpenAiErrorResponse, type OpenAiFailure } from './errors.ts';
 import type { ChatCompletionRequest, ChatMessage, ClientTool, ImageRef, ResponseFormat, ToolCall, ToolChoice, UserPart } from './wire.ts';
+import { errorMessage, isRecord } from '@claudio/shared';
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: OpenAiErrorResponse };
 
@@ -16,9 +17,6 @@ export class Refusal extends Error {
 export const invalid = (message: string, param: string | null = null): Refusal => new Refusal({ kind: 'invalid-request', message, param });
 export const unsupported = (message: string, param: string): Refusal => new Refusal({ kind: 'unsupported-parameter', message, param });
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export const present = (value: unknown): boolean => value !== undefined && value !== null;
 
@@ -523,7 +521,7 @@ export async function uploadImages(images: readonly ImageRef[], uploads: ImageUp
       try {
         bytes = (await uploads.fetch(image.url, maxBytes)).bytes;
       } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
+        const reason = errorMessage(err);
         return { ok: false, error: openAiError({ kind: 'invalid-request', message: `Image ${n} could not be fetched: ${reason}`, param }) };
       }
     }

@@ -11,6 +11,7 @@ import { buildApp } from '../src/app.ts';
 import { ROUTE_DOCS } from '../src/openapi/routes.ts';
 import { transcriptPage } from '../src/routes/collaborators.ts';
 import { AGENT_READABLE } from '../src/security.ts';
+import { errorMessage } from '@claudio/shared';
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -20,7 +21,7 @@ let irohError = '';
 try {
   await import(createRequire(new URL('../../../packages/core/package.json', import.meta.url)).resolve('@number0/iroh'));
 } catch (error) {
-  irohError = error instanceof Error ? error.message : String(error);
+  irohError = errorMessage(error);
 }
 
 interface Wrapper {

@@ -14,6 +14,7 @@ import { loadNodePty } from '../src/terminals/host/pty.ts';
 import { TerminalService, type TerminalClient } from '../src/terminals/service.ts';
 import { TerminalSettingsStore } from '../src/terminals/settings.ts';
 import { TerminalStore } from '../src/terminals/store.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // These run real shells in real PTYs, in a host process of their own: they are skipped where node-pty cannot load
 let ptyAvailable = true;
@@ -24,7 +25,6 @@ try {
 }
 const real = { skip: ptyAvailable ? false : 'node-pty is not loadable here' };
 
-const sleep = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
 const alive = (pid: number): boolean => processEntry(pid) !== null;
 
 async function until(what: string, check: () => boolean, ms = 8000): Promise<void> {

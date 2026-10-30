@@ -100,13 +100,6 @@ export function parseGit(words: readonly GitWord[]): GitCall {
   return call;
 }
 
-/** The directory a git call runs in: `cwd` moved by every `-C`; null when any of them is unknown */
-export function gitDirectory(cwd: string | null, call: GitCall, resolve: (word: GitWord, base: string | null) => string | null): string | null {
-  let dir = cwd;
-  for (const word of call.dirs) dir = resolve(word, dir);
-  return dir;
-}
-
 /** Whether `word` (before any `=value`) is an accepted abbreviation of the long option `full`, at least `min` characters long */
 export function isLongOption(word: string, full: string, min = full.length): boolean {
   if (!word.startsWith('--')) return false;

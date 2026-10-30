@@ -1,6 +1,7 @@
 import type * as IrohModule from '@number0/iroh';
 import { ALPN, ALPN_BYTES, FrameParser, MAX_REPLY_FRAME, MAX_REQUEST_FRAME, PIECE_BYTES, decodeFrameBody, encodeFrame, frameLength, rawLength } from '../wire.ts';
 import type { CoreToHost, HostConnection, HostStartOptions, HostTarget, HostToCore, HostUnavailableCode } from './protocol.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The Collaborators host: the iroh endpoint, in a process of its own (docs/plans/collaborators.md
@@ -40,7 +41,7 @@ const DEFAULT_POLL_MS = 1000;
 const DIAL_TIMEOUT_MS = 20_000;
 
 const hex = (bytes: readonly number[]): string => Buffer.from(bytes).toString('hex');
-const message = (error: unknown): string => (error instanceof Error ? error.message : String(error)).split('\n')[0] ?? '';
+const message = (error: unknown): string => (errorMessage(error)).split('\n')[0] ?? '';
 
 /** A promise from the binding that nobody awaits still must not reject unhandled */
 function quiet(promise: Promise<unknown>): void {

@@ -1,5 +1,6 @@
 import type { SpendCapRefusal } from '@claudio/shared';
 import type { OpenAiErrorBody, OpenAiErrorCode, OpenAiErrorType, RunEndedCode, StartRefusedCode } from './wire.ts';
+import { errorMessage } from '@claudio/shared';
 
 /** A failure as Claudio knows it, before it becomes OpenAI's shape. */
 export type OpenAiFailure =
@@ -121,9 +122,9 @@ export function failureOfThrown(err: unknown): OpenAiFailure {
   if (isSpendCapRefusal(err)) return failureOfSpendCap(err);
   const reason = (err as { reason?: unknown } | null)?.reason;
   const refused = typeof reason === 'string' && Object.hasOwn(START_REFUSED_OF, reason) ? START_REFUSED_OF[reason] : undefined;
-  if (refused) return { kind: 'start-refused', code: refused, message: err instanceof Error ? err.message : String(err) };
+  if (refused) return { kind: 'start-refused', code: refused, message: errorMessage(err) };
   const status = typeof (err as { statusCode?: unknown } | null)?.statusCode === 'number' ? (err as { statusCode: number }).statusCode : 500;
-  const message = err instanceof Error ? err.message : String(err);
+  const message = errorMessage(err);
   if (status === 401) return { kind: 'auth', message };
   if (status === 403) return { kind: 'forbidden', message };
   if (status === 404) return { kind: 'not-found', message };

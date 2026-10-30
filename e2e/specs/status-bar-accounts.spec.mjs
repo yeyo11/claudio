@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 // The status bar and the account view (docs/plans/regression-fixes-2026-10-29.md, C4, report §2.11):
 // the account chip names the account the overview's view says is in use, and a reading another
 // account sent never shows on it. Two token accounts of the fake CLI, one preferred.
@@ -6,7 +7,6 @@
 export const fakeCli = true;
 export const timeout = 60_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async ({ page, api, check }) => {
   const settings = (await api.get('/accounts/settings')).body;

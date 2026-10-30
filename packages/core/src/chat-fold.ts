@@ -453,7 +453,7 @@ function awaitReadBack(host: ChatHost, chat: LiveChat): void {
       chat.pending.delete(message.id);
       chat.lose(message, NOT_READ, 'not-read');
     }
-    if (stale.length) host.persist();
+    if (stale.length) host.persist(chat);
     if (chat.written().length === 0 && chat.status === 'busy') goIdle(chat);
   }, readBackMs());
   chat.settleTimer.unref();

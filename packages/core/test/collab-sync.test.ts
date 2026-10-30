@@ -14,6 +14,7 @@ import { CollabStore, Db } from '../src/db.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
 import type { ProjectRecord } from '../src/projects.ts';
 import { tempConfig } from './helpers.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * Two, then three, installs syncing over real iroh endpoints on the minimal preset (loopback
@@ -27,7 +28,7 @@ let irohError = '';
 try {
   await import('@number0/iroh');
 } catch (error) {
-  irohError = error instanceof Error ? error.message : String(error);
+  irohError = errorMessage(error);
 }
 const needsIroh = irohError ? { skip: `@number0/iroh does not load here: ${irohError}` } : {};
 

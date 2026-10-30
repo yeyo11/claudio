@@ -4,6 +4,7 @@ import type { Core } from '@claudio/core';
 import { projectExportFilename, REVIEW_ROLES, type ReviewRole, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
 import { refuseWeakerProjectSettings } from './guards.ts';
 import type { CandidateKeyRequest, CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 /** The directories the person imported. Nothing here discovers a project: it is added by hand. */
 export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
@@ -43,7 +44,7 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // Which text each reviewer of the review gate runs with: the project's own file or Claudio's built-in
   app.get<{ Params: { id: string } }>('/projects/:id/review-roles', async (req) => {
     const roles = await core.reviewRoles(req.params.id);
-    if (!roles) throw Object.assign(new Error(`project ${req.params.id} not found`), { statusCode: 404 });
+    if (!roles) throw Object.assign(new NotFoundError(`project ${req.params.id} not found`), { statusCode: 404 });
     return roles;
   });
 
@@ -52,7 +53,7 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     const role = REVIEW_ROLES.find((r) => r === req.params.role);
     if (!role) throw Object.assign(new Error(`unknown review role ${req.params.role}`), { statusCode: 404 });
     const written = await core.writeReviewRole(req.params.id, role as ReviewRole);
-    if (!written) throw Object.assign(new Error(`project ${req.params.id} not found`), { statusCode: 404 });
+    if (!written) throw Object.assign(new NotFoundError(`project ${req.params.id} not found`), { statusCode: 404 });
     if (!written.written) throw Object.assign(new Error(`${written.file} exists already: Claudio never overwrites it`), { statusCode: 409, reason: 'role-exists' });
     const info = (await core.reviewRoles(req.params.id))?.find((r) => r.role === role);
     return reply.status(201).send(info);
@@ -63,7 +64,7 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // Whether the project can open pull and merge requests, and where `origin` points
   app.get<{ Params: { id: string } }>('/projects/:id/code-host', async (req) => {
     const host = await core.projectCodeHost(req.params.id);
-    if (!host) throw Object.assign(new Error(`project ${req.params.id} not found`), { statusCode: 404 });
+    if (!host) throw Object.assign(new NotFoundError(`project ${req.params.id} not found`), { statusCode: 404 });
     return host;
   });
 

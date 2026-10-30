@@ -11,6 +11,7 @@ import type { DownloadTuning } from '../src/updates/download.ts';
 import { ServerUpdateRefusal, ServerUpdates } from '../src/updates/server-update.ts';
 import { releaseAssets, signingKey, type SigningKey } from './bundle-helpers.ts';
 import { head, rawServer, writeInPieces, type RawServer } from './raw-http-server.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const FILES = { 'api.mjs': 'export {};\n', 'mcp.mjs': '', 'web/index.html': '<!doctype html>', 'node_modules/node-pty/package.json': '{}' };
 
@@ -129,7 +130,6 @@ function world(
 }
 
 const stateOf = (w: World) => readState(join(w.dataDir, 'app', 'state.json'));
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function refusal(promise: Promise<unknown> | (() => unknown)): Promise<ServerUpdateRefusal> {
   try {

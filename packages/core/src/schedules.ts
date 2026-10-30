@@ -16,7 +16,7 @@ import type {
   UpdateScheduleRequest,
 } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import { withoutWorkItems } from '@claudio/shared';
+import { errorMessage, NotFoundError, withoutWorkItems } from '@claudio/shared';
 import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } from './cron.ts';
 import type { EventBus } from './events.ts';
 import { validateEffort, validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
@@ -261,7 +261,7 @@ export function previewCron(cron: string, timezone?: string, count = 5, now = Da
   try {
     checked(cron, timezone);
   } catch (error) {
-    return { valid: false, error: error instanceof Error ? error.message : String(error), timezone: zone, next: [] };
+    return { valid: false, error: errorMessage(error), timezone: zone, next: [] };
   }
   const spec = parseCron(cron);
   return {
@@ -393,7 +393,7 @@ export class Scheduler {
 
   private find(id: string): StoredSchedule {
     const stored = this.read().find((s) => s.id === id);
-    if (!stored) throw new Error('schedule not found');
+    if (!stored) throw new NotFoundError('schedule not found');
     return stored;
   }
 
@@ -427,7 +427,7 @@ export class Scheduler {
     let action: ScheduleChangeAction = 'updated';
     const updated = await this.mutate((all) => {
       const stored = all.find((s) => s.id === id);
-      if (!stored) throw new Error('schedule not found');
+      if (!stored) throw new NotFoundError('schedule not found');
       let rearm = false;
       if (request.overlap !== undefined) stored.overlap = checkedOverlap(request.overlap);
       if (request.name !== undefined) {
@@ -459,7 +459,7 @@ export class Scheduler {
   async remove(id: string): Promise<void> {
     const removed = await this.mutate((all) => {
       const index = all.findIndex((s) => s.id === id);
-      if (index < 0) throw new Error('schedule not found');
+      if (index < 0) throw new NotFoundError('schedule not found');
       return all.splice(index, 1)[0] as StoredSchedule;
     });
     this.runs.removeAll(id);
@@ -541,7 +541,7 @@ export class Scheduler {
           if (await this.settle(stored, now)) this.changed(stored, 'rescheduled');
         } catch (error) {
           // A schedule whose expression no longer parses must not stop the others, nor fail unseen
-          if (!this.closed) this.failures.failed(new Error(`schedule ${stored.id} (${stored.name}): ${error instanceof Error ? error.message : String(error)}`));
+          if (!this.closed) this.failures.failed(new Error(`schedule ${stored.id} (${stored.name}): ${errorMessage(error)}`));
         }
       }
     } catch (error) {
@@ -578,7 +578,7 @@ export class Scheduler {
         await this.launch(stored, { ...run, at, status: 'started' });
       }
     } catch (error) {
-      if (!this.closed) this.failures.failed(new Error(`draining the queued runs: ${error instanceof Error ? error.message : String(error)}`));
+      if (!this.closed) this.failures.failed(new Error(`draining the queued runs: ${errorMessage(error)}`));
     }
   }
 
@@ -699,7 +699,7 @@ export class Scheduler {
     } catch (error) {
       // Closed while it waited for a place: the run row goes with the store, and nobody is listening
       if (this.closed) return run;
-      const message = isTransientRefusal(error) ? `No place to run came free within ${String(PLACE_WAIT_MS / 60_000)} min: ${error.message}` : error instanceof Error ? error.message : String(error);
+      const message = isTransientRefusal(error) ? `No place to run came free within ${String(PLACE_WAIT_MS / 60_000)} min: ${error.message}` : errorMessage(error);
       this.runs.finish(run.id, { status: 'failed', error: message });
       return this.fired(stored, { ...run, status: 'failed', error: message });
     } finally {

@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { Chat, ChatMessageResponse, ChatSummary } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // The delivery routes of C2 over HTTP (docs/plans/regression-fixes-2026-10-29.md): what waits in a
 // chat says who sent it and which foreground call holds it, a waiting message can be withdrawn, and
@@ -15,7 +16,6 @@ import { buildApp } from '../src/app.ts';
 // which answers `background_tasks` and `cancel_async_message` as the CLI does.
 const FAKE_QUEUE = fileURLToPath(new URL('../../../packages/core/test/fixtures/fake-claude-queue.mjs', import.meta.url));
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let app: FastifyInstance;
 let core: Core;

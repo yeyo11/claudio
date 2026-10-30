@@ -1,7 +1,8 @@
 import type { ApiClient } from './client.ts';
-import { isObj, objs, type Obj } from './fields.ts';
+import { objs, type Obj } from './fields.ts';
 import type { Property } from './schema.ts';
 import { KEY, PAGE_MAX, bool, int, need, num, projectOf, schema, seg, str, text, type Tool } from './tools.ts';
+import { isRecord } from '@claudio/shared';
 
 /**
  * The tools that change something. Each calls routes that already exist and that a chat's own token
@@ -117,7 +118,7 @@ const GRAPH_FIELDS = ['name', 'objective', 'engine', 'model', 'effort', 'concurr
 async function launchSpec(args: Record<string, unknown>, api: ApiClient): Promise<Obj> {
   const planId = text(args, 'fromPlan');
   const draft: Obj = planId ? ((await api.get(`/orchestrations/plans/${seg(planId)}`)) as Obj) : {};
-  if (planId && !isObj(draft)) throw new Error(`the planner chat ${planId} left no draft`);
+  if (planId && !isRecord(draft)) throw new Error(`the planner chat ${planId} left no draft`);
   const tasks = objs(args.tasks ?? draft.tasks).map((task) => only(task, TASK_FIELDS));
   if (!tasks.length) throw new Error('an orchestration needs tasks: pass tasks, or fromPlan with the planner chat id');
   const project = text(args, 'projectId');

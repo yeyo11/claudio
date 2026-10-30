@@ -1,3 +1,4 @@
+import { isRecord } from '@claudio/shared';
 /**
  * What each list tool keeps of the route's answer: the fields a model needs to choose, and the id
  * that fetches the rest. The REST payloads carry what a screen draws (worktrees, environments,
@@ -6,8 +7,7 @@
 
 export type Obj = Record<string, unknown>;
 
-export const isObj = (value: unknown): value is Obj => typeof value === 'object' && value !== null && !Array.isArray(value);
-export const objs = (value: unknown): Obj[] => (Array.isArray(value) ? value.filter(isObj) : []);
+export const objs = (value: unknown): Obj[] => (Array.isArray(value) ? value.filter(isRecord) : []);
 
 /** The listed keys that are present; absent ones and nulls are left out, which costs a model nothing */
 export function pick(source: Obj, keys: readonly string[]): Obj {
@@ -19,24 +19,24 @@ export function pick(source: Obj, keys: readonly string[]): Obj {
   return out;
 }
 
-const keyOf = (ref: unknown): string | undefined => (isObj(ref) && typeof ref.key === 'string' ? ref.key : undefined);
+const keyOf = (ref: unknown): string | undefined => (isRecord(ref) && typeof ref.key === 'string' ? ref.key : undefined);
 
 /** A list the route did not answer in the shape expected goes through untouched rather than being emptied */
-const shaped = (value: unknown, shape: (v: unknown) => unknown): unknown => (Array.isArray(value) || isObj(value) ? shape(value) : value);
+const shaped = (value: unknown, shape: (v: unknown) => unknown): unknown => (Array.isArray(value) || isRecord(value) ? shape(value) : value);
 
 export const projectRows = (value: unknown): unknown =>
   Array.isArray(value) ? objs(value).map((p) => pick(p, ['id', 'name', 'key', 'path', 'modules', 'chatCount', 'lastActivity', 'exists'])) : value;
 
 export const boardRows = (value: unknown): unknown =>
   shaped(value, (board) => {
-    if (!isObj(board) || !Array.isArray(board.columns)) return board;
+    if (!isRecord(board) || !Array.isArray(board.columns)) return board;
     return {
       ...pick(board, ['projectId']),
       columns: objs(board.columns).map((column) => ({
         ...pick(column, ['status', 'count', 'limit', 'overLimit', 'more']),
         items: objs(column.items).map((item) => ({
           ...pick(item, ['key', 'id', 'type', 'title', 'status', 'priority', 'labels', 'hasDescription', 'waiting']),
-          ...(isObj(item.assignee) ? { assignee: item.assignee.role ?? item.assignee.kind } : {}),
+          ...(isRecord(item.assignee) ? { assignee: item.assignee.role ?? item.assignee.kind } : {}),
           ...(keyOf(item.epic) ? { epic: keyOf(item.epic) } : {}),
         })),
       })),
@@ -52,27 +52,27 @@ export const orchestrationRows = (value: unknown): unknown =>
         return {
           ...pick(o, ['id', 'name', 'status', 'createdAt', 'endedAt', 'costUsd', 'cwd', 'error']),
           tasks: { total: tasks.length, ...byStatus },
-          ...(isObj(o.verification) && o.verification.status !== undefined ? { verification: o.verification.status } : {}),
+          ...(isRecord(o.verification) && o.verification.status !== undefined ? { verification: o.verification.status } : {}),
         };
       })
     : value;
 
 export const teamRows = (value: unknown): unknown =>
   shaped(value, (team) => {
-    if (!isObj(team) || !Array.isArray(team.members)) return team;
+    if (!isRecord(team) || !Array.isArray(team.members)) return team;
     return {
       ...pick(team, ['projectId', 'enabled']),
       members: objs(team.members).map((m) => ({
         ...pick(m, ['agent', 'role', 'model', 'responsibility', 'columns', 'queued']),
         running: objs(m.running).map((r) => ({ run: r.id, item: keyOf(r.item) })),
-        ...(isObj(m.lastRun) ? { lastRun: { run: m.lastRun.id, item: keyOf(m.lastRun.item), outcome: m.lastRun.outcome } } : {}),
+        ...(isRecord(m.lastRun) ? { lastRun: { run: m.lastRun.id, item: keyOf(m.lastRun.item), outcome: m.lastRun.outcome } } : {}),
       })),
     };
   });
 
 export const flowRunRows = (value: unknown): unknown =>
   shaped(value, (page) => {
-    if (!isObj(page) || !Array.isArray(page.runs)) return page;
+    if (!isRecord(page) || !Array.isArray(page.runs)) return page;
     return {
       runs: objs(page.runs).map((r) => ({
         ...pick(r, ['id', 'role', 'agent', 'model', 'step', 'state', 'outcome', 'summary', 'error', 'chatId', 'queuedAt', 'endedAt']),
@@ -84,12 +84,12 @@ export const flowRunRows = (value: unknown): unknown =>
 
 export const journalRows = (value: unknown): unknown =>
   shaped(value, (page) => {
-    if (!isObj(page) || !Array.isArray(page.entries)) return page;
+    if (!isRecord(page) || !Array.isArray(page.entries)) return page;
     return {
       entries: objs(page.entries).map((e) => ({
         ...pick(e, ['id', 'kind', 'text', 'documentPath', 'createdAt']),
         ...(keyOf(e.item) ? { item: keyOf(e.item) } : {}),
-        ...(isObj(e.author) ? { author: e.author.role ?? e.author.kind } : {}),
+        ...(isRecord(e.author) ? { author: e.author.role ?? e.author.kind } : {}),
       })),
       ...pick(page, ['total', 'nextBefore']),
     };
@@ -106,13 +106,13 @@ function documentRow(node: Obj, depth: number): Obj {
 
 export const documentRows = (value: unknown, depth = Number.POSITIVE_INFINITY): unknown =>
   shaped(value, (docs) => {
-    if (!isObj(docs) || !Array.isArray(docs.tree)) return docs;
+    if (!isRecord(docs) || !Array.isArray(docs.tree)) return docs;
     return { ...pick(docs, ['root', 'exists', 'fileCount']), tree: objs(docs.tree).map((node) => documentRow(node, depth)) };
   });
 
 /** One page of a document by line: `offset` lines skipped, at most `limit` kept, and where the next page starts */
 export function documentPage(value: unknown, offset: number, limit: number): unknown {
-  if (!isObj(value) || typeof value.content !== 'string') return value;
+  if (!isRecord(value) || typeof value.content !== 'string') return value;
   const lines = value.content.split('\n');
   const from = Math.min(offset, lines.length);
   const to = Math.min(lines.length, from + limit);
@@ -129,9 +129,9 @@ export const chatRows = (value: unknown): unknown =>
   Array.isArray(value)
     ? objs(value).map((c) => ({
         ...pick(c, ['id', 'title', 'state', 'origin', 'model', 'messageCount', 'updatedAt', 'atLimit']),
-        ...(isObj(c.project) ? { project: c.project.name, projectId: c.project.id } : {}),
-        ...(isObj(c.orchestration) ? { orchestration: c.orchestration.id } : {}),
-        ...(isObj(c.cost) && typeof c.cost.usd === 'number' ? { costUsd: c.cost.usd } : {}),
+        ...(isRecord(c.project) ? { project: c.project.name, projectId: c.project.id } : {}),
+        ...(isRecord(c.orchestration) ? { orchestration: c.orchestration.id } : {}),
+        ...(isRecord(c.cost) && typeof c.cost.usd === 'number' ? { costUsd: c.cost.usd } : {}),
       }))
     : value;
 
@@ -139,7 +139,7 @@ export const providerRows = (value: unknown): unknown =>
   Array.isArray(value)
     ? objs(value).map((p) => ({
         ...pick(p, ['id', 'label', 'state', 'reason', 'account', 'version']),
-        ...(isObj(p.limit) ? { limit: pick(p.limit, ['state', 'window', 'utilization', 'resetsAt']) } : {}),
+        ...(isRecord(p.limit) ? { limit: pick(p.limit, ['state', 'window', 'utilization', 'resetsAt']) } : {}),
       }))
     : value;
 
@@ -147,7 +147,7 @@ export const accountRows = (value: unknown): unknown =>
   Array.isArray(value)
     ? objs(value).map((a) => ({
         ...pick(a, ['id', 'kind', 'alias', 'email', 'plan', 'enabled', 'signedIn']),
-        ...(isObj(a.limits) ? { limit: pick(a.limits, ['state', 'window', 'utilization', 'resetsAt', 'observedAt', 'source']) } : {}),
+        ...(isRecord(a.limits) ? { limit: pick(a.limits, ['state', 'window', 'utilization', 'resetsAt', 'observedAt', 'source']) } : {}),
       }))
     : value;
 
@@ -156,7 +156,7 @@ export const milestoneRows = (value: unknown): unknown =>
 
 /** What a proposal is about, in a few words: the member, the resource, the item or the eval case */
 function proposalSubject(p: Obj): string | undefined {
-  const of = (key: string, field: string): string | undefined => (isObj(p[key]) && typeof (p[key] as Obj)[field] === 'string' ? String((p[key] as Obj)[field]) : undefined);
+  const of = (key: string, field: string): string | undefined => (isRecord(p[key]) && typeof (p[key] as Obj)[field] === 'string' ? String((p[key] as Obj)[field]) : undefined);
   return of('member', 'agent') ?? of('resource', 'name') ?? of('workItem', 'title') ?? of('case', 'id');
 }
 
@@ -174,7 +174,7 @@ const clip = (text: string, max: number): string => (text.length > max ? `${text
 function clipped(value: unknown, max: number): unknown {
   if (typeof value === 'string') return clip(value, max);
   if (Array.isArray(value)) return value.map((v) => clipped(v, max));
-  if (isObj(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, clipped(v, max)]));
+  if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, clipped(v, max)]));
   return value;
 }
 
@@ -213,18 +213,18 @@ const count = (value: unknown): number => (Array.isArray(value) ? value.length :
  * chat's page draws (every execution, every child, the environment), most of its weight.
  */
 export function chatView(detail: unknown, permissions: unknown, full: boolean): unknown {
-  if (!isObj(detail) || !isObj(detail.chat)) return detail;
+  if (!isRecord(detail) || !isRecord(detail.chat)) return detail;
   const chat = detail.chat;
-  const children = isObj(chat.children) ? chat.children : {};
+  const children = isRecord(chat.children) ? chat.children : {};
   const branches = [...objs(children.subagents), ...objs(children.backgroundTasks), ...objs(children.workflows)];
   const executions = objs(chat.executions);
   const from = typeof detail.from === 'number' ? detail.from : 0;
   return {
     ...pick(chat, ['id', 'title', 'state', 'model', 'origin', 'alive', 'cwd', 'account', 'atLimit', 'control', 'activity', 'updatedAt']),
-    ...(isObj(chat.project) ? { project: chat.project.name, projectId: chat.project.id } : {}),
-    ...(isObj(chat.orchestration) ? { orchestration: chat.orchestration.id } : {}),
-    ...(isObj(chat.cost) && typeof chat.cost.usd === 'number' ? { costUsd: chat.cost.usd } : {}),
-    ...(isObj(chat.health) ? { health: pick(chat.health, ['level', 'reason']) } : {}),
+    ...(isRecord(chat.project) ? { project: chat.project.name, projectId: chat.project.id } : {}),
+    ...(isRecord(chat.orchestration) ? { orchestration: chat.orchestration.id } : {}),
+    ...(isRecord(chat.cost) && typeof chat.cost.usd === 'number' ? { costUsd: chat.cost.usd } : {}),
+    ...(isRecord(chat.health) ? { health: pick(chat.health, ['level', 'reason']) } : {}),
     ...(count(chat.pending) ? { pendingMessages: count(chat.pending) } : {}),
     children: {
       subagents: count(children.subagents),

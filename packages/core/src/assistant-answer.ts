@@ -1,29 +1,4 @@
-import {
-  ASSISTANT_RESOURCE_KINDS,
-  WORK_ITEM_PRIORITIES,
-  claudioLanguage,
-  effortRecommendation,
-  type ClaudioLanguage,
-  WORK_ITEM_TYPES,
-  EVAL_CASE_ID_PATTERN,
-  EVAL_LIMITS,
-  EXPECTATION_KINDS,
-  assistantResourcePath,
-  rulePathsProblem,
-  type AssistantFinding,
-  type AssistantProposalKind,
-  type AssistantResourceKind,
-  type AssistantRunKind,
-  type EvalCase,
-  type EvalExpectation,
-  type EvalJudgedExpectation,
-  type EvalTarget,
-  type ProjectTeamRole,
-  type ProposedResource,
-  type ProposedTeamMember,
-  type WorkItemPriority,
-  type WorkItemType,
-} from '@claudio/shared';
+import { ASSISTANT_RESOURCE_KINDS, assistantResourcePath, claudioLanguage, effortRecommendation, EVAL_CASE_ID_PATTERN, EVAL_LIMITS, EXPECTATION_KINDS, isRecord, rulePathsProblem, WORK_ITEM_PRIORITIES, WORK_ITEM_TYPES, type AssistantFinding, type AssistantProposalKind, type AssistantResourceKind, type AssistantRunKind, type ClaudioLanguage, type EvalCase, type EvalExpectation, type EvalJudgedExpectation, type EvalTarget, type ProjectTeamRole, type ProposedResource, type ProposedTeamMember, type WorkItemPriority, type WorkItemType } from '@claudio/shared';
 import { evalDefinitionProblems } from './evals/definition.ts';
 import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
 import { MAX_SHORT as MEMBER_SHORT_MAX, MAX_TEXT as MEMBER_TEXT_MAX, RECORDS_IN_ENGLISH, readFrontmatterList, roleTitle } from './team.ts';
@@ -469,7 +444,6 @@ function singular(kind: AssistantResourceKind): string {
   return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : kind === 'rules' ? 'rule' : 'command';
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, max = SHORT_MAX): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 const body = (v: unknown, max: number): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const arrayOf = (v: unknown, max: number): unknown[] => (Array.isArray(v) ? v.slice(0, max) : []);
@@ -514,7 +488,7 @@ function roleId(v: unknown): string | null {
  */
 export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | 'proposes' | 'resourceKind' | 'description' | 'templateTeam'> & Partial<Pick<AssistantBrief, 'optionalTeam' | 'evalFile'>>): AssistantAnswer | null {
   const value = typeof raw === 'string' ? safeJson(raw) : raw;
-  if (!isObject(value)) return null;
+  if (!isRecord(value)) return null;
   const summary = typeof value.summary === 'string' ? value.summary.trim().slice(0, TEXT_MAX) : null;
   if (summary === null) return null;
 
@@ -522,7 +496,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
   if (brief.kind === 'project') {
     const seen = new Set<string>();
     for (const f of arrayOf(value.findings, FINDINGS_MAX * 2)) {
-      if (!isObject(f)) continue;
+      if (!isRecord(f)) continue;
       const label = str(f.label, 60);
       const kind = f.kind === 'gap' ? 'gap' : f.kind === 'stack' ? 'stack' : null;
       if (!label || !kind || seen.has(`${kind}:${label.toLowerCase()}`)) continue;
@@ -534,7 +508,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
 
   const read: AnsweredRead[] = [];
   for (const r of arrayOf(value.read, READ_MAX)) {
-    if (!isObject(r)) continue;
+    if (!isRecord(r)) continue;
     if (r.kind === 'git') read.push({ kind: 'git', path: null });
     else if (r.kind === 'file' || r.kind === 'dir') {
       const path = relPath(r.path);
@@ -548,7 +522,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
     const roles = new Set<string>();
     const agents = new Set<string>();
     for (const m of arrayOf(value.teamMembers, PROPOSALS_MAX * 2)) {
-      if (!isObject(m)) continue;
+      if (!isRecord(m)) continue;
       // Held to the team's own limits, so a proposal is one the team can take as it stands
       const role = roleId(m.role);
       const responsibility = str(m.responsibility, MEMBER_TEXT_MAX);
@@ -580,7 +554,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
     const single = brief.kind === 'resources' && !!brief.description && brief.resourceKind ? brief.resourceKind : null;
     const names = new Set<string>();
     for (const r of arrayOf(value.resources, PROPOSALS_MAX * 2)) {
-      if (!isObject(r)) continue;
+      if (!isRecord(r)) continue;
       const kind = ASSISTANT_RESOURCE_KINDS.find((k) => k === r.kind);
       const rawName = str(r.name, 64)?.replace(/^\//, '').replace(/\.md$/i, '') ?? null;
       const content = body(r.content, CONTENT_MAX);
@@ -612,7 +586,7 @@ export function parseAnswer(raw: unknown, brief: Pick<AssistantBrief, 'kind' | '
   if (brief.proposes.includes('work-item')) {
     const titles = new Set<string>();
     for (const w of arrayOf(value.workItems, PROPOSALS_MAX * 2)) {
-      if (!isObject(w)) continue;
+      if (!isRecord(w)) continue;
       const title = str(w.title, 300);
       if (!title || titles.has(title.toLowerCase())) continue;
       titles.add(title.toLowerCase());
@@ -647,7 +621,7 @@ function parseEvalCases(raw: unknown, taken: ReadonlySet<string>): AnsweredEvalC
   const out: AnsweredEvalCase[] = [];
   const ids = new Set(taken);
   for (const c of arrayOf(raw, EVAL_LIMITS.draftCases * 2)) {
-    if (!isObject(c)) continue;
+    if (!isRecord(c)) continue;
     const id = str(c.id, 48);
     const neutral = str(c.neutral, EVAL_LIMITS.promptChars.max);
     if (!id || !EVAL_CASE_ID_PATTERN.test(id) || ids.has(id) || !neutral) continue;
@@ -656,7 +630,7 @@ function parseEvalCases(raw: unknown, taken: ReadonlySet<string>): AnsweredEvalC
     const deterministic: unknown[] = [];
     const judged: EvalJudgedExpectation[] = [];
     for (const e of arrayOf(c.expect, EVAL_LIMITS.expectPerCase.max)) {
-      if (!isObject(e)) continue;
+      if (!isRecord(e)) continue;
       if (e.kind === 'judged') {
         const statement = str(e.statement, EVAL_LIMITS.judgeStatementChars.max);
         // One judged check per case, and a judge is the last resort: later ones are cut

@@ -1,25 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import {
-  DECISION_POINT_IDS,
-  DEFAULT_GUARD_SETTINGS,
-  guardRuleSettingId,
-  isServerSettingId,
-  pointSettingId,
-  SERVER_SETTING_IDS,
-  type AccountsSettings,
-  type AppSettingValues,
-  type FixedServerSettingId,
-  type GuardSwitchableRuleId,
-  type ProjectSettings,
-  type ServerSettingId,
-  type SettingDefault,
-  type SettingOverrides,
-  type SettingSource,
-  type SettingState,
-  type SettingsState,
-  type TerminalStatus,
-  type TerminalSettings,
-} from '@claudio/shared';
+import { DECISION_POINT_IDS, DEFAULT_GUARD_SETTINGS, guardRuleSettingId, isRecord, isServerSettingId, pointSettingId, SERVER_SETTING_IDS, type AccountsSettings, type AppSettingValues, type FixedServerSettingId, type GuardSwitchableRuleId, type ProjectSettings, type ServerSettingId, type SettingDefault, type SettingOverrides, type SettingSource, type SettingsState, type SettingState, type TerminalSettings, type TerminalStatus } from '@claudio/shared';
 import { DEFAULT_SETTINGS as DEFAULT_ACCOUNTS_SETTINGS, type AccountStore } from '@claudio/accounts';
 import type { AppSettingsStore } from './app-settings.ts';
 import type { CollaboratorsService } from './collab/service.ts';
@@ -107,7 +87,6 @@ export interface SettingsRegistry {
   overrides(): Promise<SettingOverrides>;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** A store's default as the contract types it: plain JSON, copied so nobody changes the store's own */
 const asDefault = (value: unknown): SettingDefault => structuredClone(value) as SettingDefault;
@@ -361,7 +340,7 @@ export function createSettingsRegistry(deps: SettingsRegistryDeps): SettingsRegi
         const decisions = settings.decisions;
         if (decisions?.provider !== undefined && decisions.provider !== 'inherit') add('engine.who-answers', id);
         for (const [point, override] of Object.entries(decisions?.points ?? {})) {
-          if (!(DECISION_POINT_IDS as readonly string[]).includes(point) || !isObject(override)) continue;
+          if (!(DECISION_POINT_IDS as readonly string[]).includes(point) || !isRecord(override)) continue;
           if (override.mode !== undefined || override.threshold !== undefined) add(pointSettingId(point as (typeof DECISION_POINT_IDS)[number]), id);
         }
         const onLimit = settings.providers?.onLimit;

@@ -1,5 +1,6 @@
 import type { LiveMcpServer } from '@claudio/shared';
 import type { McpSetServersResult } from '../driver.ts';
+import { isRecord } from '@claudio/shared';
 
 const STATUSES: ReadonlySet<LiveMcpServer['status']> = new Set(['connected', 'failed', 'needs-auth', 'pending', 'disabled']);
 
@@ -7,7 +8,6 @@ const STATUSES: ReadonlySet<LiveMcpServer['status']> = new Set(['connected', 'fa
 const CONNECTOR_PREFIX = 'claude.ai ';
 const CONNECTOR_SCOPE = 'claudeai';
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
  * The servers in the CLI's answer to `mcp_status`, as the page shows them. Read defensively: the

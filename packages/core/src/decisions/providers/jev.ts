@@ -17,6 +17,7 @@ import {
 import type { DecisionAnswer, DecisionQuestion, DecisionUnavailableReason } from '@claudio/shared';
 import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engine.ts';
 import { JEV_MODEL, JEV_PRICE_USD_PER_INPUT_TOKEN } from '../settings.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 /** The one call the adapter makes; tests stub it instead of the network */
 export interface JevClient {
@@ -111,18 +112,6 @@ export function reasonOf(error: unknown): DecisionUnavailableReason {
 
 const retryable = (error: unknown): boolean => error instanceof RateLimitError || (error instanceof APIError && error.status === 529);
 
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) return resolve();
-    const done = (): void => {
-      clearTimeout(timer);
-      signal.removeEventListener('abort', done);
-      resolve();
-    };
-    const timer = setTimeout(done, ms);
-    signal.addEventListener('abort', done);
-  });
-}
 
 export class JevProvider implements DecisionProvider {
   readonly id = 'jev' as const;
@@ -190,7 +179,7 @@ export class JevProvider implements DecisionProvider {
           const asked = error instanceof RateLimitError ? error.retryAfterMs : undefined;
           const wait = Math.min(asked ?? Infinity, this.opts.backoffMs ?? RETRY_BACKOFF_MS);
           if (opts.deadlineMs - elapsed() > wait) {
-            await sleep(wait, opts.signal);
+            await sleep(wait, undefined, { signal: opts.signal }).catch(() => undefined);
             continue;
           }
         }

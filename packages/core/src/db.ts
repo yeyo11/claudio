@@ -1672,8 +1672,6 @@ export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof
 export const REVIEW_GATE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_rounds')) + 1;
 /** The migration that added the lessons tables: a test starts a database from just before it */
 export const LESSONS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE lessons')) + 1;
-/** The migration that added the instruction evals' tables: a test starts a database from just before it */
-export const EVALS_V2_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_judgements')) + 1;
 export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
 /** The migration that added the Collaborators tables: a test starts a database from just before it */
 export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_records')) + 1;

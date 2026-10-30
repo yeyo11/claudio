@@ -12,6 +12,7 @@ import { denialTag, secretHash, type Invite } from './invite.ts';
 import { shortEndpoint } from './names.ts';
 import { compareHeads, headOf, isEndpointId, verifyJoinerChain, type RosterHead, type RosterVersion } from './roster.ts';
 import { isAgentFile, isSessionId, isTicket, parseDenials, rawLength, type CatalogEntry, type WireErrorCode, type WireReply } from './wire.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The receiving side of `claudio/collab/1` (docs/plans/collaborators.md §3.3, §4.1, §4.2): what this
@@ -42,7 +43,7 @@ export class PeerError extends Error {
   }
 }
 
-const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+const describe = (error: unknown): string => (errorMessage(error));
 
 interface Reply {
   reply: WireReply;

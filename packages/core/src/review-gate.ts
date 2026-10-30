@@ -9,6 +9,8 @@ import { deliverRole, readRole, type ReviewRole } from './review-roles.ts';
 import { scanDiff, securityTriggered, type ScanFile, type ScanFinding } from './review-scan.ts';
 import { REVIEW_FINDINGS_SCHEMA, REVIEW_VERDICTS_SCHEMA, parseFindings, parseVerdicts, type ParsedFinding } from './review-schemas.ts';
 import type { ReviewStore } from './review-store.ts';
+import { errorMessage } from '@claudio/shared';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 /*
  * One round of the review gate: preparing, reviewing and verifying (docs/plans/review-gate.md,
@@ -210,8 +212,6 @@ async function pool<T>(jobs: ReadonlyArray<() => Promise<T>>, limit: number): Pr
   await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker));
   return out;
 }
-
-const sleep = (ms: number, signal: AbortSignal) => race(new Promise<void>((r) => setTimeout(r, ms)), null, signal);
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 
@@ -435,12 +435,13 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
         });
         break;
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = errorMessage(err);
         // No room for a run, a slot or memory: room frees soon, and the wait counts against the run's own time
         const capacity = isTransientRefusal(err);
         if (capacity && Date.now() < deadline) {
-          const slept = await sleep(retryMs, signal);
-          if (slept.kind === 'abort') return fail('cancelled', 'stopped');
+          // An abort ends the wait early; the signal is looked at just below
+          await sleep(retryMs, undefined, { signal }).catch(() => undefined);
+          if (signal.aborted) return fail('cancelled', 'stopped');
           continue;
         }
         return fail('failed', capacity ? 'no room for a run came free in time' : message);

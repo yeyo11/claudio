@@ -1,3 +1,4 @@
+import { errorMessage } from '@claudio/shared';
 /** Longest a request to the API may take before the tool answers with an error */
 export const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -84,7 +85,7 @@ export function createClient(options: ClientOptions): ApiClient {
       throw new ApiError(failure(res.status, text, Boolean(options.token)), res.status);
     } catch (err) {
       if (err instanceof ApiError) throw err;
-      const why = controller.signal.aborted ? `no answer within ${timeoutMs / 1000} s` : err instanceof Error ? err.message : String(err);
+      const why = controller.signal.aborted ? `no answer within ${timeoutMs / 1000} s` : errorMessage(err);
       throw new ApiError(`could not reach ${options.baseUrl}: ${why}`, null);
     } finally {
       clearTimeout(timer);

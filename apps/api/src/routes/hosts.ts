@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type { CodeHostStatus, CodeHostsSettings } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 /**
  * The code hosts Claudio reaches through their own CLI (gh, glab): what detection found, served
@@ -27,7 +28,7 @@ export const hostRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.get<{ Params: { id: string } }>('/hosts/:id', async (req): Promise<CodeHostStatus> => {
     const status = (await core.hosts.statuses()).find((s) => s.id === req.params.id);
-    if (!status) throw Object.assign(new Error(`code host ${req.params.id} not found`), { statusCode: 404 });
+    if (!status) throw Object.assign(new NotFoundError(`code host ${req.params.id} not found`), { statusCode: 404 });
     return status;
   });
 };

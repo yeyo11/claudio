@@ -3,31 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DatabaseSync } from 'node:sqlite';
-import {
-  CONVENTIONAL_TYPES,
-  WORK_ITEM_PR_CAUSE,
-  type ClaudioEvent,
-  type BoardCheckout,
-  type ChangeRequestFixOrigin,
-  type ChangeRequestThreads,
-  type ReviewThread,
-  type ChangeRequestKind,
-  type CheckoutBehindReason,
-  type CodeHostId,
-  type CodeHostsSettings,
-  type FlowCriterionResult,
-  type ProjectCodeHost,
-  type ProjectTrackerSettings,
-  type PullRequestReadiness,
-  type WorkItem,
-  type WorkItemActor,
-  type WorkItemCause,
-  type WorkItemHistoryPullRequest,
-  type Check,
-  type WorkItemPullRequest,
-  type WorkItemPullRequestCi,
-  type WorkItemPullRequestPhase,
-} from '@claudio/shared';
+import { CONVENTIONAL_TYPES, errorMessage, WORK_ITEM_PR_CAUSE, type BoardCheckout, type ChangeRequestFixOrigin, type ChangeRequestKind, type ChangeRequestThreads, type Check, type CheckoutBehindReason, type ClaudioEvent, type CodeHostId, type CodeHostsSettings, type FlowCriterionResult, type ProjectCodeHost, type ProjectTrackerSettings, type PullRequestReadiness, type ReviewThread, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemHistoryPullRequest, type WorkItemPullRequest, type WorkItemPullRequestCi, type WorkItemPullRequestPhase } from '@claudio/shared';
 import type { Db } from './db.ts';
 import {
   aheadCount,
@@ -141,7 +117,6 @@ function runGit(cwd: string, args: string[], opts: { timeout: number; env: NodeJ
   });
 }
 
-const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err.message : String(err));
 
 /** The line a person reads beside a failed host call: what the CLI said, else Claudio's own reason. */
 const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
@@ -726,12 +701,12 @@ export class PullRequestService {
           // Also concludes a merge a person resolved by hand and did not commit
           commitAll(wt, `chore(${item.key.toLowerCase()}): keep the work QA verified`);
         } catch (err) {
-          throw new StepError('commit', messageOf(err));
+          throw new StepError('commit', firstLine(errorMessage(err)));
         }
         try {
           await this.gitAsync(wt, ['fetch', 'origin', row.base], 120_000);
         } catch (err) {
-          throw new StepError('fetch', messageOf(err));
+          throw new StepError('fetch', firstLine(errorMessage(err)));
         }
         try {
           await this.gitAsync(wt, [...identity(wt), 'merge', '--no-edit', `origin/${row.base}`], 120_000);
@@ -743,7 +718,7 @@ export class PullRequestService {
             } catch {
               // nothing to abort
             }
-            throw new StepError('merge', messageOf(err));
+            throw new StepError('merge', firstLine(errorMessage(err)));
           }
         }
       }
@@ -756,7 +731,7 @@ export class PullRequestService {
         hold = await this.holdExisting(row, project.path, wt);
         await this.gitAsync(wt, ['push', '-u', 'origin', row.branch], 180_000);
       } catch (err) {
-        throw new StepError('push', messageOf(err));
+        throw new StepError('push', firstLine(errorMessage(err)));
       } finally {
         hold?.release();
       }
@@ -766,7 +741,7 @@ export class PullRequestService {
       const { number, url } = await this.create(row, project.path, wt, { title: pullRequestTitle(fresh), body });
       this.opened(row, item, number, url);
     } catch (err) {
-      const step = err instanceof StepError ? err : new StepError('create', messageOf(err));
+      const step = err instanceof StepError ? err : new StepError('create', firstLine(errorMessage(err)));
       this.failed(row, step.code, step.detail);
     }
   }
@@ -806,7 +781,7 @@ export class PullRequestService {
     try {
       target = await this.target(projectPath, row);
     } catch (err) {
-      throw new StepError('create', messageOf(err));
+      throw new StepError('create', firstLine(errorMessage(err)));
     }
     const created = await this.call(target, target.adapter.create(target.repo, { head: row.branch, base: row.base, title: req.title, body: req.body }), cwd);
     const found = await this.call(target, target.adapter.find(target.repo, { head: row.branch, base: row.base }), cwd);
@@ -1161,20 +1136,20 @@ export class PullRequestService {
           // Concludes work the Developer left uncommitted, as an approval does
           commitAll(place.worktree, `chore(${item.key.toLowerCase()}): ${row.fix_kind === 'review' ? 'address the review comments' : 'fix the failing checks'}`);
         } catch (err) {
-          throw new StepError('commit', messageOf(err));
+          throw new StepError('commit', firstLine(errorMessage(err)));
         }
         let hold: PushHold | undefined;
         try {
           hold = await this.deps.merge?.holdForPush(row.id);
           await this.gitAsync(place.worktree, ['push', 'origin', row.branch], 180_000);
         } catch (err) {
-          throw new StepError('push', messageOf(err));
+          throw new StepError('push', firstLine(errorMessage(err)));
         } finally {
           // The push is over, well or not: the person may arm again
           hold?.release();
         }
       } catch (err) {
-        const step = err instanceof StepError ? err : new StepError('push', messageOf(err));
+        const step = err instanceof StepError ? err : new StepError('push', firstLine(errorMessage(err)));
         if (this.update(row.id, { fix_state: 'awaiting-push', error_code: step.code, error_detail: step.detail }, ['open'])) this.changed(row.item_id, null, SYSTEM, null);
         return;
       }
@@ -1385,7 +1360,7 @@ export class PullRequestService {
       // The branch stays, so the item's Changes still read it by name
       this.deps.items.setWorktree(item.id, { worktree: null, branch: item.branch });
     } catch (err) {
-      this.update(row.id, { error_code: 'worktree-kept', error_detail: messageOf(err) });
+      this.update(row.id, { error_code: 'worktree-kept', error_detail: firstLine(errorMessage(err)) });
       this.changed(item.id, null, SYSTEM, null);
     }
   }

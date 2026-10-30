@@ -1,8 +1,9 @@
 import type { ApiClient } from './client.ts';
-import { isObj, objs, pick, type Obj } from './fields.ts';
+import { objs, pick, type Obj } from './fields.ts';
 import type { ClaudioMcpCollabToolName } from './names.ts';
 import { KEY, int, need, schema, seg, str, text, type Tool } from './tools.ts';
 import { fromTeammate, fromTeammates, TextResult, type ContentSource } from './untrusted.ts';
+import { isRecord } from '@claudio/shared';
 
 /**
  * The reads of what teammates share with this install (docs/plans/collaborators-agent-access.md).
@@ -26,8 +27,8 @@ const str0 = (value: unknown): string => (typeof value === 'string' ? value : ''
 /** The shared project's own record: who shares it and how fresh the copy is, for the header */
 async function sourceOf(api: ApiClient, args: Record<string, unknown>, tool: ClaudioMcpCollabToolName): Promise<ContentSource> {
   const share = await api.get(copyPath(args), {}, { tool });
-  const s: Obj = isObj(share) ? share : {};
-  const sync = isObj(s.sync) ? s.sync : {};
+  const s: Obj = isRecord(share) ? share : {};
+  const sync = isRecord(s.sync) ? s.sync : {};
   return {
     ownerName: str0(s.ownerName),
     ownerLabel: typeof s.ownerLabel === 'string' ? s.ownerLabel : null,
@@ -83,7 +84,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
         const id = str0(share.owner);
         const install = installs.get(id) ?? { owner: id, label: share.ownerLabel ?? null, projects: [] };
         installs.set(id, install);
-        const sync = isObj(share.sync) ? share.sync : {};
+        const sync = isRecord(share.sync) ? share.sync : {};
         install.projects.push({
           ...pick(share, ['name', 'shareId', 'shareKey', 'remote', 'subpath', 'groupIds', 'kinds', 'counts']),
           sync: pick(sync, ['state', 'lastSyncedAt']),
@@ -129,7 +130,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
       if (workflow && !agentId) throw new Error('workflowRunId needs the agentId of the workflow agent');
       const query = { limit: numArg(args, 'limit') ?? 50, before: numArg(args, 'before'), ...(workflow ? { workflow } : {}) };
       const page = await api.get(agentId ? `${chat}/subagents/${seg(agentId)}` : `${chat}/transcript`, query, { tool: 'collab_read_transcript' });
-      return isObj(page) ? { ...page, ...(typeof page.from === 'number' && page.from > 0 ? { earlier: { before: page.from } } : {}) } : page;
+      return isRecord(page) ? { ...page, ...(typeof page.from === 'number' && page.from > 0 ? { earlier: { before: page.from } } : {}) } : page;
     },
   ),
   copyTool(
@@ -183,7 +184,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     ['/work-items'],
     async (args, api, base) => {
       const board = await api.get(`${base}/work-items`, {}, { tool: 'collab_read_board' });
-      const items = objs(isObj(board) ? board.items : []);
+      const items = objs(isRecord(board) ? board.items : []);
       const ref = text(args, 'item')?.trim();
       if (ref) {
         const found = items.find((item) => (KEY.test(ref) ? str0(item.key).toUpperCase() === ref.toUpperCase() : item.id === ref));
@@ -196,10 +197,10 @@ export const COLLAB_TOOLS: readonly Tool[] = [
           .filter((item) => !status || item.status === status)
           .map((item) => ({
             ...pick(item, ['id', 'key', 'type', 'title', 'status', 'priority', 'labels', 'milestoneId', 'updatedAt']),
-            ...(isObj(item.assignee) ? { assignee: item.assignee.role ?? item.assignee.kind } : {}),
-            ...(isObj(item.epic) && typeof item.epic.key === 'string' ? { epic: item.epic.key } : {}),
+            ...(isRecord(item.assignee) ? { assignee: item.assignee.role ?? item.assignee.kind } : {}),
+            ...(isRecord(item.epic) && typeof item.epic.key === 'string' ? { epic: item.epic.key } : {}),
           })),
-        milestones: objs(isObj(board) ? board.milestones : []).map((m) => pick(m, ['id', 'name', 'state', 'progress', 'updatedAt'])),
+        milestones: objs(isRecord(board) ? board.milestones : []).map((m) => pick(m, ['id', 'name', 'state', 'progress', 'updatedAt'])),
       };
     },
   ),
@@ -213,8 +214,8 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     async (args, api, base) =>
       limited(objs(await api.get(`${base}/journal`, {}, { tool: 'collab_read_journal' })), numArg(args, 'limit') ?? 50).map((entry) => ({
         ...pick(entry, ['id', 'kind', 'text', 'documentPath', 'createdAt']),
-        ...(isObj(entry.item) ? { item: pick(entry.item, ['key', 'title']) } : {}),
-        ...(isObj(entry.author) ? { author: pick(entry.author, ['kind', 'name', 'role']) } : {}),
+        ...(isRecord(entry.item) ? { item: pick(entry.item, ['key', 'title']) } : {}),
+        ...(isRecord(entry.author) ? { author: pick(entry.author, ['kind', 'name', 'role']) } : {}),
       })),
   ),
 ];

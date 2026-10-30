@@ -12,6 +12,7 @@ import { PROJECT_TEMPLATES } from '../src/project-templates.ts';
 import { agentFileContent } from '../src/team.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { tempConfig } from './helpers.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // The flow through the real core and the fake CLI (test/fixtures/fake-claude.mjs): each run is a
 // real process given the real flags, logged by the fake, which is how what a run may do, and what a
@@ -20,7 +21,6 @@ import { tempConfig } from './helpers.ts';
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
 // Automated work starts only on a provider that proved it is signed in
 process.env.FAKE_CLAUDE_LOGGED_IN = '1';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-flow-cli-'));

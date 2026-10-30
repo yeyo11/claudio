@@ -16,6 +16,7 @@ import {
   type ReviewsAdapter,
 } from '../../src/hosts/code-host.ts';
 import type { CodeHostManifest } from '../../src/hosts/manifest.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * The conformance suite every code host adapter passes (docs/plans/code-hosts.md, "Fakes and tests,
@@ -418,7 +419,7 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
       try {
         run();
       } catch (error) {
-        problems.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
+        problems.push(`${what}: ${errorMessage(error)}`);
       }
     };
     for (const item of recorded?.versions ?? []) {
@@ -518,7 +519,7 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
         assert.equal(parsed.next.length, item.expect.next, 'follow-up calls');
         return [];
       } catch (error) {
-        return [`parseChecks ${item.name}: ${error instanceof Error ? error.message : String(error)}`];
+        return [`parseChecks ${item.name}: ${errorMessage(error)}`];
       }
     });
 
@@ -640,7 +641,7 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
         assert.equal(parsed.followUps.length, item.expect.followUps, 'follow-ups');
         return [];
       } catch (error) {
-        return [`parseThreads ${item.name}: ${error instanceof Error ? error.message : String(error)}`];
+        return [`parseThreads ${item.name}: ${errorMessage(error)}`];
       }
     });
 
@@ -749,7 +750,7 @@ export function checkConformance(options: ConformanceOptions): ConformanceReport
         assert.deepEqual(pickFields(merging.parseMergeRead(wrap(item.stdout)), item.expect), item.expect);
         return [];
       } catch (error) {
-        return [`parseMergeRead ${item.name}: ${error instanceof Error ? error.message : String(error)}`];
+        return [`parseMergeRead ${item.name}: ${errorMessage(error)}`];
       }
     });
 

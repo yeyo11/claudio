@@ -6,6 +6,7 @@ import type { AuthMode, CliInstallError, CliVersionInfo } from '@claudio/shared'
 import { VERSION, compareVersions } from '../launcher/protocol.ts';
 import { satisfiesRange } from '../providers/detector.ts';
 import { DownloadError, downloadFile, fetchOpener, hashFile, type DownloadTuning } from './download.ts';
+import { errorMessage } from '@claudio/shared';
 
 const run = promisify(execFile);
 
@@ -148,7 +149,7 @@ export class CliInstaller {
     try {
       res = await this.fetchFn(url, { headers: accept ? { accept } : {}, signal: AbortSignal.timeout(10 * 60_000) });
     } catch (err) {
-      throw new Failed('fetch-failed', err instanceof Error ? err.message : String(err));
+      throw new Failed('fetch-failed', errorMessage(err));
     }
     if (!res.ok) throw new Failed('fetch-failed', `${url} answered ${String(res.status)}`);
     return res;

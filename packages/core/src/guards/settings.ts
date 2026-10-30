@@ -1,14 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import {
-  DEFAULT_GUARD_SETTINGS,
-  MAX_PROTECTED_CONFIGS,
-  type GuardMode,
-  type GuardOverride,
-  type GuardSettings,
-  type GuardSwitchableRuleId,
-  type UpdateGuardSettingsRequest,
-} from '@claudio/shared';
+import { DEFAULT_GUARD_SETTINGS, isRecord, MAX_PROTECTED_CONFIGS, type GuardMode, type GuardOverride, type GuardSettings, type GuardSwitchableRuleId, type UpdateGuardSettingsRequest } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 
@@ -19,7 +11,6 @@ const MODES: readonly GuardMode[] = ['enforce', 'observe'];
 const MAX_EXTRA_ROOTS = 50;
 const MAX_GLOB_LENGTH = 300;
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 /** Fresh copy, so a caller can never change the shared defaults. */
 export function defaultGuardSettings(): GuardSettings {
@@ -44,7 +35,7 @@ function parseBoolean(value: unknown, name: string): boolean {
 
 /** Rule switches. An unknown key is refused; `declared-tools` is one, since a chat's policy arms it, never a setting. */
 export function parseRuleSwitches(value: unknown, name = 'rules'): Partial<Record<GuardSwitchableRuleId, boolean>> {
-  if (!isObject(value)) throw new Error(`${name} must be an object`);
+  if (!isRecord(value)) throw new Error(`${name} must be an object`);
   const out: Partial<Record<GuardSwitchableRuleId, boolean>> = {};
   for (const [key, on] of Object.entries(value)) {
     if (!(SWITCHABLE_RULE_IDS as string[]).includes(key)) throw new Error(`${name}.${key} is not a rule that can be switched; known are ${SWITCHABLE_RULE_IDS.join(', ')}`);
@@ -55,7 +46,7 @@ export function parseRuleSwitches(value: unknown, name = 'rules'): Partial<Recor
 
 /** A graph's or a stage's override: only `enabled` and `rules`; anything else is refused. */
 export function parseGuardOverride(value: unknown, name = 'guards'): GuardOverride {
-  if (!isObject(value)) throw new Error(`${name} must be an object`);
+  if (!isRecord(value)) throw new Error(`${name} must be an object`);
   const unknownKeys = Object.keys(value).filter((key) => key !== 'enabled' && key !== 'rules');
   if (unknownKeys.length) throw new Error(`${name}: unknown keys ${unknownKeys.join(', ')}; known are enabled, rules`);
   const out: GuardOverride = {};
@@ -99,7 +90,7 @@ function parseExtraRoots(value: unknown): string[] {
 
 /** Checks the keys of a `PUT` body; the whole body is refused when one is bad. */
 export function parseGuardSettingsUpdate(input: unknown): UpdateGuardSettingsRequest {
-  if (!isObject(input)) throw new Error('guard settings must be a JSON object');
+  if (!isRecord(input)) throw new Error('guard settings must be a JSON object');
   const known = ['mode', 'automated', 'rules', 'protectConfigs', 'extraRoots'];
   const unknownKeys = Object.keys(input).filter((key) => !known.includes(key));
   if (unknownKeys.length) throw new Error(`unknown guard settings: ${unknownKeys.join(', ')}; known are ${known.join(', ')}`);
@@ -129,7 +120,7 @@ function apply(base: GuardSettings, update: UpdateGuardSettingsRequest): GuardSe
  */
 function sanitize(raw: unknown): GuardSettings {
   let settings = defaultGuardSettings();
-  if (!isObject(raw)) return settings;
+  if (!isRecord(raw)) return settings;
   const keep = (parse: () => UpdateGuardSettingsRequest) => {
     try {
       settings = apply(settings, parse());
@@ -139,7 +130,7 @@ function sanitize(raw: unknown): GuardSettings {
   };
   if (raw.mode !== undefined) keep(() => ({ mode: parseGuardMode(raw.mode) }));
   if (raw.automated !== undefined) keep(() => ({ automated: parseBoolean(raw.automated, 'automated') }));
-  if (isObject(raw.rules)) {
+  if (isRecord(raw.rules)) {
     // Per rule, so one bad switch does not take the others with it
     for (const [key, on] of Object.entries(raw.rules)) keep(() => ({ rules: parseRuleSwitches({ [key]: on }) }));
   }
@@ -178,7 +169,7 @@ export class GuardSettingsStore {
       try {
         const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
         this.current = sanitize(raw);
-        if (isObject(raw)) this.raw = raw;
+        if (isRecord(raw)) this.raw = raw;
       } catch {
         this.broken = `${this.file} is not valid JSON; fix or remove it`;
       }

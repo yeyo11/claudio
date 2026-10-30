@@ -8,11 +8,12 @@ import type { Account, AccountKind, AccountSignInState, AccountsSettings, ModelO
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
-import { isRecord, writeAtomic } from './fs.ts';
+import { writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
 import { apiKeyOf, checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
 import { ModelCache, offers, type ModelsOptions } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
+import { isRecord, NotFoundError } from '@claudio/shared';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
 export { DEFAULT_ID };
@@ -275,7 +276,7 @@ export class AccountStore {
 
   private entry(id: string): StoredAccount {
     const a = this.stored.accounts.find((x) => x.id === id);
-    if (!a) throw new Error(`account ${id} not found`);
+    if (!a) throw new NotFoundError(`account ${id} not found`);
     return a;
   }
 
@@ -370,7 +371,7 @@ export class AccountStore {
 
   get(id: string): Account {
     const a = this.find(id);
-    if (!a) throw new Error(`account ${id} not found`);
+    if (!a) throw new NotFoundError(`account ${id} not found`);
     return a;
   }
 
@@ -386,7 +387,7 @@ export class AccountStore {
   /** What a write answers: the account as it stands, the credential-less default included, since it was just changed */
   private view(id: string): Account {
     const a = this.all(Date.now()).find((x) => x.id === id);
-    if (!a) throw new Error(`account ${id} not found`);
+    if (!a) throw new NotFoundError(`account ${id} not found`);
     return a;
   }
 
@@ -726,7 +727,7 @@ export class AccountStore {
 
   async updatePolicy(id: string, request: RotationPolicyRequest): Promise<RotationPolicy> {
     const index = this.stored.policies.findIndex((p) => p.id === id);
-    if (index === -1) throw new Error('policy not found');
+    if (index === -1) throw new NotFoundError('policy not found');
     const policy: RotationPolicy = { id, ...this.validPolicy(request, id) };
     this.stored.policies[index] = policy;
     await this.save();
@@ -736,7 +737,7 @@ export class AccountStore {
   async deletePolicy(id: string): Promise<void> {
     const before = this.stored.policies.length;
     this.stored.policies = this.stored.policies.filter((p) => p.id !== id);
-    if (this.stored.policies.length === before) throw new Error('policy not found');
+    if (this.stored.policies.length === before) throw new NotFoundError('policy not found');
     await this.save();
   }
 

@@ -3,6 +3,7 @@ import { basename, join } from 'node:path';
 import type { WorkflowDefinition } from '@claudio/shared';
 import type { WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
 import { JsonlCache } from './jsonl-cache.ts';
+import { readJson } from './config/files.ts';
 
 // Claude Code workflows: scripts started with the Workflow tool that orchestrate subagents inside
 // one session. The CLI reports them live as `local_workflow` tasks whose `task_progress` events carry
@@ -61,14 +62,6 @@ export function scriptMeta(script: string): { name: string | null; description: 
   const meta = /export\s+const\s+meta\s*=\s*\{([\s\S]*?)\n?\}/.exec(script)?.[1] ?? '';
   const field = (key: string) => new RegExp(`\\b${key}\\s*:\\s*(['"\`])((?:\\\\.|(?!\\1).)*)\\1`).exec(meta)?.[2] ?? null;
   return { name: field('name'), description: field('description') };
-}
-
-async function readJson(file: string): Promise<Record<string, unknown> | null> {
-  try {
-    return JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
 }
 
 async function readLines(file: string): Promise<Array<Record<string, unknown>>> {
@@ -218,7 +211,7 @@ export async function readSessionWorkflows(transcript: string, sessionId: string
     const run = await cached(
       file,
       async () => {
-        const record = await readJson(file);
+        const record = await readJson(file).catch(() => null);
         return record ? fromRecord(record, sessionId) : null;
       },
       (r) => r !== null,
@@ -321,7 +314,7 @@ export async function readWorkflowAgent(
   agentId: string,
 ): Promise<{ agent: WorkflowAgentState | null; journalDone: boolean }> {
   const base = transcript.slice(0, -'.jsonl'.length);
-  const record = await readJson(join(base, 'workflows', `${runId}.json`));
+  const record = await readJson(join(base, 'workflows', `${runId}.json`)).catch(() => null);
   const fromRecord = record ? readProgress(record.workflowProgress).agents.find((a) => a.agentId === agentId) : undefined;
   if (fromRecord) return { agent: fromRecord, journalDone: false };
   const journal = await readLines(join(base, 'subagents', 'workflows', runId, 'journal.jsonl'));

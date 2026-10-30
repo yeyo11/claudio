@@ -9,6 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { ChatSummary, ProviderMove, ProviderStatus } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // What happens at a usage limit, over HTTP: a chat on the fake Claude that dies against its limit
 // (`FAKE-LIMIT-REPORTED-ONCE`: the CLI's rejected report, then its 429; the 429 alone records no
@@ -17,7 +18,6 @@ const FIXTURES = fileURLToPath(new URL('../../../packages/core/test/fixtures/', 
 const FAKE_CLAUDE = `${FIXTURES}fake-claude.mjs`;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let app: FastifyInstance;
 let core: Core;

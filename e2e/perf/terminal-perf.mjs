@@ -14,6 +14,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from '../driver.mjs';
 import { killGroup } from '../processes.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
@@ -24,7 +25,6 @@ const flag = (name) => args.includes(`--${name}`);
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : 'all';
 const PORT = Number(process.env.PERF_PORT || 8819);
 const baseUrl = `http://127.0.0.1:${PORT}`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MB = 1024 * 1024;
 
 // ---------- numbers ----------

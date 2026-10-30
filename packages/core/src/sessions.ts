@@ -3,23 +3,7 @@ import { open, readFile, readdir, rm, stat, type FileHandle } from 'node:fs/prom
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import {
-  entrySearchText,
-  entryText,
-  isModelName,
-  isWaitingOnBackground,
-  normalizeMessage,
-  runsElapsedMs,
-  searchPattern,
-  TranscriptSearch,
-  TRANSCRIPT_PAGE,
-  TRANSCRIPT_PAGE_MAX,
-  type AgentTranscript,
-  type BackgroundTaskOutput,
-  type ChatBranchRun,
-  type TranscriptEntry,
-  type TranscriptSearchResult,
-} from '@claudio/shared';
+import { entrySearchText, entryText, isModelName, isWaitingOnBackground, normalizeMessage, NotFoundError, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentTranscript, type BackgroundTaskOutput, type ChatBranchRun, type TranscriptEntry, type TranscriptSearchResult } from '@claudio/shared';
 import { toChatTask } from './chat-branches.ts';
 import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
@@ -922,7 +906,7 @@ export class SessionStore {
    */
   private async activity(file: string): Promise<SessionActivity> {
     const activity = await this.activities.read(file);
-    if (!activity) throw new Error('session not found');
+    if (!activity) throw new NotFoundError('session not found');
     return activity;
   }
 
@@ -1082,7 +1066,7 @@ export class SessionStore {
   async taskOutput(sessionId: string, taskId: string, opts: { offset?: number } = {}): Promise<BackgroundTaskOutput> {
     if (!/^[\w-]+$/.test(taskId)) throw new Error('invalid task id');
     const found = await this.findFile(sessionId);
-    if (!found) throw new Error('session not found');
+    if (!found) throw new NotFoundError('session not found');
     const file = join(taskDir(found.projectId, sessionId), `${taskId}.output`);
     const info = await stat(file).catch(() => null);
     if (!info) throw new Error('no output was kept for that task (it lives in the temp dir, which a reboot clears)');
@@ -1201,7 +1185,7 @@ export class SessionStore {
   /** Deletes the transcript and the session's sidecar directory (subagent transcripts, tool results). */
   async deleteSession(sessionId: string): Promise<void> {
     const found = await this.findFile(sessionId);
-    if (!found) throw new Error('session not found');
+    if (!found) throw new NotFoundError('session not found');
     // The transcript goes last: it is what finds the session, so a deletion cut short can be retried
     await rm(found.file.slice(0, -'.jsonl'.length), { recursive: true, force: true });
     await rm(found.file);

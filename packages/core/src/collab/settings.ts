@@ -4,6 +4,7 @@ import type { CollaboratorsSettings, UpdateCollaboratorsRequest } from '@claudio
 import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
+import { isRecord } from '@claudio/shared';
 
 /*
  * `<dataDir>/collaborators/settings.json` (docs/plans/collaborators.md §4.3): on or off, the display
@@ -17,7 +18,6 @@ const MAX_URL = 500;
 
 export const DEFAULT_COLLABORATORS_SETTINGS: CollaboratorsSettings = { enabled: false, displayName: '', label: '', relayUrl: null, assistantReads: true };
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function text(value: unknown, field: string, max: number): string {
   if (typeof value !== 'string') throw new Error(`${field} must be a string`);
@@ -45,7 +45,7 @@ export function parseRelayUrl(value: unknown): string | null {
 
 /** Validates a change a person sent (`PUT /collaborators`): a bad value is refused, unknown fields dropped. */
 export function parseCollaboratorsUpdate(input: unknown): UpdateCollaboratorsRequest {
-  if (!isObject(input)) throw new Error('collaborators settings must be a JSON object');
+  if (!isRecord(input)) throw new Error('collaborators settings must be a JSON object');
   const patch: UpdateCollaboratorsRequest = {};
   if (input.enabled !== undefined) {
     if (typeof input.enabled !== 'boolean') throw new Error('enabled must be true or false');
@@ -63,7 +63,7 @@ export function parseCollaboratorsUpdate(input: unknown): UpdateCollaboratorsReq
 
 /** What a stored file is worth: each field that does not validate falls back to its default on its own. */
 function sanitize(value: unknown): CollaboratorsSettings {
-  const raw = isObject(value) ? value : {};
+  const raw = isRecord(value) ? value : {};
   const attempt = <T>(parse: () => T, fallback: T): T => {
     try {
       return parse();
@@ -108,7 +108,7 @@ export class CollaboratorsSettingsStore {
     if (!existsSync(this.file)) return null;
     try {
       const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      return isObject(raw) ? raw : null;
+      return isRecord(raw) ? raw : null;
     } catch {
       return null;
     }

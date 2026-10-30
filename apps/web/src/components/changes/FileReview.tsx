@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { blockStarts, diffHash, foldFull, openGap, parseUnified, type Gap, type ParsedDiff } from '../../lib/diff';
-import { formatDateTime } from '@claudio/ui/lib/format';
+import { formatDateTime, formatHour } from '@claudio/ui/lib/format';
 import type { ReviewMode } from '../../lib/review-state';
 import { Checkbox, MoreActions, type MenuEntry } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -17,7 +17,7 @@ import { Counts } from './FileMap';
 import { Intent } from './Intent';
 import { FileFindingsFold, FindingsChip, findingLayer, mergeLayers, useFileFindings, useReviewFindings } from './ReviewFindings';
 import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
-import { hourMinute, reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
+import { reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { LIVE_REFRESH_MS, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
 import { copyText } from '@claudio/ui/lib/clipboard';
@@ -95,7 +95,7 @@ export function FileReview({
    */
   review?: { changeRequestId: string; notes: boolean };
 }) {
-  const { t, i18n } = useTranslation('changes');
+  const { t } = useTranslation('changes');
   const live = source.live;
   const scoped = scopeQuery(scope);
 
@@ -273,7 +273,7 @@ export function FileReview({
           )}
           <span className="changes-why-when" title={latest.at ? formatDateTime(latest.at) : undefined}>
             {t('why.latest', { count: steps?.length ?? 1 })}
-            {latest.at ? ` · ${hourMinute(latest.at, i18n.language)}` : ''}
+            {latest.at ? ` · ${formatHour(latest.at)}` : ''}
           </span>
         </>
       )}

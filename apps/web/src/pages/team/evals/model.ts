@@ -18,6 +18,7 @@ import {
   type ResourceKind,
   type ToolPolicy,
 } from '@claudio/shared';
+import { errorMessage } from '@claudio/ui/lib/format';
 
 /**
  * The editor's two faces of one eval file: a form of strings (what a field holds while it is being
@@ -419,7 +420,7 @@ export function definitionFromJson(text: string): { ok: true; definition: EvalDe
   try {
     value = JSON.parse(text);
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: errorMessage(err) };
   }
   const o = value as Partial<EvalDefinition> | null;
   const shaped =

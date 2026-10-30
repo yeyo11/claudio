@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { OrchestrationSpec, OrchestrationTemplate, UpdateOrchestrationTemplateRequest } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 const now = () => new Date().toISOString();
 
@@ -67,7 +68,7 @@ export class OrchestrationTemplates {
   update(id: string, changes: UpdateOrchestrationTemplateRequest): OrchestrationTemplate {
     const templates = this.read();
     const template = templates.find((t) => t.id === id);
-    if (!template) throw new Error('template not found');
+    if (!template) throw new NotFoundError('template not found');
     if (changes.name !== undefined) {
       const name = changes.name.trim();
       if (!name) throw new Error('a template needs a name');
@@ -89,7 +90,7 @@ export class OrchestrationTemplates {
 
   remove(id: string): void {
     const templates = this.read();
-    if (!templates.some((t) => t.id === id)) throw new Error('template not found');
+    if (!templates.some((t) => t.id === id)) throw new NotFoundError('template not found');
     this.write(templates.filter((t) => t.id !== id));
   }
 

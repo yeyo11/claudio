@@ -5,6 +5,7 @@ import { api, keys } from '../../../api';
 import { useToast } from '@claudio/ui/components/Toast';
 import { columnMeta } from '../../../lib/work-items';
 import { moveOnBoard, moveTarget, placeOnBoard, type MovePlace, type MoveTarget } from './model';
+import { isRecord } from '@claudio/shared';
 
 /** A move, and the item's key for the toast that says a refused one went back. */
 export type MoveRequest = MovePlace & { item: Pick<WorkItem, 'id' | 'key'> };
@@ -18,10 +19,9 @@ interface Undo {
 /** Every move of every board runs one after another, so each one's neighbour is named on the board the last one left. */
 const MOVE_SCOPE = { id: 'work-item-move' };
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-const isBoard = (value: unknown): value is Board => isObject(value) && Array.isArray(value.columns);
-const isPages = (value: unknown): value is InfiniteData<WorkItemPage> => isObject(value) && Array.isArray(value.pages);
-const isItem = (value: unknown): value is WorkItem => isObject(value) && typeof value.id === 'string' && typeof value.status === 'string';
+const isBoard = (value: unknown): value is Board => isRecord(value) && Array.isArray(value.columns);
+const isPages = (value: unknown): value is InfiniteData<WorkItemPage> => isRecord(value) && Array.isArray(value.pages);
+const isItem = (value: unknown): value is WorkItem => isRecord(value) && typeof value.id === 'string' && typeof value.status === 'string';
 const isList = (value: unknown): value is WorkItem[] => Array.isArray(value) && value.every(isItem);
 
 interface Patch {

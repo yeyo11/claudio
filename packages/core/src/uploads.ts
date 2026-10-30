@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import type { Attachment } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -43,6 +44,17 @@ export function safeName(name: string): string {
 }
 
 /**
+ * The bytes' file in an upload's folder: a fixed name, so no upload's own name can land on
+ * `meta.json` beside it (a file named so overwrote its own metadata). It keeps the extension, which
+ * is how Claude's tools tell an image or a PDF from text; the name the person gave is in the metadata
+ * and in the list a message carries.
+ */
+export function payloadName(name: string): string {
+  const ext = extname(name).toLowerCase();
+  return `payload${/^\.[a-z0-9]{1,10}$/.test(ext) ? ext : ''}`;
+}
+
+/**
  * Files attached to messages, kept in the data dir rather than in any project: attaching a file must
  * not show up in a repository's `git status`. Every run is given read access to this directory.
  */
@@ -67,7 +79,7 @@ export class UploadStore {
     const id = randomUUID();
     const folder = join(this.dir, id);
     mkdirSync(folder, { recursive: true, mode: 0o700 });
-    const path = join(folder, fileName);
+    const path = join(folder, payloadName(fileName));
     writeFileSync(path, bytes, { mode: 0o600 });
     const attachment: Attachment = { id, name: fileName, mediaType, kind, sizeBytes: bytes.length, path, createdAt: new Date().toISOString() };
     writeFileSync(join(folder, 'meta.json'), JSON.stringify(attachment));
@@ -76,7 +88,7 @@ export class UploadStore {
 
   get(id: string): Attachment {
     const meta = ID_RE.test(id) ? join(this.dir, id, 'meta.json') : null;
-    if (!meta || !existsSync(meta)) throw new Error('upload not found');
+    if (!meta || !existsSync(meta)) throw new NotFoundError('upload not found');
     return JSON.parse(readFileSync(meta, 'utf8')) as Attachment;
   }
 

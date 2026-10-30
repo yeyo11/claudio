@@ -7,11 +7,11 @@
 // checkboxes.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 240_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 20_000) {
   const end = Date.now() + limit;

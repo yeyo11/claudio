@@ -3,10 +3,10 @@
 // only once approved; the project journal with an entry added by hand; the CLI's own memory opening
 // in the editor; the tab's idle count; and the phone's four tabs with 44 px targets.
 import { seedEcosystem, seedProject } from './memory-seed.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const timeout = 180_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 15_000) {
   const end = Date.now() + limit;

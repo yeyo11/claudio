@@ -4,6 +4,7 @@
 import { pathToFileURL } from 'node:url';
 import { CollabHostCore } from './host.ts';
 import { IROH_MODULE_ENV, type CoreToHost, type HostToCore } from './protocol.ts';
+import { errorMessage } from '@claudio/shared';
 
 const GRACE_MS = 2000;
 
@@ -19,7 +20,7 @@ const log = (message: string): void => {
 
 // The binding's promises can reject with nobody awaiting them (`LocallyClosed` after a failed
 // write, §7.2): that must cost a log line, not the process and every connection in it
-process.on('unhandledRejection', (reason) => log(`unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`));
+process.on('unhandledRejection', (reason) => log(`unhandled rejection: ${errorMessage(reason)}`));
 
 const override = process.env[IROH_MODULE_ENV];
 const host = new CollabHostCore({

@@ -29,6 +29,7 @@ import type {
 import { openStream } from '../sse.ts';
 import { spendGate } from './spend.ts';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
+import { NotFoundError } from '@claudio/shared';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
 const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal', 'api'];
@@ -92,7 +93,7 @@ function newChatBody(body: unknown): NewChatRequest {
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
   const known = async (id: string): Promise<void> => {
-    if (!(await chats.get(id))) throw new Error('chat not found');
+    if (!(await chats.get(id))) throw new NotFoundError('chat not found');
   };
 
   // A page at a time, newest activity first: `after` is the `updatedAt~id` of the last chat of the
@@ -195,7 +196,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // A person chooses to wait for the reset
   app.post<{ Params: { id: string } }>('/chats/:id/wait', (req, reply) => {
-    if (!core.runtime.get(req.params.id)) throw new Error('chat not found');
+    if (!core.runtime.get(req.params.id)) throw new NotFoundError('chat not found');
     if (!core.runtime.atLimit(req.params.id)) throw Object.assign(new Error('this chat has not reached a limit'), { statusCode: 409 });
     const move = core.rotation.waitFor(req.params.id);
     if (!move) throw Object.assign(new Error('this chat is already waiting'), { statusCode: 409 });
@@ -288,7 +289,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.delete<{ Params: { id: string; noteId: string } }>('/chats/:id/notes/:noteId', async (req, reply) => {
     await known(req.params.id);
-    if (!core.db.deleteNote(req.params.id, req.params.noteId)) throw new Error('note not found');
+    if (!core.db.deleteNote(req.params.id, req.params.noteId)) throw new NotFoundError('note not found');
     return reply.status(204).send();
   });
 
@@ -313,7 +314,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // Server-Sent Events: replays buffered events after `since`, then streams live ones.
   app.get<{ Params: { id: string }; Querystring: { since?: string } }>('/chats/:id/stream', (req, reply) => {
-    if (!chats.streams(req.params.id)) throw new Error('chat not found');
+    if (!chats.streams(req.params.id)) throw new NotFoundError('chat not found');
     const lastEventId = Number(req.headers['last-event-id'] ?? req.query.since ?? 0) || 0;
 
     const stream = openStream(req, reply);
@@ -355,7 +356,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   // A subagent's whole conversation, from the transcript the CLI keeps for it beside the chat's.
   app.get<{ Params: { id: string; agentId: string }; Querystring: { after?: string } }>('/chats/:id/subagents/:agentId', async (req) => {
     const detail = await chats.agentTranscript(req.params.id, req.params.agentId, { after: count(req.query.after, 'after') });
-    if (!detail) throw new Error('subagent not found');
+    if (!detail) throw new NotFoundError('subagent not found');
     return detail;
   });
 
@@ -367,7 +368,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
         workflowId: req.params.workflowId,
         after: count(req.query.after, 'after'),
       });
-      if (!detail) throw new Error('workflow agent not found');
+      if (!detail) throw new NotFoundError('workflow agent not found');
       return detail;
     },
   );

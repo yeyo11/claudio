@@ -89,7 +89,7 @@ import type {
 } from '@claudio/shared';
 import { ChatRetention, type RetainedChat } from './chat-retention.ts';
 import { runsIn, type Subsystem } from './subsystems.ts';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, workItemKey, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, errorMessage, isEffort, NotFoundError, workItemKey, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
@@ -235,28 +235,9 @@ import { providerLimitOf, type ProviderLimitSource } from './providers/limits.ts
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
 import { DEFAULT_SUPERVISOR_PRESET, Supervisor, toolsOfRules, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
-export {
-  DecisionEngine,
-  DEADLINE_MS,
-  lowestConfidence,
-  type DecisionEngineDeps,
-  type DecisionOutcome,
-  type DecisionProvider,
-  type DecisionRequest,
-  type EffectiveDecision,
-  type ProviderResult,
-} from './decisions/engine.ts';
-export { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers as parseDecisionAnswers } from './decisions/providers/cli.ts';
-export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
-export { cutToBytes, maskSecrets, recognizeSecrets, redactState, SECRET_MASK, stateBytes, type SecretRecognizer } from './decisions/redact.ts';
-export {
-  DecisionCredentialStore,
-  DecisionSettingsStore,
-  ModelFallbackStore,
-  DEFAULT_DECISION_SETTINGS,
-  parseDecisionSettings,
-  parseProjectDecisions,
-} from './decisions/settings.ts';
+export { DECISION_POINTS, decisionPoint } from './decisions/points.ts';
+export { maskSecrets, recognizeSecrets, redactState, SECRET_MASK } from './decisions/redact.ts';
+export { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from './decisions/settings.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 import { TerminalService } from './terminals/service.ts';
@@ -270,190 +251,79 @@ import { OpenAiChatPromptStore } from './openai/system-prompt.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
-export { MCP_ENTRY_ENV, type ClaudioMcpLaunch } from './claudio-mcp.ts';
-export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
-export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
+export { MCP_ENTRY_ENV } from './claudio-mcp.ts';
+export { type TerminalClient, type TerminalConnection } from './terminals/service.ts';
+export { TerminalError } from './terminals/errors.ts';
 export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
-export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE, readDataDirLock, type DataDirLock, type DataDirLockHolder } from './data-dir-lock.ts';
-export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, DEFAULT_CHAT_BUDGET_USD, DEFAULT_CHAT_RETENTION_DAYS, dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig, type HeadlessStart } from './paths.ts';
+export { parseVariant } from './config/scope.ts';
+export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE } from './data-dir-lock.ts';
+export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart } from './paths.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
 export { installProcessGuards } from './launcher/process-guards.ts';
-export { ChatRetention, type ChatRetentionOptions, type RetainedChat } from './chat-retention.ts';
-export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
-export { SecretVault } from './secret-vault.ts';
-export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
-export { AGENT_READ_MODES, agentReadScope, copyInScope, type AgentReadChat, type AgentReadDecision, type AgentReadRefusal } from './collab/agent-access.ts';
-export { DashboardLayoutStore } from './dashboard-layouts.ts';
-export { DEFAULT_WORKSPACE_HOSTS, WorkspaceRefusal, Workspaces, workspaceSettingsFromEnv, type WorkspaceChats, type WorkspaceSettings, type WorkspaceSource } from './workspaces/index.ts';
+export { ChatRetention, type RetainedChat } from './chat-retention.ts';
+export { CollaboratorsError } from './collab/index.ts';
+export { agentReadScope, type AgentReadRefusal } from './collab/agent-access.ts';
+export { WorkspaceRefusal } from './workspaces/index.ts';
 export * from './openai/index.ts';
-export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
-export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
-export { type GuardFiles, startGuardSweep, sweepGuardFiles, writeGuardFiles } from './guards/files.ts';
-export {
-  GUARD_ENTRY_ENV,
-  GuardPreflight,
-  GuardUnavailableError,
-  type GuardUnavailableCode,
-  type PreflightInput,
-  checkGuardPreflight,
-  runGuardSelfTest,
-} from './guards/preflight.ts';
-export { type GuardRequest, GuardLauncher, guardFailure } from './guards/launch.ts';
-export { GuardEventStore, type GuardEventFilter } from './guards/events.ts';
+export { parseGuardOverride } from './guards/settings.ts';
+export { GUARD_ENTRY_ENV } from './guards/preflight.ts';
+export { type GuardRequest } from './guards/launch.ts';
+export { GuardEventStore } from './guards/events.ts';
 export { decide as decideGuard } from './guards/decide.ts';
 export { DEFAULT_LIMITS as GUARD_DEFAULT_LIMITS, type GuardRulesFile } from './guards/input.ts';
-export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
-export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
-export { createSettingsRegistry, SettingsError, type SettingsRegistry, type SettingsRegistryDeps } from './settings-registry.ts';
-export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
-export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, isTransientRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
-export { ReviewStoreError } from './review-store.ts';
+export { guardsWeakened, projectGuardsWeakened } from './guards/resolve.ts';
+export { AppSettingsStore, RuntimeHosts } from './app-settings.ts';
+export { SettingsError } from './settings-registry.ts';
+export type { ChatRuntime, RunResult } from './chats.ts';
+export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
-export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
+export { ChatConflictError, DEFAULT_ORIGINS } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
-export { compareVersions } from './version-check.ts';
-export { ReleaseWatch, type ReleaseWatchOptions, type ReleaseAsset } from './release-watch.ts';
-export { ServerUpdates, ServerUpdateRefusal, type ServerUpdatesOptions } from './updates/server-update.ts';
-export { resolveClaudeBin, overlayBinary, type ClaudeBinOptions } from './claude-bin.ts';
-export { CliInstaller, CliInstallRefusal, type CliInstallerOptions } from './updates/cli-install.ts';
+export { ServerUpdateRefusal } from './updates/server-update.ts';
+export { resolveClaudeBin, type ClaudeBinOptions } from './claude-bin.ts';
+export { CliInstallRefusal } from './updates/cli-install.ts';
 export { RESTART_EXIT_CODE } from './launcher/protocol.ts';
 export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
 export { EvalFileError } from './evals/definition.ts';
-export { exportRun, type EvalExportFormat } from './evals/export.ts';
-export { stanceOf } from './decisions/stance.ts';
+export { exportRun } from './evals/export.ts';
 
-export {
-  chatControl,
-  chatState,
-  executionOutcome,
-  sessionHolder,
-  stateFromCliAgent,
-  stateFromRun,
-  type CliAgentFacts,
-  type ControlFacts,
-  type RunFacts,
-  type SessionHolder,
-} from './chat-model.ts';
-export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
-export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
-export { orchestrationTimings, type TimingsChat } from './orchestration-timings.ts';
-export { chatRole } from './chat-service.ts';
-export { CONTEXT_USAGE_CACHE_MS, ContextControl, type CompactAndWaitOptions } from './context-control.ts';
-export { ChatNotes, compactText, ContextRefusal, NOTE_REQUEST_PROMPT, parseSessionNote, SESSION_NOTE_INSTRUCTIONS, TYPED_COMPACT } from './context-notes.ts';
+export { chatState } from './chat-model.ts';
+export { usageReport, type ChatSpend } from './usage-report.ts';
+export { orchestrationTimings } from './orchestration-timings.ts';
+export { ContextControl } from './context-control.ts';
+export { ChatNotes, compactText, ContextRefusal, SESSION_NOTE_INSTRUCTIONS } from './context-notes.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
-export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
+export { parseChangeScope, parseDiffContext, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateOptionalTeam, templateTeam, type TeamRunSource } from './team.ts';
-export {
-  ASSISTANT_ERRORS,
-  AssistantError,
-  AssistantService,
-  DENIED_TOOLS,
-  memberFile,
-  READ_EVENT_MS,
-  READ_ONLY_TOOLS,
-  type AssistantChatResult,
-  type AssistantDeps,
-  type AssistantKnown,
-  type AssistantLaunch,
-  type AssistantProject,
-} from './assistant.ts';
-export { ProjectDocsError, ProjectDocsService, ProjectDocsStore, mcpServerPrefix, parseDocUrl, type DocsRuntime } from './project-docs.ts';
-export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
-export {
-  FLOW_CAUSE,
-  FlowError,
-  flowPrompt,
-  flowTitle,
-  flowResultSchema,
-  FlowService,
-  parseFlowRunQuery,
-  parseResult,
-  stageRules,
-  testCommandRules,
-  testCommands,
-  checkCommandRules,
-  type CheckCommand,
-  type FlowChatResult,
-  type FlowDeps,
-  type FlowLaunch,
-  type FlowProject,
-  type FlowRules,
-} from './flow.ts';
-export {
-  ciOf,
-  codeHostAdapter,
-  PullRequestError,
-  PullRequestService,
-  PullRequestWatcher,
-  pullRequestBody,
-  pullRequestTitle,
-  type WatchSource,
-  type ApproveResult,
-  type PullRequestDeps,
-} from './pull-requests.ts';
-export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
-export { TrackerError, quotedSource } from './trackers/import.ts';
+export { agentFileContent, RECORDS_IN_ENGLISH, TeamError, templateTeam } from './team.ts';
+export { DENIED_TOOLS } from './assistant.ts';
+export { assistantLanguage } from './assistant-answer.ts';
+export { parseFlowRunQuery } from './flow.ts';
+export { changeRequestRefusal, type ChangeRequestFix } from './change-requests.ts';
 export { WebhooksError } from './hosts/webhooks-service.ts';
-export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
-export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
-export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
-export { Db, MAX_AUDIT_PATH, type PushSubscriptionRecord } from './db.ts';
-export {
-  WorkItemError,
-  WorkItemService,
-  type WorkItemCommentContext,
-  type WorkItemContext,
-  type WorkItemLinkInput,
-  type WorkItemLinkState,
-  type WorkItemProject,
-  type WorkItemServiceDeps,
-} from './work-items.ts';
-export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
-export { DocumentPathError } from './document-paths.ts';
-export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
+export { MergeError } from './hosts/merge-service.ts';
+export { OrchestrationPullRequestError } from './orchestration-pull-requests.ts';
+export { projectExportFilename, projectToJson, projectToMarkdown } from './project-export.ts';
+export { Db, MAX_AUDIT_PATH } from './db.ts';
+export { WorkItemError, type WorkItemCommentContext } from './work-items.ts';
+export { DOCUMENT_CONTENT_MAX } from './documents.ts';
 export { AuthStore, DESKTOP_ACTOR } from './security/auth.ts';
 export { CHAT_TOKEN_MAX_AGE_MS, CHAT_TOKEN_PREFIX, ChatTokenStore, chatActor } from './security/chat-tokens.ts';
-export { OidcVerifier, type FetchLike } from './security/oidc.ts';
-export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
-export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
-export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
+export { type FetchLike } from './security/oidc.ts';
+export { redactSecrets } from './security/redact.ts';
+export { previewCron } from './schedules.ts';
 export { SpendGate, localDayOf, localDayWindow } from './spend.ts';
-export { EventBus, type ClaudioEventInput, type Replay } from './events.ts';
-export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading, type ProviderDetectorDeps } from './providers/detector.ts';
-export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
-export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
-export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
-export { MemoryProposalService, type LessonApprovals, type ProposalOrigin } from './memory-proposals.ts';
-export { LessonService, type MiningContext, type MiningResult } from './lessons/service.ts';
+export { EventBus, type ClaudioEventInput } from './events.ts';
+export { defaultProvidersSettings } from './providers/settings.ts';
 export { LessonStore } from './lessons/store.ts';
-export {
-  installDirs,
-  nvmBinDirs,
-  probeLoginShellPath,
-  resolveCommand,
-  resolveUserPath,
-  SHELL_PATH_PROBE_ENV,
-  type ShellPathFailure,
-  type ShellPathResult,
-} from './providers/path.ts';
-export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
-export {
-  Supervisor,
-  supervisorModeOf,
-  SupervisorConflictError,
-  type ProposalOwner,
-  type SupervisorAnswer,
-  type SupervisorDeps,
-  type SupervisorQuestion,
-} from './supervisor.ts';
+export { resolveUserPath } from './providers/path.ts';
+export { idOfEndpoint } from './push.ts';
+export { Supervisor, supervisorModeOf, SupervisorConflictError, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
@@ -950,7 +820,7 @@ export class Core {
     // The folder grows by a rules and a settings file per distinct plan; the ones no live process names go after a week
     this.startSubsystem('guardSweep', () => {
       this.stopGuardSweep = startGuardSweep(config.dataDir, () => this.runtime.liveGuardFiles(), (error) => {
-        console.warn(`guards: the sweep of the guard folder failed: ${error instanceof Error ? error.message : String(error)}`);
+        console.warn(`guards: the sweep of the guard folder failed: ${errorMessage(error)}`);
       });
     });
     this.spend = new SpendGate({
@@ -1650,7 +1520,7 @@ export class Core {
     this.restored = restored.then(
       () => undefined,
       (error: unknown) => {
-        if (!this.closed) console.warn(`restore: ${error instanceof Error ? error.message : String(error)}`);
+        if (!this.closed) console.warn(`restore: ${errorMessage(error)}`);
       },
     );
     this.connectors = new Connectors(config, { account: () => this.accounts.ref(DEFAULT_ID) });
@@ -1780,12 +1650,12 @@ export class Core {
         events: { subscribe: (listener) => this.events.observe(listener) },
       },
     });
-    this.startSubsystem('collaborators', () => void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${error instanceof Error ? error.message : String(error)}`)));
+    this.startSubsystem('collaborators', () => void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${errorMessage(error)}`)));
     this.settings = createSettingsRegistry({
       appSettings: this.appSettings,
       providers: this.providersSettings,
       // As `PUT /providers/settings` does: the answer does not wait for the probes, `providers.changed` tells the pages
-      providersChanged: () => void this.providers.settingsChanged().catch((error: unknown) => console.warn(`providers: re-detection after a reset failed: ${error instanceof Error ? error.message : String(error)}`)),
+      providersChanged: () => void this.providers.settingsChanged().catch((error: unknown) => console.warn(`providers: re-detection after a reset failed: ${errorMessage(error)}`)),
       lessons: this.lessonSettings,
       decisions: this.decisionSettings,
       guards: this.guards,
@@ -2042,7 +1912,7 @@ export class Core {
       });
     } catch (err) {
       // Heard from the chat's stream: a closed database (shutting down) must not become the chat's error
-      console.warn(`guard: the verdict on ${chatId} was not recorded: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`guard: the verdict on ${chatId} was not recorded: ${errorMessage(err)}`);
     }
   }
 
@@ -2121,7 +1991,7 @@ export class Core {
     if (!name) throw new Error('name is required');
     validateEffort(request.effort);
     const known = await this.workflowDefinitions(request.cwd);
-    if (!known.some((w) => w.name === name)) throw new Error(`workflow "${name}" not found in .claude/workflows/`);
+    if (!known.some((w) => w.name === name)) throw new NotFoundError(`workflow "${name}" not found in .claude/workflows/`);
     const args = request.args?.trim();
     const prompt = [
       `Run the saved workflow "${name}" with the Workflow tool (pass name: "${name}"${args ? ' and the args below' : ''}).`,
@@ -2149,7 +2019,7 @@ export class Core {
    */
   async purgeProject(id: string): Promise<{ detail: string }> {
     const project = this.projectStore.get(id);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     const res = await execCli(this.config, ['project', 'purge', project.path, '--yes'], { timeoutMs: 60_000 });
     if (res.code !== 0) throw new Error(res.stderr.trim() || 'claude project purge failed');
     // Only that project's transcripts went; the rest stay as they were read
@@ -2164,7 +2034,7 @@ export class Core {
   async resolveScope(projectId?: string): Promise<ConfigScope> {
     if (!projectId || projectId === 'user') return userScope(this.config);
     const project = this.projectStore.get(projectId);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     if (!existsSync(project.path)) throw new Error('project directory is missing on disk');
     return projectScope(project.path);
   }
@@ -2172,7 +2042,7 @@ export class Core {
   /** Claude Code keys a project's memory by its directory, not by the id Claudio gives the project. */
   private memoryKey(projectId: string): string {
     const project = this.projectStore.get(projectId);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     return encodeProjectId(project.path);
   }
 
@@ -2875,7 +2745,7 @@ export class Core {
 
   private requireProject(id: string): ProjectRecord {
     const record = this.projectStore.get(id);
-    if (!record) throw new Error('project not found');
+    if (!record) throw new NotFoundError('project not found');
     return record;
   }
 
@@ -2930,7 +2800,7 @@ export class Core {
    */
   /** The person lets a held card's run start past today's cap; the flow dispatches once the gate hears of it. */
   grantFlowSpendPass(itemId: string): FlowSpendPass {
-    if (!this.workItems.find(itemId)) throw new Error('work item not found');
+    if (!this.workItems.find(itemId)) throw new NotFoundError('work item not found');
     return { itemId, day: this.spend.grantItemPass(itemId) };
   }
 
@@ -3178,7 +3048,7 @@ export class Core {
         documentsRoot: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH,
         place,
       }).catch((err: unknown) => {
-        throw new ItemDocumentsError(`the item's documents could not be brought into its worktree: ${err instanceof Error ? err.message : String(err)}`);
+        throw new ItemDocumentsError(`the item's documents could not be brought into its worktree: ${errorMessage(err)}`);
       });
       for (const s of sync.skipped) console.warn(`[flow] ${item.key}: document ${s.path} not brought into the worktree: ${s.reason}`);
       const line = documentsLine(sync.present);
@@ -3819,7 +3689,7 @@ export class Core {
 
   private async projectView(id: string): Promise<Project> {
     const project = (await this.projects()).find((p) => p.id === id);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     return project;
   }
 
@@ -3975,7 +3845,7 @@ export class Core {
         await this.runtime.noteAccountReading(id, reading);
         if (reading.cli?.available) await this.accounts.confirm(id);
       } catch (e) {
-        failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+        failed.push({ id, error: errorMessage(e) });
       }
     }
     return { accounts: this.accounts.list(), failed };

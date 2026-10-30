@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { MemoryFile } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
+import { NotFoundError } from '@claudio/shared';
 
 const PROJECT_RE = /^[\w-]{1,300}$/;
 const NAME_RE = /^[A-Za-z0-9][\w.-]{0,80}\.md$/;
@@ -114,7 +115,7 @@ export class MemoryStore {
 
   async remove(projectId: string, name: string): Promise<void> {
     const path = this.file(projectId, name);
-    if (!existsSync(path)) throw new Error('memory file not found');
+    if (!existsSync(path)) throw new NotFoundError('memory file not found');
     await rm(path);
   }
 }

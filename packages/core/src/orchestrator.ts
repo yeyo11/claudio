@@ -34,7 +34,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
+import { EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -812,7 +812,7 @@ export class Orchestrator {
       this.db.saveOrchestrations(JSON.parse(readFileSync(this.file, 'utf8')) as Orchestration[]);
     } catch (err) {
       carried = false;
-      console.warn(`orchestrations: ${this.file} could not be carried into the database and was set aside as .corrupt: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`orchestrations: ${this.file} could not be carried into the database and was set aside as .corrupt: ${errorMessage(err)}`);
     }
     try {
       renameSync(this.file, `${this.file}.${carried ? 'migrated' : 'corrupt'}`);
@@ -1072,7 +1072,7 @@ export class Orchestrator {
   /** Lets a graph start new work past today's cap; kept in its document, for the local day it names. */
   grantSpendPass(id: string, day: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     orch.spendPass = day;
     this.persist();
     return orch;
@@ -1101,7 +1101,7 @@ export class Orchestrator {
 
   stop(id: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     // Checks started by hand run on a graph that is already over, and stopping it has to reach them; so does an integration retried by hand
     this.cancelChecks(orch.id);
     this.endPlaceWaits(orch.id);
@@ -1149,7 +1149,7 @@ export class Orchestrator {
    */
   resume(id: string, changes: ResumeOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running') return orch;
     // Before anything of the graph is touched, so a mode the CLI would refuse leaves it as it was
     validatePermissionMode(changes.permissionMode);
@@ -1218,7 +1218,7 @@ export class Orchestrator {
    */
   specOf(id: string): OrchestrationSpec {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     return specOfOrchestration(orch);
   }
 
@@ -1235,7 +1235,7 @@ export class Orchestrator {
   /** What a relaunch would launch, for a caller that checks it first: the original with the corrections. */
   relaunchSpec(id: string, changes: RelaunchOrchestrationRequest = {}): OrchestrationSpec {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
     const original = this.specOf(id);
     const { tasks: replaced, ...overrides } = changes.spec ?? {};
@@ -1259,7 +1259,7 @@ export class Orchestrator {
   /** Launches a template on a new objective and directory; what is given here is for this run only. */
   launchTemplate(id: string, req: LaunchOrchestrationTemplateRequest = {}): Orchestration {
     const template = this.templates.get(id);
-    if (!template) throw new Error('template not found');
+    if (!template) throw new NotFoundError('template not found');
     const spec: OrchestrationSpec = { ...template.spec };
     if (req.name?.trim()) spec.name = req.name.trim();
     if (req.objective !== undefined) spec.objective = req.objective;
@@ -1638,7 +1638,7 @@ export class Orchestrator {
    * it fails visibly, and a person decides.
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     this.endAttempt(orch, task);
     // The count of chats, the memory the machine gets back, a place kept for a person's chat, or a guard self-test
     if (isTransientRefusal(err) || err instanceof GuardSelfTestPending) {
@@ -2267,7 +2267,7 @@ ${quoted}
    */
   verify(id: string, req: VerifyOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('the checks run when the graph finishes: wait for it, or stop it first');
     if (orch.engine !== 'graph' || !orch.worktree) throw new Error('verification runs on the integration branch, which needs the graph engine with a worktree per task');
     if (this.verifying.has(orch.id)) throw new Error('the checks are already running');
@@ -3320,7 +3320,7 @@ ${quoted}
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
   retryIntegration(id: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running') throw new Error('the orchestration is still running');
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks, and integrates once they are settled');
     if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) return orch;
@@ -3350,7 +3350,7 @@ ${quoted}
    */
   async pullRequest(id: string): Promise<{ branch: string; url: string | null; detail: string; pullRequest: OrchestrationPullRequest | null }> {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     const integration = orch.integration;
     if (integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
     if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open', pullRequest: this.pullRequests?.newest(orch.id) ?? null };
@@ -3430,7 +3430,7 @@ ${quoted}
    */
   private async draftFrom(runId: string): Promise<OrchestrationSpec> {
     const run = this.runs.get(runId);
-    if (!run) throw new Error('run not found');
+    if (!run) throw new NotFoundError('run not found');
     if (run.name !== PLANNER_RUN_NAME) throw new Error('that run is not a planner run');
     const result = await this.runs.waitForResult(runId);
     if (result.isError) throw new Error(`planner failed: ${result.result}`);
@@ -3510,7 +3510,7 @@ ${quoted}
    */
   pruneWorktrees(id: string, opts: { force?: boolean } = {}): Array<{ task: string; removed: boolean; detail: string }> {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before removing its worktrees');
     const out: Array<{ task: string; removed: boolean; detail: string }> = [];
     const places: Array<{ id: string; path: string | null | undefined; branch: string | null | undefined; clear: () => void }> = [
@@ -3541,7 +3541,7 @@ ${quoted}
    */
   remove(id: string): void {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before deleting it');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const kept = this.pruneWorktrees(id, { force: false }).filter((r) => !r.removed);
@@ -3589,11 +3589,11 @@ ${quoted}
     refusal = (task: OrchestrationTaskState) => `task ${task.id} is ${task.status}, so there is nothing to decide about it`,
   ): { orch: Orchestration; task: OrchestrationTaskState } {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
     if (orch.status !== 'running' && orch.status !== 'waiting') throw new Error(`the orchestration is ${orch.status}: resume it instead`);
     const task = orch.tasks.find((t) => t.id === taskId);
-    if (!task) throw new Error('task not found');
+    if (!task) throw new NotFoundError('task not found');
     if (!allowed.includes(task.status)) throw new Error(refusal(task));
     return { orch, task };
   }
@@ -3682,13 +3682,13 @@ ${quoted}
    */
   rerunTask(id: string, taskId: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
     if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const task = orch.tasks.find((t) => t.id === taskId);
-    if (!task) throw new Error('task not found');
+    if (!task) throw new NotFoundError('task not found');
     const redo = this.withDependants(orch, task);
     const busy = redo.find((t) => t.runId && this.runs.get(t.runId)?.pid);
     if (busy) throw new Error(`task ${busy.id} still has a process running: stop it first`);
@@ -3894,7 +3894,7 @@ ${quoted}
     for (const t of orch.tasks) {
       if (t.status === 'pending' || t.status === 'running') {
         t.status = 'failed';
-        t.error = `could not start the workflow: ${err instanceof Error ? err.message : String(err)}`;
+        t.error = `could not start the workflow: ${errorMessage(err)}`;
       }
     }
     this.persist();
@@ -4306,7 +4306,7 @@ ${quoted}
   /** The script a workflow graph runs, as generated from it. */
   workflowScript(id: string): { path: string; script: string } {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     const path = this.scriptPath(orch);
     // A graph edited or never launched as a workflow still has one: the graph compiles either way
     return { path, script: existsSync(path) ? readFileSync(path, 'utf8') : this.compile(orch) };
@@ -4315,7 +4315,7 @@ ${quoted}
   /** Keeps the graph as a workflow of the project, which the CLI can run by name from then on. */
   saveWorkflow(id: string, req: SaveOrchestrationWorkflowRequest = {}): WorkflowDefinition {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     const name = req.name?.trim() || workflowName(orch.name);
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error('name must be lower case letters, digits and dashes');
     const dir = join(orch.cwd, '.claude', 'workflows');

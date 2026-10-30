@@ -498,29 +498,6 @@ export function lineCount(dir: string, ref: string | undefined, path: string): n
   }
 }
 
-/** Whether `ancestor` is `descendant` or one of the commits it grew from. */
-export function isAncestor(dir: string, ancestor: string, descendant: string): boolean {
-  try {
-    git(dir, ['merge-base', '--is-ancestor', ancestor, descendant], 30_000);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * The full hash of the commit `sha` names, or null when it names none. Only hex reaches git, so a
- * query parameter is never read as an option or a ref expression.
- */
-export function resolveCommit(dir: string, sha: string): string | null {
-  if (!/^[0-9a-f]{4,64}$/i.test(sha)) return null;
-  try {
-    return git(dir, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], 10_000) || null;
-  } catch {
-    return null;
-  }
-}
-
 /** What a commit is measured against: its first parent, or the empty tree for a root commit. */
 export function parentOf(dir: string, commit: string): string {
   try {
@@ -585,10 +562,6 @@ export function untrackedDiff(dir: string, path: string): string {
     if (e.status === 1 && typeof e.stdout === 'string') return capped(e.stdout);
     throw new Error(`git diff: could not read ${path}`);
   }
-}
-
-export function isUntracked(dir: string, path: string): boolean {
-  return untrackedPaths(dir).includes(path);
 }
 
 function gitAsync(cwd: string, args: string[]): Promise<string> {

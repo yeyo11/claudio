@@ -25,6 +25,7 @@ import { installDirs, resolveCommand } from './path.ts';
 import type { ProviderLimitSource } from './limits.ts';
 import { ProviderRegistry } from './registry.ts';
 import { childEnv } from '../child-env.ts';
+import { isRecord } from '@claudio/shared';
 
 /** One TTL for every provider: what a detection saw is served until it is this old */
 export const PROVIDERS_TTL_MS = 5 * 60 * 1000;
@@ -144,7 +145,6 @@ function isDirectory(path: string): boolean {
  * A credentials file a CLI's login writes: absent or an empty object is signed out, a JSON object
  * with a key is signed in, and anything else is a file we cannot read rather than a missing login.
  */
-const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** `login`, or `login@host` for an account on a host other than the default one */
 function accountName(entry: unknown, users: ProviderSignedInUsers): string | null {

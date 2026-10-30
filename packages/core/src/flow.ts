@@ -3,67 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GuardEventStore } from './guards/events.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import {
-  DEFAULT_FLOW_MAX_PARALLEL,
-  DOCUMENT_KINDS,
-  FLOW_RUN_CAUSES,
-  FLOW_RUN_STATUSES,
-  FLOW_RUNS_PAGE,
-  FLOW_RUNS_PAGE_MAX,
-  FLOW_STAGE_OF_COLUMN,
-  isEffort,
-  CLAUDIO_LANGUAGES,
-  flowStepOf,
-  MAX_CONTINUATIONS,
-  MAX_FLOW_RESTARTS,
-  WORK_ITEM_STATUSES,
-  type ClaudioEvent,
-  type ClaudioLanguage,
-  type ChatActivity,
-  type DecisionPointId,
-  type DocumentKind,
-  type Effort,
-  type FixStopKind,
-  type FlowCheckVerdict,
-  type FlowPlateauMode,
-  type FlowCriterionResult,
-  type FlowMemoryProposal,
-  type FlowRun,
-  type FlowRunAction,
-  type FlowRunCause,
-  type FlowRunDocument,
-  type FlowRunOutcome,
-  type FlowRunPage,
-  type FlowRunQuery,
-  type FlowRunRef,
-  type FlowRunQueuedBy,
-  type FlowRunState,
-  type FlowRunStatus,
-  type FlowStage,
-  type FlowStartWaitingResult,
-  type FlowStep,
-  type FlowVerdict,
-  type FlowWaiting,
-  type FlowWaitingColumn,
-  FLOW_COMPACT_MIN_SHARE,
-  type LimitWait,
-  type ProviderId,
-  type ProviderMove,
-  type MemoryProposalTargetKind,
-  type CommandRule,
-  type PermissionMode,
-  type ToolPolicy,
-  type ProjectFlow,
-  type ProjectSettings,
-  type ProjectTeamMember,
-  type WorkItem,
-  type WorkItemActor,
-  type WorkItemCause,
-  type WorkItemChange,
-  type WorkItemRef,
-  type WorkItemSource,
-  type WorkItemStatus,
-} from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, DEFAULT_FLOW_MAX_PARALLEL, DOCUMENT_KINDS, errorMessage, FLOW_COMPACT_MIN_SHARE, FLOW_RUN_CAUSES, FLOW_RUN_STATUSES, FLOW_RUNS_PAGE, FLOW_RUNS_PAGE_MAX, FLOW_STAGE_OF_COLUMN, flowStepOf, isEffort, isRecord, MAX_CONTINUATIONS, MAX_FLOW_RESTARTS, WORK_ITEM_STATUSES, type ChatActivity, type ClaudioEvent, type ClaudioLanguage, type CommandRule, type DecisionPointId, type DocumentKind, type Effort, type FixStopKind, type FlowCheckVerdict, type FlowCriterionResult, type FlowMemoryProposal, type FlowPlateauMode, type FlowRun, type FlowRunAction, type FlowRunCause, type FlowRunDocument, type FlowRunOutcome, type FlowRunPage, type FlowRunQuery, type FlowRunQueuedBy, type FlowRunRef, type FlowRunState, type FlowRunStatus, type FlowStage, type FlowStartWaitingResult, type FlowStep, type FlowVerdict, type FlowWaiting, type FlowWaitingColumn, type LimitWait, type MemoryProposalTargetKind, type PermissionMode, type ProjectFlow, type ProjectSettings, type ProjectTeamMember, type ProviderId, type ProviderMove, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemChange, type WorkItemRef, type WorkItemSource, type WorkItemStatus } from '@claudio/shared';
 import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
@@ -1564,7 +1504,7 @@ export class FlowService {
       });
       if (!started) throw new Error('the chat did not start');
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       if (isTransientRefusal(err)) {
         // The runtime is full, or the machine short of memory: back in the queue, in its place, until a
         // chat ends. A chat it was about to continue told it of itself first, so the row gets back the chat it had
@@ -1779,7 +1719,7 @@ export class FlowService {
       if (!left?.length) return null;
       return { error: `the merge of the default branch still has conflicted paths: ${left.slice(0, 20).join(', ')}`, cause: 'conflict-unresolved' };
     } catch (err) {
-      return { error: `the merge of the default branch could not be committed: ${err instanceof Error ? err.message : String(err)}`, cause: 'conflict-unresolved' };
+      return { error: `the merge of the default branch could not be committed: ${errorMessage(err)}`, cause: 'conflict-unresolved' };
     }
   }
 
@@ -1792,7 +1732,7 @@ export class FlowService {
     try {
       const parsed: unknown = JSON.parse(row.criteria);
       return Array.isArray(parsed)
-        ? parsed.filter((c): c is FlowCriterionResult => isObject(c) && typeof c.id === 'string' && typeof c.met === 'boolean' && typeof c.note === 'string')
+        ? parsed.filter((c): c is FlowCriterionResult => isRecord(c) && typeof c.id === 'string' && typeof c.met === 'boolean' && typeof c.note === 'string')
         : [];
     } catch {
       return [];
@@ -1882,7 +1822,7 @@ export class FlowService {
         const path = documentPathOf(document.path, roots);
         await this.deps
           .tie(item.id, { ...document, path }, { role: row.stage as FlowStage, teamRole: row.role, chatId: row.chat_id, actor, cause: cause(`flow.${row.stage}`) })
-          .catch((err: unknown) => untied.push(`\`${document.path}\`: ${err instanceof Error ? err.message : String(err)}`));
+          .catch((err: unknown) => untied.push(`\`${document.path}\`: ${errorMessage(err)}`));
       }
     }
     if (board && (result.summary || untied.length)) {
@@ -2463,35 +2403,34 @@ export function plateaued(rounds: readonly VerifyRound[]): string[] | null {
 const criteriaOf = (json: string | null): FlowCriterionResult[] => {
   if (!json) return [];
   const parsed = safeJson(json);
-  return Array.isArray(parsed) ? parsed.filter((c): c is FlowCriterionResult => isObject(c) && typeof c.id === 'string' && typeof c.met === 'boolean') : [];
+  return Array.isArray(parsed) ? parsed.filter((c): c is FlowCriterionResult => isRecord(c) && typeof c.id === 'string' && typeof c.met === 'boolean') : [];
 };
 
 const checksOf = (json: string | null): FlowCheckVerdict[] => {
   if (!json) return [];
   const parsed = safeJson(json);
-  return Array.isArray(parsed) ? parsed.filter((c): c is FlowCheckVerdict => isObject(c) && typeof c.name === 'string' && typeof c.fixed === 'boolean') : [];
+  return Array.isArray(parsed) ? parsed.filter((c): c is FlowCheckVerdict => isRecord(c) && typeof c.name === 'string' && typeof c.fixed === 'boolean') : [];
 };
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
 /** Reads a run's structured result; null when it is not one. Oversized lists are cut, not refused. */
 export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null {
   const value = typeof raw === 'string' ? safeJson(raw) : raw;
-  if (!isObject(value)) return null;
+  if (!isRecord(value)) return null;
   const summary = typeof value.summary === 'string' ? value.summary.trim().slice(0, SUMMARY_MAX) : null;
   if (summary === null) return null;
   const verdict = stage === 'verify' && (value.verdict === 'pass' || value.verdict === 'fail') ? value.verdict : null;
   const criteria: FlowCriterionResult[] = [];
   for (const c of stage === 'verify' && Array.isArray(value.criteria) ? value.criteria.slice(0, CRITERIA_MAX) : []) {
-    if (!isObject(c) || typeof c.id !== 'string' || typeof c.met !== 'boolean') continue;
+    if (!isRecord(c) || typeof c.id !== 'string' || typeof c.met !== 'boolean') continue;
     const note = typeof c.note === 'string' ? c.note.trim().slice(0, CRITERION_MAX) : '';
     // Only a plain true: anything else a model might send reads as a criterion it judged itself
     criteria.push(c.needsPerson === true ? { id: c.id, met: c.met, note, needsPerson: true } : { id: c.id, met: c.met, note });
   }
   const memoryProposals: FlowMemoryProposal[] = [];
   for (const p of Array.isArray(value.memoryProposals) ? value.memoryProposals.slice(0, PROPOSALS_MAX) : []) {
-    if (!isObject(p) || !isObject(p.target)) continue;
+    if (!isRecord(p) || !isRecord(p.target)) continue;
     const kind = TARGET_KINDS.find((k) => k === (p.target as Record<string, unknown>).kind);
     const text = str(p.text);
     if (!kind || !text) continue;
@@ -2501,7 +2440,7 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
   }
   const documents: FlowRunDocument[] = [];
   for (const d of Array.isArray(value.documents) ? value.documents.slice(0, DOCUMENTS_MAX) : []) {
-    if (!isObject(d)) continue;
+    if (!isRecord(d)) continue;
     const path = str(d.path);
     const kind: DocumentKind = DOCUMENT_KINDS.find((k) => k === d.kind) ?? 'doc';
     if (path) documents.push({ path, kind });
@@ -2517,7 +2456,7 @@ export function parseResult(raw: unknown, stage: FlowStage): ParsedResult | null
     : [];
   const checks: FlowCheckVerdict[] = [];
   for (const c of stage === 'work' && Array.isArray(value.checks) ? value.checks.slice(0, CHECKS_MAX) : []) {
-    if (!isObject(c)) continue;
+    if (!isRecord(c)) continue;
     const name = str(c.name);
     const cause = CHECK_CAUSES.find((k) => k === c.cause);
     if (!name || !cause) continue;

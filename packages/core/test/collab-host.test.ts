@@ -9,6 +9,7 @@ import { CollabHostCore } from '../src/collab/host/host.ts';
 import { IROH_MODULE_ENV, type HostStartOptions, type HostToCore } from '../src/collab/host/protocol.ts';
 import { endpointIdFromSeed, signBytes, verifyBytes } from '../src/collab/roster.ts';
 import type { ReplySink } from '../src/collab/serve.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The Collaborators host (docs/plans/collaborators.md §3.2): the binding loaded lazily and softly,
@@ -21,7 +22,7 @@ let irohError = '';
 try {
   iroh = await import('@number0/iroh');
 } catch (error) {
-  irohError = error instanceof Error ? error.message : String(error);
+  irohError = errorMessage(error);
 }
 const needsIroh = iroh ? {} : { skip: `@number0/iroh does not load here: ${irohError}` };
 

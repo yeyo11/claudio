@@ -1,4 +1,5 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * What one pass over a transcript left, as `transcript_folds` keeps it: the file as it was read
@@ -104,7 +105,7 @@ export class TranscriptFolds {
       }
     } catch (err) {
       // A fold is a cache of the file: the next start reads these transcripts again
-      console.warn(`transcript_folds: ${rows.length} rows were not recorded: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`transcript_folds: ${rows.length} rows were not recorded: ${errorMessage(err)}`);
     }
   }
 }

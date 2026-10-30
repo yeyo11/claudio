@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { gitAsyncText, watchWorktrees } from './git.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * Which git repository a directory is in, read from git's own files (gitrepository-layout(5)) with
@@ -494,7 +495,7 @@ export class RepoPlaces {
       }
     } catch (err) {
       // A placement is a cache of git's answer: the next list places these directories again
-      console.warn(`repo_places: ${rows.length} placements were not recorded: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`repo_places: ${rows.length} placements were not recorded: ${errorMessage(err)}`);
     }
   }
 
@@ -761,7 +762,7 @@ export class RepoIndex {
       this.places.upsert(row);
     } catch (err) {
       // A placement is a cache of git's answer: failing to write it down must not fail a list
-      console.warn(`repo_places: ${dir} was not recorded: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`repo_places: ${dir} was not recorded: ${errorMessage(err)}`);
     }
   }
 

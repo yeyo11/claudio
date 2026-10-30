@@ -1,15 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  DECISION_POINT_IDS,
-  type DecisionMode,
-  type DecisionPointId,
-  type DecisionPointSettings,
-  type DecisionProviderId,
-  type DecisionSettings,
-  type ModelFallback,
-  type ProjectDecisionSettings,
-} from '@claudio/shared';
+import { DECISION_POINT_IDS, isRecord, type DecisionMode, type DecisionPointId, type DecisionPointSettings, type DecisionProviderId, type DecisionSettings, type ModelFallback, type ProjectDecisionSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
@@ -77,7 +68,6 @@ export const DEFAULT_DECISION_SETTINGS: StoredDecisionSettings = {
   historyDays: 30,
 };
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function isPointId(value: string): value is DecisionPointId {
   return (DECISION_POINT_IDS as readonly string[]).includes(value);
@@ -106,7 +96,7 @@ function parseThreshold(value: unknown, field: string): number {
 
 function parseConsent(value: unknown, field: string): DecisionPointSettings['consent'] {
   if (value === null || value === undefined) return null;
-  if (!isObject(value)) throw new Error(`${field} must be an object or null`);
+  if (!isRecord(value)) throw new Error(`${field} must be an object or null`);
   const { at, stateVersion, providers } = value;
   if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) throw new Error(`${field}.at must be a date`);
   if (typeof stateVersion !== 'number' || !Number.isInteger(stateVersion) || stateVersion < 1) {
@@ -118,11 +108,11 @@ function parseConsent(value: unknown, field: string): DecisionPointSettings['con
 
 function parsePoints(value: unknown): Partial<Record<DecisionPointId, DecisionPointSettings>> {
   if (value === undefined || value === null) return {};
-  if (!isObject(value)) throw new Error('points must be an object');
+  if (!isRecord(value)) throw new Error('points must be an object');
   const points: Partial<Record<DecisionPointId, DecisionPointSettings>> = {};
   for (const [id, raw] of Object.entries(value)) {
     if (!isPointId(id)) throw new Error(`unknown decision point ${id}`);
-    if (!isObject(raw)) throw new Error(`points.${id} must be an object`);
+    if (!isRecord(raw)) throw new Error(`points.${id} must be an object`);
     points[id] = {
       mode: raw.mode === undefined ? 'off' : parseMode(raw.mode, `points.${id}.mode`),
       threshold: raw.threshold === undefined ? DEFAULT_THRESHOLD : parseThreshold(raw.threshold, `points.${id}.threshold`),
@@ -141,9 +131,9 @@ function parseCost(value: unknown, field: string): number {
 
 /** Validates a whole document, since `PUT` replaces it: a bad value is refused, not replaced. */
 export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
-  if (!isObject(input)) throw new Error('the decision settings must be a JSON object');
+  if (!isRecord(input)) throw new Error('the decision settings must be a JSON object');
   const cli = input.cli;
-  if (!isObject(cli)) throw new Error('cli must be an object');
+  if (!isRecord(cli)) throw new Error('cli must be an object');
   const model = typeof cli.model === 'string' ? cli.model.trim() : '';
   if (!MODEL_RE.test(model)) throw new Error('cli.model must be a model alias or id, such as haiku');
   if (typeof cli.effort !== 'string' || !(DECISION_EFFORTS as readonly string[]).includes(cli.effort)) {
@@ -170,20 +160,20 @@ export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
  * owner's.
  */
 export function parseProjectDecisions(value: unknown): ProjectDecisionSettings {
-  if (!isObject(value)) throw new Error('decisions must be an object');
+  if (!isRecord(value)) throw new Error('decisions must be an object');
   const result: ProjectDecisionSettings = {};
   if (value.provider !== undefined) {
     result.provider = value.provider === 'inherit' ? 'inherit' : parseProvider(value.provider, 'decisions.provider');
   }
   if (value.points !== undefined && value.points !== null) {
-    if (!isObject(value.points)) throw new Error('decisions.points must be an object');
+    if (!isRecord(value.points)) throw new Error('decisions.points must be an object');
     const points: NonNullable<ProjectDecisionSettings['points']> = {};
     for (const [id, raw] of Object.entries(value.points)) {
       // A project file written before these points left: dropped, so the rest of its decisions load
       if (REMOVED_POINTS.has(id)) continue;
       if (!isPointId(id)) throw new Error(`unknown decision point ${id}`);
       if (GLOBAL_ONLY_POINTS.has(id)) throw new Error(`${id} is set globally; a project cannot override it`);
-      if (!isObject(raw)) throw new Error(`decisions.points.${id} must be an object`);
+      if (!isRecord(raw)) throw new Error(`decisions.points.${id} must be an object`);
       if ('consent' in raw) throw new Error(`decisions.points.${id}: consent is global and cannot be set by a project`);
       const override: Partial<Pick<DecisionPointSettings, 'mode' | 'threshold'>> = {};
       if (raw.mode !== undefined) override.mode = parseMode(raw.mode, `decisions.points.${id}.mode`);
@@ -227,7 +217,7 @@ export class DecisionCredentialStore {
   }
 
   async set(input: unknown): Promise<{ keySet: boolean; keyHint: string | null }> {
-    const key = isObject(input) && typeof input.key === 'string' ? input.key.trim() : '';
+    const key = isRecord(input) && typeof input.key === 'string' ? input.key.trim() : '';
     // The message never echoes the value: a key pasted into the wrong field is still a key
     if (!key || key.length > 512 || /\s/.test(key)) throw new Error('key must be a single token of at most 512 characters');
     await writeAtomic(this.file, JSON.stringify({ jevKey: key }), 0o600);
@@ -262,7 +252,7 @@ function readLegacySupervisor(file: string): { enabled: boolean; autoSend: boole
   } catch {
     raw = null;
   }
-  const body = isObject(raw) ? raw : {};
+  const body = isRecord(raw) ? raw : {};
   return { enabled: body.enabled === true, autoSend: body.autoSend === true };
 }
 
@@ -284,7 +274,7 @@ export class DecisionSettingsStore {
     if (!existsSync(this.file)) return null;
     try {
       const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      return isObject(raw) ? raw : null;
+      return isRecord(raw) ? raw : null;
     } catch {
       return null;
     }
@@ -329,13 +319,13 @@ export class DecisionSettingsStore {
     } catch {
       return defaults();
     }
-    if (!isObject(raw)) return defaults();
+    if (!isRecord(raw)) return defaults();
     // A hand-edited field that went bad falls back on its own, and a bad point on its own, so one
     // typo does not switch every point off (or on)
     const merged = defaults();
     for (const key of ['provider', 'cli', 'historyDays'] as const) {
       // `cli` is read field by field over its defaults: a reset removes one field and keeps the others
-      const value = key === 'cli' && isObject(raw.cli) ? { ...defaults().cli, ...raw.cli } : raw[key];
+      const value = key === 'cli' && isRecord(raw.cli) ? { ...defaults().cli, ...raw.cli } : raw[key];
       if (value === undefined) continue;
       try {
         Object.assign(merged, { [key]: parseDecisionSettings({ ...defaults(), [key]: value })[key] });
@@ -343,7 +333,7 @@ export class DecisionSettingsStore {
         // keep the default for this field
       }
     }
-    if (isObject(raw.points)) {
+    if (isRecord(raw.points)) {
       for (const [id, point] of Object.entries(raw.points)) {
         try {
           Object.assign(merged.points, parsePoints({ [id]: point }));
@@ -366,7 +356,7 @@ export class DecisionSettingsStore {
   async set(input: unknown): Promise<DecisionSettings> {
     const stored = this.readStored();
     // A body without the Supervisor's cap keeps the stored one, rather than putting the default back
-    const body = isObject(input) && isObject(input.cli) && input.cli.supervisorMaxCostUsd === undefined
+    const body = isRecord(input) && isRecord(input.cli) && input.cli.supervisorMaxCostUsd === undefined
       ? { ...input, cli: { ...input.cli, supervisorMaxCostUsd: stored.cli.supervisorMaxCostUsd } }
       : input;
     const parsed = parseDecisionSettings(body);
@@ -408,9 +398,9 @@ export class DecisionSettingsStore {
     if (!raw) throw new Error(`${this.file} is not valid JSON; fix or remove it`);
     const next = withoutPaths(raw, paths);
     const points = next.points;
-    if (isObject(points)) {
+    if (isRecord(points)) {
       for (const [id, point] of Object.entries(points)) {
-        const empty = isObject(point) && Object.entries(point).every(([key, value]) => key === 'consent' && (value === null || value === undefined));
+        const empty = isRecord(point) && Object.entries(point).every(([key, value]) => key === 'consent' && (value === null || value === undefined));
         if (empty) delete points[id];
       }
       if (Object.keys(points).length === 0) delete next.points;
@@ -463,7 +453,7 @@ export class ModelFallbackStore {
     } catch {
       return [];
     }
-    if (!isObject(raw) || !Array.isArray(raw.fallbacks)) return [];
+    if (!isRecord(raw) || !Array.isArray(raw.fallbacks)) return [];
     const seen = new Set<string>();
     const fallbacks: ModelFallback[] = [];
     for (const entry of raw.fallbacks) {
@@ -489,13 +479,13 @@ export class ModelFallbackStore {
    * now, as a suggestion only when the request says so.
    */
   async set(input: unknown, now: Date = new Date()): Promise<ModelFallback[]> {
-    if (!isObject(input) || !Array.isArray(input.fallbacks)) throw new Error('fallbacks must be an array');
+    if (!isRecord(input) || !Array.isArray(input.fallbacks)) throw new Error('fallbacks must be an array');
     if (input.fallbacks.length > MAX_MODEL_FALLBACKS) throw new Error(`fallbacks holds at most ${String(MAX_MODEL_FALLBACKS)} entries`);
     const before = this.list();
     const seen = new Set<string>();
     const fallbacks: ModelFallback[] = input.fallbacks.map((raw, index) => {
       const field = `fallbacks[${String(index)}]`;
-      if (!isObject(raw)) throw new Error(`${field} must be an object`);
+      if (!isRecord(raw)) throw new Error(`${field} must be an object`);
       const from = parseModelId(raw.from, `${field}.from`);
       const to = parseModelId(raw.to, `${field}.to`);
       if (from === to) throw new Error(`${field}: a model cannot fall back on itself`);
@@ -519,7 +509,7 @@ function parseModelId(value: unknown, field: string): string {
 }
 
 function parseModelFallback(raw: unknown, field: string): ModelFallback {
-  if (!isObject(raw)) throw new Error(`${field} must be an object`);
+  if (!isRecord(raw)) throw new Error(`${field} must be an object`);
   const from = parseModelId(raw.from, `${field}.from`);
   const to = parseModelId(raw.to, `${field}.to`);
   if (from === to) throw new Error(`${field}: a model cannot fall back on itself`);

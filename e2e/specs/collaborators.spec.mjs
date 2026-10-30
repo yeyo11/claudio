@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { diagnosis, dropGroups, recordInvites } from './collab-shared.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const peers = ['ben', 'cleo'];
@@ -26,7 +27,6 @@ const REMOTE = 'https://github.com/acme/api.git';
 const PROMPT = 'e2e-collab: fix the build';
 const RELEASE = '.e2e-collab-release';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(probe, what, ms = 30_000) {
   const end = Date.now() + ms;

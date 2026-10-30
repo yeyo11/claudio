@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Account, AccountLimit } from '@claudio/shared';
-import { accountName, accountReading, accountUsable, accountViewOf, canSignInAgain, connectionOf, type ConnectionFacts, readyCount, rotationOrder, settingsView, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
+import { accountName, accountReading, accountUsable, accountViewOf, canSignInAgain, connectionOf, type ConnectionFacts, readyCount, rotationOrder, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
 
 const limit = (state: AccountLimit['state'], utilization: number | null): AccountLimit => ({
   state,
@@ -119,11 +119,6 @@ test('accountViewOf reads the overview\'s view, and refuses any other shape', ()
   // The snapshot an older server sent is not a view
   assert.equal(accountViewOf({ total: 2, ready: 1, current: 'a' }), null);
   assert.equal(accountViewOf(undefined), null);
-  // Settings that predate the preference read as none preferred, in list order
-  const old = accountViewOf({ ...view, settings });
-  assert.equal(old?.settings.preferred, null);
-  assert.deepEqual(old?.settings.order, []);
-  assert.deepEqual(settingsView(settings), { ...settings, preferred: null, order: [] });
 });
 
 test('rotationOrder lists every enabled account once: the saved order first, then the rest in list order', () => {

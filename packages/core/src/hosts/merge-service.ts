@@ -32,6 +32,8 @@ import {
 import type { HostResult } from './exec.ts';
 import { allowedMethods, githubBlockers, gitlabBlockers, requiredCheckProblems, type MergeBlockers, type MergeabilityCheck, type RequiredCheckProblem } from './merge-blockers.ts';
 import { firstLine } from './redact.ts';
+import { errorMessage } from '@claudio/shared';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // What merging needs beyond the adapters: the state the person sees (the table of what blocks a
 // merge, the GitLab pipeline guard, the wait while a host works it out), Merge, Auto-merge on and
@@ -178,7 +180,6 @@ function resetOf(result: HostResult, now: number): string | null {
   return null;
 }
 
-const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A CI configuration that lives elsewhere (`file@group/project`, a URL) is not a file of this repository */
 const remoteConfig = (path: string): boolean => path.includes('@') || /^https?:\/\//i.test(path);
@@ -206,7 +207,7 @@ export class MergeService {
 
   constructor(private readonly deps: MergeServiceDeps) {
     this.now = deps.now ?? Date.now;
-    this.sleep = deps.sleep ?? wait;
+    this.sleep = deps.sleep ?? ((ms) => sleep(ms));
     this.uuid = deps.uuid ?? randomUUID;
   }
 
@@ -558,7 +559,7 @@ export class MergeService {
           this.settle(row, 'failed', wrong.reason, wrong.detail);
           throw wrong;
         }
-        this.settle(row, 'failed', 'merge-failed', err instanceof Error ? err.message : String(err));
+        this.settle(row, 'failed', 'merge-failed', errorMessage(err));
         throw err;
       }
     });
@@ -774,7 +775,7 @@ export class MergeService {
       try {
         ({ conflicts } = await target.updateFromBase());
       } catch (err) {
-        throw new MergeError('the branch could not be updated', 'merge-failed', firstLine(err instanceof Error ? err.message : String(err)));
+        throw new MergeError('the branch could not be updated', 'merge-failed', firstLine(errorMessage(err)));
       }
       if (conflicts.length === 0) this.pushes.set(id, { sha: null, at: this.now() });
       return { state: await this.state(id, { refresh: true }), conflicts, via: 'merge' };

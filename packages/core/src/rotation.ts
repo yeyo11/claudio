@@ -8,6 +8,7 @@ import type { Db } from './db.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
 import { defaultRotationSettings } from './providers/settings.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * What happens when Claude Code reaches its usage limit. The chat manager announces `limit-hit` once
@@ -218,7 +219,7 @@ export class ProviderRotation {
       const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : limitResetsAt;
       this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
     } catch (error) {
-      const why = error instanceof Error ? error.message : String(error);
+      const why = errorMessage(error);
       this.deps.runtime.notice(run.id, `Handling the ${auth ? 'sign-in failure' : 'usage limit'} failed: ${why}`);
       // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
       // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
@@ -488,7 +489,7 @@ export class ProviderRotation {
         }
       }
     } catch (error) {
-      reason = `its turn could not be resumed: ${error instanceof Error ? error.message : String(error)}`;
+      reason = `its turn could not be resumed: ${errorMessage(error)}`;
     }
     const moved = replayed && account && from && account !== from ? { from, to: account } : null;
     if (moved) this.record('switch', moved.from, moved.to, decidedBy === 'person' ? 'person' : 'limit', run, { wait: row.id });

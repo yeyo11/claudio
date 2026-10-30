@@ -3,10 +3,10 @@
 // agent made meanwhile refused and offered as a reload, the documents tied to tasks, new documents
 // blank and from a task, the tab following its module, and the phone's screens.
 import { seedEcosystem, seedProject } from './memory-seed.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const timeout = 180_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 15_000) {
   const end = Date.now() + limit;

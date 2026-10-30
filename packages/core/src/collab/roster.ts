@@ -206,10 +206,6 @@ export function removeMember(prev: RosterVersion, seed: Uint8Array, endpointId: 
   return signNext(prev, seed, { members: prev.members.filter((m) => m.endpointId !== endpointId) }, now);
 }
 
-export function renameGroup(prev: RosterVersion, seed: Uint8Array, name: string, now?: Date | string): RosterVersion {
-  return signNext(prev, seed, { name, members: prev.members }, now);
-}
-
 /** Signed by the current owner; the new owner signs every version after this one. */
 export function transferOwnership(prev: RosterVersion, seed: Uint8Array, newOwner: string, now?: Date | string): RosterVersion {
   if (!isMember(prev, newOwner)) throw new RosterError('not-listed', prev.version + 1, `${newOwner} is not a member`);

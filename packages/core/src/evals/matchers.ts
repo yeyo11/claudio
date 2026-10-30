@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { EVAL_LIMITS, EVAL_REGEX_FLAGS } from '@claudio/shared';
+import { errorMessage, EVAL_LIMITS, EVAL_REGEX_FLAGS } from '@claudio/shared';
 import type { EvalCallMatcher, EvalCheck, EvalExpectation, EvalStringMatcher } from '@claudio/shared';
 import type { SeenCall } from '../tool-calls.js';
 import { runCommand } from '../verification.js';
@@ -107,7 +107,7 @@ function compileRegex(source: string, flags: string | undefined): RegExp | strin
   try {
     return new RegExp(source, f);
   } catch (error) {
-    return `regex does not compile: ${error instanceof Error ? error.message : String(error)}`;
+    return `regex does not compile: ${errorMessage(error)}`;
   }
 }
 
@@ -576,7 +576,7 @@ export async function evaluateExpectations(expect: EvalExpectation[], ctx: EvalC
     try {
       checks.push(await evaluateOne(idx, e, ctx));
     } catch (error) {
-      checks.push(check(idx, e, false, `the check could not be evaluated: ${error instanceof Error ? error.message : String(error)}`, null));
+      checks.push(check(idx, e, false, `the check could not be evaluated: ${errorMessage(error)}`, null));
     }
   }
   return checks;

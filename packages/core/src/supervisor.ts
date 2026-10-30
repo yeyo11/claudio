@@ -10,6 +10,7 @@ import type { ClaudioEventInput } from './events.ts';
 import { occurrenceOf, type TaskContext } from './health-service.ts';
 import { pasted, PASTED_NOTE } from './prompt-rules.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
+import { NotFoundError } from '@claudio/shared';
 
 // The optional supervisor of docs/plans/agent-observability.md §3. When a worker's health turns
 // bad, a small model reads the signal and the worker's last steps and drafts a hint of a line or
@@ -443,7 +444,7 @@ export class Supervisor {
     const matches =
       proposal &&
       ('chatId' in owner ? proposal.chatId === owner.chatId : proposal.orchestrationId === owner.orchestrationId && proposal.taskId === owner.taskId);
-    if (!proposal || !matches) throw new Error('proposal not found');
+    if (!proposal || !matches) throw new NotFoundError('proposal not found');
     if (proposal.status !== 'proposed') throw new SupervisorConflictError(`the proposal was already ${proposal.status}`);
     return proposal;
   }

@@ -16,6 +16,7 @@ import type {
 } from '@claudio/shared';
 import { AccountInUseError, DEFAULT_ID } from '@claudio/accounts';
 import { AccountLogins } from '../account-logins.ts';
+import { NotFoundError } from '@claudio/shared';
 
 /**
  * The Claude accounts (docs/plans/claude-only-fork.md, section 2): who they are, the usage each
@@ -108,7 +109,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     // The CLI could not answer at all (no network, a timeout): the account is left as it was. A client acts on the code
     if (error) return reply.status(502).send({ error: `the CLI could not read the usage of ${req.params.id}: ${error}`, code: 'accounts.check-failed' });
     const account = accounts.find((a) => a.id === req.params.id);
-    if (!account) throw new Error(`account ${req.params.id} not found`);
+    if (!account) throw new NotFoundError(`account ${req.params.id} not found`);
     return account;
   });
 

@@ -1,22 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ChatNotFoundError } from './chat-errors.ts';
-import {
-  COMPACT_FOCUS_MAX,
-  type Chat,
-  type ChatCompactAvailability,
-  type ChatCompaction,
-  type ChatContextUsage,
-  type ChatMessageReceipt,
-  type ChatMessageRequest,
-  type CompactChatRequest,
-  type CompactionFailure,
-  type CompactionOrigin,
-  type CompactRefusal,
-  type ContextBreakdown,
-  type ContextDetail,
-  type ResumeChatRequest,
-  type TranscriptEntry,
-} from '@claudio/shared';
+import { COMPACT_FOCUS_MAX, errorMessage, type Chat, type ChatCompactAvailability, type ChatCompaction, type ChatContextUsage, type ChatMessageReceipt, type ChatMessageRequest, type CompactChatRequest, type CompactionFailure, type CompactionOrigin, type CompactRefusal, type ContextBreakdown, type ContextDetail, type ResumeChatRequest, type TranscriptEntry } from '@claudio/shared';
 import type { ChatService } from './chat-service.ts';
 import type { ChatManager } from './chats.ts';
 import { ChatNotes, compactText, ContextRefusal, TYPED_COMPACT } from './context-notes.ts';
@@ -204,7 +188,7 @@ export class ContextControl {
     try {
       await this.startTurn(chatId, compactText(row.focus, row.structuredNote), 'compact');
     } catch (err) {
-      this.close(row.id, { state: 'failed', failure: 'not-started', error: err instanceof Error ? err.message : String(err) });
+      this.close(row.id, { state: 'failed', failure: 'not-started', error: errorMessage(err) });
       throw err;
     }
     return this.deps.db.compactionById(row.id) ?? row;
@@ -225,7 +209,7 @@ export class ContextControl {
     try {
       return this.deps.runtime.sendMessage(chatId, text, [], request.id, 'compact');
     } catch (err) {
-      this.close(row.id, { state: 'failed', failure: 'not-started', error: err instanceof Error ? err.message : String(err) });
+      this.close(row.id, { state: 'failed', failure: 'not-started', error: errorMessage(err) });
       throw err;
     }
   }
@@ -248,8 +232,8 @@ export class ContextControl {
       await this.deps.runtime.exited(chatId);
       return this.deps.db.compactionById(row.id);
     } catch (err) {
-      this.deps.log?.(`the compaction before a flow run on chat ${chatId} did not happen: ${err instanceof Error ? err.message : String(err)}`);
-      if (row) this.close(row.id, { state: 'failed', failure: 'not-started', error: err instanceof Error ? err.message : String(err) });
+      this.deps.log?.(`the compaction before a flow run on chat ${chatId} did not happen: ${errorMessage(err)}`);
+      if (row) this.close(row.id, { state: 'failed', failure: 'not-started', error: errorMessage(err) });
       return row ? this.deps.db.compactionById(row.id) : null;
     }
   }
@@ -290,7 +274,7 @@ export class ContextControl {
       this.read(chatId, signal);
     } catch (err) {
       // The database closed while the process was still draining: the rows are all that is lost
-      this.deps.log?.(`context control could not follow chat ${chatId}: ${err instanceof Error ? err.message : String(err)}`);
+      this.deps.log?.(`context control could not follow chat ${chatId}: ${errorMessage(err)}`);
     }
   }
 

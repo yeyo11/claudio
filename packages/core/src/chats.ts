@@ -7,36 +7,7 @@ import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import {
-  type AccountSwitchReason,
-  type AccountSwitchRefusalCode,
-  type ClaudioAssistantMarker,
-  type ChatActivity,
-  type Attachment,
-  type ChatClaudioMcp,
-  type ChatMcpServers,
-  type ClaudioMcpUnavailable,
-  type LiveMcpServer,
-  type ChatMessageReceipt,
-  type ChatMessageTaken,
-  type ChatToolConfig,
-  type ChatSettingsUpdate,
-  type ContextDetail,
-  type ChatStartOptions,
-  type Execution,
-  type ProviderId,
-  type PermissionMode,
-  type ProviderLimit,
-  type ProvidersSettings,
-  type ResumeChatRequest,
-  type RunEvent,
-  type RunGuardEvent,
-  type RunStatus,
-  type TokenUsage,
-  type ToolPolicy,
-  type TranscriptEntry,
-  type UsageHistoryPoint,
-} from '@claudio/shared';
+import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
@@ -518,7 +489,7 @@ export class ChatManager extends EventEmitter {
       this.db.saveChats(chatsFromRuns(JSON.parse(readFileSync(this.file, 'utf8')) as LegacyRun[]).chats, MAX_PERSISTED_CHATS);
     } catch (err) {
       carried = false;
-      console.warn(`chats: ${this.file} could not be carried into the database and was set aside as .corrupt: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`chats: ${this.file} could not be carried into the database and was set aside as .corrupt: ${errorMessage(err)}`);
     }
     try {
       renameSync(this.file, `${this.file}.${carried ? 'migrated' : 'corrupt'}`);
@@ -1384,7 +1355,7 @@ export class ChatManager extends EventEmitter {
       // A slot reserved at send time was admitted then, memory included
       this.spawnProcess(chat, next, reserved ? [] : this.admit({}, chat.driver, classOfChat(chat.origin)), false);
     } catch (err) {
-      chat.error = err instanceof Error ? err.message : String(err);
+      chat.error = errorMessage(err);
       // The exit ended the chat while messages waited, and nothing will read them: the page is told
       // each one was lost, and anyone waiting for a result has to hear the chat ended
       for (const message of held) chat.lose(message, chat.error);
@@ -1415,7 +1386,7 @@ export class ChatManager extends EventEmitter {
       try {
         return uploads.get(String(id));
       } catch (err) {
-        throw new ChatRefusal(err instanceof Error ? err.message : String(err), 404);
+        throw new ChatRefusal(errorMessage(err), 404);
       }
     });
   }
@@ -1714,7 +1685,7 @@ export class ChatManager extends EventEmitter {
       // Off keeps the reads of teammates' copies the chat's scope gives it, as its next process would have
       entry = this.claudioEntry(chat, enabled, identity);
     } catch (err) {
-      if (enabled) throw new ChatRefusal(err instanceof Error ? err.message : String(err), 503);
+      if (enabled) throw new ChatRefusal(errorMessage(err), 503);
       entry = null;
     }
     // The CLI leaves a server of `--mcp-config` alone until a set names it: replaced by a pushed one
@@ -1748,7 +1719,7 @@ export class ChatManager extends EventEmitter {
       await session.applyFlagSettings({ permissions: { allow: enabled ? [...CLAUDIO_MCP_READ_TOOLS] : [] } });
     } catch (err) {
       if (!enabled) return;
-      const why = err instanceof Error ? err.message : String(err);
+      const why = errorMessage(err);
       chat.push({ kind: 'notice', text: `Claudio's reads could not be allowed ahead of time in this process (${why}): they ask as the chat's mode says until its next process.` });
     }
   }
@@ -2014,7 +1985,7 @@ export class ChatManager extends EventEmitter {
       return this.agentReadsLaunch({ dir: chat.workingDir ?? chat.cwd, permissionMode: chat.permissionMode, mcpConfig: opts.mcp?.config ?? null, claudioMcp });
     } catch (err) {
       // The chat runs without them rather than not at all
-      const why = err instanceof Error ? err.message : String(err);
+      const why = errorMessage(err);
       chat.push({ kind: 'notice', text: claudioMcp ? `This process starts without Claudio's MCP server: ${why}` : `This process cannot read what teammates share: ${why}` });
       return null;
     }
@@ -2052,7 +2023,7 @@ export class ChatManager extends EventEmitter {
       text = readFileSync(base, 'utf8');
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      return this.baseUnread(chat, base, claudios, code === 'ENOENT' ? 'the file is gone' : `it cannot be read: ${code ?? (err instanceof Error ? err.message : String(err))}`);
+      return this.baseUnread(chat, base, claudios, code === 'ENOENT' ? 'the file is gone' : `it cannot be read: ${code ?? (errorMessage(err))}`);
     }
     let listed: unknown;
     try {
@@ -2395,7 +2366,7 @@ export class ChatManager extends EventEmitter {
       // The execution has begun and the chat says it is starting: a spawn that throws at once (ENOMEM,
       // E2BIG, a temp dir that cannot be made) ends both as a process that failed would, or the chat
       // stays `starting` with an execution that never ends
-      chat.error = error instanceof Error ? error.message : String(error);
+      chat.error = errorMessage(error);
       chat.procClosed = true;
       this.finalize(chat, 'failed');
       throw error;
@@ -2438,7 +2409,7 @@ export class ChatManager extends EventEmitter {
       try {
         session.readLine(line);
       } catch (err) {
-        this.failProtocol(chat, `Claudio could not read a line of the agent's output: ${err instanceof Error ? err.message : String(err)}`);
+        this.failProtocol(chat, `Claudio could not read a line of the agent's output: ${errorMessage(err)}`);
       }
       this.noteActivity(chat);
     });

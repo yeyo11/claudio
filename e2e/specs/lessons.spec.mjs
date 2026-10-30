@@ -10,6 +10,7 @@
 // environment, so the chat is stopped through the API, which also ends its run.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { seedProject } from './memory-seed.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 240_000;
@@ -21,7 +22,6 @@ const QUOTE = 'no, usa pnpm siempre';
 const TRIGGER = 'When installing dependencies in this project';
 const ACTION = 'Use `pnpm` and never npm.';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 30_000) {
   const end = Date.now() + limit;
