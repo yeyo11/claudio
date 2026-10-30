@@ -1,5 +1,5 @@
 import { RefreshCw, X } from 'lucide-react';
-import { lazy, useState, type ComponentType } from 'react';
+import { lazy, useEffect, useState, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { dismissReloadOffer, isChunkLoadError, noticeStaleChunk, reloadApp, useReloadOffer } from '../lib/reload';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
@@ -87,17 +87,33 @@ export async function loadChunk<T>(load: () => Promise<T>, wait: (ms: number) =>
  * fallback cached for the session. Any other failure is thrown as before.
  */
 export function lazyPage<P extends object>(load: () => Promise<ComponentType<P>>, fallback: ComponentType<P> = StalePage): ComponentType<P> {
-  const attempt = (): ComponentType<P> =>
-    lazy(async () => {
+  const Fallback = fallback;
+  const attempt = (): ComponentType<P> => {
+    const Page: ComponentType<P> = lazy(async () => {
       const page = await loadChunk(load);
       if (page) return { default: page };
       noticeStaleChunk();
-      current = attempt();
-      return { default: fallback };
+      // This visit shows the stale page, and leaving it readies a load of its own for the next
+      // one. The attempt is not replaced here, while the route still suspends: React drops the
+      // state of a tree that suspended on its first render and mounts it again once the promise
+      // settles, so a wrapper reading the attempt at mount would pick a fresh one and ask for the
+      // chunk without end.
+      const Stale = (props: P) => {
+        useEffect(
+          () => () => {
+            if (current === Page) current = attempt();
+          },
+          [],
+        );
+        return <Fallback {...props} />;
+      };
+      return { default: Stale };
     });
+    return Page;
+  };
   let current = attempt();
   return function LazyPage(props: P) {
-    // Read once per mount: a remount after a fallback picks up the fresh attempt
+    // Read once per mount: a visit after a stale one picks up the fresh attempt
     const [Page] = useState(() => current);
     return <Page {...props} />;
   };
