@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/yeyo11/claudio/compare/v0.11.0...v0.12.0) (2026-10-30)
+
+
+### Features
+
+* the regression fixes of 2026-10-29, every area to its design ([#72](https://github.com/yeyo11/claudio/issues/72)) ([aaf33e2](https://github.com/yeyo11/claudio/commit/aaf33e24c68ed26329b435919255307bb278c1d2))
+
 ## [0.11.0](https://github.com/yeyo11/claudio/compare/v0.10.0...v0.11.0) (2026-10-29)
 
 
