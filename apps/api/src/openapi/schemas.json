@@ -28651,6 +28651,38 @@
     },
     "description": "`PUT /tunnel/settings`: the settings to change, and only those."
   },
+  "UpdateLanSettingsRequest": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Whether it listens whenever Claudio starts. `null` is the launcher's default (`CLAUDIO_LAN`): on for the desktop app (`auto`) and with `on`, off where nothing set it. A status always says what applies (a boolean); a `PUT` with `null` goes back to the default."
+      },
+      "port": {
+        "type": "number",
+        "description": "1024–65535, 8791 by default; read-only where `CLAUDIO_LAN_PORT` sets it"
+      },
+      "bind": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "all"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Every IPv4 address of the machine, or the ones listed; read-only where `CLAUDIO_LAN_BIND` sets it"
+      }
+    },
+    "description": "`PUT /lan/settings`: the settings to change, and only those."
+  },
   "CreateTerminalRequest": {
     "anyOf": [
       {
