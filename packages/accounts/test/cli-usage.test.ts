@@ -221,7 +221,7 @@ describe('checkCredential', () => {
 describe('check and hasCredential', () => {
   it('records checkedAt and clears a failed sign-in on a valid check; an unknown one changes nothing', async () => {
     const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'check-')), defaultDir, claude: FAKE, env: env() });
-    assert.equal(store.find('default'), null, 'no credential file: a ghost until something says it has one');
+    assert.ok(!store.list().some((a) => a.id === 'default'), 'no credential file: a ghost the list leaves out until something says it has one');
     await store.markAuthFailed('default');
     assert.equal(store.get('default').signInState, 'expired');
     assert.equal(await store.check('default'), 'valid');
@@ -238,7 +238,8 @@ describe('check and hasCredential', () => {
     const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'vis-')), defaultDir: empty, claude: FAKE, env: env() });
     const login = await store.add({ kind: 'login' });
     assert.deepEqual(store.list().map((a) => a.id), [login.id]);
-    assert.equal(store.find('default'), null, 'nor found by id: no path can choose it');
+    assert.equal(store.pick({ current: null }).account, null, 'no path can choose it (nor the login that has not signed in yet)');
+    assert.equal(store.find('default')?.id, 'default', 'though a read by id still answers, for its own routes');
     writeFileSync(join(empty, '.credentials.json'), '{}');
     assert.deepEqual(store.list().map((a) => a.id), ['default', login.id]);
   });

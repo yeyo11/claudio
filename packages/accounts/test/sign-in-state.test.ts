@@ -44,7 +44,7 @@ describe('sign-in state', () => {
     await s.refresh(id);
     const a = s.get(id);
     assert.equal(a.signInState, a.signedIn ? 'ok' : 'unknown');
-    assert.equal(s.find('default'), null, 'the default dir has no credential at all: it is no account');
+    assert.ok(!s.list().some((x) => x.id === 'default'), 'the default dir has no credential at all: it is no account to list or choose');
   });
 
   it('keeps a login with no credentials file signed in and chosen: a keychain, a token or env sign-in is not signed out', async () => {
@@ -56,8 +56,10 @@ describe('sign-in state', () => {
     assert.deepEqual([a.signedIn, a.signInState, a.authFailedAt], [true, 'unknown', undefined]);
     assert.equal(s.pick({ current: null, now: NOW }).account, id);
     // The CLI's own dir with no file and no key or token in its environment is a ghost, which no
-    // path chooses (2026-10-29: only "in use" left it out, and the rotation could still move work onto it)
-    assert.equal(s.find('default'), null);
+    // path chooses (2026-10-29: only "in use" left it out, and the rotation could still move work onto it);
+    // read by id it still answers, so its own routes work before the first sign-in
+    assert.ok(!s.list().some((x) => x.id === 'default'));
+    assert.equal(s.find('default')?.id, 'default');
     assert.equal(s.pick({ current: id, failedOn: [id], now: NOW }).account, null);
     // With a credential it is the account it always was: assumed signed in until read
     credentials(s.defaultDir, complete);
@@ -101,8 +103,9 @@ describe('sign-in state', () => {
     assert.equal(await s.markAuthFailed('default', NOW), true);
     assert.equal(s.get('default').signInState, 'expired');
     assert.equal(await s.clearAuthFailed('default'), true);
-    // Cleared, a default dir with no credential is a ghost again
-    assert.equal(s.find('default'), null);
+    // Cleared, a default dir with no credential is a ghost again: out of the list, readable by id
+    assert.ok(!s.list().some((x) => x.id === 'default'));
+    assert.equal(s.find('default')?.signInState, 'unknown');
   });
 
   it('clears on a later success, and says false when there was nothing to clear', async () => {

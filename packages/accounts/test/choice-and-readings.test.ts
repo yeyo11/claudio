@@ -137,7 +137,10 @@ describe('the credential-less default', () => {
     assert.equal(s.pick({ current: null }).account, null, 'no ghost to start work on');
     const a = await s.add({ kind: 'token', alias: 'a', secret: 'sk-a' });
     assert.equal(s.pick({ current: a.id, failedOn: [a.id] }).account, null, 'nor to move to');
-    assert.equal(s.find(DEFAULT_ID), null);
+    // Read by its id it still answers: its own routes (the row, its models, the first sign-in) work
+    // before any credential exists, which is how the setup assistant reaches it
+    assert.equal(s.find(DEFAULT_ID)?.id, DEFAULT_ID);
+    assert.ok(!s.list().some((x) => x.id === DEFAULT_ID));
   });
 });
 

@@ -376,19 +376,20 @@ export class AccountStore {
   }
 
   /**
-   * The account, or null when there is none by that id (removed since, or the credential-less
-   * default). What every path that folds a run's output onto its account reads: a removed account
-   * is no reason to throw out of a stream handler.
+   * The account, or null when there is none by that id (removed since). A read by id is not a
+   * listing: the CLI's own login answers here while it has no credential, as `GET /accounts/default`,
+   * its models, `PATCH` and its sign-in route must work before the first sign-in ([accounts.md]);
+   * only `list()`, and so every choice and every count, leaves that ghost out. What every path that
+   * folds a run's output onto its account reads: a removed account is no reason to throw out of a
+   * stream handler.
    */
   find(id: string, now: number = Date.now()): Account | null {
-    return this.list(now).find((x) => x.id === id) ?? null;
+    return this.all(now).find((x) => x.id === id) ?? null;
   }
 
-  /** What a write answers: the account as it stands, the credential-less default included, since it was just changed */
+  /** What a write answers: the account as it stands, since it was just changed */
   private view(id: string): Account {
-    const a = this.all(Date.now()).find((x) => x.id === id);
-    if (!a) throw new NotFoundError(`account ${id} not found`);
-    return a;
+    return this.get(id);
   }
 
   /**

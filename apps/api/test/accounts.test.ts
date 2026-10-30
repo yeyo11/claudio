@@ -76,6 +76,18 @@ test('the default account stays out of the list while it has no credential at al
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/${session.accountId}` })).statusCode, 200);
 });
 
+test('the default account answers by id while it has no credential: its models and its settings, though it stays out of the list', async () => {
+  // Before the first sign-in the setup assistant reads the CLI's own login here (accounts.md): a
+  // read by id is not a listing, so the ghost `list()` leaves out is still a 200 at its own routes
+  assert.deepEqual(await accounts(), []);
+  const models = await app.inject('/api/accounts/default/models?refresh=1');
+  assert.equal(models.statusCode, 200, models.body);
+  assert.ok(Array.isArray(models.json()), 'the CLI is asked for its models');
+  const patched = await app.inject({ method: 'PATCH', url: '/api/accounts/default', ...json({ enabled: true }) });
+  assert.equal(patched.statusCode, 200, patched.body);
+  assert.deepEqual(await accounts(), [], 'and the list still leaves it out');
+});
+
 test('the default account is listed first once it has credentials, and the list is the store\'s listed accounts', async () => {
   mkdirSync(join(root, 'claude'), { recursive: true });
   writeFileSync(join(root, 'claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
