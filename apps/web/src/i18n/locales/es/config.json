@@ -150,10 +150,12 @@
         "observe": "observando",
         "unavailable": "no disponibles",
         "off": "desactivadas",
-        "activeLine": "Activas en las ejecuciones automáticas · {{count}} reglas activadas",
-        "chatsOnlyLine": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} reglas activadas",
+        "activeLine_one": "Activas en las ejecuciones automáticas · {{count}} regla activada",
+        "activeLine_other": "Activas en las ejecuciones automáticas · {{count}} reglas activadas",
+        "chatsOnlyLine_one": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} regla activada",
+        "chatsOnlyLine_other": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} reglas activadas",
         "observeLine": "Modo observación: no se bloquea nada",
-        "offLine": "Ninguna regla activada: no se protege ninguna ejecución",
+        "offLine": "Ninguna regla activada, así que no se protege ninguna ejecución: activa una regla para que los ajustes de abajo apliquen",
         "notAvailable": "No disponibles: {{problem}}"
       },
       "problems": {
@@ -173,7 +175,7 @@
       "rules": {
         "integrity": {
           "name": "Integridad",
-          "description": "Protege la propia guarda —los datos de Claudio, los ajustes que podrían desactivar los hooks, los hooks y la configuración de git, los procesos claude anidados— y bloquea las líneas de comando que la guarda no sabe leer."
+          "description": "Protege la guarda y los datos de Claudio, y bloquea las líneas de comando que la guarda no sabe leer."
         },
         "no-verify": {
           "name": "Sin saltarse comprobaciones",

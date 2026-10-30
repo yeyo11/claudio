@@ -434,7 +434,7 @@
     "rule": {
       "integrity": {
         "name": "Integridad",
-        "hint": "Protege la propia guarda y bloquea las líneas de comando que no sabe leer"
+        "hint": "Protege la propia guarda y bloquea las líneas de comando que no sabe leer."
       },
       "no-verify": {
         "name": "Sin saltarse comprobaciones",

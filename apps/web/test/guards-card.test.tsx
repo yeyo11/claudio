@@ -115,11 +115,14 @@ test('an active guard shows the count of rules on, integrity among them with a s
 test('with every rule off the card says no run is guarded, and never tags it Active (D6)', async () => {
   const none = Object.fromEntries(Object.keys(DEFAULT_GUARD_SETTINGS.rules).map((id) => [id, false])) as typeof DEFAULT_GUARD_SETTINGS.rules;
   const html = await render({ data: view({ rules: none }) });
-  assert.match(words(html), /No rule is on: no run is guarded/);
+  assert.match(words(html), /No rule is on, so no run is guarded: switch a rule on/);
   assert.doesNotMatch(words(html), /\bactive\b/i);
-  assert.match(words(await render({ data: view({ rules: none }) }, 'es')), /Ninguna regla activada: no se protege ninguna ejecución/);
-  // One rule on is a guard again
-  assert.match(words(await render({ data: view({ rules: { ...none, integrity: true } }) })), /Active for automated runs · 1 rules? on/);
+  assert.match(words(await render({ data: view({ rules: none }) }, 'es')), /Ninguna regla activada, así que no se protege ninguna ejecución/);
+  // The automated switch and "Observe only" have nothing to act on: disabled, while every rule stays switchable
+  const disabled = (html.match(/<button[^>]*role="switch"[^>]*>/g) ?? []).filter((tag) => /disabled/.test(tag));
+  assert.equal(disabled.length, 2);
+  // One rule on is a guard again, counted in the singular
+  assert.match(words(await render({ data: view({ rules: { ...none, integrity: true } }) })), /Active for automated runs · 1 rule on/);
 });
 
 test('observe mode is a warn line, and protect-configs shows its globs only when the rule is on', async () => {

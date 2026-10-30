@@ -161,6 +161,8 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
   const { settings } = data;
   const forbidden = isForbidden(saveError);
   const locked = readOnly || saving;
+  // With no rule on there is no guard to run for automated work or to observe with: the status line says to switch a rule on first
+  const idle = rulesOn(settings) === 0;
   const change = (id: string, label: string, wording?: (value: SettingDefault) => string) => (
     <ServerSettingChange id={id} label={label} {...(wording ? { wording } : {})} invalidate={[keys.guardSettings]} />
   );
@@ -186,7 +188,7 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
       <div className="guard-switches">
         <div className="guard-row" data-setting="guards.automated">
           <div className="setting-change-row">
-            <Switch checked={settings.automated} disabled={locked} onChange={(automated) => onSave({ automated })}>
+            <Switch checked={settings.automated} disabled={locked || idle} onChange={(automated) => onSave({ automated })}>
               {t('security.guards.automated.label')}
             </Switch>
             <p className="small muted">{t('security.guards.automated.hint')}</p>
@@ -217,7 +219,7 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
 
         <div className="guard-row" data-setting="guards.mode">
           <div className="setting-change-row">
-            <Switch checked={settings.mode === 'observe'} disabled={locked} onChange={(observe) => onSave({ mode: observe ? 'observe' : 'enforce' })}>
+            <Switch checked={settings.mode === 'observe'} disabled={locked || idle} onChange={(observe) => onSave({ mode: observe ? 'observe' : 'enforce' })}>
               {t('security.guards.observe.label')}
             </Switch>
             <p className="small text-warn">{t('security.guards.observe.hint')}</p>

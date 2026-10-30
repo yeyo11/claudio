@@ -312,7 +312,7 @@ export function ProjectGeneral({ project }: { project: Project }) {
         {t('general.guardsLabel')}
       </Switch>
       <span className="field-hint">
-        {t('general.guardsHint', { rules: guardRules })}{' '}
+        {guardRules ? t('general.guardsHint', { rules: guardRules }) : t('general.guardsNoRules')}{' '}
         <Link to={settingsHref('access', { section: 'guards' })} className="team-link">
           {t('general.guardsLink')}
         </Link>

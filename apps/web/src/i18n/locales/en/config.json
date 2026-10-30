@@ -150,10 +150,12 @@
         "observe": "observe",
         "unavailable": "not available",
         "off": "off",
-        "activeLine": "Active for automated runs · {{count}} rules on",
-        "chatsOnlyLine": "Off for automated runs, on in the chats that opt in · {{count}} rules on",
+        "activeLine_one": "Active for automated runs · {{count}} rule on",
+        "activeLine_other": "Active for automated runs · {{count}} rules on",
+        "chatsOnlyLine_one": "Off for automated runs, on in the chats that opt in · {{count}} rule on",
+        "chatsOnlyLine_other": "Off for automated runs, on in the chats that opt in · {{count}} rules on",
         "observeLine": "Observe mode: nothing is blocked",
-        "offLine": "No rule is on: no run is guarded",
+        "offLine": "No rule is on, so no run is guarded: switch a rule on for the settings below to apply",
         "notAvailable": "Not available: {{problem}}"
       },
       "problems": {
@@ -173,7 +175,7 @@
       "rules": {
         "integrity": {
           "name": "Integrity",
-          "description": "Protects the guard itself — Claudio's data, the settings that could switch hooks off, git hooks and config, nested claude processes — and blocks command lines the guard cannot read."
+          "description": "Protects the guard and Claudio's data, and blocks command lines the guard cannot read."
         },
         "no-verify": {
           "name": "No skipping checks",
