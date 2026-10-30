@@ -1187,6 +1187,8 @@ function control(message) {
     return;
   }
   if (request.subtype === 'interrupt') {
+    // What survives the interrupt, as the CLI lists it in its receipt (`still_queued`): every message still queued
+    const survivors = waiting.flatMap((m) => (m.uuid ? [m.uuid] : []));
     // The command running goes down with the turn, as the CLI's does; its exit ends the turn
     if (turn?.compacting) {
       // As the CLI aborts it: the compaction fails with the abort's own words
@@ -1204,7 +1206,40 @@ function control(message) {
       turn.current = null;
       endTurn({ error: true });
     }
-    reply({});
+    reply({ still_queued: survivors });
+    return;
+  }
+  if (request.subtype === 'background_tasks') {
+    // `SDKControlBackgroundTasksRequest`: the foreground command the turn waits on keeps running as a
+    // background task, its call returns at once, and the turn takes in what waits at that boundary
+    const own = turn;
+    const current = own?.current;
+    if (!own || !current?.child || (request.tool_use_id !== undefined && request.tool_use_id !== current.id)) {
+      reply({ backgrounded: false });
+      return;
+    }
+    const { id, child, command } = current;
+    own.current = null;
+    backgroundChildren.add(child);
+    const taskId = `b${randomUUID().replaceAll('-', '').slice(0, 8)}`;
+    log('backgrounded', { toolUseId: id, taskId, command });
+    reply({ backgrounded: true });
+    toolResult(id, `Command was manually backgrounded by user with ID: ${taskId}.`, false, { stdout: '', stderr: '', interrupted: false, isImage: false, noOutputExpected: false, backgroundTaskId: taskId });
+    child.on('exit', () => backgroundChildren.delete(child));
+    afterTool(own);
+    return;
+  }
+  if (request.subtype === 'cancel_async_message') {
+    // `SDKControlCancelAsyncMessageRequest`: a message still queued is dropped; one already taken is not
+    const at = waiting.findIndex((m) => m.uuid === request.message_uuid);
+    if (at === -1) {
+      reply({ cancelled: false });
+      return;
+    }
+    const [gone] = waiting.splice(at, 1);
+    record({ type: 'queue-operation', operation: 'remove', content: gone?.text ?? '' });
+    log('cancelled', { uuid: request.message_uuid });
+    reply({ cancelled: true });
     return;
   }
   if (request.subtype === 'set_permission_mode' && typeof request.mode === 'string') {

@@ -46,7 +46,7 @@ const HOLDS = ['audit-b2.hold', 'audit-c.hold', 'audit-c2.hold', 'audit-d1.hold'
 const VIEW = `
   const cards = [...document.querySelectorAll('.chat-queued-item')].map((li) => ({
     text: li.querySelector('.chat-queued-text')?.textContent ?? '',
-    lost: !!li.querySelector('.icon-btn'),
+    lost: li.classList.contains('is-lost'),
   }));
   const rows = [...document.querySelectorAll('.transcript .msg-user')].map((m) => m.innerText);
   const lostFoot = !!document.querySelector('.chat-queued.is-lost');

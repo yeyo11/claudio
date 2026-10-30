@@ -10,6 +10,7 @@ import type {
   CapabilityConfirmation,
   DriverEvent,
   DriverSession,
+  InterruptReceipt,
   LaunchPlan,
   McpSetServersResult,
   ProviderDriver,
@@ -20,9 +21,9 @@ import type {
 } from '../driver.ts';
 import { buildArgs } from './args.ts';
 import { ClaudeBranches } from './branches.ts';
-import { ControlChannel } from './control.ts';
+import { ControlChannel, stillQueuedOf, type BackgroundTasksRequest, type CancelAsyncMessageRequest, type InterruptRequest } from './control.ts';
 import { liveMcpServers, mcpSetServersResult } from './mcp.ts';
-import { confirmClaudeInit } from './handshake.ts';
+import { claudeReadsBack, confirmClaudeInit } from './handshake.ts';
 import { claudeCodeManifest } from './manifest.ts';
 import { translateClaudePolicy } from './policy.ts';
 import { ClaudeStream } from './stream.ts';
@@ -62,8 +63,19 @@ class ClaudeCodeSession implements DriverSession {
     return Array.isArray(content) ? String((content.at(-1) as { text: string }).text) : text;
   }
 
-  async interrupt(): Promise<void> {
-    await this.control.request({ subtype: 'interrupt' });
+  async interrupt(): Promise<InterruptReceipt> {
+    const response = await this.control.request({ subtype: 'interrupt' } satisfies InterruptRequest);
+    return { stillQueued: stillQueuedOf(response) };
+  }
+
+  async backgroundCall(toolUseId: string): Promise<boolean> {
+    const response = await this.control.request({ subtype: 'background_tasks', tool_use_id: toolUseId } satisfies BackgroundTasksRequest);
+    return response.backgrounded !== false;
+  }
+
+  async cancelMessage(id: string): Promise<boolean> {
+    const response = await this.control.request({ subtype: 'cancel_async_message', message_uuid: id } satisfies CancelAsyncMessageRequest);
+    return response.cancelled === true;
   }
 
   async setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void> {
@@ -178,5 +190,9 @@ export class ClaudeCodeDriver implements ProviderDriver {
 
   confirm(init: SessionInit): CapabilityConfirmation {
     return confirmClaudeInit(init);
+  }
+
+  readsBack(init: SessionInit): boolean | null {
+    return claudeReadsBack(init.version);
   }
 }

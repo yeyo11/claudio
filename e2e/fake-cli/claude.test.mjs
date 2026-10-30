@@ -148,11 +148,46 @@ test('a running command beats with the elapsed time offset, and hears messages a
   assert.ok(secondTree.every(alive));
   c.send({ type: 'control_request', request_id: 'r-1', request: { subtype: 'interrupt' } });
   const answer = await c.next((e) => e.type === 'control_response');
-  assert.deepEqual(answer.response, { subtype: 'success', request_id: 'r-1', response: {} });
+  // The receipt lists what survives the interrupt: nothing is queued here
+  assert.deepEqual(answer.response, { subtype: 'success', request_id: 'r-1', response: { still_queued: [] } });
   const result = await c.next((e) => e.type === 'result');
   assert.equal(result.is_error, true);
   await new Promise((r) => setTimeout(r, 100));
   assert.deepEqual(secondTree.filter(alive), []);
+  await c.done();
+});
+
+test('a foreground command sent to the background keeps running, and the turn reads what waited', { skip: !linux && 'needs /proc' }, async () => {
+  const c = chat({}, { args: ['--replay-user-messages'] });
+  c.say('run: sleep 30\nsay: Done.');
+  const call = await c.next(toolUse);
+  const id = call.message.content[0].id;
+  c.send({ type: 'user', uuid: '11111111-1111-4111-8111-111111111111', message: { role: 'user', content: 'read me now' } });
+  await new Promise((r) => setTimeout(r, 200));
+  c.send({ type: 'control_request', request_id: 'b-0', request: { subtype: 'background_tasks', tool_use_id: 'toolu_nope' } });
+  assert.deepEqual((await c.next((e) => e.type === 'control_response')).response.response, { backgrounded: false });
+  c.send({ type: 'control_request', request_id: 'b-1', request: { subtype: 'background_tasks', tool_use_id: id } });
+  assert.deepEqual((await c.next((e) => e.type === 'control_response')).response.response, { backgrounded: true });
+  const returned = await c.next((e) => e.type === 'user' && e.message.content?.[0]?.tool_use_id === id);
+  assert.match(returned.message.content[0].content, /backgrounded/);
+  await c.next((e) => e.type === 'user' && e.isReplay === true && e.uuid === '11111111-1111-4111-8111-111111111111');
+  const started = c.log().find((l) => l.event === 'command');
+  assert.ok(alive(started.commandPid), 'the command goes on in the background');
+  await c.done();
+});
+
+test('a queued message is withdrawn before the turn takes it, and one already taken is not', async () => {
+  const c = chat();
+  c.say('run: sleep 1\nsay: Done.');
+  await c.next(toolUse);
+  c.send({ type: 'user', uuid: '22222222-2222-4222-8222-222222222222', message: { role: 'user', content: 'never mind' } });
+  await new Promise((r) => setTimeout(r, 200));
+  c.send({ type: 'control_request', request_id: 'c-1', request: { subtype: 'cancel_async_message', message_uuid: '22222222-2222-4222-8222-222222222222' } });
+  assert.deepEqual((await c.next((e) => e.type === 'control_response')).response.response, { cancelled: true });
+  c.send({ type: 'control_request', request_id: 'c-2', request: { subtype: 'cancel_async_message', message_uuid: '22222222-2222-4222-8222-222222222222' } });
+  assert.deepEqual((await c.next((e) => e.type === 'control_response')).response.response, { cancelled: false });
+  await c.next((e) => e.type === 'result');
+  assert.ok(!c.log().some((l) => l.event === 'turn' && String(l.text ?? '').startsWith('never mind')), 'the withdrawn message never ran');
   await c.done();
 });
 
@@ -448,6 +483,8 @@ test('get_usage answers the plan, both windows, a model-scoped weekly limit and 
   assert.equal(usage.rate_limits.five_hour.utilization, 5);
   assert.equal(usage.rate_limits.limits.find((l) => l.kind === 'weekly_scoped').scope.model.display_name, 'Fable');
   assert.equal(usage.rate_limits.extra_usage.is_enabled, false);
+  // Its process holds the test file open until it ends
+  await c.done();
 });
 
 test('get_usage answers the recorded refusal for an invalid token or key', async () => {

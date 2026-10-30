@@ -212,15 +212,15 @@ test('a hint reaches a chat that is working as its next message, and is refused 
   try {
     const chat = started('SLEEP 60');
     await sleeping(core, chat.id);
-    await core.chats.hint(chat.id, { text: 'the e2e run hangs: is a connection left open?' });
+    await core.chats.hint(chat.id, 'the e2e run hangs: is a connection left open?');
     const said = core.runtime.events(chat.id).flatMap((e) => e.entry?.blocks ?? []).flatMap((b) => (b.type === 'text' ? [b.text] : []));
     assert.ok(said.some((t) => t.startsWith('A hint from the person following this chat') && t.includes('is a connection left open?')));
-    await assert.rejects(core.chats.hint(chat.id, { text: '   ' }), /text is required/);
+    await assert.rejects(core.chats.hint(chat.id, '   '), /text is required/);
 
     await core.chats.stop(chat.id);
     await core.runtime.exited(chat.id);
-    await assert.rejects(core.chats.hint(chat.id, { text: 'hello' }), (err) => err instanceof ChatConflictError && /no live process/.test(err.message));
-    await assert.rejects(core.chats.hint('no-such-chat', { text: 'hello' }), /not found/);
+    await assert.rejects(core.chats.hint(chat.id, 'hello'), (err) => err instanceof ChatConflictError && /no live process/.test(err.message));
+    await assert.rejects(core.chats.hint('no-such-chat', 'hello'), /not found/);
   } finally {
     core.shutdown();
   }

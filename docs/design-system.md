@@ -783,12 +783,24 @@ energy border stays with the working composer under it.
 
 - **Waiting.** The foot says how many wait ("1 mensaje espera al turno en curso") and offers
   **Enviar ahora**, a neutral `.btn-small`, for the oldest message still in the agent's queue. It goes
-  away the moment the agent reads it; the server refuses it after that, and nothing shows.
+  away the moment the agent reads it; the server refuses it after that, and nothing shows. Each
+  waiting row has **Retirarlo al cuadro** (an `.icon-btn` with the undo arrow), which takes the
+  message back from the agent and puts its words and files back in the box.
+- **Held behind a foreground call** (the server lists the message with `blockedBy`: a subagent the
+  turn waits on, or a command): ending the turn would end that work too, so the foot names it
+  ("Espera a que acabe el agente «…». Interrumpir el turno detiene ese agente") and offers two
+  neutral `.btn-small` side by side in `.chat-queued-actions`: **Pasar a segundo plano y entregar**
+  first, then **Interrumpir el turno**. They wrap under the sentence on a narrow column.
 - **Held** for the process that replaces one on its way out: the same row, and the foot says so
   ("1 mensaje espera a que Claude Code vuelva a arrancar"), with no button.
 - **Lost** (`.chat-queued-item.is-lost`): the row's icon is the warn triangle in `--warn`, with
   **Devolverlo al cuadro** (an `.icon-btn`), which puts the words and the files back in the box. The
   foot says why in one sentence. When every row is lost the card itself turns warn (`.chat-queued.is-lost`).
+- **A notice** (`.chat-queued-item.is-notice`): a message Claudio or its Supervisor wrote to the
+  agent, never the person's. The row leads with who it is from (`.chat-queued-from`, "Pista del
+  Supervisor:", "Nota de Claudio:", in `--text`), carries the info icon instead of the hourglass, and
+  has only **Descartar** (an `.icon-btn` with ✕), which withdraws it before the agent reads it. A
+  notice never gets **Enviar ahora**: that is the person's alone.
 
 ### The box and its "+" menu
 

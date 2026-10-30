@@ -54,7 +54,7 @@ import {
   type ForkChatRequest,
   type ProviderCapability,
   type ProviderId,
-  type HintRequest,
+  type ChatMessageSource,
   type NewChatRequest,
   type ResumeChatRequest,
   type RunEvent,
@@ -106,6 +106,13 @@ import { usageBreakdown, usageSeries } from './usage-series.ts';
 /** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
 export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
 export const CANCEL_NOTICE_PREFIX = 'A person cancelled the command';
+/**
+ * How Claudio begins a hint nobody typed (the Supervisor's): the agent must not take it for the
+ * person's word, and the lessons' signals, which read the person's corrections, do not count it.
+ */
+export const AUTO_HINT_PREFIX = 'An automatic hint from Claudio, not from the person following this chat:';
+/** ...and the notice of a command it cancelled on its own */
+export const AUTO_CANCEL_NOTICE_PREFIX = 'Claudio cancelled the command on its own';
 
 const CLI_FRESH_MS = 1_500;
 const CLI_STALE_MS = 10_000;
@@ -966,24 +973,31 @@ export class ChatService {
   /**
    * Sends a live chat a nudge: the text reaches the worker as its next user message, with no more
    * ceremony than that. It is for a chat whose process is up; anything else would start one, which
-   * is what a message to a resumable chat is for, and a person should choose that knowing it.
+   * is what a message to a resumable chat is for, and a person should choose that knowing it. It goes
+   * through the chat's sends in order, and says who it is from: a person's hint, or one nobody typed
+   * (`supervisor`, `claudio`), which the agent is told is automatic and the page draws as a notice.
    */
-  async hint(id: string, request: HintRequest): Promise<ChatSummary> {
-    const text = request?.text?.trim();
-    if (!text) throw new Error('text is required');
-    const runtime = this.deps.runtime.get(id);
-    if (!runtime) throw new ChatNotFoundError();
-    if (runtime.pid === null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
-    this.deps.runtime.send(id, `${CHAT_HINT_PREFIX}\n\n${text}`);
+  async hint(id: string, text: string, opts: { source?: ChatMessageSource } = {}): Promise<ChatSummary> {
+    const words = typeof text === 'string' ? text.trim() : '';
+    if (!words) throw new Error('text is required');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    const source = opts.source ?? 'person';
+    const prefix = source === 'person' ? CHAT_HINT_PREFIX : AUTO_HINT_PREFIX;
+    await this.inOrder(id, () => {
+      // Read when its turn in the order comes: a process that ended meanwhile is not started again for a nudge
+      if (this.deps.runtime.get(id)?.pid == null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
+      return this.deps.runtime.sendMessage(id, `${prefix}\n\n${words}`, [], undefined, undefined, { source, words });
+    });
     return this.require(id);
   }
 
   /**
    * Stops one command a chat is running without ending its turn: the command's process tree is
    * killed, the CLI hands the worker a failed result for that call, and the worker goes on. The worker
-   * is told a person did it, since a bare exit status looks like the command's own crash.
+   * is told who did it, since a bare exit status looks like the command's own crash: a person, or
+   * Claudio on its own (`opts.source`), with `reason` as the why.
    */
-  async cancelCommand(id: string, toolUseId: string, request: CancelCommandRequest = {}): Promise<CancelCommandResult> {
+  async cancelCommand(id: string, toolUseId: string, request: CancelCommandRequest = {}, opts: { source?: ChatMessageSource } = {}): Promise<CancelCommandResult> {
     if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
     let cancelled: { command: string; processes: number };
     try {
@@ -992,16 +1006,29 @@ export class ChatService {
       throw new ChatConflictError(err instanceof Error ? err.message : String(err), null);
     }
     const reason = request?.reason?.trim();
-    this.deps.runtime.notice(id, `${CANCEL_NOTICE_PREFIX} \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
+    const byPerson = (opts.source ?? 'person') === 'person';
+    const prefix = byPerson ? CANCEL_NOTICE_PREFIX : AUTO_CANCEL_NOTICE_PREFIX;
+    this.deps.runtime.notice(id, `${prefix} \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
+    const words = `${prefix} \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`;
     try {
-      this.deps.runtime.send(
-        id,
-        `${CANCEL_NOTICE_PREFIX} \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`,
-      );
+      // Claudio's words either way: the page shows the notice, not a message of the person's to hurry
+      await this.inOrder(id, () => this.deps.runtime.sendMessage(id, words, [], undefined, undefined, { source: byPerson ? 'claudio' : (opts.source ?? 'claudio') }));
     } catch {
       // the process went with it: there is nobody left to tell
     }
     return { toolUseId, command: cancelled.command, processes: cancelled.processes };
+  }
+
+  /** Sends one foreground call of the running turn to the background, so the agent reads what waits ("Send to background and deliver"). */
+  async backgroundCall(id: string, toolUseId: string): Promise<ChatSummary> {
+    await this.deps.runtime.backgroundCall(id, toolUseId);
+    return this.require(id);
+  }
+
+  /** Withdraws a message the agent has not read yet; 409 once it has. */
+  async cancelMessage(id: string, messageId: string): Promise<ChatSummary> {
+    await this.deps.runtime.cancelMessage(id, messageId);
+    return this.require(id);
   }
 
   /**
@@ -1098,8 +1125,7 @@ export class ChatService {
    */
   async send(id: string, request: ChatMessageRequest): Promise<ChatMessageResponse> {
     if (request.id !== undefined && (typeof request.id !== 'string' || !UUID_RE.test(request.id))) throw new Error('id must be a UUID');
-    const before = this.sending.get(id) ?? Promise.resolve();
-    const turn = before.then(async () => {
+    const message = await this.inOrder(id, async () => {
       const chat = await this.summaryForSend(id);
       if (!chat) throw new ChatNotFoundError();
       if (chat.control.mode !== 'interactive') {
@@ -1108,6 +1134,16 @@ export class ChatService {
       const typed = this.deps.typedCompact && TYPED_COMPACT.test((request.text ?? '').trim()) && !request.attachments?.length ? await this.deps.typedCompact(id, request) : null;
       return typed ?? this.deps.runtime.sendMessage(id, request.text ?? '', request.attachments ?? [], request.id);
     });
+    return { ...(await this.requireForSend(id)), message };
+  }
+
+  /**
+   * Runs one write into the chat after the ones already under way, whoever asked for them: a
+   * person's message, a hint or a notice reaches the agent in the order it was sent.
+   */
+  private inOrder<T>(id: string, write: () => T | Promise<T>): Promise<T> {
+    const before = this.sending.get(id) ?? Promise.resolve();
+    const turn = before.then(write);
     const settled = turn.then(
       () => undefined,
       () => undefined,
@@ -1116,8 +1152,7 @@ export class ChatService {
     void settled.then(() => {
       if (this.sending.get(id) === settled) this.sending.delete(id);
     });
-    const message = await turn;
-    return { ...(await this.requireForSend(id)), message };
+    return turn;
   }
 
   /**
