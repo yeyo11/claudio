@@ -91,14 +91,17 @@
     "magicDnsOff": "MagicDNS is off for this tailnet. Turn it on in the DNS page of the Tailscale admin console, then try again.",
     "httpsOff": "HTTPS certificates are off for this tailnet. Turn them on in the DNS page of the Tailscale admin console, then try again.",
     "servePermission": "Tailscale refused to change this machine's Serve settings for this user. Run sudo tailscale set --operator=$USER once, then try again.",
-    "portTaken": "Port {{port}} of this machine's tailnet name is already served by something else, and Claudio leaves it alone. Free it, or set CLAUDIO_TUNNEL_PORT to another port.",
+    "portTaken": "Port {{port}} of this machine's tailnet name already serves {{holder}}, and Claudio leaves it alone. Choose another port for the tunnel, or free this one.",
     "serveFailed": "tailscale serve did not accept the rule: {{detail}}",
     "unverified": "The Serve rule was sent, but this machine's Serve config does not show it pointing at Claudio.",
     "tailscaleNotAnswering": "Tailscale is not answering. The tunnel keeps its rule and checks again.",
     "ruleRemoved": "Claudio's Serve rule was removed or changed outside Claudio, so the tunnel is closed.",
     "managedDaemonDown": "The Tailscale service this container starts for Claudio is not answering. Restart the container; its log is tailscaled.log in the data volume's tailscale folder.",
     "managedLoggedOut": "This Claudio's Tailscale is not signed in to a tailnet. Sign in from Settings → Access & safety → Remote access.",
-    "managedNotConnected": "This Claudio's Tailscale is not connected ({{state}}). Sign in again from Settings → Access & safety → Remote access."
+    "managedNotConnected": "This Claudio's Tailscale is not connected ({{state}}). Sign in again from Settings → Access & safety → Remote access.",
+    "serveStatusFailed": "tailscale serve status did not answer with the Serve config: {{detail}}",
+    "portFromEnv": "The tunnel port is set by CLAUDIO_TUNNEL_PORT where Claudio runs, so it cannot be changed here.",
+    "portWhileRunning": "Close the tunnel before changing its port: the rule on the current port is taken away first."
   },
   "collaborators": {
     "sync": {

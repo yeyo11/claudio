@@ -45,7 +45,9 @@ const status = (state, extra = {}) => ({
   managed: false,
   tailscale: READY,
   port: 8444,
-  settings: { startWithClaudio: false },
+  portSource: 'default',
+  portTaken: null,
+  settings: { startWithClaudio: false, port: 8444 },
   ...extra,
 });
 

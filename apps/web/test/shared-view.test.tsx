@@ -32,6 +32,7 @@ const status = (enabled: boolean, unavailable = false): CollaboratorsStatus => (
   settings: { enabled, displayName: 'Me', label: 'desktop', relayUrl: null, assistantReads: true },
   endpointId: enabled ? 'me' : null,
   connection: enabled ? 'online' : 'off',
+  connectionError: null,
   homeRelay: null,
 });
 

@@ -17,7 +17,8 @@ import { tempConfig } from './helpers.ts';
  * failure that repeats is logged once too. The peer is a stand-in transport, no network.
  */
 
-type Mode = 'forbidden' | 'ok' | 'down';
+/** `serving`: the owner lists `k1`, a pull of it ends with its cursor, and it refuses the `watch` (a share it no longer serves) */
+type Mode = 'forbidden' | 'ok' | 'down' | 'serving';
 
 const seedOwner = randomBytes(32);
 const owner = endpointIdFromSeed(seedOwner);
@@ -26,12 +27,12 @@ const genesis = createGenesis({ seed: seedOwner, name: 'Platform', owner: { name
 const chain = [genesis, addMember(genesis, seedOwner, me, { name: 'Ben' })];
 const groupId = genesisGroupId(genesis);
 
-function setup(mode: { now: Mode }, opts: { reconcileMs?: number; refusedMaxMs?: number } = {}) {
-  const config = tempConfig();
+function setup(mode: { now: Mode }, opts: { reconcileMs?: number; refusedMaxMs?: number; config?: ReturnType<typeof tempConfig>; seed?: boolean } = {}) {
+  const config = opts.config ?? tempConfig();
   const dir = join(config.dataDir, 'collaborators');
   mkdirSync(dir, { recursive: true });
   // The copy this install kept from the owner's last catalog
-  writeFileSync(
+  if (opts.seed !== false) writeFileSync(
     join(dir, 'catalog.json'),
     JSON.stringify({ [owner]: { at: new Date().toISOString(), shares: [{ shareKey: 'k1', name: 'api', remote: null, subpath: null, kinds: ['chats'], counts: {}, groupIds: [groupId] }] } }),
   );
@@ -48,7 +49,9 @@ function setup(mode: { now: Mode }, opts: { reconcileMs?: number; refusedMaxMs?:
           return;
         }
         if (type === 'hello') yield { frame: { type: 'hello', heads: { [groupId]: headOf(chain) } } };
+        else if (type === 'catalog' && mode.now === 'serving') yield { frame: { type: 'catalog', groupId, projects: [{ shareKey: 'k1', name: 'api', kinds: ['chats'], counts: {}, versions: { chats: {} } }] } };
         else if (type === 'catalog') yield { frame: { type: 'catalog', groupId, projects: [] } };
+        else if (type === 'pull' && mode.now === 'serving') yield { frame: { type: 'cursor', cursor: null } };
         else yield { frame: { type: 'error', code: 'not-found' } };
       })();
     },
@@ -89,7 +92,7 @@ test('a refusal is said once on the copy and in the log, however often the peer 
   }
   assert.equal(client.isRefused(owner), true);
   assert.deepEqual(logs, ['collab: Ana no longer lists this install; its copies stop syncing until it does']);
-  const state = client.state(owner, 'k1', { path: null, lastSeenAt: null });
+  const state = client.state(owner, 'k1', { path: null });
   assert.equal(state.error?.code, 'collaborators.sync.forbidden');
 
   // It lists this install again: said once, and the refusal is over
@@ -156,10 +159,74 @@ test('an unreachable peer that stays so is logged once, not on every retry', asy
 test('a client that is not running reads paused, and syncs again once peers are set', async () => {
   const { client } = setup({ now: 'ok' as Mode });
   // Collaborators off at boot: setPeers never ran
-  assert.equal(client.state(owner, 'k1', { path: null, lastSeenAt: null }).state, 'paused');
+  assert.equal(client.state(owner, 'k1', { path: null }).state, 'paused');
   client.setPeers([owner]);
   await client.idle(owner);
-  assert.notEqual(client.state(owner, 'k1', { path: null, lastSeenAt: null }).state, 'paused');
+  assert.notEqual(client.state(owner, 'k1', { path: null }).state, 'paused');
   client.stop();
-  assert.equal(client.state(owner, 'k1', { path: null, lastSeenAt: null }).state, 'paused');
+  assert.equal(client.state(owner, 'k1', { path: null }).state, 'paused');
+});
+
+// ---------- Offline cases (docs/reports/regression-audit-2026-10-29.md §5.5, §5.7, §5.8) ----------
+
+test('a fresh read of a copy whose owner is offline answers at once from the copy, without dialling', async () => {
+  const mode = { now: 'down' as Mode };
+  const { client, asked } = setup(mode, { reconcileMs: 60_000 });
+  client.setPeers([owner]);
+  await client.idle(owner);
+  assert.equal(client.isOnline(owner), false);
+  const before = asked.length;
+  const began = Date.now();
+  await assert.rejects(client.pull(owner, 'k1', 'chats'), /offline/);
+  assert.ok(Date.now() - began < 100);
+  assert.equal(asked.length, before, 'nothing was asked of the owner');
+  client.stop();
+});
+
+test('a watch the owner refuses waits like any failure before the peer is synced again, never at once', async () => {
+  const mode = { now: 'serving' as Mode };
+  const { client, asked } = setup(mode, { reconcileMs: 60_000 });
+  client.setPeers([owner]);
+  await new Promise((r) => setTimeout(r, 400));
+  client.stop();
+  const watches = asked.filter((t) => t === 'watch').length;
+  // Backing off from 5 ms and doubling, a handful in 400 ms; at once after each refusal, hundreds
+  assert.ok(watches >= 1, 'the watch was opened');
+  assert.ok(watches <= 12, `the watch was opened ${String(watches)} times`);
+});
+
+test('when a copy last synced is kept across restarts, and a copy never pulled has no such time', async () => {
+  const config = tempConfig();
+  const fresh = setup({ now: 'down' as Mode }, { config });
+  // Listed by the catalog read before the restart, never pulled: not "last synced" at the read
+  assert.equal(fresh.client.state(owner, 'k1', { path: null }).lastSyncedAt, null);
+  fresh.client.setPeers([owner]);
+  await fresh.client.idle(owner);
+  assert.equal(fresh.client.state(owner, 'k1', { path: null }).state, 'pending', 'away, and never synced');
+  fresh.client.stop();
+
+  const mode = { now: 'serving' as Mode };
+  const first = setup(mode, { config, seed: false });
+  first.client.setPeers([owner]);
+  await first.client.idle(owner);
+  const synced = first.client.state(owner, 'k1', { path: null }).lastSyncedAt;
+  assert.ok(synced, 'the pull dated the copy');
+  first.client.stop();
+
+  // A restart, with the owner away: the copy still says when it synced, and reads offline
+  const next = setup({ now: 'down' as Mode }, { config, seed: false });
+  assert.equal(next.client.state(owner, 'k1', { path: null }).lastSyncedAt, synced);
+  next.client.setPeers([owner]);
+  await next.client.idle(owner);
+  assert.equal(next.client.state(owner, 'k1', { path: null }).state, 'offline');
+  next.client.stop();
+});
+
+test('a change announced to a peer that is not reached is dialled once, not twice in a row', async () => {
+  const mode = { now: 'down' as Mode };
+  const { client, asked } = setup(mode, { reconcileMs: 60_000 });
+  // Not among the peers the client follows, so no run of its own asks it anything
+  await client.announce(owner, true);
+  assert.equal(asked.filter((t) => t === 'hello').length, 1);
+  client.stop();
 });
