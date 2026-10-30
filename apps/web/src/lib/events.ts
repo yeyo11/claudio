@@ -31,6 +31,8 @@ import type {
   SubagentActivityEvent,
   Team,
   TunnelChangedEvent,
+  LanChangedEvent,
+  LanStatus,
   TunnelStatus,
   WorkItemChange,
 } from '@claudio/shared';
@@ -509,7 +511,7 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       // The event carries the whole status, which `patchSettings` writes
       return [];
     case 'lan.changed':
-      // The event carries the whole status; the Remote access card reads it from the feed
+      // The event carries the whole status, which `patchSettings` writes
       return [];
     case 'terminal.changed':
       // The terminal's own view reads this feed; no cached query depends on it yet
@@ -644,13 +646,14 @@ export function patchOrchestrationTask(client: QueryClient, event: Orchestration
 }
 
 /**
- * Writes the layered settings and the tunnel's status into their caches, from the event that
+ * Writes the layered settings and the tunnel's and the LAN listener's status into their caches, from the event that
  * carries each one whole. A tunnel moving through its states in a few seconds would otherwise cost
  * a request per step, and a refetch could land between two steps and show one already gone.
  */
-export function patchSettings(client: QueryClient, event: SettingsChangedEvent | TunnelChangedEvent): void {
+export function patchSettings(client: QueryClient, event: SettingsChangedEvent | TunnelChangedEvent | LanChangedEvent): void {
   if (event.type === 'settings.changed') client.setQueryData<AppSettings>(keys.appSettings, event.settings);
-  else client.setQueryData<TunnelStatus>(keys.tunnel, event.tunnel);
+  else if (event.type === 'tunnel.changed') client.setQueryData<TunnelStatus>(keys.tunnel, event.tunnel);
+  else client.setQueryData<LanStatus>(keys.lan, event.lan);
 }
 
 /** A chat's state while a run of ours drives it: `stateFromRun` in core, which the lists are built with. */
@@ -737,7 +740,7 @@ const PATCHERS: readonly Patcher[] = [
   (client, event) => (event.type === 'chat.activity' ? (patchActivity(client, event), []) : []),
   (client, event) => (event.type === 'subagent.activity' ? (patchSubagentActivity(client, event), []) : []),
   (client, event) => (event.type === 'orchestration.task' ? (patchOrchestrationTask(client, event), []) : []),
-  (client, event) => (event.type === 'settings.changed' || event.type === 'tunnel.changed' ? (patchSettings(client, event), []) : []),
+  (client, event) => (event.type === 'settings.changed' || event.type === 'tunnel.changed' || event.type === 'lan.changed' ? (patchSettings(client, event), []) : []),
   (client, event) => {
     if (event.type === 'dashboard.layout') client.setQueryData<StoredDashboardLayout>(keys.dashboardLayout(event.project), { project: event.project, layout: event.layout });
     return [];

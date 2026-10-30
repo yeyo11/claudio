@@ -147,8 +147,7 @@ test('the language is stored only when it differs from the browser\'s, and Reset
 });
 
 // The terminal's replay and login shell have no control in the UI yet, so search has nothing to take a person to
-// The LAN listener's rows come with its card in Remote access (lan-web, docs/plans/lan-access.md), which takes them off this list
-const NO_ROW = new Set(['terminal.replay', 'terminal.login-shell', 'lan.enabled', 'lan.port', 'lan.bind']);
+const NO_ROW = new Set(['terminal.replay', 'terminal.login-shell']);
 
 test('every server setting that has a row in Settings is one search finds', () => {
   const ids = new Set(SETTINGS_INDEX.map((entry) => entry.id));

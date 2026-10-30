@@ -793,6 +793,11 @@
       },
       "machine": {
         "history": "Memoria, presión y chats a lo largo del tiempo"
+      },
+      "lan": {
+        "enabled": "Red local",
+        "port": "Puerto de la red local",
+        "bind": "Interfaces de la red local"
       }
     },
     "keywords": {
@@ -952,7 +957,7 @@
         "allowed": "host origen dominio"
       },
       "remote": {
-        "section": "túnel tailscale móvil dirección qr",
+        "section": "túnel tailscale móvil dirección qr lan wifi red",
         "tunnel": "tailscale tailnet serve"
       },
       "secrets": {
@@ -993,6 +998,11 @@
       "machine": {
         "section": "memoria presión carga cpu chats rss recursos servidor máquina",
         "history": "memoria presión carga cpu chats historial gráficas"
+      },
+      "lan": {
+        "enabled": "lan wifi red casa escuchar móvil",
+        "port": "lan wifi red 8791",
+        "bind": "lan wifi red interfaz dirección ip"
       }
     },
     "consequences": {
@@ -1881,6 +1891,72 @@
       "holder": "Lo ocupa:",
       "useNext": "Usar el siguiente puerto libre ({{port}})"
     }
+  },
+  "lan": {
+    "title": "En la red local",
+    "switch": "Escuchar en la red local",
+    "states": {
+      "listening": "Escuchando",
+      "off": "Apagado",
+      "refused": "Necesita un método de acceso",
+      "port-in-use": "Puerto ocupado",
+      "failed": "Fallido"
+    },
+    "intro": {
+      "listening": "Los dispositivos de tu red abren Claudio en:",
+      "off": "Actívalo y los móviles y ordenadores de tu red podrán abrir Claudio en la dirección de esta máquina."
+    },
+    "noAddress": "Esta máquina aún no tiene una dirección de red que mostrar. Conéctala a una red.",
+    "address": {
+      "copy": "Copiar {{url}}",
+      "qr": "QR",
+      "showQr": "Mostrar el código QR de {{url}}"
+    },
+    "qr": {
+      "title": "Abrir en el móvil",
+      "label": "Código QR de {{url}}",
+      "scan": "Escanea el código con la cámara del móvil mientras esté en la misma red."
+    },
+    "authRequired": {
+      "title": "Activa antes un método de acceso",
+      "body": "Mientras Claudio no pida ninguna credencial, cualquiera en esta red controlaría esta máquina, así que no escucha. Activa un token u OIDC en Acceso, más arriba.",
+      "action": "Ir a Acceso"
+    },
+    "portInUse": {
+      "title": "Otro programa ocupa el puerto {{port}}",
+      "body": "Claudio nunca lo detiene. Elige otro puerto o libera este.",
+      "holder": "Quién lo ocupa:",
+      "useNext": "Usar el siguiente puerto libre ({{port}})"
+    },
+    "failedTitle": "Claudio no ha podido escuchar en la red",
+    "retry": "Intentar de nuevo",
+    "disabled": {
+      "tag": "desactivado",
+      "title": "Escuchar en la red está desactivado en este despliegue",
+      "body": "Quien ejecuta este Claudio puede activarlo con {{variable}} (lan.enabled en el chart de Helm)."
+    },
+    "port": {
+      "label": "Puerto",
+      "hint": "Elige otro si otro programa ya lo usa.",
+      "restarts": "Con otro puerto, Claudio vuelve a escuchar.",
+      "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio.",
+      "save": "Guardar el puerto"
+    },
+    "bind": {
+      "label": "Interfaces",
+      "all": "Todas",
+      "choose": "Elegir…",
+      "none": "Esta máquina no tiene ninguna dirección de red entre las que elegir.",
+      "hintAll": "Todas las direcciones de esta máquina.",
+      "hintChosen": "Solo las direcciones marcadas.",
+      "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio."
+    },
+    "http": {
+      "title": "HTTP sin cifrar",
+      "body": "Tu token viaja sin cifrar por esta red, y el móvil no tiene aplicación ni notificaciones aquí. Para el móvil, usa Tailscale, más abajo."
+    },
+    "saveFailed": "No se ha podido guardar el ajuste de la red local",
+    "startFailed": "No se ha podido empezar a escuchar"
   },
   "appSettings": {
     "fromEnv": "Fijado por el entorno",

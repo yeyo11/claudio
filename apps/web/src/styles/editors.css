@@ -1719,6 +1719,118 @@ button.master-item-on:hover {
   color: var(--text);
 }
 
+/* The local network card: the switch, the state in a word and the Changed · Reset slot, at the end of the head */
+.lan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+  margin-inline-start: auto;
+}
+
+/* The addresses devices open: a mono URL per row with its Copy and QR, wrapping rather than overflowing */
+.lan-addresses {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lan-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.lan-address-url {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.lan-address-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* One QR at a time, under the list on a desktop and in a sheet on a phone; dark on light like the tunnel's */
+.lan-qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.lan-qr > p {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+.lan-qr-sheet {
+  flex-direction: column;
+  justify-content: center;
+}
+
+.lan-qr-sheet .qr {
+  width: min(240px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.lan-qr-sheet > p {
+  flex: none;
+  text-align: center;
+}
+
+/* The settings under the addresses: the label and its control share the top line with the slot */
+.lan-bind-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.lan-interfaces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* An interactive container, so it keeps its border: the address ticked or not, with the interface's name beside it */
+.lan-interface {
+  min-height: var(--control-h-sm);
+  padding: 4px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+
+.lan-interface-name {
+  white-space: nowrap;
+}
+
+.lan-bind-hint {
+  margin: 0;
+}
+
+/* A port is five digits: the field takes the room of a number, not of the card */
+.lan-setting .number-input {
+  max-width: 240px;
+}
+
 /* Dark on light in both themes, with its quiet zone drawn in, so any camera reads it */
 .qr {
   display: block;
@@ -1904,6 +2016,46 @@ button.master-item-on:hover {
 
   .tunnel-actions > .btn {
     width: 100%;
+    min-height: 44px;
+  }
+
+  /* The card stacks: the head's controls under the title, the URLs wrap, every target is 44 px */
+  .lan-head {
+    margin-inline-start: 0;
+  }
+
+  .lan-address-url {
+    display: flex;
+    align-items: center;
+    flex-basis: 100%;
+    min-height: 44px;
+    font-size: var(--fs-small);
+  }
+
+  .lan-address-actions {
+    width: 100%;
+  }
+
+  .lan-address-actions .btn,
+  .lan-address-actions .icon-btn,
+  .lan-interface {
+    min-height: 44px;
+  }
+
+  .lan-address-actions .icon-btn {
+    min-width: 44px;
+  }
+
+  .lan-interface {
+    flex: 1 1 100%;
+  }
+
+  .lan-bind-head .segmented {
+    flex: 1 1 100%;
+  }
+
+  .lan-bind-head .segment {
+    flex: 1 1 0;
     min-height: 44px;
   }
 }

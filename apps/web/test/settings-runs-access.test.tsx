@@ -85,7 +85,8 @@ test('every row the search registry names is marked on its screen or its detail'
     // A section's own entry is its anchor; the shell scrolls to it
     if (entry.id === entry.section) continue;
     // The rows inside the guards and terminal cards draw once the card has read its settings: a static render holds their skeleton
-    if (/^(guards\.(mode|automated|rule\.)|terminal\.(?!enabled$))/.test(entry.id)) continue;
+    // The local network card's rows too: its status comes from the server (lan-card.test.tsx draws them)
+    if (/^(guards\.(mode|automated|rule\.)|terminal\.(?!enabled$)|lan\.)/.test(entry.id)) continue;
     // The Machine detail is a lazy chunk the static render cannot draw: its row on the group's screen stands for it
     const html = entry.detail && entry.detail !== 'machine' ? details[entry.detail as keyof typeof details] : screens[entry.group];
     assert.ok(settingIds(html).has(entry.id), `${entry.id} is marked`);
