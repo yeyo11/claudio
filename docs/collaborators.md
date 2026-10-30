@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T22:32:57.97745428Z
-updated_at: 2026-10-19T18:00:00Z
+updated_at: 2026-10-30T03:30:00Z
 tags:
     - collaborators
     - peer-to-peer
@@ -37,7 +37,14 @@ nobody's quota is spent: serving a copy never runs Claude.
   offline when someone joins, the request waits with a member and reaches the owner when they are
   back; the page says "Waiting for the owner to come online" and names the member holding it (an
   invite carries the names of the members it lists as relays, so the joiner knows them before it has
-  the roster).
+  the roster). Joining never holds the page for a dial: when neither the owner nor a relay answered
+  within a few seconds, the join answers `pending` (`202`) at once, shows as waiting, and goes on
+  trying in the background; it becomes a group or a denial on the page as soon as someone answers.
+  That answer is a snapshot taken while the request was still being delivered, so its `relayedBy` is
+  usually null: who ends up holding the request, and the roster once the owner signs it, come
+  through `GET /collaborators/groups` (`pendingJoins`), which the `collaborators.changed` event keeps
+  fresh. The join dialog follows that list (`followJoin` in `apps/web/src/pages/collaborators/model.ts`)
+  and a script does the same rather than reading the answer's `relayedBy`.
 - **Learn how a join ended.** A join that will not be signed does not stay pending: when the owner
   denies it, the joiner's page says "Ana denied your request to join UDD" (the bad tone, with the word
   **Denied** and an icon), and when the invite expires before the owner answered it says "The invite
@@ -45,7 +52,10 @@ nobody's quota is spent: serving a copy never runs Claude.
   **Dismisses** it, nothing asks after it any more, and the page changes live, without a reload. A new
   invite is a new request: being denied with one invite says nothing about the next.
 - **Manage members** (owner): accept or deny join requests, remove a member, or make another member
-  the owner. A member can leave, which deletes every copy synced through that group. Members, join
+  the owner. A member can leave, which deletes every copy synced through that group at once; the
+  owner and the other members are told in the background, and a leave nobody acknowledged is sent
+  again until one does (up to 14 days), so an offline owner does not keep the install on its roster
+  and leaving does not wait for it. Members, join
   requests and waiting joins are shown by name, with the label and the short endpoint id in mono as
   detail, and roster changes are announced by who joined, left or became the owner.
 - **Be told of a join request**: a join waiting for the owner's answer notifies the owner in the bell
@@ -253,7 +263,30 @@ read ("from Ana · laptop · api").
 - **Quiet failures.** A peer that answers `forbidden` stopped sharing or removed this install: its
   copies say so once, the log says so once, and it is asked again at a wait that doubles from the
   reconcile pace up to a day, or as soon as it says hello. Any other failure is logged when its
-  reason changes, and the recovery once. Log lines name the peer with the start of its id.
+  reason changes, and the recovery once. Log lines name the peer with the start of its id. A `watch`
+  the peer ends with an error is a failure too: the next run waits, longer each time, instead of
+  starting at once.
+- **Offline, by design** (the regression audit of 2026-10-29, §5). Nothing a page or a timer asks
+  waits on a peer that is away:
+  - *The host restarting.* While a crashed host waits out its restart backoff, a request fails at
+    once as unreachable and forks nothing; the timer forks the host, and every fork that has options
+    to bind sends `start` before anything else. What was queued for the dead host is dropped.
+  - *A bind that fails* (a port taken, a relay URL it cannot use) is the connection `error`, with the
+    binding's words and the time of the next try on the You card; it is tried again with a backoff
+    (1 s doubling to a minute) until it binds, without toggling Collaborators.
+  - *Back online.* Every move of the endpoint back to `online` (a relay that returns after an outage)
+    pokes every peer and sends the waiting joins and leaves again, rather than each waiting out its
+    own timer.
+  - *Waiting joins and leaves* are sent by one pass at a time: a pass that outlasts the 30 s interval
+    (each dial to an offline owner and relay waits out its 20 s timeout) is joined, not doubled, and
+    `pending-joins.json` and `pending-leaves.json` are read and written under the roster lock.
+  - *A dial that times out* and completes later is closed at once, never adopted for requests to hang
+    on.
+  - *A fresh read* (`?refresh=1`) of a copy whose owner the last run did not reach answers from the
+    copy at once.
+  - *Last synced* is when a pull of that copy last finished, kept across restarts in
+    `catalog.json`; a copy never pulled has none, and reads pending rather than dated by the catalog
+    read or the owner's last sighting.
 - **The API** is the [Collaborators](rest-api.md#collaborators) table of the REST API; the events are
   `collaborators.changed`, `collaborators.peer`, `collaborators.synced`,
   `collaborators.join-request`, `collaborators.join-answered` and, on the joiner's install,

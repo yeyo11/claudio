@@ -10,11 +10,11 @@
 // The spec removes the accounts it added and puts the settings back.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 120_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async ({ page, api, check, dirs }) => {
   const settings = (await api.get('/accounts/settings')).body;
@@ -106,6 +106,30 @@ export default async ({ page, api, check, dirs }) => {
     await page.goto('/accounts', 1500);
     await page.waitFor(`return document.body.innerText.toLowerCase().includes('sign-in expired')`, { label: 'the expired sign-in on the Accounts page' });
     check(await page.eval(`return [...document.querySelectorAll('button')].some((b) => b.textContent.includes('Sign in again')) || document.body.innerText.toLowerCase().includes('sign in again')`), 'the page offers to sign in again');
+
+    // ---------- the preferred account and the page's own fixes (C4, assistant-everything §6) ----------
+    // Hold out is the card's button only: no card's menu offers it a second time
+    check(
+      await page.eval(`return [...document.querySelectorAll('.account-card')].every((c) => [...c.querySelectorAll('button')].filter((b) => (b.getAttribute('aria-label') ?? '').startsWith('Hold out')).length <= 1)`),
+      'each card offers Hold out once',
+    );
+    await page.click('.account-card button', 'Use this account', 800);
+    let prefSettings = null;
+    for (let i = 0; i < 20; i++) {
+      prefSettings = (await api.get('/accounts/settings')).body;
+      if (prefSettings.preferred) break;
+      await sleep(250);
+    }
+    check(typeof prefSettings?.preferred === 'string' && added.includes(prefSettings.preferred), `Use this account sets the preferred account (${prefSettings?.preferred})`);
+    await page.waitFor(`return [...document.querySelectorAll('.account-card .badge-text')].some((b) => b.textContent === 'Preferred')`, { label: 'the Preferred tag on the chosen card' });
+    const view = (await api.get('/overview')).body?.accounts;
+    check(view?.settings?.preferred === prefSettings?.preferred, 'the overview serves the same preference in its account view');
+
+    // Switching at the limit off: the fields that only apply to a switch are read-only
+    await api.put('/accounts/settings', { rotateOnLimit: false });
+    await page.waitFor(`return document.querySelector('.rotation-card .slider')?.getAttribute('aria-disabled') === 'true'`, { label: 'the threshold is read-only while switching is off' });
+    check(await page.eval(`return document.body.innerText.includes('Applies when switching at the limit is on')`), 'the fields say when they apply');
+    await api.put('/accounts/settings', { rotateOnLimit: true });
 
     // ---------- an orchestration task after it ----------
     // The expired mark keeps the account out of the choice, so the task's chat runs on another one.

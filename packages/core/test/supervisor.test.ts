@@ -10,7 +10,8 @@ import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTIN
 import type { ClaudioEventInput } from '../src/events.ts';
 import { HealthMonitor, type TaskContext } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
-import { hintFrom, lastSteps, Supervisor, SupervisorConflictError, supervisorModeOf, type SupervisorAnswer, type SupervisorQuestion } from '../src/supervisor.ts';
+import { hintFrom, lastSteps, relayHint, Supervisor, SupervisorConflictError, supervisorModeOf, type SupervisorAnswer, type SupervisorQuestion } from '../src/supervisor.ts';
+import { MemoryRefusal, RunSlotRefusal } from '../src/chat-errors.ts';
 import { tempConfig } from './helpers.ts';
 import { PASTED_NOTE } from '../src/prompt-rules.ts';
 
@@ -53,17 +54,32 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
   const events: ClaudioEventInput[] = [];
   const hints: SupervisorProposal[] = [];
   const charged: Array<[string, number]> = [];
+  const cancelled: Array<{ proposal: SupervisorProposal; toolUseId: string }> = [];
+  const cancel = { refuse: false };
+  const clock = { now: Date.parse('2026-10-30T10:00:00Z') };
+  const stepsAsked: Array<HealthSignal['agent']> = [];
   let steps: TranscriptEntry[] = [];
   const spend = { open: true };
   const supervisor = new Supervisor({
     spendOpen: () => spend.open,
+    now: () => clock.now,
+    roomRetryMs: 5,
+    roomWaitMs: 2000,
+    cancel: (proposal, toolUseId) => {
+      if (cancel.refuse) return Promise.reject(new Error('the call is not a command that is running: it may have ended already'));
+      cancelled.push({ proposal, toolUseId });
+      return Promise.resolve();
+    },
     settings,
     db,
     ask: async (q) => {
       asked.push(q);
       return answer(q);
     },
-    steps: () => Promise.resolve(steps),
+    steps: (_chatId, agent) => {
+      stepsAsked.push(agent);
+      return Promise.resolve(steps);
+    },
     hint: (p) => {
       hints.push(p);
       return Promise.resolve();
@@ -76,7 +92,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli } });
     await settings.setPointMode('supervisor.intervene', mode);
   };
-  return { config, db, settings, supervisor, asked, events, hints, charged, spend, enable, setSteps: (s: TranscriptEntry[]) => (steps = s) };
+  return { config, db, settings, supervisor, asked, events, hints, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
 }
 
 test('the deprecated body maps onto the point\'s mode, and the view is derived from the point and the engine', async () => {
@@ -89,11 +105,11 @@ test('the deprecated body maps onto the point\'s mode, and the view is derived f
   assert.throws(() => supervisorModeOf([]), /JSON object/);
 
   const h = harness();
-  // Off by default, with the engine's CLI model and cap
-  assert.deepEqual(h.supervisor.config, { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.02 });
+  // Off by default, with the engine's CLI model and the Supervisor's own cap
+  assert.deepEqual(h.supervisor.config, { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.25 });
   await h.settings.setConsent('supervisor.intervene', { granted: true, stateVersion: 1, providers: ['jev'] });
   // The model and the cap of the body are ignored; the point keeps its threshold and consent
-  assert.deepEqual(await h.supervisor.configure({ enabled: true, model: 'opus', autoSend: true, maxCostUsd: 4 }), { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.02 });
+  assert.deepEqual(await h.supervisor.configure({ enabled: true, model: 'opus', autoSend: true, maxCostUsd: 4 }), { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.25 });
   const point = h.settings.get().points['supervisor.intervene'];
   assert.equal(point?.mode, 'active');
   assert.equal(point?.threshold, DEFAULT_THRESHOLD);
@@ -207,7 +223,7 @@ test('Core folds supervisor.json into the point when it starts, and the Supervis
   const core = new Core({ ...config, claudeBin: FAKE_CLAUDE });
   try {
     assert.equal(core.decisionSettings.get().points['supervisor.intervene']?.mode, 'active');
-    assert.deepEqual(core.supervisor.config, { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.02 });
+    assert.deepEqual(core.supervisor.config, { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.25 });
   } finally {
     core.shutdown();
   }
@@ -261,7 +277,7 @@ test('two announcements before the answer arrives ask once', async () => {
 
 test('the question carries the signal, the settings and the worker\'s last steps; the event names the task', async () => {
   const h = harness();
-  await h.enable('shadow', { model: 'claude-haiku-4-5', maxCostUsd: 0.02 });
+  await h.enable('shadow', { model: 'claude-haiku-4-5', maxCostUsd: 0.02, supervisorMaxCostUsd: 0.3 });
   const long = Array.from({ length: 20 }, (_, i) => `line ${String(i)}`).join('\n');
   h.setSteps([
     entry('assistant', [{ type: 'text', text: 'Running the suite.' }, { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pnpm e2e' } }]),
@@ -274,7 +290,7 @@ test('the question carries the signal, the settings and the worker\'s last steps
 
   const [q] = h.asked;
   assert.equal(q?.model, 'claude-haiku-4-5');
-  assert.equal(q?.maxCostUsd, 0.02);
+  assert.equal(q?.maxCostUsd, 0.3, "the Supervisor's own cap, not a decision's");
   assert.equal(q?.cwd, '/work/tree');
   // The task's name and the worker's steps are marked as pasted content, with the note
   assert.match(q?.prompt ?? '', /The task, as it is named:\n<pasted_content id="([0-9a-f]{8})">\nBuild it\n<\/pasted_content id="\1">/);
@@ -431,8 +447,8 @@ test('a worker that turns bad gets a proposal from a read-only housekeeping chat
     0,
   );
   try {
-    // The cap is the engine's now; the body's own cap is ignored
-    await core.decisionSettings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, maxCostUsd: 0.03 } });
+    // The cap is the engine's Supervisor cap now; the body's own cap and a decision's are not it
+    await core.decisionSettings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, maxCostUsd: 0.03, supervisorMaxCostUsd: 0.4 } });
     await core.supervisor.configure({ enabled: true, model: 'opus', autoSend: false, maxCostUsd: 1 });
     const chat = core.runtime.start({ prompt: 'SLEEP 60' });
     await until(() => core.runtime.pulse(chat.id)?.commands[0], 'the command to start');
@@ -450,8 +466,15 @@ test('a worker that turns bad gets a proposal from a read-only housekeeping chat
     const argv = housekeeping[0]?.split(' ') ?? [];
     const flag = (name: string) => argv[argv.indexOf(name) + 1];
     assert.equal(flag('--model'), 'haiku');
-    assert.equal(flag('--max-budget-usd'), '0.03');
+    assert.equal(flag('--max-budget-usd'), '0.4');
     assert.ok(argv.some((a) => a.startsWith('--allowedTools=Read,Glob,Grep,')), argv.join(' '));
+    // Confined like a decision's one-shot (C3): its preset's tools only, no settings file, no MCP server, nothing to ask
+    assert.ok(argv.includes('--restricted'), argv.join(' '));
+    assert.ok(argv.includes('--tools=Read,Glob,Grep,Bash'), argv.join(' '));
+    assert.ok(argv.includes('--setting-sources='), argv.join(' '));
+    assert.ok(argv.includes('--strict-mcp-config'), argv.join(' '));
+    assert.equal(flag('--permission-mode'), 'dontAsk');
+    assert.ok(!argv.includes('--settings'), 'and no guard');
     // Read-only, and like every run Claudio starts for a graph it may never push
     // The log splits argv on spaces, so the rule `Bash(git push *)` is read on the whole line
     assert.ok(housekeeping[0]?.includes(' --disallowedTools=Edit,Write,MultiEdit,NotebookEdit,Bash(git push),Bash(git push *) '), argv.join(' '));
@@ -508,4 +531,166 @@ test('over the daily spend cap it makes no call, and asks about the signal once 
   h.spend.open = true;
   assert.equal((await h.supervisor.wake(chat, null, [hung]))?.signal, 'hung-command');
   assert.equal(h.asked.length, 1);
+});
+
+// ---------- occurrences, the agent a signal names, room, and acting on a hung command (C3) ----------
+
+const hungCall = (toolUseId: string, since = '2026-10-30T09:40:00.000Z'): HealthSignal => ({ ...hung, toolUseId, since });
+
+test('one proposal per occurrence: a second hang of the same kind is a new question, the same one is not', async () => {
+  const h = harness();
+  await h.enable();
+  const chat = chatOf('c1');
+  const first = await h.supervisor.wake(chat, null, [hungCall('toolu_1')]);
+  assert.equal(first?.occurrence, 'toolu_1');
+  assert.equal(await h.supervisor.wake(chat, null, [hungCall('toolu_1')]), null, 'the same command is answered once');
+  const second = await h.supervisor.wake(chat, null, [hungCall('toolu_2', '2026-10-30T09:55:00.000Z')]);
+  assert.equal(second?.occurrence, 'toolu_2');
+  assert.equal(h.asked.length, 2);
+  assert.deepEqual(h.db.proposalsOf('c1').map((p) => p.occurrence).sort(), ['toolu_1', 'toolu_2']);
+  // A stall run that ends on the command already answered is the same thing to act on, not a second
+  assert.equal(await h.supervisor.wake(chat, null, [{ kind: 'repeat-stall', level: 'bad', reason: 'pnpm e2e hung 3 times', toolUseId: 'toolu_2', since: '2026-10-30T09:00:00.000Z' }]), null);
+  assert.equal(h.asked.length, 2);
+});
+
+test('a proposal kept before occurrences were keyed holds its kind for that occurrence only', async () => {
+  const h = harness();
+  await h.enable();
+  const legacy: SupervisorProposal = { id: 'old', chatId: 'c1', signal: 'hung-command', hint: 'Stop the suite.', costUsd: 0.01, at: '2026-10-29T10:00:00.000Z', status: 'sent' };
+  assert.ok(h.db.saveProposal(legacy));
+  assert.equal(h.db.proposal('old')?.occurrence, undefined, 'read back as it was stored');
+  assert.equal((await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_9')]))?.occurrence, 'toolu_9', 'a new hang of a long chat is asked about');
+});
+
+test('a question that failed is asked again once fifteen minutes have passed, not before', async () => {
+  let call = 0;
+  const h = harness(() => (++call === 1 ? { text: '', costUsd: 0.01, isError: true } : { text: 'Kill the stale server.', costUsd: 0.01, isError: false }));
+  await h.enable();
+  const signal = hungCall('toolu_1');
+  assert.equal(await h.supervisor.wake(chatOf('c1'), null, [signal]), null);
+  h.clock.now += 14 * 60_000;
+  assert.equal(await h.supervisor.wake(chatOf('c1'), null, [signal]), null);
+  assert.equal(h.asked.length, 1);
+  h.clock.now += 2 * 60_000;
+  assert.equal((await h.supervisor.wake(chatOf('c1'), null, [signal]))?.hint, 'Kill the stale server.');
+  assert.equal(h.asked.length, 2);
+});
+
+test('a question refused for room, a full slot or short memory, is retried and never counted as failed', async () => {
+  let call = 0;
+  const h = harness(() => {
+    call += 1;
+    if (call === 1) throw new RunSlotRefusal(4);
+    if (call === 2) throw new MemoryRefusal('Not enough memory to start a chat: 300 MB available, below the 512 MB floor');
+    return { text: 'Check the port.', costUsd: 0.01, isError: false };
+  });
+  await h.enable();
+  // The pause between tries is unref'd, so a wait for room never holds the process on its way out;
+  // in a test it is the only thing pending, and the loop would end before the timer fires (Node 22
+  // reports the promise as never resolved). The test keeps the loop alive itself.
+  const alive = setInterval(() => undefined, 50);
+  try {
+    const proposal = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]);
+    assert.equal(proposal?.hint, 'Check the port.');
+    assert.equal(h.asked.length, 3);
+  } finally {
+    clearInterval(alive);
+  }
+
+  // No room in time: nothing is recorded, and the next announcement asks again
+  const full = harness(() => {
+    throw new RunSlotRefusal(4);
+  });
+  await full.enable();
+  // The wait is measured on the Supervisor's clock: each try moves it on, so the deadline comes without a real wait
+  const tick = setInterval(() => (full.clock.now += 500), 1);
+  try {
+    assert.equal(await full.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]), null);
+    const tries = full.asked.length;
+    assert.ok(tries >= 2, `retried while it waited (${String(tries)} tries)`);
+    assert.equal(await full.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]), null);
+    assert.ok(full.asked.length > tries, 'not held as failed');
+    assert.deepEqual(full.db.proposalsOf('c1'), []);
+  } finally {
+    clearInterval(tick);
+  }
+});
+
+test('Active cancels a hung command with the hint as the reason, and sends the hint only when the cancel is refused', async () => {
+  const h = harness(() => ({ text: 'The suite waits on port 5432; start the database first.', costUsd: 0.01, isError: false }));
+  await h.enable('active');
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]);
+  assert.equal(proposal?.status, 'sent');
+  assert.deepEqual(
+    h.cancelled.map((c) => [c.toolUseId, c.proposal.hint]),
+    [['toolu_1', 'The suite waits on port 5432; start the database first.']],
+  );
+  assert.equal(h.hints.length, 0, 'the cancel carried it: no message besides');
+  assert.equal(h.db.proposal(proposal?.id ?? '')?.status, 'sent');
+
+  h.cancel.refuse = true;
+  const refused = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_2')]);
+  assert.equal(refused?.status, 'sent');
+  assert.equal(h.cancelled.length, 1);
+  assert.deepEqual(h.hints.map((p) => p.id), [refused?.id]);
+
+  // A signal that is not about one running command is a message, as before
+  const looped = await h.supervisor.wake(chatOf('c1'), null, [looping]);
+  assert.equal(looped?.status, 'sent');
+  assert.equal(h.cancelled.length, 1);
+  assert.equal(h.hints.length, 2);
+
+  // Shadow cancels nothing: a person decides
+  await h.enable('shadow');
+  h.cancel.refuse = false;
+  assert.equal((await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_3')]))?.status, 'proposed');
+  assert.equal(h.cancelled.length, 1);
+});
+
+test("a signal about a subagent's call reads that agent's steps and asks the lead to relay the hint or stop it", async () => {
+  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  await h.enable('active');
+  h.cancel.refuse = true;
+  const agent = { parentToolUseId: 'toolu_agent', description: 'Audit the CLI bundle', subagentType: 'Explore' };
+  const sub = (blocks: TranscriptEntry['blocks']): TranscriptEntry => ({ ...entry('assistant', blocks, true), parentToolUseId: 'toolu_agent' });
+  h.setSteps([
+    entry('assistant', [{ type: 'tool_use', id: 'lead1', name: 'Bash', input: { command: 'lead-only-step' } }]),
+    sub([{ type: 'tool_use', id: 's1', name: 'Bash', input: { command: 'grep -r x /usr/lib/node_modules' } }]),
+    { ...entry('assistant', [{ type: 'tool_use', id: 'o1', name: 'Read', input: { file_path: 'another-agent-step' } }], true), parentToolUseId: 'toolu_other' },
+  ]);
+  const signal: HealthSignal = { ...hungCall('s1'), detail: 'grep -r x /usr/lib/node_modules', agent };
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [signal]);
+
+  assert.deepEqual(h.stepsAsked, [agent], 'the steps of that agent were asked for');
+  const prompt = h.asked[0]?.prompt ?? '';
+  assert.match(prompt, /a subagent the agent launched \(type Explore\), described as:\n<pasted_content id="([0-9a-f]{8})">\nAudit the CLI bundle\n/);
+  assert.match(prompt, /- Bash \{"command":"grep -r x \/usr\/lib\/node_modules"\}/);
+  assert.doesNotMatch(prompt, /lead-only-step|another-agent-step/, "only that agent's own steps");
+  assert.match(prompt, /Write a hint for the subagent/);
+
+  assert.ok(proposal);
+  assert.deepEqual(proposal.agent, agent);
+  assert.match(proposal.hint, /^Your background agent `Audit the CLI bundle` is stuck\. Relay this to it with SendMessage, or stop it/);
+  assert.ok(proposal.hint.endsWith('Run the grep on src/ only.'));
+  // What the lead was sent, and what the store reads back
+  assert.equal(h.hints[0]?.hint, proposal.hint);
+  assert.deepEqual(h.db.proposal(proposal.id)?.agent, agent);
+});
+
+test('lastSteps reads the lead alone by default, and one subagent when asked', () => {
+  const lead = entry('assistant', [{ type: 'tool_use', id: 'a', name: 'Bash', input: { command: 'lead' } }]);
+  const sub = { ...entry('assistant', [{ type: 'tool_use', id: 'b', name: 'Bash', input: { command: 'sub' } }], true), parentToolUseId: 'p1' };
+  assert.match(lastSteps([lead, sub]), /"lead"/);
+  assert.doesNotMatch(lastSteps([lead, sub]), /"sub"/);
+  assert.match(lastSteps([lead, sub], 'p1'), /"sub"/);
+  assert.doesNotMatch(lastSteps([lead, sub], 'p1'), /"lead"/);
+  assert.equal(relayHint({ parentToolUseId: 'p1' }, 'x'), 'Your background agent `p1` is stuck. Relay this to it with SendMessage, or stop it if it cannot get past it: x');
+});
+
+test('the store keeps one row per occurrence of a signal per chat', () => {
+  const h = harness();
+  const row = (id: string, occurrence: string): SupervisorProposal => ({ id, chatId: 'c1', signal: 'hung-command', occurrence, hint: 'h', costUsd: 0, at: '2026-10-30T10:00:00.000Z', status: 'proposed' });
+  assert.equal(h.db.saveProposal(row('a', 'toolu_1')), true);
+  assert.equal(h.db.saveProposal(row('b', 'toolu_1')), false);
+  assert.equal(h.db.saveProposal(row('c', 'toolu_2')), true);
 });

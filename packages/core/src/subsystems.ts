@@ -30,6 +30,7 @@ export const SUBSYSTEMS = {
   collaborators: { full: true, headless: false, why: 'The iroh collaborators host; not in the image, and no collaborator routes' },
   terminalStrays: { full: true, headless: false, why: 'Ends shells a previous server left; headless opens no terminals' },
   guardSelfTest: { full: true, headless: true, why: "Checks the guard program before the first launch: the confined API chat's declared-tools rule runs in it (D14.5)" },
+  guardSweep: { full: true, headless: true, why: "Removes the guard folder's rules and settings files no live process names, a week after their last use; confined API chats write them too" },
   serverUpdates: { full: true, headless: false, why: 'In-app server updates: the image is the version (D6)' },
   accountsWatch: { full: true, headless: true, why: "Reads each account's usage cache and models list, which sign-in, rotation and the model list need" },
   orchestrationRecovery: { full: true, headless: false, why: 'Resumes orchestrations a restart cut off; none in headless' },

@@ -6,6 +6,7 @@ import { writeAtomic } from '../config/files.ts';
 import type { AuthEnv, CoreConfig } from '../paths.ts';
 import { ChatTokenStore, chatActor } from './chat-tokens.ts';
 import { OidcVerifier } from './oidc.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * What is on disk. The token itself is never here: only its SHA-256, so a stolen data volume
@@ -146,7 +147,7 @@ export class AuthStore {
       } catch (error) {
         // Falling back to the default would open a wrapper that was closed, so nothing starts
         // until a person looks at the file: an unreadable guard is not an absent one.
-        throw new Error(`${this.file} is not readable as JSON (${error instanceof Error ? error.message : String(error)}); fix or delete it`);
+        throw new Error(`${this.file} is not readable as JSON (${errorMessage(error)}); fix or delete it`);
       }
       const reset = resetFromEnvironment(env, this.stored);
       if (reset) {

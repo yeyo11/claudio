@@ -1,25 +1,9 @@
 import { createReadStream, existsSync, type Stats } from 'node:fs';
-import { open, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { open, readFile, readdir, rm, stat, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, sep } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import {
-  entrySearchText,
-  entryText,
-  isModelName,
-  isWaitingOnBackground,
-  normalizeMessage,
-  runsElapsedMs,
-  searchPattern,
-  TranscriptSearch,
-  TRANSCRIPT_PAGE,
-  TRANSCRIPT_PAGE_MAX,
-  type AgentTranscript,
-  type BackgroundTaskOutput,
-  type ChatBranchRun,
-  type TranscriptEntry,
-  type TranscriptSearchResult,
-} from '@claudio/shared';
+import { entrySearchText, entryText, isModelName, isWaitingOnBackground, normalizeMessage, NotFoundError, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentTranscript, type BackgroundTaskOutput, type ChatBranchRun, type TranscriptEntry, type TranscriptSearchResult } from '@claudio/shared';
 import { toChatTask } from './chat-branches.ts';
 import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
@@ -28,8 +12,9 @@ import { CORRECTION_FOLD, type CorrectionState } from './lessons/signals.ts';
 import { JsonlCache, type JsonlFold } from './jsonl-cache.ts';
 import type { CoreConfig } from './paths.ts';
 import { toolCallsOf, type ToolCall } from './tool-calls.ts';
+import type { TranscriptFoldRow, TranscriptFolds } from './transcript-folds.ts';
 import { EntryIndex, fingerprint, parseLine, readLines, scanLines, type JsonLine } from './transcript-index.ts';
-import { UsageFold } from './usage.ts';
+import { UsageFold, type UsageFoldJson } from './usage.ts';
 import { readSessionWorkflows, readWorkflowAgent, WorkflowMemo } from './workflows.ts';
 import { readJournalTasks, type JournalRead } from './workflow-journal.ts';
 
@@ -99,24 +84,102 @@ function finishSummary(fold: SummaryFold, info: Stats): TranscriptSummary | null
   return summary;
 }
 
+function emptyFold(projectId: string, file: string): SummaryFold {
+  return {
+    summary: {
+      id: basename(file, '.jsonl'),
+      projectId,
+      projectPath: '',
+      title: '',
+      firstPrompt: null,
+      messageCount: 0,
+      startedAt: null,
+      updatedAt: null,
+      model: null,
+      gitBranch: null,
+      cliVersion: null,
+      sizeBytes: 0,
+      worktree: null,
+    },
+    customTitle: null,
+    command: undefined,
+    spent: new UsageFold(),
+  };
+}
+
 /**
- * What one pass over a transcript learned, kept so the next request only reads what was appended
- * since: a live session grows by a line at a time, and re-reading tens of megabytes for each one is
- * what made a long session slow to list and to open.
+ * The version of the listing's fold `transcript_folds` keeps: raised whenever what `foldLine` or the
+ * usage fold reads of a line changes, so a row folded by older code is folded again, never trusted.
  */
-interface TranscriptState {
+const FOLD_VERSION = 1;
+/** Spend is put on days of the server's zone: a fold made in another zone would put it on the wrong ones */
+const FOLD_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+interface SummaryFoldJson {
+  v: number;
+  zone: string;
+  summary: SummaryFold['summary'];
+  customTitle: string | null;
+  command: string | null;
+  spent: UsageFoldJson;
+}
+
+function foldToJson(fold: SummaryFold): string {
+  const json: SummaryFoldJson = { v: FOLD_VERSION, zone: FOLD_ZONE, summary: fold.summary, customTitle: fold.customTitle, command: fold.command ?? null, spent: fold.spent.toJSON() };
+  return JSON.stringify(json);
+}
+
+/** A stored fold, or null when it was made by another version or in another zone, or does not parse: the file is folded again. */
+function foldFromJson(text: string): SummaryFold | null {
+  try {
+    const json = JSON.parse(text) as Partial<SummaryFoldJson>;
+    if (json.v !== FOLD_VERSION || json.zone !== FOLD_ZONE || !json.summary || !json.spent) return null;
+    return { summary: json.summary, customTitle: json.customTitle ?? null, command: json.command ?? undefined, spent: UsageFold.fromJSON(json.spent) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the listing learned of one transcript, kept so the next look only reads what was appended
+ * since: a live session grows by a line at a time, and re-reading tens of megabytes for each one is
+ * what made a long session slow to list. Persisted in `transcript_folds`, so a restart does not
+ * read every transcript on the machine again either.
+ */
+interface Listed {
+  projectId: string;
   ino: number;
   size: number;
   mtimeMs: number;
-  /** Offset just past the last complete line: everything before it is final */
+  /** Offset just past the last complete line: everything before it is folded */
   end: number;
   /** The bytes just before `end`, which a file that only grew still has */
   fingerprint: Buffer;
   /** Over the complete lines only, so the next pass can go on from `end` */
   fold: SummaryFold;
+  /**
+   * At `size`, a half-written last line included when it already parses. Undefined for a fold
+   * restored from the table until the file is looked at, since its tail may not have been folded.
+   */
+  summary: TranscriptSummary | null | undefined;
+}
+
+/** The byte offset of each entry of a transcript, for a chat being read: only the ones open are kept. */
+interface Paged {
+  ino: number;
+  size: number;
+  mtimeMs: number;
+  end: number;
+  fingerprint: Buffer;
   entries: EntryIndex;
-  /** At this size, a half-written last line included if it already parses */
-  summary: TranscriptSummary | null;
+}
+
+const unchanged = (known: { ino: number; size: number; mtimeMs: number }, info: Stats): boolean =>
+  known.ino === info.ino && known.size === info.size && known.mtimeMs === info.mtimeMs;
+
+/** Whether a file still holds, where it was, the part a pass already read up to `end`: only then is it read on from there. */
+async function goesOn(handle: FileHandle, known: { ino: number; end: number; fingerprint: Buffer } | null, info: Stats): Promise<boolean> {
+  return known !== null && known.ino === info.ino && info.size >= known.end && (await fingerprint(handle, known.end)).equals(known.fingerprint);
 }
 
 /** A line's text whether the CLI stored it as a plain string or as content blocks. */
@@ -420,6 +483,13 @@ const AGENT_FILES = 32;
 /** Project directories listed at once, and transcripts opened at once, when every session is read */
 const LIST_DIRS_AT_ONCE = 16;
 const LIST_FILES_AT_ONCE = 32;
+/**
+ * How often every transcript is looked at again even while a watcher reports each change: a watch
+ * whose kernel queue overflowed misses events without saying so. Done in the background.
+ */
+const SWEEP_EVERY_MS = 60_000;
+/** Transcripts whose entry offsets are kept for paging: the chats being read, the least recently read going first */
+const PAGED_FILES = 32;
 
 /** `work` over every item, no more than `limit` at a time, results in order. */
 async function mapLimit<T, R>(items: readonly T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
@@ -450,10 +520,23 @@ export function pageSize(limit: number | undefined): number {
   return Math.min(Math.max(1, Math.trunc(limit)), TRANSCRIPT_PAGE_MAX);
 }
 
-/** Reads projects and sessions from ~/.claude/projects (.jsonl transcripts written by the CLI). */
+/** Options of a {@link SessionStore}. */
+export interface SessionStoreOptions {
+  /** Where each transcript's fold is kept across restarts; without it a restart folds every transcript again */
+  folds?: TranscriptFolds | null;
+}
+
+/**
+ * Reads projects and sessions from ~/.claude/projects (.jsonl transcripts written by the CLI).
+ *
+ * The listing is incremental (docs/plans/regression-fixes-2026-10-29.md, D8 and C7). It keeps what it
+ * last learned of every transcript and, while the {@link SessionsWatcher} reports every change under
+ * the projects directory, looks again only at the files and directories it named; without a watcher
+ * it looks at every file's stat and reads only the ones that changed. A file that changed is read on
+ * from where its last pass stopped, and that pass is kept in `transcript_folds`, so a restart reads
+ * rows rather than every transcript on the machine. Callers asking while a look is under way share it.
+ */
 export class SessionStore {
-  /** Transcript file → what reading it last left, pending while a read is under way */
-  private readonly transcripts = new Map<string, Promise<TranscriptState | null>>();
   /** Subagent transcript → its working dir; written once at its start, so never re-read */
   private readonly cwdCache = new Map<string, string | null>();
   private readonly activities = new JsonlCache(ACTIVITY_FOLD);
@@ -468,91 +551,264 @@ export class SessionStore {
    */
   private readonly files = new Map<string, { projectId: string; file: string }>();
 
-  constructor(private readonly config: CoreConfig) {}
+  private readonly folds: TranscriptFolds | null;
+  /** Transcript file → what the listing learned of it */
+  private readonly listed = new Map<string, Listed>();
+  /** A look at one file under way, shared by whoever asks about that file meanwhile */
+  private readonly reading = new Map<string, Promise<Listed | null>>();
+  /** Rows of `transcript_folds` no file has claimed yet: read once, at the first look */
+  private restored: Map<string, TranscriptFoldRow> | null = null;
+  /** A watcher reports every change under the projects directory */
+  private watched = false;
+  /** Something may have changed that nobody reported (the watch just started, or could not say what): every file is looked at */
+  private unknown = true;
+  private readonly reportedFiles = new Set<string>();
+  /** Project directories a file came into or left, by name */
+  private readonly reportedDirs = new Set<string>();
+  /** When the last look at every file began; -Infinity before the first */
+  private sweptAt = -Infinity;
+  /** A look at every file is under way: until it ends, what the listing holds may predate the watch */
+  private sweeping = false;
+  private refreshing: Promise<void> | null = null;
+  /** The listing, newest first; null when an entry changed since it was sorted */
+  private sorted: TranscriptSummary[] | null = null;
+  private gen = 0;
+  /** Transcript file → its entry offsets, for the chats being read; most recently read last */
+  private readonly pages = new Map<string, Promise<Paged | null>>();
 
-  private async projectDirs(): Promise<string[]> {
+  constructor(
+    private readonly config: CoreConfig,
+    opts: SessionStoreOptions = {},
+  ) {
+    this.folds = opts.folds ?? null;
+  }
+
+  /** Protected so a test can count the looks at every directory. */
+  protected async projectDirs(): Promise<string[]> {
     if (!existsSync(this.config.projectsDir)) return [];
     const entries = await readdir(this.config.projectsDir, { withFileTypes: true });
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);
   }
 
-  private async summarize(projectId: string, file: string): Promise<TranscriptSummary | null> {
-    return (await this.transcript(projectId, file))?.summary ?? null;
+  // ---------- the listing ----------
+
+  /** Raised whenever what {@link listSessions} returns changes: what a result derived from the listing is kept against. */
+  get generation(): number {
+    return this.gen;
+  }
+
+  /** The watcher started (every change from now on is reported) or stopped. Either way, what happened unwatched is unknown. */
+  noteWatching(on: boolean): void {
+    this.watched = on;
+    this.unknown = true;
   }
 
   /**
-   * The state of a transcript as it is on disk now. Requests for one file queue behind each other,
-   * so two of them never extend the same state at once.
+   * A path under the projects directory changed, relative to it, as the watcher names it; null when
+   * it could not say which. A transcript is `<dir>/<session>.jsonl`; a bare `<dir>` is a project
+   * directory that came or went; anything deeper is a session's sidecar, which the listing never reads.
    */
-  private transcript(projectId: string, file: string, reindex = false): Promise<TranscriptState | null> {
-    const previous = reindex ? undefined : this.transcripts.get(file);
-    const next = (previous ?? Promise.resolve(null)).catch(() => null).then((old) => this.readTranscript(projectId, file, old));
-    this.transcripts.set(file, next);
+  noteChanged(path: string | null): void {
+    if (path === null) {
+      this.unknown = true;
+      return;
+    }
+    const [dir, name, ...deeper] = path.split(/[\\/]/);
+    if (!dir) return;
+    if (name === undefined) this.reportedDirs.add(dir);
+    else if (deeper.length === 0 && name.endsWith('.jsonl')) this.reportedFiles.add(join(this.config.projectsDir, dir, name));
+  }
+
+  /** Whether the listing knows every transcript as it is, but for what was reported since: watched since before a finished look at every file. */
+  private trusted(): boolean {
+    return this.watched && !this.unknown && !this.sweeping && this.sweptAt !== -Infinity;
+  }
+
+  /** Whether what the listing holds of a file is current without looking at it: a watcher reports every change, and none was for it. */
+  private current(file: string): boolean {
+    const entry = this.listed.get(file);
+    return (
+      this.trusted() &&
+      entry !== undefined &&
+      entry.summary !== undefined &&
+      !this.reportedFiles.has(file) &&
+      !this.reportedDirs.has(entry.projectId)
+    );
+  }
+
+  async listSessions(projectId?: string): Promise<TranscriptSummary[]> {
+    const reported = () => this.reportedFiles.size > 0 || this.reportedDirs.size > 0;
+    if (this.refreshing) {
+      await this.refreshing;
+      // What the watcher reported while that look ran is read now, not at the next call
+      if (this.watched && (this.unknown || reported())) await this.refresh();
+    } else if (!this.watched || this.unknown || this.sweptAt === -Infinity || reported()) await this.refresh();
+    // Watched and nothing reported: what was listed is current. The look at every file that a
+    // missed event would need is due now and then, and goes on behind this answer
+    else if (Date.now() - this.sweptAt > SWEEP_EVERY_MS) void this.refresh().catch(() => undefined);
+    // ISO times, so their text sorts as their instants do
+    this.sorted ??= [...this.listed.values()]
+      .map((entry) => entry.summary)
+      .filter((s): s is TranscriptSummary => s !== null && s !== undefined)
+      .sort((a, b) => ((b.updatedAt ?? '') > (a.updatedAt ?? '') ? 1 : (b.updatedAt ?? '') < (a.updatedAt ?? '') ? -1 : 0));
+    return projectId === undefined ? [...this.sorted] : this.sorted.filter((s) => s.projectId === projectId);
+  }
+
+  /** One look, shared by every caller that arrives while it runs. */
+  private refresh(): Promise<void> {
+    this.refreshing ??= this.look().finally(() => {
+      this.refreshing = null;
+    });
+    return this.refreshing;
+  }
+
+  private async look(): Promise<void> {
+    const everything = !this.watched || this.unknown || this.sweptAt === -Infinity || Date.now() - this.sweptAt > SWEEP_EVERY_MS;
+    const files = [...this.reportedFiles];
+    const dirs = [...this.reportedDirs];
+    // Taken before the look: a change reported while it runs is looked at by the next one
+    this.reportedFiles.clear();
+    this.reportedDirs.clear();
+    if (!everything) {
+      await mapLimit(dirs, LIST_DIRS_AT_ONCE, (dir) => this.lookInto(dir));
+      await mapLimit(files, LIST_FILES_AT_ONCE, (file) => this.check(basename(dirname(file)), file));
+      return;
+    }
+    this.unknown = false;
+    this.sweeping = true;
+    const started = Date.now();
+    try {
+      await this.sweep();
+      this.sweptAt = started;
+    } catch (err) {
+      this.unknown = true;
+      throw err;
+    } finally {
+      this.sweeping = false;
+    }
+  }
+
+  /** Every transcript's stat; only the ones that changed are read, from where their last pass stopped. */
+  private async sweep(): Promise<void> {
+    const dirs = await this.projectDirs();
+    // Directories are listed, and transcripts opened, a bounded number at a time: one after the
+    // other made a cold start as slow as the sum of them, all at once can run out of descriptors
+    const listed = await mapLimit(dirs, LIST_DIRS_AT_ONCE, async (dir) => ((await this.transcriptsIn(dir)) ?? []).map((file) => ({ projectId: dir, file })));
+    const found = listed.flat();
+    const present = new Set(found.map((at) => at.file));
+    for (const file of [...this.listed.keys()]) if (!present.has(file)) this.drop(file);
+    await mapLimit(found, LIST_FILES_AT_ONCE, (at) => this.check(at.projectId, at.file));
+    // What no transcript on disk claimed is of files deleted while this process did not run
+    for (const path of this.restoredRows().keys()) if (!present.has(path)) this.folds?.drop(path);
+    this.restored = new Map();
+  }
+
+  /** A project directory a file came into or left: its transcripts now, and none it no longer holds. */
+  private async lookInto(dir: string): Promise<void> {
+    const files = (await this.transcriptsIn(dir)) ?? [];
+    const present = new Set(files);
+    for (const [file, entry] of [...this.listed]) if (entry.projectId === dir && !present.has(file)) this.drop(file);
+    await mapLimit(files, LIST_FILES_AT_ONCE, (file) => this.check(dir, file));
+  }
+
+  /** The transcripts of one project directory; null when it is not there. */
+  private async transcriptsIn(dir: string): Promise<string[] | null> {
+    const full = join(this.config.projectsDir, dir);
+    const names = await readdir(full).catch(() => null);
+    return names ? names.filter((f) => f.endsWith('.jsonl')).map((f) => join(full, f)) : null;
+  }
+
+  private restoredRows(): Map<string, TranscriptFoldRow> {
+    this.restored ??= this.folds?.all() ?? new Map();
+    return this.restored;
+  }
+
+  /** The stored pass over a file this process has not looked at yet; null when there is none it can go on from. */
+  private restore(projectId: string, file: string): Listed | null {
+    const rows = this.restoredRows();
+    const row = rows.get(file);
+    if (!row) return null;
+    rows.delete(file);
+    const fold = foldFromJson(row.fold);
+    if (!fold) return null;
+    return { projectId, ino: row.ino, size: row.size, mtimeMs: row.mtimeMs, end: row.end, fingerprint: row.fingerprint, fold, summary: undefined };
+  }
+
+  /** One transcript as it is on disk now; null once it is gone. A look already under way for it is shared. */
+  private check(projectId: string, file: string): Promise<Listed | null> {
+    const pending = this.reading.get(file);
+    if (pending) return pending;
+    const next = this.load(projectId, file).finally(() => {
+      if (this.reading.get(file) === next) this.reading.delete(file);
+    });
+    this.reading.set(file, next);
     return next;
   }
 
-  private async readTranscript(projectId: string, file: string, old: TranscriptState | null): Promise<TranscriptState | null> {
+  private async load(projectId: string, file: string): Promise<Listed | null> {
+    const info = await stat(file).catch(() => null);
+    if (!info) {
+      this.drop(file);
+      return null;
+    }
+    this.files.set(basename(file, '.jsonl'), { projectId, file });
+    const known = this.listed.get(file) ?? this.restore(projectId, file);
+    if (known && unchanged(known, info)) {
+      // A stored pass that reached the end of the file is the whole of it: nothing is read
+      if (known.summary === undefined && known.end === known.size) known.summary = finishSummary(known.fold, info);
+      if (known.summary !== undefined) {
+        if (this.listed.get(file) !== known) this.keep(file, known);
+        return known;
+      }
+    }
+    const next = await this.fold(projectId, file, known).catch(() => null);
+    if (!next) {
+      this.drop(file);
+      return null;
+    }
+    this.keep(file, next);
+    // Only a pass that folded more lines is worth a row; a tail that is still being written is read again anyway
+    if (!known || known.fold !== next.fold) {
+      this.folds?.put({ path: file, ino: next.ino, size: next.size, mtimeMs: next.mtimeMs, end: next.end, fingerprint: next.fingerprint, fold: foldToJson(next.fold) });
+    }
+    return next;
+  }
+
+  /**
+   * Folds what a transcript holds past `known.end` when it still has what was folded there, or the
+   * whole of it when it was replaced: the only part of a transcript parsed is the part not read yet.
+   */
+  private async fold(projectId: string, file: string, known: Listed | null): Promise<Listed | null> {
     const handle = await open(file, 'r').catch(() => null);
     if (!handle) return null;
     try {
       const info = await handle.stat();
-      if (old && old.ino === info.ino && old.size === info.size && old.mtimeMs === info.mtimeMs) return old;
-      // Only a file that grew, and still has what was read before where it was, is read on from
-      // where the last pass stopped; one that shrank or was replaced is read again from the start.
-      const grew =
-        old !== null && old.ino === info.ino && info.size > old.size && (await fingerprint(handle, old.end)).equals(old.fingerprint);
-      const base = grew ? old : null;
-      const fold: SummaryFold = base
-        ? cloneFold(base.fold)
-        : {
-            summary: {
-              id: basename(file, '.jsonl'),
-              projectId,
-              projectPath: '',
-              title: '',
-              firstPrompt: null,
-              messageCount: 0,
-              startedAt: null,
-              updatedAt: null,
-              model: null,
-              gitBranch: null,
-              cliVersion: null,
-              sizeBytes: 0,
-              worktree: null,
-            },
-            customTitle: null,
-            command: undefined,
-            spent: new UsageFold(),
-          };
-      const added: [number, number, boolean][] = [];
-      const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o, start, lineEnd) => {
-        const entry = normalizeMessage(o);
-        foldLine(fold, o, entry);
-        if (entry) added.push([start, lineEnd, entry.isSidechain]);
+      const base = (await goesOn(handle, known, info)) ? known : null;
+      const fold = base ? cloneFold(base.fold) : emptyFold(projectId, file);
+      let folded = 0;
+      const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o) => {
+        foldLine(fold, o, normalizeMessage(o));
+        folded++;
       });
-
       // A last line without its newline yet counts if it parses, as it did when read line by line,
-      // but stays out of the fold: the next pass reads it again once it is finished.
+      // but stays out of the fold: the next pass reads it again once it is finished
       const tailLine = parseLine(tail);
-      const tailEntry = tailLine ? normalizeMessage(tailLine) : null;
       let summary: TranscriptSummary | null;
       if (tailLine) {
         const withTail = cloneFold(fold);
-        foldLine(withTail, tailLine, tailEntry);
+        foldLine(withTail, tailLine, normalizeMessage(tailLine));
         summary = finishSummary(withTail, info);
       } else summary = finishSummary(fold, info);
-
-      const entries = base?.entries ?? new EntryIndex();
-      for (const [start, lineEnd, sidechain] of added) entries.add(start, lineEnd, sidechain);
-      entries.setTail(tailEntry ? { start: end, end: end + tail.length, sidechain: tailEntry.isSidechain } : null);
+      // Nothing complete was added: the pass it went on from stays the one kept, and stored
+      const same = base !== null && folded === 0 && end === base.end;
       return {
+        projectId,
         ino: info.ino,
         size: info.size,
         mtimeMs: info.mtimeMs,
         end,
-        fingerprint: await fingerprint(handle, end),
-        fold,
-        entries,
+        fingerprint: same ? base.fingerprint : await fingerprint(handle, end),
+        fold: same ? base.fold : fold,
         summary,
       };
     } finally {
@@ -560,40 +816,60 @@ export class SessionStore {
     }
   }
 
-  async listSessions(projectId?: string): Promise<TranscriptSummary[]> {
-    const dirs = projectId ? [projectId] : await this.projectDirs();
-    // Directories are listed, and transcripts opened, a bounded number at a time: one after the
-    // other made a cold start as slow as the sum of them, all at once can run out of descriptors
-    const listed = await mapLimit(dirs, LIST_DIRS_AT_ONCE, async (dir) => {
-      const full = join(this.config.projectsDir, dir);
-      const files = await readdir(full).catch(() => [] as string[]);
-      return files.filter((f) => f.endsWith('.jsonl')).map((f) => ({ projectId: dir, file: join(full, f) }));
-    });
-    const found = listed.flat();
-    const summaries = await mapLimit(found, LIST_FILES_AT_ONCE, (at) => {
-      this.files.set(basename(at.file, '.jsonl'), at);
-      return this.summarize(at.projectId, at.file);
-    });
-    const all = summaries.filter((s): s is TranscriptSummary => s !== null);
-    return all.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+  private keep(file: string, entry: Listed): void {
+    this.listed.set(file, entry);
+    this.sorted = null;
+    this.gen++;
+  }
+
+  private drop(file: string): void {
+    const had = this.listed.delete(file);
+    if (had || this.restored?.delete(file)) this.folds?.drop(file);
+    const id = basename(file, '.jsonl');
+    if (this.files.get(id)?.file === file) this.files.delete(id);
+    if (!had) return;
+    this.sorted = null;
+    this.gen++;
+  }
+
+  /** Writes the folds still waiting, before the database closes. */
+  flush(): void {
+    this.folds?.flush();
   }
 
   private async findFile(sessionId: string): Promise<{ projectId: string; file: string } | null> {
     if (!/^[\w-]+$/.test(sessionId)) return null;
     const known = this.files.get(sessionId);
     if (known) {
-      if (await stat(known.file).then(() => true, () => false)) return known;
+      if (this.current(known.file) || (await stat(known.file).then(() => true, () => false))) return known;
       this.files.delete(sessionId);
     }
-    for (const dir of await this.projectDirs()) {
-      const file = join(this.config.projectsDir, dir, `${sessionId}.jsonl`);
-      if (existsSync(file)) {
-        const at = { projectId: dir, file };
-        this.files.set(sessionId, at);
-        return at;
-      }
+    // While a watcher reports every change, a session the listing does not know has no transcript
+    // yet, unless it was just reported: a chat that never writes one (housekeeping) would otherwise
+    // cost a look into every project directory on each read
+    if (this.trusted()) {
+      const name = `${sessionId}.jsonl`;
+      const reported = [...this.reportedFiles].find((file) => basename(file) === name);
+      if (!reported) return null;
+      const at = { projectId: basename(dirname(reported)), file: reported };
+      return (await stat(reported).then(() => true, () => false)) ? at : null;
     }
-    return null;
+    const dirs = await this.projectDirs();
+    const hits = await mapLimit(dirs, LIST_FILES_AT_ONCE, async (dir) => {
+      const file = join(this.config.projectsDir, dir, `${sessionId}.jsonl`);
+      return (await stat(file).then((s) => s.isFile(), () => false)) ? { projectId: dir, file } : null;
+    });
+    const at = hits.find((hit) => hit !== null) ?? null;
+    if (at) this.files.set(sessionId, at);
+    return at;
+  }
+
+  /** What the listing holds of one transcript, looked at again unless a watcher says it is current. */
+  private async summaryAt(found: { projectId: string; file: string }): Promise<TranscriptSummary | null> {
+    if (this.current(found.file)) return this.listed.get(found.file)?.summary ?? null;
+    // Looked at now, so the listing need not look again; a change reported while this runs is kept
+    this.reportedFiles.delete(found.file);
+    return (await this.check(found.projectId, found.file))?.summary ?? null;
   }
 
   /**
@@ -605,7 +881,9 @@ export class SessionStore {
   invalidate(projectId?: string): void {
     const prefix = projectId === undefined ? null : join(this.config.projectsDir, projectId);
     const drop = (file: string) => prefix === null || file.startsWith(prefix);
-    for (const file of [...this.transcripts.keys()]) if (drop(file)) this.transcripts.delete(file);
+    // The listing looks at every file again; what did not change is not read again
+    this.unknown = true;
+    for (const file of [...this.pages.keys()]) if (drop(file)) this.pages.delete(file);
     for (const [id, at] of [...this.files]) if (drop(at.file)) this.files.delete(id);
     this.activities.forget(drop);
     this.toolEntries.forget(drop);
@@ -615,10 +893,10 @@ export class SessionStore {
     this.workflowMemo.forget(drop);
   }
 
-  /** The cached summary of one session, without reading its transcript. */
+  /** The summary of one session, from the listing: its transcript is read only past where the last pass stopped. */
   async summary(sessionId: string): Promise<TranscriptSummary | null> {
     const found = await this.findFile(sessionId);
-    return found ? this.summarize(found.projectId, found.file) : null;
+    return found ? this.summaryAt(found) : null;
   }
 
   /**
@@ -628,7 +906,7 @@ export class SessionStore {
    */
   private async activity(file: string): Promise<SessionActivity> {
     const activity = await this.activities.read(file);
-    if (!activity) throw new Error('session not found');
+    if (!activity) throw new NotFoundError('session not found');
     return activity;
   }
 
@@ -788,7 +1066,7 @@ export class SessionStore {
   async taskOutput(sessionId: string, taskId: string, opts: { offset?: number } = {}): Promise<BackgroundTaskOutput> {
     if (!/^[\w-]+$/.test(taskId)) throw new Error('invalid task id');
     const found = await this.findFile(sessionId);
-    if (!found) throw new Error('session not found');
+    if (!found) throw new NotFoundError('session not found');
     const file = join(taskDir(found.projectId, sessionId), `${taskId}.output`);
     const info = await stat(file).catch(() => null);
     if (!info) throw new Error('no output was kept for that task (it lives in the temp dir, which a reboot clears)');
@@ -907,11 +1185,12 @@ export class SessionStore {
   /** Deletes the transcript and the session's sidecar directory (subagent transcripts, tool results). */
   async deleteSession(sessionId: string): Promise<void> {
     const found = await this.findFile(sessionId);
-    if (!found) throw new Error('session not found');
+    if (!found) throw new NotFoundError('session not found');
     // The transcript goes last: it is what finds the session, so a deletion cut short can be retried
     await rm(found.file.slice(0, -'.jsonl'.length), { recursive: true, force: true });
     await rm(found.file);
-    this.transcripts.delete(found.file);
+    this.pages.delete(found.file);
+    this.drop(found.file);
     this.files.delete(sessionId);
     // Its folds and its sidecar's go too: nothing else would ever let go of them
     const base = found.file.slice(0, -'.jsonl'.length);
@@ -943,13 +1222,13 @@ export class SessionStore {
     const sidechains = opts.includeSidechains === true;
 
     for (let attempt = 0; ; attempt++) {
-      const state = await this.transcript(found.projectId, found.file, attempt > 0);
-      if (!state?.summary) return null;
+      const [summary, state] = await Promise.all([this.summaryAt(found), this.paged(found.file, attempt > 0)]);
+      if (!summary || !state) return null;
       const total = state.entries.count(sidechains);
       const to = before === null ? total : Math.min(before, total);
       const from = before === null ? Math.max(0, total - limit) : Math.max(0, before - limit);
       // A `before` at the start or past the end has nothing before it in range
-      if (from >= to) return { summary: state.summary, entries: [], from: total, total };
+      if (from >= to) return { summary, entries: [], from: total, total };
 
       const ranges = state.entries.ranges(from, to, sidechains);
       const handle = await open(found.file, 'r').catch(() => null);
@@ -965,9 +1244,51 @@ export class SessionStore {
         const entry = line ? normalizeMessage(line) : null;
         if (entry) entries.push(entry);
       }
-      if (entries.length === ranges.length) return { summary: state.summary, entries, from, total };
+      if (entries.length === ranges.length) return { summary, entries, from, total };
       // The file was rewritten between indexing it and reading the page: index it again, once
-      if (attempt > 0) return { summary: state.summary, entries, from, total };
+      if (attempt > 0) return { summary, entries, from, total };
+    }
+  }
+
+  /**
+   * The entry offsets of a transcript as it is on disk now, read on from where the last pass
+   * stopped. Requests for one file queue behind each other, so two of them never extend the same
+   * index at once; `reindex` starts it over.
+   */
+  private paged(file: string, reindex: boolean): Promise<Paged | null> {
+    const previous = reindex ? undefined : this.pages.get(file);
+    const next = (previous ?? Promise.resolve(null)).catch(() => null).then((old) => this.index(file, old));
+    this.pages.delete(file);
+    this.pages.set(file, next);
+    for (const oldest of this.pages.keys()) {
+      if (this.pages.size <= PAGED_FILES) break;
+      this.pages.delete(oldest);
+    }
+    return next;
+  }
+
+  private async index(file: string, old: Paged | null): Promise<Paged | null> {
+    const handle = await open(file, 'r').catch(() => null);
+    if (!handle) return null;
+    try {
+      const info = await handle.stat();
+      if (old && unchanged(old, info)) return old;
+      const base = (await goesOn(handle, old, info)) ? old : null;
+      const added: [number, number, boolean][] = [];
+      const { end, tail } = await scanLines(handle, base?.end ?? 0, info.size, (o, start, lineEnd) => {
+        const entry = normalizeMessage(o);
+        if (entry) added.push([start, lineEnd, entry.isSidechain]);
+      });
+      // A last line without its newline yet is an entry if it parses, but stays out of what the
+      // next pass goes on from: it is read again once it is finished
+      const tailLine = parseLine(tail);
+      const tailEntry = tailLine ? normalizeMessage(tailLine) : null;
+      const entries = base?.entries ?? new EntryIndex();
+      for (const [start, lineEnd, sidechain] of added) entries.add(start, lineEnd, sidechain);
+      entries.setTail(tailEntry ? { start: end, end: end + tail.length, sidechain: tailEntry.isSidechain } : null);
+      return { ino: info.ino, size: info.size, mtimeMs: info.mtimeMs, end, fingerprint: await fingerprint(handle, end), entries };
+    } finally {
+      await handle.close();
     }
   }
 

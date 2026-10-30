@@ -5,6 +5,7 @@ import test from 'node:test';
 import type { ClaudioEvent, NewChatRequest, OrchestrationSpec, PermissionMode, ScheduleChangedEvent, ScheduleFiredEvent, ScheduleTarget } from '@claudio/shared';
 import { EventBus } from '../src/events.ts';
 import { previewCron, Scheduler, spendHeldReason, type ScheduleLauncher } from '../src/schedules.ts';
+import { RunSlotRefusal } from '../src/chat-errors.ts';
 import { tempConfig } from './helpers.ts';
 
 const at = (iso: string) => Date.parse(iso);
@@ -17,12 +18,18 @@ function rig(config = tempConfig(), start = '2026-09-20T08:00:00Z') {
     chats: [] as NewChatRequest[],
     orchestrations: [] as OrchestrationSpec[],
     failWith: null as string | null,
+    /** How many starts the runtime still refuses for want of a run slot, as a full one does */
+    slotRefusals: 0,
     /** Chats and orchestrations still going, by id: what an overlap policy asks about */
     live: new Set<string>(),
   };
   const launcher: ScheduleLauncher = {
     chat: async (request) => {
       if (state.failWith) throw new Error(state.failWith);
+      if (state.slotRefusals > 0) {
+        state.slotRefusals--;
+        throw new RunSlotRefusal(1);
+      }
       state.chats.push(request);
       return { id: `chat-${state.chats.length}` };
     },
@@ -207,6 +214,52 @@ test('a target that cannot start is a failed run with its reason, and the next s
   state.now = at('2026-09-20T08:20:02Z');
   await scheduler.tick();
   assert.equal(scheduler.history(id)[0]?.status, 'started');
+  scheduler.close();
+});
+
+test('a scheduled chat refused a run slot waits for one, as an orchestration target does, instead of failing its slot', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create(daily);
+  state.slotRefusals = 1;
+  const run = await scheduler.runNow(id);
+  assert.equal(run.status, 'started');
+  assert.equal(run.chatId, 'chat-1');
+  assert.equal(scheduler.history(id)[0]?.status, 'started');
+  scheduler.close();
+});
+
+test('a scheduler closed while a chat waits for a slot lets the wait go without failing or writing', async () => {
+  const { scheduler, state } = rig();
+  const { id } = await scheduler.create(daily);
+  state.slotRefusals = 100;
+  const waiting = scheduler.runNow(id);
+  await new Promise((r) => setTimeout(r, 50));
+  scheduler.close();
+  const run = await waiting;
+  assert.notEqual(run.status, 'failed');
+  assert.equal(state.chats.length, 0);
+});
+
+test('a schedule a tick cannot judge is said in the log, and the others still fire', async () => {
+  const { scheduler, state, config } = rig();
+  const broken = await scheduler.create({ ...daily, name: 'broken' });
+  const fine = await scheduler.create({ ...daily, name: 'fine' });
+  // Edited by hand into something no tick can read
+  const file = join(config.dataDir, 'schedules.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8')) as { schedules: Array<Record<string, unknown>> };
+  for (const s of doc.schedules) if (s.id === broken.id) s.cron = 'every so often';
+  writeFileSync(file, JSON.stringify(doc));
+  const lines: string[] = [];
+  const warn = console.warn;
+  console.warn = (line: unknown) => void lines.push(String(line));
+  try {
+    state.now = at('2026-09-20T09:00:05Z');
+    await scheduler.tick();
+  } finally {
+    console.warn = warn;
+  }
+  assert.ok(lines.some((l) => l.includes(`schedule ${broken.id} (broken)`)), lines.join('\n'));
+  assert.equal(scheduler.history(fine.id)[0]?.status, 'started');
   scheduler.close();
 });
 

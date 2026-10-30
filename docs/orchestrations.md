@@ -273,6 +273,38 @@ holds or rotates at a usage limit, and is never left running unwatched.
   files with the CLI's real 429 entry); `apps/web/test/workflow-limits-board.test.tsx`; and
   `e2e/specs/orchestration-v2.spec.mjs` (a two-task workflow graph's rows and its end notice).
 
+## Recovery and shutdown
+
+What the orchestrator does when something it asked for is refused or interrupted (the audit's §9):
+
+- **A refused workflow resume does not end the server.** The resume runs detached, and a refusal
+  there used to be an unhandled rejection that ended the API process. A place that frees up by itself
+  (a transient refusal, [resource-control.md](resource-control.md)) is waited for and the launch tried
+  again; anything else fails the graph with the reason.
+- **A failure before the checks start does not strand the graph.** `checkBranch` takes `verifying`
+  inside its `try`, so a git failure no longer leaves the graph refusing verify, resume and remove
+  with "checks are running".
+- **A worker refused a place is still told about its merge.** The worktree a launch prepared is read
+  again at the next launch: a merge left in progress is handed to the worker instead of starting it
+  among conflict markers.
+- **A Stop and a quick Resume** do not fail the resumed task: each attempt carries a stamp, and the
+  stopped process's last result is ignored by the next attempt.
+- **Merges and the integration use async git.** The dependency merges and the integration (worktree,
+  merges, commits) no longer block the server, and the integrator, the synthesis and the fixer wait
+  for a place like the review gate's runs; a fixer that never started is not an attempt.
+- **A task stopped at its time limit keeps that reason**, and what a verification command leaves
+  running in its process group is ended after a normal exit too, not only on a timeout or a cancel.
+- **Leaks.** `remove()` forgets the graph's in-memory state, `close()` takes the chat-result listener
+  off, warnings are pruned, a graph has one timer for retries, the event publisher forgets a subagent
+  that went quiet, and the workflow journal is read on from the byte the last read stopped at.
+- **Failures are logged.** A save that fails is logged (at most once a minute, with the count held
+  back, `ThrottledLog`), a corrupt legacy file is renamed `.corrupt`, and the scheduler's ticks log
+  what they could not do. A flow run whose start throws between the claim and its chat no longer
+  keeps a slot, and a scheduled chat with no free place waits for one as an orchestration target's
+  tasks do.
+- **Shutdown** waits for the chats, evals, terminals, collaborators and tunnel before the database
+  closes ([resource-control.md](resource-control.md)).
+
 ## Related
 
 [[plans/workflow-engine-limits.md]] · [[accounts.md]] · [[prompts.md]] · [[guards.md]] · [[plans/review-gate.md]] · [[plans/orchestration-speed.md]] · [[plans/graph-shape.md]] · [[plans/worker-checks.md]] · [[design-system.md]]

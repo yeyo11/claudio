@@ -294,6 +294,7 @@
     "guardsTitle": "Guards",
     "guardsLabel": "Guards in this project's chats",
     "guardsHint": "Interactive chats in this project run with these rules: {{rules}}. Orchestrations and the flow follow Settings.",
+    "guardsNoRules": "No guard rule is on in Settings, so these chats run unguarded.",
     "guardsLink": "Guard settings"
   },
   "decisions": {

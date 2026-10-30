@@ -6,11 +6,11 @@
 // reach a model. (team.spec and team-gaps.spec run on the real CLI and never switch the flow on.)
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 180_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async ({ page, api, check, dirs }) => {
   const made = [];

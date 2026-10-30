@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AccountLoginSession, AuthStatus, CodeHostStatus, LoginSession, ProviderReadinessState, ProviderStatus, SetupState, SetupToolMethods } from '@claudio/shared';
+import type { AccountLimit, AccountLoginSession, AuthStatus, CodeHostStatus, LoginSession, ProviderReadinessState, ProviderStatus, SetupState, SetupToolMethods } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
@@ -12,6 +12,7 @@ import { keys } from '../src/api';
 import { DeviceCode, SignInPanel } from '../src/components/setup/SignInPanel';
 import { SignInSession } from '../src/components/setup/SignInSession';
 import { useConnection } from '../src/components/shell/StatusBar';
+import type { AccountView } from '@claudio/shared';
 import i18n from '../src/i18n';
 import {
   advance,
@@ -309,19 +310,31 @@ test('a sign-in that failed says so and offers to try again', async () => {
 
 // ---------- the status bar reads the account in use ----------
 
-function Reading({ auth, claude }: { auth: AuthStatus; claude: ProviderReadinessState }) {
-  const connection = useConnection({ data: { system: { auth, cli: { installed: true, version: '2.1.302' } } }, isError: false } as unknown as Parameters<typeof useConnection>[0], true);
+test("the status bar reads the account view: another account's reading on the provider does not make the one in use near", async () => {
+  // The audit's §2.11: the provider's reading is whichever account ran last
+  const calm = await connectionWith({ ...AUTH, subscriptionType: 'pro', inUse: inUse() }, { state: 'degraded', reason: 'limit-near' }, viewWith(reading('ok', 0.1)));
+  assert.equal(calm.healthy, true);
+  assert.equal(calm.short, 'work');
+  // The plan and the name are one account's, never the default login's plan beside another account's name
+  assert.equal(calm.detail, 'Max · work');
+  const spent = await connectionWith({ ...AUTH, inUse: inUse() }, { state: 'ready', reason: null }, viewWith(reading('exhausted', 1)));
+  assert.equal(spent.title, 'Limit reached');
+  assert.equal(spent.tone, 'bad');
+});
+
+function Reading({ auth, claude, accounts }: { auth: AuthStatus; claude: ProviderReadinessState; accounts?: AccountView }) {
+  const connection = useConnection({ data: { system: { auth, cli: { installed: true, version: '2.1.302' } }, accounts }, isError: false } as unknown as Parameters<typeof useConnection>[0], true);
   return <pre>{JSON.stringify({ ...connection, claude })}</pre>;
 }
 async function connection(auth: AuthStatus, state: ProviderReadinessState = 'ready') {
   const html = await render(<Reading auth={auth} claude={state} />, (client) => client.setQueryData(keys.providers, [provider('claude-code', 'Claude Code', state)]));
   return JSON.parse(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')) as { healthy: boolean; short: string; title: string };
 }
-async function connectionWith(auth: AuthStatus, claude: { state: ProviderReadinessState; reason: ProviderStatus['reason'] }) {
-  const html = await render(<Reading auth={auth} claude={claude.state} />, (client) => client.setQueryData(keys.providers, [{ ...provider('claude-code', 'Claude Code', claude.state), reason: claude.reason }]));
+async function connectionWith(auth: AuthStatus, claude: { state: ProviderReadinessState; reason: ProviderStatus['reason'] }, accounts?: AccountView) {
+  const html = await render(<Reading auth={auth} claude={claude.state} {...(accounts ? { accounts } : {})} />, (client) => client.setQueryData(keys.providers, [{ ...provider('claude-code', 'Claude Code', claude.state), reason: claude.reason }]));
   return JSON.parse(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')) as { healthy: boolean; short: string; title: string; detail?: string; tone: string };
 }
-const inUse = (patch: Partial<NonNullable<AuthStatus['inUse']>> = {}): NonNullable<AuthStatus['inUse']> => ({ id: 'work', label: 'work', kind: 'login', signInState: 'ok', checkedAt: null, ...patch });
+const inUse = (patch: Partial<NonNullable<AuthStatus['inUse']>> = {}): NonNullable<AuthStatus['inUse']> => ({ id: 'work', label: 'work', kind: 'login', signInState: 'ok', checkedAt: null, limit: null, plan: null, ...patch });
 
 test('the status bar is healthy on the account in use, even when the CLI\'s own login is empty', async () => {
   const ok = await connection({ ...AUTH, loggedIn: false, inUse: inUse() });
@@ -340,8 +353,18 @@ test('the status bar says so when no account can take work, or the one in use ex
   assert.equal(refused.healthy, false, 'a provider that is not ready is not healthy either');
 });
 
+const reading = (state: AccountLimit['state'], utilization: number): AccountLimit => ({ state, window: 'five_hour', utilization, resetsAt: '2099-01-01T14:05:00Z', windows: {}, observedAt: '2026-10-02T11:54:00Z', source: 'stream' });
+const viewWith = (limit: AccountLimit | null, plan: string | null = 'max'): AccountView => ({
+  inUse: { ...inUse(), limit, plan },
+  inUseReason: null,
+  accounts: [],
+  atLimit: false,
+  nextReset: null,
+  settings: { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [] },
+});
+
 test('the status bar words a limit and a failed probe, and keeps "Not signed in" for the credentials', async () => {
-  const near = await connectionWith({ ...AUTH, inUse: inUse() }, { state: 'degraded', reason: 'limit-near' });
+  const near = await connectionWith({ ...AUTH, inUse: inUse() }, { state: 'ready', reason: null }, viewWith(reading('near', 0.65)));
   assert.equal(near.healthy, false);
   assert.equal(near.title, 'Near the limit');
   assert.equal(near.short, 'work · Near the limit');

@@ -76,13 +76,25 @@ test('the default account stays out of the list while it has no credential at al
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/${session.accountId}` })).statusCode, 200);
 });
 
+test('the default account answers by id while it has no credential: its models and its settings, though it stays out of the list', async () => {
+  // Before the first sign-in the setup assistant reads the CLI's own login here (accounts.md): a
+  // read by id is not a listing, so the ghost `list()` leaves out is still a 200 at its own routes
+  assert.deepEqual(await accounts(), []);
+  const models = await app.inject('/api/accounts/default/models?refresh=1');
+  assert.equal(models.statusCode, 200, models.body);
+  assert.ok(Array.isArray(models.json()), 'the CLI is asked for its models');
+  const patched = await app.inject({ method: 'PATCH', url: '/api/accounts/default', ...json({ enabled: true }) });
+  assert.equal(patched.statusCode, 200, patched.body);
+  assert.deepEqual(await accounts(), [], 'and the list still leaves it out');
+});
+
 test('the default account is listed first once it has credentials, and the list is the store\'s listed accounts', async () => {
   mkdirSync(join(root, 'claude'), { recursive: true });
   writeFileSync(join(root, 'claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
   const list = await accounts();
   assert.equal(list[0]?.id, 'default');
   assert.equal(list[0]?.kind, 'login');
-  assert.deepEqual(list, core.accounts.listed());
+  assert.deepEqual(list, core.accounts.list());
   assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/default/login' })).statusCode, 201, 'the sign-in route works on the CLI\'s own login');
 });
 
@@ -284,6 +296,8 @@ test('usage history and events are read from their tables, oldest first, with fi
 test("a chat's token reads the accounts but changes none, and cannot read a sign-in", async () => {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-api-accounts-sec-'));
   mkdirSync(join(dir, 'claude')); // the fake CLI writes its probe counter there
+  // A credential, so the CLI's own login is an account whose models a reader may list
+  writeFileSync(join(dir, 'claude', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
   const secured = new Core(
     loadConfig({ CLAUDE_BIN: FAKE_CLAUDE, CLAUDE_CONFIG_DIR: join(dir, 'claude'), CLAUDIO_WORKSPACE_DIR: join(dir, 'workspace'), CLAUDIO_DATA_DIR: join(dir, 'data') }),
   );
@@ -393,4 +407,41 @@ test('refreshing an account whose CLI cannot run answers 502 accounts.check-fail
   const res = await app.inject({ method: 'POST', url: `/api/accounts/${id}/refresh` });
   assert.equal(res.statusCode, 502);
   assert.equal(res.json<{ code: string }>().code, 'accounts.check-failed');
+});
+
+test('the settings take a preferred account and an order, validated, and new work starts on the preferred one', async () => {
+  const alpha = (await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'pref-alpha', secret: 'sk-ant-api03-alpha' }) })).json<Account>();
+  const beta = (await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'pref-beta', secret: 'sk-ant-api03-beta' }) })).json<Account>();
+  const put = (body: Partial<AccountsSettings>) => app.inject({ method: 'PUT', url: '/api/accounts/settings', ...json(body) });
+  try {
+    assert.equal((await put({ preferred: 'acc-nope' })).statusCode, 400);
+    assert.equal((await put({ order: [alpha.id] })).statusCode, 400, 'every enabled account must be named');
+    const ids = (await accounts()).map((a) => a.id);
+    const ordered = (await put({ order: [beta.id, ...ids.filter((id) => id !== beta.id)] })).json<AccountsSettings>();
+    assert.equal(ordered.order[0], beta.id);
+    assert.equal((await put({ preferred: alpha.id })).json<AccountsSettings>().preferred, alpha.id);
+    assert.equal((await app.inject('/api/accounts/settings')).json<AccountsSettings>().preferred, alpha.id);
+    // One view: the status bar's /auth and the overview name the same account, the preferred one
+    assert.equal((await app.inject('/api/auth')).json<AuthStatus>().inUse?.id, alpha.id);
+    const overview = (await app.inject('/api/overview')).json<{ accounts: { inUse: { id: string } | null; settings: AccountsSettings } }>();
+    assert.equal(overview.accounts.inUse?.id, alpha.id);
+    assert.equal(overview.accounts.settings.preferred, alpha.id);
+  } finally {
+    await put({ preferred: null, order: [] });
+    await app.inject({ method: 'DELETE', url: `/api/accounts/${alpha.id}` });
+    await app.inject({ method: 'DELETE', url: `/api/accounts/${beta.id}` });
+  }
+});
+
+test('removing an account a live chat runs on answers 409 account-in-use with the chat ids', async (t) => {
+  const doomed = (await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'in-use', secret: 'sk-ant-api03-in-use' }) })).json<Account>();
+  const live = t.mock.method(core.runtime, 'liveChatsOn', (account: string) => (account === doomed.id ? ['chat-live-1'] : []));
+  const refused = await app.inject({ method: 'DELETE', url: `/api/accounts/${doomed.id}` });
+  assert.equal(refused.statusCode, 409);
+  const body = refused.json<{ error: string; code: string; chats: string[] }>();
+  assert.deepEqual([body.code, body.chats], ['account-in-use', ['chat-live-1']]);
+  assert.match(body.error, /live chat/);
+  assert.ok((await accounts()).some((a) => a.id === doomed.id), 'it is still there');
+  live.mock.restore();
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/${doomed.id}` })).statusCode, 200);
 });

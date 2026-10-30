@@ -9,11 +9,11 @@ import { useConfirm, Dialog } from '@claudio/ui/components/Dialog';
 import { ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
-import { formatDate, formatDateTime, formatNumber, timeAgo } from '@claudio/ui/lib/format';
+import { formatDate, formatDateTime, formatHour, formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { taskPath } from '../../../lib/work-items';
 import { usePersonName } from '../../tasks/item/hooks';
 import { RoleAvatar, useRoleName } from '../../team/RoleAvatar';
-import { dayGroups, hourMinute } from './model';
+import { dayGroups } from './model';
 
 const KIND_ICON: Record<JournalEntryKind, LucideIcon> = { closed: Check, decision: GitCommitVertical, memory: BookText, note: StickyNote };
 
@@ -110,7 +110,7 @@ function Author({ entry, person }: { entry: JournalEntry; person: string }) {
  * day. The newest of it is handed to every flow run; the header says how much.
  */
 export function Journal({ projectId, phone = false }: { projectId: string; phone?: boolean }) {
-  const { t, i18n } = useTranslation('home');
+  const { t } = useTranslation('home');
   const [limit, setLimit] = useState(PAGE);
   const journal = useJournal(projectId, { limit });
   const cause = useCause();
@@ -152,7 +152,7 @@ export function Journal({ projectId, phone = false }: { projectId: string; phone
                   {entry.item && <span className="workitem-key">{entry.item.key}</span>}
                   <span className="doc-fill" />
                   <time className="small muted tnum" dateTime={entry.createdAt} title={formatDateTime(entry.createdAt)}>
-                    {hourMinute(entry.createdAt, i18n.language)}
+                    {formatHour(entry.createdAt)}
                   </time>
                 </div>
                 <p className="journal-card-text">{entry.text}</p>

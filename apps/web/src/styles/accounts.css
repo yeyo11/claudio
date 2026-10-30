@@ -160,123 +160,21 @@
   border-top: 1px solid var(--line);
 }
 
-.account-foot > .account-config {
-  display: contents;
-}
-
-.account-config-trigger {
-  grid-column: 1;
-  grid-row: 1;
-  min-width: 0;
-}
-
-.account-foot > .account-config > .collapsible-content {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  min-width: 0;
-}
-
-.account-config-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: var(--fs-small);
-  color: var(--fg-2);
-  font-weight: var(--fw-strong);
-}
-
-/* One line in a narrow card: the label gives way before the own/shared state does */
-.account-config-title > span:first-of-type {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.account-config-title > span {
-  white-space: nowrap;
-}
-
-.account-config-state.is-own {
-  color: var(--fg-2);
-}
-
-.account-config-form {
-  padding-top: 6px;
-}
-
 .account-actions {
   grid-column: 2;
   grid-row: 1;
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .account-more,
 .schedule-more {
   border: 1px solid var(--line-2);
   background: var(--bg-3);
-}
-
-/* An exhausted account on a phone: one row, its name over why it cannot work (MobileCuentas) */
-.account-row {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  min-width: 0;
-}
-.account-row.is-exhausted .account-avatar {
-  background: var(--bad-soft);
-  color: var(--bad);
-}
-.account-row .account-id {
-  gap: 4px;
-}
-.account-row-state {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-}
-.account-row .account-more {
-  width: 44px;
-  height: 44px;
-}
-
-/* Automatic rotation on a phone: a cell to its own screen */
-.rotation-cell {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-  padding: 14px 16px;
-  background: var(--bg-1);
-  color: var(--fg);
-  text-decoration: none;
-}
-.rotation-cell:hover {
-  text-decoration: none;
-  background: var(--bg-3);
-}
-.rotation-cell-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.rotation-cell-title {
-  font-weight: var(--fw-regular);
-}
-.rotation-cell-sub {
-  font-family: var(--mono);
-  font-size: var(--fs-small);
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-3);
-}
-.rotation-cell-chevron {
-  flex: none;
-  color: var(--fg-3);
 }
 
 /* Automatic rotation: one card, its settings in a row of four, its save at the foot */
@@ -324,8 +222,29 @@
 .rotation-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
   gap: 20px;
   padding: 18px;
+}
+
+/* The order "In order" follows: a row of its own under the fields */
+.rotation-order {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* One line per account at any width: the name shrinks, the arrows never drop below it */
+.rotation-order .list-row-flow {
+  flex-wrap: nowrap;
+}
+
+.rotation-order .list-row-flow > .break {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .rotation-field {
@@ -399,7 +318,6 @@
   }
   .account-foot .btn,
   .account-more,
-  .account-config-trigger,
   .rotation-actions .btn {
     min-height: 44px;
   }
@@ -412,12 +330,7 @@
   .account-foot {
     grid-template-columns: minmax(0, 1fr);
   }
-  .account-config-trigger {
-    grid-row: 2;
-  }
-  .account-foot > .account-config > .collapsible-content {
-    grid-row: 3;
-  }
+
   .account-actions {
     grid-column: 1;
     grid-row: 1;

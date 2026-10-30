@@ -16,7 +16,7 @@ import i18n from '../src/i18n';
 import { patchSettings, targetsFor } from '../src/lib/events';
 import { encodeQr, formatBits, reedSolomon } from '../src/lib/qr';
 import { changedSettings, HostsSettings, parseHosts, RunsSettings } from '../src/pages/config/AppSettingsCards';
-import { reachedThrough, TAILSCALE_DNS_ADMIN_URL, TAILSCALE_DOWNLOAD_URL, TUNNEL_TONE, TunnelPanel } from '../src/pages/config/RemoteAccessTab';
+import { reachedThrough, TAILSCALE_DNS_ADMIN_URL, TAILSCALE_DOWNLOAD_URL, TUNNEL_TONE, TunnelPanel, TunnelPortSetting } from '../src/pages/config/RemoteAccessTab';
 
 // Settings → Remote access and the layered settings (docs/plans/tunnel.md, task `web`): the tunnel's
 // state in a word and a colour, the address with its QR code only while it answers, Tailscale's
@@ -44,7 +44,9 @@ const status = (state: TunnelState, extra: Partial<TunnelStatus> = {}): TunnelSt
   managed: false,
   tailscale: READY,
   port: 8443,
-  settings: { startWithClaudio: false },
+  portSource: 'default',
+  portTaken: null,
+  settings: { startWithClaudio: false, port: 8443 },
   ...extra,
 });
 
@@ -267,6 +269,38 @@ test("a failure is said in the reader's language from its code", async () => {
   } finally {
     await i18n.changeLanguage('en');
   }
+});
+
+test('a taken port says what holds it, and offers the next free one in one click', () => {
+  const holder = `https://${NODE}:8443/ → http://127.0.0.1:41985`;
+  const portTaken = { port: 8443, holder, nextFree: 8444 };
+  const reason = { code: 'tunnel.portTaken', params: { port: '8443', holder }, text: 'English' };
+  let moved: number | null = null;
+  const html = wrap(<TunnelPanel status={status('failed', { reason, portTaken })} authMode="token" onStart={() => {}} onStop={() => {}} onUsePort={(port) => (moved = port)} />);
+  assert.match(html, /data-testid="tunnel-port-holder"/);
+  assert.ok(text(html).includes('http://127.0.0.1:41985'));
+  assert.match(html, /data-testid="tunnel-use-next-port"/);
+  assert.ok(text(html).includes('Use the next free port (8444)'));
+  assert.equal(moved, null);
+  // A port the environment fixes cannot be moved from here: only what holds it is said
+  const fixed = wrap(<TunnelPanel status={status('failed', { reason, portTaken, portSource: 'env' })} authMode="token" onStart={() => {}} onStop={() => {}} onUsePort={() => {}} />);
+  assert.doesNotMatch(fixed, /tunnel-use-next-port/);
+  assert.match(fixed, /tunnel-port-holder/);
+});
+
+test('the port field is editable while the tunnel is closed, and read-only while it is open or the environment sets it', () => {
+  const closed = wrap(<TunnelPortSetting status={status('stopped')} onStatus={() => {}} />);
+  assert.match(closed, /data-testid="tunnel-port"/);
+  assert.match(closed, /value="8443"/);
+  assert.doesNotMatch(closed, /<input[^>]*disabled/);
+  assert.ok(text(closed).includes('Save port'));
+  const open = wrap(<TunnelPortSetting status={status('active')} onStatus={() => {}} />);
+  assert.match(open, /<input[^>]*disabled/);
+  assert.ok(text(open).includes('Close the tunnel to change its port.'));
+  assert.ok(!text(open).includes('Save port'));
+  const fromEnv = wrap(<TunnelPortSetting status={status('stopped', { portSource: 'env' })} onStatus={() => {}} />);
+  assert.match(fromEnv, /<input[^>]*disabled/);
+  assert.ok(text(fromEnv).includes('CLAUDIO_TUNNEL_PORT'));
 });
 
 test('every reason the tunnel can give has its sentence in both languages', () => {

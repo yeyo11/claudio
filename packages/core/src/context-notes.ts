@@ -3,6 +3,7 @@ import type { ChatCompaction, ChatSessionNote, CompactRefusal, SessionNoteSectio
 import { COMPACTION_LEASE_MS, type Db } from './db.ts';
 import { maskSecrets } from './decisions/redact.ts';
 import type { RunResult } from './live-chat.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * Session notes: the summary Claude Code continues from, kept as a row so the person can read it
@@ -149,7 +150,7 @@ export class ChatNotes {
     try {
       await this.deps.turn(chatId, NOTE_REQUEST_PROMPT);
     } catch (err) {
-      this.deps.db.updateNote(note.id, { state: 'failed', error: err instanceof Error ? err.message : String(err), leaseUntil: null }, { from: ['pending'] });
+      this.deps.db.updateNote(note.id, { state: 'failed', error: errorMessage(err), leaseUntil: null }, { from: ['pending'] });
       throw err;
     }
     return this.deps.db.noteById(note.id) ?? note;

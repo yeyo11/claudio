@@ -4,8 +4,8 @@ import type { YoutrackCredentialsStatus } from '@claudio/shared';
 import type { CoreConfig } from '../../paths.ts';
 import { SecretBox } from '../../secret-box.ts';
 import { SecretVault } from '../../secret-vault.ts';
+import { isRecord } from '@claudio/shared';
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** What `youtrack-app` is handed: the instance and the permanent token, as the environment it reads */
 export interface YoutrackCredentials {
@@ -62,7 +62,7 @@ export class YoutrackCredentialStore {
     } catch {
       return;
     }
-    if (!isObject(stored)) return;
+    if (!isRecord(stored)) return;
     const values: Record<string, string> = {};
     if (typeof stored.host === 'string' && stored.host) values[HOST] = stored.host;
     if (typeof stored.token === 'string' && stored.token) {
@@ -94,7 +94,7 @@ export class YoutrackCredentialStore {
    * stored token, since the screen never shows it back.
    */
   async set(input: unknown): Promise<YoutrackCredentialsStatus> {
-    if (!isObject(input)) throw new Error('credentials must be an object');
+    if (!isRecord(input)) throw new Error('credentials must be an object');
     if (typeof input.host !== 'string') throw new Error('host is required');
     const host = normalizeYoutrackHost(input.host);
     let token = this.read().token;

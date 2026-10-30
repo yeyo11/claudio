@@ -460,6 +460,23 @@ button.workitem-mrow-more-link {
   cursor: inherit;
 }
 
+/* A finger's "⋯" on a card: a full touch target that does not make the card's first row taller */
+.workitem-card-more {
+  display: inline-flex;
+  margin: calc((16px - var(--touch)) / 2) -10px calc((16px - var(--touch)) / 2) -4px;
+}
+
+.workitem-card-more .icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+}
+
+/* The card clips what overflows its corner: the ring goes inside the target */
+.workitem-card-more .icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
+
 
 .workitem-card-title {
   margin: 0;
@@ -1532,25 +1549,11 @@ button.workitem-mrow-more-link {
   min-height: 44px;
 }
 
-.workitem-mhead-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .workitem-mhead h1 {
   margin: 0;
   font-size: var(--fs-title);
   font-weight: var(--fw-strong);
   letter-spacing: var(--tracking-title);
-}
-
-/* The project scope beside the title, as a pill (MobileTablero): the phone has no top bar here.
-   The title keeps its width and the project's name gives way, in an ellipsis */
-.workitem-mhead:has(.project-scope) .workitem-mhead-text {
-  flex: 0 0 auto;
 }
 
 .workitem-mhead .project-scope {
@@ -1583,8 +1586,7 @@ button.workitem-mrow-more-link {
   white-space: nowrap;
 }
 
-.workitem-mhead .icon-btn,
-.workitem-mhead-close {
+.workitem-mhead .icon-btn {
   width: 44px;
   height: 44px;
 }

@@ -1,4 +1,4 @@
-const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
+import { asRecord } from './records.ts';
 const asCount = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0);
 
 /** The CLI's `structuredPatch` hunks as the unified text git would print for them. */

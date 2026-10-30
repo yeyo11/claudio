@@ -5,6 +5,7 @@ import type { AuthStatus, CliInfo, TokenSource } from '@claudio/shared';
 import type { CliSession } from './cli-facts.ts';
 import type { CoreConfig } from './paths.ts';
 import { childEnv } from './child-env.ts';
+import { cliSessionRecords } from './processes.ts';
 
 /** What `claude auth status` says of the CLI's own login; the account in use is added where accounts are known */
 export type CliAuth = Omit<AuthStatus, 'inUse'>;
@@ -112,8 +113,26 @@ export async function stopBackgroundSession(config: CoreConfig, id: string): Pro
   return res.stdout.trim();
 }
 
-/** Live CLI sessions (interactive and background) as reported by `claude agents --json`. */
-export async function listActiveCliSessions(config: CoreConfig): Promise<Array<Omit<CliSession, 'live'>>> {
+/**
+ * Live CLI sessions (interactive and background): on Linux from the record each CLI process keeps
+ * of itself, checked against `/proc` (`cliSessionRecords`), which is what `claude agents --json`
+ * reads; elsewhere, or with a CLI that keeps no such records, from `claude agents --json`, a CLI
+ * start of about half a second.
+ */
+export async function listActiveCliSessions(
+  config: CoreConfig,
+  opts: {
+    /** Asked right before a CLI would be started: false (the caller closed while the records were read) starts none */
+    live?: () => boolean;
+  } = {},
+): Promise<{ sessions: Array<Omit<CliSession, 'live'>>; spawned: boolean }> {
+  const records = await cliSessionRecords(config.configDir);
+  if (records) return { sessions: records, spawned: false };
+  if (opts.live && !opts.live()) return { sessions: [], spawned: false };
+  return { sessions: await agentsFromCli(config), spawned: true };
+}
+
+async function agentsFromCli(config: CoreConfig): Promise<Array<Omit<CliSession, 'live'>>> {
   const res = await execCli(config, ['agents', '--json']);
   try {
     const arr = JSON.parse(res.stdout) as Array<Record<string, unknown>>;

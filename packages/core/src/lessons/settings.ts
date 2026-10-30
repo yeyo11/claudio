@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { EFFORT_LEVELS, type Effort, type LessonSettings } from '@claudio/shared';
+import { EFFORT_LEVELS, isRecord, type Effort, type LessonSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
@@ -29,12 +29,11 @@ function bad(field: string, rule: string): never {
   throw new WorkItemError(`${field} ${rule}`, 400);
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function group(raw: Record<string, unknown>, name: string): Record<string, unknown> {
   const value = raw[name];
   if (value === undefined) return {};
-  if (!isObject(value)) return bad(name, 'must be an object');
+  if (!isRecord(value)) return bad(name, 'must be an object');
   return value;
 }
 
@@ -57,7 +56,7 @@ function num(source: Record<string, unknown>, field: string, fallback: number, m
 
 /** Merges `raw` over `base` and checks every range; throws a 400 naming the field that is out of range */
 export function parseLessonSettings(raw: unknown, base: LessonSettings = DEFAULT_LESSON_SETTINGS): LessonSettings {
-  if (!isObject(raw)) return bad('settings', 'must be an object');
+  if (!isRecord(raw)) return bad('settings', 'must be an object');
   const d = base;
   const miner = group(raw, 'miner');
   const caps = group(raw, 'caps');
@@ -115,7 +114,7 @@ function mergeDeep(base: Record<string, unknown>, patch: Record<string, unknown>
   const out: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(patch)) {
     const current = out[key];
-    out[key] = isObject(value) && isObject(current) ? mergeDeep(current, value) : value;
+    out[key] = isRecord(value) && isRecord(current) ? mergeDeep(current, value) : value;
   }
   return out;
 }
@@ -141,7 +140,7 @@ export class LessonSettingsStore {
 
   /** Applies a partial update over the current document, validated as a whole */
   update(patch: unknown): Promise<LessonSettings> {
-    if (!isObject(patch)) return Promise.reject(new WorkItemError('settings must be an object', 400));
+    if (!isRecord(patch)) return Promise.reject(new WorkItemError('settings must be an object', 400));
     return this.chained(async () => {
       const merged = mergeDeep((await this.get()) as unknown as Record<string, unknown>, patch);
       const next = parseLessonSettings(merged);
@@ -155,7 +154,7 @@ export class LessonSettingsStore {
     if (!existsSync(this.file)) return null;
     try {
       const raw: unknown = JSON.parse(await readFile(this.file, 'utf8'));
-      return isObject(raw) ? raw : null;
+      return isRecord(raw) ? raw : null;
     } catch {
       return null;
     }

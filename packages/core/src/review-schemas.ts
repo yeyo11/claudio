@@ -1,5 +1,6 @@
 import type { ReviewSeverity, ReviewSide } from '@claudio/shared';
 import { maskSecrets } from './decisions/redact.ts';
+import { isRecord } from '@claudio/shared';
 
 /**
  * What the reviewers and the verifier answer through `--json-schema`, and the parsers that read it
@@ -127,7 +128,7 @@ function safeJson(raw: string): unknown {
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  return isRecord(value) ? value : null;
 }
 
 /** Trimmed, masked, then cut to the schema's maximum: masking first so a cut cannot leave half a secret */

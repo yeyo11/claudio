@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-19T18:00:00Z
+updated_at: 2026-10-30T02:30:00Z
 tags:
     - cli
     - one-rule
@@ -23,7 +23,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Auth status | `claude auth status --json` |
 | Run / continue a conversation | `claude -p --input-format stream-json --output-format stream-json` (one long-lived process per run, multi-turn over stdin; `--resume` when the process is gone) |
 | Background tasks & subagents | `system/task_*` events and `Task` tool calls in the stream |
-| Live CLI sessions | `claude agents --json` |
+| Live CLI sessions | on Linux, the record each CLI process writes for itself (`$CLAUDE_CONFIG_DIR/sessions/<pid>.json`), kept while `/proc/<pid>/stat` shows the start time it recorded (`procStart`) in the same pid namespace (`pidDomain`): what `claude agents --json` itself reads; elsewhere, or with a CLI that writes no such records, `claude agents --json` ([transcript-listing.md](transcript-listing.md)) |
 | Session history & projects | transcripts in `$CLAUDE_CONFIG_DIR/projects/*/*.jsonl` |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
 | Context breakdown | the `get_context_usage` control request (`detail: summary` unless asked) |
@@ -42,7 +42,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Path-scoped rules | `.claude/rules/*.md` files with a `paths:` list in their front matter, which the CLI loads as project memory; Claudio writes them when a person approves a `rule` proposal ([docs/team-and-flow.md](team-and-flow.md)) |
 | Model list | the `models[]` of the `initialize` control response, the only source: no prompt, no turn, no tokens, in each account's own `CLAUDE_CONFIG_DIR` or token environment. Read in the background at boot for every enabled, signed-in account, and again when the cached entry's CLI version differs from the running one. Until it arrives the list is empty, and Claudio invents no entries ([accounts.md](accounts.md#models), [plans/owner-report-fixes.md](plans/owner-report-fixes.md)) |
 | The shell's working directory notice | the `Shell cwd was reset to <dir>` line the CLI appends to a Bash call's `stderr` (the `tool_use_result` of the stream; `is_error` stays false). Claudio lifts it out of stderr into the call's `cwdReset` and draws it as a note; if the CLI rewords it, nothing matches and stderr shows as it is |
-| Claudio's own MCP server in a live chat | the `mcp_set_servers` control request with the `claudio` server (replaces the set of servers pushed at run time; `{ added, removed, errors }` by name), and `--mcp-config` for the chat's next processes ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)) |
+| Claudio's own MCP server in a live chat | the `mcp_set_servers` control request with the `claudio` server (replaces the set of servers pushed at run time; `{ added, removed, errors }` by name), then `apply_flag_settings` with `permissions.allow` set to the server's reads (the session's flag layer; a second request replaces the list, `--allowedTools` is left alone; recorded on 2.1.312 in `apply-flag-settings.json`), and `--mcp-config` with the reads in `--allowedTools` for the chat's next processes ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)) |
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
 | Guards on tool calls | `--settings <file>` with only Claudio's own hooks (a content-addressed file under `<data>/guards/`) and `--include-hook-events`, read for the guard's marker lines only ([docs/guards.md](guards.md)) |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
@@ -63,4 +63,4 @@ Claudio asks GitHub the same way about its own releases (`CLAUDIO_UPDATE_CHECK=o
 
 ## Related
 
-[[providers.md]] · [[accounts.md]] · [[guards.md]] · [[decision-engine.md]] · [[lessons.md]] · [[evals.md]] · [[context-control.md]] · [[plans/claude-only-fork.md]]
+[[providers.md]] · [[accounts.md]] · [[guards.md]] · [[decision-engine.md]] · [[lessons.md]] · [[evals.md]] · [[context-control.md]] · [[plans/claude-only-fork.md]] · [[transcript-listing.md]]

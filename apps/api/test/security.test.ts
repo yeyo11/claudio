@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { get } from 'node:http';
+import { connect } from 'node:net';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import { REDACTED } from '@claudio/shared';
+import { REDACTED, type LoginSession } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { FailureBackoff } from '../src/security.ts';
 
@@ -299,9 +300,13 @@ test('a write refused for want of a credential is recorded as nobody', async (t)
   assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...authed(token, { name: 'named' }) })).statusCode, 201);
 
   const page = (await app.inject({ url: '/api/audit', ...bearer(token) })).json();
-  const refused = page.entries.find((entry: { status: number }) => entry.status === 401);
-  assert.ok(refused, 'the attempt is in the log');
+  // The refusal is kept apart, where a flood of them cannot push the log's history out
+  assert.equal(page.entries.some((entry: { status: number }) => entry.status === 401), false);
+  const refusals = (await app.inject({ url: '/api/audit/refusals', ...bearer(token) })).json();
+  const [refused] = refusals.entries;
+  assert.equal(refused.status, 401);
   assert.equal(refused.actor, 'anonymous');
+  assert.equal(refused.route, 'POST /projects');
   // And what the credential did carries its id, which is how a rotation shows up in the history
   const allowed = page.entries.find((entry: { status: number }) => entry.status === 201);
   assert.match(allowed.actor, /^token:/);
@@ -443,9 +448,15 @@ test('a client that keeps guessing the token is asked to wait, and the wait grow
 
   // Another address is another client: one attacker does not close the wrapper for everybody
   assert.equal(backoff.retryAfter('10.0.0.2'), 0);
-  // And a credential that works clears what came before it
-  backoff.succeed('10.0.0.1');
-  assert.equal(backoff.retryAfter('10.0.0.1'), 0);
+  // A credential that worked is looked at at once, wherever it comes from, and the guesses beside it
+  // still wait: a success wipes nobody's count
+  backoff.succeed('the-owners-token');
+  assert.equal(backoff.retryAfter('10.0.0.1', 'the-owners-token'), 0);
+  assert.equal(backoff.retryAfter('10.0.0.1', 'a-guess'), 60);
+  assert.equal(backoff.retryAfter('10.0.0.1'), 60);
+  // Once it fails (rotated, revoked) it is a guess like the others
+  backoff.fail('10.0.0.1', 'the-owners-token');
+  assert.equal(backoff.retryAfter('10.0.0.1', 'the-owners-token'), 60);
 });
 
 test('a quiet client is forgotten, and the addresses remembered cannot grow without end', () => {
@@ -491,20 +502,33 @@ test('the guard answers 429 once an address has failed too often, with a Retry-A
   assert.equal((await app.inject('/api/health')).statusCode, 200);
 });
 
-test('a credential that works clears the failures behind it', async (t) => {
+test('a credential that worked skips the wait, and its success hands the guesser beside it nothing', async (t) => {
   const { app } = await wrapper();
   t.after(() => app.close());
   const token = await withToken(app);
 
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(token) })).statusCode, 200);
   for (let i = 0; i < 9; i += 1) {
     assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401);
   }
+  // The owner polling in between does not wipe the count: the tenth guess still starts the wait
   assert.equal((await app.inject({ url: '/api/overview', ...bearer(token) })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 429);
+  // And the owner is never locked out by it (report §8.5)
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(token) })).statusCode, 200);
+});
 
-  // Nine more would have passed the threshold had the successful one not wiped the slate
-  for (let i = 0; i < 9; i += 1) {
-    assert.equal((await app.inject({ url: '/api/overview', ...bearer('not-the-token') })).statusCode, 401, `after the success, attempt ${i + 1}`);
-  }
+test('the back-off is per address and dialled name, so guesses on the LAN name leave localhost alone', async (t) => {
+  const { app } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: 'lan.example' });
+  t.after(() => app.close());
+  await withToken(app);
+  // Behind socat every client arrives from 127.0.0.1; only the name it dialled tells them apart
+  const lan = (credential: string) => ({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: 'lan.example:8443', authorization: `Bearer ${credential}` } });
+  for (let i = 0; i < 10; i += 1) await app.inject(lan('not-the-token'));
+  assert.equal((await app.inject(lan('not-the-token'))).statusCode, 429);
+  const local = { url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: 'localhost:3000', authorization: 'Bearer another-guess' } };
+  assert.equal((await app.inject(local)).statusCode, 401, 'the desktop on localhost has its own allowance');
 });
 
 test('a request that carries no credential is refused but never counted, however often it comes', async (t) => {
@@ -637,12 +661,14 @@ test("a chat's token opens a guarded read and a write from loopback, and the wri
   assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 200);
   assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token, { host: 'localhost:34331' }) })).statusCode, 200);
   assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '::1', headers: { host: '[::1]:34331', authorization: `Bearer ${token}` } })).statusCode, 200);
-  const created = await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'from-a-chat' }) });
-  assert.equal(created.statusCode, 201);
+  // A `work` route lets it through the guard: the answer is the route's own, nothing runs on that chat
+  const stopped = await app.inject({ method: 'POST', url: '/api/chats/nope/stop', ...fromChatWith(token, {}) });
+  assert.equal(stopped.statusCode, 400);
+  assert.match(stopped.json().error, /nothing is running on this chat/);
 
   const [newest] = (await app.inject({ url: '/api/audit', ...bearer(owner) })).json().entries;
   assert.equal(newest.actor, 'chat:chat-42');
-  assert.equal(newest.path, '/api/projects');
+  assert.equal(newest.path, '/api/chats/nope/stop');
 });
 
 test("a chat's token is refused, like a wrong token, from anywhere that is not a chat on this machine", async (t) => {
@@ -698,7 +724,7 @@ test("a chat's token is refused once revoked, and by a wrapper started afresh", 
   assert.equal((await second.app.inject({ url: '/api/overview', ...fromChat(kept) })).statusCode, 401);
 });
 
-test("a chat's token cannot administer the guard or open the tunnel, but can close it", async (t) => {
+test("a chat's token cannot administer the guard or the tunnel", async (t) => {
   const { app, core } = await wrapper();
   t.after(() => app.close());
   await withToken(app);
@@ -709,15 +735,17 @@ test("a chat's token cannot administer the guard or open the tunnel, but can clo
     ['DELETE', '/api/security/token', undefined],
     ['POST', '/api/tunnel/start', undefined],
     ['PUT', '/api/tunnel/settings', { startWithClaudio: true }],
+    // Everything under /tunnel is the person's (C1), closing it included
+    ['POST', '/api/tunnel/stop', undefined],
   ];
   for (const [method, url, body] of forbidden) {
     const request = body === undefined ? { method, url, ...fromChat(token) } : { method, url, ...fromChatWith(token, body) };
     const answer = await app.inject(request as InjectOptions);
     assert.equal(answer.statusCode, 403, `${method} ${url}`);
-    assert.match(answer.json().error, /chat's token cannot change the API's authentication/);
+    assert.equal(answer.json().code, 'chat-forbidden');
+    assert.match(answer.json().error, /^a chat's token cannot do this \(.+\): it is the person's$/);
   }
   assert.equal(core.security.mode, 'token', 'the guard is still on');
-  assert.notEqual((await app.inject({ method: 'POST', url: '/api/tunnel/stop', ...fromChat(token) })).statusCode, 403);
 });
 
 test("a chat's token cannot change a project's tracker through the general settings route", async (t) => {
@@ -734,9 +762,13 @@ test("a chat's token cannot change a project's tracker through the general setti
   const settings = (await app.inject({ url, ...bearer(owner) })).json() as Record<string, unknown>;
   assert.equal((await app.inject({ method: 'PUT', url, ...authed(owner, { ...settings, tracker }) })).statusCode, 200);
 
-  // A chat saves the document with another tracker: the rest is saved, the tracker is not
+  // Under a guard the settings document is the person's whole
   const chat = core.security.chatTokens.mint('chat-42');
   const hijacked = { ...settings, tracker: { ...tracker, scope: 'evil/repo', query: '', statusMap: { done: 'closed' } } };
+  assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(chat, hijacked) })).statusCode, 403);
+
+  // Open, the token only labels the request, and the route keeps the tracker out of a chat's save
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { mode: 'none' }) })).statusCode, 200);
   const answer = await app.inject({ method: 'PUT', url, ...fromChatWith(chat, hijacked) });
   assert.equal(answer.statusCode, 200, answer.body);
   assert.deepEqual((answer.json() as { tracker?: unknown }).tracker, tracker);
@@ -754,7 +786,7 @@ test("read-only and the host allowlist apply to a chat's token as to the owner's
   const owner = await withToken(app);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { readOnly: true }) })).statusCode, 200);
   const token = core.security.chatTokens.mint('chat-42');
-  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'x' }) })).statusCode, 405);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/stop', ...fromChatWith(token, {}) })).statusCode, 405);
   // Refused before any credential is looked at
   assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token, { host: 'rebound.example' }) })).statusCode, 421);
 });
@@ -766,7 +798,9 @@ test("a chat's token is honoured under OIDC too, under the same loopback rules",
   assert.equal(configured.statusCode, 200);
   const token = core.security.chatTokens.mint('chat-42');
   assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 200);
-  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'oidc-chat' }) })).statusCode, 201);
+  // Through the guard to the route's own answer, and a `person` route refused
+  assert.match((await app.inject({ method: 'POST', url: '/api/chats/nope/stop', ...fromChatWith(token, {}) })).json().error, /nothing is running on this chat/);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...fromChatWith(token, { name: 'oidc-chat' }) })).statusCode, 403);
   assert.equal((await app.inject({ url: '/api/overview', ...fromChat(token, { 'x-forwarded-for': '203.0.113.9' }) })).statusCode, 401);
   assert.equal((await app.inject({ url: '/api/overview', remoteAddress: '10.0.0.5', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}` } })).statusCode, 401);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...fromChatWith(token, { mode: 'none' }) })).statusCode, 403);
@@ -785,50 +819,28 @@ test("an open wrapper stays open and labels a chat's writes as the chat, and a t
   assert.deepEqual(entries.map((entry) => entry.actor), ['local', 'chat:chat-42', 'chat:chat-42']);
 });
 
-test("a chat's token reads the context routes but cannot compact, ask for a note or delete one", async (t) => {
+test("a chat's token reads the context routes, compacts and asks for a note, but cannot delete one", async (t) => {
   const { app, core } = await wrapper();
   t.after(() => app.close());
   const owner = await withToken(app);
   const token = core.security.chatTokens.mint('chat-42');
-  for (const url of ['/api/chats/nope/context', '/api/chats/nope/compactions', '/api/chats/nope/notes']) {
-    // Allowed through the guard: the chat does not exist, which is a 404 and not a 403
-    assert.equal((await app.inject({ url, ...fromChat(token) })).statusCode, 404, url);
-  }
+  // Through the guard: the chat does not exist, which is a 404 and not a 403. A compact or a note is
+  // a turn of the chat's work, like the messages a chat's token sends (C1), typed or not
   for (const [method, url, body] of [
+    ['GET', '/api/chats/nope/context', undefined],
+    ['GET', '/api/chats/nope/compactions', undefined],
+    ['GET', '/api/chats/nope/notes', undefined],
     ['POST', '/api/chats/nope/compact', {}],
     ['POST', '/api/chats/nope/notes', { from: 'agent' }],
-    ['DELETE', '/api/chats/nope/notes/n1', undefined],
+    ['POST', '/api/chats/nope/messages', { text: '/compact' }],
   ] as const) {
-    const res = await app.inject({ method, url, ...(body === undefined ? fromChat(token) : fromChatWith(token, body)) });
-    assert.equal(res.statusCode, 403, `${method} ${url}`);
-    assert.match(res.json().error, /cannot compact a chat or ask it for a note/);
-    // The owner's own click is not refused by the guard
-    const owned = await app.inject({ method, url, ...(body === undefined ? bearer(owner) : authed(owner, body)) });
-    assert.equal(owned.statusCode, 404, `${method} ${url}`);
+    assert.equal((await app.inject({ method, url, ...(body === undefined ? fromChat(token) : fromChatWith(token, body)) })).statusCode, 404, `${method} ${url}`);
   }
-});
-
-test("a chat's token cannot compact a chat by sending it /compact as a message, a resume or a fork either", async (t) => {
-  const { app, core } = await wrapper();
-  t.after(() => app.close());
-  const owner = await withToken(app);
-  const token = core.security.chatTokens.mint('chat-42');
-  for (const [url, body] of [
-    ['/api/chats/nope/messages', { text: '/compact' }],
-    ['/api/chats/nope/messages', { text: '  /compact keep the parser' }],
-    ['/api/chats/nope/resume', { prompt: '/compact' }],
-    ['/api/chats/nope/fork', { prompt: '/compact the tests' }],
-  ] as const) {
-    const res = await app.inject({ method: 'POST', url, ...fromChatWith(token, body) });
-    assert.equal(res.statusCode, 403, `${url} ${JSON.stringify(body)}`);
-    assert.match(res.json().error, /cannot compact a chat or ask it for a note/);
-    // The person typing it is the typed entry point, and is not refused by the guard
-    assert.equal((await app.inject({ method: 'POST', url, ...authed(owner, body) })).statusCode, 404, url);
-  }
-  // Anything else a chat sends is still a message: the chat does not exist, so 404 and not 403
-  for (const text of ['/compactness is not a command', 'please /compact later', '/context']) {
-    assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/messages', ...fromChatWith(token, { text }) })).statusCode, 404, text);
-  }
+  // Every DELETE is the person's
+  const removed = await app.inject({ method: 'DELETE', url: '/api/chats/nope/notes/n1', ...fromChat(token) });
+  assert.equal(removed.statusCode, 403);
+  assert.equal(removed.json().code, 'chat-forbidden');
+  assert.equal((await app.inject({ method: 'DELETE', url: '/api/chats/nope/notes/n1', ...bearer(owner) })).statusCode, 404);
 });
 
 test("an open wrapper lets a chat's token compact, labelled as the chat", async (t) => {
@@ -890,15 +902,21 @@ test("a chat's token cannot give a graph the spend pass or name the daily cap, a
   assert.equal(pass.statusCode, 403);
   const cardPass = await app.inject({ method: 'POST', url: '/api/work-items/any/spend-pass', ...fromChatWith(token, {}) });
   assert.equal(cardPass.statusCode, 403, "a card's pass is the person's click too");
+  // The settings are the person's whole under a guard
   const cap = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { dailySpendCapUsd: null }) });
   assert.equal(cap.statusCode, 403);
-  assert.match(cap.json().error, /daily spend cap/);
+  assert.equal(cap.json().code, 'chat-forbidden');
   const phase2 = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { evalsPhase2: true }) });
   assert.equal(phase2.statusCode, 403, "the evals' Phase 2 switch lets a judge spend, so it is the person's");
   assert.equal((await app.inject({ url: '/api/settings/app', ...bearer(owner) })).json().evalsPhase2, false);
-  // What else a chat may write to the settings is not this route's business, and the cap is readable
+  // The cap is readable
   assert.equal((await app.inject({ url: '/api/spend', ...fromChat(token) })).statusCode, 200);
   assert.equal((await app.inject({ method: 'PUT', url: '/api/settings/app', ...authed(owner, { dailySpendCapUsd: 5 }) })).statusCode, 200);
+  // Open, where the token only labels the request, the route itself still keeps the cap from a chat
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { mode: 'none' }) })).statusCode, 200);
+  const labelled = await app.inject({ method: 'PUT', url: '/api/settings/app', ...fromChatWith(token, { dailySpendCapUsd: null }) });
+  assert.equal(labelled.statusCode, 403);
+  assert.match(labelled.json().error, /daily spend cap/);
 });
 
 test("a chat's token reads lessons but cannot decide, change or mine them, or decide a lesson proposal", async (t) => {
@@ -927,7 +945,7 @@ test("a chat's token reads lessons but cannot decide, change or mine them, or de
     assert.equal(answer.statusCode, 403, `${method} ${url}`);
   }
   const settings = await app.inject({ method: 'PUT', url: '/api/lessons/settings', ...fromChatWith(token, { manualMining: false }) });
-  assert.match(settings.json().error, /cannot decide, change or mine lessons/);
+  assert.equal(settings.json().code, 'chat-forbidden');
   // Reading stays open to the chat, and the person's own token still changes the settings
   assert.equal((await app.inject({ url: '/api/lessons/settings', ...fromChat(token) })).statusCode, 200);
   assert.equal((await app.inject({ url: '/api/lessons/global', ...fromChat(token) })).statusCode, 200);
@@ -950,8 +968,11 @@ test("a chat's token cannot change who receives lessons through the project's se
 
   const mine = { deliverToChats: false, deliverToWorkers: false, useGlobal: false };
   assert.equal((await app.inject({ method: 'PUT', url, ...authed(owner, { ...current, lessons: mine }) })).statusCode, 200);
-  // The chat saves the document with every switch turned the other way: its copy of `lessons` is not kept
+  // The chat saves the document with every switch turned the other way: refused whole under a guard
   const grab = { deliverToChats: true, deliverToWorkers: true, useGlobal: true };
+  assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(token, { ...current, lessons: grab }) })).statusCode, 403);
+  // and, open, saved without its copy of `lessons`
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { mode: 'none' }) })).statusCode, 200);
   assert.equal((await app.inject({ method: 'PUT', url, ...fromChatWith(token, { ...current, lessons: grab }) })).statusCode, 200);
   assert.deepEqual(((await app.inject({ url, ...bearer(owner) })).json() as { lessons: unknown }).lessons, mine);
 });
@@ -962,10 +983,7 @@ test('with authentication off, /v1 counts wrong credentials and waits like the g
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json() as { token: string };
 
-  // A success clears the failures behind it, as under a guard
-  for (let i = 0; i < 9; i += 1) assert.equal((await app.inject({ url: '/api/v1/models', ...bearer('not-the-token') })).statusCode, 401);
-  assert.equal((await app.inject({ url: '/api/v1/models', ...bearer(token) })).statusCode, 200);
-
+  // Before it ever worked, the real token waits with the guesses at its address, as under a guard
   for (let i = 0; i < 10; i += 1) {
     assert.equal((await app.inject({ url: '/api/v1/models', ...bearer('not-the-token') })).statusCode, 401, `attempt ${i + 1}`);
   }
@@ -976,4 +994,223 @@ test('with authentication off, /v1 counts wrong credentials and waits like the g
   // No credential is no guess: refused, never made to wait, as the guarded modes treat it
   assert.equal((await app.inject('/api/v1/models')).statusCode, 401);
   assert.equal((await app.inject('/api/chats')).statusCode, 200, 'only /v1 asks for a credential under mode none');
+});
+
+// ---------- D1 of docs/plans/regression-fixes-2026-10-29.md: the matched route decides ----------
+
+/**
+ * Sends a request target exactly as written. `inject` and `http.get` parse the URL first, and the
+ * spellings under test are the ones a client puts on the wire before anything normalises them.
+ */
+function raw(base: string, method: string, target: string, headers: Record<string, string> = {}): Promise<{ status: number; body: string }> {
+  const { hostname, port } = new URL(base);
+  return new Promise((resolve, reject) => {
+    const socket = connect(Number(port), hostname, () => {
+      const lines = [`${method} ${target} HTTP/1.1`, `Host: ${hostname}:${port}`, 'Connection: close', ...(method === 'GET' ? [] : ['Content-Length: 0']), ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`)];
+      socket.write(`${lines.join('\r\n')}\r\n\r\n`);
+    });
+    let data = '';
+    socket.setEncoding('utf8');
+    socket.setTimeout(10_000, () => socket.destroy(new Error(`no answer to ${method} ${target}`)));
+    socket.on('data', (chunk: string) => {
+      data += chunk;
+    });
+    socket.on('end', () => resolve({ status: Number(/^HTTP\/1\.1 (\d{3})/.exec(data)?.[1] ?? 0), body: data.slice(data.indexOf('\r\n\r\n') + 4) }));
+    socket.on('error', reject);
+  });
+}
+
+test('the guard decides on the matched route, and every other spelling of a path is refused before it (report §8.1)', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+  const base = await app.listen({ port: 0, host: '127.0.0.1' });
+
+  assert.equal((await raw(base, 'GET', '/api/health')).status, 200);
+  assert.equal((await raw(base, 'GET', '/api/chats')).status, 401);
+  // Each of these reached `/api/chats` with no credential before; now none of them reaches a route
+  for (const target of [
+    '/%61pi/health',
+    '/%61pi/chats',
+    '/api/%63hats',
+    'http://x/api/health',
+    'http://x/api/chats',
+    '/api/../api/health',
+    '/api/../api/chats',
+    '/api/./chats',
+    '/api/%2e%2e/api/chats',
+  ]) {
+    const answer = await raw(base, 'GET', target, { authorization: '' });
+    assert.equal(answer.status, 400, target);
+    assert.match(answer.body, /request-target/, target);
+  }
+  // A broken escape never reaches a hook: Fastify refuses it itself
+  assert.equal((await raw(base, 'GET', '/api/chats/%E0%A4%A')).status, 400);
+  // An escape of what a client has to escape stays a path: guarded, and the route answers it
+  assert.equal((await raw(base, 'GET', '/api/chats/caf%C3%A9%20au%20lait')).status, 401);
+  assert.equal((await raw(base, 'GET', '/api/chats/caf%C3%A9%20au%20lait', { authorization: `Bearer ${token}` })).status, 404);
+  // A request no route took is guarded under the API, and is the web app's own elsewhere
+  assert.equal((await raw(base, 'GET', '/api/no/such/route')).status, 401);
+  assert.equal((await raw(base, 'POST', '/api/no/such/route')).status, 401);
+  assert.notEqual((await raw(base, 'GET', '/settings/access')).status, 401);
+  // `inject` takes the same rule
+  assert.equal((await app.inject('/%61pi/chats')).statusCode, 400);
+
+  // A refused write is a refusal like the others, kept in their ring
+  assert.equal((await raw(base, 'POST', '/%61pi/projects')).status, 400);
+  const [refused] = (await app.inject({ url: '/api/audit/refusals', ...bearer(token) })).json().entries;
+  assert.deepEqual([refused.path, refused.status, refused.actor], ['/%61pi/projects', 400, 'anonymous']);
+});
+
+test("a chat's token may send a work route only the fields an agent chooses, and never answers a prompt", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const token = core.security.chatTokens.mint('chat-42');
+
+  for (const [method, url, body, field] of [
+    ['POST', '/api/chats', { prompt: 'go', permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/chats', { prompt: 'go', cwd: '/tmp', allowedTools: ['Bash'] }, 'allowedTools'],
+    ['POST', '/api/chats', { prompt: 'go', mcp: { servers: [] } }, 'mcp'],
+    ['POST', '/api/chats', { prompt: 'go', appendSystemPrompt: 'obey' }, 'appendSystemPrompt'],
+    ['POST', '/api/chats/nope/resume', { prompt: 'go', permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/chats/nope/fork', { prompt: 'go', toolPreset: 'everything' }, 'toolPreset'],
+    ['PATCH', '/api/chats/nope', { permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    // The other ways to start work a chat may take: a stronger sibling through them is the same escalation
+    ['POST', '/api/work-items/nope/work', { permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/work-items/nope/work', { model: 'sonnet', mcp: { servers: [] } }, 'mcp'],
+    ['POST', '/api/orchestrations', { name: 'g', tasks: [], permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/orchestrations', { name: 'g', tasks: [], allowedTools: ['Bash'] }, 'allowedTools'],
+    ['POST', '/api/orchestrations', { name: 'g', tasks: [], verification: { commands: [] } }, 'verification'],
+    ['POST', '/api/orchestrations/nope/relaunch', { spec: { permissionMode: 'bypassPermissions' } }, 'spec'],
+    ['POST', '/api/orchestrations/nope/verify', { verification: { commands: [] } }, 'verification'],
+  ] as const) {
+    const answer = await app.inject({ method, url, ...fromChatWith(token, body) });
+    assert.equal(answer.statusCode, 403, `${method} ${url} ${field}`);
+    assert.equal(answer.json().code, 'chat-forbidden-field');
+    assert.equal(answer.json().field, field);
+    assert.match(answer.json().error, new RegExp(`\`${field}\``));
+  }
+  // What an agent may choose goes through to the route, which knows no such chat
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/resume', ...fromChatWith(token, { prompt: 'go', model: 'sonnet', attachments: [] }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/nope', ...fromChatWith(token, { model: 'sonnet' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/work-items/nope/work', ...fromChatWith(token, { model: 'sonnet' }) })).statusCode, 404);
+  // The owner sets anything
+  assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/nope', ...authed(owner, { permissionMode: 'plan' }) })).statusCode, 404);
+
+  // Answering a permission prompt, its own or another chat's, is the person's (report §4.5)
+  const answer = await app.inject({ method: 'POST', url: '/api/chats/other/permissions/r1', ...fromChatWith(token, { behavior: 'allow' }) });
+  assert.equal(answer.statusCode, 403);
+  assert.equal(answer.json().code, 'chat-forbidden');
+  assert.notEqual((await app.inject({ method: 'POST', url: '/api/chats/other/permissions/r1', ...authed(owner, { behavior: 'allow' }) })).statusCode, 403);
+});
+
+/** Opens the event stream and answers with the first `login.updated` it carries, emitted once the stream is open */
+function firstLogin(url: string, authorization: string | null, emit: () => void): Promise<LoginSession> {
+  return new Promise((resolve, reject) => {
+    const req = get(url, { headers: authorization ? { authorization } : {} }, (res) => {
+      if (res.statusCode !== 200) return reject(new Error(`the stream answered ${String(res.statusCode)}`));
+      res.setEncoding('utf8');
+      let buffer = '';
+      let emitted = false;
+      res.on('data', (chunk: string) => {
+        buffer += chunk;
+        if (!emitted && buffer.includes('stream.hello')) {
+          emitted = true;
+          emit();
+        }
+        const event = /id: \d+\nevent: login\.updated\ndata: (.*)\n\n/.exec(buffer);
+        if (!event?.[1]) return;
+        req.destroy();
+        resolve((JSON.parse(event[1]) as { login: LoginSession }).login);
+      });
+    });
+    req.setTimeout(10_000, () => req.destroy(new Error('no login.updated on the stream')));
+    req.on('error', reject);
+  });
+}
+
+test("a sign-in's URL and code reach the owner's event stream and never a chat's (report §8.4)", async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const chat = core.security.chatTokens.mint('chat-42');
+  const base = await app.listen({ port: 0, host: '127.0.0.1' });
+  const login: LoginSession = {
+    id: 'login-1',
+    tool: 'gh',
+    method: 'device',
+    host: 'github.com',
+    state: 'waiting-for-person',
+    url: 'https://github.com/login/device',
+    code: 'ABCD-1234',
+    startedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    endedAt: null,
+    error: null,
+    ready: null,
+  };
+  const emit = () => core.events.emit({ type: 'login.updated', title: 'Sign-in waiting-for-person', login });
+
+  const seen = await firstLogin(`${base}/api/events`, `Bearer ${owner}`, emit);
+  assert.equal(seen.url, login.url);
+  assert.equal(seen.code, login.code);
+
+  const stripped = await firstLogin(`${base}/api/events`, `Bearer ${chat}`, emit);
+  assert.equal(stripped.state, 'waiting-for-person', "the chat still learns the sign-in's state");
+  assert.equal(stripped.url, null);
+  assert.equal(stripped.code, null);
+});
+
+test('anonymous refusals go to their own ring and leave the audit log alone (report §8.6)', async (t) => {
+  const { app, core } = await wrapper();
+  t.after(() => app.close());
+  const token = await withToken(app);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/projects', ...authed(token, { name: 'kept' }) })).statusCode, 201);
+  const before = (await app.inject({ url: '/api/audit', ...bearer(token) })).json().total as number;
+
+  // A flood of unauthenticated writes: a few through the guard, the rest straight to the store
+  for (let i = 0; i < 20; i += 1) assert.equal((await app.inject({ method: 'POST', url: `/api/x${String(i)}` })).statusCode, 401);
+  for (let i = 0; i < 60_000; i += 1) {
+    core.db.appendAuditRefusal({ at: new Date().toISOString(), actor: 'anonymous', method: 'POST', path: `/api/flood/${String(i)}`, status: 401, summary: 'POST /api/flood' });
+  }
+
+  const log = (await app.inject({ url: '/api/audit', ...bearer(token) })).json();
+  assert.equal(log.total, before, 'not one row of the history was pushed out');
+  assert.equal(log.entries.some((entry: { actor: string }) => entry.actor === 'anonymous'), false);
+  const ring = (await app.inject({ url: '/api/audit/refusals', ...bearer(token) })).json();
+  assert.equal(ring.total, 1000);
+  assert.equal(ring.entries[0].path, '/api/flood/59999');
+
+  // A long target is stored cut, and the summary built from it too
+  assert.equal((await app.inject({ method: 'POST', url: `/api/${'x'.repeat(5_000)}` })).statusCode, 401);
+  const [long] = (await app.inject({ url: '/api/audit/refusals?limit=1', ...bearer(token) })).json().entries;
+  assert.equal(long.path.length, 512);
+  assert.ok(long.summary.length < 600);
+  // And the ring is the owner's to read
+  const chat = core.security.chatTokens.mint('chat-42');
+  assert.equal((await app.inject({ url: '/api/audit/refusals', ...fromChat(chat) })).statusCode, 403);
+});
+
+test('with authentication off, a write from a page of another site is refused (report §8.8)', async (t) => {
+  const { app } = await wrapper();
+  t.after(() => app.close());
+  const write = (headers: Record<string, string>) =>
+    app.inject({ method: 'POST', url: '/api/projects/candidates/hide', payload: JSON.stringify({ key: '/tmp/x' }), headers: { host: '127.0.0.1:34331', 'content-type': 'application/json', ...headers } });
+
+  const crossSite: Array<Record<string, string>> = [{ origin: 'https://evil.example' }, { 'sec-fetch-site': 'cross-site' }, { origin: 'null' }, { origin: 'http://localhost:5174' }];
+  for (const headers of crossSite) {
+    const refused = await write(headers);
+    assert.equal(refused.statusCode, 403, JSON.stringify(headers));
+    assert.equal(refused.json().code, 'cross-site');
+  }
+  // The app's own page, and anything that is not a browser, writes as before
+  assert.equal((await write({ origin: 'http://127.0.0.1:34331', 'sec-fetch-site': 'same-origin' })).statusCode, 204);
+  assert.equal((await write({})).statusCode, 204);
+  // A read is not a write
+  assert.equal((await app.inject({ url: '/api/projects', headers: { origin: 'https://evil.example' } })).statusCode, 200);
+  // The refusals are anonymous, in their ring
+  const refusals = (await app.inject('/api/audit/refusals')).json();
+  assert.equal(refusals.total, 4);
+  assert.equal((await app.inject('/api/audit')).json().total, 2);
 });

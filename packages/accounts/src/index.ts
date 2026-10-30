@@ -1,10 +1,11 @@
-export { choose, type Candidate, type Choice, type ChooseOptions } from './choose.ts';
+export { choose, globalOrder, type Candidate, type Choice, type ChooseOptions } from './choose.ts';
 export { HISTORY, prepareAccountDir, removeLinks, SHARED_SETTINGS } from './dirs.ts';
 export { ACCOUNT_VARS, envFor, readSecret, SECRET_FILE, type AccountRef } from './env.ts';
 export { CREDENTIALS_FILE, identify, parseAuthStatus, readCredentials, type CredentialsReading, type Identity } from './identify.ts';
 export { cliVersion, ModelCache, offers, parseInitialize, readInitialize, type InitializeAccount, type Initialized, type ModelsEntry, type ModelsOptions } from './models.ts';
 export { login, type LoginSession } from './login.ts';
-export { AccountStore, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';
-export { cliConfigFile, fold, NEAR, readCache, readingFromEvent, Readings, type Reading } from './usage.ts';
+export { AccountInUseError, AccountStore, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';
+export { BAR_BAD, BAR_WARN, barTone, EXHAUSTED, isOut, NEAR, outUntil } from './thresholds.ts';
+export { cliConfigFile, fold, readCache, readingFromEvent, Readings, type EventReadingOptions, type Reading } from './usage.ts';
 export { apiKeyOf, checkApiKey, checkCredential, parseUsage, usageOf, type CredentialCheck, type KeyCheckOptions } from './cli-usage.ts';
 export { controlRequest, type ControlOptions } from './control.ts';

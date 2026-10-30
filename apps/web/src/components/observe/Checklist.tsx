@@ -1,5 +1,6 @@
 import type { Checklist as ChecklistData } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
+import { useFallbackInterval } from '../../lib/events';
 import { CircleCheck, CircleDashed, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { checklistProgress } from '../../lib/observe';
@@ -11,7 +12,9 @@ const ICON = { completed: CircleCheck, in_progress: Loader, pending: CircleDashe
 /** The plan a worker wrote for itself, as of its last update: what is done, what it is on, what is left. */
 export function ChecklistView({ queryKey, load, live }: { queryKey: readonly unknown[]; load: () => Promise<ChecklistData>; live: boolean }) {
   const { t } = useTranslation('observe');
-  const { data, error } = useQuery({ queryKey, queryFn: load, refetchInterval: live ? 10_000 : false });
+  // The feed reads it again when a checklist tool lands or the turn ends; a poll only while it is down
+  const fallback = useFallbackInterval();
+  const { data, error } = useQuery({ queryKey, queryFn: load, refetchInterval: live ? fallback : false });
   if (error) return <ErrorBox error={error} />;
   if (!data) return null;
   if (data.items.length === 0) return <p className="muted small">{t('checklist.none')}</p>;

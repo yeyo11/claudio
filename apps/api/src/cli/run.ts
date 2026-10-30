@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
 import type { Account, AccountLimit, AccountLoginSession, SystemInfo } from '@claudio/shared';
 import { Api, CliError, EXIT, Interrupted, type ExitCode } from './client.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * What `GET /api/ready` answers (D11): `ReadyStatus` of the shared types, which the `profile` task
@@ -109,7 +110,7 @@ async function dispatch(argv: string[], io: CliIo): Promise<ExitCode> {
       },
     });
   } catch (err) {
-    return usage(io, err instanceof Error ? err.message : String(err));
+    return usage(io, errorMessage(err));
   }
   const { values, positionals } = parsed;
   if (values.help) {

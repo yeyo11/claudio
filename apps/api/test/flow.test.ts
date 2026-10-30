@@ -9,6 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { FlowRun, FlowRunPage, FlowStartWaitingResult, FlowWaiting, MemoryProposal, Project, ProjectFlow, ProjectSettings, Team, WorkItem, WorkItemDetail } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // The flow by column over HTTP and a real core, with the fake CLI standing in for Claude: it answers
 // each run with the structured result the item's description scripts for its stage, and logs the
@@ -23,7 +24,6 @@ let project: Project;
 let spawns: string;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function until<T>(read: () => Promise<T> | T, done: (value: T) => boolean, what: string): Promise<T> {
   for (let i = 0; i < 300; i++) {

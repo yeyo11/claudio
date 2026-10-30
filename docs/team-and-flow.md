@@ -941,7 +941,7 @@ described above where it now lives. The last detail, the model's name, was close
 - **The member's model reads "sonnet · Sonnet 5" once a chat has run on the alias.** The member
   page writes, after the model, the label the overview's `system.models` gives it (`ModelName` in
   `pages/team/RoleAvatar.tsx`), and the model pickers list the same labels. The CLI's own list
-  (`additionalModelOptionsCache` in `.claude.json`, read by `packages/core/src/models.ts`) labels
+  (the `initialize` handshake's, cached per account and served by `GET /accounts/:id/models`) labels
   only the models an account adds beyond the aliases, never `sonnet`, `opus`… So the name of an
   alias is learned from the CLI's stream instead (option A, the owner's choice on 2026-09-28): each
   chat's `system/init` event reports the model id its process runs, and when the chat was started

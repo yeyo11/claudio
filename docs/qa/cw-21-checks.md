@@ -68,4 +68,4 @@ pnpm test
 
 ## Related
 
-[[team-and-flow.md]] · [[qa/cw-21-verification.md]]
+[[team-and-flow.md]]

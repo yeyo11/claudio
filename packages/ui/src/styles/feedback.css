@@ -145,7 +145,6 @@ a.badge:hover {
   --dot: var(--live);
 }
 
-
 /* Legacy dots still used by a few tables */
 .pulse {
   width: 6px;
@@ -165,10 +164,6 @@ a.badge:hover {
 
 .dot-ok {
   background: var(--ok);
-}
-
-.dot-warn {
-  background: var(--warn);
 }
 
 .dot-bad {
@@ -357,7 +352,9 @@ a.badge:hover {
   box-shadow: var(--shadow-raised);
 }
 
-.state-empty strong {
+.state-empty strong,
+.state-empty .state-title {
+  margin: 0;
   color: var(--fg);
   font-weight: var(--fw-strong);
   font-size: var(--fs-body);
@@ -515,27 +512,11 @@ a.badge:hover {
   gap: 22px 32px;
 }
 
-.gauge {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
 .gauge-value {
   font-size: var(--fs-title);
   font-weight: var(--fw-strong);
   letter-spacing: var(--tracking-title);
   font-variant-numeric: tabular-nums;
-}
-
-.gauge-text {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Sentence case, as the copy is written: capitalising read "Se Reinicia En" */
-.gauge-name {
-  font-weight: var(--fw-strong);
 }
 
 .meter-track {

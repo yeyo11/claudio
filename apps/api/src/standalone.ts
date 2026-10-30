@@ -1,4 +1,6 @@
 // Entrypoint of the single-file bundle (`node dist/server.mjs`) that the desktop app runs as a child process.
+// First, before anything can use libuv's thread pool
+import './threadpool.ts';
 import { DataDirLockedError, resolveUserPath } from '@claudio/core';
 import { DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
 import { startServer } from './server.ts';

@@ -10,6 +10,7 @@ import type {
   CapabilityConfirmation,
   DriverEvent,
   DriverSession,
+  InterruptReceipt,
   LaunchPlan,
   McpSetServersResult,
   ProviderDriver,
@@ -20,9 +21,9 @@ import type {
 } from '../driver.ts';
 import { buildArgs } from './args.ts';
 import { ClaudeBranches } from './branches.ts';
-import { ControlChannel } from './control.ts';
+import { ControlChannel, stillQueuedOf, type BackgroundTasksRequest, type CancelAsyncMessageRequest, type InterruptRequest } from './control.ts';
 import { liveMcpServers, mcpSetServersResult } from './mcp.ts';
-import { confirmClaudeInit } from './handshake.ts';
+import { claudeReadsBack, confirmClaudeInit } from './handshake.ts';
 import { claudeCodeManifest } from './manifest.ts';
 import { translateClaudePolicy } from './policy.ts';
 import { ClaudeStream } from './stream.ts';
@@ -62,8 +63,25 @@ class ClaudeCodeSession implements DriverSession {
     return Array.isArray(content) ? String((content.at(-1) as { text: string }).text) : text;
   }
 
-  async interrupt(): Promise<void> {
-    await this.control.request({ subtype: 'interrupt' });
+  async interrupt(): Promise<InterruptReceipt> {
+    // The guard watcher excuses the calls this interrupt cuts short, until the CLI answers it
+    this.stream.interrupting();
+    try {
+      const response = await this.control.request({ subtype: 'interrupt' } satisfies InterruptRequest);
+      return { stillQueued: stillQueuedOf(response) };
+    } finally {
+      this.stream.interruptAnswered();
+    }
+  }
+
+  async backgroundCall(toolUseId: string): Promise<boolean> {
+    const response = await this.control.request({ subtype: 'background_tasks', tool_use_id: toolUseId } satisfies BackgroundTasksRequest);
+    return response.backgrounded !== false;
+  }
+
+  async cancelMessage(id: string): Promise<boolean> {
+    const response = await this.control.request({ subtype: 'cancel_async_message', message_uuid: id } satisfies CancelAsyncMessageRequest);
+    return response.cancelled === true;
   }
 
   async setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void> {
@@ -89,6 +107,11 @@ class ClaudeCodeSession implements DriverSession {
 
   async mcpSetServers(servers: Record<string, Record<string, unknown>>): Promise<McpSetServersResult> {
     return mcpSetServersResult(await this.control.request({ subtype: 'mcp_set_servers', servers }));
+  }
+
+  async applyFlagSettings(settings: Record<string, unknown>): Promise<void> {
+    // `SDKControlApplyFlagSettingsRequest` in the Agent SDK's sdk.d.ts (0.3.312): merged into the flag layer, never written to a file
+    await this.control.request({ subtype: 'apply_flag_settings', settings });
   }
 
   answerPermission(requestId: string, decision: PermissionDecision): void {
@@ -178,5 +201,9 @@ export class ClaudeCodeDriver implements ProviderDriver {
 
   confirm(init: SessionInit): CapabilityConfirmation {
     return confirmClaudeInit(init);
+  }
+
+  readsBack(init: SessionInit): boolean | null {
+    return claudeReadsBack(init.version);
   }
 }

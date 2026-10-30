@@ -11,6 +11,20 @@ export class ChatRefusal extends Error {
   }
 }
 
+/**
+ * What the page asked to do about a message or a call waiting in a chat, which the agent's state no
+ * longer allows: `not-running`, the call is no foreground call the turn waits on; `taken`, the agent
+ * has already read the message; `unsupported`, its provider cannot. A 409 whose `code` names it.
+ */
+export class DeliveryRefusal extends ChatRefusal {
+  constructor(
+    message: string,
+    readonly reason: 'not-running' | 'taken' | 'unsupported',
+  ) {
+    super(message, 409);
+  }
+}
+
 /** The chat a call names is not one Claudio knows. */
 export class ChatNotFoundError extends ChatRefusal {
   readonly code = 'chat-not-found';
@@ -28,4 +42,31 @@ export class RunSlotRefusal extends ChatRefusal {
   constructor(readonly limit: number) {
     super(`Concurrent run limit reached (${String(limit)})`);
   }
+}
+
+/**
+ * The machine is short of memory: a chat started now could be the one the kernel kills. A 409, and
+ * like a full slot it passes: what waits for room retries it rather than counting it a failure.
+ */
+export class MemoryRefusal extends ChatRefusal {
+  readonly code = 'memory';
+  constructor(message: string) {
+    super(message, 409);
+  }
+}
+
+/** A worker's start gave way to a person's that was refused a place a moment ago (its words start with `QUEUE_YIELD_PREFIX`). */
+export class QueueYieldRefusal extends ChatRefusal {
+  readonly code = 'queue-yield';
+  constructor(message: string) {
+    super(message, 409);
+  }
+}
+
+/**
+ * A refusal that clears by itself within moments: a run slot, the machine's memory, a place kept for
+ * a person. A caller that can wait tries again; anything else is a failure to report.
+ */
+export function isTransientRefusal(err: unknown): err is RunSlotRefusal | MemoryRefusal | QueueYieldRefusal {
+  return err instanceof RunSlotRefusal || err instanceof MemoryRefusal || err instanceof QueueYieldRefusal;
 }

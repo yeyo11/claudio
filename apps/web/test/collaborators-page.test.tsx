@@ -15,7 +15,7 @@ import i18n from '../src/i18n';
 import { collaboratorsKeys } from '../src/lib/api/collaborators';
 import { CollaboratorsView } from '../src/pages/Collaborators';
 import { InviteView } from '../src/pages/collaborators/dialogs';
-import { byPerson, connectionWord, kindCounts, localProjectOf, ownedGroups, presenceWord, shortId, syncWord, worstSync } from '../src/pages/collaborators/model';
+import { byPerson, connectionWord, followJoin, kindCounts, localProjectOf, ownedGroups, presenceWord, shortId, syncWord, worstSync } from '../src/pages/collaborators/model';
 import { PendingJoinRow } from '../src/pages/collaborators/SharedWithYou';
 
 // The Collaborators page (docs/plans/collaborators.md §5.1, task w1): off, unavailable and on; the
@@ -33,6 +33,7 @@ const status = (extra: Partial<CollaboratorsStatus> = {}): CollaboratorsStatus =
   settings: { enabled: true, displayName: 'Jose', label: 'desktop', relayUrl: null, assistantReads: true },
   endpointId: SELF,
   connection: 'online',
+  connectionError: null,
   homeRelay: 'https://euc1-1.relay.n0.iroh.link./',
   ...extra,
 });
@@ -127,6 +128,16 @@ test("the You card's connection: ok connected, neutral through a relay, warn wit
   assert.deepEqual(connectionWord(status({ connection: 'no-relay' }), []), { key: 'connection.noRelay', tone: 'warn' });
   assert.deepEqual(connectionWord(status({ connection: 'offline' }), []), { key: 'connection.offline', tone: 'bad' });
   assert.equal(connectionWord(status({ connection: 'starting' }), []).tone, 'muted');
+  assert.deepEqual(connectionWord(status({ connection: 'error' }), []), { key: 'connection.error', tone: 'bad' });
+});
+
+test('an endpoint that did not bind says why and when it is tried again, instead of "Connecting…" for ever', () => {
+  const html = page(status({ connection: 'error', connectionError: { message: 'Failed to bind sockets', retryAt: new Date(Date.now() + 30_000).toISOString() }, homeRelay: null }));
+  assert.match(html, /data-testid="collab-connection-error"/);
+  assert.ok(text(html).includes('Did not start'));
+  assert.ok(text(html).includes('Failed to bind sockets'));
+  assert.ok(text(html).includes('Trying again at'));
+  assert.ok(!text(html).includes('Connecting…'));
 });
 
 test('presence and sync are ok while connected and idle while waiting, never live', () => {
@@ -394,4 +405,22 @@ test('the Spanish copy follows the glossary', async () => {
   } finally {
     await i18n.changeLanguage('en');
   }
+});
+
+test('the join dialog follows the live pending entry: the member who took the request, the roster that lists this install, or the end of it', () => {
+  const groupId = 'j'.repeat(64);
+  const sent: PendingJoin = { groupId, groupName: 'Backend', owner: { endpointId: ANA, name: 'Ana' }, relayedBy: null, sentAt: ago(8_000), expiresAt: ago(-3_600_000), state: 'waiting', endedAt: null };
+  // Before the list answers, the snapshot: still being delivered
+  assert.deepEqual(followJoin(sent, undefined), { pending: sent, joined: null, ended: false });
+  // The list caught up: Ben took the request while Ana was offline, so the words name him
+  const held: PendingJoin = { ...sent, relayedBy: { endpointId: LUIS, name: 'Ben' } };
+  assert.deepEqual(followJoin(sent, { groups: [], pendingJoins: [held] }), { pending: held, joined: null, ended: false });
+  // Ana signed it: the entry is gone and the group lists this install, so the dialog says joined
+  assert.deepEqual(followJoin(sent, { groups: [group({ id: groupId, name: 'Backend' })], pendingJoins: [] }), { pending: sent, joined: 'Backend', ended: false });
+  // Denied, or the invite expired: the page tells it, the dialog only closes
+  const denied: PendingJoin = { ...held, state: 'denied', endedAt: ago(0) };
+  assert.deepEqual(followJoin(sent, { groups: [], pendingJoins: [denied] }), { pending: denied, joined: null, ended: true });
+  // Cancelled elsewhere with no group to show: the snapshot stays, nothing is claimed
+  assert.deepEqual(followJoin(sent, { groups: [], pendingJoins: [] }), { pending: sent, joined: null, ended: false });
+  assert.deepEqual(followJoin(null, { groups: [], pendingJoins: [held] }), { pending: null, joined: null, ended: false });
 });

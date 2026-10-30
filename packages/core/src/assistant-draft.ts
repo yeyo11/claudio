@@ -1,4 +1,5 @@
 import type { AssistantResourceDraft, AssistantResourceKind } from '@claudio/shared';
+import { isRecord } from '@claudio/shared';
 
 /**
  * "Create with AI" while it runs: the one resource as the chat writes it. The CLI streams a
@@ -7,7 +8,6 @@ import type { AssistantResourceDraft, AssistantResourceKind } from '@claudio/sha
  * trusted: the proposal is still made from the whole result once the run ends.
  */
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Marks where the text ran out: what was read up to there is kept, and nothing after it is guessed. */
 const CUT = Symbol('cut');
@@ -129,9 +129,9 @@ export function partialJson(text: string): unknown {
  */
 export function resourceDraft(raw: string, kind: AssistantResourceKind): AssistantResourceDraft | null {
   const value = partialJson(raw);
-  if (!isObject(value) || !Array.isArray(value.resources)) return null;
+  if (!isRecord(value) || !Array.isArray(value.resources)) return null;
   const first: unknown = value.resources[0];
-  if (!isObject(first)) return null;
+  if (!isRecord(first)) return null;
   const name = typeof first.name === 'string' ? first.name.trim().replace(/^\//, '').replace(/\.md$/i, '') : '';
   return {
     kind,

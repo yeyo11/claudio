@@ -24,10 +24,11 @@ import { api, keys, useChats, useOrchestrations, useOverview, useProjects, useSc
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { FabStandIn } from '../../../components/shell/Fab';
 import { ICON_SM } from '@claudio/ui/components/icons';
-import { ProgressRing, StatusDot, usageTone } from '@claudio/ui/components/motion';
+import { StatusDot } from '@claudio/ui/components/motion';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Empty, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
-import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
+import { ContextRing } from '@claudio/chat-ui/components/ContextRing';
+import { contextShare, displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { detailHref } from '../../../lib/detail';
 import { formatCost, formatDuration, formatNumber, formatPercent, timeAgo, timeUntil, truncate } from '@claudio/ui/lib/format';
 import { formatElapsed } from '@claudio/ui/lib/live';
@@ -61,22 +62,11 @@ function Loading() {
   return <Skeleton rows={3} height={16} />;
 }
 
-const contextPercent = (chat: ChatSummary) => (chat.context?.window ? Math.round((chat.context.used / chat.context.window) * 100) : null);
-
-/** How full a chat's context is, as a small ring: neutral until it nears the point it compacts. */
-function ContextRing({ chat }: { chat: ChatSummary }) {
-  const { t } = useTranslation('home');
-  const percent = contextPercent(chat);
-  if (percent === null) return null;
-  return (
-    <span className="home-ring" role="img" aria-label={t('activity.context', { percent: formatPercent(percent) })}>
-      {/* The figure alone fits the ring; the name above says it is a percentage */}
-      <ProgressRing value={percent / 100} size={34} stroke={3} tone={usageTone(percent)}>
-        <span aria-hidden>{formatNumber(percent)}</span>
-      </ProgressRing>
-    </span>
-  );
-}
+/** The context's share as a whole percentage, the one figure the ring and the phone's line both show. */
+const contextPercent = (chat: ChatSummary) => {
+  const share = contextShare(chat);
+  return share === null ? null : Math.round(share * 100);
+};
 
 /** Two letters on a tile: what an orchestration or a project is, at a glance. */
 export function InitialsBadge({ name, tone = 'accent' }: { name: string; tone?: 'accent' | 'idle' | 'live' | 'neutral' }) {
@@ -238,7 +228,7 @@ function WorkingChat({ chat, showProject }: { chat: ChatSummary; showProject: bo
         {chat.worktree?.branch && <span className="mono">{chat.worktree.branch}</span>}
         <span>{chat.cost.usd === null ? t('activity.costUnavailable') : formatCost(chat.cost.usd)}</span>
       </span>
-      <ContextRing chat={chat} />
+      <ContextRing chat={chat} className="home-ring" />
     </li>
   );
 }
@@ -594,7 +584,7 @@ export function PickUpWidget({ project, title, id, config }: WidgetProps) {
                   </span>
                   {troubled && outcome ? <span className="badge badge-bad">{t(`widgets.pickUp.${outcome}`)}</span> : !project && <span className="faint nowrap pick-project">{chat.project?.name ?? t('activity.noProject')}</span>}
                   <span className="pick-wide">
-                    <ContextRing chat={chat} />
+                    <ContextRing chat={chat} className="home-ring" />
                   </span>
                   <span className="tnum pick-wide pick-cost">{cost}</span>
                   <span className="faint small nowrap pick-wide pick-when">{timeAgo(chat.updatedAt)}</span>

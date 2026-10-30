@@ -2,6 +2,7 @@ import { accessSync, constants, existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { debInstallCommand, type ShellUpdateError, type Verified } from './desktop-manifest.ts';
 import type { LiveSnapshot } from './live.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * The desktop app's own updates: the shell's (docs/plans/unified-updates.md, D3). Most releases change
@@ -142,7 +143,6 @@ export interface DesktopUpdaterOptions {
   log: (line: string) => void;
 }
 
-const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 const versionOf = (info: unknown): string | undefined => {
   const version = (info as { version?: unknown } | null)?.version;
   return typeof version === 'string' ? version : undefined;
@@ -153,7 +153,7 @@ const fileOf = (value: unknown): string | undefined => {
   return typeof file === 'string' ? file : undefined;
 };
 /** electron-updater's own sha512 check failing is a bad download, not a network problem */
-const codeOf = (err: unknown): ShellUpdateError => (/sha512|checksum/i.test(messageOf(err)) ? 'bad-signature' : 'fetch-failed');
+const codeOf = (err: unknown): ShellUpdateError => (/sha512|checksum/i.test(errorMessage(err)) ? 'bad-signature' : 'fetch-failed');
 
 export class DesktopUpdater {
   private current: UpdateState;
@@ -256,7 +256,7 @@ export class DesktopUpdater {
       if (typeof path === 'string') this.appImagePath = path;
     });
     // The calls below reject with the same error; an emitter with no listener would throw it again
-    engine.on('error', (err) => this.opts.log(`updater error: ${messageOf(err)}`));
+    engine.on('error', (err) => this.opts.log(`updater error: ${errorMessage(err)}`));
     this.engineInstance = engine;
     return engine;
   }
@@ -276,7 +276,7 @@ export class DesktopUpdater {
       if (apt) this.set({ status: 'apt-managed', latest: this.latestFound ?? null });
       else this.set(this.latestFound ? { status: 'available', version: this.latestFound } : { status: 'idle' });
     } catch (err) {
-      this.set(apt ? { status: 'apt-managed', latest: null } : { status: 'error', code: codeOf(err), message: messageOf(err) });
+      this.set(apt ? { status: 'apt-managed', latest: null } : { status: 'error', code: codeOf(err), message: errorMessage(err) });
     }
     return this.current;
   }
@@ -298,7 +298,7 @@ export class DesktopUpdater {
     try {
       file = fileOf(await engine.downloadUpdate()) ?? this.downloadedFile;
     } catch (err) {
-      this.set({ status: 'error', code: codeOf(err), message: messageOf(err) });
+      this.set({ status: 'error', code: codeOf(err), message: errorMessage(err) });
       return this.current;
     }
     if (!file) {
@@ -326,7 +326,7 @@ export class DesktopUpdater {
     try {
       this.set({ status: 'copy-command', version, command: debInstallCommand(file, version, checked.sha256) });
     } catch (err) {
-      this.set({ status: 'error', code: 'other', message: messageOf(err) });
+      this.set({ status: 'error', code: 'other', message: errorMessage(err) });
     }
     return this.current;
   }
@@ -372,7 +372,7 @@ export class DesktopUpdater {
       // instance does not lose the single-instance lock to the one still shutting down
       return engine.install(true, false);
     } catch (err) {
-      this.set({ status: 'error', code: 'other', message: messageOf(err) });
+      this.set({ status: 'error', code: 'other', message: errorMessage(err) });
       return false;
     }
   }

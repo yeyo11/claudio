@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Chat, ChatDetail, TranscriptEntry } from '@claudio/shared';
-import { appendStreamed, dropOptimistic, isOptimistic, optimisticEntry, spliceTail } from '../src/lib/chat-stream';
+import { appendStreamed, dropOptimistic, optimisticEntry, spliceTail } from '../src/lib/chat-stream';
 
 const entry = (uuid: string, role: 'user' | 'assistant', text: string, timestamp: string): TranscriptEntry => ({
   uuid,
@@ -25,7 +25,6 @@ test("the server's copy of an optimistic message takes its place, at the same in
   assert.equal(result.page.entries.length, 2);
   assert.equal(result.page.entries[1], server);
   assert.equal(result.page.total, 2);
-  assert.equal(isOptimistic(server), false);
 });
 
 test('a read that holds the optimistic message confirms it and keeps one', () => {

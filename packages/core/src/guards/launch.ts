@@ -32,6 +32,8 @@ export interface GuardRequest {
   confined?: boolean;
   /** A person is in the chat */
   interactive?: boolean;
+  /** The project `project` was read from, so a respawn can read its settings again */
+  projectId?: string | null;
 }
 
 export interface GuardLauncherDeps {
@@ -131,6 +133,7 @@ export class GuardLauncher {
       rulesSha256: files.rulesSha256,
       ...(request.interactive ? { interactive: true } : {}),
       tmpDir,
+      ...(declared ? {} : { request }),
     };
   }
 

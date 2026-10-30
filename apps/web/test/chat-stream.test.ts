@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Chat, ChatDetail, TranscriptEntry } from '@claudio/shared';
-import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamMark, unconfirmedTail } from '@claudio/chat-ui/lib/chat-stream';
+import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamMark } from '@claudio/chat-ui/lib/chat-stream';
 
 // A live chat's page is kept current from its stream and read back a short tail at a time. These
 // rules decide whether a message said a moment ago shows, shows twice or vanishes.
@@ -27,7 +27,6 @@ test('a stored message goes on the end of the page once, and a subagent’s is l
   assert.equal(added.outcome, 'appended');
   assert.deepEqual(uuids(added.page), ['a', 'b', 'c']);
   assert.equal(added.page.total, 3);
-  assert.equal(unconfirmedTail(added.page), 1);
 
   const again = appendStreamed(added.page, entry('c'));
   assert.equal(again.outcome, 'present');
@@ -53,7 +52,6 @@ test('a short read from the end replaces what the stream put there and keeps wha
   assert.deepEqual(uuids(merged), ['a', 'b', 'c', 'user', 'd']);
   assert.equal(merged.from, 100);
   assert.equal(merged.total, 105);
-  assert.equal(unconfirmedTail(merged), 0);
 });
 
 test('reads that do not meet what is held, or disagree with it, ask for a whole page', () => {

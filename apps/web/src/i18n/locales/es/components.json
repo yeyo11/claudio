@@ -225,7 +225,6 @@
     "credentialHint": "Token OAuth o clave de API",
     "apiReference": "Referencia de la API",
     "apiReferenceHint": "Documentación interactiva de OpenAPI (Scalar) en una pestaña nueva",
-    "userScope": "Ámbito de usuario",
     "placeholderLabel": "Buscar páginas, proyectos, chats y acciones",
     "newChat": "Nuevo chat",
     "newChatHint": "Empieza una conversación con {{agent}}",
@@ -419,7 +418,6 @@
     "declined": "No se ha iniciado nada: se alcanzó el tope de gasto diario."
   },
   "guards": {
-    "alwaysOn": "Siempre activa",
     "row": {
       "label": "Guardas",
       "help": "Bloquean comandos peligrosos y escrituras de archivos en las ejecuciones de este grafo.",
@@ -435,7 +433,7 @@
     "rule": {
       "integrity": {
         "name": "Integridad",
-        "hint": "Protege la propia guarda."
+        "hint": "Protege la propia guarda y bloquea las líneas de comando que no sabe leer."
       },
       "no-verify": {
         "name": "Sin saltarse comprobaciones",

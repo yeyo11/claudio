@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dropGroups } from './collab-shared.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const peers = ['ben'];
@@ -21,7 +22,6 @@ const AGENT = 'Explore the notes';
 const UPLOAD = 'e2e-collab-brief.txt';
 const UPLOAD_TEXT = 'The brief the chat was given.\n';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(probe, what, ms = 30_000) {
   const end = Date.now() + ms;

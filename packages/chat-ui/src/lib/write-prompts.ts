@@ -38,7 +38,7 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
   const lines: string[] = [];
   for (const name of names) {
     const value = input[name];
-    if (name === 'description' || name === 'body' || name === 'prompt') {
+    if (name === 'description' || name === 'body' || name === 'prompt' || name === 'text' || name === 'objective') {
       if (typeof value === 'string' && value.trim()) lines.push(value.trim());
     } else if (name === 'title' || name === 'model') {
       if (typeof value === 'string' && value.trim()) lines.push(t(`fields.${name}`, { value: value.trim() }));
@@ -47,6 +47,11 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
       if (shown) lines.push(t(`fields.${name}`, { value: shown }));
     } else if (name === 'labels') {
       if (Array.isArray(value) && value.length) lines.push(t('fields.labels', { value: value.filter((l) => typeof l === 'string').join(', ') }));
+    } else if (name === 'tasks') {
+      if (Array.isArray(value)) {
+        const names = value.map((task) => (task && typeof task === 'object' && 'name' in task && typeof task.name === 'string' ? task.name : '')).filter(Boolean);
+        if (names.length) lines.push(t('fields.tasks', { value: names.join(' · ') }));
+      }
     } else if (name === 'acceptanceCriteria') {
       if (Array.isArray(value)) {
         const texts = value.map((c) => (c && typeof c === 'object' && 'text' in c && typeof c.text === 'string' ? c.text : '')).filter(Boolean);
@@ -77,6 +82,30 @@ export function describeWrite(toolName: string, input: Record<string, unknown>):
       return done(t('retryOrchestrationTask'));
     case 'start_chat':
       return done(t('startChat'), fields(input, ['prompt', 'model']));
+    case 'check_criterion':
+      return done(t(input.checked === false ? 'uncheckCriterion' : 'checkCriterion', { item: itemName(input) }));
+    case 'plan_orchestration':
+      return done(t('planOrchestration'), fields(input, ['objective', 'model']));
+    case 'launch_orchestration': {
+      const name = str(input, 'name');
+      return done(name ? t('launchOrchestration', { name }) : t('launchPlannedOrchestration'), fields(input, ['objective', 'tasks', 'model']));
+    }
+    case 'stop_orchestration':
+      return done(t('stopOrchestration'));
+    case 'resume_orchestration':
+      return done(t('resumeOrchestration'));
+    case 'send_chat_message':
+      return done(t('sendChatMessage'), fields(input, ['text']));
+    case 'hint_chat':
+      return done(t('hintChat'), fields(input, ['text']));
+    case 'interrupt_chat':
+      return done(t('interruptChat'));
+    case 'stop_chat':
+      return done(t('stopChat'));
+    case 'resume_chat':
+      return done(t('resumeChat'), fields(input, ['prompt']));
+    case 'fork_chat':
+      return done(t('forkChat'), fields(input, ['prompt']));
     case 'accept_assistant_proposal':
       return done(t('acceptProposal'));
     case 'discard_assistant_proposal':

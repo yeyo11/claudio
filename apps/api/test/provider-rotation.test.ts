@@ -9,6 +9,8 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { ChatSummary, ProviderMove, ProviderStatus } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { signInDefault } from './helpers.ts';
 
 // What happens at a usage limit, over HTTP: a chat on the fake Claude that dies against its limit
 // (`FAKE-LIMIT-REPORTED-ONCE`: the CLI's rejected report, then its 429; the 429 alone records no
@@ -17,7 +19,6 @@ const FIXTURES = fileURLToPath(new URL('../../../packages/core/test/fixtures/', 
 const FAKE_CLAUDE = `${FIXTURES}fake-claude.mjs`;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let app: FastifyInstance;
 let core: Core;
@@ -52,6 +53,10 @@ before(async () => {
   writeFileSync(join(repo, 'README.md'), 'project\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'initial');
+
+  // The CLI's own login has a credential, so chats start on it
+
+  signInDefault(join(root, 'claude'));
 
   core = new Core(
     loadConfig({
@@ -159,7 +164,7 @@ test("the removed routes are gone, and a chat's token cannot wait, cancel a wait
       assert.equal((await app.inject(fromChat(method, url, body))).statusCode, 403, `${method} ${url}`);
     }
     assert.equal(core.db.providerMoves().length, before, 'nothing moved or waited');
-    // Nor can it decide through its project what a limit does: its copy of the settings keeps the stored providers
+    // Nor can it decide through its project what a limit does: a project's settings are the person's
     const owner = { 'content-type': 'application/json', authorization: `Bearer ${token}` };
     const imported = await app.inject({ method: 'POST', url: '/api/projects/import', headers: owner, payload: JSON.stringify({ path: repo, name: 'rotation' }) });
     assert.ok(imported.statusCode < 300, imported.body);
@@ -168,7 +173,7 @@ test("the removed routes are gone, and a chat's token cannot wait, cancel a wait
     const current = (await app.inject({ url: `/api/projects/${project}/settings`, headers: owner })).json<Record<string, unknown>>();
     assert.equal((await app.inject({ method: 'PUT', url: `/api/projects/${project}/settings`, headers: owner, payload: JSON.stringify({ ...current, providers: kept }) })).statusCode, 200);
     const widened = { onLimit: { action: 'wait', allowed: ['wait'], maxWaitHours: 99 } };
-    assert.equal((await app.inject(fromChat('PUT', `/api/projects/${project}/settings`, { ...current, providers: widened }))).statusCode, 200);
+    assert.equal((await app.inject(fromChat('PUT', `/api/projects/${project}/settings`, { ...current, providers: widened }))).statusCode, 403);
     assert.deepEqual((await app.inject({ url: `/api/projects/${project}/settings`, headers: { authorization: `Bearer ${token}` } })).json<{ providers?: unknown }>().providers, kept);
     // What it may read: the candidates, the preview's refusal and the history
     assert.equal((await app.inject(fromChat('GET', '/api/limits/waits'))).statusCode, 200);

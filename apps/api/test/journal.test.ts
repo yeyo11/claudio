@@ -187,7 +187,7 @@ test("a chat's token cannot approve or reject a memory proposal, and the person'
     for (const url of [`/api/memory-proposals/${approving.id}/approve`, `/api/memory-proposals/${rejecting.id}/reject`]) {
       const res = await guarded.inject({ url, ...as(chat) });
       assert.equal(res.statusCode, 403, url);
-      assert.match(res.json<{ error: string }>().error, /chat's token cannot approve or reject a memory proposal/);
+      assert.equal(res.json<{ code: string }>().code, 'chat-forbidden');
     }
     // Refused before anything was decided or written
     assert.equal(secured.memoryProposals.find(approving.id)?.status, 'pending');

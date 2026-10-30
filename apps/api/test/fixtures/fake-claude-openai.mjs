@@ -76,6 +76,12 @@ let initialised = false;
 let hanging = null;
 /** A wedged process (TOOLS_DEAF): interrupts and permission answers go unheard */
 let deaf = false;
+/**
+ * The last message's answer, until it has set up its turn. Lines that arrive in one chunk are read
+ * in one tick, before `answer` gets past its first await: the CLI reads an interrupt after the
+ * message ahead of it, so the interrupt waits for that message's turn to exist.
+ */
+let answering = Promise.resolve();
 
 const schema = flag('--json-schema') ?? null;
 const permissionPrompts = flag('--permission-prompts') ?? null;
@@ -335,21 +341,24 @@ lines.on('line', (line) => {
       { value: 'haiku', resolvedModel: 'claude-haiku-5-5', displayName: 'Haiku', description: 'Haiku 5.5', supportsEffort: false },
     ];
     out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: subtype === 'initialize' ? { commands: [], models, account: { apiProvider: 'firstParty' } } : {} } });
-    if (deaf) return;
-    if (subtype === 'interrupt' && toolTurn && !hanging) {
-      // Held requests are withdrawn and the turn ends aborted, as the spike recorded
-      for (const id of [...asked.keys()]) {
-        asked.delete(id);
-        out({ type: 'control_cancel_request', request_id: id });
+    if (deaf || subtype !== 'interrupt') return;
+    void answering.then(() => {
+      if (deaf) return;
+      if (toolTurn && !hanging) {
+        // Held requests are withdrawn and the turn ends aborted, as the spike recorded
+        for (const id of [...asked.keys()]) {
+          asked.delete(id);
+          out({ type: 'control_cancel_request', request_id: id });
+        }
+        toolTurn = null;
+        result(true, 'aborted_tools');
       }
-      toolTurn = null;
-      result(true, 'aborted_tools');
-    }
-    if (subtype === 'interrupt' && hanging) {
-      const end = hanging;
-      hanging = null;
-      end();
-    }
+      if (hanging) {
+        const end = hanging;
+        hanging = null;
+        end();
+      }
+    });
     return;
   }
   if (msg.type === 'control_response') {
@@ -368,7 +377,9 @@ lines.on('line', (line) => {
   if (process.env.FAKE_OPENAI_PROMPTS) {
     appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ args, pid: process.pid, resume: flag('--resume') ?? null, sessionId, prompt, images: blocks.filter((b) => b.type === 'image').length, schema, prompts: permissionPrompts, system: flag('--append-system-prompt') ?? null, instruction: prompt.split('\n').find((l) => l.startsWith('(For this turn:')) ?? null })}\n`);
   }
-  void answer(prompt).then(() => {
+  const answered = answer(prompt);
+  answering = answered.catch(() => undefined);
+  void answered.then(() => {
     if (process.env.FAKE_OPENAI_PROMPTS && stubSeen) appendFileSync(process.env.FAKE_OPENAI_PROMPTS, `${JSON.stringify({ pid: process.pid, sessionId, stub: stubSeen })}\n`);
   });
 });

@@ -91,6 +91,10 @@ auth:
 # `false` starts no tailscaled in the pod and offers no tunnel.
 tunnel:
   enabled: true
+  # The HTTPS port of Claudio's Serve rule on the node's tailnet name (1024-65535). Empty leaves it
+  # to the app's setting (Settings > Remote access, 8444 by default); a number writes
+  # CLAUDIO_TUNNEL_PORT, which fixes it and shows it read-only in the UI.
+  port: null
 
 # The person's own terminal (Settings > Terminal): a login shell in the pod, as user `node`, with the
 # vault's tool credentials. `false` (the default) writes CLAUDIO_TERMINAL=off, which vetoes the

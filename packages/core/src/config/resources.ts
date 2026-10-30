@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RESOURCE_FORMATS, type ConfigResource, type ResourceKind, type WorkflowDefinition } from '@claudio/shared';
+import { NotFoundError, RESOURCE_FORMATS, type ConfigResource, type ResourceKind, type WorkflowDefinition } from '@claudio/shared';
 import { writeAtomic } from './files.ts';
 import { listWorkflowDirectory, scriptMeta } from '../workflows.ts';
 import type { ConfigScope } from './scope.ts';
@@ -114,7 +114,7 @@ export class ConfigResources {
 
   async remove(scope: ConfigScope, kind: ResourceKind, name: string): Promise<void> {
     const path = await this.locate(scope, kind, name);
-    if (!existsSync(path)) throw new Error('resource not found');
+    if (!existsSync(path)) throw new NotFoundError('resource not found');
     // A skill owns its whole directory; the other kinds are single files.
     await rm(kind === 'skills' ? join(this.dir(scope, kind), name) : path, { recursive: true });
     this.changed({ scope, kind, name, action: 'removed' });

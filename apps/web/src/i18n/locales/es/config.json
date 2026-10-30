@@ -145,14 +145,17 @@
       "forbidden": "Solo una persona puede cambiar las guardas.",
       "readOnlyNote": "Claudio está en modo de solo lectura, así que aquí no se pueden cambiar las guardas.",
       "rulesLabel": "Reglas",
-      "alwaysOn": "Siempre activa",
       "status": {
         "active": "activas",
         "observe": "observando",
         "unavailable": "no disponibles",
-        "activeLine": "Activas en las ejecuciones automáticas · {{count}} reglas activadas",
-        "chatsOnlyLine": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} reglas activadas",
+        "off": "desactivadas",
+        "activeLine_one": "Activas en las ejecuciones automáticas · {{count}} regla activada",
+        "activeLine_other": "Activas en las ejecuciones automáticas · {{count}} reglas activadas",
+        "chatsOnlyLine_one": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} regla activada",
+        "chatsOnlyLine_other": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} reglas activadas",
         "observeLine": "Modo observación: no se bloquea nada",
+        "offLine": "Ninguna regla activada, así que no se protege ninguna ejecución: activa una regla para que los ajustes de abajo apliquen",
         "notAvailable": "No disponibles: {{problem}}"
       },
       "problems": {
@@ -172,7 +175,7 @@
       "rules": {
         "integrity": {
           "name": "Integridad",
-          "description": "Protege la propia guarda: los datos de Claudio, los ajustes que podrían desactivar los hooks, los hooks y la configuración de git, y los procesos claude anidados."
+          "description": "Protege la guarda y los datos de Claudio, y bloquea las líneas de comando que la guarda no sabe leer."
         },
         "no-verify": {
           "name": "Sin saltarse comprobaciones",
@@ -729,6 +732,7 @@
         "who-answers": "Quién responde",
         "jev-key": "Clave de Jev",
         "cap": "Tope por decisión",
+        "supervisor-cap": "Tope por pista del Supervisor",
         "cli-model": "Modelo del CLI",
         "cli-effort": "Effort del CLI",
         "history-days": "Días de historial guardados"
@@ -765,6 +769,7 @@
         "mode": "Solo observar",
         "automated": "Workers de orquestación y flujo",
         "rule": {
+          "integrity": "Integridad",
           "no-verify": "Sin saltarse comprobaciones",
           "push": "Sin push",
           "destructive": "Sin comandos destructivos",
@@ -913,6 +918,7 @@
         "who-answers": "motor proveedor jev cli modelo",
         "jev-key": "clave api secreto",
         "cap": "coste dólares límite",
+        "supervisor-cap": "supervisor pista coste dólares límite",
         "cli-model": "avanzado haiku",
         "cli-effort": "avanzado razonamiento",
         "history-days": "retención avanzado"
@@ -959,6 +965,7 @@
         "mode": "observar registrar falso positivo",
         "automated": "workers orquestación flujo",
         "rule": {
+          "integrity": "integridad guarda archivos propios leer",
           "no-verify": "verificar hooks saltar",
           "push": "push subir",
           "destructive": "borrar rm forzar",
@@ -1861,7 +1868,19 @@
       "body": "Esta página llegó por el túnel, así que su dirección ya no funciona. Para volver a abrirlo, usa Claudio en su propia máquina o en tu red local."
     },
     "stopFailed": "No se ha podido cerrar el túnel",
-    "saveFailed": "No se ha podido guardar el ajuste del túnel"
+    "saveFailed": "No se ha podido guardar el ajuste del túnel",
+    "port": {
+      "label": "Puerto en el nombre de la tailnet",
+      "hint": "La dirección es https://<nombre>:<puerto>. Elige otro puerto si otra cosa de esta máquina ya sirve este.",
+      "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio.",
+      "whileOpen": "Cierra el túnel para cambiar su puerto.",
+      "save": "Guardar el puerto",
+      "saveFailed": "No se ha podido cambiar el puerto"
+    },
+    "portTaken": {
+      "holder": "Lo ocupa:",
+      "useNext": "Usar el siguiente puerto libre ({{port}})"
+    }
   },
   "appSettings": {
     "fromEnv": "Fijado por el entorno",

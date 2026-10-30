@@ -98,11 +98,6 @@ export function groupByDir<T extends { path: string }>(files: T[]): TreeGroup<T>
   return groups;
 }
 
-export function matchesFilter(path: string, filter: string): boolean {
-  const q = filter.trim().toLowerCase();
-  return !q || path.toLowerCase().includes(q);
-}
-
 function normalise(parts: string[]): string[] {
   const out: string[] = [];
   for (const p of parts) {
@@ -149,13 +144,6 @@ export function neighbour<T>(list: readonly T[], current: T | null, delta: 1 | -
   const at = current === null ? -1 : list.indexOf(current);
   if (at < 0) return delta > 0 ? (list[0] ?? null) : (list[list.length - 1] ?? null);
   return list[at + delta] ?? null;
-}
-
-/** A step's time as the why line says it: hours and minutes, in the reader's language */
-export function hourMinute(iso: string | null, locale: string): string {
-  const ms = iso ? Date.parse(iso) : Number.NaN;
-  if (Number.isNaN(ms)) return '';
-  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(ms);
 }
 
 /** Keys the review answers to */

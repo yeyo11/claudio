@@ -5,8 +5,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { killGroup } from './processes.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** A call to the browser that gets no answer is a hung Chrome: fail it instead of waiting forever */
 const CDP_TIMEOUT_MS = 60_000;

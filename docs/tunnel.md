@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-18T20:00:00Z
+updated_at: 2026-10-30T03:30:00Z
 tags:
     - tunnel
     - remote-access
@@ -91,7 +91,22 @@ Two more things are only learned when the rule is added, and fail the start with
    came through the tunnel itself, it asks first, and answers before the rule goes.
 
 **Open the tunnel when Claudio starts** is a switch on the same tab, off by default, kept in
-`tunnel-settings.json` in the data directory.
+`tunnel-settings.json` in the data directory. **Port on the tailnet name** sits under it: `8444` by
+default, any port from 1024 to 65535, saved in the same file. It changes only while the tunnel is
+closed or failed (closing takes the rule on the old port away first), and where
+`CLAUDIO_TUNNEL_PORT` is set (Helm's `tunnel.port`) it is shown read-only, naming the variable.
+
+A start that finds its port taken says what holds it, from `tailscale serve status`
+(`https://<node>:8444/ → http://127.0.0.1:41985` for another Claudio on the same machine, a TCP
+forwarder, or a `tailscale serve` running in a terminal), and offers **Use the next free port
+(8445)**: the first port above it that the node's Serve config leaves free. It saves that port and
+opens the tunnel there. A desktop app and a dev server on one machine each get a port this way,
+without an environment variable the desktop app cannot set.
+
+Two starts at once (a click racing "start with Claudio") are one start: the tunnel is wanted from
+the first instruction of `start()`, before anything is awaited, so the second waits for the first's
+answer instead of opening a second rule, finding the first's, calling the port taken and removing
+it. A stop sent while a start is still reading Tailscale aborts that start.
 
 | State | Word on the tab | Colour | What is happening |
 | --- | --- | --- | --- |
@@ -112,7 +127,8 @@ tunnel with says what Tailscale answered:
 | --- | --- |
 | `tunnel.ruleRemoved` | Tailscale is running and answers, and the port no longer holds Claudio's rule: removed (`tailscale serve reset`, another program's `serve off`) or changed to point elsewhere. At once, on the first reading |
 | `tunnel.tailscaleNotConnected`, `tunnel.tailscaleLoggedOut` | `BackendState` is not `Running`, or the node signed out; two readings in a row |
-| `tunnel.tailscaleDaemonDown` | The CLI answered but could not reach tailscaled: no status JSON, or no Serve config; two readings in a row |
+| `tunnel.tailscaleDaemonDown` | The CLI answered but could not reach tailscaled: no status JSON, or `serve status` said so; two readings in a row |
+| `tunnel.serveStatusFailed`, `tunnel.servePermission` | `serve status` failed otherwise, with its first line (and the first address it gave), or was refused for this user; two readings in a row |
 | `tunnel.tailscaleNotAnswering` | Not a failure: ten minutes of readings that got no answer at all (below) |
 
 The rule is checked against what this process added, which it keeps in memory, not against the
@@ -146,24 +162,35 @@ tunnel closed itself and took its Serve rule away while Tailscale was fine. Now:
 
 Serve config is global to the node, and the person may have rules of their own. So:
 
-- **A port of its own.** The rule lives on `CLAUDIO_TUNNEL_PORT`, `8444` by default, and never on
-  `443`, which `tailscale serve` uses when no port is named. A port number that is not 1 to 65535
-  stops Claudio at startup.
+- **A port of its own.** The rule lives on the tab's port (`tunnel-settings.json`), or on
+  `CLAUDIO_TUNNEL_PORT` where that is set, `8444` by default, and never on `443`, which
+  `tailscale serve` uses when no port is named: the setting takes 1024 to 65535. A variable that is
+  not a port from 1 to 65535 stops Claudio at startup.
+- **One reading of the Serve config.** Opening, checking, removing and shutting down read
+  `tailscale serve status --json` through one parser, which answers the config or why there is none:
+  no answer in time, the CLI missing, tailscaled down, a refusal for this user, or another failure
+  with the CLI's first line and the first address it printed. A refusal of `serve --bg` keeps that
+  address too: "Serve is not enabled on your tailnet." is followed, lines below, by the admin page
+  that turns it on.
 - **A port that is not free is left alone.** Claudio's rule has one shape: an HTTPS listener on the
   port with one `/` handler proxying to this server. If the port holds anything (another target, a
   path beside `/`, a TCP forwarder, a foreground `tailscale serve`), the start fails with
-  `tunnel.portTaken`. Even a rule of exactly Claudio's shape is not adopted unless Claudio recorded
-  adding it.
+  `tunnel.portTaken`, with what holds it and the next free port (`portTaken`). Even a rule of exactly
+  Claudio's shape is not adopted unless Claudio recorded adding it.
 - **Recorded before it is added.** `<dataDir>/tunnel/serve-rule.json` (mode 600) holds the port, the
   name and the target, written before `serve --bg` runs.
 - **Only the rule this process added.** Stop, shutdown and a failure take away the rule this process
   added, never one a record on disk names: a server that never opened the tunnel (one that failed to
   bind its port and shut down at once) removes nothing.
-- **Removed only while it is still exactly that.** On stop, on shutdown (synchronously, as the
-  process leaves), and when the tunnel fails, Claudio reads the config and runs
+- **Removed only while it is still exactly that.** On stop, on shutdown, and when the tunnel fails, Claudio reads the config and runs
   `serve --https=<port> off` only if the port still holds its rule. A port someone else took over
   drops the record and keeps their rule. `off` on a missing handler answers "handler does not exist"
   (measured), which counts as gone.
+- **Shutdown is bounded.** The name leaves the allowlist at once, while the database that records it
+  is still open; taking the rule away then has 4 s, and a `tailscale` call still running at the bound
+  is killed. The desktop kills the server 5 s after asking it to stop, so the rest of the shutdown
+  (the database closing) never waits behind a slow tailscaled; a rule left by the bound keeps its
+  record, and the next start takes it away.
 - **Reconciled after a crash.** A background Serve rule outlives the process that added it, so a
   record found when Claudio starts is reconciled the same way before anything else, including "start
   with Claudio". The record carries the id of the data directory's lock its writer held
@@ -172,7 +199,7 @@ Serve config is global to the node, and the person may have rules of their own. 
   taken away. A record without a lock (written by a Claudio from before the lock) may be a running Claudio's, and is left
   alone while something answers at its target. A second Claudio on the same machine needs its own
   data directory, which it cannot share with a running one; on its own data directory it gets
-  `tunnel.portTaken` rather than taking the first one's rule; give it another `CLAUDIO_TUNNEL_PORT`.
+  `tunnel.portTaken` rather than taking the first one's rule, and **Use the next free port** moves it.
 
 ## What has to hold before a byte crosses
 
@@ -209,7 +236,7 @@ an installed app, its push subscription and the token stored for that origin kee
 start to the next. The certificate is real (Let's Encrypt, through Tailscale), so the browser gives
 the PWA a service worker and push.
 
-It moves only when the machine is renamed or `CLAUDIO_TUNNEL_PORT` changes. Each push carries the
+It moves only when the machine is renamed or the port changes. Each push carries the
 current address (`PushPayload.url`), and the worker of an install made on an older `*.ts.net` origin
 follows it to the new one (`TUNNEL_SUFFIX` in `apps/web/public/sw.js`), as it did for localhost.run's
 changing names; an install at the desk or on the LAN keeps its own origin. The phone signs in again
@@ -247,7 +274,7 @@ macOS app keeps it inside the bundle).
 | What | Path |
 | --- | --- |
 | The rule Claudio added, while it exists | `<dataDir>/tunnel/serve-rule.json` |
-| "Open the tunnel when Claudio starts" | `<dataDir>/tunnel-settings.json` |
+| "Open the tunnel when Claudio starts" and the port | `<dataDir>/tunnel-settings.json` (only the keys the person set) |
 | The node's name on the allowlist | memory only, never a file |
 | The code | `packages/core/src/tunnel.ts`, `apps/api/src/routes/tunnel.ts`, `apps/web/src/pages/config/RemoteAccessTab.tsx` |
 | The fake CLI the tests and the e2e suite use | `packages/core/test/fixtures/fake-tailscale.mjs` (also `up` and `logout`) |
@@ -257,8 +284,12 @@ macOS app keeps it inside the bundle).
 ## API
 
 `GET /api/tunnel` returns the state, `url` and `since` (only while `active`), `reason` (only while
-`failed`), `enabled`, `managed`, `tailscale` (`state`, `version`, `host`, `reason`), `port` and the settings.
-`PUT /api/tunnel/settings` takes `{ startWithClaudio }`, and `POST /api/tunnel/start` and
+`failed`), `enabled`, `managed`, `tailscale` (`state`, `version`, `host`, `reason`), `port` with
+`portSource` (`env`, `file` or `default`), `portTaken` (`port`, `holder`, `nextFree`, while failed
+for it) and the settings. `GET /api/tunnel/settings` answers the settings with their sources and
+defaults; `PUT /api/tunnel/settings` takes `{ startWithClaudio?, port? }` (`409
+tunnel.portWhileRunning` unless the tunnel is closed or failed, `409 tunnel.portFromEnv` where the
+variable sets it), and `POST /api/tunnel/start` and
 `POST /api/tunnel/stop` open and close the tunnel. A stop that arrives through the tunnel itself
 answers first, with `state: 'stopping'`, and removes the rule a second after the reply is sent.
 Every move emits `tunnel.changed` on `/api/events`, carrying the whole status; the event's title

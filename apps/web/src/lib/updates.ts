@@ -1,4 +1,5 @@
 import type { ClaudioDistribution, ServerUpdateApplyRequest, ServerUpdateStatus } from '@claudio/shared';
+import { isRecord } from '@claudio/shared';
 
 /**
  * What the Updates card offers, decided from what kind of install the server is and from where the
@@ -48,7 +49,6 @@ export type DesktopInstallAnswer =
   | { status: 'busy'; version: string; live: LiveWork }
   | { status: 'not-ready'; state: DesktopUpdateState };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0);
 

@@ -15,6 +15,7 @@ import type { SecretVault } from '../secret-vault.ts';
 import type { YoutrackCredentialStore } from '../trackers/youtrack/credentials.ts';
 import { DEVICE_PATTERNS, readDeviceLine, type DevicePattern } from './device-patterns.ts';
 import { isSetupTool, TOOL_LOGINS } from './methods.ts';
+import { isRecord } from '@claudio/shared';
 
 /** How long a device sign-in waits for the person, unless the code says less */
 export const LOGIN_LIFETIME_MS = 15 * 60 * 1000;
@@ -80,7 +81,6 @@ interface Live {
 type Outcome = { exitCode: number | null; error: LoginErrorCode | null };
 
 const isHostCli = (tool: SetupTool): tool is 'gh' | 'glab' => tool === 'gh' || tool === 'glab';
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const ENDED: ReadonlySet<LoginSession['state']> = new Set(['succeeded', 'failed', 'expired', 'cancelled']);
 
 /**
@@ -182,7 +182,7 @@ export class LoginService {
   }
 
   private parse(input: unknown): StartLoginRequest {
-    if (!isObject(input)) throw new LoginInputError('the body must be an object');
+    if (!isRecord(input)) throw new LoginInputError('the body must be an object');
     if (!isSetupTool(input.tool)) throw new LoginInputError(`tool must be one of ${Object.keys(TOOL_LOGINS).join(', ')}`);
     const method = input.method;
     if (method !== 'key' && method !== 'device') throw new LoginInputError('method must be key or device');

@@ -7,7 +7,7 @@ import { setStageGuards } from '../src/pages/team/model';
 const settings: GuardSettings = {
   mode: 'enforce',
   automated: true,
-  rules: { 'no-verify': true, push: true, destructive: true, secrets: true, 'protect-configs': false },
+  rules: { integrity: true, 'no-verify': true, push: true, destructive: true, secrets: true, 'protect-configs': false },
   protectConfigs: [],
   extraRoots: [],
 };
@@ -21,6 +21,12 @@ test('only what differs from the settings is kept, and it is named as skipped', 
   assert.deepEqual(overrideOf(settings, wanted), { rules: { push: false } });
   assert.deepEqual(skippedRules(settings, wanted), ['push']);
   assert.equal(overrideOf(settings, { ...wanted, enabled: false })?.enabled, false);
+});
+
+test('integrity is a rule an override can switch off like the others (D6)', () => {
+  const wanted = { enabled: true, rules: { ...settings.rules, integrity: false } };
+  assert.deepEqual(overrideOf(settings, wanted), { rules: { integrity: false } });
+  assert.deepEqual(skippedRules(settings, wanted), ['integrity']);
 });
 
 test('the header tag follows the guard state', () => {

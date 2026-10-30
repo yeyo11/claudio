@@ -38,6 +38,7 @@ import {
 } from '../launcher/protocol.ts';
 import type { ReleaseAsset } from '../release-watch.ts';
 import { DownloadError, downloadFile, fetchOpener, hashFile, type DownloadTuning } from './download.ts';
+import { errorMessage } from '@claudio/shared';
 
 const run = promisify(execFile);
 
@@ -274,7 +275,7 @@ export class ServerUpdates {
       // GitHub refuses a request without a user-agent
       res = await this.fetchFn(url, { headers: { 'user-agent': `claudio/${this.o.running}` }, signal: AbortSignal.timeout(10 * 60_000) });
     } catch (err) {
-      throw new Failed('fetch-failed', err instanceof Error ? err.message : String(err));
+      throw new Failed('fetch-failed', errorMessage(err));
     }
     if (!res.ok) throw new Failed('fetch-failed', `${url} answered ${String(res.status)}`);
     return res;

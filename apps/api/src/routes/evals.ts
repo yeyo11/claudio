@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { assistantLanguage, EvalFileError, EvalStartError, type Core } from '@claudio/core';
-import { EVAL_PRESSURES, EVAL_VARIANTS, type EvalPressure, type EvalRunRequest, type Effort, type EvalVariant, type PutEvalFileRequest } from '@claudio/shared';
+import { EVAL_PRESSURES, EVAL_VARIANTS, isRecord, type Effort, type EvalPressure, type EvalRunRequest, type EvalVariant, type PutEvalFileRequest } from '@claudio/shared';
 import { spendGate } from './spend.ts';
 
 /** Per page of the history; the plan's bound. */
@@ -53,7 +53,6 @@ const isPressure = (v: unknown): v is EvalPressure => (EVAL_PRESSURES as readonl
 
 const isVariant = (v: unknown): v is EvalVariant => (EVAL_VARIANTS as readonly unknown[]).includes(v);
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** Checks the shape of what a person sent; what the runner decides on (consent, ceiling, pins) is its own. */
 function runRequest(body: unknown): EvalRunRequest {

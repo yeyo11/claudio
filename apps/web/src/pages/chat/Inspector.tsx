@@ -13,6 +13,7 @@ import { isStepIn } from '../../components/observe/Health';
 import { Stepper } from '@claudio/ui/components/Stepper';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from '@claudio/ui/components/ui';
 import { api } from '../../api';
+import { useFallbackInterval } from '../../lib/events';
 import { checklistStepState } from '@claudio/chat-ui/lib/chat-live';
 import { NARROW, WIDE, useMediaQuery } from '@claudio/ui/lib/media';
 import { checklistProgress } from '../../lib/observe';
@@ -91,7 +92,9 @@ export type InspectorState = ReturnType<typeof useInspector>;
 function ChecklistSteps({ chat }: { chat: Chat }) {
   const { t } = useTranslation('observe');
   const live = chatBusy(chat);
-  const { data, error } = useQuery({ queryKey: ['chat', chat.id, 'checklist'], queryFn: () => api.chatChecklist(chat.id), refetchInterval: live ? 10_000 : false });
+  // A checklist tool landing and the turn ending read it again (lib/events): a poll only while the feed is down
+  const checklistFallback = useFallbackInterval();
+  const { data, error } = useQuery({ queryKey: ['chat', chat.id, 'checklist'], queryFn: () => api.chatChecklist(chat.id), refetchInterval: live ? checklistFallback : false });
   if (error) return <ErrorBox error={error} />;
   if (!data) return null;
   if (data.items.length === 0) return <p className="muted small">{t('checklist.none')}</p>;

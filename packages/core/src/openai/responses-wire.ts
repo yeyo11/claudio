@@ -53,8 +53,6 @@ export type InputImage = { type: 'input_image'; image_url: string; detail: strin
 /** An input item as `GET /v1/responses/:id/input_items` lists it: what the request carried, with ids. */
 export type InputItem = InputItemOf<InputImage>;
 
-export type InputContent = { type: 'input_text'; text: string } | InputImage;
-
 // ---------- the response object ----------
 
 /** A function tool as the response echoes it: flat, not nested under `function` as in Chat Completions. */

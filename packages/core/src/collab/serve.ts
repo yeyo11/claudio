@@ -13,6 +13,7 @@ import {
   type WireReply,
   type WireRequest,
 } from './wire.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The serving side of `claudio/collab/1` (docs/plans/collaborators.md §3.5, §4.2). It is built with
@@ -95,7 +96,7 @@ export class CollabServer {
     } catch (error) {
       if (sink.signal.aborted) return;
       const reply: WireReply = error instanceof Refused ? { type: 'error', code: error.code } : { type: 'error', code: 'internal' };
-      if (!(error instanceof Refused)) this.deps.log?.(`collab: ${request?.type ?? 'frame'} from ${from.slice(0, 10)} failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (!(error instanceof Refused)) this.deps.log?.(`collab: ${request?.type ?? 'frame'} from ${from.slice(0, 10)} failed: ${errorMessage(error)}`);
       try {
         await sink.frame(reply);
       } catch {

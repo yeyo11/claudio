@@ -8,6 +8,7 @@ import type { McpConfig } from './config/mcp.ts';
 import { projectScope } from './config/scope.ts';
 import type { CoreConfig } from './paths.ts';
 import { rulesFor } from './tool-policy.ts';
+import { NotFoundError } from '@claudio/shared';
 
 const PRESET_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const MAX_TOOL_RULES = 200;
@@ -127,7 +128,7 @@ export class ToolPresetStore {
     const id = body?.defaultPresetId;
     if (id !== null && typeof id !== 'string') throw new Error('defaultPresetId must be a preset id or null');
     const doc = this.read();
-    if (id !== null && !doc.presets.some((p) => p.id === id)) throw new Error(`tool preset '${id}' not found`);
+    if (id !== null && !doc.presets.some((p) => p.id === id)) throw new NotFoundError(`tool preset '${id}' not found`);
     await this.save({ ...doc, defaultPresetId: id });
     return { defaultPresetId: id };
   }
@@ -145,7 +146,7 @@ export class ToolPresetStore {
 
   async remove(id: string): Promise<void> {
     const doc = this.read();
-    if (!doc.presets.some((p) => p.id === id)) throw new Error('tool preset not found');
+    if (!doc.presets.some((p) => p.id === id)) throw new NotFoundError('tool preset not found');
     // A default that names nothing would be a setting nobody can see the effect of
     await this.save({ presets: doc.presets.filter((p) => p.id !== id), defaultPresetId: doc.defaultPresetId === id ? null : doc.defaultPresetId });
   }
@@ -239,7 +240,7 @@ export class ChatTools {
     let disallowedTools = current?.disallowedTools ?? [];
     if (toolsPicked) {
       const chosen = typeof request.toolPreset === 'string' ? this.presets.get(request.toolPreset) : null;
-      if (typeof request.toolPreset === 'string' && !chosen) throw new Error(`tool preset '${request.toolPreset}' not found`);
+      if (typeof request.toolPreset === 'string' && !chosen) throw new NotFoundError(`tool preset '${request.toolPreset}' not found`);
       preset = chosen ?? null;
       // What was said outright wins over the preset it came with
       allowedTools = request.allowedTools !== undefined ? rules(request.allowedTools, 'allowedTools') : (chosen?.allowedTools ?? []);

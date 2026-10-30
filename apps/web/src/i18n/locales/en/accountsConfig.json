@@ -82,7 +82,7 @@
     "refreshing": "Reading usage…"
   },
   "kind": {
-    "login": "Sign-in",
+    "login": "Claude account",
     "token": "Token",
     "api-key": "API key"
   },
@@ -94,6 +94,7 @@
   "card": {
     "inUse": "in use",
     "default": "default",
+    "preferred": "Preferred",
     "free": "free",
     "exhausted": "exhausted",
     "runningHigh": "running high",
@@ -102,6 +103,8 @@
     "signedOut": "signed out",
     "holdOut": "Hold out",
     "returnToRotation": "Return to rotation",
+    "prefer": "Use this account",
+    "preferFor": "Use this account: {{name}}",
     "remove": "Remove account",
     "more": "More actions for {{name}}",
     "noUsage": "No usage read yet.",
@@ -133,6 +136,8 @@
     "backInRotationFailed": "Could not return {{name}} to rotation",
     "removed": "{{name}} removed",
     "removeFailed": "Could not remove {{name}}",
+    "preferred": "New work starts on {{name}}",
+    "preferFailed": "Could not make {{name}} the preferred account",
     "signedInAgain": "{{name}} is signed in again",
     "refreshFailed": "Could not read the usage of {{names}}",
     "refreshError": "Could not read the usage"
@@ -140,6 +145,11 @@
   "remove": {
     "title": "Remove {{name}}?",
     "body": "Claudio forgets the account and deletes its config directory. Chats already started on it keep their transcripts."
+  },
+  "holdOut": {
+    "title": "Hold out {{name}}?",
+    "preferredBody": "It is your preferred account: new work will start on another one.",
+    "lastBody": "Claudio will have no account to start work on."
   },
   "dialog": {
     "title": "Add an account",
@@ -194,7 +204,8 @@
     "rotateHint": "Off: a chat waits for its account to reset instead of moving to another.",
     "threshold": "Threshold",
     "thresholdAt": "counts as at its limit from {{percent}} of 5 h or 7 days",
-    "strategy": "Which account first",
+    "strategy": "Next account",
+    "strategyHint": "Where work goes when the preferred account is full.",
     "strategies": {
       "order": "In order",
       "least-used": "Least used"
@@ -204,6 +215,8 @@
     "cooldown": "Cooldown (seconds)",
     "cooldownHint": "How long an account that hit a limit is left alone when its reset is unknown.",
     "offHint": "Nothing applies until you save.",
+    "appliesWhenOn": "Applies when switching at the limit is on",
+    "order": "The order accounts are taken in",
     "updated": "Settings saved",
     "updateFailed": "The settings could not be saved"
   },

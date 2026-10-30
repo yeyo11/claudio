@@ -105,7 +105,9 @@ test('the tunnel starts stopped, with a ready Tailscale read from its CLI and st
     managed: false,
     tailscale: { state: 'ready', version: '1.102.4', host: NODE, reason: null },
     port: 8444,
-    settings: { startWithClaudio: false },
+    portSource: 'default',
+    portTaken: null,
+    settings: { startWithClaudio: false, port: 8444 },
   });
 });
 

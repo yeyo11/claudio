@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { parseChangeScope, WorkItemError, type Core, type WorkItemCommentContext } from '@claudio/core';
-import { claudioLanguage, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
+import { claudioLanguage, NotFoundError, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import type {
   CheckAcceptanceCriterionRequest,
   CreateMilestoneRequest,
@@ -277,7 +277,7 @@ export const workItemRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   app.delete<{ Params: { itemId: string; linkId: string } }>('/work-items/:itemId/links/:linkId', async (req) => {
     await core.workItemAccess(req.params.itemId, 'write');
     // The link is named under its item, so an id from another item is not found here
-    if (!core.workItems.links(req.params.itemId).some((l) => l.id === req.params.linkId)) throw new Error('link not found');
+    if (!core.workItems.links(req.params.itemId).some((l) => l.id === req.params.linkId)) throw new NotFoundError('link not found');
     core.workItems.unlink(req.params.linkId);
     return { ok: true };
   });

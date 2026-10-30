@@ -4,6 +4,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { ConfigFileContent, ConfigFileNode } from '@claudio/shared';
 import { writeAtomic } from './files.ts';
 import type { ConfigScope } from './scope.ts';
+import { NotFoundError } from '@claudio/shared';
 
 const MAX_FILE_BYTES = 1024 * 1024;
 const MAX_DEPTH = 6;
@@ -107,7 +108,7 @@ export class ConfigExplorer {
   async read(scope: ConfigScope, rootId: string, relPath: string): Promise<ConfigFileContent> {
     const file = await this.locate(scope, relPath);
     const info = await stat(file).catch(() => null);
-    if (!info) throw new Error('file not found');
+    if (!info) throw new NotFoundError('file not found');
     if (!info.isFile()) throw new Error('not a file');
     if (info.size > MAX_FILE_BYTES) throw new Error(`file is too large to edit here (${info.size} bytes, max ${MAX_FILE_BYTES})`);
     const buffer = await readFile(file);
@@ -136,7 +137,7 @@ export class ConfigExplorer {
 
   async remove(scope: ConfigScope, relPath: string): Promise<void> {
     const target = await this.locate(scope, relPath);
-    if (!existsSync(target)) throw new Error('file not found');
+    if (!existsSync(target)) throw new NotFoundError('file not found');
     await rm(target, { recursive: true });
   }
 }

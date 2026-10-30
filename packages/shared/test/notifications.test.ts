@@ -289,7 +289,9 @@ test('a setting or the tunnel changing refreshes the page but never wakes anyone
       managed: false,
       tailscale: { state: 'ready', version: '1.102.4', host: 'claudio-test.tail0000.ts.net', reason: null },
       port: 8443,
-      settings: { startWithClaudio: false },
+      portSource: 'default',
+      portTaken: null,
+      settings: { startWithClaudio: false, port: 8443 },
     },
   };
   assert.deepEqual(notificationsFor(settings), []);

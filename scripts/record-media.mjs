@@ -27,6 +27,7 @@ import { inflateSync } from 'node:zlib';
 import gifenc from 'gifenc';
 import { launch } from '../e2e/driver.mjs';
 import { freePort, killGroup } from '../e2e/processes.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // gifenc ships CommonJS: its functions come off the default export
 const { applyPalette, GIFEncoder, quantize } = gifenc;
@@ -55,7 +56,6 @@ if (!existsSync(join(root, 'apps/web/dist/index.html'))) {
   process.exit(2);
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // A fixed path, because it is in frame (a chat's directory, a graph's): a random suffix would change
 // every recording. Created here and refused if it exists, so nothing of anyone else's is ever reused
 // or removed; a run killed with SIGKILL leaves it behind, and says so the next time.

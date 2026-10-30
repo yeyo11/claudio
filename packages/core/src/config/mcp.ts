@@ -57,10 +57,10 @@ export class McpConfig {
   private async read(scope: ConfigScope, mcpScope: McpScope): Promise<ServerMap> {
     if (mcpScope === 'project') {
       if (scope.kind !== 'project') return {};
-      const json = await readJson(join(scope.projectPath, '.mcp.json')).catch(() => ({}) as Record<string, unknown>);
+      const json = ((await readJson(join(scope.projectPath, '.mcp.json')).catch(() => null)) ?? {});
       return (json.mcpServers ?? {}) as ServerMap;
     }
-    const global = await readJson(this.config.globalConfigFile).catch(() => ({}) as Record<string, unknown>);
+    const global = ((await readJson(this.config.globalConfigFile).catch(() => null)) ?? {});
     if (mcpScope === 'user') return (global.mcpServers ?? {}) as ServerMap;
     if (scope.kind !== 'project') return {};
     const projects = (global.projects ?? {}) as Record<string, { mcpServers?: ServerMap }>;

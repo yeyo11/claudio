@@ -55,8 +55,6 @@ export const PROJECT_MODULES = valuesOf<ProjectModule>()(['board', 'team', 'docu
 
 export const PROJECT_TEMPLATE_IDS = valuesOf<ProjectTemplateId>()(['simple', 'software', 'library', 'research', 'custom']);
 
-export const PROJECT_CHANGES = valuesOf<ProjectChange>()(['name', 'key', 'modules', 'settings', 'path']);
-
 /** The board's columns, left to right */
 export const WORK_ITEM_STATUSES = valuesOf<WorkItemStatus>()(['backlog', 'todo', 'in_progress', 'in_review', 'done']);
 
@@ -65,8 +63,6 @@ export const WORK_ITEM_TYPES = valuesOf<WorkItemType>()(['epic', 'story', 'task'
 /** Lowest first */
 export const WORK_ITEM_PRIORITIES = valuesOf<WorkItemPriority>()(['low', 'medium', 'high', 'urgent']);
 
-export const WORK_ITEM_ACTOR_KINDS = valuesOf<WorkItemActorKind>()(['person', 'agent', 'system']);
-
 export const WORK_ITEM_SOURCE_KINDS = valuesOf<WorkItemSourceKind>()(['chat', 'orchestration']);
 
 export const WORK_ITEM_LINK_KINDS = valuesOf<WorkItemLinkKind>()(['chat', 'orchestration', 'document']);
@@ -74,22 +70,7 @@ export const WORK_ITEM_LINK_KINDS = valuesOf<WorkItemLinkKind>()(['chat', 'orche
 /** In the order of an item's life: where it came from, then the columns it goes through */
 export const WORK_ITEM_LINK_ROLES = valuesOf<WorkItemLinkRole>()(['origin', 'refine', 'work', 'verify', 'reference']);
 
-export const WORK_ITEM_RELATION_TYPES = valuesOf<WorkItemRelationType>()(['blocks', 'blocked_by']);
-
-export const WORK_ITEM_WAIT_REASONS = valuesOf<WorkItemWaitReason>()(['approval', 'bounces', 'merge']);
-
-export const MILESTONE_STATES = valuesOf<MilestoneState>()(['open', 'closed']);
-
 // ---- team, flow, journal, memory proposals and documents (orchestration 3)
-
-export const TEAM_AGENT_FILE_STATES = valuesOf<TeamAgentFileState>()(['ok', 'missing', 'drifted']);
-
-export const TEAM_AGENT_DRIFT_FIELDS = valuesOf<TeamAgentDriftField>()(['name', 'description', 'model']);
-
-export const TEAM_CHANGE_ACTIONS = valuesOf<TeamChangeAction>()(['created', 'updated', 'removed', 'template', 'file']);
-
-/** In the order of an item's life on the board */
-export const FLOW_STAGES = valuesOf<FlowStage>()(['refine', 'work', 'verify']);
 
 /** The stage a column's responsible role acts in; `done` has none, since only a person moves an item there. */
 export const FLOW_STAGE_OF_COLUMN = {
@@ -108,8 +89,6 @@ export const FLOW_STEP_OF_COLUMN = {
   in_review: 'verify',
   done: null,
 } as const satisfies Record<WorkItemStatus, FlowStep | null>;
-
-export const FLOW_STEPS = valuesOf<FlowStep>()(['refine', 'check', 'work', 'verify']);
 
 /**
  * A run's step: its column's, or its stage's own name for a column that has none (a run stored with
@@ -146,8 +125,6 @@ export const FLOW_RUN_CAUSES = valuesOf<FlowRunCause>()([
   'conflict-unresolved',
 ]);
 
-export const FLOW_RUN_STATES = valuesOf<FlowRunState>()(['queued', 'running', 'ended']);
-
 export const FLOW_RUN_OUTCOMES = valuesOf<FlowRunOutcome>()(['passed', 'rejected', 'failed', 'cancelled']);
 
 /** Queued and running first, then the outcomes in {@link FLOW_RUN_OUTCOMES} order: how the activity lists them */
@@ -163,10 +140,6 @@ export const FLOW_RUNS_PAGE = 50;
 
 /** The most runs one page of the team's activity may ask for */
 export const FLOW_RUNS_PAGE_MAX = 200;
-
-export const FLOW_RUN_ACTIONS = valuesOf<FlowRunAction>()(['queued', 'started', 'ended', 'moved', 'waiting']);
-
-export const FLOW_VERDICTS = valuesOf<FlowVerdict>()(['pass', 'fail']);
 
 /** Flow runs of a project at once when its settings leave `flow.maxParallel` out */
 export const DEFAULT_FLOW_MAX_PARALLEL = 2;
@@ -269,17 +242,9 @@ export function isTeamToolName(value: unknown): value is string {
   return typeof value === 'string' && TEAM_TOOL.test(value);
 }
 
-export const JOURNAL_ENTRY_KINDS = valuesOf<JournalEntryKind>()(['closed', 'decision', 'memory', 'note']);
-
-export const JOURNAL_CHANGE_ACTIONS = valuesOf<JournalChangeAction>()(['added', 'removed']);
-
 export const MEMORY_PROPOSAL_TARGET_KINDS = valuesOf<MemoryProposalTargetKind>()(['instructions', 'memory', 'journal', 'rule', 'lesson']);
 
 export const LESSON_STATUSES = valuesOf<LessonStatus>()(['proposed', 'active', 'retired', 'rejected', 'superseded']);
-
-export const LESSON_SIGNAL_KINDS = valuesOf<LessonSignalKind>()([
-  'correction', 'hint', 'denied', 'cancelled', 'reverted', 'rewound', 'interrupted', 'repeated-error', 'rejected-proposal',
-]);
 
 /** Limits the miner's output and a person's edit are held to, so a lesson stays a one-line rule */
 export const LESSON_TRIGGER_MAX = 160;
@@ -291,11 +256,7 @@ export const LESSON_EVIDENCE_MAX = 10;
 
 export const MEMORY_PROPOSAL_STATUSES = valuesOf<MemoryProposalStatus>()(['pending', 'approved', 'rejected']);
 
-export const MEMORY_PROPOSAL_ACTIONS = valuesOf<MemoryProposalAction>()(['created', 'approved', 'rejected']);
-
 export const DOCUMENT_KINDS = valuesOf<DocumentKind>()(['spec', 'adr', 'report', 'doc']);
-
-export const DOCUMENT_CHANGE_ACTIONS = valuesOf<DocumentChangeAction>()(['written', 'removed', 'tied', 'untied']);
 
 /** Work items a list page holds when the request does not say (`WorkItemPageQuery.limit`) */
 export const WORK_ITEMS_PAGE = 100;

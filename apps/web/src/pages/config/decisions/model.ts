@@ -96,23 +96,6 @@ export const activeBlocked = (info: Pick<DecisionPointInfo, 'id' | 'kind'>, prov
   info.kind === 'act' && provider === 'cli' && info.id !== SUPERVISOR_POINT;
 
 /**
- * Active in name only, as the engine's `effective().limited` says: an act point on the CLI never
- * clears a threshold, and a point without consent for what it sends to this provider asks nothing.
- * The Supervisor on the CLI asks the engine nothing, so it is Active in full there, consent or not.
- * A point without consent is off, not "shadow": see `offUntilConsent`.
- */
-export function isLimited(
-  info: Pick<DecisionPointInfo, 'id' | 'kind' | 'stateVersion'>,
-  consent: DecisionPointSettings['consent'],
-  mode: DecisionMode,
-  provider: DecisionProviderId,
-): boolean {
-  if (mode !== 'active') return false;
-  if (info.id === SUPERVISOR_POINT && provider === 'cli') return false;
-  return needsConsent(info, consent, provider) || (info.kind === 'act' && provider === 'cli');
-}
-
-/**
  * A point that is not off but has no consent for this provider and state: the engine returns
  * "off" for it before it splits shadow from active (`engine.ts`), so the row says so and offers
  * the consent. The Supervisor's Active on the CLI never reaches the engine, so it is exempt.
@@ -293,6 +276,8 @@ export function withSettingFrom(draft: Draft, source: Draft, setting: string): D
       return { ...draft, provider: source.provider };
     case 'engine.cap':
       return { ...draft, cli: { ...draft.cli, maxCostUsd: source.cli.maxCostUsd } };
+    case 'engine.supervisor-cap':
+      return { ...draft, cli: { ...draft.cli, supervisorMaxCostUsd: source.cli.supervisorMaxCostUsd } };
     case 'engine.cli-model':
       return { ...draft, cli: { ...draft.cli, model: source.cli.model } };
     case 'engine.cli-effort':

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./thresholds": "./src/thresholds.ts"
   },
   "bin": {
     "claudio-accounts": "./src/cli.ts"

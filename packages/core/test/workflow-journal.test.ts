@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { foldJournal, isSynthesis, journalError, readJournalTasks } from '../src/workflow-journal.ts';
@@ -99,4 +102,32 @@ test('the run and agent readers record a failed agent as failed, not as still go
   const t3 = await readWorkflowAgent(transcript('at-limit'), RUN, 'a0000000000000003');
   assert.equal(t3.agent?.state, 'error');
   assert.equal(t3.journalDone, false);
+});
+
+test('a journal that grows is read on from where the last read stopped, and one rewritten shorter is read again whole', async () => {
+  // The watcher reads a running workflow's journal every second (regression audit 2026-10-29, 9.9)
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-journal-'));
+  const session = join(dir, 'session.jsonl');
+  const runDir = join(dir, 'session', 'subagents', 'workflows', 'wf_grow');
+  mkdirSync(runDir, { recursive: true });
+  const journal = join(runDir, 'journal.jsonl');
+  const line = (o: Record<string, unknown>) => `${JSON.stringify(o)}\n`;
+  writeFileSync(journal, line({ type: 'started', key: 'k1', agentId: 'a1', label: 'one', phase: 'Tasks' }));
+  assert.deepEqual((await readJournalTasks(session, 'wf_grow')).tasks.map((t) => [t.label, t.state]), [['one', 'running']]);
+
+  appendFileSync(journal, line({ type: 'result', key: 'k1', agentId: 'a1', result: 'done one' }) + line({ type: 'started', key: 'k2', agentId: 'a2', label: 'two', phase: 'Tasks' }));
+  const grown = await readJournalTasks(session, 'wf_grow');
+  assert.equal(grown.lines, 3);
+  assert.deepEqual(grown.tasks.map((t) => [t.label, t.state, t.result]), [['one', 'completed', 'done one'], ['two', 'running', null]]);
+
+  // A line still being written is not a line yet
+  appendFileSync(journal, '{"type":"result","key":"k2"');
+  assert.equal((await readJournalTasks(session, 'wf_grow')).lines, 3);
+  appendFileSync(journal, ',"agentId":"a2","result":"done two"}\n');
+  assert.deepEqual((await readJournalTasks(session, 'wf_grow')).tasks.map((t) => t.state), ['completed', 'completed']);
+
+  writeFileSync(journal, line({ type: 'started', key: 'k9', agentId: 'a9', label: 'fresh', phase: 'Tasks' }));
+  const rewritten = await readJournalTasks(session, 'wf_grow');
+  assert.equal(rewritten.lines, 1);
+  assert.deepEqual(rewritten.tasks.map((t) => t.label), ['fresh']);
 });

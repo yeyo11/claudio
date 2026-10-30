@@ -1,14 +1,4 @@
-import {
-  MCP_SHARE_WARN,
-  MCP_TOOLS_WARN,
-  type ContextBreakdown,
-  type ContextCategory,
-  type ContextCategoryKey,
-  type ContextCategoryKind,
-  type ContextMcpServerWeight,
-  type ContextMcpWarning,
-  type ContextUnreported,
-} from '@claudio/shared';
+import { errorMessage, MCP_SHARE_WARN, MCP_TOOLS_WARN, type ContextBreakdown, type ContextCategory, type ContextCategoryKey, type ContextCategoryKind, type ContextMcpServerWeight, type ContextMcpWarning, type ContextUnreported } from '@claudio/shared';
 
 /** The names Claude Code 2.1.300 gave its rows (recordings/c0-NOTES.md, F3); any other name stays unkeyed */
 const KEYS: Record<string, ContextCategoryKey> = {
@@ -112,7 +102,7 @@ export function parseContextUsage(raw: Record<string, unknown>): ContextBreakdow
  * channel's own timeout names the request that went unanswered. Anything else is a refusal.
  */
 export function unreportedOf(error: unknown): Extract<ContextUnreported, 'unsupported' | 'timeout' | 'refused'> {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   if (message.startsWith('Unsupported control request subtype')) return 'unsupported';
   if (/did not answer .* in time$/.test(message)) return 'timeout';
   return 'refused';

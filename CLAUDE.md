@@ -16,6 +16,10 @@ describes what a provider is.
 
 - `packages/shared` — types shared by every package (`src/types.ts` is the API contract)
 - `packages/core` — the CLI driver: runs, sessions, accounts, orchestration, config, SQLite store
+- `packages/accounts` — `@claudio/accounts`, several Claude accounts: one `CLAUDE_CONFIG_DIR` each,
+  their sign-in, usage readings (`get_usage`) and the choice of account for a run
+- `packages/mcp` — `@claudio/mcp`, Claudio's own MCP server, which a chat can switch on to read and
+  drive Claudio through its REST API
 - `apps/api` — Fastify REST API; route docs in `src/openapi/routes.ts`
 - `packages/ui` — `@claudio/ui`, the web's primitives: tokens and shared styles, controls, dialogs,
   toasts, icons, illustrations, formatters, Markdown and syntax highlighting

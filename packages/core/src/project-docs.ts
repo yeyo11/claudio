@@ -6,6 +6,7 @@ import { writeAtomic } from './config/files.ts';
 import { stoppedOnMaxTokens } from './open-items.ts';
 import type { CoreConfig } from './paths.ts';
 import { PASTED_NOTE, pasted } from './prompt-rules.ts';
+import { errorMessage, isRecord } from '@claudio/shared';
 
 /*
  * The documents a project knows, from Claude Docs. The Docs connector has no "list my documents"
@@ -58,7 +59,6 @@ export interface ProjectDocsDeps {
   model?: string;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const isStatus = (value: unknown): value is ProjectDocStatus => value === 'unread' || value === 'ok' || value === 'unavailable';
 
 /**
@@ -87,7 +87,7 @@ export function parseDocUrl(value: unknown): string {
 }
 
 function entryOf(raw: unknown): ProjectDoc | null {
-  if (!isObject(raw) || typeof raw.id !== 'string' || !raw.id || typeof raw.url !== 'string') return null;
+  if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id || typeof raw.url !== 'string') return null;
   return {
     id: raw.id,
     url: raw.url,
@@ -122,7 +122,7 @@ export class ProjectDocsStore {
     if (!existsSync(file)) return { docs: [], refreshedAt: null };
     try {
       const raw = JSON.parse(readFileSync(file, 'utf8')) as unknown;
-      if (!isObject(raw) || !Array.isArray(raw.docs)) return { docs: [], refreshedAt: null };
+      if (!isRecord(raw) || !Array.isArray(raw.docs)) return { docs: [], refreshedAt: null };
       return { docs: raw.docs.flatMap((d) => entryOf(d) ?? []), refreshedAt: typeof raw.refreshedAt === 'string' ? raw.refreshedAt : null };
     } catch {
       return { docs: [], refreshedAt: null };
@@ -170,10 +170,10 @@ const docsSchema = (): Record<string, unknown> => ({
 });
 
 function parseReports(raw: unknown): DocReport[] | null {
-  if (!isObject(raw) || !Array.isArray(raw.docs)) return null;
+  if (!isRecord(raw) || !Array.isArray(raw.docs)) return null;
   const reports: DocReport[] = [];
   for (const item of raw.docs) {
-    if (!isObject(item) || typeof item.id !== 'string' || typeof item.found !== 'boolean' || typeof item.title !== 'string' || typeof item.url !== 'string') return null;
+    if (!isRecord(item) || typeof item.id !== 'string' || typeof item.found !== 'boolean' || typeof item.title !== 'string' || typeof item.url !== 'string') return null;
     reports.push({ id: item.id, found: item.found, title: item.title.slice(0, MAX_TITLE), url: item.url });
   }
   return reports;
@@ -315,7 +315,7 @@ export class ProjectDocsService {
         permissionPrompts: 'none',
       });
     } catch (err) {
-      throw new ProjectDocsError(`could not start the session: ${err instanceof Error ? err.message : String(err)}`, 502);
+      throw new ProjectDocsError(`could not start the session: ${errorMessage(err)}`, 502);
     }
 
     let timer: NodeJS.Timeout | undefined;

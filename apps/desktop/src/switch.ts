@@ -6,6 +6,7 @@ import { accessSync, chmodSync, constants, copyFileSync, existsSync, lstatSync, 
 import { homedir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { downloadFile, type DownloadTuning } from '@claudio/core/updates/download';
+import { errorMessage } from '@claudio/shared';
 
 export interface SwitchState {
   /** The offer is shown: a `.deb` on a host where the AppImage sandboxes without root and FUSE works */
@@ -70,9 +71,6 @@ export function switchState(f: SwitchFacts): SwitchState {
   if (!f.fuse) return { available: false, reason: 'no-fuse', debStillInstalled: false };
   return { available: true, reason: null, debStillInstalled: false };
 }
-
-/** The command the card shows once the AppImage runs: removing the `.deb` also removes the apt source (its postrm) */
-export const DEB_REMOVE_COMMAND = '/usr/bin/sudo /usr/bin/apt remove claudio';
 
 export interface AppImagePaths {
   appImage: string;
@@ -144,7 +142,7 @@ export function installAppImage(verified: string, paths: AppImagePaths, iconSour
     mkdirSync(dirname(paths.icon), { recursive: true });
     copyFileSync(iconSource, paths.icon);
   } catch (err) {
-    log(`switch: no icon: ${err instanceof Error ? err.message : String(err)}`);
+    log(`switch: no icon: ${errorMessage(err)}`);
   }
   mkdirSync(dirname(paths.desktopFile), { recursive: true });
   writeFileSync(paths.desktopFile, desktopEntry(paths.appImage));

@@ -59,6 +59,15 @@ export class GuardWatch {
   private readonly settled = new Map<string, true>();
   /** Markers for a call the stream has not shown yet; none is expected, the CLI emits the call first (F3) */
   private readonly early = new Map<string, Marker>();
+  /**
+   * Calls awaited when an interrupt was asked for, or first shown while it was being answered: the
+   * CLI answers each with a result of its own making, which carries no marker and is no fault. Only
+   * these are excused, so an interrupt that ended no turn can never hide a real `missing` later
+   * (report §1.7 of docs/reports/regression-audit-2026-10-29.md).
+   */
+  private readonly interrupted = new Set<string>();
+  /** An interrupt was asked for and the CLI has not answered it yet */
+  private interruptOpen = false;
   private warned = false;
 
   constructor(
@@ -114,6 +123,18 @@ export class GuardWatch {
       return;
     }
     remember(this.awaiting, id, call);
+    if (this.interruptOpen) this.interrupted.add(id);
+  }
+
+  /** An interrupt is being asked for: what is awaited now may get the CLI's own result instead of running */
+  interrupting(): void {
+    this.interruptOpen = true;
+    for (const id of this.awaiting.keys()) this.interrupted.add(id);
+  }
+
+  /** The CLI answered the interrupt (or refused it): calls shown from now on are judged as any other */
+  interruptAnswered(): void {
+    this.interruptOpen = false;
   }
 
   /** A result arrived: a call still awaited ran without a guard marker */
@@ -121,6 +142,7 @@ export class GuardWatch {
     const call = this.awaiting.get(id);
     if (!call) return;
     this.awaiting.delete(id);
+    if (this.interrupted.delete(id)) return;
     const guard: RunGuardEvent = {
       outcome: 'missing',
       toolUseId: id,
@@ -135,6 +157,7 @@ export class GuardWatch {
 
   private settle(id: string, call: Call, marker: Marker): void {
     this.awaiting.delete(id);
+    this.interrupted.delete(id);
     remember(this.settled, id, true);
     if (marker.kind === 'pass') return;
     const outcome: GuardOutcome = marker.kind === 'block' ? (FAULT_MATCHERS.has(marker.matcher) ? 'error' : 'blocked') : marker.kind === 'observe' ? 'observed' : 'allowed-once';

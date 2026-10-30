@@ -1,6 +1,7 @@
 import type { ChatExport, ChatOrigin, ChatSummary, ExportFormat, Project, TokenUsage } from '@claudio/shared';
 import { chatToMarkdown, count, oneLine, slugOf, usd } from './chat-export.ts';
 import { emptyTokenUsage } from './usage.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * The chats a project export holds. Housekeeping chats are left out: they are Claudio's own
@@ -86,7 +87,7 @@ function projectHeader(source: ProjectExportSource): string {
   return lines.join('\n');
 }
 
-const reason = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+const reason = (err: unknown): string => (errorMessage(err));
 
 /**
  * A project as Markdown, one piece at a time: a header with the project, the dates its chats span,

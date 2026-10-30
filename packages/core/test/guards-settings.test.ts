@@ -56,7 +56,8 @@ test('validation refuses the whole body and writes nothing', async () => {
     { nope: 1 },
     { mode: 'off' },
     { automated: 'yes' },
-    { rules: { integrity: false } },
+    { rules: { 'declared-tools': false } },
+    { rules: { integrity: 'off' } },
     { rules: { push: 'no' } },
     { rules: [] },
     { protectConfigs: ['/etc/passwd'] },
@@ -92,16 +93,26 @@ test('a corrupt file gives the defaults (on) and refuses writes without touching
   assert.equal(store.get().automated, true);
 });
 
+test('integrity is switched like any rule, and a document stored before it had a switch reads it as on', async () => {
+  const root = dir();
+  writeFileSync(join(root, 'guards.json'), JSON.stringify({ rules: { push: false } }));
+  const store = new GuardSettingsStore(root);
+  assert.equal(store.get().rules.integrity, true, 'the default while the guard is on');
+  assert.equal((await store.update({ rules: { integrity: false } })).rules.integrity, false);
+  assert.equal(new GuardSettingsStore(root).get().rules.integrity, false);
+  assert.equal((await store.resetKeys([['rules', 'integrity']])).rules.integrity, true);
+});
+
 test('a stored document with bad keys keeps the good ones and drops the rest', () => {
   const root = dir();
   writeFileSync(
     join(root, 'guards.json'),
-    JSON.stringify({ mode: 'observe', automated: 'maybe', rules: { push: false, secrets: 'x', integrity: false, bogus: false }, protectConfigs: ['/abs'], extraRoots: ['/ok'], extra: 1 }),
+    JSON.stringify({ mode: 'observe', automated: 'maybe', rules: { push: false, secrets: 'x', integrity: false, 'declared-tools': false, bogus: false }, protectConfigs: ['/abs'], extraRoots: ['/ok'], extra: 1 }),
   );
   const got = new GuardSettingsStore(root).get();
   assert.equal(got.mode, 'observe');
   assert.equal(got.automated, true);
-  assert.deepEqual(got.rules, { ...DEFAULT_GUARD_SETTINGS.rules, push: false });
+  assert.deepEqual(got.rules, { ...DEFAULT_GUARD_SETTINGS.rules, push: false, integrity: false });
   assert.deepEqual(got.protectConfigs, DEFAULT_GUARD_SETTINGS.protectConfigs);
   assert.deepEqual(got.extraRoots, ['/ok']);
   assert.ok(!('extra' in got));
@@ -113,10 +124,11 @@ test('a stored document that is not an object reads as the defaults', () => {
   assert.deepEqual(new GuardSettingsStore(root).get(), DEFAULT_GUARD_SETTINGS);
 });
 
-test('an override names only enabled and rules, never integrity', () => {
+test('an override names only enabled and rules; integrity is a rule it may switch, declared-tools is not', () => {
   assert.deepEqual(parseGuardOverride({ enabled: false, rules: { push: false } }), { enabled: false, rules: { push: false } });
   assert.deepEqual(parseGuardOverride({}), {});
-  assert.throws(() => parseGuardOverride({ rules: { integrity: false } }), /integrity/);
+  assert.deepEqual(parseGuardOverride({ rules: { integrity: false } }), { rules: { integrity: false } });
+  assert.throws(() => parseGuardOverride({ rules: { 'declared-tools': false } }), /declared-tools/);
   assert.throws(() => parseGuardOverride({ mode: 'observe' }));
   assert.throws(() => parseGuardOverride({ enabled: 'no' }));
 });
@@ -131,5 +143,6 @@ test('project settings validate guards and flow.guards, and drop empties', () =>
   assert.throws(() => parseProjectSettings({ ...base, guards: { chats: 'yes' } }), /guards.chats/);
   assert.throws(() => parseProjectSettings({ ...base, guards: [] }));
   assert.throws(() => parseProjectSettings({ ...base, flow: { ...flow, guards: { ship: {} } } }), /not a flow stage/);
-  assert.throws(() => parseProjectSettings({ ...base, flow: { ...flow, guards: { work: { rules: { integrity: false } } } } }), /integrity/);
+  assert.deepEqual(parseProjectSettings({ ...base, flow: { ...flow, guards: { work: { rules: { integrity: false } } } } }).flow?.guards, { work: { rules: { integrity: false } } });
+  assert.throws(() => parseProjectSettings({ ...base, flow: { ...flow, guards: { work: { rules: { 'declared-tools': false } } } } }), /declared-tools/);
 });

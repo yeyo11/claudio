@@ -28,9 +28,6 @@ export const EVAL_PRESSURES = ['supportive', 'neutral', 'competing'] as const;
 export const EVAL_OUTCOMES = ['any', 'ok', 'error', 'denied'] as const;
 export const EVAL_CALL_SCOPES = ['any', 'main', 'sub'] as const;
 
-/** The file format version; any other value is refused with `unsupported-version`. */
-export const EVAL_FILE_VERSION = 1;
-
 /** Versions the parser accepts; a version 1 file reads as neutral-only and is saved as 2 only when a v2 field is added. */
 export const EVAL_FILE_VERSIONS = [1, 2] as const;
 

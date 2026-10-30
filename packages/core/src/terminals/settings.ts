@@ -5,6 +5,7 @@ import type { AppSettingSource, TerminalRemote, TerminalSettings, UpdateTerminal
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { TerminalError } from './errors.ts';
+import { isRecord } from '@claudio/shared';
 
 /** `CLAUDIO_TERMINAL=off|on` overrides `enabled`: what whoever deployed Claudio decided wins over the UI */
 export const TERMINAL_ENV = 'CLAUDIO_TERMINAL';
@@ -29,8 +30,6 @@ export function terminalDefaults(distribution?: string): Readonly<TerminalSettin
   return distribution === 'docker' ? { ...BASE_DEFAULTS, remote: 'any' } : BASE_DEFAULTS;
 }
 
-export const TERMINAL_DEFAULTS: Readonly<TerminalSettings> = terminalDefaults();
-
 export const TERMINAL_BOUNDS = {
   maxTerminals: [1, 32],
   idleMinutes: [5, 1440],
@@ -41,7 +40,6 @@ export const TERMINAL_BOUNDS = {
 const REMOTES: readonly TerminalRemote[] = ['off', 'tunnel', 'any'];
 const KEYS = Object.keys(BASE_DEFAULTS) as (keyof TerminalSettings)[];
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 function integer(key: keyof typeof TERMINAL_BOUNDS, value: unknown): number {
   const [min, max] = TERMINAL_BOUNDS[key];
@@ -148,7 +146,7 @@ export class TerminalSettingsStore {
 
   /** Validates the patch whole, then writes: a patch with one bad value changes nothing */
   async update(patch: UpdateTerminalSettingsRequest): Promise<TerminalSettings> {
-    if (!isObject(patch)) throw new TerminalError('terminal.bad-settings', 'settings must be an object', 400);
+    if (!isRecord(patch)) throw new TerminalError('terminal.bad-settings', 'settings must be an object', 400);
     const next: Partial<TerminalSettings> = { ...this.stored };
     for (const [key, value] of Object.entries(patch)) {
       if (!(KEYS as string[]).includes(key)) throw new TerminalError('terminal.bad-settings', `${key} is not a terminal setting`, 400);
@@ -194,7 +192,7 @@ export class TerminalSettingsStore {
     if (!existsSync(this.file)) return {};
     try {
       const parsed: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      if (!isObject(parsed)) return {};
+      if (!isRecord(parsed)) return {};
       const out: Partial<TerminalSettings> = {};
       for (const key of KEYS) {
         if (!(key in parsed)) continue;

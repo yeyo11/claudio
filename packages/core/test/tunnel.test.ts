@@ -31,6 +31,7 @@ interface FakeNode {
   magicDNS?: boolean;
   certDomains?: string[];
   operator?: boolean;
+  serveDisabled?: boolean;
   delayMs?: number;
   serve?: Record<string, unknown>;
 }
@@ -75,8 +76,8 @@ function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; mana
     audit: (row) => audit.push(row.summary),
     timing: { monitorMs: 60_000, probeTtlMs: 0, ...options.timing },
   });
-  t.after(() => {
-    manager.shutdown();
+  t.after(async () => {
+    await manager.shutdown();
     for (const [key, value] of [['FAKE_TAILSCALE_STATE', saved.state], ['FAKE_TAILSCALE_LOG', saved.log]] as const) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
@@ -143,7 +144,7 @@ test('start with Claudio, saved before the operator turned the tunnel off, does 
   const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-'));
   const first = rig(t, { root, attach: false });
   await first.manager.updateSettings({ startWithClaudio: true });
-  first.manager.shutdown();
+  await first.manager.shutdown();
 
   const second = rig(t, { root, enabled: false });
   assert.equal(second.manager.status().settings.startWithClaudio, true);
@@ -230,7 +231,10 @@ test('a port that already serves something else is left alone, and the tunnel sa
   const status = await openTunnel(r);
   assert.equal(status.state, 'failed');
   assert.equal(status.reason?.code, 'tunnel.portTaken');
-  assert.deepEqual(status.reason?.params, { port: '8444' });
+  // What holds the port, as `serve status` says it: another Claudio shows as its own loopback port
+  const holder = `https://${NODE}:8444/ → http://127.0.0.1:3000`;
+  assert.deepEqual(status.reason?.params, { port: '8444', holder });
+  assert.deepEqual(status.portTaken, { port: 8444, holder, nextFree: 8445 });
   assert.deepEqual(r.node().serve, theirs);
   assert.ok(!r.calls().some((call) => call.includes('--bg') || call.endsWith('off')));
   assert.deepEqual(r.hosts.list(), []);
@@ -281,7 +285,7 @@ test('a rule a crash left behind is taken away on the next start, and one someon
 test('shutdown takes the rule away before the process goes', async (t) => {
   const r = rig(t);
   await openTunnel(r);
-  r.manager.shutdown();
+  await r.manager.shutdown();
   assert.deepEqual(r.node().serve, {});
   assert.deepEqual(r.hosts.list(), []);
   assert.ok(!existsSync(r.record));
@@ -339,7 +343,7 @@ test('a server that never opened the tunnel takes nothing away when it shuts dow
 
   // A second server on the same directory that failed to bind its port shuts down at once
   const second = rig(t, { root, attach: false });
-  second.manager.shutdown();
+  await second.manager.shutdown();
   assert.deepEqual(second.node().serve, ours());
   assert.equal(readFileSync(live.record, 'utf8'), record);
   assert.equal(live.manager.status().state, 'active');
@@ -452,7 +456,7 @@ test('start with Claudio set under its name before the rename is still read, fro
   assert.deepEqual(JSON.parse(readFileSync(join(root, 'data', 'tunnel-settings.json'), 'utf8')), { startWithClaudio: false }, 'the next save writes only the new name');
   const both = await first.manager.updateSettings({ startWithClaudio: true, startWithAgentry: false });
   assert.equal(both.settings.startWithClaudio, true, 'the new name wins when a request sends both');
-  first.manager.shutdown();
+  await first.manager.shutdown();
 });
 
 test('start with Claudio is off by default, is kept, and opens the tunnel on the next attach', async (t) => {
@@ -466,12 +470,12 @@ test('start with Claudio is off by default, is kept, and opens the tunnel on the
   assert.equal(updated.settings.startWithClaudio, true);
   assert.equal(first.events.at(-1)?.settings.startWithClaudio, true);
   assert.equal(first.events.at(-1)?.tailscale.state, 'ready', 'the event carries a readiness that was read');
-  first.manager.shutdown();
+  await first.manager.shutdown();
 
   const second = rig(t, { root });
   assert.equal(second.manager.status().settings.startWithClaudio, true);
   await until(() => second.manager.status().state === 'active', 'active');
-  second.manager.shutdown();
+  await second.manager.shutdown();
   assert.deepEqual(second.node().serve, {});
 
   // Asked to start with Claudio on a wrapper without authentication: says why instead of opening
@@ -487,8 +491,8 @@ test('another port can be chosen, and the address carries it', async (t) => {
   process.env.FAKE_TAILSCALE_STATE = join(root, 'node.json');
   const hosts = new RuntimeHosts();
   const manager = new TunnelManager({ dataDir: join(root, 'data'), tailscaleBin: FAKE_TAILSCALE, port: 10443, security: { mode: 'token' }, hosts, timing: { monitorMs: 60_000 } });
-  t.after(() => {
-    manager.shutdown();
+  t.after(async () => {
+    await manager.shutdown();
     delete process.env.FAKE_TAILSCALE_STATE;
   });
   manager.attach(8787);
@@ -498,4 +502,99 @@ test('another port can be chosen, and the address carries it', async (t) => {
   assert.equal(manager.status().port, 10443);
   await manager.stop();
   assert.deepEqual(JSON.parse(readFileSync(join(root, 'node.json'), 'utf8')).serve, {});
+});
+
+test('two starts at once open one rule, and neither takes the other\'s rule for someone else\'s', async (t) => {
+  const r = rig(t);
+  // A click racing "start with Claudio": both pass every check before either has read Tailscale
+  const [a, b] = await Promise.all([r.manager.start(), r.manager.start('claudio')]);
+  assert.equal(a.state, 'starting');
+  assert.equal(b.state, 'starting');
+  await until(() => ['active', 'failed'].includes(r.manager.status().state), 'active or failed');
+  assert.equal(r.manager.status().state, 'active');
+  assert.equal(r.calls().filter((call) => call.includes('--bg')).length, 1, 'one rule was added');
+  assert.deepEqual(r.node().serve, ours());
+  assert.ok(!r.calls().some((call) => call.endsWith('off')), 'nothing was taken away');
+});
+
+test('a stop sent while a start is still reading Tailscale is not lost', async (t) => {
+  const r = rig(t, { node: { delayMs: 150 } });
+  const starting = r.manager.start();
+  const stopped = await r.manager.stop();
+  await starting;
+  assert.equal(stopped.state, 'stopped');
+  // Whatever the start was doing when the stop came, nothing is left open after it
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(r.manager.status().state, 'stopped');
+  assert.deepEqual(r.node().serve, {});
+  assert.deepEqual(r.hosts.list(), []);
+});
+
+test('the port is a setting: kept, refused while the tunnel is open, and the tunnel opens on the next free one', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-port-setting-'));
+  // Another Claudio on this node (the desktop beside a dev server) holds 8444
+  const theirs = ours(8444, 'http://127.0.0.1:41985');
+  const r = rig(t, { root, node: { serve: theirs } });
+  assert.deepEqual(r.manager.settingsView(), { settings: { startWithClaudio: false, port: 8444 }, sources: { startWithClaudio: 'default', port: 'default' }, defaults: { startWithClaudio: false, port: 8444 } });
+  const failed = await openTunnel(r);
+  assert.equal(failed.reason?.code, 'tunnel.portTaken');
+  assert.equal(failed.portTaken?.nextFree, 8445);
+
+  await assert.rejects(r.manager.updateSettings({ port: 80 }), /port must be a whole number from 1024 to 65535/);
+  await assert.rejects(r.manager.updateSettings({ port: 8444.5 }), /port must be a whole number/);
+  const moved = await r.manager.updateSettings({ port: 8445 });
+  assert.equal(moved.state, 'stopped', 'a failure about the old port says nothing about the new one');
+  assert.equal(moved.portTaken, null);
+  assert.equal(moved.port, 8445);
+  assert.equal(moved.portSource, 'file');
+  assert.deepEqual(JSON.parse(readFileSync(join(root, 'data', 'tunnel-settings.json'), 'utf8')), { port: 8445 }, 'only what the person set is written');
+
+  const active = await openTunnel(r);
+  assert.equal(active.state, 'active');
+  assert.equal(active.url, `https://${NODE}:8445`);
+  assert.deepEqual(r.node().serve, { TCP: { ...theirs.TCP, ...ours(8445).TCP }, Web: { ...theirs.Web, ...ours(8445).Web } });
+  await assert.rejects(r.manager.updateSettings({ port: 9000 }), (error: unknown) => error instanceof TunnelRefusedError && error.reason.code === 'tunnel.portWhileRunning');
+  await assert.rejects(r.manager.resetSettings(['port']), (error: unknown) => error instanceof TunnelRefusedError && error.reason.code === 'tunnel.portWhileRunning', 'a reset never moves the port from under the rule');
+  await r.manager.stop();
+  assert.deepEqual(r.node().serve, theirs, 'the other rule is never touched');
+
+  // Kept for the next run; a reset brings the default back
+  const next = rig(t, { root, attach: false });
+  assert.equal(next.manager.status().port, 8445);
+  const reset = await next.manager.resetSettings(['port']);
+  assert.equal(reset.port, 8444);
+  assert.equal(reset.portSource, 'default');
+});
+
+test('a port the environment fixes is read-only', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'claudio-tunnel-port-env-'));
+  const manager = new TunnelManager({ dataDir: join(root, 'data'), tailscaleBin: FAKE_TAILSCALE, port: 10443, security: { mode: 'token' }, hosts: new RuntimeHosts() });
+  t.after(() => manager.shutdown());
+  assert.equal(manager.status().portSource, 'env');
+  assert.equal(manager.settingsView().sources.port, 'env');
+  await assert.rejects(manager.updateSettings({ port: 9000 }), (error: unknown) => error instanceof TunnelRefusedError && error.reason.code === 'tunnel.portFromEnv');
+  // Sending the port it already has changes nothing and is not an error
+  assert.equal((await manager.updateSettings({ port: 10443, startWithClaudio: true })).port, 10443);
+  assert.ok(!('port' in (JSON.parse(readFileSync(join(root, 'data', 'tunnel-settings.json'), 'utf8')) as object)));
+});
+
+test('a refusal from tailscale serve keeps the address it gives on a later line', async (t) => {
+  const r = rig(t, { node: { serveDisabled: true } });
+  const status = await openTunnel(r);
+  assert.equal(status.reason?.code, 'tunnel.serveFailed');
+  assert.equal(status.reason?.params?.detail, 'Serve is not enabled on your tailnet. https://login.tailscale.com/f/serve?node=nFAKE0000');
+  await until(() => !existsSync(r.record), 'the record removed');
+});
+
+test('shutdown takes no longer than its bound, and leaves the record when Tailscale does not answer in time', async (t) => {
+  const r = rig(t, { timing: { commandTimeoutMs: 30_000 } });
+  await openTunnel(r);
+  r.setNode({ delayMs: 10_000 });
+  const began = Date.now();
+  await r.manager.shutdown();
+  const took = Date.now() - began;
+  assert.ok(took < 5_000, `shutdown took ${String(took)} ms`);
+  assert.deepEqual(r.hosts.list(), [], 'the host left the allowlist at once');
+  assert.ok(existsSync(r.record), 'the record stays for the next start to reconcile');
+  r.setNode({ delayMs: 0 });
 });

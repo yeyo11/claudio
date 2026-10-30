@@ -11,11 +11,11 @@
 // E2E_CHAT_AUDIT_ONLY=A,C runs only those scenarios (A, B1, B2, C, C2, D, E, F, G).
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 480_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const logOf = (file) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 
 async function until(condition, label, ms = 20_000) {
@@ -46,7 +46,7 @@ const HOLDS = ['audit-b2.hold', 'audit-c.hold', 'audit-c2.hold', 'audit-d1.hold'
 const VIEW = `
   const cards = [...document.querySelectorAll('.chat-queued-item')].map((li) => ({
     text: li.querySelector('.chat-queued-text')?.textContent ?? '',
-    lost: !!li.querySelector('.icon-btn'),
+    lost: li.classList.contains('is-lost'),
   }));
   const rows = [...document.querySelectorAll('.transcript .msg-user')].map((m) => m.innerText);
   const lostFoot = !!document.querySelector('.chat-queued.is-lost');

@@ -155,7 +155,8 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
   // Core throws plain Errors for bad input / missing things; map them to 4xx instead of 500.
   app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {
     const refusal = deliberate(err);
-    const status = err.statusCode ?? (refusal ? (/not found/i.test(err.message) ? 404 : 400) : 500);
+    // A refusal's status is its type's (`statusCode`: `NotFoundError` is 404), never its wording
+    const status = err.statusCode ?? (refusal ? 400 : 500);
     // A bug here is ours to find: a 400 nobody logs is a server fault blamed on the caller
     if (!refusal || status >= 500) app.log.error({ err, url: req.url }, 'request failed');
     // A server fault's message stays inside unless it was written for the person (`expose`)

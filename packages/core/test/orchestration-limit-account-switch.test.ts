@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { limitedTail } from '../src/chats.ts';
 import { Core } from '../src/index.ts';
-import { tempConfig } from './helpers.ts';
+import { signInDefault, tempConfig } from './helpers.ts';
 
 // A graph task whose account hits its limit while the limited process lingers (the real CLI does),
 // moved to another account by the rotation: the task must go on in its chat, and the execution that
@@ -44,6 +44,7 @@ test('a task moved to another account at its limit goes on in one attempt, and t
   // The default login is out; the process lingers after its limited result, so the replay finds it alive
   process.env.FAKE_CLAUDE_LIMITED_DIRS = config.configDir;
   process.env.FAKE_CLAUDE_LINGER_MS = '3000';
+  signInDefault(config);
   let core = new Core(config);
   let chat = '';
   let alpha = '';

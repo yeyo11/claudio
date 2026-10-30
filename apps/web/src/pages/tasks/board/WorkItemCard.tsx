@@ -1,10 +1,12 @@
 import type { WorkItem } from '@claudio/shared';
 import { Ban, Check, CircleDot, Folder, X } from 'lucide-react';
-import type { CSSProperties, DragEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, DragEvent, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { DecisionMarkOf, useVisibleDecisions } from '../../../components/DecisionMark';
 import { Monogram, nameHue } from '@claudio/ui/components/icons';
+import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
+import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { issueChipText } from '../../../lib/trackers';
 import { PriorityMark, WorkItemKey, WorkItemTypeIcon } from '../../../components/work-item-icons';
 import { stripNamesAssignee, taskPath, workItemLiveState, workItemStrip, type WorkItemStripState } from '../../../lib/work-items';
@@ -15,6 +17,8 @@ import { BounceFact, useStripRuns } from './team';
 import { WorkItemStrip } from './WorkItemStrip';
 
 const FACT = { size: 12, strokeWidth: 1.75, 'aria-hidden': true } as const;
+
+const stop = (event: SyntheticEvent) => event.stopPropagation();
 
 /** Who an item is assigned to: the person as a round monogram, a team role as its squircle. */
 export function Assignee({ item }: { item: Pick<WorkItem, 'assignee'> }) {
@@ -211,8 +215,10 @@ export function WorkItemCard({
   grabbed = false,
   dragging = false,
   draggable = false,
+  more,
   onOpen,
   onKeyDown,
+  onBlur,
   onDragStart,
   onDragEnd,
 }: {
@@ -225,8 +231,11 @@ export function WorkItemCard({
   grabbed?: boolean;
   dragging?: boolean;
   draggable?: boolean;
+  /** The card's "⋯" with its moves, where a finger cannot drag it */
+  more?: MenuEntry[] | undefined;
   onOpen: () => void;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+  onBlur?: (event: FocusEvent<HTMLElement>) => void;
   onDragStart?: (event: DragEvent<HTMLElement>) => void;
   onDragEnd?: () => void;
 }) {
@@ -283,6 +292,7 @@ export function WorkItemCard({
       onDragEnd={onDragEnd}
       onClick={click}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
     >
       <div className="workitem-card-top">
         {/* Only a chosen card shows its box, as the reference draws it: the pressed "Select" already
@@ -296,6 +306,12 @@ export function WorkItemCard({
         <WorkItemKey value={item.key} />
         <span className="grow" />
         {!done && <PriorityMark priority={item.priority} />}
+        {more && (
+          // The menu is the card's own: a click or a key in it does not open the item
+          <span className="workitem-card-more" onClick={stop} onKeyDown={stop}>
+            <MoreActions entries={more} label={t('card.actions', { key: item.key })} title={t('move.title', { key: item.key })} />
+          </span>
+        )}
       </div>
       <p className="workitem-card-title">
         {/* Out of the tab order: the card is the stop, and this is for a middle click or a new tab.

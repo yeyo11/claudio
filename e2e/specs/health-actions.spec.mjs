@@ -5,13 +5,13 @@
 // which is what makes the `hung-command` signal fire without waiting for it. The fake writes what it
 // heard to a log, which is how this spec knows a hint reached the process and not only the page.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 
 const HINT = 'E2E-HINT: find out what the pipe is waiting for.';
 const HEALTH = '.obs-health';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** What the fake CLI logged, one fact per line. */
 const logOf = (file) => (existsSync(file) ? readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);

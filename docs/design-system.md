@@ -354,7 +354,7 @@ already belong to the orchestration board.
 | `.wi-col-more`, `.wi-card.skeleton-card` | new `.workitem-col-more` | Hecho shows its newest cards and "Mostrar 9 más" at its foot; the button loads the next page in place, and two skeleton cards hold the page's place while it arrives. The same for any column that pages |
 | `.list-more` | new `.list-more` | the foot of a paged list (the task list, the Team activity): "Mostrar 50 más" and, beside it, "quedan 112". No infinite scroll: the person asks for the next page |
 | `.wi-status` (`.s-done`) | new `WorkItemStatusIcon` | a column is told by shape; only done is coloured (ok) and it is always named |
-| `.wi-card` (`.done`, `.sel`, `.rail-live`), `.wi-card-top`, `-title`, `-ctx`, `-foot`, `.wi-fact`, `.wi-card-epic` | new `.workitem-card*` | a card is read in five rows: what it is (type, key, priority), the title, where it belongs (`-ctx`), its facts (`-foot`: bounces, criteria, blockers, comments, then the assignee) and the strip. A card at rest is still and has no strip. The title and the context wrap, never cut. A done card keeps only its first two rows. Selection mode gives the chosen cards the accent ring and a checked box, and never shows a box on a phone. The live line that sat inside the card (`.wi-card-live`) is gone: the strip replaces it |
+| `.wi-card` (`.done`, `.sel`, `.rail-live`), `.wi-card-top`, `-more`, `-title`, `-ctx`, `-foot`, `.wi-fact`, `.wi-card-epic` | new `.workitem-card*` | a card is read in five rows: what it is (type, key, priority; under a coarse pointer, and never while selecting, the row ends in the card's "⋯" with its moves, `-more`: a 44 × 44 target overlapping the row's margins so the row keeps its height, its focus ring drawn inside it), the title, where it belongs (`-ctx`), its facts (`-foot`: bounces, criteria, blockers, comments, then the assignee) and the strip. A card at rest is still and has no strip. The title and the context wrap, never cut. A done card keeps only its first two rows. Selection mode gives the chosen cards the accent ring and a checked box, and never shows a box on a phone. The live line that sat inside the card (`.wi-card-live`) is gone: the strip replaces it |
 | `.wi-card-ctx`, `.wi-epic.bare`, `.wi-tag` | new `.workitem-context` | one quiet line: the epic by name with its hue only on the diamond, then the labels as `#tags` in mono. No pills: a board of one epic with a pill on every card was the loudest thing on screen. `.wi-label` stays for filters and the detail page |
 | `.wi-crit` (`.full`) | new `.workitem-criteria` | a 28 × 4 bar and "2/5"; complete is the one ok on a card |
 | `.wi-strip` (`.live`, `.wait`, `.fail`, neutral), `.actor-orch`, `.detail`, `.verb` | new `WorkItemStrip` (`.workitem-strip`) | **what happens to the card now, at its foot, led by who does it.** One strip per card, never two. Live: the actor (a role's squircle, the person's round monogram or the orchestration glyph), the braille spinner, the stage verb, the running clock and, on its own line, the detail in mono; the card takes `.rail-live`. Waiting for the person: an idle "te espera" and why, with "Aprobar y pasar a Hecho" when QA passed it. Failed: the actor, an ✕ and "Falló al refinar · ninguna cuenta tenía cupo". Neutral: queued ("En cola: la refinará cuando quede sitio") or QA's last words when it sent the card back; a card sent back that also waits for a place keeps QA's words, and its queued run shows in Team activity. When the strip's actor is the assignee, the foot does not repeat it |
@@ -783,12 +783,24 @@ energy border stays with the working composer under it.
 
 - **Waiting.** The foot says how many wait ("1 mensaje espera al turno en curso") and offers
   **Enviar ahora**, a neutral `.btn-small`, for the oldest message still in the agent's queue. It goes
-  away the moment the agent reads it; the server refuses it after that, and nothing shows.
+  away the moment the agent reads it; the server refuses it after that, and nothing shows. Each
+  waiting row has **Retirarlo al cuadro** (an `.icon-btn` with the undo arrow), which takes the
+  message back from the agent and puts its words and files back in the box.
+- **Held behind a foreground call** (the server lists the message with `blockedBy`: a subagent the
+  turn waits on, or a command): ending the turn would end that work too, so the foot names it
+  ("Espera a que acabe el agente «…». Interrumpir el turno detiene ese agente") and offers two
+  neutral `.btn-small` side by side in `.chat-queued-actions`: **Pasar a segundo plano y entregar**
+  first, then **Interrumpir el turno**. They wrap under the sentence on a narrow column.
 - **Held** for the process that replaces one on its way out: the same row, and the foot says so
   ("1 mensaje espera a que Claude Code vuelva a arrancar"), with no button.
 - **Lost** (`.chat-queued-item.is-lost`): the row's icon is the warn triangle in `--warn`, with
   **Devolverlo al cuadro** (an `.icon-btn`), which puts the words and the files back in the box. The
   foot says why in one sentence. When every row is lost the card itself turns warn (`.chat-queued.is-lost`).
+- **A notice** (`.chat-queued-item.is-notice`): a message Claudio or its Supervisor wrote to the
+  agent, never the person's. The row leads with who it is from (`.chat-queued-from`, "Pista del
+  Supervisor:", "Nota de Claudio:", in `--text`), carries the info icon instead of the hourglass, and
+  has only **Descartar** (an `.icon-btn` with ✕), which withdraws it before the agent reads it. A
+  notice never gets **Enviar ahora**: that is the person's alone.
 
 ### The box and its "+" menu
 
@@ -2085,9 +2097,9 @@ bad always sit beside a word and the shield icon.
   graph, a `.alert.alert-warn` line ("Workers will run without …", the rule ids in mono). It edits an
   override of the global settings, so what is left alone follows Settings.
 - **`.guard-rules`** is the rules `Sheet` (a bottom sheet on a phone): one **`.guard-rule`** per
-  rule with a `Switch`, the name, a one-line description and the id in mono. The **locked rule**
-  (`.guard-rule.is-locked`, `integrity`) has a lock icon and the word "Always on"
-  (**`.guard-always`**) instead of a Switch.
+  rule with a `Switch`, the name, a one-line description and the id in mono; `integrity` is first
+  and switches like the others (there is no locked row since D6 of
+  [the regression fixes](plans/regression-fixes-2026-10-29.md)).
 - **`.guard-tag`** is the chat header's `.badge`, a button: neutral "Guards" when armed, warn
   "Observe", bad "Guards not running". A press opens a `Sheet` with **`.guard-rules-list`**.
 - **`.teammate-reads-tag`** is the chat header's neutral `.badge` beside the guard's, in the same
@@ -2181,6 +2193,12 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 
 It goes inside a card when it takes the place of a list, and full page when there is nothing else
 to show.
+
+`Empty` takes `heading` when its title is the only heading of a page drawn with no shell around it
+(the root route's render-error page, which replaces React Router's developer page): the title is then
+the page's `h1` and not a `strong`. That page uses the compact icon version, not an illustration (the
+not-found drawing reads as a 404 for a crash), sets its own browser tab title, and gives its two
+buttons the phone's touch height under 767 px, because the shell's touch rule does not reach it.
 
 Rules:
 

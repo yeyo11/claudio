@@ -5,11 +5,11 @@
 // and a whole-row checklist.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 240_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Polls this side of the browser (the API) until `condition` holds. */
 async function until(condition, label, limit = 15_000) {

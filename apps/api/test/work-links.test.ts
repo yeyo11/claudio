@@ -20,6 +20,7 @@ import type {
   WorkOnWorkItemResult,
 } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // Work items with the chats and orchestrations that work on them, over HTTP and a real core. The
 // chats are the fake CLI the core tests use, which does what a line of its prompt says (write a
@@ -33,7 +34,6 @@ let repo: string;
 let project: Project;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function until<T>(read: () => Promise<T> | T, done: (value: T) => boolean, what: string): Promise<T> {
   for (let i = 0; i < 300; i++) {

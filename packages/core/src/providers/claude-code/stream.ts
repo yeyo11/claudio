@@ -114,6 +114,16 @@ export class ClaudeStream {
     this.sink({ kind: 'stderr', text: line });
   }
 
+  /** An interrupt is about to be asked for: the guard excuses the calls it may answer for itself */
+  interrupting(): void {
+    this.guard?.interrupting();
+  }
+
+  /** The interrupt was answered: no call shown after this is excused */
+  interruptAnswered(): void {
+    this.guard?.interruptAnswered();
+  }
+
   /** One line of stdout. */
   line(line: string): void {
     const { sink } = this;

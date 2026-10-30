@@ -4,6 +4,7 @@ import type { PermissionQuestion } from '../providers/driver.ts';
 import { stableStringify } from './conversation-key.ts';
 import type { OpenAiFailure } from './errors.ts';
 import type { ChatMessage, ClientTool, ToolCall, ToolChoice } from './wire.ts';
+import { isRecord } from '@claudio/shared';
 
 /**
  * The client-tool handoff of the OpenAI surface (docs/openai-compatible-api.md, phase 4): a client's
@@ -571,9 +572,6 @@ export type StubReply = { status: 200; body: unknown } | { status: 202 } | { sta
 
 const MCP_VERSION = '2025-06-18';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function answerOne(message: unknown, session: ClientToolSession, version: string): unknown {
   if (!isRecord(message) || message.jsonrpc !== '2.0' || typeof message.method !== 'string') {

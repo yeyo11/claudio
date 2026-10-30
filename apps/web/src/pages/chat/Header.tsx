@@ -16,6 +16,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import type { TranscriptFind } from '@claudio/chat-ui/components/TranscriptSearch';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { api, useLessonSettings } from '../../api';
+import { useFallbackInterval } from '../../lib/events';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { formatCost } from '@claudio/ui/lib/format';
 import { chatBusy } from '@claudio/chat-ui/lib/liveness';
@@ -76,8 +77,10 @@ export function StatePill({ chat, connected }: { chat: Chat; connected: boolean 
 function ChecklistProgress({ chat, onOpen }: { chat: Chat; onOpen: () => void }) {
   const { t } = useTranslation(['chat', 'observe']);
   const live = chatBusy(chat);
+  // A checklist tool landing and the turn ending read it again (lib/events): a poll only while the feed is down
+  const checklistFallback = useFallbackInterval();
   // The same query the inspector's checklist reads, so both show the same list
-  const { data } = useQuery({ queryKey: ['chat', chat.id, 'checklist'], queryFn: () => api.chatChecklist(chat.id), refetchInterval: live ? 10_000 : false });
+  const { data } = useQuery({ queryKey: ['chat', chat.id, 'checklist'], queryFn: () => api.chatChecklist(chat.id), refetchInterval: live ? checklistFallback : false });
   if (!data || data.items.length === 0) return null;
   const { done, total, current } = checklistProgress(data.items);
   const said = [t('observe:checklist.progress', { done, total }), current ? t('observe:checklist.onIt', { text: current.text }) : ''].filter(Boolean).join(' · ');

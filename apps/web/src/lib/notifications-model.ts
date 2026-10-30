@@ -1,19 +1,4 @@
-import {
-  chatHref,
-  DEFAULT_LEVEL,
-  KINDS,
-  LEVELS,
-  notificationsFor as draftsFor,
-  orchestrationHref,
-  waitingDrafts as waitingDraftsFor,
-  type ClaudioEvent,
-  type ChatSummary,
-  type NotificationDraft,
-  type NotificationKind,
-  type NotificationLevel,
-  type NotificationText,
-  type PermissionRequest,
-} from '@claudio/shared';
+import { chatHref, DEFAULT_LEVEL, isRecord, KINDS, LEVELS, notificationsFor as draftsFor, orchestrationHref, waitingDrafts as waitingDraftsFor, type ChatSummary, type ClaudioEvent, type NotificationDraft, type NotificationKind, type NotificationLevel, type NotificationText, type PermissionRequest } from '@claudio/shared';
 import i18n from '../i18n';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { serverText } from './server-strings';
@@ -186,12 +171,11 @@ export interface StoredNotifications {
   prefs: NotificationPrefs;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const oneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | null => (allowed.includes(value as T) ? (value as T) : null);
 const stringOrNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 function parseItem(value: unknown): AppNotification | null {
-  if (!isObject(value)) return null;
+  if (!isRecord(value)) return null;
   const kind = oneOf(value.kind, KINDS);
   const priority = oneOf(value.priority, ['high', 'normal', 'low'] as const);
   const tone = oneOf(value.tone, ['ok', 'bad', 'warn', 'info'] as const);
@@ -217,8 +201,8 @@ function parseItem(value: unknown): AppNotification | null {
 
 function parsePrefs(value: unknown): NotificationPrefs {
   const prefs = defaultPrefs();
-  if (!isObject(value)) return prefs;
-  if (isObject(value.kinds)) {
+  if (!isRecord(value)) return prefs;
+  if (isRecord(value.kinds)) {
     for (const kind of KINDS) {
       const on = value.kinds[kind];
       if (typeof on === 'boolean') prefs.kinds[kind] = on;
@@ -242,7 +226,7 @@ export function parseStored(raw: string | null): StoredNotifications {
   } catch {
     return empty;
   }
-  if (!isObject(parsed) || parsed.version !== STORAGE_VERSION) return empty;
+  if (!isRecord(parsed) || parsed.version !== STORAGE_VERSION) return empty;
   const items = Array.isArray(parsed.items) ? parsed.items.flatMap((item: unknown) => parseItem(item) ?? []) : [];
   return { items: items.slice(0, MAX_NOTIFICATIONS), prefs: parsePrefs(parsed.prefs) };
 }

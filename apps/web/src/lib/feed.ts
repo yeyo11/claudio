@@ -33,6 +33,29 @@ export function dispatchEvent(event: ClaudioEvent): void {
   }
 }
 
+const resyncListeners = new Set<() => void>();
+
+/**
+ * Tells everyone who keeps state outside the query cache that events were missed (a new server
+ * boot, `stream.resync`, a parked tab whose cursor fell out of the buffer). The queries are
+ * invalidated by the feed itself; a listener reads again what it derived from events.
+ */
+export function dispatchResync(): void {
+  for (const listener of [...resyncListeners]) {
+    try {
+      listener();
+    } catch {
+      // that consumer's bug is its own
+    }
+  }
+}
+
+/** Hears every resync of the feed; returns the unsubscribe function. */
+export function onResync(listener: () => void): () => void {
+  resyncListeners.add(listener);
+  return () => resyncListeners.delete(listener);
+}
+
 /** Hears every event as it arrives, once; replays after a reconnection are not repeated. */
 export function subscribeEvents(listener: ClaudioEventListener): () => void {
   listeners.add(listener);

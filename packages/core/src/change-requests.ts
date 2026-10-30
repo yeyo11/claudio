@@ -60,15 +60,18 @@ function statusOf(reason: string): ChangeRequestError['statusCode'] {
   return 409;
 }
 
-/** Translates what the services throw into one error type; anything else is a bug and passes through. */
-function translated(err: unknown): unknown {
+/**
+ * Translates what the services throw into one error type, with its status; anything else is a bug and
+ * passes through. Every route that reaches a change-request service throws through it.
+ */
+export function changeRequestRefusal(err: unknown): unknown {
   if (err instanceof ChecksError) return new ChangeRequestError(err.detail ? `${err.message}: ${err.detail}` : err.message, statusOf(err.reason), err.reason);
   if (err instanceof ReviewsError) return new ChangeRequestError(err.detail ? `${err.message}: ${err.detail}` : err.message, statusOf(err.reason), err.reason, err.postId);
   if (err instanceof MergeError) return new ChangeRequestError(err.detail ? `${err.message}: ${err.detail}` : err.message, statusOf(err.reason), err.reason);
   if (err instanceof ReviewInputError) return new ChangeRequestError(err.message, 400);
   if (err instanceof HostActionNotOffered) return new ChangeRequestError(err.message, 409, 'not-offered');
   if (err instanceof PullRequestError) return new ChangeRequestError(err.message, err.statusCode === 404 ? 404 : 409, err.reason);
-  if (err instanceof OrchestrationPullRequestError) return new ChangeRequestError(err.message, err.reason === 'not-found' ? 404 : 409, err.reason);
+  if (err instanceof OrchestrationPullRequestError) return new ChangeRequestError(err.message, statusOf(err.reason), err.reason);
   return err;
 }
 
@@ -76,7 +79,7 @@ async function guarded<T>(work: Promise<T>): Promise<T> {
   try {
     return await work;
   } catch (err) {
-    throw translated(err);
+    throw changeRequestRefusal(err);
   }
 }
 

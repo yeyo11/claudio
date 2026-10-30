@@ -13,8 +13,9 @@ import { KeyValueEditor, recordToRows, rowsToRecord, StringListEditor, type KeyV
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
-import { isObject, parseObject, stringList } from './settingsModel';
+import { parseObject, stringList } from './settingsModel';
 import { settingsHref } from './settingsGroups';
+import { isRecord } from '@claudio/shared';
 
 type Transport = 'stdio' | 'http' | 'sse';
 
@@ -92,7 +93,7 @@ function configFromForm(form: ServerForm): Record<string, unknown> {
 
 /** How a server is reached, as its config says it: the Connections screen lists it beside the name. */
 export function serverTransport(config: Record<string, unknown>): string {
-  return isObject(config) && typeof config.type === 'string' ? config.type : config.url ? 'http' : 'stdio';
+  return isRecord(config) && typeof config.type === 'string' ? config.type : config.url ? 'http' : 'stdio';
 }
 
 function target(config: Record<string, unknown>): string {

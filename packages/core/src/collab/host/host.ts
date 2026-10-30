@@ -1,6 +1,7 @@
 import type * as IrohModule from '@number0/iroh';
 import { ALPN, ALPN_BYTES, FrameParser, MAX_REPLY_FRAME, MAX_REQUEST_FRAME, PIECE_BYTES, decodeFrameBody, encodeFrame, frameLength, rawLength } from '../wire.ts';
 import type { CoreToHost, HostConnection, HostStartOptions, HostTarget, HostToCore, HostUnavailableCode } from './protocol.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The Collaborators host: the iroh endpoint, in a process of its own (docs/plans/collaborators.md
@@ -28,6 +29,8 @@ export interface CollabHostDeps {
   log(message: string): void;
   platform?: string;
   arch?: string;
+  /** How long a dial may take before the peer counts as not answering; `DIAL_TIMEOUT_MS` by default, shorter in tests */
+  dialTimeoutMs?: number;
 }
 
 /** The targets `@number0/iroh` 1.1.0 ships a prebuild for (its `napi.targets`); there is no macOS Intel one */
@@ -38,7 +41,7 @@ const DEFAULT_POLL_MS = 1000;
 const DIAL_TIMEOUT_MS = 20_000;
 
 const hex = (bytes: readonly number[]): string => Buffer.from(bytes).toString('hex');
-const message = (error: unknown): string => (error instanceof Error ? error.message : String(error)).split('\n')[0] ?? '';
+const message = (error: unknown): string => (errorMessage(error)).split('\n')[0] ?? '';
 
 /** A promise from the binding that nobody awaits still must not reject unhandled */
 function quiet(promise: Promise<unknown>): void {
@@ -97,6 +100,10 @@ export class CollabHostCore {
   private nextStream = 1;
 
   constructor(private readonly deps: CollabHostDeps) {}
+
+  private get dialTimeoutMs(): number {
+    return this.deps.dialTimeoutMs ?? DIAL_TIMEOUT_MS;
+  }
 
   handle(message: CoreToHost): void {
     switch (message.type) {
@@ -457,8 +464,14 @@ export class CollabHostCore {
         ? iroh.EndpointTicket.fromString(target.ticket).endpointAddr()
         : new iroh.EndpointAddr(iroh.EndpointId.fromBytes([...Buffer.from(target.endpointId, 'hex')]), null, []);
       if (hex(addr.id().toBytes()) !== target.endpointId) throw new Error('the ticket is for another endpoint');
-      const outcome = await within(endpoint.connect(addr, [...ALPN_BYTES]), DIAL_TIMEOUT_MS);
-      if (outcome === 'timeout') throw new Error('the peer did not answer');
+      const connecting = endpoint.connect(addr, [...ALPN_BYTES]);
+      const outcome = await within(connecting, this.dialTimeoutMs);
+      if (outcome === 'timeout') {
+        // A dial given up on may still complete: that connection is nobody's, so it is closed rather
+        // than left for requests to land on and hang until the idle timer
+        connecting.then((late) => late.close(0n, []), () => undefined);
+        throw new Error('the peer did not answer');
+      }
       this.adopt(outcome);
       return outcome;
     })();

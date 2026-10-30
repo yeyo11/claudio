@@ -1,8 +1,8 @@
 import type { GuardRuleId, GuardRuleInfo, GuardSettings } from './types.ts';
 
-/** Every rule, `integrity` first; `integrity` is the only one that is not switchable. */
+/** Every rule, `integrity` first; each is switched on its own, and with none on no guard runs (D6). */
 export const GUARD_RULES: readonly GuardRuleInfo[] = [
-  { id: 'integrity', defaultOn: true, switchable: false },
+  { id: 'integrity', defaultOn: true, switchable: true },
   { id: 'no-verify', defaultOn: true, switchable: true },
   { id: 'push', defaultOn: true, switchable: true },
   { id: 'destructive', defaultOn: true, switchable: true },
@@ -63,7 +63,7 @@ export const DEFAULT_PROTECTED_CONFIGS: readonly string[] = [
 export const DEFAULT_GUARD_SETTINGS: Readonly<GuardSettings> = {
   mode: 'enforce',
   automated: true,
-  rules: { 'no-verify': true, push: true, destructive: true, secrets: true, 'protect-configs': false },
+  rules: { integrity: true, 'no-verify': true, push: true, destructive: true, secrets: true, 'protect-configs': false },
   protectConfigs: [...DEFAULT_PROTECTED_CONFIGS],
   extraRoots: [],
 };

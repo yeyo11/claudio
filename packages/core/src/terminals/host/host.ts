@@ -2,6 +2,7 @@ import { descendantsOf, processEntry, processTable, type ProcessEntry } from '..
 import type { HostReply, HostRequest, SpawnMessage } from './protocol.ts';
 import { PtyMissingError, loadNodePty, type Pty, type PtyBackend } from './pty.ts';
 import { Screen } from './screen.ts';
+import { errorMessage } from '@claudio/shared';
 
 interface Entry {
   pty: Pty;
@@ -123,7 +124,7 @@ export class TerminalHostCore {
     try {
       pty = backend.spawn({ file: message.shell, args: message.args, cwd: message.cwd, env: message.env, cols: message.cols, rows: message.rows });
     } catch (error) {
-      this.deps.send({ type: 'spawn-error', id: message.id, reason: 'spawn-failed', message: error instanceof Error ? error.message : String(error) });
+      this.deps.send({ type: 'spawn-error', id: message.id, reason: 'spawn-failed', message: errorMessage(error) });
       return;
     }
     const screen = new Screen(message.cols, message.rows, message.scrollbackLines);

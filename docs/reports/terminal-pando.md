@@ -377,4 +377,4 @@ What is new in Claudio's case and Pando does not face:
 
 [[plans/claude-only-fork.md]] · [[plans/claudio-rebrand.md]] · [[security-model.md]] · [[desktop.md]] ·
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/mobile.md]] · [[plans/chat-api-token.md]] ·
-[[research/terminal.md]]
+[[plans/terminal.md]]

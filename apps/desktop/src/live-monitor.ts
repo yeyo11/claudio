@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { liveSnapshot, type LiveChat, type LiveCounts, type LiveOrchestration, type LiveSnapshot } from './live.ts';
 import { SseParser } from './sse.ts';
+import { errorMessage } from '@claudio/shared';
 
 /** How many chats of each state the tray asks for: it names what is live, the counts say how much */
 const CHAT_LIMIT = 10;
@@ -141,7 +142,7 @@ export class LiveMonitor {
       .catch((err: unknown) => {
         if (this.stopped) return;
         if (err instanceof Refusal) this.refused(err, 'live state');
-        else this.opts.log?.(`live state: ${err instanceof Error ? err.message : String(err)}`);
+        else this.opts.log?.(`live state: ${errorMessage(err)}`);
       })
       .finally(() => {
         this.refreshing = false;
@@ -203,7 +204,7 @@ export class LiveMonitor {
       } catch (err) {
         if (this.stopped) return;
         if (err instanceof Refusal) this.refused(err, 'event feed');
-        else this.opts.log?.(`event feed: ${err instanceof Error ? err.message : String(err)}`);
+        else this.opts.log?.(`event feed: ${errorMessage(err)}`);
       }
       if (this.stopped) return;
       // Whatever changed while the feed was down is read on the next poll, and again on reconnect.

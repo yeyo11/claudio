@@ -6,6 +6,7 @@ import type { ChatProject, ProjectPathConflict } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { bareImportPath, coreConfigOf, type Place } from './repos.ts';
+import { errorMessage, NotFoundError } from '@claudio/shared';
 
 /** The repository a project lives in, as `projects.json` keeps it: what identifies it, and its remote. */
 export interface ProjectRepoRecord {
@@ -188,7 +189,7 @@ export class ProjectStore {
         renameSync(tmp, this.file);
       } catch (err) {
         // In memory the records are migrated all the same; the next start tries the write again
-        console.warn(`projects: ${this.file} was not migrated: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(`projects: ${this.file} was not migrated: ${errorMessage(err)}`);
       }
     }
     return records;
@@ -291,7 +292,7 @@ export class ProjectStore {
    */
   async planRepoint(id: string, input: unknown, lookup: RepoLookup): Promise<ProjectRecord> {
     const project = this.get(id);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     if (typeof input !== 'string' || !input.trim()) throw new Error('path must be a directory');
     const commonDir = project.repo?.commonDir ?? lookup.place(project.path).repo?.commonDir ?? null;
     if (!commonDir) throw new ProjectPathError('not-a-repository', `${project.name} is not in a git repository; only a repository's project can be re-pointed`);
@@ -313,14 +314,14 @@ export class ProjectStore {
 
   /** Writes a record `planRepoint` made. */
   async replace(record: ProjectRecord): Promise<void> {
-    if (!this.get(record.id)) throw new Error('project not found');
+    if (!this.get(record.id)) throw new NotFoundError('project not found');
     this.records = this.records.map((p) => (p.id === record.id ? record : p));
     await this.save();
   }
 
   async rename(id: string, name: string): Promise<ProjectRecord> {
     const project = this.get(id);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     const clean = this.cleanName(name);
     if (!clean) throw new Error('name is required');
     const renamed = { ...project, name: clean };
@@ -331,7 +332,7 @@ export class ProjectStore {
 
   /** Forgets the project. Nothing on disk changes, and importing it again adopts its chats again. */
   async remove(id: string): Promise<void> {
-    if (!this.get(id)) throw new Error('project not found');
+    if (!this.get(id)) throw new NotFoundError('project not found');
     this.records = this.records.filter((p) => p.id !== id);
     await this.save();
   }

@@ -10,6 +10,7 @@ import { Core, loadConfig } from '@claudio/core';
 import type { Workspace } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
+import { signInDefault } from './helpers.ts';
 
 // D14 as written (docs/plans/headless-image.md): a /v1 chat is a confined API chat in a headless
 // Claudio and in a workspace, and in the full profile without a workspace it is the app's own kind
@@ -33,6 +34,8 @@ async function start(profile: 'full' | 'headless'): Promise<Side> {
   // One file for both sides: the fake CLI reads the variable of this process, and chat ids never repeat
   process.env.FAKE_OPENAI_PROMPTS ??= join(tmpdir(), `claudio-api-profiles-${process.pid}.jsonl`);
   const prompts = process.env.FAKE_OPENAI_PROMPTS;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,

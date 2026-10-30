@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { errorMessage } from '@claudio/shared';
 
 /** A PTY, as the host needs it: the one place that knows the native module's shape */
 export interface Pty {
@@ -98,7 +99,7 @@ export function loadNodePty(require: NodeRequire = createRequire(import.meta.url
 }
 
 function loadError(require: NodeRequire, first: unknown): string {
-  const message = first instanceof Error ? first.message : String(first);
+  const message = errorMessage(first);
   try {
     const root = dirname(require.resolve('node-pty/package.json'));
     const dir = join(root, 'prebuilds', `${process.platform}-${process.arch}`);
@@ -107,7 +108,7 @@ function loadError(require: NodeRequire, first: unknown): string {
     try {
       require(file);
     } catch (error) {
-      return `${message}; ${file}: ${error instanceof Error ? error.message : String(error)}`;
+      return `${message}; ${file}: ${errorMessage(error)}`;
     }
   } catch {
     // not resolvable at all: the first message says so

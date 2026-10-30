@@ -706,7 +706,7 @@ function mcpCall(own, text) {
     def = undefined;
   }
   if (!def) return finish(`<tool_use_error>Error: No such tool available: ${name}</tool_use_error>`, true);
-  const allowed = (flag('--allowedTools') ?? '').split(',');
+  const allowed = [...(flag('--allowedTools') ?? '').split(','), ...flagPermissions.allow];
   if (!allowed.includes(name)) return finish(`Permission to use ${name} was denied`, true);
   // The CLI expands `${VAR}` in a config file only: a pushed config reaches the server as written
   const expand = (v) => (pushed ? String(v) : String(v).replace(/\$\{(\w+)\}/g, (_, n) => env[n] ?? ''));
@@ -1011,6 +1011,13 @@ function endTurn({ result = '', error = false, structured = undefined }) {
 const pushedServers = new Map();
 
 /**
+ * The `permissions` of the session's flag layer, as `apply_flag_settings` merged them in (the Agent
+ * SDK's `applyFlagSettings`, sdk.d.ts 0.3.312): an `allow` rule there lets a tool run as
+ * `--allowedTools` does. A request replaces the list, as CLI 2.1.312 does (packages/core/test/fixtures/recordings/claude/apply-flag-settings.json).
+ */
+const flagPermissions = { allow: [] };
+
+/**
  * `mcp_set_servers`, as CLI 2.1.302 answers it (packages/core/test/fixtures/recordings/claude/mcp-set-servers.json):
  * the set replaces the servers pushed before, each one listed by `mcp_status` with the scope `dynamic`.
  * A config the CLI could not start is answered in `errors` and listed `failed` with the same words.
@@ -1187,6 +1194,8 @@ function control(message) {
     return;
   }
   if (request.subtype === 'interrupt') {
+    // What survives the interrupt, as the CLI lists it in its receipt (`still_queued`): every message still queued
+    const survivors = waiting.flatMap((m) => (m.uuid ? [m.uuid] : []));
     // The command running goes down with the turn, as the CLI's does; its exit ends the turn
     if (turn?.compacting) {
       // As the CLI aborts it: the compaction fails with the abort's own words
@@ -1204,7 +1213,40 @@ function control(message) {
       turn.current = null;
       endTurn({ error: true });
     }
-    reply({});
+    reply({ still_queued: survivors });
+    return;
+  }
+  if (request.subtype === 'background_tasks') {
+    // `SDKControlBackgroundTasksRequest`: the foreground command the turn waits on keeps running as a
+    // background task, its call returns at once, and the turn takes in what waits at that boundary
+    const own = turn;
+    const current = own?.current;
+    if (!own || !current?.child || (request.tool_use_id !== undefined && request.tool_use_id !== current.id)) {
+      reply({ backgrounded: false });
+      return;
+    }
+    const { id, child, command } = current;
+    own.current = null;
+    backgroundChildren.add(child);
+    const taskId = `b${randomUUID().replaceAll('-', '').slice(0, 8)}`;
+    log('backgrounded', { toolUseId: id, taskId, command });
+    reply({ backgrounded: true });
+    toolResult(id, `Command was manually backgrounded by user with ID: ${taskId}.`, false, { stdout: '', stderr: '', interrupted: false, isImage: false, noOutputExpected: false, backgroundTaskId: taskId });
+    child.on('exit', () => backgroundChildren.delete(child));
+    afterTool(own);
+    return;
+  }
+  if (request.subtype === 'cancel_async_message') {
+    // `SDKControlCancelAsyncMessageRequest`: a message still queued is dropped; one already taken is not
+    const at = waiting.findIndex((m) => m.uuid === request.message_uuid);
+    if (at === -1) {
+      reply({ cancelled: false });
+      return;
+    }
+    const [gone] = waiting.splice(at, 1);
+    record({ type: 'queue-operation', operation: 'remove', content: gone?.text ?? '' });
+    log('cancelled', { uuid: request.message_uuid });
+    reply({ cancelled: true });
     return;
   }
   if (request.subtype === 'set_permission_mode' && typeof request.mode === 'string') {
@@ -1264,6 +1306,17 @@ function control(message) {
       return;
     }
     server.status = request.enabled === false ? 'disabled' : server.scope === 'claudeai' ? 'needs-auth' : 'connected';
+    reply({});
+    return;
+  }
+  if (request.subtype === 'apply_flag_settings') {
+    if (!request.settings || typeof request.settings !== 'object' || Array.isArray(request.settings)) {
+      emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: 'settings must be an object' } });
+      return;
+    }
+    const allow = request.settings.permissions?.allow;
+    if (Array.isArray(allow)) flagPermissions.allow = allow.filter((rule) => typeof rule === 'string');
+    log('apply-flag-settings', { settings: request.settings });
     reply({});
     return;
   }

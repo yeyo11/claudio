@@ -10,10 +10,12 @@ import type {
   ChatFork,
   ChatGuards,
   ChatMessageReceipt,
+  ChatMessageSource,
   ChatOrigin,
+  ChatPendingBlocker,
   ChatPendingMessage,
   ChatToolConfig,
-  EffectiveEnvironment,
+  MessageUndeliveredReason,
   Effort,
   Execution,
   GuardMode,
@@ -34,6 +36,8 @@ import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
 import type { BackgroundTask, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
+import type { GuardRequest } from './guards/launch.ts';
+import type { EnvironmentSink } from './environments.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, PermissionQuestion, ProviderDriver } from './providers/driver.ts';
@@ -44,32 +48,79 @@ const MAX_EVENTS_PER_RUN = 5000;
 const MAX_RECEIPTS = 500;
 /** Why a message the agent had not taken when the wrapper went away is lost */
 const RESTARTED = 'Claudio restarted before the agent read it';
+/** Ids settled as not read, remembered so a read-back that comes late still counts: far more than ever wait at once */
+const MAX_NOT_READ = 50;
 /** Lost messages kept for a page opened later: the newest ones */
 const MAX_UNDELIVERED = 20;
 
 /** A message as sent: its id, its words and its files. */
 export interface SentMessage {
   id: string;
+  /** What the agent is given */
   text: string;
   attachments: Attachment[];
   sentAt: string;
+  /** Who it comes from; a message Claudio sends of its own accord to start or resume a chat is the person's */
+  source: ChatMessageSource;
+  /** The words without the framing Claudio wrote around them for the agent (a hint's prefix), when there is one */
+  words?: string;
 }
 
 /** A message the agent has not taken yet: in its own queue (`written`), or held for the next process. */
 export interface PendingMessage extends SentMessage {
   state: 'written' | 'held';
+  /**
+   * The chat's write count when it was written ({@link LiveChat.writes}): an interrupt's receipt
+   * speaks only for the messages written before it was asked for
+   */
+  order: number;
+  /** The process's result count when it was written: a message written before a result and not read back after it is followed no longer */
+  results: number;
+  /**
+   * It reached the agent with no turn of the lead's under way, so it opened one: that turn's result
+   * says the agent took it even when nothing was read back (a local command reads nothing back)
+   */
+  opens?: boolean;
 }
 
-/** What the page sees of a message: the files without their path on the server's disk. */
-export function pendingView(message: SentMessage & { state: ChatPendingMessage['state'] }, reason?: string): ChatPendingMessage {
+/** What the page sees of a message: the files without their path on the server's disk, and the words without Claudio's framing. */
+export function pendingView(message: SentMessage & { state: ChatPendingMessage['state'] }, reason?: string, blockedBy?: ChatPendingBlocker): ChatPendingMessage {
   return {
     id: message.id,
-    text: message.text,
+    text: message.words ?? message.text,
     attachments: message.attachments.map(({ id, name, mediaType, kind, sizeBytes }) => ({ id, name, mediaType, kind, sizeBytes })),
     state: message.state,
     sentAt: message.sentAt,
+    source: message.source,
     ...(reason ? { reason } : {}),
+    ...(blockedBy ? { blockedBy } : {}),
   };
+}
+
+/**
+ * A background task, agent or workflow still runs: what keeps a process up after its input ends,
+ * and what the CLI kills once it has waited long enough for it with its input closed. A chat with
+ * any is never idle-ended, evicted or ended between turns (D3).
+ */
+export function runsInBackground(branches: BranchTracker): boolean {
+  for (const task of branches.tasks.values()) if (task.status === 'running') return true;
+  for (const sub of branches.subagents.values()) if (sub.background && (sub.status === 'running' || sub.status === 'waiting')) return true;
+  for (const workflow of branches.workflows.values()) if (workflow.status === 'running') return true;
+  return false;
+}
+
+/** The tools whose call holds the turn for as long as the work it starts: a message waits for its result. */
+const FOREGROUND_TOOLS = new Set(['Agent', 'Task', 'Bash']);
+
+/**
+ * The lead's call a turn now waits on, which only returns when its agent or command is done: a
+ * foreground `Agent`/`Task` or a `Bash` command not started in the background. Null for any other
+ * call, which returns at its own pace.
+ */
+export function foregroundCall(name: string, input: Record<string, unknown>): Omit<ChatPendingBlocker, 'toolUseId'> | null {
+  if (!FOREGROUND_TOOLS.has(name) || input.run_in_background === true) return null;
+  const said = name === 'Bash' ? (typeof input.description === 'string' && input.description ? input.description : input.command) : (input.description ?? input.prompt);
+  return { name, ...(typeof said === 'string' && said ? { description: said.slice(0, 200) } : {}) };
 }
 const PARTIAL_THROTTLE_MS = 50;
 
@@ -102,7 +153,7 @@ export interface RunResult {
  * written their files (`resolveGuards`, `writeGuardFiles`). Absent: the chat is not guarded.
  */
 export interface ChatGuardPlan {
-  /** The effective rules, `integrity` first */
+  /** The effective rules, in the order they run */
   rules: GuardRuleId[];
   mode: GuardMode;
   /** The `--settings` file that registers the hooks */
@@ -113,6 +164,12 @@ export interface ChatGuardPlan {
   interactive?: boolean;
   /** The run's own scratch dir (`<data>/tmp/<id>`), exported as `TMPDIR` and removed when the run ends; the rules name it */
   tmpDir?: string;
+  /**
+   * What the plan was derived from, so a later process of the chat derives it again from the
+   * settings as they are then (D6): a switch turned off reaches a respawn, not only a new chat.
+   * Absent on a confined API chat's plan, which comes from its stored policy alone.
+   */
+  request?: GuardRequest;
 }
 
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */
@@ -379,10 +436,11 @@ export const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined
 export interface ChatHost {
   readonly db: Db;
   /** Latest `init` snapshot per working directory */
-  readonly environments: Map<string, EffectiveEnvironment>;
+  readonly environments: EnvironmentSink;
   readonly permissions: PermissionBroker | null;
   emit(event: string, ...args: unknown[]): void;
-  persist(): void;
+  /** Writes the chat (and whatever else changed since its last write) to the store */
+  persist(chat: LiveChat): void;
   noteActivity(chat: LiveChat): void;
   /** Folds what the chat's provider reported about its limit into the provider's reading */
   observeLimit(chat: LiveChat, event: DriverEvent): void;
@@ -500,6 +558,25 @@ export class LiveChat {
   permissionHost: PermissionHost | null = null;
   /** The turn is ending because someone interrupted it, not because it failed */
   interruptRequested = false;
+  /**
+   * The lead agent is on a turn: from the message that starts one (or a line of its own, after a
+   * task notification) until its result. Unlike `status`, a background agent's lines never set it,
+   * so it is what says whether an interrupt has a result coming to clear its mark.
+   */
+  turnOpen = false;
+  /**
+   * The lead's calls the running turn waits on and has no result for, newest last: a foreground
+   * agent or command, which a message written now is not read before (`ChatPendingMessage.blockedBy`)
+   */
+  readonly foreground = new Map<string, Omit<ChatPendingBlocker, 'toolUseId'>>();
+  /** Messages written to the live process so far, the stamp of each one's `order` */
+  writes = 0;
+  /** Results the live process has produced, the stamp of each written message's `results` */
+  results = 0;
+  /** Ids settled `not-read`, newest last: a read-back that comes after all is honoured */
+  readonly notRead = new Set<string>();
+  /** Runs once the CLI has had its moment to start on what was queued at a result; see `chat-fold.ts` */
+  settleTimer: NodeJS.Timeout | null = null;
   /** What the live process is doing right now, folded from the stream as it arrives */
   readonly activity: ChatActivityTracker;
   /** The last activity announced on the feed, so a line that changes nothing costs no summary */
@@ -669,8 +746,12 @@ export class LiveChat {
     chat.workingDir = record.workingDir;
     chat.nativeId = record.nativeSessionId ?? null;
     chat.account = record.account ?? null;
-    // Whatever the agent had not taken went with the processes of the wrapper that wrote this
-    chat.undelivered = (record.pending ?? []).map((m) => (m.state === 'undelivered' ? m : { ...m, state: 'undelivered', reason: RESTARTED }));
+    // Whatever the agent had not taken went with the processes of the wrapper that wrote this. A row
+    // stored before the source was recorded was a person's: nothing else wrote into a chat then but hints
+    chat.undelivered = (record.pending ?? []).map((m) => {
+      const stored = { ...m, source: m.source ?? 'person' };
+      return stored.state === 'undelivered' ? stored : { ...stored, state: 'undelivered', reason: RESTARTED };
+    });
     return chat;
   }
 
@@ -728,9 +809,20 @@ export class LiveChat {
     return [...this.pending.values()].filter((m) => m.state === 'written');
   }
 
+  /**
+   * The foreground call the running turn is inside of, the newest: what keeps a message written now
+   * from being read until it returns. Null between turns, and when the turn waits on nothing long.
+   */
+  blocker(): ChatPendingBlocker | null {
+    if (!this.turnOpen) return null;
+    const open = [...this.foreground.entries()].at(-1);
+    return open ? { toolUseId: open[0], ...open[1] } : null;
+  }
+
   /** What the page is told is still on its way, and what was lost since */
   pendingList(): ChatPendingMessage[] {
-    return [...[...this.pending.values()].map((m) => pendingView(m)), ...this.undelivered];
+    const blocker = this.blocker() ?? undefined;
+    return [...[...this.pending.values()].map((m) => pendingView(m, undefined, m.state === 'written' ? blocker : undefined)), ...this.undelivered];
   }
 
   /** Remembers how a message was taken, so the same id sent again is answered without writing it twice */
@@ -843,11 +935,43 @@ export class LiveChat {
     };
   }
 
-  /** A message lost on the way: the page is told at once, and a page opened later still finds it. */
-  lose(message: SentMessage, reason: string): void {
+  /**
+   * A message lost on the way: the page is told at once, and a page opened later still finds it.
+   * `not-read` is a judgement made without the CLI's word, so the id is kept: if the agent reads it
+   * back after all, it is delivered (`unlose`).
+   */
+  lose(message: SentMessage, reason: string, code?: MessageUndeliveredReason): void {
     const view = pendingView({ ...message, state: 'undelivered' }, reason);
     this.undelivered = [...this.undelivered.filter((m) => m.id !== message.id), view].slice(-MAX_UNDELIVERED);
-    this.push({ kind: 'delivery', delivery: { id: message.id, state: 'undelivered', message: view } });
+    if (code === 'not-read') {
+      this.notRead.add(message.id);
+      for (const id of this.notRead) {
+        if (this.notRead.size <= MAX_NOT_READ) break;
+        this.notRead.delete(id);
+      }
+    }
+    this.push({ kind: 'delivery', delivery: { id: message.id, state: 'undelivered', message: view, source: message.source, ...(code ? { reason: code } : {}) } });
+  }
+
+  /** A message settled `not-read` was read back after all: it is no longer lost, and the page hears it was delivered. */
+  unlose(id: string): boolean {
+    if (!this.notRead.delete(id)) return false;
+    const view = this.undelivered.find((m) => m.id === id);
+    this.undelivered = this.undelivered.filter((m) => m.id !== id);
+    this.push({ kind: 'delivery', delivery: { id, state: 'delivered', at: now(), ...(view ? { source: view.source } : {}) } });
+    return true;
+  }
+
+  /**
+   * A message withdrawn before the agent read it. It is not kept as lost: whoever withdrew it knows,
+   * and a page opened later has nothing to hand back.
+   */
+  withdraw(message: PendingMessage): void {
+    this.pending.delete(message.id);
+    this.turnMessages = this.turnMessages.filter((m) => m.id !== message.id);
+    this.armingQueue = this.armingQueue.filter((queued) => queued.message.id !== message.id);
+    const view = pendingView({ ...message, state: 'undelivered' });
+    this.push({ kind: 'delivery', delivery: { id: message.id, state: 'undelivered', message: view, source: message.source, reason: 'cancelled' } });
   }
 
   /** What the store keeps of the chat besides its executions. */
@@ -875,7 +999,8 @@ export class LiveChat {
       ...(this.opts.keepAlive === false ? { keepAlive: false as const } : {}),
       ...(this.opts.apiPolicy ? { apiPolicy: this.opts.apiPolicy } : {}),
       ...(this.opts.apiAsked ? { apiAsked: this.opts.apiAsked } : {}),
-      ...(this.pending.size || this.undelivered.length ? { pending: this.pendingList() } : {}),
+      // Without `blockedBy`, which is the live process's and goes with it
+      ...(this.pending.size || this.undelivered.length ? { pending: [...[...this.pending.values()].map((m) => pendingView(m)), ...this.undelivered] } : {}),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

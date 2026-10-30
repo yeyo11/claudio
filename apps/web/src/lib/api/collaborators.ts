@@ -29,8 +29,7 @@ import type {
   UpdateCollaboratorsRequest,
   UpdateProjectSharingRequest,
 } from '@claudio/shared';
-import { BASE, enc, request, type ReadOptions } from '../../api';
-import { authHeaders } from '../auth';
+import { enc, request, type ReadOptions } from '../../api';
 
 /** What a shared project is addressed by in the routes: the sharing install and the key's id. */
 export interface SharedRef {
@@ -62,11 +61,14 @@ export const collaboratorsApi = {
 
   groups: (o: ReadOptions = {}) => request<GroupList>('/collaborators/groups', o),
   createGroup: (body: CreateGroupRequest) => request<Group>('/collaborators/groups', { method: 'POST', body }),
-  /** Leaves the group: deletes every copy synced through it and tells the peers it can reach */
+  /** Leaves the group: deletes every copy synced through it at once; the members are told in the background, and again until they take it */
   leaveGroup: (groupId: string) => request<unknown>(`/collaborators/groups/${enc(groupId)}`, { method: 'DELETE' }),
   invite: (groupId: string) => request<GroupInvite>(`/collaborators/groups/${enc(groupId)}/invites`, { method: 'POST' }),
-  /** A relayed join can take a member's round trip as well as the owner's, so it waits longer than a read */
-  join: (invite: string) => request<JoinGroupResult>('/collaborators/join', { method: 'POST', body: { invite }, timeoutMs: 60_000 }),
+  /**
+   * The server answers within seconds: `joined` when the owner or a member answered, else `pending`
+   * (202) while it goes on trying, the outcome arriving as events. The longer timeout covers a busy machine
+   */
+  join: (invite: string) => request<JoinGroupResult>('/collaborators/join', { method: 'POST', body: { invite }, timeoutMs: 30_000 }),
   cancelJoin: (groupId: string) => request<unknown>(`/collaborators/join/${enc(groupId)}`, { method: 'DELETE' }),
   joinRequests: (groupId: string, o: ReadOptions = {}) => request<JoinRequest[]>(`/collaborators/groups/${enc(groupId)}/join-requests`, o),
   acceptJoin: (groupId: string, from: string) => request<Group>(`/collaborators/groups/${enc(groupId)}/join-requests/${enc(from)}/accept`, { method: 'POST' }),
@@ -90,14 +92,6 @@ export const collaboratorsApi = {
   sharedTranscript: (ref: SharedRef, chatId: string, o: ReadOptions = {}) => request<SharedTranscriptPage>(`${shared(ref)}/chats/${enc(chatId)}/transcript`, o),
   /** What agents read of the copies, newest first (docs/plans/collaborators-agent-access.md) */
   agentReads: (q: AgentReadQuery, o: ReadOptions = {}) => request<AgentReadList>(agentReadsPath(q), o),
-  /** Where a blob is served; the first open fetches it from the owner, so it may take a while */
-  sharedBlobUrl: (ref: SharedRef, sha256: string) => `${BASE}${shared(ref)}/blobs/${enc(sha256)}`,
-  /** A blob as text (a document's content), with the credential a bare URL cannot carry */
-  sharedBlobText: async (ref: SharedRef, sha256: string, o: ReadOptions = {}): Promise<string> => {
-    const res = await fetch(collaboratorsApi.sharedBlobUrl(ref, sha256), { headers: authHeaders(), signal: o.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
-    return res.text();
-  },
 };
 
 export const collaboratorsKeys = {
@@ -139,13 +133,6 @@ export const useJoinRequests = (groupId: string, enabled = true) =>
 
 export const useSharedProjects = (enabled = true) =>
   useQuery({ queryKey: collaboratorsKeys.shared, queryFn: ({ signal }) => collaboratorsApi.sharedProjects({ signal }), enabled });
-
-export const useProjectSharing = (projectId: string | null) =>
-  useQuery({
-    queryKey: collaboratorsKeys.sharing(projectId ?? ''),
-    queryFn: ({ signal }) => collaboratorsApi.projectSharing(projectId ?? '', { signal }),
-    enabled: Boolean(projectId),
-  });
 
 /**
  * A change to Collaborators: on success every read under `'collaborators'` is read again, since a

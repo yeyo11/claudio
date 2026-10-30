@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-29T12:00:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - guards
     - hooks
@@ -22,7 +22,7 @@ code is used.
 
 | Rule | Default | Switchable | Blocks |
 | --- | --- | --- | --- |
-| `integrity` | on whenever guards are on | no | Anything that would weaken the guard itself: writes to its folder, its settings and rules files, `GIT_EXEC_PATH`, an unknown git verb or alias |
+| `integrity` | on | yes | Anything that would weaken the guard itself: writes to its folder, its settings and rules files, `GIT_EXEC_PATH`, an unknown git verb or alias; and a command line the shell reader cannot parse, nests too deeply or writes to a target it cannot name |
 | `no-verify` | on | yes | Skipping git hooks: `--no-verify`, `-n` on commit, `-c core.hooksPath=…`, the variables that disable hooks, and writes to a hook script |
 | `push` | on | yes | Any `git push`, in any spelling the shell reader recognises (agents never push; see [security-model.md](security-model.md#agents-never-push)) |
 | `destructive` | on | yes | Force push, `git reset --hard`, and recursive deletion outside the worktree. Scratch files go in `$TMPDIR`: each guarded run has its own folder, `<data>/tmp/<id>`, removed when the run ends |
@@ -30,9 +30,15 @@ code is used.
 | `protect-configs` | off | yes | Edits to **existing** lint, format and CI configs, from a list of globs the person can edit |
 | `declared-tools` | on every confined API chat, and only there | no | Any tool, Bash subcommand or path the chat did not declare ([below](#declared-tools-the-confined-api-chat)) |
 
+**With no rule on there is no guard** (D6 of [the regression fixes](plans/regression-fixes-2026-10-29.md)):
+no rules file, no settings file, no hook. `integrity` is a rule like the others: before 0.12 it was
+armed whenever the guard ran, so switching every rule off still blocked lines the shell reader could
+not parse.
+
 A command is read by a shell reader (`packages/core/src/guards/shell.ts`) that follows wrappers,
-`cd`, `env`, `sudo`, `xargs`, `bash -c` and the like. A line it cannot read is blocked, and the
-reason asks for a script file. Every call the rules do not look at passes with exit 0 and no
+`cd`, `env`, `sudo`, `xargs`, `bash -c` and the like. While `integrity` is on, a line it cannot read
+is blocked and the reason asks for a script file; with `integrity` off, the other rules judge what
+they can read of it. Every call the rules do not look at passes with exit 0 and no
 decision, so the CLI's normal permission flow still decides.
 
 ## Where they run
@@ -44,11 +50,13 @@ decision, so the CLI's normal permission flow still decides.
 - **Always, with `integrity` and `declared-tools` only:** every confined API chat (every chat of a
   headless Claudio, every chat in a workspace in any profile), whatever the settings say
   ([security-model.md](security-model.md#the-confined-api-chat)).
-- **Never:** the planner and other read-only internal runs, the other confined runs (the lesson
-  miner, for one) and the assistant (the restricted modes already confine them).
+- **Never:** the planner, the Supervisor and other internal runs, the other confined runs (the
+  lesson miner, for one), a run whose policy can neither run commands nor write files, and the Claudio
+  assistant: its chat and its runs pass `null` outright, so a project that opted its chats in does not
+  reach them (`guardsForChat` takes the run's `policy` and whether it is `confined`).
 
 A graph or a flow stage can switch guards off or switch rules off for its own runs
-(`guards: { enabled?, rules? }`). `integrity` cannot be switched, and a chat's own token cannot
+(`guards: { enabled?, rules? }`), `integrity` included. A chat's own token cannot
 weaken any of these (it gets `403`; see [security-model.md](security-model.md#guards)). The launch form warns that workers
 will run without the guards you switch off.
 
@@ -65,6 +73,25 @@ will run without the guards you switch off.
    `hook_response` events. A `SessionStart` marker proves the guard is armed; a tool call with no
    marker means the guard did not run, and the run is stopped (liveness).
 4. A block is a row in `guard_events`, a line in the transcript, and a signal in the run's health.
+
+**Every process derives its plan again.** A chat's later processes (a respawn after a limit wait or an
+account move, a message queued while the process ended, a message to a chat whose process is gone)
+are not handed a plan by anyone, so `ChatManager.spawnProcess` asks Core for one
+(`guardPlanner`, `Core.guardsAtSpawn`): from the request the chat's last plan was derived from
+(`ChatGuardPlan.request`), with the global settings and the project's settings as they are now, or,
+for a person's chat that ran unguarded, from its project's opt-in. A switch turned off reaches the
+next process of a running chat, not only new chats. A plan a caller hands over (a start, a resume, the
+orchestrator's launches) stands for that spawn.
+
+**The folder is swept.** `startGuardSweep` runs from the `Core` constructor (subsystem `guardSweep`,
+both profiles) and every 6 hours, and stops in `shutdown()`: a rules or settings file older than a
+week that no chat's plan names is removed.
+
+**An interrupt excuses only its own calls.** The CLI answers the calls an interrupt cuts short with
+results of its own, which carry no marker. The stream's guard watcher excuses the calls that were
+awaiting a marker when the interrupt was asked for, or that streamed before the CLI answered it, and
+no other: an interrupt that ended no turn leaves nothing behind that could hide a real
+`guard-missing` later (report §1.7).
 
 The guard fails closed: bad input, oversized input, a tampered or missing rules file, an exception
 and the deadline (3 s) all block. The launch fails when the guard cannot be armed.
@@ -136,7 +163,8 @@ and filters them needs a rule for each part: `Bash(git ls-files *)` as well as `
 in the data directory:
 
 - **Automated runs:** a switch for workers and the flow.
-- **Rules:** one switch per switchable rule; `integrity` shows as a locked "Always on" row.
+- **Rules:** one switch per rule, `integrity` first. The card's tag says "Active" (or "observe")
+  only while a rule is on; with none it says "off" and that no run is guarded.
 - **Mode:** `enforce`, or `observe`, which records "would block" rows and passes, for rolling back
   after a false positive.
 - **Protected files:** the globs `protect-configs` uses, with *Restore defaults*.
@@ -145,8 +173,8 @@ in the data directory:
   recorded (`POST /guards/check`).
 - **Recent blocks:** the last events, each linking to its chat.
 
-A change applies to the **next process Claudio spawns**; a running CLI keeps the hooks it started
-with. The card says so. If `guards.json` is corrupt, the defaults (on) apply and writes are refused.
+A change applies to the **next process Claudio spawns**, a running chat's next process included; a
+running CLI keeps the hooks it started with. The card says so. If `guards.json` is corrupt, the defaults (on) apply and writes are refused.
 
 ## Where they show
 

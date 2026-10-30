@@ -7,8 +7,8 @@ import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { ChatConflictError, Core, loadConfig } from '@claudio/core';
-import type { PermissionRequest } from '@claudio/shared';
+import { ChatConflictError, changeRequestRefusal, Core, loadConfig, OrchestrationPullRequestError } from '@claudio/core';
+import { NotFoundError, type PermissionRequest } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { allowedOrigin } from '../src/origins.ts';
 
@@ -598,7 +598,15 @@ test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps
     throw new Error('prompt is required');
   });
   probe.get('/absent', () => {
-    throw new Error('chat not found');
+    throw new NotFoundError('chat not found');
+  });
+  // The words do not decide the status: a binary the host lacks is not a missing resource
+  probe.get('/worded', () => {
+    throw new Error('the gh binary was not found');
+  });
+  // A refusal a service throws as its own type keeps its code through the route's translation
+  probe.get('/no-pull-request', () => {
+    throw changeRequestRefusal(new OrchestrationPullRequestError('nothing to propose', 'nothing-to-propose'));
   });
   probe.get('/busy', () => {
     throw new ChatConflictError('this chat is running; fork it instead', 'fork');
@@ -616,6 +624,10 @@ test('an unexpected failure is a bare 500 in the log, a deliberate refusal keeps
   assert.equal(refused.statusCode, 400);
   assert.equal(refused.json().error, 'prompt is required');
   assert.equal((await probe.inject('/absent')).statusCode, 404);
+  assert.equal((await probe.inject('/worded')).statusCode, 400);
+  const noPullRequest = await probe.inject('/no-pull-request');
+  assert.equal(noPullRequest.statusCode, 409);
+  assert.deepEqual(noPullRequest.json(), { error: 'nothing to propose', code: 'nothing-to-propose' });
   const busy = await probe.inject('/busy');
   assert.equal(busy.statusCode, 409);
   assert.match(busy.json().error, /fork it instead/);
@@ -702,6 +714,9 @@ test('a burst of readers costs one detection, and the open health route spawns n
   const script = ['#!/bin/sh', `echo "$@" >> '${log}'`, 'case "$1" in', "  --version) echo '9.9.9 (Claude Code)';;", '  auth) echo \'{"loggedIn":true}\';;', 'esac', ''];
   writeFileSync(bin, script.join('\n'), { mode: 0o755 });
   const ran = (args: string) => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter((line) => line.startsWith(args)).length : 0);
+  // A credential, so the CLI's own login is an account whose model list the boot reads
+  mkdirSync(join(root, 'claude-config'), { recursive: true });
+  writeFileSync(join(root, 'claude-config', '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
 
   const probe = new Core(
     loadConfig({

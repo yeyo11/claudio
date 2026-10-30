@@ -201,7 +201,6 @@
   },
   "errors": {
     "save": "No se ha podido guardar el cambio",
-    "move": "No se ha podido mover la tarea",
     "relate": "No se ha podido añadir la relación",
     "comment": "No se ha podido enviar el comentario",
     "create": "No se ha podido crear la tarea",
@@ -339,7 +338,6 @@
     "failedWhy": "No se ha podido abrir la {{noun}}: {{reason}}",
     "keptBadge": "worktree conservado",
     "keptWhy": "Se ha conservado su worktree: tenía cambios sin commit.",
-    "readyBadge": "te espera",
     "approveWhy": "Aprobarla abre su {{noun}} hacia {{base}}.",
     "offerWhy": "Abrir su {{noun}} sube su rama y la propone a {{base}}."
   },

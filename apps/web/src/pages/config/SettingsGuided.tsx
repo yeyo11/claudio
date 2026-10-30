@@ -12,7 +12,6 @@ import {
   GUIDED_KEYS,
   HOOK_EVENTS,
   hookGroups,
-  isObject,
   stringList,
   type HookCommand,
   type HookGroup,
@@ -20,6 +19,7 @@ import {
 } from './settingsModel';
 import { settingsHref } from './settingsGroups';
 import { modeLabel } from '@claudio/chat-ui/lib/wire-words';
+import { isRecord } from '@claudio/shared';
 
 const DEFAULT_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'dontAsk', 'bypassPermissions'] as const;
 
@@ -241,13 +241,13 @@ export function SettingsGuided({
   // Env rows keep their own state so half-typed rows (empty key) are not dropped while editing.
   const [envRows, setEnvRows] = useState<KeyValueRow[]>(() => recordToRows(settings.env));
   const permissions = (path: string) => stringList(getIn(settings, ['permissions', path]));
-  const statusLine = isObject(settings.statusLine) ? settings.statusLine : {};
+  const statusLine = isRecord(settings.statusLine) ? settings.statusLine : {};
   const preserved = Object.keys(settings).filter((key) => !GUIDED_KEYS.has(key));
   const hookCount = HOOK_EVENTS.reduce((n, event) => n + hookGroups(settings, event).reduce((m, g) => m + g.hooks.length, 0), 0);
   const ruleCount = permissions('allow').length + permissions('ask').length + permissions('deny').length;
   const defaultMode = text(getIn(settings, ['permissions', 'defaultMode']));
-  const enabledPlugins = isObject(settings.enabledPlugins) ? Object.entries(settings.enabledPlugins) : [];
-  const marketplaces = isObject(settings.extraKnownMarketplaces) ? Object.keys(settings.extraKnownMarketplaces) : [];
+  const enabledPlugins = isRecord(settings.enabledPlugins) ? Object.entries(settings.enabledPlugins) : [];
+  const marketplaces = isRecord(settings.extraKnownMarketplaces) ? Object.keys(settings.extraKnownMarketplaces) : [];
 
   return (
     <div className="sections">

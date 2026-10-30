@@ -43,6 +43,7 @@ import {
 import type { Orchestrator } from './orchestrator.ts';
 import type { SessionStore } from './sessions.ts';
 import { checklistOf, CHECKLIST_TOOLS, toolCallsOf, touchedFilesOf, WRITING_TOOLS, type ToolCall } from './tool-calls.ts';
+import { NotFoundError } from '@claudio/shared';
 
 /** Where the work of one branch lives and what it is measured against. */
 interface Site {
@@ -164,7 +165,7 @@ async function diffOf(site: Site, path: string, opts: DiffOptions = {}): Promise
     to = await commitOnBranch(at.dir, at.ref, site.base, opts.commit);
     from = await parentOfAsync(at.dir, to);
   } else if (opts.uncommitted) {
-    if (!live) throw new Error(`${rel} not found among the uncommitted changes: the worktree is gone`);
+    if (!live) throw new NotFoundError(`${rel} not found among the uncommitted changes: the worktree is gone`);
     dir = live;
     from = 'HEAD';
   }
@@ -178,7 +179,7 @@ async function diffOf(site: Site, path: string, opts: DiffOptions = {}): Promise
   const paths = known?.previousPath ? [known.previousPath, rel] : [rel];
   const { unified, full } = await unifiedFor(context, () => Promise.all([lineCountAsync(dir, from, paths[0] as string), lineCountAsync(dir, to, rel)]));
   const diff = await fileDiffAsync(dir, from, to, paths, unified);
-  if (!diff) throw new Error(`${rel} not found among the changes against ${from.slice(0, 8)}`);
+  if (!diff) throw new NotFoundError(`${rel} not found among the changes against ${from.slice(0, 8)}`);
   return { path: rel, diff, full };
 }
 
@@ -302,14 +303,14 @@ export class Changes {
 
   private orchestration(id: string): Orchestration {
     const orch = this.deps.orchestrator.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     return orch;
   }
 
   private task(id: string, taskId: string): { orch: Orchestration; task: OrchestrationTaskState } {
     const orch = this.orchestration(id);
     const task = orch.tasks.find((t) => t.id === taskId);
-    if (!task) throw new Error('task not found');
+    if (!task) throw new NotFoundError('task not found');
     return { orch, task };
   }
 

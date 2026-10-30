@@ -6,7 +6,7 @@
  *
  * Label keys are in the `checks` namespace: `t(label)` with `useTranslation('checks')`.
  */
-import type { ChangeRequest, ChangeRequestChecks, Check, CheckState, WorkItemPullRequestCi } from '@claudio/shared';
+import type { ChangeRequest, ChangeRequestChecks, Check, CheckState } from '@claudio/shared';
 
 /** The groups of the list, in the order the prototype draws them. */
 export type CheckGroupId = 'failed' | 'running' | 'passed' | 'skipped';
@@ -112,11 +112,6 @@ export function clockOf(ms: number): string {
   return h > 0 ? `${h}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`;
 }
 
-/** The rollup the section is drawn for: the list's own when it has checks, else the watcher's. */
-export function sectionRollup(checks: ChangeRequestChecks | undefined, cr: Pick<ChangeRequest, 'ci'> | undefined): WorkItemPullRequestCi {
-  return checks?.rollup ?? cr?.ci ?? 'none';
-}
-
 /** The section's actions for a list of checks; each one is offered only when it can do something. */
 export interface ChecksActions {
   rerunFailed: boolean;
@@ -155,11 +150,6 @@ export function fixStage(cr: { fixState?: ChangeRequest['fixState'] } | undefine
     default:
       return null;
   }
-}
-
-/** Attempts a decision may still make for this head; the dialog says how many are left. */
-export function attemptsLeft(attempts: number, max: number): number {
-  return Math.max(0, max - attempts);
 }
 
 /** The `Check` to run by hand: a GitLab manual job has its own action, not a re-run. */

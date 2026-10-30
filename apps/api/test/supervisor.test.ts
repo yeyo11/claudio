@@ -65,25 +65,25 @@ test('the deprecated settings are a view of the supervisor.intervene point, and 
   const read = await app.inject({ method: 'GET', url: '/api/settings/supervisor' });
   assert.equal(read.statusCode, 200);
   // Off by default, with the decision engine's CLI model and cap
-  assert.deepEqual(read.json(), { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.02 });
+  assert.deepEqual(read.json(), { enabled: false, model: 'haiku', autoSend: false, maxCostUsd: 0.25 });
 
   const put = async (body: unknown) => app.inject({ method: 'PUT', url: '/api/settings/supervisor', payload: body as object });
   const shadow = await put({ enabled: true, model: 'opus', autoSend: false, maxCostUsd: 3 });
   assert.equal(shadow.statusCode, 200);
-  assert.deepEqual(shadow.json(), { enabled: true, model: 'haiku', autoSend: false, maxCostUsd: 0.02 }, 'the model and the cap are ignored');
+  assert.deepEqual(shadow.json(), { enabled: true, model: 'haiku', autoSend: false, maxCostUsd: 0.25 }, 'the model and the cap are ignored');
   assert.equal(pointMode(), 'shadow');
-  assert.deepEqual(core.decisionSettings.get().cli, { model: 'haiku', effort: 'low', maxCostUsd: 0.02 });
+  assert.deepEqual(core.decisionSettings.get().cli, { model: 'haiku', effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: 0.25 });
 
   assert.equal((await put({ enabled: true, autoSend: true })).statusCode, 200);
   assert.equal(pointMode(), 'active');
-  assert.deepEqual(await view(), { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.02 });
+  assert.deepEqual(await view(), { enabled: true, model: 'haiku', autoSend: true, maxCostUsd: 0.25 });
 
   // The engine's settings are what the view reads back
   const settings = (await app.inject({ url: '/api/decisions/settings' })).json<DecisionSettings>();
   const { jev: _jev, ...stored } = settings;
-  const updated = await app.inject({ method: 'PUT', url: '/api/decisions/settings', payload: { ...stored, cli: { ...stored.cli, model: 'sonnet', maxCostUsd: 0.04 }, points: { 'supervisor.intervene': { mode: 'shadow' } } } });
+  const updated = await app.inject({ method: 'PUT', url: '/api/decisions/settings', payload: { ...stored, cli: { ...stored.cli, model: 'sonnet', maxCostUsd: 0.04, supervisorMaxCostUsd: 0.5 }, points: { 'supervisor.intervene': { mode: 'shadow' } } } });
   assert.equal(updated.statusCode, 200);
-  assert.deepEqual(await view(), { enabled: true, model: 'sonnet', autoSend: false, maxCostUsd: 0.04 });
+  assert.deepEqual(await view(), { enabled: true, model: 'sonnet', autoSend: false, maxCostUsd: 0.5 });
 
   const bad = await put({ enabled: 'yes' });
   assert.equal(bad.statusCode, 400);

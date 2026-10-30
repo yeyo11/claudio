@@ -70,6 +70,12 @@ export interface ProviderDriver {
   sessionHolders(sessionId: string): number[];
   liveSessions(): Array<{ pid: number; sessionId: string }>;
 
+  /**
+   * Whether a session of this agent reads back every message it takes, as its init describes it:
+   * true or false when the version says, null when it cannot be told from the init. A driver that
+   * leaves it out is found out at the first result.
+   */
+  readsBack?(init: SessionInit): boolean | null;
   /** What a session's first event confirms for the installed version */
   confirm(init: SessionInit): CapabilityConfirmation;
 }
@@ -179,10 +185,28 @@ export interface UserTurn {
   read?: (uploadId: string) => Buffer;
 }
 
+/** What the agent said when it took an interrupt. */
+export interface InterruptReceipt {
+  /**
+   * The ids of Claudio's messages still in the agent's queue after the interrupt, which it reads
+   * next: any message written before the interrupt that is neither here nor read back already was
+   * dropped. Null when the agent does not say.
+   */
+  stillQueued: string[] | null;
+}
+
 export interface DriverSession {
   /** Sends a turn; returns the text the agent received as the user's, for the transcript */
   send(turn: UserTurn): string;
-  interrupt(): Promise<void>;
+  interrupt(): Promise<InterruptReceipt>;
+  /**
+   * Sends one call the turn waits on (a foreground agent or command) to the background: the call
+   * returns at once, the turn goes on, and the work keeps running. False when the agent has no such
+   * call under that id. A driver whose agent cannot leaves it out.
+   */
+  backgroundCall?(toolUseId: string): Promise<boolean>;
+  /** Withdraws a message from the agent's queue before it reads it; false once the agent has taken it. A driver whose agent cannot leaves it out. */
+  cancelMessage?(id: string): Promise<boolean>;
   setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void>;
   /** The MCP servers the process has, as it reports them now; a driver that cannot say leaves it out */
   mcpStatus?(): Promise<LiveMcpServer[]>;
@@ -196,6 +220,11 @@ export interface DriverSession {
    * the agent added, removed and refused, by name.
    */
   mcpSetServers?(servers: Record<string, Record<string, unknown>>): Promise<McpSetServersResult>;
+  /**
+   * Merges settings into the process's session-scoped flag layer (Claude Code's `apply_flag_settings`),
+   * the layer `--settings` fills: how a live process gets permission rules it was not started with
+   */
+  applyFlagSettings?(settings: Record<string, unknown>): Promise<void>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
   /** One line of stdout */
   readLine(line: string): void;

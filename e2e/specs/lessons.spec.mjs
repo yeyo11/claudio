@@ -10,6 +10,7 @@
 // environment, so the chat is stopped through the API, which also ends its run.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { seedProject } from './memory-seed.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 240_000;
@@ -21,7 +22,6 @@ const QUOTE = 'no, usa pnpm siempre';
 const TRIGGER = 'When installing dependencies in this project';
 const ACTION = 'Use `pnpm` and never npm.';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 30_000) {
   const end = Date.now() + limit;
@@ -127,7 +127,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     chatIds.push(next.body.id);
     const logged = await until(async () => {
       const lines = readFileSync(fake.log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
-      return lines.reverse().find((e) => e.event === 'started' && e.argv.includes('--append-system-prompt'));
+      // The chat's own process, by the session id Claudio imposes on it: another chat starting meanwhile (an assistant's, a housekeeping run) is not it
+      return lines.reverse().find((e) => e.event === 'started' && e.argv.includes('--session-id') && e.argv[e.argv.indexOf('--session-id') + 1] === next.body.id && e.argv.includes('--append-system-prompt'));
     }, 'the new chat started with a system prompt addition');
     const appended = logged.argv[logged.argv.indexOf('--append-system-prompt') + 1] ?? '';
     check(appended.includes('## Lessons') && appended.includes('pnpm'), `the new chat is handed the Lessons section (${appended.slice(0, 120)})`);

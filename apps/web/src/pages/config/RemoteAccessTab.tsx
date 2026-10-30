@@ -5,12 +5,12 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
-import { Switch } from '@claudio/ui/components/controls';
+import { NumberInput, Switch } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { QrCode } from '../../components/QrCode';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
@@ -32,6 +32,9 @@ export const TUNNEL_TONE: Record<TunnelState, 'ok' | 'warn' | 'bad' | 'idle'> = 
   failed: 'bad',
   stopped: 'idle',
 };
+
+/** The ports the server's setting accepts (`MIN_TUNNEL_PORT`, `MAX_TUNNEL_PORT` in core's tunnel.ts) */
+export const TUNNEL_PORT_RANGE = { min: 1024, max: 65535 } as const;
 
 /** Whether the tunnel is open or on its way: what a Stop button can act on. */
 export const tunnelBusy = (state: TunnelState) => state === 'starting' || state === 'verifying' || state === 'active';
@@ -93,6 +96,15 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
     onSuccess: onStatus,
     onError: (err) => toast.error(t('remote.saveFailed'), err),
   });
+  // "Use the next free port": the port goes into the settings, then the tunnel opens on it
+  const movePort = useMutation({
+    mutationFn: async (port: number) => {
+      onStatus(await api.updateTunnelSettings({ port }));
+      return api.startTunnel();
+    },
+    onSuccess: onStatus,
+    onError: (err) => toast.error(t('remote.startFailed'), err),
+  });
 
   async function close() {
     // Closing the tunnel this page came through leaves it talking to an address that is gone
@@ -111,11 +123,12 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
       <TunnelPanel
         status={status}
         authMode={authMode}
-        pending={start.isPending || stop.isPending}
+        pending={start.isPending || stop.isPending || movePort.isPending}
         checking={checking}
         onStart={() => start.mutate()}
         onStop={() => void close()}
         onRecheck={() => void queryClient.invalidateQueries({ queryKey: keys.tunnel })}
+        onUsePort={(port) => movePort.mutate(port)}
       />
       {status.enabled && status.tailscale.state === 'ready' && (
         <div className="settings-block">
@@ -130,6 +143,8 @@ function TunnelCard({ status, authMode }: { status: TunnelStatus; authMode: Auth
             <p className="small muted">{t('remote.startWith.hint')}</p>
             <ServerSettingChange id="remote.tunnel" label={t('remote.startWith.label')} invalidate={[keys.tunnel]} />
           </div>
+          {/* Keyed by the port, so a port the server moved (the next free one, another page) replaces the draft */}
+          <TunnelPortSetting key={status.port} status={status} onStatus={onStatus} />
         </div>
       )}
       <p className="small muted">{t('remote.footnote')}</p>
@@ -153,6 +168,7 @@ export function TunnelPanel({
   onStart,
   onStop,
   onRecheck = () => {},
+  onUsePort,
 }: {
   status: TunnelStatus;
   authMode: AuthMode;
@@ -164,10 +180,13 @@ export function TunnelPanel({
   onStart: () => void;
   onStop: () => void;
   onRecheck?: () => void;
+  /** Moves the tunnel to the port given and opens it there: "Use the next free port" */
+  onUsePort?: (port: number) => void;
 }) {
   const { t } = useTranslation('config');
   const { state } = status;
   const guarded = authMode !== 'none';
+  const nextFree = status.portTaken?.nextFree ?? null;
 
   if (closedHere) {
     return (
@@ -244,6 +263,20 @@ export function TunnelPanel({
           <div className="alert-body">
             <strong>{t('remote.failedTitle')}</strong>
             <div className="small">{localized(status.reason)}</div>
+            {status.portTaken && (
+              <>
+                <div className="small" data-testid="tunnel-port-holder">
+                  {t('remote.portTaken.holder')} <code className="mono break">{status.portTaken.holder}</code>
+                </div>
+                {guarded && onUsePort && nextFree !== null && status.portSource !== 'env' && (
+                  <div className="form-actions">
+                    <button type="button" className="btn btn-small" disabled={pending} onClick={() => onUsePort(nextFree)} data-testid="tunnel-use-next-port">
+                      {t('remote.portTaken.useNext', { port: nextFree })}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -276,6 +309,50 @@ export function TunnelPanel({
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * The port of Claudio's Serve rule. It changes only while the tunnel is closed or failed: the rule on
+ * the old port is taken away by closing first. Where `CLAUDIO_TUNNEL_PORT` sets it, it is shown and
+ * never sent.
+ */
+export function TunnelPortSetting({ status, onStatus }: { status: TunnelStatus; onStatus: (next: TunnelStatus) => void }) {
+  const { t } = useTranslation('config');
+  const toast = useToast();
+  const [draft, setDraft] = useState<number | undefined>(status.port);
+  const save = useMutation({
+    mutationFn: (port: number) => api.updateTunnelSettings({ port }),
+    onSuccess: (next) => {
+      onStatus(next);
+      setDraft(next.port);
+    },
+    onError: (err) => toast.error(t('remote.port.saveFailed'), err),
+  });
+  const fromEnv = status.portSource === 'env';
+  const open = tunnelBusy(status.state) || status.state === 'stopping';
+  const valid = draft !== undefined && Number.isInteger(draft) && draft >= TUNNEL_PORT_RANGE.min && draft <= TUNNEL_PORT_RANGE.max;
+  const hint = fromEnv ? t('remote.port.fromEnv', { variable: 'CLAUDIO_TUNNEL_PORT' }) : open ? t('remote.port.whileOpen') : t('remote.port.hint');
+  return (
+    <form
+      className="setting-change-row"
+      data-testid="tunnel-port"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (valid) save.mutate(draft);
+      }}
+    >
+      <Field label={t('remote.port.label')} hint={hint}>
+        <NumberInput aria-label={t('remote.port.label')} value={draft} onChange={setDraft} min={TUNNEL_PORT_RANGE.min} max={TUNNEL_PORT_RANGE.max} disabled={fromEnv || open || save.isPending} compact />
+      </Field>
+      {!fromEnv && !open && (
+        <div className="form-actions">
+          <button type="submit" className="btn btn-small" disabled={!valid || draft === status.port || save.isPending}>
+            {t('remote.port.save')}
+          </button>
+        </div>
+      )}
+    </form>
   );
 }
 

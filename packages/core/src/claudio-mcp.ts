@@ -121,8 +121,13 @@ function serverEntry(opts: ClaudioMcpOptions, toolsets: readonly ClaudioMcpTools
   };
 }
 
-/** The tools allowed ahead of time: every read, never a write, which the person confirms one by one */
-function allowedFor(toolsets: readonly ClaudioMcpToolset[]): string[] {
+/**
+ * The tools allowed ahead of time wherever the server runs: every read of each toolset it offers,
+ * never a write, which the person confirms one by one. The same rule for the assistant's file, a
+ * chat's joined file and a live push (docs/plans/regression-fixes-2026-10-29.md, C6): without it a
+ * read in a chat whose prompts go nowhere, or under `dontAsk`, is denied.
+ */
+export function allowedFor(toolsets: readonly ClaudioMcpToolset[]): string[] {
   return [...(toolsets.includes('claudio') ? CLAUDIO_MCP_READ_TOOLS : []), ...(toolsets.includes('collab') ? CLAUDIO_MCP_COLLAB_TOOLS : [])];
 }
 
@@ -135,7 +140,7 @@ export interface CollabMcpLaunch {
    * none. When it chose some, the file is theirs and the server together, and stays strict.
    */
   adds: boolean;
-  /** The collab read tools, allowed ahead of time on top of the chat's own list */
+  /** The read tools of its toolsets, allowed ahead of time on top of the chat's own list */
   allowedTools: string[];
 }
 
@@ -143,7 +148,7 @@ export interface CollabMcpLaunch {
  * Claudio's MCP server for a chat that is not the assistant, joined to the file of the servers it
  * chose. By default it offers only the reads of teammates' copies, for a chat of a project that
  * opted in (docs/plans/collaborators-agent-access.md); `toolsets` adds `claudio` when the person
- * switched Claudio's server on for the chat. The caller decided the chat's scope allows the reads;
+ * switched Claudio's server on for the chat, whose reads are then allowed ahead of time too. The caller decided the chat's scope allows the reads;
  * the API decides again at every call. `chosen` is the config file of the servers the chat picked,
  * if any: one `--mcp-config` file is all the CLI is ever given, so the server joins that file.
  */
@@ -159,8 +164,8 @@ export function collabMcpSync(opts: ClaudioMcpOptions, chosen: string | null): C
   }
   // Ours under its own name, over any server of the person's that took it: the tools' names say `claudio`
   servers[CLAUDIO_MCP_SERVER] = entry;
-  // Only the collab reads are allowed ahead of time: the rest of Claudio's tools ask as the chat's mode says
-  return { mcpConfig: writeMcpConfigSync(opts.dataDir, servers), adds: chosen === null, allowedTools: toolsets.includes('collab') ? [...CLAUDIO_MCP_COLLAB_TOOLS] : [] };
+  // The reads are allowed ahead of time; the writes ask as the chat's mode says
+  return { mcpConfig: writeMcpConfigSync(opts.dataDir, servers), adds: chosen === null, allowedTools: allowedFor(toolsets) };
 }
 
 /**

@@ -12,6 +12,7 @@ import { PROJECT_TEMPLATES } from '../src/project-templates.ts';
 import { agentFileContent } from '../src/team.ts';
 import { itemWorktree } from '../src/work-links.ts';
 import { tempConfig } from './helpers.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // The flow through the real core and the fake CLI (test/fixtures/fake-claude.mjs): each run is a
 // real process given the real flags, logged by the fake, which is how what a run may do, and what a
@@ -20,7 +21,6 @@ import { tempConfig } from './helpers.ts';
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
 // Automated work starts only on a provider that proved it is signed in
 process.env.FAKE_CLAUDE_LOGGED_IN = '1';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-flow-cli-'));
@@ -136,7 +136,8 @@ test('a run a restart cut off continues in its own chat; with no chat to continu
     // running: counted later, the cut run's own first spawn would read as a fresh chat after the restart
     await until(() => spawnsOf(spawns).some((l) => l.includes(chatId)), (seen) => seen, 'the cut run to log its spawn');
   } finally {
-    core.shutdown();
+    // Resolved once the stopped chat's last state is written and the database closed: only then is the row the test deletes gone for good
+    await core.shutdown();
   }
   // The chat's record is lost (trimmed, or removed), so nothing can continue it
   const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));

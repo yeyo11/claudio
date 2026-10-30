@@ -2,17 +2,15 @@
 // guided editor does not know about.
 
 import i18n from '../../i18n';
+import { isRecord } from '@claudio/shared';
 
 export type Json = Record<string, unknown>;
 
-export function isObject(value: unknown): value is Json {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export function parseObject(text: string): { value: Json | null; error: string | null } {
   try {
     const value: unknown = JSON.parse(text.trim() || '{}');
-    if (!isObject(value)) return { value: null, error: i18n.t('config:settings.notObject') };
+    if (!isRecord(value)) return { value: null, error: i18n.t('config:settings.notObject') };
     return { value, error: null };
   } catch (err) {
     return { value: null, error: (err as Error).message };
@@ -22,7 +20,7 @@ export function parseObject(text: string): { value: Json | null; error: string |
 export function getIn(root: unknown, path: string[]): unknown {
   let current = root;
   for (const key of path) {
-    if (!isObject(current)) return undefined;
+    if (!isRecord(current)) return undefined;
     current = current[key];
   }
   return current;
@@ -31,7 +29,7 @@ export function getIn(root: unknown, path: string[]): unknown {
 function isEmpty(value: unknown): boolean {
   if (value === undefined || value === null || value === '') return true;
   if (Array.isArray(value)) return value.length === 0;
-  return isObject(value) && Object.keys(value).length === 0;
+  return isRecord(value) && Object.keys(value).length === 0;
 }
 
 /**
@@ -47,7 +45,7 @@ export function setIn(root: Json, path: string[], value: unknown): Json {
     else next[head] = value;
     return next;
   }
-  const child = setIn(isObject(root[head]) ? root[head] : {}, rest, value);
+  const child = setIn(isRecord(root[head]) ? root[head] : {}, rest, value);
   if (Object.keys(child).length === 0) delete next[head];
   else next[head] = child;
   return next;
@@ -99,9 +97,9 @@ export interface HookGroup {
 export function hookGroups(settings: Json, event: string): HookGroup[] {
   const raw = getIn(settings, ['hooks', event]);
   if (!Array.isArray(raw)) return [];
-  return raw.filter(isObject).map((group) => ({
+  return raw.filter(isRecord).map((group) => ({
     ...group,
-    hooks: Array.isArray(group.hooks) ? (group.hooks.filter(isObject) as HookCommand[]) : [],
+    hooks: Array.isArray(group.hooks) ? (group.hooks.filter(isRecord) as HookCommand[]) : [],
   })) as HookGroup[];
 }
 

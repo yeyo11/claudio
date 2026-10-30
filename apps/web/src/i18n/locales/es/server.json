@@ -91,14 +91,17 @@
     "magicDnsOff": "MagicDNS está desactivado en esta tailnet. Actívalo en la página DNS de la consola de administración de Tailscale y vuelve a intentarlo.",
     "httpsOff": "Los certificados HTTPS están desactivados en esta tailnet. Actívalos en la página DNS de la consola de administración de Tailscale y vuelve a intentarlo.",
     "servePermission": "Tailscale no ha permitido a este usuario cambiar los ajustes de Serve de esta máquina. Ejecuta sudo tailscale set --operator=$USER una vez y vuelve a intentarlo.",
-    "portTaken": "El puerto {{port}} del nombre de esta máquina en la tailnet ya sirve otra cosa, y Claudio no lo toca. Libéralo o elige otro puerto con CLAUDIO_TUNNEL_PORT.",
+    "portTaken": "El puerto {{port}} del nombre de esta máquina en la tailnet ya sirve {{holder}}, y Claudio no lo toca. Elige otro puerto para el túnel o libera este.",
     "serveFailed": "tailscale serve no ha aceptado la regla: {{detail}}",
     "unverified": "La regla de Serve se ha enviado, pero la configuración de Serve de esta máquina no muestra que apunte a Claudio.",
     "tailscaleNotAnswering": "Tailscale no responde. El túnel conserva su regla y vuelve a comprobar.",
     "ruleRemoved": "La regla de Serve de Claudio se ha quitado o cambiado fuera de Claudio, así que el túnel está cerrado.",
     "managedDaemonDown": "El servicio de Tailscale que este contenedor arranca para Claudio no responde. Reinicia el contenedor; su registro es tailscaled.log, en la carpeta tailscale del volumen de datos.",
     "managedLoggedOut": "El Tailscale de este Claudio no tiene la sesión iniciada en ninguna tailnet. Inicia sesión desde Ajustes → Acceso y seguridad → Acceso remoto.",
-    "managedNotConnected": "El Tailscale de este Claudio no está conectado ({{state}}). Vuelve a iniciar sesión desde Ajustes → Acceso y seguridad → Acceso remoto."
+    "managedNotConnected": "El Tailscale de este Claudio no está conectado ({{state}}). Vuelve a iniciar sesión desde Ajustes → Acceso y seguridad → Acceso remoto.",
+    "serveStatusFailed": "tailscale serve status no ha devuelto la configuración de Serve: {{detail}}",
+    "portFromEnv": "El puerto del túnel lo fija CLAUDIO_TUNNEL_PORT donde se ejecuta Claudio, así que no se puede cambiar aquí.",
+    "portWhileRunning": "Cierra el túnel antes de cambiar su puerto: primero se quita la regla del puerto actual."
   },
   "collaborators": {
     "sync": {

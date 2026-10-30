@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { normalizeMessage } from '@claudio/shared';
 import { Db } from '../src/db.ts';
@@ -23,6 +23,20 @@ test('names and types are what the bytes say, and nothing escapes the upload fol
   // SVG is not an image Claude can see; it travels as a file
   assert.equal(store.save('logo.svg', Buffer.from('<svg/>')).kind, 'file');
   assert.throws(() => store.get('../meta'), /not found/);
+});
+
+test('a file named meta.json keeps its bytes and its metadata apart', () => {
+  const store = new UploadStore(tempConfig().dataDir);
+  const bytes = Buffer.from('{"mine": true}');
+  const saved = store.save('meta.json', bytes);
+  assert.equal(basename(saved.path), 'payload.json');
+  const { attachment, bytes: read } = store.read(saved.id);
+  assert.equal(attachment.name, 'meta.json');
+  assert.equal(attachment.sizeBytes, bytes.length);
+  assert.deepEqual(read, bytes);
+  // No usable extension leaves the payload bare, never anything the name chose
+  assert.equal(basename(store.save('notes', Buffer.from('x')).path), 'payload');
+  assert.equal(basename(store.save('a.tar.gz', Buffer.from('x')).path), 'payload.gz');
 });
 
 test('transcript image and document blocks keep what they are and drop the bytes', () => {

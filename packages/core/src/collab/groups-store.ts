@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COLLABORATORS_KINDS, type CollaboratorsKind, type EndpointId, type RosterVersion } from '@claudio/shared';
+import { COLLABORATORS_KINDS, isRecord, type CollaboratorsKind, type EndpointId, type RosterVersion } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { CoreConfig } from '../paths.ts';
 import { isEndpointId } from './roster.ts';
@@ -43,7 +43,6 @@ const GROUP_ID = /^[0-9a-f]{64}$/;
 
 export const isGroupId = (value: unknown): value is string => typeof value === 'string' && GROUP_ID.test(value);
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const isKind = (value: string): value is CollaboratorsKind => (COLLABORATORS_KINDS as readonly string[]).includes(value);
 
 /** Own-property maps only: share keys and ids come from peers, and `__proto__` must stay a key. */
@@ -53,11 +52,11 @@ const emptyCursors = (): ShareCursors => ({ kinds: {}, transcripts: map() });
 
 function sanitizeCursors(value: unknown): ShareCursors {
   const out = emptyCursors();
-  if (!isObject(value)) return out;
-  if (isObject(value.kinds)) {
+  if (!isRecord(value)) return out;
+  if (isRecord(value.kinds)) {
     for (const [kind, cursor] of Object.entries(value.kinds)) if (isKind(kind) && typeof cursor === 'string') out.kinds[kind] = cursor;
   }
-  if (isObject(value.transcripts)) {
+  if (isRecord(value.transcripts)) {
     for (const [session, offset] of Object.entries(value.transcripts)) {
       if (typeof offset === 'number' && Number.isSafeInteger(offset) && offset >= 0) out.transcripts[session] = offset;
     }
@@ -67,19 +66,19 @@ function sanitizeCursors(value: unknown): ShareCursors {
 
 /** What a stored file is worth: a part that does not have its shape is dropped, the rest kept. */
 function sanitize(groupId: string, value: unknown): GroupDoc {
-  const raw = isObject(value) ? value : {};
+  const raw = isRecord(value) ? value : {};
   const links = map<string>();
-  if (isObject(raw.links)) for (const [key, projectId] of Object.entries(raw.links)) if (typeof projectId === 'string') links[key] = projectId;
+  if (isRecord(raw.links)) for (const [key, projectId] of Object.entries(raw.links)) if (typeof projectId === 'string') links[key] = projectId;
   const cursors = map<Record<string, ShareCursors>>();
-  if (isObject(raw.cursors)) {
+  if (isRecord(raw.cursors)) {
     for (const [owner, byKey] of Object.entries(raw.cursors)) {
-      if (!isObject(byKey)) continue;
+      if (!isRecord(byKey)) continue;
       const shares = map<ShareCursors>();
       for (const [key, c] of Object.entries(byKey)) shares[key] = sanitizeCursors(c);
       cursors[owner] = shares;
     }
   }
-  const chain = Array.isArray(raw.chain) ? (raw.chain.filter(isObject) as unknown as RosterVersion[]) : [];
+  const chain = Array.isArray(raw.chain) ? (raw.chain.filter(isRecord) as unknown as RosterVersion[]) : [];
   const heldAs = isEndpointId(raw.heldAs) ? raw.heldAs : null;
   return { groupId, chain, links, cursors, heldAs };
 }

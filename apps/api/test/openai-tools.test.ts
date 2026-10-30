@@ -9,6 +9,7 @@ import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
+import { signInDefault } from './helpers.ts';
 
 // Client tools on /v1/chat/completions (docs/openai-compatible-api.md, phase 4): over a real core,
 // the real routes and the stub MCP server, and a fake CLI that loads the stub from `--mcp-config`,
@@ -28,6 +29,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-tools-'));
   log = join(root, 'prompts.jsonl');
   process.env.FAKE_OPENAI_PROMPTS = log;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,

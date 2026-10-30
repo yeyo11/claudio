@@ -184,9 +184,9 @@ export default async ({ page, api, check, dirs }) => {
       .then(() => true, () => false);
     if (hasRow) {
       await page.click('.guard-row .btn', 'Rules', 700);
-      await page.waitFor(`return !!document.querySelector('[role=dialog] .guard-rule.is-locked')`, { label: 'the rules Sheet' });
-      const sheet = await page.eval(`const d = document.querySelector('[role=dialog]'); const sw = [...d.querySelectorAll('[role=switch]')]; return { locked: d.querySelector('.guard-rule.is-locked')?.textContent.includes('Always on') ?? false, switches: sw.length, small: sw.filter((s) => s.getBoundingClientRect().height < 44 && s.parentElement.getBoundingClientRect().height < 44).length }`);
-      check(sheet.locked && sheet.switches >= 5 && sheet.small === 0, `the rules Sheet lists integrity as always on and the switches (${JSON.stringify(sheet)})`);
+      await page.waitFor(`return !!document.querySelector('[role=dialog] .guard-rule')`, { label: 'the rules Sheet' });
+      const sheet = await page.eval(`const d = document.querySelector('[role=dialog]'); const sw = [...d.querySelectorAll('[role=switch]')]; return { integrity: [...d.querySelectorAll('.guard-rule')].some((r) => r.querySelector('.guard-rule-id')?.textContent === 'integrity' && !!r.querySelector('[role=switch]')), switches: sw.length, small: sw.filter((s) => s.getBoundingClientRect().height < 44 && s.parentElement.getBoundingClientRect().height < 44).length }`);
+      check(sheet.integrity && sheet.switches >= 6 && sheet.small === 0, `the rules Sheet gives integrity a switch like every rule (${JSON.stringify(sheet)})`);
       await page.key('Escape');
     } else check(false, 'the launch form has no Guards row');
   } finally {

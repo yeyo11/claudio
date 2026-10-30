@@ -2,8 +2,8 @@ import type { AccountCredits, AccountCliUsage, RateLimitWindow, ScopedRateLimit 
 import Anthropic from '@anthropic-ai/sdk';
 import { controlRequest, type ControlOptions } from './control.ts';
 import { DEFAULT_ID, readSecret, type AccountRef } from './env.ts';
-import { isRecord } from './fs.ts';
 import type { Reading } from './usage.ts';
+import { isRecord } from '@claudio/shared';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);

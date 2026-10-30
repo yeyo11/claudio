@@ -1,4 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { readFile, readdir, readlink } from 'node:fs/promises';
+import { join } from 'node:path';
 
 export interface CliProcess {
   pid: number;
@@ -86,28 +88,77 @@ export function claudioChildren(): Array<{ pid: number; chatId: string; argv: st
  */
 export const AGENT_RUN_ENV = 'CLAUDIO_AGENT_RUN';
 
+/** One CLI process as its own record says, the shape `claude agents --json` lists. */
+export interface CliSessionRecord {
+  pid: number;
+  cwd: string;
+  kind: string;
+  startedAt: number;
+  sessionId: string;
+  name: string;
+  status: string;
+  state?: string;
+}
+
 /**
- * Pids of the processes that carry {@link AGENT_RUN_ENV}. A process whose environment cannot be read
- * (another user's) is not listed; neither is a chat's CLI, which {@link claudioChildren} finds.
+ * The CLI's processes, from the record each one writes for itself under `<configDir>/sessions/`
+ * (`<pid>.json`: its session, folder, kind and status), each checked against `/proc`: a record is
+ * kept only while its pid still runs the process that wrote it, the start time it recorded
+ * (`procStart`) being the one the kernel has, in the same pid namespace (`pidDomain`). This is what
+ * `claude agents --json` reads, without starting a CLI to read it. Null where it cannot be read this
+ * way (no `/proc`, or a CLI that keeps no such folder): the caller asks the CLI instead.
  */
-export function agentRunProcesses(): number[] {
+export async function cliSessionRecords(configDir: string): Promise<CliSessionRecord[] | null> {
+  const dir = join(configDir, 'sessions');
   let names: string[];
+  let domain: string | null;
   try {
-    names = readdirSync('/proc');
+    [names, domain] = await Promise.all([readdir(dir), pidDomain()]);
   } catch {
-    return [];
+    return null;
   }
-  const found: number[] = [];
-  for (const name of names) {
-    if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
-    try {
-      const environ = readFileSync(`/proc/${name}/environ`, 'utf8').split('\0');
-      if (environ.some((entry) => entry.startsWith(`${AGENT_RUN_ENV}=`))) found.push(Number(name));
-    } catch {
-      // gone, or not ours to read
-    }
+  if (domain === null) return null;
+  const found = await Promise.all(
+    names
+      .filter((name) => /^\d+\.json$/.test(name))
+      .map(async (name): Promise<CliSessionRecord | null> => {
+        try {
+          const record = JSON.parse(await readFile(join(dir, name), 'utf8')) as Record<string, unknown>;
+          const pid = Number(record.pid);
+          if (!Number.isInteger(pid) || pid <= 0 || typeof record.sessionId !== 'string') return null;
+          // Written in another container or on another machine sharing the folder: not a pid of ours to check
+          if (typeof record.pidDomain === 'string' && record.pidDomain !== domain) return null;
+          const stat = await readFile(`/proc/${String(pid)}/stat`, 'utf8');
+          const started = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+          // A pid the system reused since the CLI that wrote this exited without removing it
+          if (record.procStart !== undefined && String(record.procStart) !== started) return null;
+          return {
+            pid,
+            cwd: typeof record.cwd === 'string' ? record.cwd : '',
+            kind: typeof record.kind === 'string' ? record.kind : 'unknown',
+            startedAt: Number(record.startedAt ?? 0),
+            sessionId: record.sessionId,
+            name: typeof record.name === 'string' ? record.name : '',
+            status: typeof record.status === 'string' ? record.status : 'unknown',
+            ...(typeof record.state === 'string' ? { state: record.state } : {}),
+          };
+        } catch {
+          // Gone between the listing and the read, half-written, or its process is not there any more
+          return null;
+        }
+      }),
+  );
+  return found.filter((r): r is CliSessionRecord => r !== null);
+}
+
+/** This process's pid namespace as the CLI names it in `pidDomain`; null where `/proc` cannot say. */
+async function pidDomain(): Promise<string | null> {
+  try {
+    const [machine, namespace] = await Promise.all([readFile('/etc/machine-id', 'utf8'), readlink('/proc/self/ns/pid')]);
+    return `linux:${machine.trim()}:${namespace}`;
+  } catch {
+    return null;
   }
-  return found;
 }
 
 /** How long a read of the process table serves the lists: it is a file per process, and one request assembles many chats. */
@@ -238,7 +289,12 @@ export function bootTimeMs(): number | null {
 /** Every descendant of `root` (not `root` itself), children before their parents. */
 export function descendantsOf(table: readonly ProcessEntry[], root: number): ProcessEntry[] {
   const children = new Map<number, ProcessEntry[]>();
-  for (const entry of table) children.set(entry.ppid, [...(children.get(entry.ppid) ?? []), entry]);
+  // Grown in place: copying a parent's list on every child made a table of a few thousand processes quadratic
+  for (const entry of table) {
+    const siblings = children.get(entry.ppid);
+    if (siblings) siblings.push(entry);
+    else children.set(entry.ppid, [entry]);
+  }
   const out: ProcessEntry[] = [];
   const seen = new Set([root]);
   const walk = (pid: number) => {

@@ -1226,7 +1226,6 @@
   min-width: 0;
 }
 
-
 .insp-head {
   display: flex;
   align-items: center;
@@ -1998,17 +1997,6 @@ a.attachment-chip:hover {
   margin: 0 0 8px;
 }
 
-.attach-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.attach-row .attachments-pending {
-  margin: 0;
-}
-
 .composer-attach {
   align-self: flex-end;
   flex-shrink: 0;
@@ -2163,6 +2151,7 @@ a.attachment-chip:hover {
 
 .chat-queued-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -2170,7 +2159,20 @@ a.attachment-chip:hover {
 
 .chat-queued-foot > .small {
   flex: 1;
+  min-width: min(100%, 16rem);
+}
+
+/* Held behind a foreground call: send it to the background, or end the turn with it */
+.chat-queued-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   min-width: 0;
+}
+
+/* A notice Claudio or its Supervisor wrote: who it is from leads the line, in the text's own colour */
+.chat-queued-from {
+  color: var(--text);
 }
 
 /* One the chat never read: the card stops waiting and says so, in the warning's colour */

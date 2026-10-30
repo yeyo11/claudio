@@ -8,19 +8,37 @@ import type { Account, AccountKind, AccountSignInState, AccountsSettings, ModelO
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { prepareAccountDir, removeLinks } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
-import { isRecord, writeAtomic } from './fs.ts';
+import { writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
 import { apiKeyOf, checkCredential, usageOf, type CredentialCheck } from './cli-usage.ts';
 import { ModelCache, offers, type ModelsOptions } from './models.ts';
 import { cliLogin, readCache, Readings, type Reading } from './usage.ts';
+import { isRecord, NotFoundError } from '@claudio/shared';
 
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
 export { DEFAULT_ID };
 
-export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used' };
+export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [] };
 
 const THRESHOLD_MIN = 50;
 const THRESHOLD_MAX = 99.9;
+
+/**
+ * Removing an account a live chat runs on: the chat's next result would fold onto an account that
+ * is gone (2026-10-25 the server went down on exactly that). The person stops or moves those chats
+ * first; `chats` names them.
+ */
+export class AccountInUseError extends Error {
+  readonly statusCode = 409;
+  readonly reason = 'account-in-use';
+  constructor(
+    readonly account: string,
+    readonly chats: readonly string[],
+  ) {
+    super(`account ${account} runs ${chats.length === 1 ? 'a live chat' : `${chats.length} live chats`} (${chats.join(', ')}); stop them or move them to another account first`);
+    this.name = 'AccountInUseError';
+  }
+}
 
 interface StoredAccount {
   id: string;
@@ -84,6 +102,11 @@ export interface AccountStoreOptions {
    * on shutdown instead of letting it write the CLI's config into a data dir that is gone
    */
   onSpawn?: (child: ChildProcess) => void;
+  /**
+   * The ids of the live chats whose process runs on an account; `remove` refuses while there is one.
+   * Absent (the terminal's `claudio-accounts`, which runs no chat) nothing is refused.
+   */
+  liveChatsOn?: (account: string) => string[];
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -101,18 +124,24 @@ function checkSettings(next: AccountsSettings): void {
   if (!(next.hysteresis >= 0 && next.hysteresis < next.threshold)) throw new Error('hysteresis must be between 0 and the threshold');
   if (!(next.cooldownSeconds >= 0)) throw new Error('cooldownSeconds must not be negative');
   if (next.strategy !== 'order' && next.strategy !== 'least-used') throw new Error('strategy must be order or least-used');
+  if (next.preferred !== null && (typeof next.preferred !== 'string' || !next.preferred)) throw new Error('preferred must be an account id or null');
+  if (!Array.isArray(next.order) || next.order.some((id) => typeof id !== 'string' || !id)) throw new Error('order must be a list of account ids');
+  if (new Set(next.order).size !== next.order.length) throw new Error('order must name each account once');
 }
 
 function parseSettings(v: unknown): AccountsSettings {
   const d = DEFAULT_SETTINGS;
-  if (!isRecord(v)) return { ...d };
+  if (!isRecord(v)) return { ...d, order: [...d.order] };
   const n = (x: unknown, fallback: number): number => (typeof x === 'number' && Number.isFinite(x) ? x : fallback);
+  const order = Array.isArray(v.order) ? v.order.filter((id): id is string => typeof id === 'string' && !!id) : d.order;
   return {
     rotateOnLimit: typeof v.rotateOnLimit === 'boolean' ? v.rotateOnLimit : d.rotateOnLimit,
     threshold: n(v.threshold, d.threshold),
     hysteresis: n(v.hysteresis, d.hysteresis),
     cooldownSeconds: n(v.cooldownSeconds, d.cooldownSeconds),
     strategy: v.strategy === 'order' || v.strategy === 'least-used' ? v.strategy : d.strategy,
+    preferred: typeof v.preferred === 'string' && v.preferred ? v.preferred : d.preferred,
+    order: [...new Set(order)],
   };
 }
 
@@ -183,11 +212,17 @@ export class AccountStore {
     this.reload();
   }
 
-  /** Re-reads the file: another process (the binary, the app) may have written it. */
+  /**
+   * Re-reads the file: another process (the binary, the app) may have written it. A file that differs
+   * from the last one read or written is a change the listeners hear of, so an account added from
+   * the terminal wakes the work waiting for one.
+   */
   reload(): void {
     if (!existsSync(this.file)) return;
+    let text: string;
     try {
-      const doc: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
+      text = readFileSync(this.file, 'utf8');
+      const doc: unknown = JSON.parse(text);
       if (isRecord(doc)) {
         this.stored = parse(doc);
         const settings = isRecord(doc.settings) ? doc.settings : {};
@@ -197,12 +232,20 @@ export class AccountStore {
       // Overwriting a document that does not parse would drop the accounts in it
       throw new Error(`${this.file} is not valid JSON; fix or remove it`);
     }
+    const before = this.lastText;
+    this.lastText = text;
+    if (before !== null && before !== text) this.changed();
   }
+
+  /** The file as last read or written, to tell another process's write from none */
+  private lastText: string | null = null;
 
   private async save(): Promise<void> {
     // Only the settings the person stored: a key left out reads as its default, today's or a later one
     const settings = Object.fromEntries(SETTING_KEYS.filter((key) => this.settingKeys.has(key)).map((key) => [key, this.stored.settings[key]]));
-    await writeAtomic(this.file, `${JSON.stringify({ ...this.stored, settings }, null, 2)}\n`, 0o600);
+    const text = `${JSON.stringify({ ...this.stored, settings }, null, 2)}\n`;
+    await writeAtomic(this.file, text, 0o600);
+    this.lastText = text;
     this.changed();
   }
 
@@ -231,9 +274,9 @@ export class AccountStore {
     return id === DEFAULT_ID ? this.defaultDir : join(this.opts.dataDir, 'accounts', id);
   }
 
-  private find(id: string): StoredAccount {
+  private entry(id: string): StoredAccount {
     const a = this.stored.accounts.find((x) => x.id === id);
-    if (!a) throw new Error(`account ${id} not found`);
+    if (!a) throw new NotFoundError(`account ${id} not found`);
     return a;
   }
 
@@ -242,11 +285,20 @@ export class AccountStore {
   /** What a process launcher needs: the account's id, kind and directory. */
   ref(id: string): AccountRef {
     if (id === DEFAULT_ID) return { id, kind: 'login', dir: this.defaultDir };
-    const a = this.find(id);
+    const a = this.entry(id);
     return { id, kind: a.kind, dir: this.dirOf(id) };
   }
 
+  /**
+   * Every account of this machine. The CLI's own login is left out while it has no credential at
+   * all: it is assumed signed in until read, so before 2026-10-29 a ghost with no credential could be
+   * chosen for work (rank 0.5, an unknown reading) by every path but "in use", which alone excluded it.
+   */
   list(now: number = Date.now()): Account[] {
+    return this.all(now).filter((a) => a.id !== DEFAULT_ID || this.hasCredential(a.id));
+  }
+
+  private all(now: number): Account[] {
     const d = this.stored.default;
     const view = (id: string, kind: AccountKind, alias: string | null, enabled: boolean, identity: Identity, failedAt: string | undefined, checkedAt: string | undefined, fingerprint: string | undefined): Account => {
       const authFailedAt = failedAt !== undefined && !this.signedInSince(id, kind, failedAt) ? failedAt : undefined;
@@ -287,18 +339,16 @@ export class AccountStore {
    * Whether the account has any credential at all. A login account or a token or key one always
    * does; the CLI's own login only when it has a credentials file, a key or token in its
    * environment, or a credential that failed (an expired login is a real account with a problem).
-   * An empty default dir is a ghost, which `listed` leaves out.
+   * An empty default dir is a ghost, which `list` leaves out.
    */
   hasCredential(id: string): boolean {
     if (id !== DEFAULT_ID) return true;
-    if (this.stored.default.authFailedAt !== undefined) return true;
+    // A credential that failed, or one a check confirmed (a keychain login has no file to look at)
+    if (this.stored.default.authFailedAt !== undefined || this.stored.default.checkedAt !== undefined) return true;
     if (existsSync(join(this.defaultDir, CREDENTIALS_FILE))) return true;
-    return this.opts.defaultEnvCredential?.() ?? Boolean(this.env.CLAUDE_CODE_OAUTH_TOKEN || this.env.ANTHROPIC_API_KEY);
-  }
-
-  /** `list` without the CLI's own login while it has no credential at all */
-  listed(now: number = Date.now()): Account[] {
-    return this.list(now).filter((a) => a.id !== DEFAULT_ID || this.hasCredential(a.id));
+    if (this.opts.defaultEnvCredential) return this.opts.defaultEnvCredential();
+    const env = this.envOf(DEFAULT_ID);
+    return Boolean(env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY);
   }
 
   private signInState(id: string, kind: AccountKind, identity: Identity, authFailedAt: string | undefined): AccountSignInState {
@@ -320,9 +370,26 @@ export class AccountStore {
   }
 
   get(id: string): Account {
-    const a = this.list().find((x) => x.id === id);
-    if (!a) throw new Error(`account ${id} not found`);
+    const a = this.find(id);
+    if (!a) throw new NotFoundError(`account ${id} not found`);
     return a;
+  }
+
+  /**
+   * The account, or null when there is none by that id (removed since). A read by id is not a
+   * listing: the CLI's own login answers here while it has no credential, as `GET /accounts/default`,
+   * its models, `PATCH` and its sign-in route must work before the first sign-in ([accounts.md]);
+   * only `list()`, and so every choice and every count, leaves that ghost out. What every path that
+   * folds a run's output onto its account reads: a removed account is no reason to throw out of a
+   * stream handler.
+   */
+  find(id: string, now: number = Date.now()): Account | null {
+    return this.all(now).find((x) => x.id === id) ?? null;
+  }
+
+  /** What a write answers: the account as it stands, since it was just changed */
+  private view(id: string): Account {
+    return this.get(id);
   }
 
   /**
@@ -346,24 +413,30 @@ export class AccountStore {
     return this.get(id);
   }
 
+  /** Refused with {@link AccountInUseError} (409) while a live chat runs on the account. */
   async remove(id: string): Promise<void> {
     if (id === DEFAULT_ID) throw new Error('the default account is the CLI\'s own and cannot be removed');
-    const a = this.find(id);
+    const a = this.entry(id);
+    const live = this.opts.liveChatsOn?.(id) ?? [];
+    if (live.length) throw new AccountInUseError(id, live);
     const dir = this.dirOf(id);
     // Links first, so nothing below follows one into the default dir
     removeLinks(dir, this.defaultDir, a.links);
     await rm(dir, { recursive: true, force: true });
     this.stored.accounts = this.stored.accounts.filter((x) => x.id !== id);
     for (const p of this.stored.policies) if (p.order) p.order = p.order.filter((x) => x !== id);
+    const { settings } = this.stored;
+    if (settings.preferred === id) settings.preferred = null;
+    settings.order = settings.order.filter((x) => x !== id);
     await this.readings.forget(id);
     await this.save();
   }
 
   async setEnabled(id: string, enabled: boolean): Promise<Account> {
     if (id === DEFAULT_ID) this.stored.default.enabled = enabled;
-    else this.find(id).enabled = enabled;
+    else this.entry(id).enabled = enabled;
     await this.save();
-    return this.get(id);
+    return this.view(id);
   }
 
   async setAlias(id: string, alias: string | null): Promise<Account> {
@@ -371,12 +444,12 @@ export class AccountStore {
     if (next && this.list().some((a) => a.id !== id && a.alias === next)) throw new Error(`alias ${next} is already taken`);
     if (id === DEFAULT_ID) this.stored.default.alias = next;
     else {
-      const a = this.find(id);
+      const a = this.entry(id);
       if (!next && a.kind !== 'login') throw new Error(`a ${a.kind} account needs an alias`);
       a.alias = next;
     }
     await this.save();
-    return this.get(id);
+    return this.view(id);
   }
 
   /** Asks the CLI who the account is and whether it is signed in. `token` and `api-key` accounts have no identity to learn. */
@@ -385,12 +458,12 @@ export class AccountStore {
     let identity: Identity;
     if (ref.kind === 'login') identity = await identify(ref, { claude: this.claude, env: this.env, ...(this.opts.onSpawn ? { onSpawn: this.opts.onSpawn } : {}) });
     else identity = { ...NO_IDENTITY, signedIn: true };
-    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    const entry = id === DEFAULT_ID ? this.stored.default : this.entry(id);
     entry.identity = identity;
     // A sign-in newer than the failure ends it; the list already reads it so, this drops the stale mark
     if (entry.authFailedAt !== undefined && this.signedInSince(id, ref.kind, entry.authFailedAt)) delete entry.authFailedAt;
     await this.save();
-    return this.get(id);
+    return this.view(id);
   }
 
   /** The `ANTHROPIC_API_KEY` this account's runs get, or null (see `apiKeyOf`) */
@@ -438,14 +511,14 @@ export class AccountStore {
 
   /** The credential just proved itself (a key Anthropic accepted, a `get_usage` with the plan's limits, a turn that went through): not expired, checked now. */
   async confirm(id: string, at: number = Date.now()): Promise<void> {
-    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    const entry = id === DEFAULT_ID ? this.stored.default : this.entry(id);
     delete entry.authFailedAt;
     await this.markChecked(id, at);
   }
 
   /** Records that the credential was checked now (a check that confirmed it, a turn, or a test message). */
   async markChecked(id: string, at: number = Date.now()): Promise<void> {
-    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    const entry = id === DEFAULT_ID ? this.stored.default : this.entry(id);
     entry.checkedAt = new Date(at).toISOString();
     const key = this.keyOf(id);
     if (key) entry.checkedFingerprint = this.fingerprint(key);
@@ -460,7 +533,7 @@ export class AccountStore {
    * already and nothing has signed it in since.
    */
   async markAuthFailed(id: string, at: number = Date.now()): Promise<boolean> {
-    const entry = id === DEFAULT_ID ? this.stored.default : this.find(id);
+    const entry = id === DEFAULT_ID ? this.stored.default : this.entry(id);
     if (entry.authFailedAt !== undefined && !this.signedInSince(id, this.ref(id).kind, entry.authFailedAt)) return false;
     entry.authFailedAt = new Date(at).toISOString();
     await this.save();
@@ -547,13 +620,33 @@ export class AccountStore {
   // ---------- settings and policies ----------
 
   settings(): AccountsSettings {
-    return { ...this.stored.settings };
+    return { ...this.stored.settings, order: [...this.stored.settings.order] };
   }
 
+  /**
+   * Merges `patch` over the stored settings, validated. A `preferred` given must be an enabled
+   * account; an `order` given must name every enabled account once (a disabled one may be named
+   * too). Checked only when given: an account added or enabled since the order was stored goes after
+   * the ones it names, and is no reason to refuse a change of the threshold.
+   */
   async setSettings(patch: Partial<AccountsSettings>): Promise<AccountsSettings> {
     const next = { ...this.stored.settings, ...patch };
     checkSettings(next);
-    this.stored.settings = next;
+    const accounts = this.list();
+    if (patch.preferred !== undefined && patch.preferred !== null) {
+      const preferred = accounts.find((a) => a.id === patch.preferred);
+      // Worded as the refusal it is (400): a message that says "not found" answers 404
+      if (!preferred) throw new Error(`preferred must be an account's id; ${patch.preferred} is none`);
+      if (!preferred.enabled) throw new Error(`preferred must be an enabled account; ${patch.preferred} is disabled`);
+    }
+    if (patch.order !== undefined && next.order.length) {
+      const known = new Set(accounts.map((a) => a.id));
+      const unknown = next.order.find((id) => !known.has(id));
+      if (unknown) throw new Error(`order must name accounts only; ${unknown} is none`);
+      const missing = accounts.find((a) => a.enabled && !next.order.includes(a.id));
+      if (missing) throw new Error(`order must name every enabled account; ${missing.id} is missing`);
+    }
+    this.stored.settings = { ...next, order: [...next.order] };
     for (const key of SETTING_KEYS) if (patch[key] !== undefined) this.settingKeys.add(key);
     await this.save();
     return this.settings();
@@ -635,7 +728,7 @@ export class AccountStore {
 
   async updatePolicy(id: string, request: RotationPolicyRequest): Promise<RotationPolicy> {
     const index = this.stored.policies.findIndex((p) => p.id === id);
-    if (index === -1) throw new Error('policy not found');
+    if (index === -1) throw new NotFoundError('policy not found');
     const policy: RotationPolicy = { id, ...this.validPolicy(request, id) };
     this.stored.policies[index] = policy;
     await this.save();
@@ -645,7 +738,7 @@ export class AccountStore {
   async deletePolicy(id: string): Promise<void> {
     const before = this.stored.policies.length;
     this.stored.policies = this.stored.policies.filter((p) => p.id !== id);
-    if (this.stored.policies.length === before) throw new Error('policy not found');
+    if (this.stored.policies.length === before) throw new NotFoundError('policy not found');
     await this.save();
   }
 

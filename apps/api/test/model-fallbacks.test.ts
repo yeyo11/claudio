@@ -8,6 +8,7 @@ import { Core, loadConfig } from '@claudio/core';
 import type { Account, ModelFallback, ModelFallbackSuggestion, ModelOption } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { fallbackCandidates } from '../src/routes/accounts.ts';
+import { signInDefault } from './helpers.ts';
 
 // The per-account model list and the model fallbacks over HTTP, against the accounts package's fake
 // `claude`, whose `initialize` answers a Max-like list for a login and a Pro-like one (no Opus) for a token.
@@ -21,6 +22,8 @@ before(async () => {
   const root = mkdtempSync(join(tmpdir(), 'claudio-api-model-fallbacks-'));
   // The fake CLI writes its probe counter into the config dir, which a real one creates itself
   mkdirSync(join(root, 'claude'));
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,

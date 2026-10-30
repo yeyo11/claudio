@@ -16,15 +16,20 @@ import type {
   UpdateScheduleRequest,
 } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-import { withoutWorkItems } from '@claudio/shared';
+import { errorMessage, NotFoundError, withoutWorkItems } from '@claudio/shared';
 import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } from './cron.ts';
 import type { EventBus } from './events.ts';
 import { validateEffort, validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
 import { normalizeVerification } from './verification.ts';
+import { startWhenAdmitted } from './admission-queue.ts';
+import { isTransientRefusal } from './chat-errors.ts';
+import { ThrottledLog } from './throttled-log.ts';
 
 /** How often the scheduler looks at the clock. Only the slot it finds due matters, not this. */
 const TICK_MS = 15_000;
+/** How long a scheduled chat waits for a place to run (a slot, memory) before its slot is recorded as failed */
+export const PLACE_WAIT_MS = 30 * 60_000;
 /**
  * A slot this much older than the tick that finds it was passed while nothing was watching, and is
  * skipped. Deliberately about the size of a tick and not of an outage: a restart that spans a slot
@@ -256,7 +261,7 @@ export function previewCron(cron: string, timezone?: string, count = 5, now = Da
   try {
     checked(cron, timezone);
   } catch (error) {
-    return { valid: false, error: error instanceof Error ? error.message : String(error), timezone: zone, next: [] };
+    return { valid: false, error: errorMessage(error), timezone: zone, next: [] };
   }
   const spec = parseCron(cron);
   return {
@@ -289,6 +294,10 @@ export class Scheduler {
    * in that window asks here.
    */
   private readonly launching = new Set<string>();
+  /** Ended by `close`: a chat target waiting for a place gives up with the process */
+  private readonly placeWait = new AbortController();
+  /** What a tick or a drain could not do: said, at most once a minute, rather than swallowed */
+  private readonly failures = new ThrottledLog('schedules');
   /** Where `schedule.changed` and `schedule.fired` go; the API's global feed */
   bus: Pick<EventBus, 'emit'> | null = null;
   /**
@@ -322,6 +331,7 @@ export class Scheduler {
 
   close(): void {
     this.closed = true;
+    this.placeWait.abort(new Error('the scheduler closed'));
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.runs.close();
@@ -383,7 +393,7 @@ export class Scheduler {
 
   private find(id: string): StoredSchedule {
     const stored = this.read().find((s) => s.id === id);
-    if (!stored) throw new Error('schedule not found');
+    if (!stored) throw new NotFoundError('schedule not found');
     return stored;
   }
 
@@ -417,7 +427,7 @@ export class Scheduler {
     let action: ScheduleChangeAction = 'updated';
     const updated = await this.mutate((all) => {
       const stored = all.find((s) => s.id === id);
-      if (!stored) throw new Error('schedule not found');
+      if (!stored) throw new NotFoundError('schedule not found');
       let rearm = false;
       if (request.overlap !== undefined) stored.overlap = checkedOverlap(request.overlap);
       if (request.name !== undefined) {
@@ -449,7 +459,7 @@ export class Scheduler {
   async remove(id: string): Promise<void> {
     const removed = await this.mutate((all) => {
       const index = all.findIndex((s) => s.id === id);
-      if (index < 0) throw new Error('schedule not found');
+      if (index < 0) throw new NotFoundError('schedule not found');
       return all.splice(index, 1)[0] as StoredSchedule;
     });
     this.runs.removeAll(id);
@@ -524,15 +534,18 @@ export class Scheduler {
     this.ticking = true;
     try {
       // A queue that is ready goes first, so a slot due in this same pass finds it started
-      await this.drain().catch(() => undefined);
+      await this.drain();
       const now = this.clock();
       for (const stored of this.read().filter((s) => s.enabled)) {
         try {
           if (await this.settle(stored, now)) this.changed(stored, 'rescheduled');
-        } catch {
-          // a schedule whose expression no longer parses must not stop the others
+        } catch (error) {
+          // A schedule whose expression no longer parses must not stop the others, nor fail unseen
+          if (!this.closed) this.failures.failed(new Error(`schedule ${stored.id} (${stored.name}): ${errorMessage(error)}`));
         }
       }
+    } catch (error) {
+      if (!this.closed) this.failures.failed(error);
     } finally {
       this.ticking = false;
     }
@@ -542,25 +555,30 @@ export class Scheduler {
    * Starts every queued run whose predecessor has ended. Called on each tick and whenever a chat or
    * an orchestration stops, so a queued slot does not wait for the next tick to follow its
    * predecessor. A run whose schedule was switched off, or no longer queues, is set aside instead:
-   * what it was waiting for is not what the schedule says any more.
+   * what it was waiting for is not what the schedule says any more. Never rejects: what goes wrong
+   * is logged, and the next tick tries again.
    */
   async drain(): Promise<void> {
     if (this.closed) return;
-    const queued = this.runs.queued();
-    if (queued.length === 0) return;
-    const schedules = new Map(this.read().map((s) => [s.id, s]));
-    for (const run of queued) {
-      const stored = schedules.get(run.scheduleId);
-      if (!stored) continue; // deleted: its rows are going with it
-      if (!stored.enabled || (stored.overlap ?? 'parallel') !== 'queue') {
-        const reason = stored.enabled ? 'The schedule stopped queueing' : 'The schedule was switched off';
-        for (const dropped of this.runs.supersede(stored.id, null, `${reason} before this slot could start.`)) this.fired(stored, dropped);
-        continue;
+    try {
+      const queued = this.runs.queued();
+      if (queued.length === 0) return;
+      const schedules = new Map(this.read().map((s) => [s.id, s]));
+      for (const run of queued) {
+        const stored = schedules.get(run.scheduleId);
+        if (!stored) continue; // deleted: its rows are going with it
+        if (!stored.enabled || (stored.overlap ?? 'parallel') !== 'queue') {
+          const reason = stored.enabled ? 'The schedule stopped queueing' : 'The schedule was switched off';
+          for (const dropped of this.runs.supersede(stored.id, null, `${reason} before this slot could start.`)) this.fired(stored, dropped);
+          continue;
+        }
+        if (this.busy(stored.id)) continue;
+        const at = new Date(this.clock()).toISOString();
+        if (!this.runs.take(run.id, at)) continue; // another process started it
+        await this.launch(stored, { ...run, at, status: 'started' });
       }
-      if (this.busy(stored.id)) continue;
-      const at = new Date(this.clock()).toISOString();
-      if (!this.runs.take(run.id, at)) continue; // another process started it
-      await this.launch(stored, { ...run, at, status: 'started' });
+    } catch (error) {
+      if (!this.closed) this.failures.failed(new Error(`draining the queued runs: ${errorMessage(error)}`));
     }
   }
 
@@ -663,18 +681,25 @@ export class Scheduler {
     return this.launch(stored, run);
   }
 
-  /** Starts the target for a run that is already claimed, and records what came of it. */
+  /**
+   * Starts the target for a run that is already claimed, and records what came of it. A chat refused
+   * a place (the run slots full, the machine short of memory) waits for one, as an orchestration
+   * target's tasks do, instead of failing the slot for good; the wait ends with the process.
+   */
   private async launch(stored: StoredSchedule, run: ScheduleRun): Promise<ScheduleRun> {
     this.launching.add(stored.id);
     try {
+      const target = stored.target;
       const outcome =
-        stored.target.kind === 'chat'
-          ? { chatId: (await this.launcher.chat(stored.target.chat)).id }
-          : { orchestrationId: this.launcher.orchestration(withoutWorkItems(stored.target.spec)).id };
+        target.kind === 'chat'
+          ? { chatId: (await startWhenAdmitted(() => this.launcher.chat(target.chat), { signal: this.placeWait.signal, deadline: Date.now() + PLACE_WAIT_MS })).id }
+          : { orchestrationId: this.launcher.orchestration(withoutWorkItems(target.spec)).id };
       this.runs.finish(run.id, { status: 'started', ...outcome });
       return this.fired(stored, { ...run, ...outcome });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Closed while it waited for a place: the run row goes with the store, and nobody is listening
+      if (this.closed) return run;
+      const message = isTransientRefusal(error) ? `No place to run came free within ${String(PLACE_WAIT_MS / 60_000)} min: ${error.message}` : errorMessage(error);
       this.runs.finish(run.id, { status: 'failed', error: message });
       return this.fired(stored, { ...run, status: 'failed', error: message });
     } finally {

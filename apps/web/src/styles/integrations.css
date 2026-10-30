@@ -1,12 +1,5 @@
 /* Settings → Connections (plans/code-hosts.md, u1): the hosts a CLI knows, under its state. The rows,
    cells, binary panel and sheet are the providers' (.prov-*). */
-.host-intro {
-  margin: 0 4px;
-  font-size: var(--fs-small);
-  line-height: 1.5;
-  color: var(--fg-2);
-}
-
 .host-known {
   display: flex;
   flex-direction: column;

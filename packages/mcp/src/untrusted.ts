@@ -6,13 +6,19 @@
  * quoted, cut JSON strings, which cannot start a line of their own.
  */
 
+import { RESULT_BUDGET_CHARS, shrink } from './render.ts';
+
 /** A tool result that is already text: the server sends it as it is, not as JSON */
 export class TextResult {
   constructor(readonly text: string) {}
 }
 
-/** Longest JSON body inside the fence; past it the body is cut and a line after the fence says so */
-export const UNTRUSTED_BODY_MAX_CHARS = 45_000;
+/**
+ * Longest JSON body inside the fence: the whole result, header and fence included, stays within the
+ * budget every tool answers under. Past it the body is cut by its structure, so it is still JSON,
+ * and a line after the fence says so.
+ */
+export const UNTRUSTED_BODY_MAX_CHARS = RESULT_BUDGET_CHARS - 2_000;
 
 /** Longest name of the teammate's own choosing that the header repeats */
 const NAME_MAX = 120;
@@ -49,16 +55,13 @@ function fence(body: string): string {
 }
 
 function fenced(lines: string[], value: unknown, hint: string): TextResult {
-  // Compact JSON is one line: a newline in the teammate's text stays an escaped `\n`
-  let body = JSON.stringify(value) ?? 'null';
-  let cut = false;
-  if (body.length > UNTRUSTED_BODY_MAX_CHARS) {
-    body = `${body.slice(0, UNTRUSTED_BODY_MAX_CHARS)}…`;
-    cut = true;
-  }
+  // Compact JSON is one line: a newline in the teammate's text stays an escaped `\n`. The cut's own
+  // note and hint go outside the fence, in our words, so the body inside is only the teammate's
+  const cut = shrink(value === undefined ? null : value, UNTRUSTED_BODY_MAX_CHARS, hint);
+  const body = JSON.stringify(cut ? cut.result : (value ?? null));
   const marks = fence(body);
   const out = [...lines, `${marks}json untrusted-third-party-content`, body, marks];
-  if (cut) out.push(`The content was cut at ${UNTRUSTED_BODY_MAX_CHARS} characters. ${hint}`);
+  if (cut) out.push(`The content was cut to fit (${cut.truncated.arrays} lists shortened, ${cut.truncated.strings} texts cut). ${hint}`);
   return new TextResult(out.join('\n'));
 }
 

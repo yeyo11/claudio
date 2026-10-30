@@ -44,7 +44,7 @@ export interface DeclaredTools {
 export interface GuardRulesFile {
   version: 1;
   mode: GuardMode;
-  /** Effective rules, `integrity` first */
+  /** Effective rules, in the order they run; never empty, since a run with none gets no guard */
   rules: GuardRuleId[];
   /** Real paths: the run's worktree (or cwd for a chat), plus extra roots */
   roots: string[];
