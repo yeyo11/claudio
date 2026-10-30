@@ -2333,6 +2333,11 @@ a.cont-from:hover { color: var(--fg); }
 .chat-queued-item { display: flex; align-items: flex-start; gap: 8px; color: var(--fg-2); font-size: var(--fs-small); }
 .chat-queued-item.is-lost > svg, .chat-queued.is-lost .chat-queued-item > svg { color: var(--warn); }
 .chat-queued.is-lost { border-style: solid; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); opacity: 1; }
+/* A message held behind a foreground call: the foot's sentence names it, and .chat-queued-actions holds "send to background" and
+   "interrupt the turn", wrapping under it. A notice (.is-notice) leads with who wrote it, .chat-queued-from, and has only Dismiss. */
+.chat-queued-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.chat-queued-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-queued-from { color: var(--fg); }
 /* ---------- end of Queued messages ---------- */
 
 /* ---------- Setup (docs/plans/in-app-setup.md): the assistant, the sign-in panel and the done summary ----------

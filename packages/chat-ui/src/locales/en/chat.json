@@ -51,8 +51,21 @@
       "sendNow": "Send now",
       "sending": "Ending the turn…",
       "sendNowHint": "Ends the turn {{agent}} is on, so it reads what is waiting next",
-      "undelivered": "Not delivered: {{agent}} stopped before reading it",
-      "restore": "Put it back in the box"
+      "undelivered": "Not delivered: {{agent}} did not read it",
+      "restore": "Put it back in the box",
+      "blockedAgent": "Waits for the agent “{{what}}” to finish. Interrupting the turn ends that agent",
+      "blockedCommand": "Waits for the command “{{what}}” to finish. Interrupting the turn ends that command",
+      "background": "Send to background and deliver",
+      "backgrounding": "Sending to background…",
+      "backgroundHint": "The work keeps running in the background, and {{agent}} reads what is waiting now",
+      "interrupt": "Interrupt the turn",
+      "withdraw": "Take it back to the box",
+      "withdrawHint": "Withdraws it before {{agent}} reads it, and puts it back in the box",
+      "fromSupervisor": "Supervisor's hint:",
+      "fromClaudio": "Note from Claudio:",
+      "noticeHint": "Claudio wrote this to {{agent}}, which reads it at its next step",
+      "dismiss": "Dismiss",
+      "dismissHint": "Withdraws it before {{agent}} reads it"
     },
     "stopHint": "Kill the process this chat runs in. Anything sent into it and not yet read goes with it",
     "workItem": {

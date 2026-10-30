@@ -11,6 +11,20 @@ export class ChatRefusal extends Error {
   }
 }
 
+/**
+ * What the page asked to do about a message or a call waiting in a chat, which the agent's state no
+ * longer allows: `not-running`, the call is no foreground call the turn waits on; `taken`, the agent
+ * has already read the message; `unsupported`, its provider cannot. A 409 whose `code` names it.
+ */
+export class DeliveryRefusal extends ChatRefusal {
+  constructor(
+    message: string,
+    readonly reason: 'not-running' | 'taken' | 'unsupported',
+  ) {
+    super(message, 409);
+  }
+}
+
 /** The chat a call names is not one Claudio knows. */
 export class ChatNotFoundError extends ChatRefusal {
   readonly code = 'chat-not-found';

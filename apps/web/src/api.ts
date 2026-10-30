@@ -633,6 +633,10 @@ export const api = {
   sendMessage: (id: string, req: ChatMessageRequest) => request<ChatMessageResponse>(`/chats/${enc(id)}/messages`, { method: 'POST', body: req }),
   stopChat: (id: string) => request<ChatSummary>(`/chats/${enc(id)}/stop`, { method: 'POST' }),
   interruptChat: (id: string, req?: ChatInterruptRequest) => request<ChatSummary>(`/chats/${enc(id)}/interrupt`, { method: 'POST', ...(req ? { body: req } : {}) }),
+  /** Withdraws a message the agent has not read yet; 409 once it has */
+  cancelChatMessage: (id: string, messageId: string) => request<ChatSummary>(`/chats/${enc(id)}/messages/${enc(messageId)}`, { method: 'DELETE' }),
+  /** Sends the foreground call the turn waits on to the background, so the agent reads what waits */
+  backgroundChatCall: (id: string, toolUseId: string) => request<ChatSummary>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/background`, { method: 'POST' }),
   updateChat: (id: string, update: ChatSettingsUpdate) => request<ChatSummary>(`/chats/${enc(id)}`, { method: 'PATCH', body: update }),
   chatMcp: (id: string) => request<ChatMcpServers>(`/chats/${enc(id)}/mcp`),
   toggleChatMcp: (id: string, name: string, enabled: boolean) =>

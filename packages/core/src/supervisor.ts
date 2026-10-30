@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { DecisionMode, HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
+import type { ChatMessageSource, DecisionMode, HealthSignal, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
 import type { Db } from './db.ts';
@@ -64,8 +64,11 @@ export interface SupervisorDeps {
   ask: (question: SupervisorQuestion) => Promise<SupervisorAnswer>;
   /** The newest entries of the worker's transcript, oldest first */
   steps: (chatId: string) => Promise<TranscriptEntry[]>;
-  /** Delivers a proposal's hint to its worker through the hint route of the chat or the task */
-  hint: (proposal: SupervisorProposal) => Promise<void>;
+  /**
+   * Delivers a proposal's hint to its worker through the hint route of the chat or the task:
+   * `person` when someone pressed Send on it, `supervisor` when it went out on its own (C2)
+   */
+  hint: (proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<void>;
   emit: (event: ClaudioEventInput) => void;
   /** Adds what the supervisor spent on a task's worker to its graph */
   charge: (orchestrationId: string, costUsd: number) => void;
@@ -266,7 +269,7 @@ export class Supervisor {
       // Read again: a person who switched the point while the hint was being drafted decides
       if (this.mode() !== 'active') return proposal;
       try {
-        return await this.send(proposal.id, { chatId: chat.id });
+        return await this.send(proposal.id, { chatId: chat.id }, 'supervisor');
       } catch {
         // The worker moved on before the answer came: the proposal stays for a person to judge
         return proposal;
@@ -308,10 +311,13 @@ export class Supervisor {
     return proposal;
   }
 
-  /** Sends the hint to the worker, then marks it sent: a hint that did not arrive stays proposed. */
-  async send(id: string, owner: ProposalOwner): Promise<SupervisorProposal> {
+  /**
+   * Sends the hint to the worker, then marks it sent: a hint that did not arrive stays proposed. A
+   * person's Send makes it theirs; one the Supervisor sends on its own is framed as automatic.
+   */
+  async send(id: string, owner: ProposalOwner, source: 'person' | 'supervisor' = 'person'): Promise<SupervisorProposal> {
     const proposal = this.owned(id, owner);
-    await this.deps.hint(proposal);
+    await this.deps.hint(proposal, source);
     if (!this.deps.db.settleProposal(id, 'sent')) throw new SupervisorConflictError('the proposal was settled in the meantime');
     return { ...proposal, status: 'sent' };
   }

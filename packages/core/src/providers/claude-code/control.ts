@@ -4,6 +4,46 @@ import type { SessionIO } from '../driver.ts';
 /** A control request the CLI has not answered by then is not going to be answered */
 const CONTROL_TIMEOUT_MS = 15_000;
 
+// The requests below are typed as the Agent SDK declares them (`@anthropic-ai/claude-agent-sdk`
+// 0.3.156, `sdk.d.ts`), the vendor's documented surface of the control protocol.
+
+/** `SDKControlInterruptRequest`: interrupts the turn under way. Nothing else on it is documented, so nothing else is sent. */
+export interface InterruptRequest {
+  subtype: 'interrupt';
+}
+
+/**
+ * `SDKControlBackgroundTasksRequest`: backgrounds the foreground task its `tool_use` started (a Bash
+ * command or a subagent); the call returns at once with a "running in the background" result and the
+ * turn goes on. The SDK's `backgroundTasks(toolUseId)` reads `backgrounded` off the answer, as true
+ * when the field is missing, and false "only when `toolUseId` was given and it matched no foreground task".
+ */
+export interface BackgroundTasksRequest {
+  subtype: 'background_tasks';
+  tool_use_id?: string;
+}
+
+/**
+ * `SDKControlCancelAsyncMessageRequest`: "drops a pending async user message from the command queue
+ * by uuid. No-op if already dequeued for execution." The SDK's `cancelAsyncMessage(uuid)` answers the
+ * answer's `cancelled`.
+ */
+export interface CancelAsyncMessageRequest {
+  subtype: 'cancel_async_message';
+  message_uuid: string;
+}
+
+/**
+ * What the CLI answers an interrupt with. `ControlResponse.response` is an open record in the SDK;
+ * the CLI's own protocol schema (2.1.312) describes `still_queued` as the uuids of the messages that
+ * survive the interrupt, "commands still in the queue, plus any batch already dequeued for the imminent
+ * turn", written before the interrupted turn's result. An older CLI leaves it out.
+ */
+export function stillQueuedOf(response: Record<string, unknown>): string[] | null {
+  const listed = response.still_queued;
+  return Array.isArray(listed) && listed.every((id): id is string => typeof id === 'string') ? listed : null;
+}
+
 /** A person's decision in the shape `can_use_tool` expects; allowing always carries the input. */
 function toControlDecision(decision: PermissionDecision, input: Record<string, unknown>): Record<string, unknown> {
   if (decision.behavior === 'deny') return { behavior: 'deny', message: decision.message ?? 'denied' };
@@ -16,8 +56,9 @@ function toControlDecision(decision: PermissionDecision, input: Record<string, u
 
 /**
  * The control protocol of one process: requests Claudio sends down stdin and waits on
- * (`interrupt`, `set_permission_mode`, `set_model`, `mcp_status`, `mcp_toggle`, `mcp_set_servers`, `get_context_usage`), and the CLI's own (`can_use_tool`), which it
- * holds until they are answered.
+ * (`interrupt`, `background_tasks`, `cancel_async_message`, `set_permission_mode`, `set_model`,
+ * `mcp_status`, `mcp_toggle`, `mcp_set_servers`, `get_context_usage`), and the CLI's own
+ * (`can_use_tool`), which it holds until they are answered.
  */
 export class ControlChannel {
   private seq = 0;
