@@ -718,6 +718,126 @@ export async function branchExistsAsync(repo: string, branch: string): Promise<b
   }
 }
 
+// The worktree and merge steps of an orchestration's integration, which a request (a retried
+// integration) reaches and which can each take as long as a merge does.
+
+export async function isIgnoredAsync(repo: string, path: string): Promise<boolean> {
+  try {
+    await gitAsyncText(repo, ['check-ignore', '-q', path], 10_000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function lockWorktreeAsync(repo: string, path: string, reason: string): Promise<void> {
+  try {
+    await gitAsyncText(repo, ['worktree', 'lock', '--reason', reason, path], 10_000);
+  } catch {
+    /* already locked */
+  }
+}
+
+export async function containsAsync(dir: string, commit: string): Promise<boolean> {
+  try {
+    await gitAsyncText(dir, ['merge-base', '--is-ancestor', commit, 'HEAD']);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function addWorktreeAsync(repo: string, path: string, branch: string, base: string): Promise<void> {
+  if (existsSync(path)) return;
+  try {
+    if (await branchExistsAsync(repo, branch)) await gitAsyncText(repo, ['worktree', 'add', path, branch]);
+    else await gitAsyncText(repo, ['worktree', 'add', '-b', branch, path, base]);
+  } finally {
+    worktreesChanged();
+  }
+}
+
+export async function removeWorktreeAsync(repo: string, path: string, force = false): Promise<void> {
+  try {
+    await gitAsyncText(repo, ['worktree', 'unlock', path], 30_000);
+  } catch {
+    /* not locked */
+  }
+  try {
+    await gitAsyncText(repo, ['worktree', 'remove', ...(force ? ['--force'] : []), path]);
+  } finally {
+    worktreesChanged();
+  }
+}
+
+export async function conflictedPathsAsync(dir: string): Promise<string[]> {
+  const out = await gitAsyncText(dir, [...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '--name-only', '--diff-filter=U']);
+  return out ? out.split('\n') : [];
+}
+
+export async function mergeInProgressAsync(dir: string): Promise<boolean> {
+  return (await mergeHeadAsync(dir)) !== null;
+}
+
+/** The commit a merge left in progress is bringing in, or null when no merge is in progress. */
+export async function mergeHeadAsync(dir: string): Promise<string | null> {
+  try {
+    return (await gitAsyncText(dir, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'])) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** The commit a local branch points at, or null when there is no such branch. */
+export async function branchHeadAsync(repo: string, branch: string): Promise<string | null> {
+  try {
+    return (await gitAsyncText(repo, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function mergeAsync(dir: string, branch: string, message: string): Promise<string[] | null> {
+  try {
+    await gitAsyncText(dir, ['merge', '--no-ff', '--no-edit', '-m', message, branch], 120_000);
+    return null;
+  } catch (err) {
+    const paths = await conflictedPathsAsync(dir);
+    if (paths.length === 0) throw err; // not a conflict: a missing branch, a dirty tree…
+    return paths;
+  }
+}
+
+export async function abortMergeAsync(dir: string): Promise<void> {
+  try {
+    await gitAsyncText(dir, ['merge', '--abort']);
+  } catch {
+    /* nothing to abort */
+  }
+}
+
+async function identityAsync(dir: string): Promise<string[]> {
+  try {
+    if (await gitAsyncText(dir, ['config', 'user.email'])) return [];
+  } catch {
+    /* unset */
+  }
+  return ['-c', 'user.name=Claudio', '-c', 'user.email=claudio@localhost'];
+}
+
+export async function commitAllAsync(dir: string, message: string): Promise<string | null> {
+  if (!existsSync(dir)) return null;
+  await gitAsyncText(dir, ['add', '-A']);
+  try {
+    await gitAsyncText(dir, [...DIFF_SAFE, 'diff', '--no-textconv', '--no-ext-diff', '--cached', '--quiet']);
+    return null; // nothing staged
+  } catch {
+    /* there are changes */
+  }
+  await gitAsyncText(dir, [...(await identityAsync(dir)), 'commit', '--no-verify', '-q', '-m', message]);
+  return headCommitAsync(dir);
+}
+
 export async function currentBranchAsync(dir: string): Promise<string | null> {
   try {
     return (await gitAsyncText(dir, ['symbolic-ref', '--short', '-q', 'HEAD'], 10_000)) || null;

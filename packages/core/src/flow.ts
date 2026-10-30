@@ -71,6 +71,7 @@ import { flatten } from './health.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { RECORDS_IN_ENGLISH, roleTitle, roleTitleIn } from './team.ts';
 import { GuardUnavailableError } from './guards/preflight.ts';
+import { isTransientRefusal } from './chat-errors.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { openWaitOf } from './rotation.ts';
 import { workItemPrompt } from './work-links.ts';
@@ -1497,57 +1498,62 @@ export class FlowService {
     return { row: { ...row, state: 'running', started_at: row.started_at ?? now, agent: member.agent, model: member.model }, item, member, project };
   }
 
+  /**
+   * Starts a claimed run. Everything between the claim and the chat is inside the try: a step that
+   * throws on the way (the handoff, a decision, reading the item's fix) used to leave the row
+   * `running` with no chat, holding a place of `maxParallel` until a restart.
+   */
   private async start(row: RunRow, item: WorkItem, member: ProjectTeamMember, project: FlowProject, nudge: string | null = null): Promise<void> {
     const stage = row.stage as FlowStage;
-    // A person working in the item's chat now is working on it: the run is moot. The flow's own chats
-    // do not count: one whose run just ended is still closing its process as the next role starts
-    const own = new Set((this.sql.prepare('SELECT chat_id FROM flow_runs WHERE item_id = ? AND chat_id IS NOT NULL').all(item.id) as Array<{ chat_id: string }>).map((r) => r.chat_id));
-    const busy = this.deps.items.links(item.id).find((l) => l.kind === 'chat' && l.chatId && !own.has(l.chatId) && this.deps.chatBusy(l.chatId));
-    if (busy) {
-      this.end(row.id, 'cancelled', null, 'a chat is already working on the item', 'chat-busy');
-      return;
-    }
     // Only a run's own chat is continued: this run's, cut off by a restart, or the Developer's from
     // an earlier round. A person's chat on the item is theirs, and a member never takes it over
     const continuing = row.chat_id !== null;
-    const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
-    const documentsPath = project.settings.documents?.path ?? 'docs';
-    const checkCommands = stage === 'verify' ? testCommands(project.path) : [];
-    const compactFirst = stage === 'work' && !continuing && resumeChatId ? await this.compactFirst(row, resumeChatId, item) : false;
-    const fix = stage === 'work' && !continuing ? await this.fixPromptOf(item.id) : null;
-    const { permissionMode, policy } = stagePolicy(stage, member.writes, { documentsPath, checks: checkCommands, commands: member.commands });
-    const rules = rulesFor('claude-code', policy);
-    const launch: FlowLaunch = {
-      run: this.runOf(row),
-      item,
-      member,
-      prompt:
-        nudge ??
-        (continuing
-          ? `${FLOW_RESTART_PREFIX} Carry on from where you were, and end with the structured result.`
-          : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
-              documentsPath,
-              rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
-              language: runLanguage(row),
-              design: stage === 'work' ? designSources(project.path) : null,
-              conflict: stage === 'work' ? (this.deps.pullRequests?.conflictOf(item.id) ?? null) : null,
-              fix,
-              checkCommands,
-            })),
-      appendSystemPrompt: await this.deps.handoff(item.projectId, { title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) }),
-      jsonSchema: flowResultSchema(stage),
-      permissionMode,
-      policy,
-      allowedTools: rules.allowedTools,
-      disallowedTools: rules.disallowedTools,
-      maxBudgetUsd: maxCostUsd(project.settings),
-      resumeChatId,
-      continuing,
-      inWorktree: stage !== 'refine',
-      compactFirst,
-    };
     let started = false;
     try {
+      // A person working in the item's chat now is working on it: the run is moot. The flow's own chats
+      // do not count: one whose run just ended is still closing its process as the next role starts
+      const own = new Set((this.sql.prepare('SELECT chat_id FROM flow_runs WHERE item_id = ? AND chat_id IS NOT NULL').all(item.id) as Array<{ chat_id: string }>).map((r) => r.chat_id));
+      const busy = this.deps.items.links(item.id).find((l) => l.kind === 'chat' && l.chatId && !own.has(l.chatId) && this.deps.chatBusy(l.chatId));
+      if (busy) {
+        this.end(row.id, 'cancelled', null, 'a chat is already working on the item', 'chat-busy');
+        return;
+      }
+      const resumeChatId = row.chat_id ?? (stage === 'work' ? this.workChat(item.id) : null);
+      const documentsPath = project.settings.documents?.path ?? 'docs';
+      const checkCommands = stage === 'verify' ? testCommands(project.path) : [];
+      const compactFirst = stage === 'work' && !continuing && resumeChatId ? await this.compactFirst(row, resumeChatId, item) : false;
+      const fix = stage === 'work' && !continuing ? await this.fixPromptOf(item.id) : null;
+      const { permissionMode, policy } = stagePolicy(stage, member.writes, { documentsPath, checks: checkCommands, commands: member.commands });
+      const rules = rulesFor('claude-code', policy);
+      const launch: FlowLaunch = {
+        run: this.runOf(row),
+        item,
+        member,
+        prompt:
+          nudge ??
+          (continuing
+            ? `${FLOW_RESTART_PREFIX} Carry on from where you were, and end with the structured result.`
+            : flowPrompt(stage, row.column_name as WorkItemStatus, item, member, {
+                documentsPath,
+                rejection: stage === 'work' && (item.bounces ?? 0) > 0 ? this.rejection(item.id, project.settings) : null,
+                language: runLanguage(row),
+                design: stage === 'work' ? designSources(project.path) : null,
+                conflict: stage === 'work' ? (this.deps.pullRequests?.conflictOf(item.id) ?? null) : null,
+                fix,
+                checkCommands,
+              })),
+        appendSystemPrompt: await this.deps.handoff(item.projectId, { title: item.title, criteria: item.acceptanceCriteria.map((c) => c.text) }),
+        jsonSchema: flowResultSchema(stage),
+        permissionMode,
+        policy,
+        allowedTools: rules.allowedTools,
+        disallowedTools: rules.disallowedTools,
+        maxBudgetUsd: maxCostUsd(project.settings),
+        resumeChatId,
+        continuing,
+        inWorktree: stage !== 'refine',
+        compactFirst,
+      };
       await this.deps.launch(launch, (chatId, provider, effort) => {
         started = true;
         // The effort recorded is the one the chat was started with: none where its provider takes none
@@ -1559,9 +1565,9 @@ export class FlowService {
       if (!started) throw new Error('the chat did not start');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (/concurrent run limit/i.test(message)) {
-        // The runtime is full: back in the queue, in its place, until a chat ends. A chat it was
-        // about to continue told it of itself first, so the row gets back the chat it had
+      if (isTransientRefusal(err)) {
+        // The runtime is full, or the machine short of memory: back in the queue, in its place, until a
+        // chat ends. A chat it was about to continue told it of itself first, so the row gets back the chat it had
         this.sql
           .prepare("UPDATE flow_runs SET state = 'queued', chat_id = ?, started_at = CASE WHEN ? IS NULL THEN NULL ELSE started_at END WHERE id = ? AND state = 'running'")
           .run(row.chat_id, row.chat_id, row.id);

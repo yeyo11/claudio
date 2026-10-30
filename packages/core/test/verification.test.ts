@@ -338,6 +338,17 @@ test('a command past its time limit is killed with everything it started, and co
   await until(() => started.every((pid) => !alive(pid)), 'the command’s processes to be gone');
 });
 
+test('what a check leaves running in the background ends with it, even when the check passes', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
+  const pids = join(dir, 'pids');
+  // A dev server or a watcher a check starts and does not wait for: the shell exits 0 at once
+  const outcome = await runCommand(`sleep 60 & echo $! > ${pids}; exit 0`, dir, 30_000);
+  assert.equal(outcome.ok, true);
+  const [pid] = readFileSync(pids, 'utf8').split('\n').filter(Boolean).map(Number);
+  assert.ok(pid);
+  await until(() => !alive(pid), 'the background child to be ended with its check');
+});
+
 test('a running command can be cancelled', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-cmd-'));
   let cancel: () => void = () => undefined;
@@ -1266,4 +1277,51 @@ test('the review fixer carries the check fixer’s rules word for word, and each
   assert.match(prompt, /A finding you believe is wrong: do not change code for it/);
   assert.match(prompt, /Do not edit `\.claude\/agents\/claudio-review-\*`/);
   assert.match(prompt, /at the same time: a \| b/);
+});
+
+// ---------- what gets in the way of the checks (regression audit 2026-10-29, 9.3 and 9.9) ----------
+
+test('checks that cannot even start (the branch head unreadable) end failed and let go of the graph', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const orchestrator = new Orchestrator(config, new ChatManager(config, db), db);
+  const started = launch(orchestrator, repo, { commands: ['true'], fixer: false, maxAttempts: 1 });
+  const orch = await settle(orchestrator, started.id);
+  assert.equal(orch.integration?.status, 'merged');
+  // The integration worktree is no repository any more: reading its head throws before any check runs
+  const live = orchestrator.get(started.id) as Orchestration;
+  if (live.integration) live.integration.worktree = mkdtempSync(join(tmpdir(), 'claudio-not-a-repo-'));
+  orchestrator.verify(started.id, { verification: { commands: ['true'], fixer: false, maxAttempts: 1 } });
+  for (let i = 0; i < 200 && orchestrator.get(started.id)?.verification?.status === 'running'; i++) await new Promise((r) => setTimeout(r, 25));
+  const after = orchestrator.get(started.id) as Orchestration;
+  assert.equal(after.verification?.status, 'failed');
+  assert.match(after.verification?.report ?? '', /could not run/);
+  // Not left "running": verify, resume and remove are not refused with "checks are running"
+  assert.doesNotThrow(() => orchestrator.verify(started.id, { verification: { commands: ['true'], fixer: false, maxAttempts: 1 } }));
+  orchestrator.close();
+  db.close();
+});
+
+test('a fixer that cannot start is not an attempt, and the checks say why they stopped', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const db = new Db(config);
+  const repo = repoWithCommit();
+  const runs = new ChatManager(config, db);
+  const start = runs.start.bind(runs);
+  runs.start = (opts, meta) => {
+    if (meta?.orchestrationTaskId === '__verification__') throw new Error('guard-unavailable: the guard program is missing');
+    return start(opts, meta);
+  };
+  const orchestrator = new Orchestrator(config, runs, db);
+  const started = launch(orchestrator, repo, { commands: ['test -f never.txt'], fixer: true, maxAttempts: 2 });
+  const orch = await settle(orchestrator, started.id);
+  const v = orch.verification;
+  assert.equal(v?.status, 'failed');
+  assert.equal(v?.attempts, 0, 'no attempt was spent on a fixer that never ran');
+  assert.deepEqual(v?.fixes, []);
+  assert.match(v?.report ?? '', /the fixer could not start \(guard-unavailable: the guard program is missing\)/);
+  await runs.stopAll();
+  orchestrator.close();
+  db.close();
 });
