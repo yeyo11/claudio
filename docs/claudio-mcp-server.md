@@ -248,7 +248,7 @@ chat can have the server, with **all** its tools, from one switch: the first row
 `--allowedTools` for its next processes, and in the live process through the CLI's
 `apply_flag_settings` control request (`permissions.allow`, merged into the session's flag layer; the
 Agent SDK's `applyFlagSettings`, sdk.d.ts 0.3.312), sent right after a successful `mcp_set_servers`
-and cleared when the switch goes off. Without them a read was denied in a chat whose prompts go
+and cleared when the switch goes off (checked on CLI 2.1.312 with no turn, `packages/core/test/fixtures/recordings/claude/apply-flag-settings.json`: the rules are listed with source `flagSettings`, a second request replaces the list, and `--allowedTools` is left alone). Without them a read was denied in a chat whose prompts go
 nowhere or under `dontAsk`. A CLI that refuses the request keeps the server, and the chat gets a
 notice that its reads ask until its next process. The writes obey the chat's permission mode like any
 other MCP tool, and with "Sin comprobar permisos" (bypass) a write runs without asking, which the row

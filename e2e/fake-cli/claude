@@ -1013,7 +1013,7 @@ const pushedServers = new Map();
 /**
  * The `permissions` of the session's flag layer, as `apply_flag_settings` merged them in (the Agent
  * SDK's `applyFlagSettings`, sdk.d.ts 0.3.312): an `allow` rule there lets a tool run as
- * `--allowedTools` does. The fake replaces each list it is given.
+ * `--allowedTools` does. A request replaces the list, as CLI 2.1.312 does (packages/core/test/fixtures/recordings/claude/apply-flag-settings.json).
  */
 const flagPermissions = { allow: [] };
 
