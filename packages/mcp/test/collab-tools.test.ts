@@ -268,7 +268,13 @@ test('the fence outlasts any run of backticks, newlines stay escaped, and an ove
   assert.equal(lines[5], '`'.repeat(8));
   assert.match(lines[1] ?? '', /last synced never/);
 
-  const big = fromTeammate(source, 'Notes', 'x'.repeat(UNTRUSTED_BODY_MAX_CHARS * 2)).text.split('\n');
-  assert.equal(big[5], '```');
-  assert.match(big[6] ?? '', /cut at 45000 characters/);
+  const big = fromTeammate(source, 'Notes', { notes: Array.from({ length: 400 }, (_, i) => `${i} ${'x'.repeat(200)}`) });
+  const bigLines = big.text.split('\n');
+  assert.equal(bigLines[5], '```');
+  assert.match(bigLines[6] ?? '', /cut to fit \(1 lists shortened, 0 texts cut\)/);
+  assert.ok(big.text.length <= UNTRUSTED_BODY_MAX_CHARS + 2_000, 'the whole result fits the budget');
+  // What is inside the fence is still JSON, the entries kept from the front
+  const body = JSON.parse(bigLines[4] ?? '') as { notes: string[] };
+  assert.ok(body.notes.length > 10 && body.notes.length < 400);
+  assert.match(body.notes[0] ?? '', /^0 x/);
 });

@@ -1493,6 +1493,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    ALTER TABLE supervisor_proposals ADD COLUMN agent TEXT;
    DROP INDEX supervisor_proposals_signal;
    CREATE UNIQUE INDEX supervisor_proposals_occurrence ON supervisor_proposals (chat_id, signal, occurrence);`,
+
+  // What Claude loaded is a chat's, not its folder's: two chats in one folder load different servers
+  // and models (docs/plans/regression-fixes-2026-10-29.md, C5). Each row keyed by folder moves under
+  // the chat that last started there, which its JSON names; a row naming none has no chat to go to
+  `CREATE TABLE environments_by_chat (
+     chat_id     TEXT PRIMARY KEY,
+     cwd         TEXT NOT NULL,
+     observed_at TEXT NOT NULL,
+     json        TEXT NOT NULL
+   );
+   INSERT OR REPLACE INTO environments_by_chat (chat_id, cwd, observed_at, json)
+     SELECT json_extract(json, '$.chatId'), cwd, observed_at, json FROM environments
+     WHERE json_valid(json) AND coalesce(json_extract(json, '$.chatId'), '') <> '';
+   DROP TABLE environments;
+   ALTER TABLE environments_by_chat RENAME TO environments;
+   CREATE INDEX environments_cwd ON environments (cwd, observed_at DESC);`,
 ];
 
 /**
@@ -1584,6 +1600,9 @@ export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 's
 /** The migration that added the denied joins: a test starts a database from just before it */
 export const COLLAB_DENIALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_join_denials')) + 1;
 
+/** The migration that keyed the environments by chat: a test starts a database from just before it */
+export const ENVIRONMENTS_BY_CHAT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE environments_by_chat')) + 1;
+
 /** The migration that gave audit rows their route: a test starts a database from just before it */
 export const AUDIT_ROUTE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ALTER TABLE audit ADD COLUMN route')) + 1;
 /** The migration that moved anonymous refusals into their own ring: a test starts a database from just before it */
@@ -1621,6 +1640,9 @@ export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
 
 /** Command runs kept across every kind; the newest few dozen of a kind are all "usual" ever looks at. */
 const KEEP_COMMANDS = 10_000;
+
+/** Chats whose own environment is kept besides each folder's newest: a few months of chats on a busy install */
+const KEEP_ENVIRONMENTS = 5_000;
 
 /** How a command ended: `cancelled` is a person's decision, and a command that hung and was cancelled is that. */
 export type CommandOutcome = 'ok' | 'error' | 'cancelled';
@@ -2279,6 +2301,7 @@ export class Db {
       this.db.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_responses WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_chat_prompts WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM environments WHERE chat_id = ?').run(id);
     });
   }
 
@@ -2803,21 +2826,60 @@ export class Db {
 
   // ---------- effective environments ----------
 
-  saveEnvironment(env: EffectiveEnvironment): void {
-    this.db
-      .prepare(
-        `INSERT INTO environments (cwd, observed_at, json) VALUES (?, ?, ?)
-         ON CONFLICT(cwd) DO UPDATE SET observed_at = excluded.observed_at, json = excluded.json`,
-      )
-      .run(env.cwd, env.observedAt, JSON.stringify(env));
+  /**
+   * A chat's latest snapshot: one row per chat, replaced by each of its processes. Past `keep` rows,
+   * not counting each folder's newest, the oldest go, so the table does not grow with every chat ever
+   * started; a chat whose row went shows its folder's last, labelled as such.
+   */
+  saveEnvironment(env: EffectiveEnvironment, keep = KEEP_ENVIRONMENTS): void {
+    this.tx(() => {
+      this.db
+        .prepare(
+          `INSERT INTO environments (chat_id, cwd, observed_at, json) VALUES (?, ?, ?, ?)
+           ON CONFLICT(chat_id) DO UPDATE SET cwd = excluded.cwd, observed_at = excluded.observed_at, json = excluded.json`,
+        )
+        .run(env.chatId, env.cwd, env.observedAt, JSON.stringify(env));
+      this.db
+        .prepare(
+          `DELETE FROM environments WHERE chat_id IN (
+             SELECT chat_id FROM environments e
+             WHERE observed_at < (SELECT MAX(observed_at) FROM environments WHERE cwd = e.cwd)
+             ORDER BY observed_at DESC LIMIT -1 OFFSET ?
+           )`,
+        )
+        .run(keep);
+    });
   }
 
+  /** What a chat's last process loaded; null when no process of it started here */
+  environmentOf(chatId: string): EffectiveEnvironment | null {
+    const row = this.db.prepare('SELECT json FROM environments WHERE chat_id = ?').get(chatId) as { json: string } | undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(row.json) as EffectiveEnvironment;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Each folder's latest snapshot, newest first: what a folder's panel shows before a chat starts there */
   loadEnvironments(): EffectiveEnvironment[] {
-    const rows = this.db.prepare('SELECT json FROM environments ORDER BY observed_at DESC').all() as unknown as Array<{ json: string }>;
+    const rows = this.db
+      .prepare(
+        `SELECT json FROM environments e
+         WHERE observed_at = (SELECT MAX(observed_at) FROM environments WHERE cwd = e.cwd)
+         ORDER BY observed_at DESC`,
+      )
+      .all() as unknown as Array<{ json: string }>;
     const out: EffectiveEnvironment[] = [];
+    const seen = new Set<string>();
     for (const row of rows) {
       try {
-        out.push(JSON.parse(row.json) as EffectiveEnvironment);
+        const env = JSON.parse(row.json) as EffectiveEnvironment;
+        // Two chats observed at the same instant in one folder: the first is the folder's
+        if (seen.has(env.cwd)) continue;
+        seen.add(env.cwd);
+        out.push(env);
       } catch {
         // an unreadable row just drops out of the panel
       }

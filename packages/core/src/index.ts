@@ -1066,7 +1066,8 @@ export class Core {
       sessions: this.sessions,
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
-      environmentOf: (dir) => this.runtime.environments.get(dir),
+      environmentOf: (chatId, dir) => this.runtime.environments.forChat(chatId, dir),
+      modelsOf: (provider) => this.modelsOf(provider),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
       guardsForChat: (cwd, opts) => this.guardsForChat(cwd, opts),
@@ -1868,6 +1869,19 @@ export class Core {
    */
   private forgetSystem(): void {
     this.systemGen++;
+  }
+
+  /**
+   * The models a provider lists, read from the CLI first when none is cached yet (the server warms the
+   * lists at boot, but a request in its first moments would find none); empty when it cannot say
+   */
+  private async modelsOf(provider: ProviderId): Promise<ModelOption[]> {
+    const driver = this.runtime.providers.driverFor(provider);
+    if (!driver) return [];
+    const listed = driver.models();
+    if (listed.length) return listed;
+    await this.accounts.warmModels().catch(() => undefined);
+    return driver.models();
   }
 
   /** The catalog of the provider a new chat starts with */

@@ -15015,6 +15015,14 @@
   "ChatEnvironment": {
     "type": "object",
     "properties": {
+      "source": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "folder"
+        ],
+        "description": "`chat` when this chat's own last process reported it; `folder` when no process of the chat started here (one from a terminal), and it is the last chat's in the same folder"
+      },
       "observedAt": {
         "type": "string"
       },

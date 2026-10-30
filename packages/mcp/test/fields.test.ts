@@ -22,9 +22,12 @@ test('no read tool indents its answer: compact JSON is one line', async () => {
     get_journal: { projectId: s.project.id },
     list_documents: { projectId: s.project.id },
     read_document: { projectId: s.project.id, path: 'docs/plan.md' },
+    list_milestones: { projectId: s.project.id },
+    list_assistant_proposals: { projectId: s.project.id },
   };
   for (const name of CLAUDIO_MCP_READ_TOOL_NAMES) {
-    if (name === 'get_chat') continue;
+    // Each needs a record the seed does not have: a chat, a planner's draft
+    if (name === 'get_chat' || name === 'get_orchestration_plan') continue;
     const { isError, text } = await s.call(name, args[name] ?? {});
     assert.equal(isError, false, name);
     assert.ok(!text.includes('\n'), `${name} is not on one line`);

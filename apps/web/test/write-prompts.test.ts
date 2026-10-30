@@ -12,11 +12,22 @@ const P = 'mcp__claudio__';
 const WRITE_TOOLS = [
   'create_work_item',
   'update_work_item',
+  'check_criterion',
   'move_work_item',
   'comment_work_item',
   'retry_flow_run',
+  'plan_orchestration',
+  'launch_orchestration',
+  'stop_orchestration',
+  'resume_orchestration',
   'retry_orchestration_task',
   'start_chat',
+  'send_chat_message',
+  'hint_chat',
+  'interrupt_chat',
+  'stop_chat',
+  'resume_chat',
+  'fork_chat',
   'accept_assistant_proposal',
   'discard_assistant_proposal',
 ];
@@ -41,6 +52,23 @@ test('titles and details come from the input', async () => {
   assert.equal(create?.detail, 'Why it fails\nPriority: high');
   assert.equal(describeWrite(`${P}comment_work_item`, { item: 'CW-3', body: 'Looks done' })?.detail, 'Looks done');
   assert.equal(describeWrite(`${P}update_work_item`, { item: 'abc123', title: 'New' })?.title, 'Change a work item');
+});
+
+test('the orchestration and chat tools say what they start or stop, and carry the text they send', async () => {
+  await i18n.changeLanguage('en');
+  const launch = describeWrite(`${P}launch_orchestration`, { name: 'Checkout split', objective: 'Split it', tasks: [{ id: 'a', name: 'Totals', prompt: 'p' }, { id: 'b', name: 'Taxes', prompt: 'p' }] });
+  assert.equal(launch?.title, 'Launch the orchestration Checkout split');
+  assert.equal(launch?.detail, 'Split it\nTasks: Totals · Taxes');
+  assert.equal(describeWrite(`${P}launch_orchestration`, { fromPlan: 'chat-1' })?.title, 'Launch the planned orchestration');
+  assert.equal(describeWrite(`${P}check_criterion`, { item: 'cw-4', criterionId: 'x', checked: false })?.title, 'Uncheck an acceptance criterion of CW-4');
+  assert.equal(describeWrite(`${P}hint_chat`, { chatId: 'c1', text: 'Look at the logs' })?.detail, 'Look at the logs');
+  await i18n.changeLanguage('es');
+  try {
+    assert.equal(describeWrite(`${P}fork_chat`, { chatId: 'c1', prompt: 'otra vía' })?.title, 'Crear un fork de un chat');
+    assert.equal(describeWrite(`${P}stop_orchestration`, { orchestrationId: 'o1' })?.title, 'Detener una orquestación');
+  } finally {
+    await i18n.changeLanguage('en');
+  }
 });
 
 test('Spanish says the same in Spanish, with no wire names', async () => {

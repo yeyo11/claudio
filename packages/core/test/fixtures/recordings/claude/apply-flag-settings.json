@@ -1,0 +1,34 @@
+{
+  "about": "The control request apply_flag_settings on CLI 2.1.312 (Claude Code), in a -p --input-format stream-json session started with --allowedTools=mcp__x__argv_rule, --strict-mcp-config and --setting-sources= under an empty CLAUDE_CONFIG_DIR; no turn sent, no tokens spent. Each step is the request and what list_permission_rules answered after it. Recorded 2026-10-30.",
+  "findings": [
+    "The rules of permissions.allow go to the session's flag layer, listed with source 'flagSettings' and editability 'readonly'.",
+    "A second request replaces the flag layer's allow list: allow [] removes the rules the first one added.",
+    "The rules of --allowedTools (source 'cliArg') are left alone by either request."
+  ],
+  "steps": [
+    {
+      "request": { "subtype": "list_permission_rules" },
+      "rules": [{ "behavior": "allow", "source": "cliArg", "rule": "mcp__x__argv_rule", "editability": "session" }]
+    },
+    {
+      "request": { "subtype": "apply_flag_settings", "settings": { "permissions": { "allow": ["mcp__claudio__list_projects", "mcp__claudio__get_chat"] } } },
+      "response": { "subtype": "success" }
+    },
+    {
+      "request": { "subtype": "list_permission_rules" },
+      "rules": [
+        { "behavior": "allow", "source": "flagSettings", "rule": "mcp__claudio__list_projects", "editability": "readonly" },
+        { "behavior": "allow", "source": "flagSettings", "rule": "mcp__claudio__get_chat", "editability": "readonly" },
+        { "behavior": "allow", "source": "cliArg", "rule": "mcp__x__argv_rule", "editability": "session" }
+      ]
+    },
+    {
+      "request": { "subtype": "apply_flag_settings", "settings": { "permissions": { "allow": [] } } },
+      "response": { "subtype": "success" }
+    },
+    {
+      "request": { "subtype": "list_permission_rules" },
+      "rules": [{ "behavior": "allow", "source": "cliArg", "rule": "mcp__x__argv_rule", "editability": "session" }]
+    }
+  ]
+}
