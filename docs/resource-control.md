@@ -33,20 +33,43 @@ machine that exposes none of this (no `/proc`) admits chats as it did before.
 
 **An orchestration task waits for that memory instead of failing.** `Orchestrator.refuse()` treats
 the memory refusal like the count refusal: the task stays pending and the scheduler looks again in
-three seconds. The refusal's words start with `RESOURCE_REFUSAL_PREFIX`, and that prefix is what the
-orchestrator matches, so the two must change together.
+three seconds. A refusal is told by its class, never by its words: `RunSlotRefusal` (a full run slot),
+`MemoryRefusal` (the machine is short of memory) and `QueueYieldRefusal` (a place kept for a person,
+below). `isTransientRefusal()` in `packages/core/src/chat-errors.ts` is the one test every caller
+that can wait uses (the orchestrator, the review gate, the Supervisor, a schedule), and
+`startWhenAdmitted()` is the one bounded wait for a place that the integrator, the synthesis, the
+fixer and a scheduled chat share. Before, each matched the refusal's text (`Concurrent run limit`,
+`RESOURCE_REFUSAL_PREFIX`), so rewording a message turned a wait into a failure.
 
 **A person's chat goes before a task's worker.** When a person's start (`purpose: 'person'`) is
 refused a place, by the count or by the memory, they are told exactly what they were told before
 (the same words and status), and `ChatManager` also notes that someone is waiting
 (`InteractiveHold`, `packages/core/src/admission-queue.ts`). For the next 20 seconds, or until a
 person's start is admitted, a task start from the orchestrator (`queued: true`, the two calls that
-keep the task pending) is refused with `QUEUE_YIELD_PREFIX` ("Waiting for a chat a person asked to
-start first"), which the orchestrator matches like the other transient refusals: the task stays
+keep the task pending) is refused with a `QueueYieldRefusal` ("Waiting for a chat a person asked to
+start first"), a transient refusal like the other two: the task stays
 pending and is looked at again in three seconds. So the place that frees up is there when the person
 retries, and not taken by a poll that fired first. A graph's reviewers, workflow lead and fixers are
 not made to give way (they have no pending state to give way into), and neither are housekeeping,
 flow runs or evals.
+
+**A chat that ended long ago leaves memory.** `ChatManager` kept every chat it had touched until a
+restart, each with up to 5 000 events, and rewrote all of them on every turn of every chat. Now a
+chat that ended an hour ago and that nothing holds (no process, no reader, no waiter, nothing to
+deliver or replay) is retired to the summary waking it would read back, and woken from its `chats`
+row by the first call that needs it (`Db.loadChat`). Saving writes only the chats that changed (the
+ones that emitted an event since their last write and the ones a save names), and a restart reads
+rows without replaying a transcript; the chats ended long ago are retired at once.
+
+**A chat the machine cannot start does not stay "starting".** A spawn that throws at once (`ENOMEM`,
+`E2BIG`) ends the execution it began; a new chat it refused leaves no row.
+
+**Stopping every chat waits for it.** `stopAll()` returns a promise that settles when the processes
+are gone and kills with SIGKILL what ignored SIGTERM after the grace. `Core.shutdown()` is idempotent
+and returns a promise too: it closes the database only after the evals, the terminals, the
+collaborators, the tunnel and the chats have written their last rows (bounded at 8 s, so a hang does
+not hold the exit), and what reacts to a chat's end (flow, the assistant, work links, lessons) stands
+down once the core is closing, because a chat that shutdown stopped is not work that ended.
 
 **Stopping a chat ends its children too.** `ChatManager.stop()` walks the process table from the
 CLI's pid and signals the descendants first, then the CLI, and escalates to SIGKILL after five
@@ -74,6 +97,18 @@ span (the largest load, pressure, chats and resident memory, the smallest availa
 **Machine** page, Settings → Runs & spend → Machine, draws memory in use, the three pressures with the
 admission limit and the load with the core count over 1 hour, 6 hours, 24 hours or 7 days, and lists
 the live chats by resident memory and CPU time.
+
+**The database trims a chat with all its rows.** The chat trim used to delete the chat and its
+executions, and left `chat_entries`, `chat_compactions`, `chat_notes`, `chat_uploads`,
+`chat_upload_scans` and the OpenAI tables of every trimmed chat for ever (one wrapper database
+reached 94 MB). The trim and `deleteChat` now share one list of the tables a chat owns, the trim never
+takes a chat whose process this server still runs (an old chat resumed today is the oldest by
+creation) and returns the ids it took; one migration swept the orphan rows earlier trims left. A chat
+deleted on purpose also takes its environment row ([chat-environment.md](chat-environment.md)); one the
+trim retires keeps it, and the environments table is bounded on its own. Every write transaction is
+`BEGIN IMMEDIATE`, so one that reads before it writes cannot fail at upgrading the lock while another
+process holds it; fixed SQL on the hot paths is prepared once per connection; and
+`usage_history.account` is `TEXT`, since its old `INTEGER` affinity turned an id like `0042` into 42.
 
 ## The limits, and where they come from
 

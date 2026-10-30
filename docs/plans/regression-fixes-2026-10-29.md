@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-29T19:30:00Z
-updated_at: 2026-10-29T19:30:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - plan
     - regression
@@ -17,7 +17,7 @@ tags:
 ---
 # Plan: the regression fixes of 2026-10-29
 
-Status: **launched as one orchestration** on `fix/regression-2026-10-29` (base `origin/main`
+Status: **built** (see Outcome); launched as one orchestration on `fix/regression-2026-10-29` (base `origin/main`
 af869016b, 0.11.0). The owner asked for professional fixes of everything the audit found, not
 patches: every section below states the end state the code is moved to, and a task builds it.
 
@@ -484,11 +484,154 @@ sets left (zero).
 
 ## Outcome
 
-*(written by the `docs` task)*
+Written by the `docs` task from the eleven implementation tasks' results and the branches as merged.
+Each task built on its own branch (`worktree-100d525f-<task>`); the merge into one tree was
+resolved by hand where two tasks touched the same lines, and `lint` and `typecheck` pass on it. The
+whole test suite and the browser suite run once, after every task, and their result is not recorded
+here.
+
+### What each task built
+
+| Task | Where it is documented |
+|---|---|
+| `security` (D1, C1) | [decisions/route-access-classes.md](../decisions/route-access-classes.md), [security-model.md](../security-model.md#chat-tokens) |
+| `accounts-core`, `accounts-web` (D2, C4) | [accounts.md](../accounts.md#one-account-view) |
+| `delivery` (D3, D4, C2) | [chat-delivery.md](../chat-delivery.md) |
+| `guards-supervisor` (D5, D6, C3) | [guards.md](../guards.md), [decision-engine.md](../decision-engine.md) |
+| `mcp` (D7, C5, C6) | [claudio-mcp-server.md](../claudio-mcp-server.md), [claudio-assistant.md](../claudio-assistant.md), [slash-commands.md](../slash-commands.md) |
+| `perf-listing` (D8, C7) | [transcript-listing.md](../transcript-listing.md), [api-wire.md](../api-wire.md) |
+| `orchestrator-core` | [orchestrations.md](../orchestrations.md#recovery-and-shutdown), [resource-control.md](../resource-control.md) |
+| `collab-tunnel` (C8) | [collaborators.md](../collaborators.md), [tunnel.md](../tunnel.md) |
+| `board` (C9) | [work-items.md](../work-items.md) |
+| `web-wiring` | [api-wire.md](../api-wire.md#how-the-cache-follows-the-feed), [design-system.md](../design-system.md) |
+
+### Contract refinements
+
+Where a task built a contract with a different name or shape from the one written above, this is
+what stands.
+
+- **C1 (security).**
+  - The request-target rule is not "`decodeURI(path)` differs → 400": that would refuse a name with
+    `%20` or an encoded accent. The guard answers `400 request-target` for what changes which route
+    matches (absolute form, dot segments, malformed escapes, percent-encoded unreserved characters).
+  - `RouteAccess` is exported, with `workFields` and `accessOf()`. Totals: 7 `open`, 224 `person`,
+    49 `work` writes; three reads are `person`.
+  - `attachments` is a `POST /chats` field, since `POST /uploads` stays `work`. Resume and fork
+    share the allowlist (`prompt`, `attachments`, `model`); `PATCH /chats/:id` allows only `model`.
+  - `compact`, `notes` and a typed `/compact` are `work`, as C1 says, which loosens the old rule.
+    `/tunnel/stop` is `person` (the old rule let a chat close the tunnel) and `DELETE /v1/responses/:id`
+    is `person` under "every `DELETE`".
+  - The refusal ring is readable at the new `GET /audit/refusals` (`person`). A cross-site write
+    under `none` answers `403 cross-site`; `POST /terminals/:id/ticket` is exempt because the route
+    checks the `Origin` itself.
+  - Push endpoints are refused at registration and again at send time, through a lookup that
+    refuses private addresses.
+- **C2 (delivery).**
+  - `hint(id, text, opts)` returns `ChatSummary`, not `ChatRuntime`.
+  - `MessageDelivery` gains `reason` (`cancelled` or `not-read`) and `at` (when the agent took it).
+    `ChatPendingMessage.text` is the words without Claudio's hint prefix.
+  - New types: `ChatPendingBlocker` (`blockedBy`), `DeliveryRefusal` (a 409 with a `code`), an
+    interrupt receipt returned by `DriverSession.interrupt()` and `ProviderDriver.readsBack`.
+  - `still_queued` on the interrupt response is read from the CLI's own protocol description
+    (2.1.312), not from `sdk.d.ts`, and only when present. It is the one input not in the SDK's
+    typings (see "Open" below).
+  - A Supervisor hint sent on its own starts "An automatic hint from Claudio…"; a person pressing
+    Send on a proposal makes it the person's. Withdrawing a message is `person` only, as C1 classes
+    every `DELETE`.
+  - One-turn chats (orchestration workers) still end their input when their turn ends, even with
+    background work running: the orchestrator continues a worker from its result, and keeping the
+    input open changed that. D3 holds for every other chat.
+- **C3 (guards-supervisor).** `integrity` is a rule like the others and the status line says that
+  with no rule on no run is guarded; the switch "Orchestration workers and flow" and "Observe only"
+  are disabled then. The Supervisor's cap is `decisions.cli.supervisorMaxCostUsd` and a `cli`
+  document without it keeps the stored one. `act()` cancels a hung command with the hint as the
+  reason and sends the hint as a `supervisor` message only if the cancel was refused.
+- **C4 (accounts).**
+  - Overage and window-less rejections are a per-account `outUntil`, not `cli.scoped` entries: a
+    scoped entry names a model, and an overage rejection blocks every model. `cooldownSeconds` is
+    only that per-account `outUntil`; the global gap between switches is gone.
+  - The `limit-hit` event carries a reset time (`ChatManager.limitResetOf`), not a provider limit.
+  - New shared types: `AccountView`, `AccountInUse` (with `limit` and `plan`), `AccountInUseView`
+    on the web as an alias, `AccountInUseResponse` (the 409 body) and `AccountsChangedEvent`.
+    `AccountsSnapshot` is removed. The web declared the C4 shapes locally while the core task ran
+    in parallel; at the merge they became re-exports of the shared ones.
+  - Without a view the status bar falls back to `GET /auth.inUse`, which is the same fact.
+- **C5 (mcp).** `ChatEnvironment.source` is optional in the type and always set on the chat detail.
+  The table is bounded: newest 5 000 chats' rows besides each folder's newest.
+- **C6 (mcp).**
+  - `get_chat` takes `chatId`, to match the other tools; `get_orchestration_plan` is added, without
+    which a plan from `plan_orchestration` could not be read or launched.
+  - `truncated` may also carry `objects`, and every tool declares the `routes` it calls (a test
+    checks them against `ROUTE_DOCS` and the `work` class).
+  - The model check runs in the `POST /chats` route only: in `create()` it also refused
+    `POST /work-items/:id/work`. Write tools show a permission prompt worded in English and Spanish.
+  - `apply_flag_settings` was checked against the real CLI 2.1.312 with control requests only
+    (the recording is a fixture): the rules land with source `flagSettings` and a second request
+    replaces the list.
+- **C7 (perf-listing).** The CLI's session list is read from the CLI's own `sessions/<pid>.json` files,
+  checked against `/proc`, on Linux; elsewhere `claude agents --json`. `/overview` went from a warm
+  p50 of 1 819 ms to 9 ms, and the first request after a restart from 5 522 ms to 181 ms
+  (`scripts/listing-bench.mjs`). `GET /chats` pages by 200 with an `after` cursor; the web reads the
+  pages one after the other. Details in [transcript-listing.md](../transcript-listing.md).
+- **C8 (collab-tunnel).**
+  - `TunnelSettings.port`; `TunnelStatus` gains `portSource` and `portTaken { port, holder, nextFree }`;
+    new reasons `tunnel.serveStatusFailed`, `tunnel.portFromEnv` and `tunnel.portWhileRunning`.
+    `CoreConfig.tunnelPort` is null when the variable is unset.
+  - The Collaborators connection gains an `'error'` value and a separate
+    `connectionError { message, retryAt }`; the plan had a `{ state, message }` object.
+  - `join` answers `202` with `pending` after about 8 s and keeps trying in the background; a leave
+    is kept and resent for up to 14 days.
+- **C9 (board).** The hook's options are exported as `moveOptions(queryClient, { send, failed })`; a move
+  request is `{ item, status, place?: { index, column } }`; new pure helpers in `board/model.ts`
+  (`projectSpan`, `placeInGroup`, `dropSlot`, `moveTarget`, `placeOnBoard`, `boardOrder`); coarse
+  pointers wider than a phone get the card's "⋯" move menu.
+- **Refusals.** The orchestrator task added `MemoryRefusal`, `QueueYieldRefusal`, `isTransientRefusal()`
+  and `startWhenAdmitted()`; the guards task had added `isCapacityRefusal()` for the same purpose.
+  The merge keeps one, `isTransientRefusal`, and the Supervisor, the review gate and the chat
+  manager use it. `stopAll()` and `Core.shutdown()` now return promises, and the shutdown waits for
+  the tunnel as well.
+
+### Open
+
+What the tasks saw and did not close, for the owner or a later change.
+
+- **Not run.** The browser suite did not run for any task; the specs written (`accounts`,
+  `status-bar-accounts`, `chat-delivery-cards`, `tasks-board-moves`, `remote-access`) wait for the
+  verification phase. The delivery cards have had no UI review: they only appear mid-turn with
+  messages waiting, which needs a live server with a turn held open.
+- **`still_queued`** (C2) is outside `sdk.d.ts`; the review decides whether it stays.
+- **Accounts.** `AccountStore.list()` still reads the disk per account and `accountView()` calls it
+  twice. The `provider_limits` table and its three `Db` methods are unused. After a wait-replay the
+  rotation still skips the accounts the turn died on until a turn goes through. `switchAccount` does
+  not clear `rateLimited`, which the web works around by comparing accounts.
+- **Guards and Supervisor.** The Supervisor's cap shows while it is off, and with Jev chosen the cap
+  shows while the CLI model it runs on is hidden; both need an owner decision.
+- **MCP.** With permission checks off (bypass), Claudio's write tools run without asking once the
+  server is switched on from "+": the server-side approval of
+  `assistant-everything` (a plan on `feat/assistant-everything`, not merged here) closes it. The `chat.api-write` cause text in a
+  work item's history is missing. A synthetic "model not found" answer to a resumed or forked chat
+  ends it idle, looking healthy (`chat-fold.ts`).
+- **Collaborators and tunnel.** The tunnel port has no row in the settings registry, so no reset
+  control; `TunnelManager.resetSettings(['port'])` is ready.
+- **Web.** `ChangesReview.tsx` and `FileReview.tsx` still poll every 8 s while live; the decision
+  engine and the audit log have no events of their own; there are two parallel collaborators
+  clients; `workitem.moved` refreshes every item page, wider than a move needs. Older defects the
+  reviews found on Home (a 17 px link, a clipped Tailscale row, more than two gradient surfaces
+  signed out) and on the board (72 tap-target hits on phone rows, column headings cut at 1280 px)
+  were not touched.
+- **Tests that follow the machine's load**, not the code: `accounts-rotation` (8 s waits), the API's
+  developer-and-QA flow case and a few core timings fail in a full parallel run on a busy machine and
+  pass alone. The API tests call `core.shutdown()` without waiting, which a test that reopens the
+  same data directory should do.
+- **The generated fixtures.** `strings-snapshot.test.ts` and `class-inventory.test.ts` say no task may
+  update them, but feature commits do; their headers do not match practice.
+- **Left to `hygiene` and `review`.** The shared-helper consolidation, `docs/status.md` counts and the
+  broken links of the audit's §11.3 belong to the `hygiene` row.
 
 ## Related
 
 [[reports/regression-audit-2026-10-29.md]] · [[plans/assistant-everything.md]] · [[accounts.md]] ·
 [[chat-delivery.md]] · [[guards.md]] · [[decision-engine.md]] · [[claudio-mcp-server.md]] ·
 [[collaborators.md]] · [[tunnel.md]] · [[work-items.md]] · [[security-model.md]] ·
-[[orchestrations.md]] · [[status.md]]
+[[orchestrations.md]] · [[status.md]] · [[decisions/route-access-classes.md]] · [[transcript-listing.md]] ·
+[[api-wire.md]] · [[resource-control.md]] · [[slash-commands.md]]

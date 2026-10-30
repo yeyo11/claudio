@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T21:00:00Z
-updated_at: 2026-10-03T10:30:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - api
     - web
@@ -85,6 +85,38 @@ summary) and `apps/web/test/activity-feed.test.ts` (the patch and its delays).
   Claudio puts in front of a model; that is weighed in
   [plans/agent-wire-format.md](plans/agent-wire-format.md).
 
+## How the cache follows the feed
+
+The regression audit of 2026-10-29 (§10) found the web losing events and asking for what it had.
+The wiring was moved to this design, in `apps/web/src/lib/events.ts`:
+
+- **An event never aborts.** `applyEvent` first schedules the stale reads and tells the listeners,
+  then runs each cache patcher isolated, so a patcher that throws costs only its own write. Every
+  patcher checks the shape it writes (`Array.isArray`) before it does. The reads of an
+  orchestration's page (plan, tasks, workflow journal) sit under `['orchestration', id, …]`, outside
+  the list's cache prefix, so a patcher for the list can no longer find a detail where it expects an
+  array.
+- **The MCP servers of a chat** have their own key, `['chat-mcp', id, execution]`, outside the chat's
+  scope, with retry off: a chat event no longer asks the CLI again. `health.changed` refreshes it, a
+  panel that shows the list reads it as it opens, and a new process has a new key. The server side
+  answers `{ live: false }` without a control request when the session has been busy for more than
+  2 s ([transcript-listing.md](transcript-listing.md)).
+- **A resync is told.** When the feed reports missed events, `onResync` listeners run; notifications
+  re-seed the waiting chats then.
+- **"Today" is the server's day** (`SpendState.day`, `GET /usage` with no dates), not the browser's:
+  `spend.changed` writes the meter and refreshes that day's usage.
+- **Polling is the fallback only.** The fixed-interval polls (the checklist, a chat's tail, changes,
+  memory, the Accounts page's rotation log) run only while the feed is down. The decision engine and
+  the audit log have no event of their own, so they are refreshed on related events; a server event
+  for each would be the clean design.
+- **The chat list is read in pages.** `GET /chats` takes `limit` (200 by default) and `after`; the web
+  reads the pages one after the other and stops when a page comes back short or repeats.
+- **A render error is a page.** The root route has an `errorElement` (a localised `Empty` with a
+  heading, [design-system.md](design-system.md)) instead of React Router's developer page; the setup
+  wizard hides on a failed read only when the web holds no data; `lazyPage` asks a failed chunk once
+  more and never pins the fallback for the session; blobs and uploads go through `request()`, so a
+  401 or 421 is handled as everywhere else.
+
 ## Known gaps
 
 - **Six connections per origin.** Over HTTP/1.1 a browser opens at most six connections to one
@@ -100,10 +132,10 @@ summary) and `apps/web/test/activity-feed.test.ts` (the patch and its delays).
   opened without it. Before the chat stream did this, opening a few chats in a row left the one in
   front with no connection to spare, and its next request waited in the browser's queue for half a
   minute.
-- **The chat list is still whole.** `GET /chats` carries each chat's `executions` (45 % of the
-  list). It compresses well, but the same summary treatment would apply there.
+- **The chat list still carries each chat's `executions`** (45 % of a page). It compresses well, and
+  the list is now paged, but the same summary treatment would apply there.
 
 ## Related
 
-[[work-items.md]] · [[desktop.md]] · [[tunnel.md]] · [[plans/agent-wire-format.md]] ·
+[[work-items.md]] · [[transcript-listing.md]] · [[plans/regression-fixes-2026-10-29.md]] · [[desktop.md]] · [[tunnel.md]] · [[plans/agent-wire-format.md]] ·
 [[plans/claudio-mcp-server.md]] · [[plans/mobile.md]]

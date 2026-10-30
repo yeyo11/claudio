@@ -2194,6 +2194,12 @@ reference's `DSIlustraciones`, and the pattern in use is on `DSEstados`.
 It goes inside a card when it takes the place of a list, and full page when there is nothing else
 to show.
 
+`Empty` takes `heading` when its title is the only heading of a page drawn with no shell around it
+(the root route's render-error page, which replaces React Router's developer page): the title is then
+the page's `h1` and not a `strong`. That page uses the compact icon version, not an illustration (the
+not-found drawing reads as a 404 for a crash), sets its own browser tab title, and gives its two
+buttons the phone's touch height under 767 px, because the shell's touch rule does not reach it.
+
 Rules:
 
 - At most one per screen.
