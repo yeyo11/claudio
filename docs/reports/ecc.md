@@ -476,5 +476,5 @@ Good practices worth keeping in mind:
 [[decision-engine.md]] · [[security-model.md]] · [[plans/sdk-driver-improvements.md]] ·
 [[plans/worker-checks.md]] · [[plans/verify-faster.md]] · [[plans/agent-observability.md]] ·
 [[plans/changes-review.md]] · [[code-hosts.md]] · [[accounts.md]] · [[terminal.md]] ·
-[[plans/chat-experience.md]] · [[lessons-from-corrections]] · [[guard-hooks]] ·
+[[plans/chat-experience.md]] · [[lessons.md]] · [[guards.md]] ·
 [[review-gate]] · [[instruction-evals]]

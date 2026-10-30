@@ -32,8 +32,8 @@ A name that also appears in the environment's `skills` gets a `skill` hint.
 
 ## How the list behaves
 
-The logic is in `apps/web/src/lib/slash-commands.ts`, and the popover and its keys in
-`apps/web/src/components/SlashMenu.tsx`.
+The logic is in `packages/chat-ui/src/lib/slash-commands.ts`, and the popover and its keys in
+`packages/chat-ui/src/components/SlashMenu.tsx`.
 
 - It opens only while the caret is in a first word that starts with `/`. A `/` later in a
   message is just text.

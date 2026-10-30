@@ -1,4 +1,6 @@
-// ESLint, for rules the type checker cannot hold. Run with `pnpm lint`.
+// ESLint, for rules the type checker cannot hold. Run with `pnpm lint`, which lints what this file
+// covers: the JavaScript ESLint reads by default (parsed, so a syntax error fails) and the files each
+// entry below names. A new rule goes here with its `files`, never into the script's arguments.
 import { stripTypeScriptTypes } from 'node:module';
 import * as espree from 'espree';
 
@@ -38,6 +40,8 @@ const COLLAB_FORBIDDEN = [
 ];
 
 export default [
+  // Built, vendored or archived code: not ours to lint
+  { ignores: ['**/dist/**', '**/build/**', '**/out/**', '**/coverage/**', 'docs/**', '**/fixtures/**'] },
   {
     files: ['packages/core/src/collab/**/*.ts'],
     languageOptions: { parser: stripTypes },

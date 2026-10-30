@@ -931,7 +931,7 @@ cannot manage hooks), `404 registration-not-found`, `409` for `no-public-url`,
    create, find, view and default branch, and its install and sign-in pages. A fact you cannot
    confirm is left out.
 3. **Record it.** Capture the calls with a scratch configuration directory, scrub them with
-   `scripts/redact-recordings.mjs`, add them under `test/fixtures/recordings/` with a `NOTES.md`
+   `packages/core/scripts/redact-recordings.mjs`, add them under `packages/core/test/fixtures/recordings/` with a `NOTES.md`
    and an entry in `index.json`.
 4. **Add `hosts/<id>/manifest.ts`**, each fact with its source in a comment, and one line in
    `CODE_HOST_MANIFESTS` in `hosts/registry.ts`. Add the id to `CodeHostId` in

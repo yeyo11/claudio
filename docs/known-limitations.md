@@ -57,8 +57,8 @@ the Known gaps of its page. Until 2026-10-17 this list was the README's.
   worker at all, so there is no push and no cached shell; the app can still be added to a home
   screen, and Settings names the origin instead of offering a switch that does nothing. On iPhone and
   iPad a push only reaches an app on the Home Screen, never a Safari tab. The Linux desktop app
-  registers no worker either — its port changes every launch — so push is for a browser or a phone
-  pointed at a server.
+  registers no worker either — it has the bundle locally and its window is there anyway
+  ([desktop.md](desktop.md)) — so push is for a browser or a phone pointed at a server.
 - A push subscription belongs to an install, not to a person. Claudio has one credential for everyone
   who holds it, so every device that turned push on is sent the same notifications, whoever the chat
   was started by, and anyone who can reach Settings can test or remove another device's registration.
