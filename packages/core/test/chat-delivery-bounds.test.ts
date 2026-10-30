@@ -373,7 +373,9 @@ test("a person's account switch waits for the background work, says so, and move
   const r = rig();
   const store = new AccountStore({ dataDir: r.config.dataDir, defaultDir: r.config.configDir, claude: FAKE_QUEUE });
   try {
-    const account = await store.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });
+    // The CLI's own login has no credential here, so the chat starts on the first account; the move is to the second
+    await store.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });
+    const account = await store.add({ kind: 'token', alias: 'beta', secret: 'tok-beta' });
     r.chats.accounts = store;
     const chat = r.chats.start({ prompt: `BG ${r.file('f1')}` });
     await until(() => r.chats.get(chat.id)?.status === 'idle', 'the turn to end');
