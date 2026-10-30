@@ -11,6 +11,8 @@ import { resetWhen } from '../../lib/reset-when';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { StatusDot, usageTone, type DotTone } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
+import { accountReading, type AccountInUseView } from '../../lib/accounts';
+import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 
 /**
  * What the dot says of a provider whose last reading is near or at its limit. The limit is always
@@ -30,11 +32,15 @@ export function limitDotFacts(status: Pick<ProviderStatus, 'state' | 'reason'>, 
  * "Claude Code · limit reached resets 14:05" at it; "Claude Code · signed out" when it needs a person. The
  * limit is always said in a word beside its colour, and a provider that reports none shows no bar.
  */
-function ProviderDot({ status, limit }: { status: ProviderStatus; limit: ProviderLimit | null | undefined }) {
+function ProviderDot({ status, limit, account }: { status: ProviderStatus; limit: ProviderLimit | null | undefined; account: AccountInUseView | null }) {
   const { t } = useTranslation('providers');
   const { t: ts } = useTranslation('shell');
   const reason = useProviderReason(status);
-  const reading = limitReading(limit);
+  // A provider with accounts speaks with the reading of the account in use, the one the account
+  // chip and the cards show; the provider's own reading is whichever account ran last
+  const reading = account ? accountReading(account.limit) : limitReading(limit);
+  const observedAt = account ? (account.limit?.observedAt ?? null) : (limit?.observedAt ?? null);
+  const unknown = account ? account.limit?.state === 'unknown' : limit?.state === 'unknown';
   const windowOf = useLimitWindowName();
   const { hot, limitOnly, tone } = limitDotFacts(status, reading);
   const ok = status.state === 'ready';
@@ -59,14 +65,15 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
           {[
             reading.percent !== null ? ts('statusbar.limit.tipWindow', { window: windowName, percent: formatPercent(reading.percent) }) : windowName,
             reading.resetsAt ? ts('statusbar.limit.tipReset', { when: resetWhen(reading.resetsAt) }) : null,
-            limit ? ts('statusbar.limit.tipAge', { age: timeAgo(limit.observedAt) }) : null,
+            account ? ts('statusbar.limit.tipAccount', { name: account.label }) : null,
+            observedAt ? ts('statusbar.limit.tipAge', { age: timeAgo(observedAt) }) : null,
           ]
             .filter(Boolean)
             .join(' · ')}
         </span>
       )}
-      {!reading && limit?.state === 'unknown' && <span>{ts('statusbar.limit.unknown')}</span>}
-      {!limit && !status.capabilities.includes('rateLimitWindows') && status.state === 'ready' && <span>{ts('statusbar.limit.none', { provider: status.label })}</span>}
+      {!reading && unknown && <span>{ts('statusbar.limit.unknown')}</span>}
+      {!limit && !account && !status.capabilities.includes('rateLimitWindows') && status.state === 'ready' && <span>{ts('statusbar.limit.none', { provider: status.label })}</span>}
     </span>
   );
   return (
@@ -104,9 +111,10 @@ function ProviderDot({ status, limit }: { status: ProviderStatus; limit: Provide
 /**
  * One dot per enabled provider at the right of the status bar. With none found, or while the first
  * reading runs, a single note stands in for them, so the strip never shows a blank. `limits` are the
- * overview's readings, fresher than the ones the statuses carry.
+ * overview's readings, fresher than the ones the statuses carry; `inUse` is the account view's
+ * account in use, whose reading Claude Code's dot shows.
  */
-export function ProviderDots({ limits = [] }: { limits?: readonly ProviderLimit[] }) {
+export function ProviderDots({ limits = [], inUse = null }: { limits?: readonly ProviderLimit[]; inUse?: AccountInUseView | null }) {
   const { t } = useTranslation('providers');
   const { statuses, loading } = useEnabledProviders();
   if (loading)
@@ -128,7 +136,7 @@ export function ProviderDots({ limits = [] }: { limits?: readonly ProviderLimit[
   return (
     <>
       {present.map((s) => (
-        <ProviderDot key={s.id} status={s} limit={limits.find((l) => l.provider === s.id) ?? s.limit} />
+        <ProviderDot key={s.id} status={s} limit={limits.find((l) => l.provider === s.id) ?? s.limit} account={s.id === CLAUDE_CODE_ID ? inUse : null} />
       ))}
     </>
   );

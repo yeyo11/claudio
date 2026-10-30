@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Account, AccountLimit } from '@claudio/shared';
-import { accountName, accountUsable, canSignInAgain, connectionOf, type ConnectionFacts, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
+import { accountName, accountReading, accountUsable, accountViewOf, canSignInAgain, connectionOf, type ConnectionFacts, readyCount, rotationOrder, settingsView, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
 
 const limit = (state: AccountLimit['state'], utilization: number | null): AccountLimit => ({
   state,
@@ -83,11 +83,21 @@ test('connectionOf: ready, and a missing CLI before anything else', () => {
 });
 
 test('connectionOf: a limit or a failed probe never reads as signed out while an account is signed in', () => {
-  assert.equal(connectionOf(facts({ provider: { state: 'degraded', reason: 'limit-near' } })), 'near');
-  assert.equal(connectionOf(facts({ provider: { state: 'degraded', reason: 'limit-reached' } })), 'limit');
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: limit('near', 0.65) } })), 'near');
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: limit('exhausted', 1) } })), 'limit');
   assert.equal(connectionOf(facts({ provider: { state: 'unknown', reason: 'probe-timeout' } })), 'unchecked');
   assert.equal(connectionOf(facts({ inUse: null, inUseReason: 'limit' })), 'limit', 'every account exhausted: the server says why');
   assert.equal(connectionOf(facts({ inUse: null, inUseReason: null, provider: { state: 'unknown', reason: 'spawn-failed' } })), 'unchecked', 'no reason, but an account has a credential');
+});
+
+test("connectionOf: the account in use's own reading decides, never the provider's reading of whichever account ran last", () => {
+  // The audit's §2.11: "acc-B · Near the limit" because acc-A had reached 60 %
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: limit('ok', 0.1) }, provider: { state: 'degraded', reason: 'limit-near' } })), 'ready');
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: limit('ok', 0.1) }, provider: { state: 'degraded', reason: 'limit-reached' } })), 'ready');
+  // A provider without accounts still speaks for its own limit
+  assert.equal(connectionOf(facts({ inUse: null, inUseReason: null, provider: { state: 'degraded', reason: 'limit-near' } })), 'near');
+  assert.equal(connectionOf(facts({ inUse: null, inUseReason: null, provider: { state: 'degraded', reason: 'limit-reached' } })), 'limit');
+  assert.equal(connectionOf(facts({ provider: { state: 'degraded', reason: 'version-above-range' } })), 'unready');
 });
 
 test('connectionOf: signed out only when no account has a credential, or the sign-in expired', () => {
@@ -96,4 +106,37 @@ test('connectionOf: signed out only when no account has a credential, or the sig
   assert.equal(connectionOf(facts({ inUse: null, accounts: [] })), 'signed-out', 'an old server gives no reason');
   assert.equal(connectionOf(facts({ inUse: { signInState: 'expired' } })), 'expired');
   assert.equal(connectionOf(facts({ provider: { state: 'signed-out', reason: 'missing-credentials' } })), 'unready', "the provider's word is not the account's");
+});
+
+// ---------- the account view (C4) ----------
+
+const settings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order' as const };
+
+test('accountViewOf reads the overview\'s view, and refuses any other shape', () => {
+  const view = { inUse: null, inUseReason: 'signed-out', accounts: [], atLimit: false, nextReset: null, settings: { ...settings, preferred: 'b', order: ['b', 'a'] } };
+  assert.deepEqual(accountViewOf(view)?.settings.order, ['b', 'a']);
+  assert.equal(accountViewOf(view)?.settings.preferred, 'b');
+  // The snapshot an older server sent is not a view
+  assert.equal(accountViewOf({ total: 2, ready: 1, current: 'a' }), null);
+  assert.equal(accountViewOf(undefined), null);
+  // Settings that predate the preference read as none preferred, in list order
+  const old = accountViewOf({ ...view, settings });
+  assert.equal(old?.settings.preferred, null);
+  assert.deepEqual(old?.settings.order, []);
+  assert.deepEqual(settingsView(settings), { ...settings, preferred: null, order: [] });
+});
+
+test('rotationOrder lists every enabled account once: the saved order first, then the rest in list order', () => {
+  const accounts = [account('a'), account('b'), account('c'), account('off', { enabled: false })];
+  assert.deepEqual(rotationOrder([], accounts), ['a', 'b', 'c']);
+  assert.deepEqual(rotationOrder(['c', 'a'], accounts), ['c', 'a', 'b']);
+  // A removed or held-out id drops out, and a duplicate counts once
+  assert.deepEqual(rotationOrder(['gone', 'off', 'b', 'b'], accounts), ['b', 'a', 'c']);
+});
+
+test("accountReading is the account's binding window as the status bar says it, and silent on an unknown one", () => {
+  assert.deepEqual(accountReading(limit('near', 0.654)), { state: 'near', percent: 65, resetsAt: null, window: 'five_hour' });
+  assert.equal(accountReading(limit('unknown', 0.5)), null);
+  assert.equal(accountReading(null), null);
+  assert.equal(readyCount([account('a'), account('b', { enabled: false }), account('c', { signedIn: false })]), 1);
 });
