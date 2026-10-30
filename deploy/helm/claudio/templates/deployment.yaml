@@ -51,6 +51,10 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.port }}
+            {{- if .Values.lan.enabled }}
+            - name: lan
+              containerPort: {{ .Values.lan.port | default 8791 }}
+            {{- end }}
           env:
             - name: PORT
               value: {{ .Values.port | quote }}
@@ -65,6 +69,12 @@ spec:
               value: {{ ternary "on" "off" .Values.tunnel.enabled | quote }}
             {{- with .Values.tunnel.port }}
             - name: CLAUDIO_TUNNEL_PORT
+              value: {{ . | int | toString | quote }}
+            {{- end }}
+            - name: CLAUDIO_LAN
+              value: {{ ternary "on" "off" .Values.lan.enabled | quote }}
+            {{- with .Values.lan.port }}
+            - name: CLAUDIO_LAN_PORT
               value: {{ . | int | toString | quote }}
             {{- end }}
             - name: CLAUDIO_TERMINAL

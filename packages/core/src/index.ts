@@ -113,6 +113,7 @@ import { DEFAULT_DOCUMENTS_PATH, DocumentError, DocumentService, type DocumentsP
 import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine } from './item-documents.ts';
 import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
+import { LanListener } from './lan.ts';
 import { ContextControl } from './context-control.ts';
 import { ChatNotes } from './context-notes.ts';
 import { ChatService, ChatStartError, type Placement, type RunningCounts } from './chat-service.ts';
@@ -258,7 +259,8 @@ export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
 export { parseVariant } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE } from './data-dir-lock.ts';
-export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart } from './paths.ts';
+export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart, type LanSwitch } from './paths.ts';
+export { DEFAULT_LAN_PORT, LanListener, LanRefusedError, type LanNetwork, type LanRequestHandler, type LanUpgradeHandler } from './lan.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
 export { installProcessGuards } from './launcher/process-guards.ts';
 export { ChatRetention, type RetainedChat } from './chat-retention.ts';
@@ -471,6 +473,8 @@ export class Core {
   readonly dashboardLayouts: DashboardLayoutStore;
   /** The tunnel through `tailscale serve`: lends the node's verified name to `appSettings.runtimeHosts` */
   readonly tunnel: TunnelManager;
+  /** The second listener, on the local network: lends its addresses to `appSettings.runtimeHosts` while it listens */
+  readonly lan: LanListener;
   readonly uploads: UploadStore;
   /** Which uploads belong to each chat, kept as rows so it holds for a chat not loaded since the start */
   readonly chatUploads: ChatUploads;
@@ -694,10 +698,27 @@ export class Core {
       // What the tunnel does by itself; what a person asks for is audited by the API's own hook
       audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
     });
-    // The tunnel never outlives the guard: it is closed before the first unguarded request
-    this.security.beforeUnguarded = async () => {
-      await this.tunnel.stop('unguarded');
-    };
+    this.lan = new LanListener({
+      dataDir: config.dataDir,
+      switch: config.lan,
+      ...(config.lanPort !== null ? { port: config.lanPort } : {}),
+      ...(config.lanBind !== null ? { bind: config.lanBind } : {}),
+      security: this.security,
+      hosts: this.appSettings.runtimeHosts,
+      emit: (event) => this.events.emit(event),
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
+    });
+    // Neither outlives the guard: both are closed before the first unguarded request
+    this.security.beforeUnguarded.push(
+      async () => {
+        await this.tunnel.stop('unguarded');
+      },
+      async () => {
+        await this.lan.stop('unguarded');
+      },
+    );
+    // The listener was refused for the lack of a credential; it opens once there is one
+    this.security.afterGuarded.push(() => this.lan.guarded());
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
@@ -1661,6 +1682,7 @@ export class Core {
       guards: this.guards,
       terminals: this.terminals,
       tunnel: this.tunnel,
+      lan: this.lan,
       accounts: this.accounts,
       collaborators: this.collaborators,
       projects: async () => {
@@ -3946,6 +3968,8 @@ export class Core {
     // First, while the database is still open for the row that says its host left; taking its
     // Serve rule away goes on, bounded, and the returned promise waits for it
     const tunnel = this.tunnel.shutdown();
+    // Its names leave the allowlist and every connection on it ends before anything else closes
+    const lan = this.lan.shutdown();
     this.logins.close();
     this.lessons.stop();
     this.cliVersion.stop();
@@ -3979,7 +4003,7 @@ export class Core {
     // final execution), so the database waits for them; one that hangs does not hold the exit for ever
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([
-      Promise.allSettled([evals, terminals, collaborators, chats, tunnel]),
+      Promise.allSettled([evals, terminals, collaborators, chats, tunnel, lan]),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
         timer.unref();

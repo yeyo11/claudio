@@ -44,6 +44,7 @@ export const SUBSYSTEMS = {
   providersWatch: { full: true, headless: true, why: 'Detects the CLI and its sign-in, which `/api/ready`, `/api/health` and `/api/system` answer from' },
   codeHostsWatch: { full: true, headless: false, why: 'Detects gh and glab; neither is in the image' },
   tunnel: { full: true, headless: false, why: "Claudio's own Tailscale tunnel; the image sets CLAUDIO_TUNNEL=off and the host's proxy serves it" },
+  lan: { full: true, headless: true, why: 'The listener on the local network; the image sets CLAUDIO_LAN=off, and a headless start under `none` is refused before it (D2)' },
 } as const satisfies Record<string, SubsystemRule>;
 
 export type Subsystem = keyof typeof SUBSYSTEMS;
