@@ -294,6 +294,7 @@
     "guardsTitle": "Guardas",
     "guardsLabel": "Guardas en los chats de este proyecto",
     "guardsHint": "Los chats interactivos de este proyecto se ejecutan con estas reglas: {{rules}}. Las orquestaciones y el flujo siguen los Ajustes.",
+    "guardsNoRules": "No hay ninguna regla de guarda activada en los Ajustes, así que estos chats se ejecutan sin guarda.",
     "guardsLink": "Ajustes de las guardas"
   },
   "decisions": {

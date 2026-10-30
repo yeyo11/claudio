@@ -239,8 +239,12 @@ export interface ChatServiceDeps {
    * answered with how it was taken; null when it is an ordinary message after all
    */
   typedCompact?: (id: string, request: ChatMessageRequest) => Promise<ChatMessageReceipt | null>;
-  /** The guard of a person's chat in a folder, when its project opted in (docs/plans/guards.md); null when it runs unguarded */
-  guardsForChat?: (cwd: string) => Promise<ChatGuardPlan | null>;
+  /**
+   * The guard of a person's chat in a folder, when its project opted in and a rule is on
+   * (docs/guards.md); null when it runs unguarded, which a run that cannot run commands or write
+   * files (`policy`), or a confined one, always does
+   */
+  guardsForChat?: (cwd: string, opts?: { policy?: ToolPolicy | null; confined?: boolean }) => Promise<ChatGuardPlan | null>;
   /** Told of every page of a transcript read, so a summary that was not streamed is noticed when it is read (E34) */
   transcriptRead?: (id: string, entries: TranscriptEntry[]) => void;
   /** A person continued a chat from an earlier message (`resumeSessionAt`): the lessons' S-rewound */
@@ -828,7 +832,10 @@ export class ChatService {
         : undefined;
       // A new chat thinks as hard as the guides recommend for its model; a provider without `effort` is passed none
       const effort = request.effort ?? recommendedEffort(request.model, 'chat') ?? undefined;
-      const plan = guards !== undefined ? guards : (await this.deps.guardsForChat?.(resolve(request.cwd ?? this.deps.config.workspaceDir))) ?? null;
+      const plan =
+        guards !== undefined
+          ? guards
+          : ((await this.deps.guardsForChat?.(resolve(request.cwd ?? this.deps.config.workspaceDir), { policy: request.policy ?? null, confined: !!request.confine || !!claudioAssistant })) ?? null);
       started = this.deps.runtime.start({ purpose: 'person', ...request, ...(effort ? { effort } : {}), ...chosen, ...(toolConfig ? { toolConfig } : {}), ...(plan ? { guards: plan } : {}), provider });
       onStart?.(started);
     } catch (err) {
@@ -1056,7 +1063,13 @@ export class ChatService {
     const picked = fallback ? { ...request, toolPreset: fallback.id } : request;
     const chosen = await this.deps.tools.resolve(picked, adoption.cwd, handBack ? null : (this.deps.runtime.get(id)?.tools ?? null));
     // A person's own turn is guarded by the project's opt-in; a starter that ran guarded (or not) says so itself
-    const guards = extras.guards !== undefined ? extras.guards : ((await this.deps.guardsForChat?.(adoption.cwd)) ?? null);
+    const live = this.deps.runtime.get(id);
+    const guards =
+      extras.guards !== undefined
+        ? extras.guards
+        : live?.claudioAssistant
+          ? null
+          : ((await this.deps.guardsForChat?.(adoption.cwd, { policy: live?.tools?.policy ?? null, confined: !!extras.confine })) ?? null);
     this.deps.runtime.resume(
       id,
       {
@@ -1104,8 +1117,9 @@ export class ChatService {
     const chosen = handBack
       ? await this.deps.tools.resolve(picked, adoption.cwd, null)
       : await this.deps.tools.resolve(request, adoption.cwd, this.deps.runtime.get(id)?.tools ?? null, { fresh: true });
-    const guards = (await this.deps.guardsForChat?.(adoption.cwd)) ?? null;
-    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, ...(guards ? { guards } : {}), purpose: 'person', ...(handBack ? { handBack } : {}) }, adoption);
+    // A fork of the assistant is the assistant, which is never guarded
+    const guards = this.deps.runtime.get(id)?.claudioAssistant ? null : ((await this.deps.guardsForChat?.(adoption.cwd)) ?? null);
+    const forked = this.deps.runtime.fork(id, { ...request, ...chosen, provider, guards, purpose: 'person', ...(handBack ? { handBack } : {}) }, adoption);
     return this.require(forked.id);
   }
 

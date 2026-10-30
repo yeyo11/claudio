@@ -1,4 +1,4 @@
-import type { GuardOutcome, HealthSignal, TaskLimits } from '@claudio/shared';
+import type { GuardOutcome, HealthSignal, HealthSignalAgent, TaskLimits } from '@claudio/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
 
@@ -23,6 +23,14 @@ export interface ToolCall {
   isError: boolean;
   /** The start of what came back, enough to tell one answer from another */
   result: string;
+  /** The lead's `Agent` call whose subagent made this call; absent for the lead's own */
+  parentToolUseId?: string;
+}
+
+/** What the lead's `Agent` call said of the subagent it launched. */
+export interface TraceAgent {
+  description?: string;
+  subagentType?: string;
 }
 
 /** What the live execution has done so far. */
@@ -35,6 +43,8 @@ export interface Trace {
   heartbeats: Map<string, { elapsedSeconds: number; at: string }>;
   /** What the guard said in this execution, oldest first; absent on a chat that is not guarded */
   guards?: GuardTraceEntry[];
+  /** The subagents whose calls are in `calls`, by the id of the lead's call that launched each */
+  agents?: ReadonlyMap<string, TraceAgent>;
 }
 
 /** One thing the guard said about a tool call of the live execution. */
@@ -54,6 +64,28 @@ export function runningCommands(trace: Trace): ToolCall[] {
 
 const ms = (iso: string): number => Date.parse(iso);
 
+/**
+ * The subagent a call belongs to, as a signal names it (C3), or undefined for the lead's own call:
+ * a hint about a subagent's command has to reach the lead as one about its agent, since nothing
+ * documented writes to a subagent.
+ */
+export function agentOf(trace: Pick<Trace, 'agents'>, call: Pick<ToolCall, 'parentToolUseId'>): HealthSignalAgent | undefined {
+  const parent = call.parentToolUseId;
+  if (!parent) return undefined;
+  const known = trace.agents?.get(parent);
+  return {
+    parentToolUseId: parent,
+    ...(known?.description ? { description: known.description } : {}),
+    ...(known?.subagentType ? { subagentType: known.subagentType } : {}),
+  };
+}
+
+/** `{ agent }` for a signal about this call, or nothing for the lead's */
+const agentPart = (trace: Trace, call: ToolCall): { agent?: HealthSignalAgent } => {
+  const agent = agentOf(trace, call);
+  return agent ? { agent } : {};
+};
+
 // ---------- the same stall again ----------
 
 /** A command's run is a stall when it outlasted what is usual for its kind, or the fixed limit. */
@@ -69,20 +101,25 @@ const limitFor = (kind: string, limits: StallLimits): number => {
 };
 
 /**
- * The same kind of command hanging again. Only the calls of one kind are compared, in order, and
- * what counts is the unbroken run of stalls at the end of them: an ordinary run in between means
- * the worker mended what hung. A command that fails fast is not a stall — a test that fails,
- * edited, fails again is what fixing looks like — only one that outlasts its limit is.
+ * The same kind of command hanging again. Only the calls of one kind by one agent (the lead, or one
+ * subagent) are compared, in order, and what counts is the unbroken run of stalls at the end of
+ * them: an ordinary run in between means that agent mended what hung. A command that fails fast is
+ * not a stall — a test that fails, edited, fails again is what fixing looks like — only one that
+ * outlasts its limit is.
  */
 export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): HealthSignal | null {
-  const byKind = new Map<string, ToolCall[]>();
+  const byKind = new Map<string, { kind: string; calls: ToolCall[] }>();
   for (const call of trace.calls) {
     if (call.name !== 'Bash' || typeof call.input.command !== 'string' || call.input.run_in_background === true) continue;
     const kind = commandKind(call.input.command);
-    if (kind) byKind.set(kind, [...(byKind.get(kind) ?? []), call]);
+    if (!kind) continue;
+    const key = `${call.parentToolUseId ?? ''}\0${kind}`;
+    const group = byKind.get(key) ?? { kind, calls: [] };
+    group.calls.push(call);
+    byKind.set(key, group);
   }
   let worst: { kind: string; stalls: ToolCall[] } | null = null;
-  for (const [kind, calls] of byKind) {
+  for (const { kind, calls } of byKind.values()) {
     const limit = limitFor(kind, limits);
     const stalled = (call: ToolCall) => (call.endedAt ? ms(call.endedAt) : nowMs) - ms(call.at) >= limit;
     const tail: ToolCall[] = [];
@@ -104,6 +141,7 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
     since: first.at,
     detail: commandOf(last),
     ...(last.endedAt ? {} : { toolUseId: last.id }),
+    ...agentPart(trace, last),
   };
 }
 
@@ -124,12 +162,13 @@ export const flatten = (text: string): string => text.replace(/\d+/g, '#').repla
  * gets the same answer four times in the last dozen calls — or the same error text coming back
  * four times, whatever the calls were. The answer is part of it on purpose: running the tests
  * again after an edit is the same command with a different result, and that is work, not a loop.
+ * The same step by two agents is two agents' work, so repeats are counted per agent.
  */
 export function loop(trace: Trace): HealthSignal | null {
   const recent = trace.calls.filter((c) => c.endedAt && !BOOKKEEPING.has(c.name)).slice(-WINDOW);
   const tally = new Map<string, { calls: ToolCall[] }>();
   for (const call of recent) {
-    const key = `${call.name}\0${JSON.stringify(call.input)}\0${flatten(call.result)}`;
+    const key = `${call.parentToolUseId ?? ''}\0${call.name}\0${JSON.stringify(call.input)}\0${flatten(call.result)}`;
     const entry = tally.get(key) ?? { calls: [] };
     entry.calls.push(call);
     tally.set(key, entry);
@@ -146,13 +185,14 @@ export function loop(trace: Trace): HealthSignal | null {
         ? said('health.loop.command', { command: oneLine(commandOf(first), 60), count: times }, 'health.hint.loop')
         : said('health.loop.call', { tool: first.name, count: times }, 'health.hint.loop')),
       since: first.at,
+      ...agentPart(trace, first),
     };
   }
 
   const errors = new Map<string, ToolCall[]>();
   for (const call of recent) {
     if (!call.isError || flatten(call.result).length < 12) continue;
-    const key = flatten(call.result);
+    const key = `${call.parentToolUseId ?? ''}\0${flatten(call.result)}`;
     errors.set(key, [...(errors.get(key) ?? []), call]);
   }
   let same: ToolCall[] = [];
@@ -164,6 +204,7 @@ export function loop(trace: Trace): HealthSignal | null {
       level: same.length >= LOOP_AT * 2 ? 'bad' : 'warn',
       ...said('health.loop.error', { error: oneLine(first.result, 70), count: same.length }, 'health.hint.loop'),
       since: first.at,
+      ...agentPart(trace, first),
     };
   }
   return null;
@@ -289,6 +330,7 @@ export function weakenedTests(trace: Trace): HealthSignal[] {
     since: call.at,
     detail: path,
     toolUseId: call.id,
+    ...agentPart(trace, call),
   }));
 }
 

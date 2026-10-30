@@ -1145,6 +1145,20 @@ export interface HealthSignal {
   hint?: string;
   /** The tool call to cancel, when the signal is about one command that is still running */
   toolUseId?: string;
+  /**
+   * The subagent that made the call the signal is about; absent when the lead made it. The CLI has
+   * no documented way to write to one subagent, so a hint about it goes to the lead, which relays it
+   * or stops the agent (docs/decision-engine.md, "The Supervisor").
+   */
+  agent?: HealthSignalAgent;
+}
+
+/** The subagent a health signal is about: the lead's `Agent` call that launched it, and what that call said. */
+export interface HealthSignalAgent {
+  /** The id of the lead's `Agent`/`Task` call, which every line of the subagent's sidechain carries */
+  parentToolUseId: string;
+  description?: string;
+  subagentType?: string;
 }
 
 /**
@@ -6670,13 +6684,13 @@ export interface ApiError {
 // worker's last steps when its health turns bad and proposes a hint, which a person sends on, or it
 // sends on its own. A housekeeping chat of the CLI like every other model call. Since
 // docs/plans/settings-ia.md §7.2 its one control is the `supervisor.intervene` point's mode, and its
-// model and cap are the decision engine's CLI settings; `supervisor.json` is read once, by a
+// model and cap are the decision engine's CLI settings (its own cap, `cli.supervisorMaxCostUsd`); `supervisor.json` is read once, by a
 // migration, and never written again.
 
 /**
  * The view `GET /settings/supervisor` derives from the point (deprecated: read
  * `GET /decisions/settings`). `enabled` is the mode not being `off`, `autoSend` the mode being
- * `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.maxCostUsd`.
+ * `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.supervisorMaxCostUsd`.
  */
 export interface SupervisorConfig {
   enabled: boolean;
@@ -6684,7 +6698,7 @@ export interface SupervisorConfig {
   model: string;
   /** Send the proposal to the worker on its own instead of waiting for a person */
   autoSend: boolean;
-  /** Passed to the housekeeping chat as `--max-budget-usd`: the engine's cap per decision */
+  /** Passed to the housekeeping chat as `--max-budget-usd`: the engine's `cli.supervisorMaxCostUsd` */
   maxCostUsd: number;
 }
 
@@ -6702,7 +6716,7 @@ export interface UpdateSupervisorConfigRequest {
 /** `sent`: it reached the worker, by hand or through `autoSend`. */
 export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed';
 
-/** One answer of the supervisor. A row, because they accumulate; at most one per signal per chat. */
+/** One answer of the supervisor. A row, because they accumulate; at most one per occurrence of a signal per chat. */
 export interface SupervisorProposal {
   id: string;
   chatId: string;
@@ -6711,6 +6725,14 @@ export interface SupervisorProposal {
   orchestrationId?: string;
   /** The signal that woke it */
   signal: HealthSignalKind;
+  /**
+   * Which occurrence of the signal: the call it is about (`toolUseId`), else when it started
+   * (`since`). A second hang of the same kind is a new occurrence and gets its own answer. Absent on
+   * proposals made before occurrences were kept.
+   */
+  occurrence?: string;
+  /** The subagent the signal was about, when a subagent made the call; its hint asks the lead to relay or stop it */
+  agent?: HealthSignalAgent;
   /** One or two lines for the worker, ready to send or to edit first */
   hint: string;
   /** What the housekeeping chat cost, as the CLI reported it; added to the graph's when the worker is a task */
@@ -9737,10 +9759,24 @@ export interface DecisionPointSettings {
   consent: { at: string; stateVersion: number; providers: DecisionProviderId[] } | null;
 }
 
+/** How the CLI answers: the model and effort of every question, and the two caps. */
+export interface DecisionCliSettings {
+  model: string;
+  effort: string;
+  /** `--max-budget-usd` of one decision; (0, 5] */
+  maxCostUsd: number;
+  /** `--max-budget-usd` of the Supervisor's chat; (0, 5], default 0.25 */
+  supervisorMaxCostUsd: number;
+}
+
 export interface DecisionSettings {
   /** The global default provider */
   provider: DecisionProviderId;
-  cli: { model: string; effort: string; maxCostUsd: number };
+  /**
+   * The CLI's model, effort and cap per decision; `supervisorMaxCostUsd` is the cap of the
+   * Supervisor's chat, which reads the worker's files and so costs more than a one-shot question
+   */
+  cli: DecisionCliSettings;
   /** The key itself is never returned, only whether one is saved and its last four characters */
   jev: { model: 'jev-1.13.0'; keySet: boolean; keyHint: string | null };
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
@@ -9751,7 +9787,8 @@ export interface DecisionSettings {
 /** `PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials */
 export interface DecisionSettingsUpdate {
   provider: DecisionProviderId;
-  cli: { model: string; effort: string; maxCostUsd: number };
+  /** `supervisorMaxCostUsd` absent reads as its default (0.25) */
+  cli: Omit<DecisionCliSettings, 'supervisorMaxCostUsd'> & { supervisorMaxCostUsd?: number };
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   historyDays: number;
 }
@@ -9970,16 +10007,16 @@ export interface DecisionPaletteResult {
 // ── Guards (docs/plans/guards.md) ────────────────────────────────────────────────────────────────
 
 /**
- * A rule of the guard program. `integrity` protects the guard itself and is always on whenever
- * guards are; it is deliberately not a key of any settings or override type, so it cannot be
- * switched off through the API ({@link GuardSwitchableRuleId}). `declared-tools` confines a
- * confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is
- * armed by the chat's launch from its stored policy, never by a setting.
+ * A rule of the guard program. `integrity` protects the guard itself; it is a rule like the others
+ * (D6 of docs/plans/regression-fixes-2026-10-29.md), on by default, and a guard with no rule on is
+ * no guard at all. `declared-tools` confines a confined API chat to the tools and paths it declared
+ * (docs/plans/headless-image.md, D14.5); it is armed by the chat's launch from its stored policy,
+ * never by a setting.
  */
 export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs' | 'declared-tools';
 
-/** The rules a person can switch: every rule but `integrity` and `declared-tools`. */
-export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity' | 'declared-tools'>;
+/** The rules a person can switch: every rule but `declared-tools`. */
+export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'declared-tools'>;
 
 /** `enforce` blocks; `observe` records "would block" and passes, for rollback after a false positive. */
 export type GuardMode = 'enforce' | 'observe';
@@ -9990,7 +10027,7 @@ export interface GuardSettings {
   mode: GuardMode;
   /** Guard workers, the integrator, fixers, synthesis and flow stages; default true (O1) */
   automated: boolean;
-  /** Which switchable rules are on; `protect-configs` ships off, the others on (O2, O3) */
+  /** Which rules are on; `protect-configs` ships off, the others on (O2, O3). None on means no guard runs */
   rules: Record<GuardSwitchableRuleId, boolean>;
   /** Globs, relative to a root, of the existing config files `protect-configs` guards; at most 200, none absolute or with `..` */
   protectConfigs: string[];
@@ -10011,7 +10048,7 @@ export interface UpdateGuardSettingsRequest {
 export interface GuardOverride {
   /** Absent inherits; `false` switches the guard off for the graph or stage (shown as "Guards off") */
   enabled?: boolean;
-  /** Merged over the global rules; `integrity` cannot be named */
+  /** Merged over the global rules */
   rules?: Partial<Record<GuardSwitchableRuleId, boolean>>;
 }
 
@@ -10029,7 +10066,7 @@ export interface GuardRuleInfo {
   id: GuardSettingsRuleId;
   /** On in a fresh install */
   defaultOn: boolean;
-  /** False for `integrity` only */
+  /** Every rule Settings lists is switchable; kept for clients that read it */
   switchable: boolean;
 }
 
@@ -10121,7 +10158,7 @@ export interface GuardCheckResult {
  * run was interrupted; `off`: the chat is not guarded.
  */
 export interface ChatGuards {
-  /** The effective rules, `integrity` first */
+  /** The effective rules, in the order they run */
   rules: GuardRuleId[];
   mode: GuardMode;
   state: 'arming' | 'armed' | 'missing' | 'off';

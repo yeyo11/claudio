@@ -73,6 +73,7 @@ export const FIXED_SERVER_SETTING_IDS = [
   'lessons.manual-mining',
   'engine.who-answers',
   'engine.cap',
+  'engine.supervisor-cap',
   'engine.cli-model',
   'engine.cli-effort',
   'engine.history-days',

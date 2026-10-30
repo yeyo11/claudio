@@ -42,7 +42,7 @@ function parseBoolean(value: unknown, name: string): boolean {
   return value;
 }
 
-/** Rule switches. An unknown key is refused; `integrity` is one, since nobody can switch it off. */
+/** Rule switches. An unknown key is refused; `declared-tools` is one, since a chat's policy arms it, never a setting. */
 export function parseRuleSwitches(value: unknown, name = 'rules'): Partial<Record<GuardSwitchableRuleId, boolean>> {
   if (!isObject(value)) throw new Error(`${name} must be an object`);
   const out: Partial<Record<GuardSwitchableRuleId, boolean>> = {};
@@ -53,7 +53,7 @@ export function parseRuleSwitches(value: unknown, name = 'rules'): Partial<Recor
   return out;
 }
 
-/** A graph's or a stage's override: only `enabled` and `rules`; anything else, `integrity` included, is refused. */
+/** A graph's or a stage's override: only `enabled` and `rules`; anything else is refused. */
 export function parseGuardOverride(value: unknown, name = 'guards'): GuardOverride {
   if (!isObject(value)) throw new Error(`${name} must be an object`);
   const unknownKeys = Object.keys(value).filter((key) => key !== 'enabled' && key !== 'rules');

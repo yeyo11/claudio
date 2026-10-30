@@ -6,6 +6,8 @@
     "cliModel": "CLI model",
     "effort": "Effort",
     "maxCostInvalid": "The limit has to be above $0 and at most ${{max}}.",
+    "supervisorCap": "Cap per Supervisor hint",
+    "supervisorCapLine": "At most {{cost}} per hint: it reads the worker's files before it writes one",
     "jevKey": "Jev key",
     "jevKeyHint": "Saved on this machine, and the API never returns it.",
     "jevKeyInput": "Jev API key",

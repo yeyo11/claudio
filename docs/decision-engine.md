@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-20T18:00:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -79,8 +79,8 @@ Each point has a mode, set globally and overridable per project for the points o
   threshold` (default 0.85, 0.5 to 0.99). A `null` confidence never clears it, so the UI does not
   offer `active` on an act point whose provider is `cli`; if the provider turns to `cli` later, the
   point behaves as shadow. The one exception is `supervisor.intervene`: under `cli` it may be
-  `active`, and then the Supervisor sends every hint itself
-  ([Settings](settings.md#the-supervisor-is-a-decision-point)).
+  `active`, and then the Supervisor acts on every hint itself
+  ([Settings](settings.md#the-supervisor-is-a-decision-point), [below](#the-supervisor)).
 
 Effective settings resolve as project override, then global, then the point's default. Consent is
 always global.
@@ -245,6 +245,40 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
   with `spend-cap` (`providers/cli.ts`, `spendOpen`), and the point runs today's behaviour. Points
   never block. `checks.fix` also starts no fix by itself over the cap (`ChecksFix.hasRoom`).
 
+## The Supervisor
+
+`supervisor.intervene` wakes the Supervisor (`packages/core/src/supervisor.ts`) when the health
+monitor announces a worker `bad`. It drafts a hint of a line or two with a housekeeping chat of the
+CLI; D5 and C3 of [the regression fixes](plans/regression-fixes-2026-10-29.md) set how:
+
+- **One proposal per occurrence.** A signal's occurrence is the call it is about (`toolUseId`), else
+  when it started (`since`), else what it measures. `supervisor_proposals` is unique on
+  `(chat_id, signal, occurrence)`; a migration rebuilt the index, and rows from before keep `''`, so a
+  long chat's second hang is asked about again. A hung command that is also the last of a stall run
+  is one thing to act on: `hung-command` and `repeat-stall` about the same call share one proposal.
+- **Failures expire.** An answer that is an error or empty, or a Jev "no hint would help", is not
+  asked again for 15 minutes (`FAILED_RETRY_MS`), then it is. A start refused for room (a full run
+  slot, short memory: `RunSlotRefusal`, `MemoryRefusal`) is not a failure: the question is tried again
+  every 15 s for up to 5 minutes, and with no room by then nothing is recorded, so the next
+  announcement asks again.
+- **It names the agent.** The runtime's trace keeps each call's `parentToolUseId`, so a signal about
+  a subagent's call carries `agent: { parentToolUseId, description, subagentType }`. The Supervisor
+  then reads that agent's steps (its branch of the live stream), not the lead's, and the hint the lead
+  gets starts "Your background agent `<description>` is stuck. Relay this to it with SendMessage, or
+  stop it…": nothing documented writes to one subagent, and the lead's own tools can.
+- **Active cancels a hung command.** A hint is a message the agent reads only once the call it is
+  blocked in returns. For `hung-command` and `repeat-stall` with a running call, Active cancels the
+  command (`ChatService.cancelCommand`) with the hint as the reason: the failed result reaches the
+  agent that ran it, a subagent included (its commands are children of the CLI like the lead's). The
+  hint is sent as a message only when the cancel is refused (the command ended, or its process cannot
+  be told from a background command's). Shadow cancels nothing.
+- **Confined, with its own cap.** Its chat runs like a decision's one-shot: `--restricted`, the
+  `read-only` preset's tools only (`--tools`), no settings sources, `--strict-mcp-config` with no
+  server, no API url or token, `dontAsk`, no transcript and no guard. Its cap is
+  `cli.supervisorMaxCostUsd` (default 0.25 USD, at most 5), not the decision cap: it reads the
+  worker's files before it writes, which a one-shot question never does. The cap is in Settings →
+  Decisions → Advanced ("Cap per Supervisor hint", `engine.supervisor-cap`).
+
 ## Consent and privacy
 
 - **The state is declared.** A point sends only the fields its catalogue entry lists, every string
@@ -328,7 +362,7 @@ itself.
 - **Settings → Decisions** (`apps/web/src/pages/config/groups/Decisions.tsx`, with
   `pages/config/decisions/Engine.tsx`, `Points.tsx` and `DecisionHistory.tsx`): two sections,
   `engine` (who answers, the Jev key with a connection test, the cap per decision, and under Advanced
-  the CLI model, effort and history days) and `points` (mode, threshold under Jev, consent and evidence
+  the CLI model, effort, the Supervisor's cap and history days) and `points` (mode, threshold under Jev, consent and evidence
   per row, grouped by area; the Supervisor is the `supervisor.intervene` row). History (filter, open a
   row, useful / not useful, delete, clear) is a screen of its own at `/settings/decisions/history`.
   The old `?tab=supervisor` lands on `/settings/decisions#point-supervisor-intervene`
@@ -347,7 +381,8 @@ itself.
 
 ## Settings and storage
 
-- **`decisions.json`** in the data directory: the provider, the `cli` model, effort and cost cap,
+- **`decisions.json`** in the data directory: the provider, the `cli` model, effort, cost cap and
+  the Supervisor's cap (`supervisorMaxCostUsd`; a `PUT` without it keeps the stored one),
   the mode, threshold and consent per point, and `historyDays` (30, from 1 to 365). Validated whole on
   `PUT`, written atomically. It also carries `supervisorMigrated: true` once `supervisor.json` has been
   folded into `supervisor.intervene`, so the fold runs only once; the API does not serve the mark.
