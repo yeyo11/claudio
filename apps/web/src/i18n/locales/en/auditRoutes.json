@@ -260,7 +260,7 @@
   "PUT /decisions/points/:point/consent": "Grant or withdraw consent for a point",
   "PUT /decisions/settings": "Change the decision engine settings",
   "PUT /hosts/settings": "Change the code host settings",
-  "PUT /lan/settings": "Change the settings of the listener on the local network",
+  "PUT /lan/settings": "Change the local network settings",
   "PUT /lessons/settings": "Change the lesson settings",
   "PUT /memory/:project/:name": "Create or overwrite a memory file",
   "PUT /projects/:id/documents/file": "Write a document",
