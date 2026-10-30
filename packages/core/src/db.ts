@@ -5,6 +5,7 @@ import type {
   AgentReadEntry,
   AuditEntry,
   AuditFilter,
+  HealthSignalAgent,
   HealthSignalKind,
   AuditPage,
   ChatCompaction,
@@ -180,7 +181,7 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
 
   // What the supervisor proposed when a worker's health turned bad. Rows, because they accumulate;
   // the unique key is the rule "once per signal per chat", held by the store and not by a map that
-  // a restart would empty.
+  // a restart would empty (keyed per occurrence by a later migration).
   `CREATE TABLE supervisor_proposals (
      id               TEXT PRIMARY KEY,
      chat_id          TEXT NOT NULL,
@@ -1482,6 +1483,16 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      FROM (SELECT * FROM audit WHERE actor = 'anonymous' ORDER BY id DESC LIMIT 1000)
      ORDER BY id;
    DELETE FROM audit WHERE actor = 'anonymous';`,
+
+  // The supervisor answers each occurrence of a signal, not each kind for ever (C3 of
+  // docs/plans/regression-fixes-2026-10-29.md): a second hang of a long lead chat is a new question.
+  // `occurrence` is the call the signal is about, else when it started; the rows before it keep ''
+  // and so still hold their kind for the chat, which is what they were asked about. The agent a
+  // signal named rides with its proposal, so the hint can say whose it is
+  `ALTER TABLE supervisor_proposals ADD COLUMN occurrence TEXT NOT NULL DEFAULT '';
+   ALTER TABLE supervisor_proposals ADD COLUMN agent TEXT;
+   DROP INDEX supervisor_proposals_signal;
+   CREATE UNIQUE INDEX supervisor_proposals_occurrence ON supervisor_proposals (chat_id, signal, occurrence);`,
 ];
 
 /**
@@ -2865,14 +2876,14 @@ export class Db {
 
   // ---------- supervisor proposals ----------
 
-  /** False when the chat already has one for that signal: the supervisor answers each signal once. */
+  /** False when the chat already has one for that occurrence of the signal: the supervisor answers each once. */
   saveProposal(p: SupervisorProposal): boolean {
     const result = this.db
       .prepare(
-        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, hint, cost_usd, at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, occurrence, agent, hint, cost_usd, at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.hint, p.costUsd, p.at, p.status);
+      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.occurrence ?? '', p.agent ? JSON.stringify(p.agent) : null, p.hint, p.costUsd, p.at, p.status);
     return Number(result.changes) > 0;
   }
 
@@ -3210,10 +3221,30 @@ interface ProposalRow {
   task_id: string | null;
   orchestration_id: string | null;
   signal: string;
+  occurrence: string;
+  agent: string | null;
   hint: string;
   cost_usd: number;
   at: string;
   status: string;
+}
+
+/** The agent a proposal named, as stored; a row that does not read as one names none */
+function agentOfRow(text: string | null): { agent: HealthSignalAgent } | null {
+  if (!text) return null;
+  try {
+    const value = JSON.parse(text) as Partial<HealthSignalAgent> | null;
+    if (!value || typeof value.parentToolUseId !== 'string') return null;
+    return {
+      agent: {
+        parentToolUseId: value.parentToolUseId,
+        ...(typeof value.description === 'string' ? { description: value.description } : {}),
+        ...(typeof value.subagentType === 'string' ? { subagentType: value.subagentType } : {}),
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 function proposalOf(row: ProposalRow): SupervisorProposal {
@@ -3223,6 +3254,8 @@ function proposalOf(row: ProposalRow): SupervisorProposal {
     ...(row.task_id ? { taskId: row.task_id } : {}),
     ...(row.orchestration_id ? { orchestrationId: row.orchestration_id } : {}),
     signal: row.signal as HealthSignalKind,
+    ...(row.occurrence ? { occurrence: row.occurrence } : {}),
+    ...(agentOfRow(row.agent) ?? {}),
     hint: row.hint,
     costUsd: row.cost_usd,
     at: row.at,

@@ -8,7 +8,7 @@ import type { ClaudioEventInput } from './events.ts';
 import { git, headCommit, isGitRepo } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
-import { budget, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
+import { agentOf, budget, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
 export interface HealthBase {
@@ -176,7 +176,8 @@ export class HealthService {
       commands: runningCommands(trace).map((call) => {
         const command = typeof call.input.command === 'string' ? call.input.command : 'a command';
         const heartbeat = trace.heartbeats.get(call.id);
-        return { command, startedAt: call.at, toolUseId: call.id, usual: usualOf(commandKind(command)), ...(heartbeat ? { heartbeat } : {}) };
+        const agent = agentOf(trace, call);
+        return { command, startedAt: call.at, toolUseId: call.id, usual: usualOf(commandKind(command)), ...(heartbeat ? { heartbeat } : {}), ...(agent ? { agent } : {}) };
       }),
     };
 
@@ -201,7 +202,11 @@ export class HealthService {
     return { ...health, proposal: this.proposalFor(id, health) };
   }
 
-  /** What the supervisor answered for the worst of the signals it has answered; a chat that is well needs none. */
+  /**
+   * What the supervisor answered for the worst of the signals it has answered; a chat that is well
+   * needs none. An answer belongs to one occurrence of a signal: a hang the agent got past is not
+   * the one it hangs on now. A proposal from before occurrences were kept answers its kind.
+   */
   private proposalFor(id: string, health: ChatHealth): SupervisorProposal | null {
     if (health.level === 'ok') return null;
     let proposals: SupervisorProposal[];
@@ -212,11 +217,20 @@ export class HealthService {
     }
     if (!proposals.length) return null;
     for (const signal of health.signals) {
-      const found = proposals.find((p) => p.signal === signal.kind);
+      const occurrence = occurrenceOf(signal);
+      const found = proposals.find((p) => p.signal === signal.kind && (p.occurrence === undefined || p.occurrence === occurrence));
       if (found) return found;
     }
     return null;
   }
+}
+
+/**
+ * Which occurrence of its kind a signal is (C3): the call it is about, else when its stretch
+ * started, else what it measures. The supervisor answers each occurrence once.
+ */
+export function occurrenceOf(signal: Pick<HealthSignal, 'toolUseId' | 'since' | 'detail'>): string {
+  return signal.toolUseId ?? signal.since ?? signal.detail ?? '';
 }
 
 // ---------- telling the feed ----------

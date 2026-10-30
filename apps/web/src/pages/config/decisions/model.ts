@@ -293,6 +293,8 @@ export function withSettingFrom(draft: Draft, source: Draft, setting: string): D
       return { ...draft, provider: source.provider };
     case 'engine.cap':
       return { ...draft, cli: { ...draft.cli, maxCostUsd: source.cli.maxCostUsd } };
+    case 'engine.supervisor-cap':
+      return { ...draft, cli: { ...draft.cli, supervisorMaxCostUsd: source.cli.supervisorMaxCostUsd } };
     case 'engine.cli-model':
       return { ...draft, cli: { ...draft.cli, model: source.cli.model } };
     case 'engine.cli-effort':

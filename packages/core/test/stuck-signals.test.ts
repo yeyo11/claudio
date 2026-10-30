@@ -108,6 +108,45 @@ test('cancelling a command kills its process tree and the turn goes on, with the
   }
 });
 
+test("a subagent's hung command names the agent, and cancelling it reaches the subagent's process tree (C3)", async () => {
+  const { core, started } = setup();
+  try {
+    const chat = started('AGENT-SLEEP 60');
+    const { command, pid } = await sleeping(core, chat.id);
+    const tree = await until(() => {
+      const found = descendantsOf(processTable(), pid);
+      return found.length >= 2 ? found.map((p) => p.pid) : null;
+    }, 'the shell and its sleep');
+
+    // The trace keeps who made the call: the lead's Agent call, and what it said the agent is for
+    const trace = core.runtime.trace(chat.id);
+    const call = trace?.calls.find((c) => c.id === command.toolUseId);
+    const parent = call?.parentToolUseId ?? '';
+    assert.match(parent, /^toolu_agent_/);
+    assert.deepEqual(trace?.agents?.get(parent), { description: 'Run the slow suite', subagentType: 'general-purpose' });
+    const agent = { parentToolUseId: parent, description: 'Run the slow suite', subagentType: 'general-purpose' };
+
+    // The signal about it carries the agent, so a hint can be worded for the lead
+    const hung = core.health.read(chat.id, base, Date.now() + 12 * 60_000).signals.find((s) => s.kind === 'hung-command');
+    assert.equal(hung?.toolUseId, command.toolUseId);
+    assert.deepEqual(hung?.agent, agent);
+
+    // A subagent runs inside the CLI, so its command is a child of the CLI's process like the lead's
+    const result = await core.chats.cancelCommand(chat.id, command.toolUseId, { reason: 'the suite waits on a port nobody opens' });
+    assert.equal(result.processes, tree.length);
+    await until(() => !tree.some(alive), 'the whole tree to be gone');
+    assert.equal(alive(pid), true, 'the CLI itself is untouched');
+    // The failed result reached the subagent's own branch, which is the agent that was blocked
+    const failed = await until(
+      () => core.runtime.events(chat.id).find((e) => e.entry?.blocks.some((b) => b.type === 'tool_result' && b.toolUseId === command.toolUseId)),
+      'the failed result',
+    );
+    assert.equal(failed.entry?.parentToolUseId, parent);
+  } finally {
+    core.shutdown();
+  }
+});
+
 test('a call that is not a running command is refused, and so is a chat with no process', async () => {
   const { core, started } = setup();
   try {

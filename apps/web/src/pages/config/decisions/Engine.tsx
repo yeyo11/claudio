@@ -26,8 +26,11 @@ export const MAX_HISTORY_DAYS = 365;
 const RECENT = 10;
 const REPEATS = 3;
 
+/** What the server takes for either cap: above 0 and at most {@link MAX_COST} */
+export const capValid = (usd: number): boolean => Number.isFinite(usd) && usd > 0 && usd <= MAX_COST;
+
 /** The rows Advanced holds: a search result for one of them opens it. */
-export const ADVANCED_SETTINGS: readonly string[] = ['engine.cli-model', 'engine.cli-effort', 'engine.history-days'];
+export const ADVANCED_SETTINGS: readonly string[] = ['engine.cli-model', 'engine.cli-effort', 'engine.supervisor-cap', 'engine.history-days'];
 
 /**
  * One row of the engine (settings-patterns.md): the label and its control on one baseline, the
@@ -79,6 +82,7 @@ export function EngineSection({
   draft,
   patch,
   costValid,
+  supervisorCostValid,
   daysValid,
   decisions,
   advancedOpen,
@@ -90,6 +94,7 @@ export function EngineSection({
   draft: Draft;
   patch: (next: Partial<Draft>) => void;
   costValid: boolean;
+  supervisorCostValid: boolean;
   daysValid: boolean;
   /** Decisions in the history window, for the cap's consequence; null while it loads */
   decisions: number | null;
@@ -188,6 +193,26 @@ export function EngineSection({
             </Field>
           </>
         )}
+        {/* Always the CLI's, whoever answers the decisions: the Supervisor drafts its hint with a chat of its own */}
+        <Field
+          setting="engine.supervisor-cap"
+          label={t('engine.supervisorCap')}
+          line={t('engine.supervisorCapLine', { cost: formatCost(draft.cli.supervisorMaxCostUsd) })}
+          error={supervisorCostValid ? undefined : t('engine.maxCostInvalid', { max: MAX_COST })}
+          change={change('engine.supervisor-cap', t('engine.supervisorCap'), (value) => (typeof value === 'number' ? formatCost(value) : ''))}
+        >
+          <div className="dp-cost">
+            <NumberInput
+              aria-label={t('engine.supervisorCap')}
+              decimal
+              min={0.01}
+              max={MAX_COST}
+              step={0.01}
+              value={draft.cli.supervisorMaxCostUsd}
+              onChange={(supervisorMaxCostUsd) => patch({ cli: { ...draft.cli, supervisorMaxCostUsd: supervisorMaxCostUsd ?? 0 } })}
+            />
+          </div>
+        </Field>
         <Field
           setting="engine.history-days"
           label={t('engine.historyDays')}

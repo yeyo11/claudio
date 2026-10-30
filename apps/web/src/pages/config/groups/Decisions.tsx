@@ -12,7 +12,7 @@ import { useDirty } from '../../../lib/dirty';
 import { BulkConsentDialog } from '../decisions/BulkConsentDialog';
 import { ConsentDialog, ExamplePayloadDialog } from '../decisions/ConsentDialog';
 import { DecisionHistory } from '../decisions/DecisionHistory';
-import { ADVANCED_SETTINGS, EngineSection, MAX_COST, MAX_HISTORY_DAYS } from '../decisions/Engine';
+import { ADVANCED_SETTINGS, capValid, EngineSection, MAX_HISTORY_DAYS } from '../decisions/Engine';
 import { type BulkPlan, THRESHOLD_MIN, draftOf, examplePoint, needsConsent, planBulk, pointOf, sameDraft, withSettingFrom } from '../decisions/model';
 import { type BulkNote, PointsSection, pointName } from '../decisions/Points';
 import { settingsHref } from '../settingsGroups';
@@ -131,9 +131,10 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
 
   const patch = (next: Partial<typeof draft>) => setDraft((current) => ({ ...current, ...next }));
 
-  const costValid = Number.isFinite(draft.cli.maxCostUsd) && draft.cli.maxCostUsd > 0 && draft.cli.maxCostUsd <= MAX_COST;
+  const costValid = capValid(draft.cli.maxCostUsd);
+  const supervisorCostValid = capValid(draft.cli.supervisorMaxCostUsd);
   const daysValid = Number.isInteger(draft.historyDays) && draft.historyDays >= 1 && draft.historyDays <= MAX_HISTORY_DAYS;
-  const valid = draft.cli.model.trim() !== '' && costValid && daysValid;
+  const valid = draft.cli.model.trim() !== '' && costValid && supervisorCostValid && daysValid;
 
   const save = useMutation({
     mutationFn: () => {
@@ -167,6 +168,7 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
           draft={draft}
           patch={patch}
           costValid={costValid}
+          supervisorCostValid={supervisorCostValid}
           daysValid={daysValid}
           decisions={decisions}
           advancedOpen={advancedOpen}

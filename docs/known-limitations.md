@@ -47,8 +47,9 @@ the Known gaps of its page. Until 2026-10-17 this list was the README's.
   on the graph engine, cancelling a command needs Linux, and "what it is doing now" is read from
   the last unanswered tool call in the transcript, so the time since its last event keeps growing
   during a long command that is alive.
-- The supervisor wakes once per signal per chat, so a worker stuck the same way twice is not asked
-  about twice, and its hint reaches a worker only while that worker's process is up. What it costs
+- The supervisor answers each occurrence of a signal once (the call it is about, or when it
+  started), and its hint reaches a worker only while that worker's process is up. A hint about a
+  subagent goes to the lead, which has to relay it: nothing documented writes to one subagent. What it costs
   is spent whether or not the answer is used, and lands on the graph when the worker is a task.
 - A project's export has no date range: it carries every chat of the project, and a chat's cost is
   its whole cost.

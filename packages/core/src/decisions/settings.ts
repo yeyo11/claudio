@@ -63,9 +63,16 @@ const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,99}$/;
 /** The part of the settings that is stored; the key's state is added on read */
 export type StoredDecisionSettings = Omit<DecisionSettings, 'jev'>;
 
+/**
+ * The Supervisor's chat reads the worker's files with a tool or two before it drafts a line, which a
+ * one-shot question never does: the decision cap would end most of its turns over budget (report
+ * §3.8 of docs/reports/regression-audit-2026-10-29.md), so it has a cap of its own.
+ */
+export const DEFAULT_SUPERVISOR_MAX_COST_USD = 0.25;
+
 export const DEFAULT_DECISION_SETTINGS: StoredDecisionSettings = {
   provider: 'cli',
-  cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02 },
+  cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: DEFAULT_SUPERVISOR_MAX_COST_USD },
   points: {},
   historyDays: 30,
 };
@@ -125,6 +132,13 @@ function parsePoints(value: unknown): Partial<Record<DecisionPointId, DecisionPo
   return points;
 }
 
+function parseCost(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > MAX_COST_USD) {
+    throw new Error(`${field} must be a number above 0 and at most ${String(MAX_COST_USD)}`);
+  }
+  return value;
+}
+
 /** Validates a whole document, since `PUT` replaces it: a bad value is refused, not replaced. */
 export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
   if (!isObject(input)) throw new Error('the decision settings must be a JSON object');
@@ -135,17 +149,16 @@ export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
   if (typeof cli.effort !== 'string' || !(DECISION_EFFORTS as readonly string[]).includes(cli.effort)) {
     throw new Error(`cli.effort must be one of ${DECISION_EFFORTS.join(', ')}`);
   }
-  const cost = cli.maxCostUsd;
-  if (typeof cost !== 'number' || !Number.isFinite(cost) || cost <= 0 || cost > MAX_COST_USD) {
-    throw new Error(`cli.maxCostUsd must be a number above 0 and at most ${String(MAX_COST_USD)}`);
-  }
+  const cost = parseCost(cli.maxCostUsd, 'cli.maxCostUsd');
+  // Absent is the default: a client that predates the field still saves the rest of the document
+  const supervisorCost = cli.supervisorMaxCostUsd === undefined ? DEFAULT_SUPERVISOR_MAX_COST_USD : parseCost(cli.supervisorMaxCostUsd, 'cli.supervisorMaxCostUsd');
   const days = input.historyDays;
   if (typeof days !== 'number' || !Number.isInteger(days) || days < MIN_HISTORY_DAYS || days > MAX_HISTORY_DAYS) {
     throw new Error(`historyDays must be a whole number from ${String(MIN_HISTORY_DAYS)} to ${String(MAX_HISTORY_DAYS)}`);
   }
   return {
     provider: parseProvider(input.provider, 'provider'),
-    cli: { model, effort: cli.effort, maxCostUsd: cost },
+    cli: { model, effort: cli.effort, maxCostUsd: cost, supervisorMaxCostUsd: supervisorCost },
     points: parsePoints(input.points),
     historyDays: days,
   };
@@ -351,8 +364,13 @@ export class DecisionSettingsStore {
    * settings write cannot grant it, and one that changes a point keeps what the owner consented to.
    */
   async set(input: unknown): Promise<DecisionSettings> {
-    const parsed = parseDecisionSettings(input);
-    const before = this.readStored().points;
+    const stored = this.readStored();
+    // A body without the Supervisor's cap keeps the stored one, rather than putting the default back
+    const body = isObject(input) && isObject(input.cli) && input.cli.supervisorMaxCostUsd === undefined
+      ? { ...input, cli: { ...input.cli, supervisorMaxCostUsd: stored.cli.supervisorMaxCostUsd } }
+      : input;
+    const parsed = parseDecisionSettings(body);
+    const before = stored.points;
     for (const [id, point] of Object.entries(parsed.points) as Array<[DecisionPointId, DecisionPointSettings]>) {
       point.consent = before[id]?.consent ?? null;
     }

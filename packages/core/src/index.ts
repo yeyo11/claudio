@@ -99,7 +99,9 @@ import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { createSettingsRegistry, type SettingsRegistry } from './settings-registry.ts';
-import { GuardLauncher } from './guards/launch.ts';
+import { startGuardSweep } from './guards/files.ts';
+import { GuardLauncher, type GuardRequest } from './guards/launch.ts';
+import { guardPolicyOf } from './guards/resolve.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 import { GuardSettingsStore } from './guards/settings.ts';
 import { GuardEventStore } from './guards/events.ts';
@@ -114,7 +116,7 @@ import { TunnelManager } from './tunnel.ts';
 import { ContextControl } from './context-control.ts';
 import { ChatNotes } from './context-notes.ts';
 import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
+import { ChatManager, type ChatConfinement, type ChatRuntime, type GuardSubject, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
@@ -164,7 +166,7 @@ import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
 import { claudioMcp, claudioMcpSync, collabMcpSync, dynamicClaudioServer, assistantChatOptions, type ClaudioMcpIdentity, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
 import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
-import { ChatTools, ToolPresetStore } from './chat-tools.ts';
+import { ChatTools, ToolPresetStore, writeMcpConfigSync } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -231,7 +233,7 @@ import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts
 import { providerLimitOf, type ProviderLimitSource } from './providers/limits.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
-import { DEFAULT_SUPERVISOR_PRESET, Supervisor, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
+import { DEFAULT_SUPERVISOR_PRESET, Supervisor, toolsOfRules, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 export {
   DecisionEngine,
   DEADLINE_MS,
@@ -306,7 +308,7 @@ export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptio
 export { createSettingsRegistry, SettingsError, type SettingsRegistry, type SettingsRegistryDeps } from './settings-registry.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chats.ts';
+export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, isCapacityRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
 export { ReviewStoreError } from './review-store.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
@@ -597,6 +599,8 @@ export class Core {
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
+  /** Stops the sweep of the guard folder; set once it started */
+  private stopGuardSweep: (() => void) | null = null;
   private sampler: SystemSampler | null = null;
   /** Set by `shutdown`: what was still on its way when it ran must not start anything */
   private closed = false;
@@ -926,6 +930,14 @@ export class Core {
     this.orchestrator.guards = this.guardLauncher;
     // A broken guard is known before the first launch; the orchestrator's launches cannot wait for the self-test
     this.startSubsystem('guardSelfTest', () => this.guardLauncher.warm());
+    // Every spawn derives its guard from the settings of now (D6), a respawn included
+    this.runtime.guardPlanner = (chat) => this.guardsAtSpawn(chat);
+    // The folder grows by a rules and a settings file per distinct plan; the ones no live process names go after a week
+    this.startSubsystem('guardSweep', () => {
+      this.stopGuardSweep = startGuardSweep(config.dataDir, () => this.runtime.liveGuardFiles(), (error) => {
+        console.warn(`guards: the sweep of the guard folder failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+    });
     this.spend = new SpendGate({
       db: this.db,
       cap: () => this.appSettings.dailySpendCapUsd,
@@ -975,11 +987,18 @@ export class Core {
       settings: this.decisionSettings,
       db: this.db,
       ask: (question) => this.askSupervisor(question),
-      // A page is the newest entries, which is all the supervisor reads
-      steps: async (chatId) => (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [],
+      // A page is the newest entries, which is all the supervisor reads. A subagent's steps are its
+      // branch of the live stream: the call the signal is about is in the execution that runs now
+      steps: async (chatId, agent) => {
+        if (agent) return (this.runtime.messages(chatId) ?? []).filter((entry) => entry.parentToolUseId === agent.parentToolUseId).slice(-60);
+        return (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [];
+      },
       hint: async (proposal, source) => {
         if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint);
         else await this.chats.hint(proposal.chatId, proposal.hint, { source });
+      },
+      cancel: async (proposal, toolUseId) => {
+        await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint }, { source: 'supervisor' });
       },
       emit: (event) => this.events.emit(event),
       spendOpen: () => this.spend.allows('supervisor'),
@@ -1050,7 +1069,7 @@ export class Core {
       environmentOf: (dir) => this.runtime.environments.get(dir),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
-      guardsForChat: (cwd) => this.guardsForChat(cwd),
+      guardsForChat: (cwd, opts) => this.guardsForChat(cwd, opts),
       compact: (chat) => this.context.availability(chat),
       teammateReads: (chatId) => {
         const decision = this.agentReadScope(chatId);
@@ -2242,6 +2261,8 @@ export class Core {
       { prompt, model, purpose: 'assistant', ...effortOption(effort), provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
       undefined,
       { projectId: project?.id ?? null, language },
+      // The assistant is never guarded (docs/guards.md): its confinement is its own launch
+      null,
     );
   }
 
@@ -2406,9 +2427,12 @@ export class Core {
   }
 
   /**
-   * The supervisor's question as a housekeeping chat: no transcript, the `read-only` preset (the
-   * stored one, or the shipped one if it was deleted) and the configured ceiling as
-   * `--max-budget-usd`. Removed once it answers, like the auth check: the proposal is its record.
+   * The supervisor's question as a housekeeping chat, confined like a decision's one-shot (C3): no
+   * transcript, no settings file of the person's or the project's, no MCP server, no way back into
+   * Claudio, and only the tools of the `read-only` preset (the stored one, or the shipped one if it
+   * was deleted) under `--restricted` and `dontAsk`, with `cli.supervisorMaxCostUsd` as
+   * `--max-budget-usd`. Removed once it answers, like the auth check: the proposal is its record. A
+   * start refused for room throws its refusal, which the Supervisor retries.
    */
   private async askSupervisor(question: SupervisorQuestion): Promise<SupervisorAnswer> {
     const preset = this.toolPresets.get('read-only') ?? DEFAULT_SUPERVISOR_PRESET;
@@ -2423,9 +2447,14 @@ export class Core {
       purpose: 'supervisor',
       keepAlive: false,
       internal: true,
-      permissionMode: 'manual',
+      api: false,
+      uploads: false,
+      permissionMode: 'dontAsk',
+      permissionPrompts: 'none',
       allowedTools,
       disallowedTools,
+      confine: { tools: toolsOfRules(allowedTools), settingSources: [] },
+      mcp: { servers: [], config: writeMcpConfigSync(this.config.dataDir, {}) },
       toolConfig: { preset, allowedTools, disallowedTools, mcp: null },
       maxBudgetUsd: question.maxCostUsd,
     });
@@ -3018,12 +3047,18 @@ export class Core {
     // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
     // for a confined session, to a person who continues the chat after the run
     const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const, purpose: 'assistant' as const };
+    // An assistant run is confined and never guarded (D12): said outright, not left to the project's opt-in
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId, LEGACY_PROVIDER, this.effortPassed(options.effort) ?? (resumed ? usedEffort(resumed) : null));
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { ...extras, guards: null });
       return;
     }
-    await this.chats.create({ ...options, ...extras, provider: LEGACY_PROVIDER, policy, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id, LEGACY_PROVIDER, usedEffort(started)));
+    await this.chats.create(
+      { ...options, ...extras, provider: LEGACY_PROVIDER, policy, prompt: launch.prompt, cwd: launch.cwd },
+      (started) => onStart(started.id, LEGACY_PROVIDER, usedEffort(started)),
+      undefined,
+      null,
+    );
   }
 
   /** The effort a chat starts with, from what was asked: none when it is not one of the levels. */
@@ -3115,6 +3150,7 @@ export class Core {
       worktree: place?.cwd ?? null,
       mainCheckout: record.path,
       project: await this.projectSettings(item.projectId),
+      projectId: item.projectId,
       policy: { commands: launch.policy.commands.allow !== 'none', edits: launch.policy.edit.allow !== 'none' },
     });
     const options = {
@@ -3168,12 +3204,52 @@ export class Core {
     );
   }
 
-  /** A person's chat in `cwd`: guarded when its project opted in. Null leaves it as it always ran. */
-  private async guardsForChat(cwd: string): Promise<ChatGuardPlan | null> {
+  /**
+   * A person's chat in `cwd`: guarded when its project opted in and a rule is on. A run that can
+   * neither run commands nor write files (`policy`), or is confined to a tool list, gets none (D12),
+   * and so does the assistant, whose launch passes `null` before this is asked. Null leaves the chat
+   * as it always ran.
+   */
+  private async guardsForChat(cwd: string, opts: { policy?: ToolPolicy | null; confined?: boolean } = {}): Promise<ChatGuardPlan | null> {
     const project = this.projectOf(resolve(cwd)).project;
     if (!project) return null;
     const settings = await this.projectSettings(project.id);
-    return this.guardLauncher.prepare({ kind: 'chat', cwd: resolve(cwd), mainCheckout: this.projectStore.get(project.id)?.path ?? null, project: settings, interactive: true });
+    return this.guardLauncher.prepare(this.chatGuardRequest(resolve(cwd), project.id, settings, opts));
+  }
+
+  private chatGuardRequest(cwd: string, projectId: string, project: Pick<ProjectSettings, 'guards' | 'flow'> | null, opts: { policy?: ToolPolicy | null; confined?: boolean }): GuardRequest {
+    return {
+      kind: 'chat',
+      cwd,
+      mainCheckout: this.projectStore.get(projectId)?.path ?? null,
+      project,
+      projectId,
+      policy: guardPolicyOf(opts.policy),
+      confined: !!opts.confined,
+      interactive: true,
+    };
+  }
+
+  /**
+   * The guard plan of a spawn its caller handed none to (D6): derived again from the request the
+   * chat's last plan came from, with the global settings and the project's as they are now, or, for
+   * a person's chat that ran unguarded, from its project's opt-in. Synchronous, like the spawn: the
+   * self-test ran when the chat's first plan was prepared, or at server start.
+   */
+  private guardsAtSpawn(chat: GuardSubject): ChatGuardPlan | null {
+    const last = chat.plan?.request;
+    let request: GuardRequest | null;
+    if (last) {
+      const projectId = last.projectId ?? null;
+      const record = projectId ? this.projectStore.get(projectId) : undefined;
+      request = projectId ? { ...last, project: this.projectSettingsStore.stored(projectId, record?.name) ?? last.project } : last;
+    } else if (chat.person) {
+      const project = this.projectOf(resolve(chat.cwd)).project;
+      request = project
+        ? this.chatGuardRequest(resolve(chat.cwd), project.id, this.projectSettingsStore.stored(project.id, project.name), { policy: chat.policy, confined: chat.confined })
+        : null;
+    } else request = null;
+    return request ? this.guardLauncher.prepareNow(request) : null;
   }
 
   /**
@@ -3949,6 +4025,7 @@ export class Core {
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
     if (this.accountsChangedTimer) clearTimeout(this.accountsChangedTimer);
+    this.stopGuardSweep?.();
     this.sampler?.stop();
     this.rotation.close();
     this.retention?.stop();

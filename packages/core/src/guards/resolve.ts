@@ -8,6 +8,7 @@ import {
   type GuardSettings,
   type GuardSwitchableRuleId,
   type ProjectSettings,
+  type ToolPolicy,
 } from '@claudio/shared';
 
 /**
@@ -51,7 +52,7 @@ export interface GuardResolveContext {
 }
 
 export interface ResolvedGuards {
-  /** The effective rules, `integrity` first */
+  /** The effective rules in the order they run, never empty */
   rules: GuardRuleId[];
   mode: GuardMode;
   protectConfigs: string[];
@@ -60,7 +61,16 @@ export interface ResolvedGuards {
 
 type Switches = Record<GuardSwitchableRuleId, boolean>;
 
-/** Pure. Null means the run gets no guard at all. */
+/** What a guard needs of a run's tool policy: whether it can run commands and whether it can write files. */
+export function guardPolicyOf(policy: ToolPolicy | null | undefined): { commands: boolean; edits: boolean } | null {
+  return policy ? { commands: policy.commands.allow !== 'none', edits: policy.edit.allow !== 'none' } : null;
+}
+
+/**
+ * Pure. Null means the run gets no guard at all: no rules file, no hook. `integrity` is a rule like
+ * the others (D6): a run whose every rule is off is not guarded, rather than guarded by the one rule
+ * nobody could switch off.
+ */
 export function resolveGuards(ctx: GuardResolveContext): ResolvedGuards | null {
   if (ctx.confined) return null;
   if (ctx.policy && ctx.policy.commands === false && ctx.policy.edits === false) return null;
@@ -77,7 +87,8 @@ export function resolveGuards(ctx: GuardResolveContext): ResolvedGuards | null {
   if (!enabled) return null;
 
   const switches: Switches = { ...ctx.settings.rules, ...override?.rules };
-  const rules = GUARD_RULE_IDS.filter((id) => id === 'integrity' || switches[id as GuardSwitchableRuleId] === true);
+  const rules = GUARD_RULE_IDS.filter((id) => switches[id as GuardSwitchableRuleId] === true);
+  if (rules.length === 0) return null;
   return { rules, mode: ctx.settings.mode, protectConfigs: [...ctx.settings.protectConfigs], extraRoots: [...ctx.settings.extraRoots] };
 }
 
