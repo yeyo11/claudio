@@ -50,7 +50,7 @@ test('a headless start is refused open off loopback, without a spend cap, and in
 
 const constructorSubsystems = (Object.keys(SUBSYSTEMS) as Subsystem[]).filter(
   // Started by the server once it listens, not by the core; the supervisor is woken, never started
-  (name) => !['cliVersionWatch', 'releaseWatch', 'providersWatch', 'codeHostsWatch', 'tunnel', 'supervisor'].includes(name),
+  (name) => !['cliVersionWatch', 'releaseWatch', 'providersWatch', 'codeHostsWatch', 'tunnel', 'lan', 'supervisor'].includes(name),
 );
 
 test('a headless core starts only what the headless profile keeps, and never what it drops', async (t) => {
