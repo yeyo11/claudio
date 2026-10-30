@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
-import { git, watchWorktrees } from './git.ts';
+import { gitAsyncText, watchWorktrees } from './git.ts';
 
 /**
  * Which git repository a directory is in, read from git's own files (gitrepository-layout(5)) with
@@ -45,9 +45,9 @@ export interface WorktreeInfo {
 
 /**
  * The only door this module spawns git through, so a test can count the spawns (D9: a warm list
- * spawns none).
+ * spawns none). Never synchronous: a list that waits on a process holds every other request with it.
  */
-export const repoGit = { run: (cwd: string, args: string[]): string => git(cwd, args, 10_000) };
+export const repoGit = { run: (cwd: string, args: string[]): Promise<string> => gitAsyncText(cwd, args, 10_000) };
 
 /** A layout the parser cannot read: git is asked instead. */
 const UNDECIDED = Symbol('undecided');
@@ -200,16 +200,16 @@ export function parseRepo(dir: string, memo?: ParseMemo): Parsed {
  * git's answer, for what the parser cannot decide. A repository git refuses to open
  * (`safe.directory`) is an unknown, undefined, not "no repository".
  */
-export function repoFromGit(dir: string): RepoFacts | null | undefined {
+export async function repoFromGit(dir: string): Promise<RepoFacts | null | undefined> {
   const base = ['rev-parse', '--path-format=absolute', '--git-common-dir', '--absolute-git-dir', '--is-bare-repository'];
   let lines: string[];
   try {
     // A bare repository has no top level, and asking for one fails the whole call
     try {
-      lines = repoGit.run(dir, [...base, '--show-toplevel', '--show-prefix']).split('\n');
+      lines = (await repoGit.run(dir, [...base, '--show-toplevel', '--show-prefix'])).split('\n');
     } catch (err) {
       if (/not a git repository/i.test(String((err as Error).message))) return null;
-      lines = repoGit.run(dir, base).split('\n');
+      lines = (await repoGit.run(dir, base)).split('\n');
     }
   } catch (err) {
     return /not a git repository/i.test(String((err as Error).message)) ? null : undefined;
@@ -237,7 +237,7 @@ export function repoFromGit(dir: string): RepoFacts | null | undefined {
 }
 
 /** The repository `dir` is in: null when it is in none, undefined when git would not say. */
-export function repoOf(dir: string): RepoFacts | null | undefined {
+export async function repoOf(dir: string): Promise<RepoFacts | null | undefined> {
   const parsed = parseRepo(dir);
   return parsed === UNDECIDED ? repoFromGit(dir) : parsed;
 }
@@ -370,11 +370,16 @@ export function originUrlOf(commonDir: string): string | null | undefined {
 }
 
 /** `remote.origin.url`, credentials stripped; null without an origin. Read from the file, else one git process. */
-export function remoteOf(commonDir: string): string | null {
+export async function remoteOf(commonDir: string): Promise<string | null> {
   const read = originUrlOf(commonDir);
   if (read !== undefined) return read ? stripCredentials(read) : null;
+  return remoteFromGit(commonDir);
+}
+
+/** What git reads as `remote.origin.url` from a config the reader leaves to it (includes, quoting). */
+async function remoteFromGit(commonDir: string): Promise<string | null> {
   try {
-    const url = repoGit.run(commonDir, ['config', '--file', join(commonDir, 'config'), '--get', 'remote.origin.url']);
+    const url = await repoGit.run(commonDir, ['config', '--file', join(commonDir, 'config'), '--get', 'remote.origin.url']);
     return url ? stripCredentials(url) : null;
   } catch {
     return null;
@@ -555,6 +560,10 @@ export class RepoIndex {
   private readonly records = new Map<string, WorktreeRecord>();
   private readonly lists = new Map<string, { at: number; list: WorktreeInfo[] }>();
   private readonly remotes = new Map<string, { at: number; remote: string | null }>();
+  private readonly configs = new Map<string, { at: number; config: CoreConfigFacts }>();
+  private readonly reals = new Map<string, { at: number; real: string }>();
+  /** What git is being asked, per directory or common dir: a list never waits for it, the next one reads its answer */
+  private readonly asking = new Map<string, Promise<void>>();
   /** What the walks of the last minute found, shared by the directories of one list */
   private memo: { at: number; walks: ParseMemo } | null = null;
 
@@ -592,6 +601,40 @@ export class RepoIndex {
     this.cache.clear();
     this.memo = null;
     this.lists.clear();
+    this.configs.clear();
+    this.reals.clear();
+  }
+
+  /** Resolves once git has answered every question asked in the background: what a test waits on instead of a clock. */
+  async settled(): Promise<void> {
+    while (this.asking.size) await Promise.allSettled([...this.asking.values()]);
+  }
+
+  /** Asks git once per key at a time, off the request that needed it. */
+  private ask(key: string, work: () => Promise<void>): void {
+    if (this.asking.has(key)) return;
+    const asked = work()
+      .catch(() => undefined)
+      .finally(() => this.asking.delete(key));
+    this.asking.set(key, asked);
+  }
+
+  /** `bare` and `core.worktree` of a repository, read from its config at most every half minute. */
+  configOf(commonDir: string): CoreConfigFacts {
+    const hit = this.configs.get(commonDir);
+    if (hit && this.now() - hit.at < WORKTREES_TTL_MS) return hit.config;
+    const config = coreConfigOf(commonDir);
+    this.configs.set(commonDir, { at: this.now(), config });
+    return config;
+  }
+
+  /** A path with its links resolved, as it was a minute ago at most: a list compares hundreds of them. */
+  real(path: string): string {
+    const hit = this.reals.get(path);
+    if (hit && this.now() - hit.at < PLACE_TTL_MS) return hit.real;
+    const real = realOrSelf(path);
+    this.reals.set(path, { at: this.now(), real });
+    return real;
   }
 
   /** Writes the placements still waiting, before the database closes. */
@@ -615,10 +658,21 @@ export class RepoIndex {
 
   private onDisk(dir: string): Place {
     const parsed = parseRepo(dir, this.walks());
-    const source: PlaceSource = parsed === UNDECIDED ? 'git' : 'disk';
-    const facts = parsed === UNDECIDED ? repoFromGit(dir) : parsed;
-    // git would not say: an unknown is not written down as "no repository"
-    if (facts === undefined) return { repo: null, exists: true, source: null };
+    if (parsed !== UNDECIDED) return this.settle(dir, parsed, 'disk');
+    // Only git can say, and a list never waits for a process: what git said last time is served
+    // meanwhile, and its answer replaces it for the next list
+    this.ask(dir, async () => {
+      const facts = await repoFromGit(dir);
+      // git would not say: an unknown is not written down as "no repository"
+      if (facts === undefined) return;
+      this.cache.set(dir, { at: this.now(), place: this.settle(dir, facts, 'git') });
+    });
+    const row = this.places?.get(dir) ?? null;
+    if (row && row.source !== 'layout') return { repo: row.commonDir ? fromRow(row) : null, exists: true, source: row.source };
+    return { repo: null, exists: true, source: null };
+  }
+
+  private settle(dir: string, facts: RepoFacts | null, source: PlaceSource): Place {
     const repo = facts && !facts.mainCheckout && !facts.bare ? { ...facts, mainCheckout: this.places?.mainCheckoutOf(facts.commonDir) ?? null } : facts;
     this.remember(dir, repo, source, null);
     return { repo, exists: true, source };
@@ -720,11 +774,22 @@ export class RepoIndex {
     return list;
   }
 
-  /** origin's URL, credentials stripped: read from the config file, git asked only for what the file leaves to it. */
+  /**
+   * origin's URL, credentials stripped: read from the config file. What the file leaves to git (an
+   * include, quoting) is asked in the background, and the last answer, or none, is served meanwhile.
+   */
   remoteOf(commonDir: string): string | null {
     const hit = this.remotes.get(commonDir);
     if (hit && this.now() - hit.at < REMOTE_TTL_MS) return hit.remote;
-    const remote = remoteOf(commonDir);
+    const read = originUrlOf(commonDir);
+    if (read === undefined) {
+      this.ask(`remote:${commonDir}`, async () => {
+        const remote = await remoteFromGit(commonDir);
+        this.remotes.set(commonDir, { at: this.now(), remote });
+      });
+      return hit?.remote ?? null;
+    }
+    const remote = read ? stripCredentials(read) : null;
     this.remotes.set(commonDir, { at: this.now(), remote });
     return remote;
   }

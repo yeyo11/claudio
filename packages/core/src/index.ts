@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { ChatNotFoundError } from './chat-errors.ts';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -114,7 +114,7 @@ import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, star
 import { TunnelManager } from './tunnel.ts';
 import { ContextControl } from './context-control.ts';
 import { ChatNotes } from './context-notes.ts';
-import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
+import { ChatService, ChatStartError, type Placement, type RunningCounts } from './chat-service.ts';
 import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
@@ -159,7 +159,8 @@ import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
-import { bareImportPath, coreConfigOf, normalizeRemote, RepoIndex, RepoPlaces, type Place } from './repos.ts';
+import { bareImportPath, normalizeRemote, RepoIndex, RepoPlaces, type Place } from './repos.ts';
+import { TranscriptFolds } from './transcript-folds.ts';
 import { lanesRoot } from './evals/lanes.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
@@ -456,6 +457,14 @@ export {
 // package.json files, and never has to rewrite source to bump a version.
 const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
+/** How long one reading of the overview's chats serves every caller, when no event says it changed */
+const OVERVIEW_TTL_MS = 2_000;
+
+/** The part of the overview read from the chats: what costs a listing, and is shared */
+interface OverviewChats {
+  glance: Awaited<ReturnType<ChatService['glance']>>;
+  running: RunningCounts;
+}
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
 /** How long a check of the account in use is good for */
@@ -671,6 +680,8 @@ export class Core {
   private language: ClaudioLanguage = 'en';
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
+  /** The chats' part of the overview being read or last read, dropped by any event that changes what it shows */
+  private overviewMemo: { at: number; value: Promise<OverviewChats> } | null = null;
   private systemCache: { at: number; gen: number; value: SystemRead } | null = null;
   private systemPending: { gen: number; promise: Promise<SystemRead> } | null = null;
   private systemGen = 0;
@@ -883,7 +894,6 @@ export class Core {
     this.startSubsystem('accountsWatch', () => this.watchAccounts());
     this.sampler = new SystemSampler(this.db, () => this.chats.livePids(), () => admissionLimitsFrom(), samplerSettingsFrom());
     this.startSubsystem('sampler', () => this.sampler?.start());
-    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {
@@ -910,7 +920,9 @@ export class Core {
     });
     // Hangs off the bus as an observer, so it hears every event without counting as a client
     this.push = new PushService({ config, db: this.db, events: this.events });
-    this.sessions = new SessionStore(config);
+    // Each transcript's fold is kept in the database, so a restart reads rows instead of every transcript
+    this.sessions = new SessionStore(config, { folds: new TranscriptFolds(this.db.connection) });
+    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, { holdersOf: () => this.chats.holdersKey(), changes: this.sessions });
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
     this.guardLauncher = new GuardLauncher({
@@ -1091,6 +1103,13 @@ export class Core {
     this.events.observe((event) => {
       const started = event.type === 'run.updated' && event.status !== event.previousStatus && event.status === 'starting';
       if (started || event.type === 'run.created' || event.type === 'run.ended' || event.type === 'run.removed') this.chats.forgetHolders();
+    });
+    // What the overview shows changes with nearly every event, but not with what a chat or a subagent
+    // is doing this second, which arrives every second per working chat. What the chats spent
+    // changes with a chat's run, its orchestration or its project, none of which the listing sees
+    this.events.observe((event) => {
+      if (event.type !== 'chat.activity' && event.type !== 'subagent.activity') this.overviewMemo = null;
+      if (event.type.startsWith('run.') || event.type.startsWith('orchestration.') || event.type.startsWith('project.')) this.chats.forgetSpends();
     });
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
     this.startSubsystem('changeWatcher', () => this.changeWatcher.start());
@@ -2194,10 +2213,10 @@ export class Core {
 
   /** What a restart would stop, counted as the overview counts it */
   async liveWork(): Promise<LiveWork> {
-    const chats = await this.chats.list({ origins: ['claudio', 'external', 'orchestration'] });
+    const glance = await this.chats.glance({ origins: ['claudio', 'external', 'orchestration'] }, 0);
     return {
-      working: chats.filter((c) => c.state === 'working').length,
-      waiting: chats.filter((c) => c.state === 'waiting').length,
+      working: glance.working,
+      waiting: glance.waiting,
       running: this.orchestrator.runningCount(),
       // Every shell ends with the server (docs/terminal.md, Lifetime)
       terminals: this.terminals.running(),
@@ -2444,17 +2463,12 @@ export class Core {
     const sessions = await this.sessions.listSessions();
     for (const s of sessions) if (s.worktree) this.repos.learn(s.worktree);
     // Counted from the chat list the project's page shows, so the figure agrees with it: a chat this
-    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its transcript
-    const listed = await this.chats.list();
+    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its
+    // transcript. Only where each chat is and when it moved are read; no chat is assembled
+    const listed = await this.chats.placements();
     const records = this.projectStore.list();
     const settings = await this.projectSettingsStore.readAll(records);
-    const real = (path: string) => {
-      try {
-        return realpathSync(path);
-      } catch {
-        return path;
-      }
-    };
+    const real = (path: string) => this.repos.real(path);
 
     // Who made a worktree, the most specific maker first: what a run was for says more than a chat in it
     const creators = new Map<string, WorktreeCreator>();
@@ -2490,13 +2504,13 @@ export class Core {
       tally.chatCount += 1;
       if (at && (!tally.lastActivity || at > tally.lastActivity)) tally.lastActivity = at;
     };
-    for (const chat of listed) {
+    for (const { placement: chat, updatedAt } of listed) {
       if (!chat.project) continue;
       const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null, byWorktree: new Map<string, Tally>(), removed: new Set<string>() };
-      bump(stat, chat.updatedAt);
+      bump(stat, updatedAt);
       const key = chat.worktree ? real(chat.worktree.path) : MAIN;
       const of = stat.byWorktree.get(key) ?? { chatCount: 0, lastActivity: null };
-      bump(of, chat.updatedAt);
+      bump(of, updatedAt);
       stat.byWorktree.set(key, of);
       if (chat.worktree && !chat.worktree.exists) stat.removed.add(chat.worktree.path);
       stats.set(chat.project.id, stat);
@@ -2555,7 +2569,7 @@ export class Core {
     if (!p.repo) return { repo: null, insideWorktreeOf: null };
     const facts = this.repos.place(p.path).repo;
     const same = facts?.commonDir === p.repo.commonDir ? facts : null;
-    const bare = coreConfigOf(p.repo.commonDir).bare;
+    const bare = this.repos.configOf(p.repo.commonDir).bare;
     const mainCheckout = bare ? null : (same?.mainCheckout ?? this.repos.worktreesOf(p.repo.commonDir).find((w) => w.main)?.path ?? null);
     const repo: ProjectRepo = { commonDir: p.repo.commonDir, mainCheckout, subdir: p.repo.subdir, remote: p.repo.remote, bare };
     const insideWorktreeOf = same?.worktree ? (mainCheckout ? join(mainCheckout, same.subdir) : bareImportPath(p.repo.commonDir)) : null;
@@ -3697,30 +3711,45 @@ export class Core {
     return project;
   }
 
+  /**
+   * What the dashboard, the status bar and the tray show at a glance. The chats' part, the one that
+   * reads the listing, is read once for every caller for {@link OVERVIEW_TTL_MS}, unless an event
+   * says something it shows changed: the tray asks again on every run event, and several tabs ask
+   * at once. The accounts and the limits are the stores' own, read as they are now.
+   */
   async overview(): Promise<Overview> {
-    // The same lists the screens show, so a count can never disagree with the page it links to; read
-    // in one pass, not once per kind
-    const [system, chats, { tasks, subagents, workflows }] = await Promise.all([
-      this.system(),
-      this.chats.list({ origins: ['claudio', 'external', 'orchestration'] }),
-      this.chats.allActivity(),
-    ]);
+    const [system, { glance, running }] = await Promise.all([this.system(), this.overviewChats()]);
     return {
       system,
       limits: this.limitReadings(),
       accounts: this.accountsSnapshot(),
       counts: {
         projects: this.projectStore.list().length,
-        chats: chats.length,
-        chatsWorking: chats.filter((c) => c.state === 'working').length,
-        chatsWaiting: chats.filter((c) => c.state === 'waiting').length,
-        backgroundTasks: tasks.filter((t) => t.status === 'running').length,
-        subagents: subagents.filter((s) => s.status === 'running').length,
-        workflows: workflows.filter((w) => w.status === 'running').length,
+        chats: glance.total,
+        chatsWorking: glance.working,
+        chatsWaiting: glance.waiting,
+        backgroundTasks: running.backgroundTasks,
+        subagents: running.subagents,
+        workflows: running.workflows,
         orchestrationsRunning: this.orchestrator.runningCount(),
       },
-      recentChats: chats.slice(0, 10),
+      recentChats: glance.recent,
     };
+  }
+
+  private overviewChats(): Promise<OverviewChats> {
+    const memo = this.overviewMemo;
+    if (memo && Date.now() - memo.at < OVERVIEW_TTL_MS) return memo.value;
+    // The same list the chat pages show, so a count can never disagree with the page it links to;
+    // what runs under the chats is counted from the runtime, which streams it, rather than read
+    // from every chat's files
+    const value = Promise.all([this.chats.glance({ origins: ['claudio', 'external', 'orchestration'] }, 10), this.chats.runningCounts()]).then(([glance, running]) => ({ glance, running }));
+    const entry = { at: Date.now(), value };
+    this.overviewMemo = entry;
+    value.catch(() => {
+      if (this.overviewMemo === entry) this.overviewMemo = null;
+    });
+    return value;
   }
 
   /** What the dashboard shows of the accounts: how many can take work, and the one new work would start on. */
@@ -3891,6 +3920,7 @@ export class Core {
     this.workspaces.close();
     this.runtime.stopAll();
     this.repos.flush();
+    this.sessions.flush();
     this.db.close();
     return this.children.close();
   }

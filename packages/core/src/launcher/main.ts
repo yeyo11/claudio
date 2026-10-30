@@ -9,7 +9,7 @@ import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, rmSync 
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NODE_FILES, TRIAL_MS, run, type Boot, type Running } from './machine.ts';
-import { VERSION, compareVersions, imageBase, loadKeys, readImageInfo, type ImageInfo } from './protocol.ts';
+import { VERSION, compareVersions, imageBase, loadKeys, readImageInfo, withServerThreadpool, type ImageInfo } from './protocol.ts';
 
 const POLL_MS = 1000;
 
@@ -104,7 +104,7 @@ export async function launch(options: LauncherOptions): Promise<number> {
         const running = spawn(o.node, [join(boot.dir, 'api.mjs')], {
           stdio: 'inherit',
           env: {
-            ...env,
+            ...withServerThreadpool(env),
             CLAUDIO_LAUNCHER: '1',
             CLAUDIO_APP_DIR: boot.dir,
             // The guard is always the image's, never an overlay's

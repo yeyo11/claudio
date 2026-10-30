@@ -5,7 +5,7 @@ import { commandKind, usualDuration, type UsualDuration } from './commands.ts';
 import type { Db } from './db.ts';
 import { runRef } from './event-sources.ts';
 import type { ClaudioEventInput } from './events.ts';
-import { git, headCommit, isGitRepo } from './git.ts';
+import { gitAsyncText, headCommitAsync, isGitRepoAsync } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { budget, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
@@ -35,6 +35,8 @@ export class HealthService {
   /** What a worktree looked like when last read, and since when it has looked like that */
   private readonly worktrees = new Map<string, { execution: string; fingerprint: string; changedAt: string; checkedAt: number }>();
   private readonly repos = new Map<string, boolean>();
+  /** Chats whose checkout git is reading now, each with a token of that read */
+  private readonly fingerprinting = new Map<string, object>();
   /**
    * The decision engine, set once it exists. Both points below are suggestions that only ever add a
    * signal, so a worker's own edits can never talk one away.
@@ -63,38 +65,66 @@ export class HealthService {
   /**
    * A fingerprint of the working directory's state: the commit it is on, what is changed and by how
    * much. Null where it is not a git checkout, which leaves the files the worker wrote as the only
-   * sign of progress.
+   * sign of progress. Never synchronous: it runs from a chat's page and from the monitor's timer, and
+   * a `git status` of a big checkout held every chat's stream while it ran.
    */
-  private fingerprint(dir: string): string | null {
+  private async fingerprint(dir: string): Promise<string | null> {
     let repo = this.repos.get(dir);
     if (repo === undefined) {
-      repo = isGitRepo(dir);
+      repo = await isGitRepoAsync(dir);
       this.repos.set(dir, repo);
     }
     if (!repo) return null;
     try {
-      return [headCommit(dir), git(dir, ['status', '--porcelain'], 10_000), git(dir, ['diff', '--no-textconv', '--no-ext-diff', 'HEAD', '--numstat'], 10_000)].join('\n');
+      const [head, status, diff] = await Promise.all([
+        headCommitAsync(dir),
+        gitAsyncText(dir, ['status', '--porcelain'], 10_000),
+        gitAsyncText(dir, ['diff', '--no-textconv', '--no-ext-diff', 'HEAD', '--numstat'], 10_000),
+      ]);
+      return [head, status, diff].join('\n');
     } catch {
       return null;
     }
   }
 
-  /** The last time anything moved in the worker's checkout, or the start of the execution while nothing has. */
+  /**
+   * The last time anything moved in the worker's checkout, or the start of the execution while nothing
+   * has. A read never waits for git: past the fingerprint's TTL it asks in the background and answers
+   * with what it knew, and the next read (the monitor's, every 15 s) sees what git found.
+   */
   private progressAt(chat: ChatRuntime, executionStartedAt: string, nowMs: number): string {
     const entry = this.worktrees.get(chat.id);
-    if (entry && entry.execution === executionStartedAt && nowMs - entry.checkedAt < FINGERPRINT_TTL_MS) return entry.changedAt;
-    const fingerprint = this.fingerprint(chat.workingDir);
-    if (fingerprint === null) return executionStartedAt;
-    if (!entry || entry.execution !== executionStartedAt) {
-      this.worktrees.set(chat.id, { execution: executionStartedAt, fingerprint, changedAt: executionStartedAt, checkedAt: nowMs });
-      return executionStartedAt;
-    }
-    if (entry.fingerprint !== fingerprint) Object.assign(entry, { fingerprint, changedAt: new Date(nowMs).toISOString() });
-    entry.checkedAt = nowMs;
-    return entry.changedAt;
+    const current = entry !== undefined && entry.execution === executionStartedAt;
+    if (current && nowMs - entry.checkedAt < FINGERPRINT_TTL_MS) return entry.changedAt;
+    this.refreshFingerprint(chat.id, chat.workingDir, executionStartedAt, nowMs);
+    return current ? entry.changedAt : executionStartedAt;
+  }
+
+  /** Reads a chat's fingerprint in the background, one read per chat at a time. */
+  private refreshFingerprint(chatId: string, dir: string, execution: string, nowMs: number): void {
+    if (this.fingerprinting.has(chatId)) return;
+    const read = {};
+    this.fingerprinting.set(chatId, read);
+    const work = this.fingerprint(dir)
+      .then((fingerprint) => {
+        // A chat forgotten while git ran keeps nothing of it
+        if (fingerprint === null || this.fingerprinting.get(chatId) !== read) return;
+        const entry = this.worktrees.get(chatId);
+        if (!entry || entry.execution !== execution) {
+          this.worktrees.set(chatId, { execution, fingerprint, changedAt: execution, checkedAt: nowMs });
+          return;
+        }
+        if (entry.fingerprint !== fingerprint) Object.assign(entry, { fingerprint, changedAt: new Date(nowMs).toISOString() });
+        entry.checkedAt = nowMs;
+      })
+      .finally(() => {
+        if (this.fingerprinting.get(chatId) === read) this.fingerprinting.delete(chatId);
+      });
+    this.track(work);
   }
 
   forget(id: string): void {
+    this.fingerprinting.delete(id);
     this.worktrees.delete(id);
     this.loops.delete(id);
     this.tests.delete(id);

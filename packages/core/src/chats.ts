@@ -1317,9 +1317,10 @@ export class ChatManager extends EventEmitter {
   }
 
   /** The MCP servers of the chat's live process, as it reports them now, and Claudio's own server for it. */
-  async mcpServers(id: string): Promise<ChatMcpServers> {
+  /** `ask: false` answers without a control request, as a chat with no live process does: the caller judged the CLI too busy to answer now. */
+  async mcpServers(id: string, opts: { ask?: boolean } = {}): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
-    const session = chat?.alive ? chat.session : null;
+    const session = chat?.alive && opts.ask !== false ? chat.session : null;
     if (!session?.mcpStatus) return { live: false, servers: [], ...(chat ? { claudio: this.claudioState(chat, []) } : {}) };
     const servers = await session.mcpStatus();
     return { live: true, servers, ...(chat ? { claudio: this.claudioState(chat, servers) } : {}) };

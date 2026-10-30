@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "UV_THREADPOOL_SIZE=${UV_THREADPOOL_SIZE:-16} tsx watch src/index.ts",
+    "start": "UV_THREADPOOL_SIZE=${UV_THREADPOOL_SIZE:-16} tsx src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts",
     "openapi:schemas": "tsx scripts/generate-schemas.ts",

@@ -491,6 +491,8 @@ export interface JournalQuery {
 }
 
 const num = (value: number | undefined) => (value === undefined ? undefined : String(value));
+/** The page `GET /chats` answers with when it names no limit */
+const CHATS_PAGE = 200;
 
 function qs(params: Record<string, string | undefined>): string {
   const pairs = Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined && e[1] !== '');
@@ -606,20 +608,37 @@ export const api = {
     request<ProjectSettings>(`/projects/${enc(id)}/settings`, { method: 'PUT', body: settings }),
   removeProject: (id: string) => request<{ ok: true }>(`/projects/${enc(id)}`, { method: 'DELETE' }),
   purgeProject: (id: string) => request<{ detail: string }>(`/projects/${enc(id)}/state`, { method: 'DELETE' }),
-  chats: (filter: ChatFilter = {}, o?: ReadOptions) =>
-    request<ChatSummary[]>(
-      `/chats${qs({
-        // `null` is the chats under no project, which the route asks for with `loose`
-        project: filter.project ?? undefined,
-        loose: filter.project === null ? '1' : undefined,
-        origin: filter.origin?.join(','),
-        workers: filter.workers === false ? '0' : undefined,
-        state: filter.state,
-        assistant: filter.assistant ? '1' : undefined,
-        limit: num(filter.limit),
-      })}`,
-      o,
-    ),
+  /**
+   * The chats a filter picks. With a `limit`, that many; without one, every chat, read a page at a
+   * time: the server answers a page of 200, so no single answer carries the machine's whole history,
+   * and the next page starts after the last chat of this one (`<updatedAt>~<id>`, its order).
+   */
+  chats: async (filter: ChatFilter = {}, o?: ReadOptions): Promise<ChatSummary[]> => {
+    const page = (limit: number | undefined, after?: string) =>
+      request<ChatSummary[]>(
+        `/chats${qs({
+          // `null` is the chats under no project, which the route asks for with `loose`
+          project: filter.project ?? undefined,
+          loose: filter.project === null ? '1' : undefined,
+          origin: filter.origin?.join(','),
+          workers: filter.workers === false ? '0' : undefined,
+          state: filter.state,
+          assistant: filter.assistant ? '1' : undefined,
+          limit: num(limit),
+          after,
+        })}`,
+        o,
+      );
+    if (filter.limit !== undefined) return page(filter.limit);
+    const all: ChatSummary[] = [];
+    for (let after: string | undefined; ; ) {
+      const chats = await page(CHATS_PAGE, after);
+      all.push(...chats);
+      const last = chats.at(-1);
+      if (!last || chats.length < CHATS_PAGE) return all;
+      after = `${last.updatedAt ?? ''}~${last.id}`;
+    }
+  },
   chat: (id: string, page: { limit?: number; before?: number } = {}, o?: ReadOptions) =>
     request<ChatDetail>(
       `/chats/${enc(id)}${qs({ limit: num(page.limit), before: num(page.before) })}`,
