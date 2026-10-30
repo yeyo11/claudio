@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,7 +59,32 @@ async function sleepingChat(): Promise<{ id: string; toolUseId: string }> {
   assert.equal(created.statusCode, 201);
   const id = created.json<ChatSummary>().id;
   const command = await until(() => core.runtime.pulse(id)?.commands[0], 'the command to start');
+  // The call streams before its tree is spawned, as the CLI's does, and a cancel refuses a command
+  // with no process yet: under load the gap is wide enough for a test to land in it
+  await until(() => sleepRunsUnder(id), 'the command\'s process to start');
   return { id, toolUseId: command.toolUseId };
+}
+
+/** Whether the `sleep` a chat's command runs is a descendant of that chat's CLI, read from /proc. */
+function sleepRunsUnder(id: string): boolean {
+  const cli = core.runtime.livePids().find((p) => p.chatId === id)?.pid;
+  if (cli === undefined) return false;
+  const parents = new Map<number, number>();
+  const sleeps: number[] = [];
+  for (const name of readdirSync('/proc')) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      const stat = readFileSync(`/proc/${name}/stat`, 'utf8');
+      parents.set(Number(name), Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]));
+      if (readFileSync(`/proc/${name}/cmdline`, 'utf8').split('\0')[0] === 'sleep') sleeps.push(Number(name));
+    } catch {
+      // gone between listing and reading
+    }
+  }
+  return sleeps.some((pid) => {
+    for (let at = parents.get(pid); at !== undefined && at > 1; at = parents.get(at)) if (at === cli) return true;
+    return false;
+  });
 }
 
 test('cancelling one command answers with what was killed, and a second try says it is no longer running', async () => {
