@@ -1990,7 +1990,7 @@
         "items": {
           "$ref": "#/components/schemas/GuardRuleId"
         },
-        "description": "The effective rules, `integrity` first"
+        "description": "The effective rules, in the order they run"
       },
       "mode": {
         "$ref": "#/components/schemas/GuardMode"
@@ -2023,7 +2023,7 @@
       "protect-configs",
       "declared-tools"
     ],
-    "description": "A rule of the guard program. `integrity` protects the guard itself and is always on whenever guards are; it is deliberately not a key of any settings or override type, so it cannot be switched off through the API ( {@link  GuardSwitchableRuleId } ). `declared-tools` confines a confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is armed by the chat's launch from its stored policy, never by a setting."
+    "description": "A rule of the guard program. `integrity` protects the guard itself; it is a rule like the others (D6 of docs/plans/regression-fixes-2026-10-29.md), on by default, and a guard with no rule on is no guard at all. `declared-tools` confines a confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is armed by the chat's launch from its stored policy, never by a setting."
   },
   "GuardMode": {
     "type": "string",
@@ -3770,6 +3770,9 @@
       "rules": {
         "type": "object",
         "properties": {
+          "integrity": {
+            "type": "boolean"
+          },
           "no-verify": {
             "type": "boolean"
           },
@@ -3786,7 +3789,7 @@
             "type": "boolean"
           }
         },
-        "description": "Merged over the global rules; `integrity` cannot be named"
+        "description": "Merged over the global rules"
       }
     },
     "description": "What a graph or a flow stage changes of the global settings; absent fields inherit."
@@ -4129,6 +4132,10 @@
       "toolUseId": {
         "type": "string",
         "description": "The tool call to cancel, when the signal is about one command that is still running"
+      },
+      "agent": {
+        "$ref": "#/components/schemas/HealthSignalAgent",
+        "description": "The subagent that made the call the signal is about; absent when the lead made it. The CLI has no documented way to write to one subagent, so a hint about it goes to the lead, which relays it or stops the agent (docs/decision-engine.md, \"The Supervisor\")."
       }
     },
     "required": [
@@ -4166,6 +4173,25 @@
     },
     "description": "The figures a server string was built from, so a translation can put them back in its own order."
   },
+  "HealthSignalAgent": {
+    "type": "object",
+    "properties": {
+      "parentToolUseId": {
+        "type": "string",
+        "description": "The id of the lead's `Agent`/`Task` call, which every line of the subagent's sidechain carries"
+      },
+      "description": {
+        "type": "string"
+      },
+      "subagentType": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "parentToolUseId"
+    ],
+    "description": "The subagent a health signal is about: the lead's `Agent` call that launched it, and what that call said."
+  },
   "SupervisorProposal": {
     "type": "object",
     "properties": {
@@ -4185,6 +4211,14 @@
       "signal": {
         "$ref": "#/components/schemas/HealthSignalKind",
         "description": "The signal that woke it"
+      },
+      "occurrence": {
+        "type": "string",
+        "description": "Which occurrence of the signal: the call it is about (`toolUseId`), else when it started (`since`). A second hang of the same kind is a new occurrence and gets its own answer. Absent on proposals made before occurrences were kept."
+      },
+      "agent": {
+        "$ref": "#/components/schemas/HealthSignalAgent",
+        "description": "The subagent the signal was about, when a subagent made the call; its hint asks the lead to relay or stop it"
       },
       "hint": {
         "type": "string",
@@ -4210,7 +4244,7 @@
       "at",
       "status"
     ],
-    "description": "One answer of the supervisor. A row, because they accumulate; at most one per signal per chat."
+    "description": "One answer of the supervisor. A row, because they accumulate; at most one per occurrence of a signal per chat."
   },
   "SupervisorProposalStatus": {
     "type": "string",
@@ -13085,6 +13119,9 @@
       "rules": {
         "type": "object",
         "properties": {
+          "integrity": {
+            "type": "boolean"
+          },
           "no-verify": {
             "type": "boolean"
           },
@@ -13102,13 +13139,14 @@
           }
         },
         "required": [
+          "integrity",
           "no-verify",
           "push",
           "destructive",
           "secrets",
           "protect-configs"
         ],
-        "description": "Which switchable rules are on; `protect-configs` ships off, the others on (O2, O3)"
+        "description": "Which rules are on; `protect-configs` ships off, the others on (O2, O3). None on means no guard runs"
       },
       "protectConfigs": {
         "type": "array",
@@ -19009,7 +19047,7 @@
       },
       "switchable": {
         "type": "boolean",
-        "description": "False for `integrity` only"
+        "description": "Every rule Settings lists is switchable; kept for clients that read it"
       }
     },
     "required": [
@@ -19043,6 +19081,9 @@
       "rules": {
         "type": "object",
         "properties": {
+          "integrity": {
+            "type": "boolean"
+          },
           "no-verify": {
             "type": "boolean"
           },
@@ -19214,13 +19255,14 @@
   "GuardSwitchableRuleId": {
     "type": "string",
     "enum": [
+      "integrity",
       "no-verify",
       "push",
       "destructive",
       "secrets",
       "protect-configs"
     ],
-    "description": "The rules a person can switch: every rule but `integrity` and `declared-tools`."
+    "description": "The rules a person can switch: every rule but `declared-tools`."
   },
   "GuardCheckResult": {
     "type": "object",
@@ -19906,7 +19948,7 @@
       },
       "maxCostUsd": {
         "type": "number",
-        "description": "Passed to the housekeeping chat as `--max-budget-usd`: the engine's cap per decision"
+        "description": "Passed to the housekeeping chat as `--max-budget-usd`: the engine's `cli.supervisorMaxCostUsd`"
       }
     },
     "required": [
@@ -19915,7 +19957,7 @@
       "autoSend",
       "maxCostUsd"
     ],
-    "description": "The view `GET /settings/supervisor` derives from the point (deprecated: read `GET /decisions/settings`). `enabled` is the mode not being `off`, `autoSend` the mode being `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.maxCostUsd`."
+    "description": "The view `GET /settings/supervisor` derives from the point (deprecated: read `GET /decisions/settings`). `enabled` is the mode not being `off`, `autoSend` the mode being `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.supervisorMaxCostUsd`."
   },
   "UpdateSupervisorConfigRequest": {
     "type": "object",
@@ -31761,23 +31803,8 @@
         "description": "The global default provider"
       },
       "cli": {
-        "type": "object",
-        "properties": {
-          "model": {
-            "type": "string"
-          },
-          "effort": {
-            "type": "string"
-          },
-          "maxCostUsd": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "model",
-          "effort",
-          "maxCostUsd"
-        ]
+        "$ref": "#/components/schemas/DecisionCliSettings",
+        "description": "The CLI's model, effort and cap per decision; `supervisorMaxCostUsd` is the cap of the Supervisor's chat, which reads the worker's files and so costs more than a one-shot question"
       },
       "jev": {
         "type": "object",
@@ -31908,6 +31935,32 @@
       "historyDays"
     ]
   },
+  "DecisionCliSettings": {
+    "type": "object",
+    "properties": {
+      "model": {
+        "type": "string"
+      },
+      "effort": {
+        "type": "string"
+      },
+      "maxCostUsd": {
+        "type": "number",
+        "description": "`--max-budget-usd` of one decision; (0, 5]"
+      },
+      "supervisorMaxCostUsd": {
+        "type": "number",
+        "description": "`--max-budget-usd` of the Supervisor's chat; (0, 5], default 0.25"
+      }
+    },
+    "required": [
+      "model",
+      "effort",
+      "maxCostUsd",
+      "supervisorMaxCostUsd"
+    ],
+    "description": "How the CLI answers: the model and effort of every question, and the two caps."
+  },
   "DecisionPointSettings": {
     "type": "object",
     "properties": {
@@ -31965,6 +32018,9 @@
       "cli": {
         "type": "object",
         "properties": {
+          "supervisorMaxCostUsd": {
+            "type": "number"
+          },
           "model": {
             "type": "string"
           },
@@ -31972,14 +32028,16 @@
             "type": "string"
           },
           "maxCostUsd": {
-            "type": "number"
+            "type": "number",
+            "description": "`--max-budget-usd` of one decision; (0, 5]"
           }
         },
         "required": [
-          "model",
           "effort",
-          "maxCostUsd"
-        ]
+          "maxCostUsd",
+          "model"
+        ],
+        "description": "`supervisorMaxCostUsd` absent reads as its default (0.25)"
       },
       "points": {
         "type": "object",

@@ -32,7 +32,6 @@ export function GuardTag({ guards }: { guards: ChatGuards | null | undefined }) 
             <li key={id}>
               <ShieldCheck {...ICON_SM} aria-hidden />
               <span className="mono">{id}</span>
-              {id === 'integrity' && <span className="guard-always">{t('guards.alwaysOn')}</span>}
             </li>
           ))}
         </ul>

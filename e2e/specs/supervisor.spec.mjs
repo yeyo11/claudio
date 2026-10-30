@@ -53,7 +53,7 @@ export default async ({ page, api, check }) => {
     const shadow = (await api.get('/settings/supervisor')).body;
     const engine = (await settingsOf(api)).cli;
     check(
-      shadow.enabled === true && shadow.autoSend === false && shadow.model === engine.model && shadow.maxCostUsd === engine.maxCostUsd,
+      shadow.enabled === true && shadow.autoSend === false && shadow.model === engine.model && shadow.maxCostUsd === engine.supervisorMaxCostUsd,
       `the deprecated view is derived from the point and the engine (${JSON.stringify(shadow)})`,
     );
 
@@ -73,7 +73,7 @@ export default async ({ page, api, check }) => {
 
     // ---- the deprecated write maps onto the point; the model and the cap are ignored ----
     const off = await api.put('/settings/supervisor', { enabled: false, model: 'opus', maxCostUsd: 9 });
-    check(off.status === 200 && off.body.enabled === false && off.body.maxCostUsd === engine.maxCostUsd, `enabled: false turns the point off (${JSON.stringify(off.body)})`);
+    check(off.status === 200 && off.body.enabled === false && off.body.maxCostUsd === engine.supervisorMaxCostUsd, `enabled: false turns the point off (${JSON.stringify(off.body)})`);
     check((await modeOf(api)) === 'off', 'the point is off');
     const refused = await api.put('/settings/supervisor', { enabled: 'yes' });
     check(refused.status === 400, `the server refuses an enabled that is not a boolean (${refused.status})`);

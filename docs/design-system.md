@@ -2085,9 +2085,9 @@ bad always sit beside a word and the shield icon.
   graph, a `.alert.alert-warn` line ("Workers will run without …", the rule ids in mono). It edits an
   override of the global settings, so what is left alone follows Settings.
 - **`.guard-rules`** is the rules `Sheet` (a bottom sheet on a phone): one **`.guard-rule`** per
-  rule with a `Switch`, the name, a one-line description and the id in mono. The **locked rule**
-  (`.guard-rule.is-locked`, `integrity`) has a lock icon and the word "Always on"
-  (**`.guard-always`**) instead of a Switch.
+  rule with a `Switch`, the name, a one-line description and the id in mono; `integrity` is first
+  and switches like the others (there is no locked row since D6 of
+  [the regression fixes](plans/regression-fixes-2026-10-29.md)).
 - **`.guard-tag`** is the chat header's `.badge`, a button: neutral "Guards" when armed, warn
   "Observe", bad "Guards not running". A press opens a `Sheet` with **`.guard-rules-list`**.
 - **`.teammate-reads-tag`** is the chat header's neutral `.badge` beside the guard's, in the same

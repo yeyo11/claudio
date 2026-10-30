@@ -26,8 +26,14 @@ const ORDER: readonly [GuardRuleId, (ctx: RuleContext) => Block | null][] = [
 const blockOf = (matcher: string, reason: string): Decision => ({ verdict: 'block', rule: 'integrity', reason, matcher });
 
 export function decide(rules: GuardRulesFile, input: HookInput): Decision {
+  // Only the rules the file names run (D6): `integrity` too, so a guard whose person switched it off
+  // neither refuses what it cannot read nor guards its own files. A declared policy arms its rule by
+  // being there: no list or switch can leave it out
+  const enabled = new Set<GuardRuleId>(rules.rules);
+  if (rules.declared) enabled.add('declared-tools');
+  const strict = enabled.has('integrity');
   const tool = classify(input, rules.limits.maxInputBytes);
-  if (tool.oversize) return blockOf('integrity.input-too-large', 'the tool input is too large to check');
+  if (tool.oversize && strict) return blockOf('integrity.input-too-large', 'the tool input is too large to check');
 
   const cmds: Cmd[] = [];
   const scans: Scan[] = [];
@@ -42,17 +48,13 @@ export function decide(rules: GuardRulesFile, input: HookInput): Decision {
       maxScriptBytes: rules.limits.maxScriptBytes,
       emitWrappers: !!rules.declared,
     });
-    if (view.error === 'unparseable') return blockOf('integrity.unparseable', `the guard cannot parse this command line (${snippet(command)}); write it more plainly`);
-    if (view.error === 'too-deep') return blockOf('integrity.too-deep', 'this command nests shells or scripts too deeply for the guard');
+    if (view.error === 'unparseable' && strict) return blockOf('integrity.unparseable', `the guard cannot parse this command line (${snippet(command)}); write it more plainly`);
+    if (view.error === 'too-deep' && strict) return blockOf('integrity.too-deep', 'this command nests shells or scripts too deeply for the guard');
     cmds.push(...view.commands);
     scans.push(...view.scans);
     links.push(...view.links);
   }
 
-  const enabled = new Set<GuardRuleId>(rules.rules);
-  enabled.add('integrity');
-  // A declared policy arms its rule by being there: no list or switch can leave it out
-  if (rules.declared) enabled.add('declared-tools');
   const ctx: RuleContext = { rules, enabled, input, tool, cmds, scans, links, cwd, known: new Set(rules.knownSecretSha256) };
   for (const [id, check] of ORDER) {
     if (!enabled.has(id)) continue;

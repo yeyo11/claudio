@@ -244,8 +244,10 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       return;
 
     case 'guard-missing':
-      // The synthetic results of an interrupt or a stop carry no marker either, and a chat already stopped for it says so once
-      if (chat.guardState === 'missing' || chat.interruptRequested || chat.stopRequested) return;
+      // A chat already stopped for it says so once, and a stop's synthetic results carry no marker
+      // either. An interrupt's are excused by the driver, call by call, so a mark the interrupt left
+      // behind can never hide a real one (report §1.7)
+      if (chat.guardState === 'missing' || chat.stopRequested) return;
       chat.push(event.run);
       host.emit('chat-guard', chat.id, event.guard);
       host.guardMissing(chat);

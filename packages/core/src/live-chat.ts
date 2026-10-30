@@ -34,6 +34,7 @@ import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
 import type { BackgroundTask, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
+import type { GuardRequest } from './guards/launch.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, PermissionQuestion, ProviderDriver } from './providers/driver.ts';
@@ -102,7 +103,7 @@ export interface RunResult {
  * written their files (`resolveGuards`, `writeGuardFiles`). Absent: the chat is not guarded.
  */
 export interface ChatGuardPlan {
-  /** The effective rules, `integrity` first */
+  /** The effective rules, in the order they run */
   rules: GuardRuleId[];
   mode: GuardMode;
   /** The `--settings` file that registers the hooks */
@@ -113,6 +114,12 @@ export interface ChatGuardPlan {
   interactive?: boolean;
   /** The run's own scratch dir (`<data>/tmp/<id>`), exported as `TMPDIR` and removed when the run ends; the rules name it */
   tmpDir?: string;
+  /**
+   * What the plan was derived from, so a later process of the chat derives it again from the
+   * settings as they are then (D6): a switch turned off reaches a respawn, not only a new chat.
+   * Absent on a confined API chat's plan, which comes from its stored policy alone.
+   */
+  request?: GuardRequest;
 }
 
 /** What starts a chat, beyond what the API takes: the housekeeping knobs the wrapper's own callers use. */

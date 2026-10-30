@@ -162,9 +162,9 @@ export function ProjectGeneral({ project }: { project: Project }) {
   const toast = useToast();
   const settings = useProjectSettings(project.id);
   const projects = useProjects(false).data;
-  // The rules a guarded chat would run with, named in the switch's help: the integrity rule always, then the ones that are on
+  // The rules a guarded chat would run with, named in the switch's help: the ones that are on
   const globalGuards = useGuardSettings();
-  const guardRules = ['integrity', ...SWITCHABLE_RULES.filter((id) => globalGuards?.rules[id])].join(', ');
+  const guardRules = SWITCHABLE_RULES.filter((id) => globalGuards?.rules[id]).join(', ');
   // Read with the module off too: it says how much a switched-off board still keeps
   const board = useWorkItemBoard(project.id, {}).data;
   const has = (module: ProjectModule) => project.modules.includes(module);

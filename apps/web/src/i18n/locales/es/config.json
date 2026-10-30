@@ -145,14 +145,15 @@
       "forbidden": "Solo una persona puede cambiar las guardas.",
       "readOnlyNote": "Claudio está en modo de solo lectura, así que aquí no se pueden cambiar las guardas.",
       "rulesLabel": "Reglas",
-      "alwaysOn": "Siempre activa",
       "status": {
         "active": "activas",
         "observe": "observando",
         "unavailable": "no disponibles",
+        "off": "desactivadas",
         "activeLine": "Activas en las ejecuciones automáticas · {{count}} reglas activadas",
         "chatsOnlyLine": "Desactivadas en las ejecuciones automáticas y activas en los chats que lo piden · {{count}} reglas activadas",
         "observeLine": "Modo observación: no se bloquea nada",
+        "offLine": "Ninguna regla activada: no se protege ninguna ejecución",
         "notAvailable": "No disponibles: {{problem}}"
       },
       "problems": {
@@ -172,7 +173,7 @@
       "rules": {
         "integrity": {
           "name": "Integridad",
-          "description": "Protege la propia guarda: los datos de Claudio, los ajustes que podrían desactivar los hooks, los hooks y la configuración de git, y los procesos claude anidados."
+          "description": "Protege la propia guarda —los datos de Claudio, los ajustes que podrían desactivar los hooks, los hooks y la configuración de git, los procesos claude anidados— y bloquea las líneas de comando que la guarda no sabe leer."
         },
         "no-verify": {
           "name": "Sin saltarse comprobaciones",
@@ -729,6 +730,7 @@
         "who-answers": "Quién responde",
         "jev-key": "Clave de Jev",
         "cap": "Tope por decisión",
+        "supervisor-cap": "Tope por pista del Supervisor",
         "cli-model": "Modelo del CLI",
         "cli-effort": "Effort del CLI",
         "history-days": "Días de historial guardados"
@@ -765,6 +767,7 @@
         "mode": "Solo observar",
         "automated": "Workers de orquestación y flujo",
         "rule": {
+          "integrity": "Integridad",
           "no-verify": "Sin saltarse comprobaciones",
           "push": "Sin push",
           "destructive": "Sin comandos destructivos",
@@ -913,6 +916,7 @@
         "who-answers": "motor proveedor jev cli modelo",
         "jev-key": "clave api secreto",
         "cap": "coste dólares límite",
+        "supervisor-cap": "supervisor pista coste dólares límite",
         "cli-model": "avanzado haiku",
         "cli-effort": "avanzado razonamiento",
         "history-days": "retención avanzado"
@@ -959,6 +963,7 @@
         "mode": "observar registrar falso positivo",
         "automated": "workers orquestación flujo",
         "rule": {
+          "integrity": "integridad guarda archivos propios leer",
           "no-verify": "verificar hooks saltar",
           "push": "push subir",
           "destructive": "borrar rm forzar",

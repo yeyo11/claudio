@@ -1990,15 +1990,6 @@ button.master-item-on:hover {
   gap: 4px 12px;
 }
 
-/* The rule nobody can switch: a lock, its name and "Always on" instead of a Switch */
-.guard-rule-locked {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--fg-2);
-}
-
 .guard-subtitle {
   margin: 8px 0 0;
   font-size: var(--fs-body);

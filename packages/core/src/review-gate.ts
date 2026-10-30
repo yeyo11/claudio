@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { LimitWait, ReviewDimension, ReviewFinding, ReviewGateSpec, ReviewRound, ReviewRunState, ReviewSide } from '@claudio/shared';
+import { isCapacityRefusal } from './chat-errors.ts';
 import type { RunResult } from './chats.ts';
 import { collectReviewDiff, type ReviewChunk, type ReviewDiff, type ReviewDiffFile } from './review-diff.ts';
 import { anchor, dedupe, fingerprint, isBlocking, roundStatus, type AnchorIndex, type LineRange } from './review-findings.ts';
@@ -23,7 +24,7 @@ export const VERIFIER_MAX_TURNS = 24;
 export const VERIFIER_BATCH = 4;
 /** Verifier runs per round, which bounds what a flood of high findings can cost */
 export const VERIFIER_RUNS_MAX = 6;
-/** The CLI answers "Concurrent run limit reached" until a slot frees; the tasks poll every 3 s too */
+/** A start is refused for room (a full slot, short memory) until some frees; the tasks poll every 3 s too */
 export const SLOT_RETRY_MS = 3000;
 /** Cost of a reviewer's fixed prompt (role, rules, tools) before it reads any chunk, in USD */
 export const FIXED_PROMPT_USD = 0.05;
@@ -434,14 +435,15 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
         });
         break;
       } catch (err) {
-        const message = (err as Error).message;
-        // The global run limit: a slot frees soon, and the wait counts against the run's own time
-        if (message.includes('Concurrent run limit') && Date.now() < deadline) {
+        const message = err instanceof Error ? err.message : String(err);
+        // No room for a run, a slot or memory: room frees soon, and the wait counts against the run's own time
+        const capacity = isCapacityRefusal(err);
+        if (capacity && Date.now() < deadline) {
           const slept = await sleep(retryMs, signal);
           if (slept.kind === 'abort') return fail('cancelled', 'stopped');
           continue;
         }
-        return fail('failed', message.includes('Concurrent run limit') ? 'no run slot came free in time' : message);
+        return fail('failed', capacity ? 'no room for a run came free in time' : message);
       }
     }
     store.updateRun(runId, { state: 'running', chatId, startedAt: new Date().toISOString() });

@@ -63,7 +63,12 @@ class ClaudeCodeSession implements DriverSession {
   }
 
   async interrupt(): Promise<void> {
-    await this.control.request({ subtype: 'interrupt' });
+    this.stream.interrupting();
+    try {
+      await this.control.request({ subtype: 'interrupt' });
+    } finally {
+      this.stream.interruptAnswered();
+    }
   }
 
   async setOption(option: { permissionMode: PermissionMode } | { model: string } | { maxThinkingTokens: number | null }): Promise<void> {

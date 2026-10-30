@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DEFAULT_GUARD_SETTINGS, type GuardOverride, type GuardSettings } from '@claudio/shared';
-import { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardRunKind } from '../src/guards/resolve.ts';
+import { guardPolicyOf, guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardRunKind } from '../src/guards/resolve.ts';
 import { defaultGuardSettings } from '../src/guards/settings.ts';
 
 const settings = (patch: Partial<GuardSettings> = {}): GuardSettings => ({ ...defaultGuardSettings(), ...patch });
 const DEFAULT_RULES = ['integrity', 'no-verify', 'push', 'destructive', 'secrets'];
 
-test('every automated run kind is guarded with the default rules, integrity first', () => {
+test('every automated run kind is guarded with the default rules, in their order', () => {
   const kinds: GuardRunKind[] = ['worker', 'integration', 'synthesis', 'verification-fixer', 'checks-fix', 'workflow'];
   for (const kind of kinds) {
     const got = resolveGuards({ kind, settings: settings() });
@@ -69,10 +69,30 @@ test('a stage override applies to its stage only, and the graph override does no
   assert.deepEqual(resolveGuards({ kind: 'flow', stage: 'work', settings: settings(), project: null, graph: { enabled: false } })?.rules, DEFAULT_RULES);
 });
 
-test('integrity is added whenever enabled, even with every switchable rule off', () => {
-  const none = settings({ rules: { 'no-verify': false, push: false, destructive: false, secrets: false, 'protect-configs': false } });
-  assert.deepEqual(resolveGuards({ kind: 'worker', settings: none })?.rules, ['integrity']);
-  assert.equal(resolveGuards({ kind: 'worker', settings: none, graph: { rules: { integrity: false } as never } })?.rules.includes('integrity'), true);
+test('integrity is a rule like the others: with every rule off there is no guard at all (D6)', () => {
+  const none = settings({ rules: { integrity: false, 'no-verify': false, push: false, destructive: false, secrets: false, 'protect-configs': false } });
+  for (const kind of ['worker', 'integration', 'workflow'] as const) assert.equal(resolveGuards({ kind, settings: none }), null, kind);
+  assert.equal(resolveGuards({ kind: 'flow', stage: 'work', settings: none }), null);
+  assert.equal(resolveGuards({ kind: 'chat', settings: none, project: { guards: { chats: true } } }), null, 'a project opt-in with no rule on guards nothing');
+  // A graph or stage that switches the guard on still needs a rule to run
+  assert.equal(resolveGuards({ kind: 'worker', settings: none, graph: { enabled: true } }), null);
+  assert.deepEqual(resolveGuards({ kind: 'worker', settings: none, graph: { rules: { push: true } } })?.rules, ['push']);
+
+  // Integrity alone is a guard; integrity off leaves the others to run without it
+  assert.deepEqual(resolveGuards({ kind: 'worker', settings: settings({ rules: { ...none.rules, integrity: true } }) })?.rules, ['integrity']);
+  assert.deepEqual(resolveGuards({ kind: 'worker', settings: settings({ rules: { ...DEFAULT_GUARD_SETTINGS.rules, integrity: false } }) })?.rules, ['no-verify', 'push', 'destructive', 'secrets']);
+  assert.deepEqual(resolveGuards({ kind: 'worker', settings: settings(), graph: { rules: { integrity: false } } })?.rules, ['no-verify', 'push', 'destructive', 'secrets']);
+});
+
+test('switching integrity off is weakening, like any rule that was on', () => {
+  assert.equal(guardsWeakened(undefined, { rules: { integrity: false } }), true);
+  assert.equal(guardsWeakened({ rules: { integrity: false } }, undefined), false);
+});
+
+test('guardPolicyOf: a policy that allows neither commands nor edits reads as such; none is unknown', () => {
+  assert.equal(guardPolicyOf(null), null);
+  assert.deepEqual(guardPolicyOf({ read: { allow: true }, edit: { allow: 'none' }, commands: { allow: 'none' }, network: 'deny', gitPush: 'deny' }), { commands: false, edits: false });
+  assert.deepEqual(guardPolicyOf({ read: { allow: true }, edit: { allow: 'any' }, commands: { allow: 'none' }, network: 'deny', gitPush: 'deny' }), { commands: false, edits: true });
 });
 
 test('mode, protectConfigs and extraRoots come from the global settings, as copies', () => {

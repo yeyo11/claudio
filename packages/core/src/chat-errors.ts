@@ -29,3 +29,19 @@ export class RunSlotRefusal extends ChatRefusal {
     super(`Concurrent run limit reached (${String(limit)})`);
   }
 }
+
+/**
+ * The machine is short of memory: a chat started now could be the one the kernel kills. A 409, and
+ * like a full slot it passes: what waits for room retries it rather than counting it a failure.
+ */
+export class MemoryRefusal extends ChatRefusal {
+  readonly code = 'memory';
+  constructor(message: string) {
+    super(message, 409);
+  }
+}
+
+/** A start refused for room (a run slot or memory) rather than for anything it asked: worth retrying soon. */
+export function isCapacityRefusal(error: unknown): error is RunSlotRefusal | MemoryRefusal {
+  return error instanceof RunSlotRefusal || error instanceof MemoryRefusal;
+}

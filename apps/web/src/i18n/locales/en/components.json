@@ -419,7 +419,6 @@
     "declined": "Nothing was started: the daily spend cap was reached."
   },
   "guards": {
-    "alwaysOn": "Always on",
     "row": {
       "label": "Guards",
       "help": "Block dangerous commands and file writes in this graph's runs.",
@@ -435,7 +434,7 @@
     "rule": {
       "integrity": {
         "name": "Integrity",
-        "hint": "Protects the guard itself."
+        "hint": "Protects the guard itself, and blocks command lines it cannot read"
       },
       "no-verify": {
         "name": "No skipping checks",
