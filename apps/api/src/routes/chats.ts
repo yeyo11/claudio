@@ -34,11 +34,11 @@ const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'byp
 const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal', 'api'];
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 
-/** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */
 /** Chats a list answers with when it names no limit, and the most one page holds: a client pages for more */
 const CHATS_PAGE = 200;
 const CHATS_PAGE_MAX = 1_000;
 
+/** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */
 export function count(value: string | undefined, name: string): number | undefined {
   if (value === undefined || value === '') return undefined;
   const n = Number(value);

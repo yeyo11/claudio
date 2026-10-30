@@ -631,12 +631,19 @@ export const api = {
       );
     if (filter.limit !== undefined) return page(filter.limit);
     const all: ChatSummary[] = [];
+    const seen = new Set<string>();
     for (let after: string | undefined; ; ) {
       const chats = await page(CHATS_PAGE, after);
-      all.push(...chats);
+      // A chat that moved between two pages may come twice; one that brings nothing new is a server
+      // that does not page (an older API behind the dev proxy), and asking again would never end
+      const fresh = chats.filter((chat) => !seen.has(chat.id));
+      for (const chat of fresh) seen.add(chat.id);
+      all.push(...fresh);
       const last = chats.at(-1);
-      if (!last || chats.length < CHATS_PAGE) return all;
-      after = `${last.updatedAt ?? ''}~${last.id}`;
+      if (!last || chats.length < CHATS_PAGE || fresh.length === 0) return all;
+      const next = `${last.updatedAt ?? ''}~${last.id}`;
+      if (next === after) return all;
+      after = next;
     }
   },
   chat: (id: string, page: { limit?: number; before?: number } = {}, o?: ReadOptions) =>
