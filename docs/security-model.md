@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-30T09:00:00Z
+updated_at: 2026-10-30T20:00:00Z
 tags:
     - security
     - secrets
@@ -50,7 +50,8 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
   accent) stays a path. Before this, each of those spellings reached `/api/chats` with no credential
   in token and OIDC mode (report §8.1 of [the 2026-10-29 audit](reports/regression-audit-2026-10-29.md)).
 - **The sign-in back-off** counts failed credentials per client, keyed by the address and the name
-  dialled (`${ip}|${host}`): behind `socat`, Docker's published ports or a tunnel every client
+  dialled (`${ip}|${host}`; `runtime:<name>:${ip}` for the names the LAN listener lends, and for any
+  runtime name when the peer is not on loopback, so a device cannot spend the tunnel's bucket): behind `socat`, Docker's published ports or a tunnel every client
   arrives from loopback, and the desktop on `localhost` no longer pays for guesses on the LAN name.
   After 10 failures the wait doubles from 1 s to 60 s. A credential whose hash last succeeded is
   looked at at once, so the owner is never locked out; one that fails again (rotated, revoked) waits
@@ -567,6 +568,32 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 `person` class, [Chat tokens](#chat-tokens)). Reading, estimating and cancelling stay open
 ([evals.md](evals.md)).
 
+## The local network listener
+
+Claudio can listen on the local network itself, as a second listener beside the loopback one
+([lan-access.md](lan-access.md), [the plan](plans/lan-access.md), [the review](reports/lan-access-security.md)).
+What holds:
+
+- **The same guard.** Every request on it goes through the same routing: the token or OIDC, the
+  access classes and the `Host` allowlist. Its addresses and `<hostname>.local` are allowed only
+  while it listens. `GET /lan` and its writes are class `person`: a chat's token is refused.
+- **Never unguarded.** It refuses to start under mode `none` and closes every connection, the
+  upgraded ones included, before the mode becomes `none`; a start racing that change gives the port
+  back.
+- **The desktop credential stays on loopback.** `fromLocalMachine` reads the socket's address, never
+  a forwarding header, and needs a loopback `Host`; the shell's secret from a device is `401`, and a
+  chat's token is held to the same rule.
+- **Each device its own back-off.** Keyed by the socket's address, so one device cannot lock out
+  another.
+- **The terminal** follows its own remote setting; LAN peers are not the tunnel.
+- **A bind is a choice.** The list refuses `0.0.0.0` (that is `all`), loopback lends no host, and a
+  held port is a state, never killed.
+
+What does not: it is plain HTTP (the token, the `?token=` of streams and downloads and the terminal's
+ticket are readable on the wire, and whoever answers for the name serves a page on the same origin),
+so the card says so and Tailscale is the recommendation for a phone; `all` includes public, Docker
+and tailnet interfaces; and `lan.changed` reaches a chat's token as `tunnel.changed` does.
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
@@ -580,4 +607,4 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 ## Related
 
 [[plans/regression-fixes-2026-10-29.md]] · [[reports/regression-audit-2026-10-29.md]] · [[rest-api.md]] · [[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
-[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]]
+[[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]] · [[lan-access.md]] · [[plans/lan-access.md]] · [[reports/lan-access-security.md]]
