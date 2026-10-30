@@ -12,6 +12,7 @@
 
 // The section, not the panel: Access & safety has other switches (read-only first) above it
 const TAB = '#remote';
+const TUNNEL = `${TAB} [data-setting="remote.tunnel"]`;
 const NODE = 'claudio-test.tail0000.ts.net';
 const FAKE_URL = `https://${NODE}:8444`;
 const READY = { state: 'ready', version: '1.102.4', host: NODE, reason: null };
@@ -138,10 +139,10 @@ export default async ({ page, api, check }) => {
   const before = (await api.get('/tunnel')).body.settings.startWithClaudio;
   try {
     await openRemote();
-    await page.click(`${TAB} [role=switch]`, undefined, 800);
+    await page.click(`${TUNNEL} [role=switch]`, undefined, 800);
     check((await api.get('/tunnel')).body.settings.startWithClaudio === !before, 'the switch saved the setting');
     await api.put('/tunnel/settings', { startWithClaudio: before });
-    await page.waitFor(`return document.querySelector('${TAB} [role=switch]')?.getAttribute('aria-checked') === ${JSON.stringify(String(before))}`, {
+    await page.waitFor(`return document.querySelector('${TUNNEL} [role=switch]')?.getAttribute('aria-checked') === ${JSON.stringify(String(before))}`, {
       label: 'the switch following tunnel.changed',
     });
   } finally {
@@ -158,7 +159,7 @@ export default async ({ page, api, check }) => {
     check(await page.eval(`return getComputedStyle(document.querySelector('[data-testid=tunnel-url]')).fontFamily.includes('Mono')`), 'the address is in mono');
     check(await page.eval(`return !!document.querySelector('${TAB} svg.qr[role=img][aria-label*="ts.net:8444"]')`), 'a QR code of the address is drawn, and named');
     check(await page.eval(`return !!document.querySelector('${TAB} button[aria-label="Copy address"]')`), 'the address can be copied');
-    check(/open/i.test(await page.text(`${TAB} .card-head .badge`)), 'the state reads open');
+    check(/open/i.test(await page.text(`${TUNNEL} .card-head .badge`)), 'the state reads open');
     await page.click('[data-testid=tunnel-stop]', undefined, 800);
     await page.waitFor(`return !!document.querySelector('[data-testid=tunnel-start]')`, { label: 'the start button after closing' });
     check((await page.eval('return window.__tunnelCalls.join()')) === 'stop', 'the stop button asked the server once');
@@ -176,7 +177,7 @@ export default async ({ page, api, check }) => {
     const text = await page.text(TAB);
     check(text.includes('Tailscale is not installed'), 'the section says Tailscale is missing');
     check(await page.eval(`return !!document.querySelector('${TAB} a[href="https://tailscale.com/download"]')`), 'and links to where it is installed');
-    check(!(await page.eval(`return !!document.querySelector('${TAB} [data-testid=tunnel-start], ${TAB} [role=switch]')`)), 'and offers neither the start button nor the start-with-Claudio switch');
+    check(!(await page.eval(`return !!document.querySelector('${TAB} [data-testid=tunnel-start], ${TUNNEL} [role=switch]')`)), 'and offers neither the start button nor the start-with-Claudio switch');
   } finally {
     await remove();
   }
@@ -189,7 +190,7 @@ export default async ({ page, api, check }) => {
     await page.waitFor(`return !!document.querySelector('${TAB} [data-testid=tunnel-tailscale-loggedOut]')`, { label: 'the signed-out state' });
     const text = await page.text(TAB);
     check(text.includes('Tailscale is not signed in') && text.includes('tailscale up'), 'the section says to run tailscale up');
-    check(!(await page.eval(`return !!document.querySelector('${TAB} .state-illustrated')`)), 'with no illustration beside the warning');
+    check(!(await page.eval(`return !!document.querySelector('${TUNNEL} .state-illustrated')`)), 'with no illustration beside the warning');
   } finally {
     await remove();
   }
@@ -197,7 +198,8 @@ export default async ({ page, api, check }) => {
   // ---- On the local network: the real server, with the guard open ----
   const lan = (await api.get('/lan')).body;
   check(lan.state === 'off' || lan.state === 'refused', `the suite's server is not listening on the network (${lan.state})`);
-  await page.goto('/settings/access#remote', 1500);
+  // A real load: the tunnel's fake above lives on in the page, and the same address with a hash would not drop it
+  await openRemote();
   await page.waitFor(`return !!document.querySelector('[data-setting="lan.enabled"] [role=switch]')`, { label: 'the local network card' });
   check((await page.text(TAB)).includes('On the local network'), 'the section opens with the local network card');
   check(
