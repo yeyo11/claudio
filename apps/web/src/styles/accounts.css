@@ -207,8 +207,11 @@
   grid-column: 2;
   grid-row: 1;
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .account-more,
@@ -324,8 +327,29 @@
 .rotation-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
   gap: 20px;
   padding: 18px;
+}
+
+/* The order "In order" follows: a row of its own under the fields */
+.rotation-order {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* One line per account at any width: the name shrinks, the arrows never drop below it */
+.rotation-order .list-row-flow {
+  flex-wrap: nowrap;
+}
+
+.rotation-order .list-row-flow > .break {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .rotation-field {

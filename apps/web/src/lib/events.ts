@@ -82,8 +82,19 @@ const CHATS = 2500;
 // held (`alive`), and so whether its branches still run, is settled a moment after the turn
 const SETTLED = 2000;
 
+/**
+ * C4's `accounts.changed` (docs/plans/regression-fixes-2026-10-29.md): the account store changed (an
+ * account, a reading, a sign-in or the rotation settings), debounced by the server. Declared here
+ * until `@claudio/shared` carries it in `ClaudioEvent`; the unions below then collapse into those.
+ */
+interface AccountsChangedEvent {
+  id: number;
+  type: 'accounts.changed';
+}
+type FeedEvent = ClaudioEvent | AccountsChangedEvent;
+
 /** Every event name the server sends; typed as a record so a new event type cannot be forgotten. */
-const EVENT_TYPES: Record<ClaudioEventType, true> = {
+const EVENT_TYPES: Record<ClaudioEventType | AccountsChangedEvent['type'], true> = {
   'run.created': true,
   'run.updated': true,
   'run.ended': true,
@@ -95,6 +106,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'run.limitWaiting': true,
   'run.accountRotated': true,
   'account.switched': true,
+  'accounts.changed': true,
   'task.started': true,
   'task.ended': true,
   'subagent.started': true,
@@ -262,7 +274,7 @@ function savedResource(event: AssistantProposalEvent): Target[] {
 }
 
 /** The cached queries an event makes stale, and how soon each should be refetched. */
-export function targetsFor(event: ClaudioEvent): Target[] {
+export function targetsFor(event: FeedEvent): Target[] {
   switch (event.type) {
     // A run is an execution of a chat, and its id is the chat's: what it changes is that chat
     case 'run.created':
@@ -295,6 +307,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
         [keys.providers, NOW], [['providers', 'waits'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
         [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
       ];
+    case 'accounts.changed':
+      // Every account fact on screen reads these: the list and the settings (['accounts'] prefix),
+      // the view (`overview.accounts`), the account in use (`/auth`) and the providers' readings
+      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.providers, NOW]];
     case 'run.accountRotated':
     case 'account.switched':
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
