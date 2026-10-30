@@ -167,8 +167,7 @@
   font-size: var(--fs-small);
   color: var(--fg-2);
 }
-.project-candidates,
-.project-form {
+.project-candidates {
   margin-top: 14px;
 }
 

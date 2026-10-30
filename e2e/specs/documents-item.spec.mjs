@@ -3,10 +3,10 @@
 // the Documents tab, one tied by hand; QA's pass waiting for the person's approval, and the last
 // bounce waiting for the person, each with the move that ends the wait. On a desktop and a phone.
 import { seedEcosystem, seedProject } from './memory-seed.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const timeout = 180_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 15_000) {
   const end = Date.now() + limit;

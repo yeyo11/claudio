@@ -27,7 +27,7 @@
   margin: 0;
 }
 
-/* ---- The rules sheet: one line per rule, the locked integrity rule first ---- */
+/* ---- The rules sheet: one line per rule, integrity first ---- */
 .guard-rules {
   display: flex;
   flex-direction: column;
@@ -83,13 +83,6 @@
     min-height: var(--touch);
     justify-content: center;
   }
-}
-
-/* The locked row says "Always on" in words: it has no Switch to say it */
-.guard-always {
-  flex: none;
-  font-size: var(--fs-small);
-  color: var(--text-muted);
 }
 
 /* ---- The chat header's tag: a badge that opens the list of rules ---- */

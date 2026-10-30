@@ -9,7 +9,9 @@ import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, rmSync 
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NODE_FILES, TRIAL_MS, run, type Boot, type Running } from './machine.ts';
-import { VERSION, compareVersions, imageBase, loadKeys, readImageInfo, type ImageInfo } from './protocol.ts';
+import { installProcessGuards } from './process-guards.ts';
+import { VERSION, compareVersions, imageBase, loadKeys, readImageInfo, withServerThreadpool, type ImageInfo } from './protocol.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const POLL_MS = 1000;
 
@@ -25,7 +27,6 @@ export interface LauncherOptions {
   log?: (line: string) => void;
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGKILL: 9 } as Record<string, number>;
 
 /** A CLI installed in-app gives way to a newer image's pin, and versions nobody uses go */
@@ -79,6 +80,8 @@ export async function launch(options: LauncherOptions): Promise<number> {
   };
   process.on('SIGTERM', forward);
   process.on('SIGINT', forward);
+  // PID 1 of the container: if it went down, so would the server it supervises and the container
+  const releaseGuards = installProcessGuards((line) => o.log(line));
   let image: ImageInfo | null = null;
   try {
     return await run({
@@ -104,7 +107,7 @@ export async function launch(options: LauncherOptions): Promise<number> {
         const running = spawn(o.node, [join(boot.dir, 'api.mjs')], {
           stdio: 'inherit',
           env: {
-            ...env,
+            ...withServerThreadpool(env),
             CLAUDIO_LAUNCHER: '1',
             CLAUDIO_APP_DIR: boot.dir,
             // The guard is always the image's, never an overlay's
@@ -128,6 +131,7 @@ export async function launch(options: LauncherOptions): Promise<number> {
   } finally {
     process.off('SIGTERM', forward);
     process.off('SIGINT', forward);
+    releaseGuards();
   }
 }
 

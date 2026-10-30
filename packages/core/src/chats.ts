@@ -1,46 +1,18 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
-import { DEFAULT_ID, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
+import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
+import { DEFAULT_ID, isOut, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import {
-  type AccountSwitchReason,
-  type AccountSwitchRefusalCode,
-  type ClaudioAssistantMarker,
-  type ChatActivity,
-  type Attachment,
-  type ChatClaudioMcp,
-  type ChatMcpServers,
-  type ClaudioMcpUnavailable,
-  type LiveMcpServer,
-  type ChatMessageReceipt,
-  type ChatMessageTaken,
-  type ChatToolConfig,
-  type ChatSettingsUpdate,
-  type ContextDetail,
-  type ChatStartOptions,
-  type EffectiveEnvironment,
-  type Execution,
-  type ProviderId,
-  type PermissionMode,
-  type ProviderLimit,
-  type ProvidersSettings,
-  type ResumeChatRequest,
-  type RunEvent,
-  type RunGuardEvent,
-  type RunStatus,
-  type TokenUsage,
-  type TranscriptEntry,
-  type UsageHistoryPoint,
-} from '@claudio/shared';
+import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
-import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
-import { CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import { EnvironmentIndex } from './environments.ts';
 import type { AssistantChatOptions, ClaudioMcpIdentity, CollabMcpLaunch } from './claudio-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
@@ -51,7 +23,9 @@ import {
   LiveChat,
   now,
   processUp,
+  runsInBackground,
   type AdoptedChat,
+  type ChatGuardPlan,
   type ChatHost,
   type ChatPulse,
   type ChatRuntime,
@@ -66,15 +40,17 @@ import {
   type SentMessage,
 } from './live-chat.ts';
 import { removeChatExtrasConfigs, writeChatExtrasConfigSync } from './chat-tools.ts';
+import { ChatTable } from './chat-table.ts';
+import { ThrottledLog } from './throttled-log.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
-import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
+import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace, type TraceAgent } from './health.ts';
+import { cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree, type ProcessEntry } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
-import type { BranchTracker, DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
-import { ProviderLimits } from './providers/limits.ts';
+import type { BranchTracker, DriverEvent, InterruptReceipt, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
+import { providerLimitOf } from './providers/limits.ts';
 import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
-import { admissionLimitsFrom, readSystemLoad, RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
+import { admissionLimitsFrom, readSystemLoad } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
@@ -87,6 +63,12 @@ export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExt
 export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
+/** How long a stopped chat's process tree has to leave on SIGTERM before it gets SIGKILL */
+const STOP_GRACE_MS = 5000;
+/** An ended chat nobody has touched for this long is retired from memory to its summary (see `ChatTable`) */
+export const RETIRE_AFTER_MS = 60 * 60_000;
+/** How often the chats that ended are looked at for retiring */
+const RETIRE_SWEEP_MS = 5 * 60_000;
 /**
  * The accounts a chat's latest executions died on at their limit, newest first, up to the first
  * that did not. Recorded on the executions, so it survives a restart; the chat's set covers the turn
@@ -117,16 +99,41 @@ export class AccountSwitchRefusal extends Error {
   }
 }
 
-export { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
+export { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
 
-/** One replay of a turn lost to a limit per execution: a second failure is a real one, not a quota one */
+/**
+ * Replays of a turn lost to a limit on no new account, between two turns that went through: a second
+ * failure there is a real one, not a quota one. A move to another account is never counted nor held
+ * back by it (`chooseNext` passes over every account the turn died on, so a chain of moves ends by itself).
+ */
 const MAX_LIMIT_REPLAYS = 1;
+
+/**
+ * The model a chat asked for (`--model`), which is what the account choice filters on: the chat's
+ * `model` follows the one the CLI resolved (`default` becomes `claude-opus-…`), and filtering on that
+ * kept a chat started on `default` waiting for an account that offers Opus (regression audit §2.3).
+ * Absent or `default` runs on any account.
+ */
+const askedModel = (chat: LiveChat): string | null => chat.opts.model ?? null;
 
 /** The windows `usage_history` keeps a line for */
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels' | 'canRun'>;
+/** What a guard plan is derived from at a spawn: the chat's folder, the plan it last had, and what kind of chat it is. */
+export interface GuardSubject {
+  cwd: string;
+  /** The plan the last process ran with; its `request` is what a new one is derived from */
+  plan: ChatGuardPlan | null;
+  /** A person's own chat, guarded by its project's opt-in when nothing else says how */
+  person: boolean;
+  /** The tool policy of an automated run, when it stated one */
+  policy: ToolPolicy | null;
+  /** Confined to a tool list (`--restricted`/`--tools`): such a run is never guarded */
+  confined: boolean;
+}
+
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'find' | 'cachedModels' | 'warmModels' | 'canRun'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -138,16 +145,21 @@ const STOPPED = 'the chat was stopped before the agent read it';
 /** ...and when its process ended for another reason, with nothing better to say */
 const ENDED = 'the process ended before the agent read it';
 
-/** A background task, agent or workflow still runs: what keeps a process up after its input ends */
-function runsInBackground(branches: BranchTracker): boolean {
-  for (const task of branches.tasks.values()) if (task.status === 'running') return true;
-  for (const sub of branches.subagents.values()) if (sub.background && (sub.status === 'running' || sub.status === 'waiting')) return true;
-  for (const workflow of branches.workflows.values()) if (workflow.status === 'running') return true;
-  return false;
-}
+/**
+ * How long a process that exited is given to close its pipes. A child that inherited the CLI's
+ * stdout or stderr (a stdio MCP server left behind, a daemonised command) holds them open, and
+ * `close` with them; read when used, so a test can shorten it.
+ */
+const closeAfterExitMs = (): number => Number(process.env.CLAUDIO_CLOSE_AFTER_EXIT_MS ?? 3000);
+
+/** Who wrote a message besides a person, and the words it carries without Claudio's framing (`SentMessage`). */
+export type MessageFrom = Partial<Pick<SentMessage, 'source' | 'words'>>;
+
+/** Who wrote a message, to send it again as it was */
+const fromOf = (message: SentMessage): MessageFrom => ({ source: message.source, ...(message.words !== undefined ? { words: message.words } : {}) });
 
 /** A message Claudio sends of its own accord (a first prompt, a resume): an id of its own, now. */
-const sent = (text: string, attachments: Attachment[] = []): SentMessage => ({ id: randomUUID(), text, attachments, sentAt: now() });
+const sent = (text: string, attachments: Attachment[] = []): SentMessage => ({ id: randomUUID(), text, attachments, sentAt: now(), source: 'person' });
 
 /** The person's entry for a message, under the message's id: the id the agent's transcript gives it too. */
 function userEntry(message: SentMessage, shown: string): TranscriptEntry {
@@ -179,11 +191,20 @@ interface SavedChat {
  * process already exited, it is respawned with `--resume` when a new message arrives.
  */
 export class ChatManager extends EventEmitter {
-  private readonly chats = new Map<string, LiveChat>();
+  /** Working and lately ended chats in memory, the rest retired to their summary and woken from their row (`ChatTable`) */
+  private readonly chats = new ChatTable((id) => this.wake(id));
   /** What was last written of each chat, so that a save writes only what changed since */
   private readonly saved = new Map<string, SavedChat>();
-  /** One reading per provider, shared through the database with every process on the data directory */
-  readonly limits: ProviderLimits;
+  /**
+   * Chats that changed since they were last written: every event a chat emits marks it, and so does
+   * a save asked for it by name. A save writes these and no others; comparing every chat in memory
+   * with what was last written of it, on every turn of every chat, was most of a save's cost.
+   */
+  private readonly dirty = new Set<string>();
+  /** Retires the chats that ended long enough ago; unref'd, so it never keeps a process up */
+  private readonly retireTimer: NodeJS.Timeout;
+  /** How long an ended chat stays in memory before it is retired to its summary; a test shortens it */
+  retireAfterMs = RETIRE_AFTER_MS;
   /** The code half of each provider that can run chats */
   readonly providers: ProviderRegistry;
   /**
@@ -242,12 +263,18 @@ export class ChatManager extends EventEmitter {
    * section and the note on pasted text, or '' when the project gives none; Core sets it
    */
   lessonsFor: ((projectId: string | null, orchestrated: boolean) => string) | null = null;
-  /** Epoch ms of the last time a chat moved to another account, for the cooldown between switches */
-  private lastSwitchAt: number | null = null;
+  /**
+   * A process's guard plan, derived again from the settings as they are now (D6). Called at every
+   * spawn the caller did not hand a plan to: a respawn after a limit, a queued message, a send to a
+   * chat whose process ended. Core sets it; without it a chat keeps the plan it was started with.
+   */
+  guardPlanner: ((chat: GuardSubject) => ChatGuardPlan | null) | null = null;
+  /** The chats whose next spawn uses the plan its caller just handed over, rather than deriving one */
+  private readonly guardsGiven = new WeakSet<LiveChat>();
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
   defaults: RunDefaults;
-  /** Latest `init` snapshot per working directory */
-  readonly environments = new Map<string, EffectiveEnvironment>();
+  /** What each chat's last process loaded, from its `init` event, with its folder's last as the fallback */
+  readonly environments: EnvironmentIndex;
 
   private readonly publisher = new RunEventPublisher((event) => this.bus?.emit(event));
   /** The token each process was minted, for a server handed to it at run time, in which the CLI expands no reference */
@@ -282,18 +309,21 @@ export class ChatManager extends EventEmitter {
   ) {
     super();
     this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);
-    this.limits = new ProviderLimits(db);
     this.defaults = config;
     // A switch asked for while a turn ran takes effect when its result arrives
     // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
     this.on('chat-result', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
+    // What waited for the agent's background work goes ahead once it is over (D3)
+    this.on('chat-background-settled', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
+    this.retireTimer = setInterval(() => this.retireEnded(), RETIRE_SWEEP_MS);
+    this.retireTimer.unref();
     for (const driver of drivers) {
       if (driver instanceof ClaudeCodeDriver) {
         driver.modelSource = { listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
       }
     }
-    for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
+    this.environments = new EnvironmentIndex(db);
     const manager = this;
     this.host = {
       db,
@@ -303,11 +333,11 @@ export class ChatManager extends EventEmitter {
         return manager.permissions;
       },
       emit: (event, ...args) => this.emit(event, ...args),
-      persist: () => this.persist(),
+      persist: (chat) => this.persist(chat),
       noteActivity: (chat) => this.noteActivity(chat),
+      // The stream's reading is the account's it ran on, and no one else's: no provider-wide reading is kept
       observeLimit: (chat, event) => {
         try {
-          this.limits.observe(chat.provider, event);
           this.observeAccount(chat, event);
         } catch {
           // Output still draining after the database closed (shutdown): losing a limit reading must not become an uncaught error
@@ -391,17 +421,28 @@ export class ChatManager extends EventEmitter {
     }
   }
 
-  private persist(): void {
+  /**
+   * Writes the chats that changed: the ones named here, which changed without an event, and every
+   * one that emitted an event since it was last written (`dirty`).
+   */
+  private persist(...touched: LiveChat[]): void {
     // Internal chats are persisted too. The origin means "housekeeping: no transcript, hidden from
     // the chat list", not "disposable": the orchestration planner is internal and costs real
     // money, and dropping it on restart took the only record of that work with it. The other
     // internal chat, the auth check, removes itself as soon as it finishes.
     //
-    // Every chat is compared with what was last written of it and only what changed is written:
-    // this runs on every turn of every chat, and rewriting all of them each time was most of its
-    // cost. The table is trimmed only when a chat is new to it, the only way it can grow.
+    // A dirty chat is compared with what was last written of it and only what changed is written:
+    // this runs on every turn of every chat. The table is trimmed only when a chat is new to it, the
+    // only way it can grow.
+    for (const chat of touched) this.dirty.add(chat.id);
+    if (this.dirty.size === 0) return;
+    const ids = [...this.dirty];
+    this.dirty.clear();
     const candidates: Array<{ chat: LiveChat; record: StoredChat['record']; recordJson: string; executionJson: Map<string, string>; known: SavedChat | undefined }> = [];
-    for (const chat of this.chats.values()) {
+    for (const id of ids) {
+      // Removed since, or retired: a retired chat was written before it was
+      const chat = this.chats.peek(id);
+      if (!chat) continue;
       const record = chat.record();
       const known = this.saved.get(chat.id);
       const recordJson = JSON.stringify(record);
@@ -421,31 +462,127 @@ export class ChatManager extends EventEmitter {
         added ||= !kept;
         return { record, executions: chat.executions.filter((e) => kept?.executions.get(e.id) !== executionJson.get(e.id)) };
       });
-      this.db.saveChats(changed, added ? MAX_PERSISTED_CHATS : null);
+      // What this process holds in memory is a conversation going on: the trim never takes its rows
+      const trimmed = this.db.saveChats(changed, added ? MAX_PERSISTED_CHATS : null, new Set([...this.chats.values()].map((c) => c.id)));
       for (const { chat, recordJson, executionJson } of candidates) this.saved.set(chat.id, { record: recordJson, executions: executionJson });
-    } catch {
-      // persistence is best-effort: losing a save must never take the live chat down with it
+      // A retired chat whose row went is gone, as a restart would find it
+      this.chats.forgetRetired(trimmed);
+      for (const id of trimmed) this.saved.delete(id);
+    } catch (err) {
+      // Persistence must never take the live chat down with it, but it must not fail unseen: the
+      // chats stay dirty, so the next save tries them again
+      for (const { chat } of candidates) this.dirty.add(chat.id);
+      this.saveFailures.failed(err);
     }
   }
 
-  /** Carries a pre-SQLite `runs.json` into the store once, then renames it out of the way. */
+  private readonly saveFailures = new ThrottledLog('chats: saving the chats');
+
+  /**
+   * Carries a pre-SQLite `runs.json` into the store once, then renames it out of the way:
+   * `.migrated` once carried, `.corrupt` when it could not be read, so what was lost is said and kept.
+   */
   private importLegacy(): void {
     if (!existsSync(this.file)) return;
+    let carried = true;
     try {
       this.db.saveChats(chatsFromRuns(JSON.parse(readFileSync(this.file, 'utf8')) as LegacyRun[]).chats, MAX_PERSISTED_CHATS);
-    } catch {
-      // corrupt file: there is nothing to carry over
+    } catch (err) {
+      carried = false;
+      console.warn(`chats: ${this.file} could not be carried into the database and was set aside as .corrupt: ${errorMessage(err)}`);
     }
     try {
-      renameSync(this.file, `${this.file}.migrated`);
+      renameSync(this.file, `${this.file}.${carried ? 'migrated' : 'corrupt'}`);
     } catch {
       // another process got there first
     }
   }
 
+  /** What was last written of a chat, as `persist` compares it */
+  private static savedOf(chat: LiveChat): SavedChat {
+    return { record: JSON.stringify(chat.record()), executions: new Map(chat.executions.map((e) => [e.id, JSON.stringify(e)])) };
+  }
+
   /**
-   * Loads the chats of previous wrapper processes. Their event buffers are rebuilt from the
-   * session transcripts, so a restored chat can be opened and continued like a live one.
+   * A retired chat, back from its row in the store: what a restart restores of it, and nothing it
+   * had only in memory (its event buffer, its last result). Null when the row is gone.
+   */
+  private wake(id: string): LiveChat | null {
+    let entry: StoredChat | null;
+    try {
+      entry = this.db.loadChat(id);
+    } catch {
+      return null; // the store closed under it: a shutdown
+    }
+    const driver = entry ? this.providers.driverFor(entry.record.provider ?? '') : null;
+    if (!entry || !driver) return null;
+    const chat = LiveChat.restore(entry, this.config, driver);
+    this.saved.set(id, ChatManager.savedOf(chat));
+    this.watch(chat);
+    return chat;
+  }
+
+  /** Whether nothing holds the chat in memory any more: no process, nobody reading it or waiting on it, nothing left to deliver or replay. */
+  private retirable(chat: LiveChat, cutoff: string): boolean {
+    return (
+      !chat.alive &&
+      (chat.status === 'completed' || chat.status === 'failed' || chat.status === 'stopped') &&
+      chat.endedAt !== null &&
+      chat.endedAt <= cutoff &&
+      chat.viewers === 0 &&
+      chat.preparing === 0 &&
+      chat.pending.size === 0 &&
+      !chat.respawnQueued &&
+      !chat.carrying &&
+      // A limit's wait and replay need the turn it holds in memory
+      !chat.rateLimited &&
+      !chat.limitRequested &&
+      !chat.authFailed &&
+      !chat.pendingAccount &&
+      !this.leftovers.has(chat.id) &&
+      // Only the manager's own listener: a caller waiting for the chat's next result holds it
+      chat.emitter.listenerCount('event') <= 1
+    );
+  }
+
+  /**
+   * Retires from memory the chats that ended more than `retireAfterMs` before `nowMs` and that nothing
+   * holds, keeping the summary waking them would read back. Runs on a timer; returns the ids retired.
+   */
+  retireEnded(nowMs: number = Date.now()): string[] {
+    const cutoff = new Date(nowMs - this.retireAfterMs).toISOString();
+    const retired: string[] = [];
+    for (const chat of [...this.chats.values()]) {
+      if (!this.retirable(chat, cutoff)) continue;
+      // Written first: the row is the chat from here on. One whose write failed stays until it goes through
+      this.persist(chat);
+      if (this.dirty.has(chat.id)) continue;
+      let entry: StoredChat | null = null;
+      try {
+        entry = this.db.loadChat(chat.id);
+      } catch {
+        return retired; // the store closed: a shutdown
+      }
+      // Trimmed by another process sharing the file: kept, and written whole again by the next save
+      if (!entry) continue;
+      const summary = LiveChat.restore(entry, this.config, chat.driver).summary();
+      chat.emitter.removeAllListeners('event');
+      this.chats.retire(chat.id, summary);
+      this.saved.delete(chat.id);
+      // A list that showed it as it was in memory hears what it reads now
+      this.publisher.observe(summary);
+      retired.push(chat.id);
+    }
+    return retired;
+  }
+
+  /**
+   * Loads the chats of previous wrapper processes from their rows. No transcript is replayed into
+   * them: a chat's page reads its transcript from the session store, and replaying every stored
+   * chat's at each start held the start for as long as the slowest transcript took. A chat that
+   * ended long ago is retired at once to its summary, and woken when something needs it; only one a
+   * restart cut off, or with a process of a previous wrapper still on it, stays in memory, and the
+   * transcript's summary says when the cut one really stopped.
    */
   async restore(sessions: SessionStore): Promise<void> {
     for (const manifest of this.providers.list()) {
@@ -461,22 +598,25 @@ export class ChatManager extends EventEmitter {
       const pids = live.filter((p) => p.sessionId === record.id).map((p) => p.pid);
       if (pids.length) this.leftovers.set(record.id, pids);
     }
+    const cutoff = new Date(Date.now() - this.retireAfterMs).toISOString();
+    const cut: LiveChat[] = [];
     for (const entry of stored) {
       const driver = this.providers.driverFor(entry.record.provider ?? '');
-      if (!driver) continue;
+      if (!driver || this.chats.has(entry.record.id)) continue;
       const chat = LiveChat.restore(entry, this.config, driver);
-      this.chats.set(chat.id, chat);
-      const page = await sessions.getSession(chat.id, { includeSidechains: true }).catch(() => null);
-      for (const item of page?.entries ?? []) chat.push({ kind: 'message', entry: item });
-      // The transcript is written as the CLI works, so its last line is when the process really
-      // stopped; the stored record can be older than that
-      const heard = page?.summary.updatedAt;
-      const cut = chat.cutOff;
-      if (cut?.endedAt && heard && heard > cut.endedAt && heard <= now()) {
-        cut.endedAt = heard;
-        chat.endedAt = heard;
-      }
       const pids = this.leftovers.get(chat.id);
+      // What is read back is what was written: nothing to save again. One the restore cut off has
+      // an execution it ended just now, and is written whole below
+      if (!chat.cutOff) this.saved.set(chat.id, ChatManager.savedOf(chat));
+      if (!chat.cutOff && !pids && chat.endedAt !== null && chat.endedAt <= cutoff) {
+        this.chats.set(chat.id, chat);
+        this.chats.retire(chat.id, chat.summary());
+        this.saved.delete(chat.id);
+        this.publisher.baseline(chat.summary());
+        continue;
+      }
+      this.chats.set(chat.id, chat);
+      if (chat.cutOff) cut.push(chat);
       if (pids) {
         chat.push({
           kind: 'notice',
@@ -485,16 +625,26 @@ export class ChatManager extends EventEmitter {
             'It is not tracked here, so the chat cannot be resumed beside it: wait for it to finish, or stop the chat to end it.',
           data: { pids },
         });
+        chat.updatedAt = entry.record.updatedAt; // push() bumped it
       }
-      chat.updatedAt = entry.record.updatedAt; // push() bumped it
       this.watch(chat);
+    }
+    for (const chat of cut) {
+      // The transcript is written as the CLI works, so its last line is when the process really
+      // stopped; the stored record can be older than that. Its summary is cached, not a replay
+      const heard = (await sessions.summary(chat.id).catch(() => null))?.updatedAt;
+      const execution = chat.cutOff;
+      if (execution?.endedAt && heard && heard > execution.endedAt && heard <= now()) {
+        execution.endedAt = heard;
+        chat.endedAt = heard;
+      }
     }
     // The executions the restore closed as interrupted are written down, so a second start does
     // not have to conclude it again
-    if (stored.length) this.persist();
+    this.persist(...cut);
     // What the servers core's callers added pointed at (a stub in a server that is gone) died with
     // the processes that read them: no process of this wrapper is running yet
-    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.get(chatId)?.alive);
+    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.peek(chatId)?.alive);
   }
 
   /** Processes found at start working on a restored chat's session that are still up. */
@@ -526,8 +676,11 @@ export class ChatManager extends EventEmitter {
     if (created) this.publisher.created(chat.summary());
     else this.publisher.baseline(chat.summary());
     chat.emitter.on('event', (event: RunEvent) => {
-      // Partials only stream text and stderr changes nothing a list shows
-      if (event.kind !== 'partial' && event.kind !== 'stderr') this.publisher.observe(chat.summary());
+      // A partial is only text on its way: it is neither stored nor shown in a list
+      if (event.kind === 'partial') return;
+      this.dirty.add(chat.id);
+      // stderr changes nothing a list shows
+      if (event.kind !== 'stderr') this.publisher.observe(chat.summary());
     });
   }
 
@@ -572,11 +725,12 @@ export class ChatManager extends EventEmitter {
   }
 
   list(): ChatRuntime[] {
-    return [...this.chats.values()].map((r) => r.summary()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return this.chats.summaries().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  /** A retired chat answers with the summary it was retired with, which is what waking it would read back */
   get(id: string): ChatRuntime | null {
-    return this.chats.get(id)?.summary() ?? null;
+    return this.chats.summaryOf(id);
   }
 
   /**
@@ -632,17 +786,33 @@ export class ChatManager extends EventEmitter {
         for (const call of calls.values()) call.endedAt ??= event.ts;
         continue;
       }
+      // A subagent's calls stream on its sidechain, each line naming the lead's call that launched it
+      const parent = event.entry?.parentToolUseId ?? null;
       for (const block of event.entry?.blocks ?? []) {
         if (block.type === 'tool_use') {
           const input = block.input && typeof block.input === 'object' ? (block.input as Record<string, unknown>) : {};
-          calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '' });
+          calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '', ...(parent ? { parentToolUseId: parent } : {}) });
         } else if (block.type === 'tool_result') {
           const call = calls.get(block.toolUseId);
           if (call) Object.assign(call, { endedAt: event.ts, isError: block.isError, result: block.content.slice(0, 300) });
         }
       }
     }
-    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats), ...(guards.length ? { guards } : {}) };
+    // Who each subagent is, by the call that launched it: what a signal about one of its calls names
+    const agents = new Map<string, TraceAgent>();
+    for (const call of calls.values()) {
+      if (!call.parentToolUseId || agents.has(call.parentToolUseId)) continue;
+      const sub = chat.branches.subagents.get(call.parentToolUseId);
+      agents.set(call.parentToolUseId, sub ? { description: sub.description, subagentType: sub.subagentType } : {});
+    }
+    return {
+      executionStartedAt: live.startedAt,
+      lastEventAt: chat.activityAt,
+      calls: [...calls.values()],
+      heartbeats: new Map(chat.heartbeats),
+      ...(guards.length ? { guards } : {}),
+      ...(agents.size ? { agents } : {}),
+    };
   }
 
   /**
@@ -665,8 +835,7 @@ export class ChatManager extends EventEmitter {
     if (table.length === 0) throw new Error('a command can only be cancelled where /proc lists the processes, which this system does not');
     const cli = cliProcessOf(table, chat.proc.pid, chat.id);
     if (!cli) throw new Error('the CLI process is gone');
-    const { roots, unclaimed } = commandRoots(table, cli.pid, open.map((c) => Date.parse(c.at)));
-    const root = roots[at];
+    const { roots, unclaimed } = commandRoots(table, cli.pid, open.map((c) => Date.parse(c.at)));    const root = roots[at];
     if (!root) throw new Error('no process of this command was found: it has not started yet, or has ended');
     // Never the CLI itself, whatever the clock says: that is stopping the chat, which has its own action
     if (root.argv.includes('stream-json')) throw new Error('the process found for this command is a CLI, not a command');
@@ -710,6 +879,18 @@ export class ChatManager extends EventEmitter {
     return [...this.chats.values()].filter((r) => r.alive).length;
   }
 
+  /**
+   * The guard files the chats' plans name: the sweep of the guard folder never removes these, since a
+   * process reads its rules file on every tool call. A chat without a process counts too: its plan
+   * is what it would be launched with until its next spawn derives another.
+   */
+  liveGuardFiles(): string[] {
+    return [...this.chats.values()].flatMap((chat) => {
+      const plan = chat.opts.guards;
+      return plan ? [plan.settingsPath, join(dirname(plan.settingsPath), `${plan.rulesSha256.slice(0, 16)}.rules.json`)] : [];
+    });
+  }
+
   /** The chats whose process is up, with its pid: what the resource report of the machine is grouped by */
   livePids(): Array<{ chatId: string; pid: number }> {
     return [...this.chats.values()].flatMap((chat) => (chat.alive && chat.proc?.pid !== undefined ? [{ chatId: chat.id, pid: chat.proc.pid }] : []));
@@ -740,7 +921,10 @@ export class ChatManager extends EventEmitter {
     const attachments = this.resolveAttachments(opts.attachments);
     const origin = opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : opts.apiClient ? 'api' : 'claudio';
     if (opts.apiPolicy) opts.apiAttachments = attachments.map((a) => a.path);
-    return this.begin(new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver), opts.prompt, attachments, room);
+    const chat = new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver);
+    // The starter derived the plan a moment ago, or chose none: the first process runs as it said
+    this.guardsGiven.add(chat);
+    return this.begin(chat, opts.prompt, attachments, room);
   }
 
   /**
@@ -776,7 +960,7 @@ export class ChatManager extends EventEmitter {
     } catch (err) {
       // Refused before any process started (something else holds the session): an adopted chat is not ours yet
       chat.purpose = null;
-      if (!known) this.chats.delete(id);
+      if (!known) this.discardUnstarted(id);
       throw err;
     }
     if (!known) this.watch(chat, true);
@@ -817,6 +1001,13 @@ export class ChatManager extends EventEmitter {
     // A fork of an assistant chat is an assistant chat: the marker comes from the source, never from the request
     if (known?.opts.claudioAssistant) chat.opts.claudioAssistant = known.opts.claudioAssistant;
     if (known) chat.permissionMode = known.permissionMode;
+    // A fork goes on where its source was, as `ChatStartOptions.account` says: on its account, and
+    // pinned to it when the source was; the rotation still moves it from there at a limit. A request
+    // that names an account wins (applied next)
+    if (known) {
+      chat.account = known.account;
+      if (known.opts.account) chat.opts.account = known.opts.account;
+    }
     this.applyStartOptions(chat, request);
     return this.begin(chat, request.prompt, attachments, room);
   }
@@ -865,14 +1056,16 @@ export class ChatManager extends EventEmitter {
   /**
    * An idle process whose input can be ended for a slot without losing anything. Never one with a
    * message waiting for it or for its replacement, or a turn being prepared for it (`preparing`).
-   * Past the idle timeout the rule is the one warm chats always had; before it, an API chat with
-   * background work running is kept: its process does not exit when its input ends, so it would
-   * count as free while it still runs.
+   * Never one with work running in the background, however long it has been idle (D3): its process
+   * does not exit when its input ends, so it would count as free while it still runs, and the CLI
+   * kills that work once it has waited for it long enough. Past the idle timeout the rule is the one
+   * warm chats always had; before it, only an API chat's slot is given away.
    */
   private evictable(chat: LiveChat, at: number): boolean {
     if (chat.status !== 'idle' || chat.idleSince === null || chat.preparing > 0 || chat.pending.size > 0) return false;
+    if (runsInBackground(chat.branches)) return false;
     if (at - chat.idleSince >= idleTimeoutMs()) return true;
-    return !runsInBackground(chat.branches) && this.evictableApiChat(chat);
+    return this.evictableApiChat(chat);
   }
 
   /**
@@ -930,7 +1123,7 @@ export class ChatManager extends EventEmitter {
     }
     // A person's chat goes before a worker: while one was refused a place, the places that free up are kept for its retry
     if (kind === 'worker' && this.interactive.active()) {
-      throw new ChatRefusal(`${QUEUE_YIELD_PREFIX}: a chat a person asked for is waiting for a place`, 409);
+      throw new QueueYieldRefusal(`${QUEUE_YIELD_PREFIX}: a chat a person asked for is waiting for a place`);
     }
     let room: LiveChat[];
     try {
@@ -940,10 +1133,10 @@ export class ChatManager extends EventEmitter {
       room = found;
       // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
       const { refusal } = readSystemLoad(this.admission);
-      if (refusal) throw new ChatRefusal(refusal, 409);
+      if (refusal) throw new MemoryRefusal(refusal);
     } catch (err) {
       // The person is told exactly what they were told before; the refusal only also reserves the next place
-      if (kind === 'interactive' && (err instanceof RunSlotRefusal || (err instanceof ChatRefusal && err.message.startsWith(RESOURCE_REFUSAL_PREFIX)))) {
+      if (kind === 'interactive' && isTransientRefusal(err)) {
         this.interactive.hold();
       }
       throw err;
@@ -1000,6 +1193,7 @@ export class ChatManager extends EventEmitter {
     if (options.guards !== undefined) {
       if (options.guards === null) delete opts.guards;
       else opts.guards = options.guards;
+      this.guardsGiven.add(chat);
     }
     if (options.extraMcpServers !== undefined) {
       if (options.extraMcpServers === null) delete opts.extraMcpServers;
@@ -1025,7 +1219,7 @@ export class ChatManager extends EventEmitter {
     try {
       this.spawnProcess(chat, sent(prompt, attachments), room);
     } catch (err) {
-      this.chats.delete(chat.id);
+      this.discardUnstarted(chat.id);
       throw err;
     }
     // After the spawn, so the announcement carries the status the process started with
@@ -1038,8 +1232,8 @@ export class ChatManager extends EventEmitter {
    * out hands it to the single process that replaces it, and only a chat with none resumes the
    * session with --resume.
    */
-  send(id: string, text: string, attachmentIds: string[] = [], messageId?: string): ChatRuntime {
-    this.sendMessage(id, text, attachmentIds, messageId);
+  send(id: string, text: string, attachmentIds: string[] = [], messageId?: string, from: MessageFrom = {}): ChatRuntime {
+    this.sendMessage(id, text, attachmentIds, messageId, undefined, from);
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
     return chat.summary();
@@ -1048,9 +1242,10 @@ export class ChatManager extends EventEmitter {
   /**
    * {@link send}, answering how the message was taken and the id it goes by (docs/chat-delivery.md).
    * An id already taken writes nothing and answers as it did the first time: a send retried after a
-   * timeout reaches the agent once.
+   * timeout reaches the agent once. `from` says who wrote it when a person did not (a hint of the
+   * Supervisor's, a notice of Claudio's): the page draws it as a notice, never as the person's.
    */
-  sendMessage(id: string, text: string, attachmentIds: string[] = [], messageId?: string, purpose?: HousekeepingPurpose): ChatMessageReceipt {
+  sendMessage(id: string, text: string, attachmentIds: string[] = [], messageId?: string, purpose?: HousekeepingPurpose, from: MessageFrom = {}): ChatMessageReceipt {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
     const known = messageId ? chat.receipts.get(messageId) : undefined;
@@ -1064,7 +1259,7 @@ export class ChatManager extends EventEmitter {
       const unread = attachments.find((a) => a.kind === 'file' && !known.has(a.path));
       if (unread) throw new ChatStartRefusal(`a confined API chat reads attached files only from its start or a resume: ${unread.name} cannot be read now`, 400);
     }
-    const message: SentMessage = { id: messageId ?? randomUUID(), text, attachments, sentAt: now() };
+    const message: SentMessage = { id: messageId ?? randomUUID(), text, attachments, sentAt: now(), source: from.source ?? 'person', ...(from.words !== undefined ? { words: from.words } : {}) };
     // The person has seen the chat since: what was lost before is theirs to have sent again or not
     chat.undelivered = [];
     let taken: ChatMessageTaken;
@@ -1081,7 +1276,7 @@ export class ChatManager extends EventEmitter {
       }
       // A message written now would never be read: it waits for the replacement, behind any
       // message already waiting, so the order they were sent in is the order they arrive in
-      chat.pending.set(message.id, { ...message, state: 'held' });
+      chat.pending.set(message.id, { ...message, state: 'held', order: chat.writes, results: chat.results });
       chat.push({ kind: 'message', entry: userEntry(message, message.text) });
       taken = 'held';
     } else if (!chat.alive) {
@@ -1106,8 +1301,32 @@ export class ChatManager extends EventEmitter {
     }
     const receipt = { id: message.id, taken };
     chat.remember(receipt);
-    this.persist();
+    this.persist(chat);
     return receipt;
+  }
+
+  /**
+   * The guard plan of the process about to start (D6). A plan the caller just handed over stands; any
+   * other spawn derives it again from the settings of now, so a rule switched off since the chat
+   * started is off for its next process too. The Claudio assistant and housekeeping are never
+   * guarded, and a confined API chat keeps the `declared-tools` guard its policy armed.
+   */
+  private planGuards(chat: LiveChat): void {
+    const given = this.guardsGiven.delete(chat);
+    if (chat.opts.claudioAssistant || chat.origin === 'internal') {
+      delete chat.opts.guards;
+      return;
+    }
+    if (given || chat.opts.apiPolicy || !this.guardPlanner) return;
+    const plan = this.guardPlanner({
+      cwd: chat.cwd,
+      plan: chat.opts.guards ?? null,
+      person: chat.opts.purpose === 'person' || chat.opts.purpose === undefined,
+      policy: chat.opts.toolConfig?.policy ?? null,
+      confined: !!chat.opts.confine,
+    });
+    if (plan) chat.opts.guards = plan;
+    else delete chat.opts.guards;
   }
 
   /**
@@ -1136,7 +1355,7 @@ export class ChatManager extends EventEmitter {
       // A slot reserved at send time was admitted then, memory included
       this.spawnProcess(chat, next, reserved ? [] : this.admit({}, chat.driver, classOfChat(chat.origin)), false);
     } catch (err) {
-      chat.error = err instanceof Error ? err.message : String(err);
+      chat.error = errorMessage(err);
       // The exit ended the chat while messages waited, and nothing will read them: the page is told
       // each one was lost, and anyone waiting for a result has to hear the chat ended
       for (const message of held) chat.lose(message, chat.error);
@@ -1167,7 +1386,7 @@ export class ChatManager extends EventEmitter {
       try {
         return uploads.get(String(id));
       } catch (err) {
-        throw new ChatRefusal(err instanceof Error ? err.message : String(err), 404);
+        throw new ChatRefusal(errorMessage(err), 404);
       }
     });
   }
@@ -1196,13 +1415,14 @@ export class ChatManager extends EventEmitter {
       // The CLI's own children (a build, Vitest, Chromium) are not its to keep: they go with it, descendants first
       const table = processTable();
       const root = table.find((p) => p.pid === proc.pid);
-      if (root) terminateTree(root, table, 5000);
-      proc.kill('SIGTERM');
+      // The tree's own signal reaches the root last; signalling it again here sent it SIGTERM twice
+      if (root) terminateTree(root, table, STOP_GRACE_MS);
+      else proc.kill('SIGTERM');
       // The process being stopped, not whatever `chat.proc` is by then: a chat resumed within these
       // seconds has a new process, and this used to kill it
       setTimeout(() => {
         if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL');
-      }, 5000).unref();
+      }, STOP_GRACE_MS).unref();
     }
     return chat.summary();
   }
@@ -1215,23 +1435,112 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
     if (!chat.alive || !chat.session) throw new Error('the chat has no live process to interrupt');
-    // "Send now" for a message the agent has already taken would cut the turn answering it
-    if (messageId !== undefined && chat.pending.get(messageId)?.state !== 'written') {
-      throw new ChatRefusal('the agent has already read this message, or it is not waiting in this chat', 409);
+    if (messageId !== undefined) {
+      // The read-back that says the agent took it may sit in the stdout pipe already: what has
+      // arrived is read before deciding, or "Send now" would cut the turn answering the message
+      await new Promise<void>((resolveTick) => setImmediate(resolveTick));
+      if (chat.pending.get(messageId)?.state !== 'written') {
+        throw new ChatRefusal('the agent has already read this message, or it is not waiting in this chat', 409);
+      }
     }
+    const session = chat.session;
+    if (!chat.alive || !session) throw new Error('the chat has no live process to interrupt');
     // Its input is closed: nothing written now would be read, and the turn is already over
     if (chat.proc?.stdin.writableEnded) return chat.summary();
     // Sent whatever the status says: the agent answers it harmlessly between turns, and a turn on a
-    // queued message can be under way before anything of it has been streamed. Only a turn that
-    // can end is marked: an idle process has no result coming to clear the mark
-    const turning = chat.status === 'busy' || chat.status === 'starting' || chat.written().length > 0;
+    // queued message can be under way before anything of it has been streamed. Only a turn that can
+    // end is marked, the lead's: a background agent's lines make the chat busy with no result to come
+    const turning = chat.turnOpen || chat.written().length > 0;
     if (turning) chat.interruptRequested = true;
+    // The receipt speaks for the messages written before the interrupt; a later one is still on its way
+    const asked = chat.writes;
+    let receipt: InterruptReceipt;
     try {
-      await chat.session.interrupt();
+      receipt = await session.interrupt();
     } catch (err) {
       chat.interruptRequested = false;
       throw err;
     }
+    if (chat.session !== session) return chat.summary();
+    this.settleQueue(chat, receipt, asked);
+    // The receipt comes before the interrupted turn's result: with no turn under way by then, there
+    // is no result to clear the mark, and the next turn's own result is not this interrupt's
+    if (!chat.turnOpen) chat.interruptRequested = false;
+    return chat.summary();
+  }
+
+  /**
+   * What an interrupt's receipt says of the messages of ours the agent had not read back: one written
+   * before the interrupt that its queue no longer holds was dropped on the way, and nothing will read
+   * it. A message absorbed into the turn was read back before the receipt was written.
+   */
+  private settleQueue(chat: LiveChat, receipt: InterruptReceipt, asked: number): void {
+    // Only an agent known to read back what it takes says anything by leaving a message out of its
+    // queue: otherwise the message the interrupted turn runs on is out of the queue too, and its
+    // turn's result is what settles it
+    if (!receipt.stillQueued || chat.reportsDelivery !== true) return;
+    const queued = new Set(receipt.stillQueued);
+    const dropped = chat.written().filter((m) => m.order <= asked && !queued.has(m.id));
+    for (const message of dropped) {
+      chat.pending.delete(message.id);
+      chat.lose(message, NOT_READ, 'not-read');
+    }
+    if (dropped.length === 0) return;
+    this.persist();
+    // They were all that kept a chat busy between turns: it waits for the person now
+    if (!chat.turnOpen && chat.written().length === 0 && chat.status === 'busy' && chat.opts.keepAlive !== false) {
+      if (chat.settleTimer) clearTimeout(chat.settleTimer);
+      chat.settleTimer = null;
+      goIdle(chat);
+    }
+  }
+
+  /**
+   * Sends one call the running turn waits on (a foreground agent or command) to the background: the
+   * call returns at once, the agent reads what waits at that tool boundary, and the work goes on
+   * where it was ("Send to background and deliver", D4). Refused with `not-running` when the call is
+   * no foreground call of the lead's turn, or the agent no longer has it.
+   */
+  async backgroundCall(id: string, toolUseId: string): Promise<ChatRuntime> {
+    const chat = this.chats.get(id);
+    if (!chat) throw new ChatNotFoundError();
+    const session = chat.session;
+    if (!chat.alive || !session || !chat.turnOpen || !chat.foreground.has(toolUseId)) {
+      throw new DeliveryRefusal(`the call ${toolUseId} is not a foreground call the chat's turn is waiting on`, 'not-running');
+    }
+    if (!session.backgroundCall) throw new DeliveryRefusal("this chat's agent cannot send a call to the background", 'unsupported');
+    if (!(await session.backgroundCall(toolUseId))) {
+      throw new DeliveryRefusal(`the agent has no foreground call ${toolUseId} to send to the background: it may have returned already`, 'not-running');
+    }
+    return chat.summary();
+  }
+
+  /**
+   * Withdraws a message the agent has not read yet: one held for a replacement process, or still
+   * waiting for its guard, is dropped here; one in the agent's queue is taken back from it
+   * (`cancel_async_message`), which the agent refuses once it has taken it (409 `taken`). The page
+   * hears `undelivered` with `reason: 'cancelled'`.
+   */
+  async cancelMessage(id: string, messageId: string): Promise<ChatRuntime> {
+    const chat = this.chats.get(id);
+    if (!chat) throw new ChatNotFoundError();
+    const message = chat.pending.get(messageId);
+    if (!message) {
+      if (chat.receipts.has(messageId)) throw new DeliveryRefusal('the agent has already taken this message', 'taken');
+      throw new ChatRefusal('no message with this id waits in this chat', 404);
+    }
+    // Not written to any agent yet: it is Claudio's own to drop
+    if (message.state === 'held' || chat.armingQueue.some((queued) => queued.message.id === messageId)) {
+      chat.withdraw(message);
+      this.persist();
+      return chat.summary();
+    }
+    const session = chat.session;
+    if (!session?.cancelMessage) throw new DeliveryRefusal("this chat's agent cannot take a message back", 'unsupported');
+    if (!(await session.cancelMessage(messageId))) throw new DeliveryRefusal('the agent has already taken this message', 'taken');
+    const still = chat.pending.get(messageId);
+    if (still) chat.withdraw(still);
+    this.persist();
     return chat.summary();
   }
 
@@ -1249,7 +1558,7 @@ export class ChatManager extends EventEmitter {
     if (!chat) throw new ChatNotFoundError();
     if (chat.opts.permissionPrompts !== prompts) {
       chat.opts.permissionPrompts = prompts;
-      this.persist();
+      this.persist(chat);
     }
     return chat.summary();
   }
@@ -1281,7 +1590,7 @@ export class ChatManager extends EventEmitter {
       chat.opts.model = next;
       chat.setSettings({ model: next });
     }
-    this.persist();
+    this.persist(chat);
     return chat.summary();
   }
 
@@ -1317,9 +1626,10 @@ export class ChatManager extends EventEmitter {
   }
 
   /** The MCP servers of the chat's live process, as it reports them now, and Claudio's own server for it. */
-  async mcpServers(id: string): Promise<ChatMcpServers> {
+  /** `ask: false` answers without a control request, as a chat with no live process does: the caller judged the CLI too busy to answer now. */
+  async mcpServers(id: string, opts: { ask?: boolean } = {}): Promise<ChatMcpServers> {
     const chat = this.chats.get(id);
-    const session = chat?.alive ? chat.session : null;
+    const session = chat?.alive && opts.ask !== false ? chat.session : null;
     if (!session?.mcpStatus) return { live: false, servers: [], ...(chat ? { claudio: this.claudioState(chat, []) } : {}) };
     const servers = await session.mcpStatus();
     return { live: true, servers, ...(chat ? { claudio: this.claudioState(chat, servers) } : {}) };
@@ -1378,7 +1688,7 @@ export class ChatManager extends EventEmitter {
       // Off keeps the reads of teammates' copies the chat's scope gives it, as its next process would have
       entry = this.claudioEntry(chat, enabled, identity);
     } catch (err) {
-      if (enabled) throw new ChatRefusal(err instanceof Error ? err.message : String(err), 503);
+      if (enabled) throw new ChatRefusal(errorMessage(err), 503);
       entry = null;
     }
     // The CLI leaves a server of `--mcp-config` alone until a set names it: replaced by a pushed one
@@ -1394,15 +1704,34 @@ export class ChatManager extends EventEmitter {
     else {
       this.claudioRefusals.delete(chat.id);
       this.storeClaudioMcp(chat, enabled);
+      await this.allowClaudioReads(chat, session, enabled);
     }
     return this.mcpServers(id);
+  }
+
+  /**
+   * The reads of Claudio's server, allowed ahead of time in the live process as `--allowedTools`
+   * allows them in its next ones: without them a read is denied in a chat whose prompts go nowhere or
+   * under `dontAsk`. The process is given the rules in its flag layer (the CLI's
+   * `apply_flag_settings`); switched off, the rules go with the server. A CLI that refuses the request
+   * keeps the server, whose reads then ask as the chat's mode says, and the chat says so.
+   */
+  private async allowClaudioReads(chat: LiveChat, session: NonNullable<LiveChat['session']>, enabled: boolean): Promise<void> {
+    if (!session.applyFlagSettings) return;
+    try {
+      await session.applyFlagSettings({ permissions: { allow: enabled ? [...CLAUDIO_MCP_READ_TOOLS] : [] } });
+    } catch (err) {
+      if (!enabled) return;
+      const why = errorMessage(err);
+      chat.push({ kind: 'notice', text: `Claudio's reads could not be allowed ahead of time in this process (${why}): they ask as the chat's mode says until its next process.` });
+    }
   }
 
   /** The choice goes on the chat's tool record, which is what a resume, a fork and a respawn start from. */
   private storeClaudioMcp(chat: LiveChat, enabled: boolean): void {
     const { claudioMcp: _was, ...rest } = chat.tools ?? { preset: null, allowedTools: [], disallowedTools: [], mcp: chat.opts.mcp ?? null };
     chat.opts.toolConfig = enabled ? { ...rest, claudioMcp: true } : rest;
-    this.persist();
+    this.persist(chat);
   }
 
   /**
@@ -1419,6 +1748,22 @@ export class ChatManager extends EventEmitter {
     return this.mcpServers(id);
   }
 
+  /**
+   * Forgets a chat whose first process never started: it is not a chat of Claudio's yet. A spawn that
+   * threw has ended its execution and written it (`spawnProcess`), and that row goes too, or the
+   * failed start would come back as a chat at the next restart.
+   */
+  private discardUnstarted(id: string): void {
+    this.chats.delete(id);
+    this.dirty.delete(id);
+    if (!this.saved.delete(id)) return;
+    try {
+      this.db.deleteChat(id);
+    } catch {
+      // the store closed: there is no restart to come back in
+    }
+  }
+
   remove(id: string): boolean {
     const chat = this.chats.get(id);
     if (!chat || chat.alive) return false;
@@ -1427,15 +1772,48 @@ export class ChatManager extends EventEmitter {
     this.bus?.emit({ type: 'run.removed', title: `${chat.name} removed`, runId: id });
     this.db.deleteChat(id);
     this.saved.delete(id);
-    this.persist();
+    this.dirty.delete(id);
     removeChatExtrasConfigs(this.config.dataDir, (chatId) => chatId === id);
     return true;
   }
 
-  stopAll(): void {
-    for (const chat of this.chats.values()) if (chat.alive) this.stop(chat.id);
+  /**
+   * Stops every live chat, then resolves once their processes and everything they started are gone:
+   * at once for what leaves on SIGTERM, and after `graceMs` for the rest, which then gets SIGKILL.
+   * `stop` arms that escalation on an unref'd timer, which a server that exits right after never
+   * reached: a child ignoring SIGTERM outlived the server. The stops themselves happen before this
+   * returns, so a caller that does not wait still has every chat told to stop.
+   */
+  async stopAll(graceMs = STOP_GRACE_MS): Promise<void> {
+    // Read before the stops, while each tree still hangs from its CLI: a child whose parent has
+    // exited is adopted by init and could no longer be told from a stranger's
+    const table = processTable();
+    const trees: ProcessEntry[] = [];
+    const closing: Array<Promise<unknown>> = [];
+    for (const chat of [...this.chats.values()]) {
+      if (!chat.alive) continue;
+      const proc = chat.proc;
+      const root = proc ? table.find((p) => p.pid === proc.pid) : undefined;
+      if (root) trees.push(...descendantsOf(table, root.pid), root);
+      if (proc && proc.exitCode === null && proc.signalCode === null) closing.push(once(proc, 'close').catch(() => undefined));
+      this.stop(chat.id);
+    }
     // The processes take a moment to exit; their credentials go now, with the wrapper
     this.chatTokens.revokeAll();
+    if (trees.length === 0 && closing.length === 0) return;
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([Promise.all(closing), new Promise<void>((resolve) => (timer = setTimeout(resolve, graceMs)))]);
+    clearTimeout(timer);
+    // Only what is still the same process (pid and start time): a pid reused since is somebody else's
+    const now = processTable();
+    for (const victim of trees) {
+      if (!now.some((p) => p.pid === victim.pid && p.started === victim.started)) continue;
+      try {
+        process.kill(victim.pid, 'SIGKILL');
+      } catch {
+        // gone in between
+      }
+    }
   }
 
   /** Resolves with the first `result` after the call, or when the process exits. */
@@ -1610,7 +1988,7 @@ export class ChatManager extends EventEmitter {
       return this.agentReadsLaunch({ dir: chat.workingDir ?? chat.cwd, permissionMode: chat.permissionMode, mcpConfig: opts.mcp?.config ?? null, claudioMcp });
     } catch (err) {
       // The chat runs without them rather than not at all
-      const why = err instanceof Error ? err.message : String(err);
+      const why = errorMessage(err);
       chat.push({ kind: 'notice', text: claudioMcp ? `This process starts without Claudio's MCP server: ${why}` : `This process cannot read what teammates share: ${why}` });
       return null;
     }
@@ -1648,7 +2026,7 @@ export class ChatManager extends EventEmitter {
       text = readFileSync(base, 'utf8');
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      return this.baseUnread(chat, base, claudios, code === 'ENOENT' ? 'the file is gone' : `it cannot be read: ${code ?? (err instanceof Error ? err.message : String(err))}`);
+      return this.baseUnread(chat, base, claudios, code === 'ENOENT' ? 'the file is gone' : `it cannot be read: ${code ?? (errorMessage(err))}`);
     }
     let listed: unknown;
     try {
@@ -1744,7 +2122,7 @@ export class ChatManager extends EventEmitter {
       reason = movedFor;
     } else {
       const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, now: at, model: chat.model });
+      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), now: at, model: askedModel(chat) });
       to = choice.account ?? chat.account ?? DEFAULT_ID;
       reason = choice.reason;
     }
@@ -1757,26 +2135,39 @@ export class ChatManager extends EventEmitter {
     }
     const from = chat.account;
     if (from && from !== ref.id) {
-      this.lastSwitchAt = at;
       this.bus?.emit({ type: 'account.switched', title: `New work moves from ${from} to ${ref.id}`, from, to: ref.id, reason: reason ?? 'threshold' });
     }
     return ref;
   }
 
   /**
-   * What the chat's account reports, kept per account: a stream reading is stored as it is, and
-   * every change of a window lands in `usage_history`. A turn that died on the limit writes nothing
-   * into the account's reading, since the CLI said neither how much was used nor until when; the chat
-   * only remembers the account, so that its next move does not go back to it.
+   * What the chat's account reports, kept on that account and no other: a stream reading is stored
+   * as it is, and every change of a window lands in `usage_history`. A turn that died on the limit
+   * writes nothing into the account's reading, since the CLI said neither how much was used nor until
+   * when; the chat only remembers the account, so that its next move does not go back to it. A
+   * rejected event with no reset leaves the account out for `cooldownSeconds` on its reading.
    */
   private observeAccount(chat: LiveChat, event: DriverEvent): void {
+    if (event.kind === 'rate-limit' && event.info.status === 'rejected' && event.info.resetsAt) this.refusedUntil.set(chat, new Date(event.info.resetsAt * 1000).toISOString());
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
     if (event.kind !== 'rate-limit' || event.info.status === 'rejected') chat.limitedAccounts.add(id);
     if (event.kind !== 'rate-limit') return;
     const { info } = event;
-    const reading = readingFromEvent({ status: info.status, rateLimitType: info.rateLimitType, resetsAt: info.resetsAt, utilization: info.utilization, unifiedWindows: info.windows }, Date.now());
+    const reading = readingFromEvent(
+      {
+        status: info.status,
+        rateLimitType: info.rateLimitType,
+        resetsAt: info.resetsAt,
+        utilization: info.utilization,
+        unifiedWindows: info.windows,
+        ...(info.isUsingOverage !== undefined ? { isUsingOverage: info.isUsingOverage } : {}),
+        ...(info.overageStatus !== undefined ? { overageStatus: info.overageStatus } : {}),
+      },
+      Date.now(),
+      { cooldownMs: store.settings().cooldownSeconds * 1000 },
+    );
     if (!reading) return;
     void this.noteAccountReading(id, reading).catch(() => undefined);
   }
@@ -1786,7 +2177,8 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!store) return;
     if (!(await store.observe(id, reading))) return;
-    const limit = store.get(id).limits;
+    // Removed since the reading was taken, or the credential-less default: nothing to draw a line for
+    const limit = store.find(id)?.limits;
     if (!limit) return;
     const points: UsageHistoryPoint[] = [];
     for (const window of HISTORY_WINDOWS) {
@@ -1805,12 +2197,25 @@ export class ChatManager extends EventEmitter {
    * stored before the turn's end is announced, which is when the rotation chooses. A turn that
    * went through on an account never confirmed (an OAuth token from the environment has no free
    * check) confirms it: the CLI refuses an invalid token before generating anything.
+   *
+   * A turn that went through also ends the replay count: the next limit is a new one, with a replay
+   * of its own. Before 2026-10-29 the count was reset only on a resume, so after one wait-replay a
+   * chat never rotated again (regression audit §2.2).
+   *
+   * The account may be gone (a person removed it, the store's lookup is nullable): the turn's result
+   * is folded all the same. On 2026-10-25 a throw here went up the stream handler and took the
+   * server down.
    */
   private observeSignIn(chat: LiveChat, authFailed: boolean): void {
+    if (!authFailed) {
+      chat.limitReplays = 0;
+      this.refusedUntil.delete(chat);
+    }
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
-    const account = authFailed ? null : store.get(id);
+    const account = authFailed ? null : store.find(id);
+    if (!authFailed && !account) return;
     const done = authFailed ? store.markAuthFailed(id) : account?.authFailedAt || account?.checkedAt === null ? store.confirm(id) : null;
     void done?.catch(() => undefined);
   }
@@ -1831,7 +2236,7 @@ export class ChatManager extends EventEmitter {
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
     const failedOn = new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)]);
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn: [...failedOn] });
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: [...failedOn] });
   }
 
   /**
@@ -1848,18 +2253,18 @@ export class ChatManager extends EventEmitter {
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
     const newer = (account: string): boolean => {
-      let limit;
-      try {
-        limit = store.get(account).limits;
-      } catch {
-        return false;
-      }
+      const limit = store.find(account)?.limits;
       return !!limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > (since ?? 0);
     };
     const failedOn = since === null ? [] : [...new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)])].filter((a) => !newer(a));
     // Overriding the failures, staying on the account the turn died on last is no reason of its own:
     // the order (or the most room) decides
-    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn });
+    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn });
+  }
+
+  /** The live chats whose process runs on an account: what removing that account waits for. */
+  liveChatsOn(account: string): string[] {
+    return [...this.chats.values()].filter((c) => c.alive && (c.account ?? DEFAULT_ID) === account).map((c) => c.id);
   }
 
   /** Reads the model lists the account choice needs and does not have yet (no turn, no tokens). */
@@ -1895,6 +2300,7 @@ export class ChatManager extends EventEmitter {
     if (!existsSync(chat.cwd)) throw cwdMissing(chat.cwd, chat.opts.apiPolicy?.workspaceId ?? null);
     this.confineAssistant(chat);
     this.confineApiChat(chat);
+    this.planGuards(chat);
     const account = this.chooseAccount(chat);
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
@@ -1916,6 +2322,14 @@ export class ChatManager extends EventEmitter {
     // Whether this process reports what it takes is its own to show
     chat.reportsDelivery = null;
     chat.carrying = false;
+    // Its turns, its calls and its counts start again; a message the last one dropped cannot be read back by this one
+    chat.turnOpen = false;
+    chat.foreground.clear();
+    chat.writes = 0;
+    chat.results = 0;
+    chat.notRead.clear();
+    if (chat.settleTimer) clearTimeout(chat.settleTimer);
+    chat.settleTimer = null;
     chat.beginExecution();
     // Each process arms on its own: the guard's hooks are read at its start, and a resume registers them again
     if (chat.armingTimer) clearTimeout(chat.armingTimer);
@@ -1941,17 +2355,23 @@ export class ChatManager extends EventEmitter {
     } else delete env.CLAUDIO_API_URL;
     // A confined API chat's git reads no configuration but the run's own (D14.7)
     if (chat.opts.apiPolicy) Object.assign(env, confinedGitEnv(chat.cwd, this.workspacesRoot));
-    // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
-    const tmpDir = chat.opts.guards?.tmpDir;
-    if (tmpDir) {
-      mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
-      env.TMPDIR = tmpDir;
-    }
     let proc: ChildProcessWithoutNullStreams;
     try {
+      // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
+      const tmpDir = chat.opts.guards?.tmpDir;
+      if (tmpDir) {
+        mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+        env.TMPDIR = tmpDir;
+      }
       proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
     } catch (error) {
       if (token) this.chatTokens.revoke(token);
+      // The execution has begun and the chat says it is starting: a spawn that throws at once (ENOMEM,
+      // E2BIG, a temp dir that cannot be made) ends both as a process that failed would, or the chat
+      // stays `starting` with an execution that never ends
+      chat.error = errorMessage(error);
+      chat.procClosed = true;
+      this.finalize(chat, 'failed');
       throw error;
     }
     // Only now that a process exists: a spawn that failed has ended nobody's. Nothing yields between
@@ -1987,7 +2407,13 @@ export class ChatManager extends EventEmitter {
     }
     createInterface({ input: proc.stdout }).on('line', (line) => {
       if (!current()) return;
-      session.readLine(line);
+      // A line the fold cannot take is this chat's failure, never the server's: a throw out of this
+      // handler is an uncaught exception, which took the whole server down on 2026-10-25
+      try {
+        session.readLine(line);
+      } catch (err) {
+        this.failProtocol(chat, `Claudio could not read a line of the agent's output: ${errorMessage(err)}`);
+      }
       this.noteActivity(chat);
     });
     createInterface({ input: proc.stderr }).on('line', (line) => {
@@ -2004,9 +2430,24 @@ export class ChatManager extends EventEmitter {
     });
     // The token goes as soon as the process is gone; what the chat becomes waits for `close`, which
     // comes after stdout and stderr have been read to the end, so the last lines of stderr, the reason
-    // an execution failed, are in the chat's events before they are read back
-    proc.on('exit', () => revokeToken());
+    // an execution failed, are in the chat's events before they are read back. A child that inherited
+    // the pipes would hold `close` off for as long as it lives, and the chat on its way out with it:
+    // the pipes are let go a moment after the exit, which is what closes them
+    let closed = false;
+    let lingering: NodeJS.Timeout | null = null;
+    proc.on('exit', () => {
+      revokeToken();
+      lingering = setTimeout(() => {
+        if (closed) return;
+        proc.stdout.destroy();
+        proc.stderr.destroy();
+        proc.stdin.destroy();
+      }, closeAfterExitMs());
+      lingering.unref();
+    });
     proc.on('close', (code) => {
+      closed = true;
+      if (lingering) clearTimeout(lingering);
       revokeToken();
       if (!current()) return;
       chat.procClosed = true;
@@ -2021,7 +2462,7 @@ export class ChatManager extends EventEmitter {
     });
 
     // Recorded at once: a wrapper that dies from here on leaves an execution to read back as interrupted, not a gap
-    this.persist();
+    this.persist(chat);
     this.writeUserMessage(chat, first, announce);
   }
 
@@ -2040,7 +2481,7 @@ export class ChatManager extends EventEmitter {
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     chat.idleSince = null;
     // Before the write: a driver that starts the turn at once reports it taken from inside `send`
-    if (chat.reportsDelivery !== false) chat.pending.set(message.id, { ...message, state: 'written' });
+    if (chat.reportsDelivery !== false) chat.pending.set(message.id, { ...message, state: 'written', order: ++chat.writes, results: chat.results });
     // The agent must not read a word before its guard is live: the message goes out when `armed` arrives
     if (chat.guardState === 'arming') {
       chat.armingQueue.push({ message, announce });
@@ -2059,6 +2500,10 @@ export class ChatManager extends EventEmitter {
     // A provider whose transcript Claudio keeps itself has no other record of what the person said
     recordEntry(this.host, chat, entry);
     if (announce) chat.push({ kind: 'message', entry });
+    // It starts the lead's turn, or joins the one under way
+    const pending = chat.pending.get(message.id);
+    if (pending) pending.opens = !chat.turnOpen;
+    chat.turnOpen = true;
     chat.setStatus('busy');
   }
 
@@ -2127,6 +2572,10 @@ export class ChatManager extends EventEmitter {
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     if (chat.armingTimer) clearTimeout(chat.armingTimer);
     chat.armingTimer = null;
+    if (chat.settleTimer) clearTimeout(chat.settleTimer);
+    chat.settleTimer = null;
+    chat.turnOpen = false;
+    chat.foreground.clear();
     this.removeGuardTmp(chat);
     chat.idleSince = null;
     chat.endedAt = now();
@@ -2148,7 +2597,7 @@ export class ChatManager extends EventEmitter {
     chat.branchActivity.clear();
     chat.setStatus(status);
     this.noteActivity(chat);
-    this.persist();
+    this.persist(chat);
     this.maybeLimit(chat);
     chat.purpose = null;
     this.emit('chat-context', chat.id, { kind: 'ended', stopped: chat.stopRequested, error: chat.error } satisfies ContextSignal);
@@ -2165,9 +2614,25 @@ export class ChatManager extends EventEmitter {
       chat.limitRequested = true;
       return;
     }
-    if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return;
+    // Announced whatever the replay count says: the rotation may move the turn to another account,
+    // which the count never holds back; only a replay on no new account is bounded by it
     chat.limitRequested = true;
-    this.emit('limit-hit', chat.summary(), this.limits.get(chat.provider));
+    this.emit('limit-hit', chat.summary(), this.limitResetOf(chat.id));
+  }
+
+  /** The reset each chat's last refused turn gave (ISO), until a turn goes through: that turn's own evidence */
+  private readonly refusedUntil = new WeakMap<LiveChat, string>();
+
+  /**
+   * When the account the chat's turn died on comes back, as far as the chat knows: its reading's
+   * reset while it reads out, else the reset the refusal itself gave, which may have passed already
+   * (the wait then goes on at once). Null when neither said. Never another account's reset.
+   */
+  limitResetOf(id: string): string | null {
+    const chat = this.chats.get(id);
+    if (!chat) return null;
+    const limit = this.limitOf(id);
+    return limit?.state === 'exhausted' && limit.resetsAt ? limit.resetsAt : (this.refusedUntil.get(chat) ?? null);
   }
 
   /** A wrapper-generated line in the transcript (account rotations, retries). */
@@ -2217,6 +2682,8 @@ export class ChatManager extends EventEmitter {
     if (!chat) throw new ChatNotFoundError();
     if (!chat.alive) return;
     if (chat.status !== 'idle' || chat.written().length > 0) throw new ChatRefusal('the chat is working on a turn; its process cannot be ended between turns now', 409);
+    // Its CLI would kill that work once it had waited for it with its input closed (D3)
+    if (runsInBackground(chat.branches)) throw new ChatRefusal('the chat runs work in the background, which ending its process now would stop; try again when it is done', 409);
     // Resolves on the process's `close`, after the handler registered at spawn has finalised the chat
     await this.endProcessBetweenTurns(chat);
   }
@@ -2227,19 +2694,20 @@ export class ChatManager extends EventEmitter {
    */
   limitComing(id: string): boolean {
     const chat = this.chats.get(id);
-    return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn && chat.limitReplays < MAX_LIMIT_REPLAYS;
+    return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn;
   }
 
   /**
    * A limit the chat's process met where its stream does not say so: a workflow's subagent, refused by
    * the API, ends in a transcript of its own (R15). It is recorded as the stream's rejected reading or
-   * failed sign-in would be, on the provider and on the account, and the chat is at its limit: a live
+   * failed sign-in would be, on the account it ran on, and the chat is at its limit: a live
    * process is stopped, and its end announces `limit-hit` as a turn of its own that died would. False
-   * when the chat already is at a limit, or has spent its replay without getting anywhere since.
+   * when the chat already is at a limit. A replay spent without a turn going through since does not
+   * stop it: the rotation passes over the accounts the turn died on, and waits when none is left.
    */
   limitReached(id: string, refusal: { resetsAt: string | null; rateLimitType: string | null; auth: boolean }): boolean {
     const chat = this.chats.get(id);
-    if (!chat || chat.rateLimited || chat.limitRequested || !chat.lastUserTurn || chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    if (!chat || chat.rateLimited || chat.limitRequested || !chat.lastUserTurn) return false;
     chat.rateLimited = true;
     if (refusal.auth) {
       chat.authFailed = true;
@@ -2252,13 +2720,12 @@ export class ChatManager extends EventEmitter {
         info: { status: 'rejected', windows: {}, observedAt: now(), ...(refusal.rateLimitType ? { rateLimitType: refusal.rateLimitType } : {}), ...(Number.isFinite(resetsAt) ? { resetsAt } : {}) },
       };
       try {
-        this.limits.observe(chat.provider, event);
         this.observeAccount(chat, event);
       } catch {
         // A closed database (shutting down): the chat is at its limit all the same
       }
     }
-    this.persist();
+    this.persist(chat);
     if (chat.alive) this.stop(id);
     else this.maybeLimit(chat);
     return true;
@@ -2272,13 +2739,19 @@ export class ChatManager extends EventEmitter {
 
   /** The chat's last turn died on its provider's limit and nothing has started on it since. */
   atLimit(id: string): boolean {
-    return this.chats.get(id)?.rateLimited === true;
+    // Never wakes a retired chat: one at its limit is never retired, and every listed chat asks
+    return this.chats.peek(id)?.rateLimited === true;
   }
 
-  /** The provider's reading as it stands for the chat's provider; null for a chat Claudio does not drive. */
+  /**
+   * The reading of the account the chat ran on, as its provider's limit; null for a chat Claudio does
+   * not drive, one that runs on no account, or one whose account has none. Never another account's:
+   * the provider-wide reading this used to be was whichever account ran last.
+   */
   limitOf(id: string): ProviderLimit | null {
     const chat = this.chats.get(id);
-    return chat ? this.limits.get(chat.provider) : null;
+    if (!chat?.account || !this.accounts) return null;
+    return providerLimitOf(chat.provider, this.accounts.find(chat.account)?.limits ?? null);
   }
 
   /**
@@ -2292,16 +2765,12 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!chat) throw new AccountSwitchRefusal('chat-not-found', 'chat not found');
     if (!store) throw new AccountSwitchRefusal('account-not-found', 'no accounts are configured');
-    let account;
-    try {
-      account = store.get(accountId);
-    } catch {
-      throw new AccountSwitchRefusal('account-not-found', `account ${accountId} not found`);
-    }
+    const account = store.find(accountId);
+    if (!account) throw new AccountSwitchRefusal('account-not-found', `account ${accountId} not found`);
     if (accountId === (chat.account ?? DEFAULT_ID)) {
       if (!chat.pendingAccount) throw new AccountSwitchRefusal('same-account', 'the chat already runs on this account');
       chat.pendingAccount = null;
-      this.persist();
+      this.persist(chat);
       return { chat: chat.summary(), pending: false };
     }
     if (accountId === chat.pendingAccount) return { chat: chat.summary(), pending: true };
@@ -2311,19 +2780,27 @@ export class ChatManager extends EventEmitter {
       throw new AccountSwitchRefusal('sign-in-expired', `account ${accountId} needs a new sign-in (${account.signInState})`);
     }
     if (!account.signedIn) throw new AccountSwitchRefusal('signed-out', `account ${accountId} is signed out`);
-    const resets = account.limits?.state === 'exhausted' && account.limits.resetsAt ? Date.parse(account.limits.resetsAt) : null;
-    const out = resets !== null && resets > Date.now();
+    const out = isOut(account.limits, Date.now());
     if (out || chat.limitedAccounts.has(accountId)) {
-      throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out ? ` until ${account.limits?.resetsAt}` : ''}`);
+      throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out && account.limits?.resetsAt ? ` until ${account.limits.resetsAt}` : ''}`);
     }
     // The lists the check looks at may not have been read yet (no turn, no tokens)
     await store.warmModels();
-    if (chat.model && chat.model !== 'default' && !store.canRun(accountId, chat.model)) {
-      throw new AccountSwitchRefusal('model-unavailable', `account ${accountId} does not offer ${chat.model}`);
+    const model = askedModel(chat);
+    if (model && model !== 'default' && !store.canRun(accountId, model)) {
+      throw new AccountSwitchRefusal('model-unavailable', `account ${accountId} does not offer ${model}`);
     }
     if (chat.status === 'busy' || chat.status === 'starting') {
       chat.pendingAccount = accountId;
+      this.persist(chat);
+      return { chat: chat.summary(), pending: true };
+    }
+    // The move ends the process, and its CLI would kill the work it runs in the background once its
+    // input closed (D3): the switch waits for that work, and the chat says why it has not moved
+    if (chat.alive && runsInBackground(chat.branches)) {
+      chat.pendingAccount = accountId;
       this.persist();
+      this.notice(chat.id, `The switch to account ${accountId} waits for the work running in the background: ending the process now would stop it.`, { account: accountId, reason: 'background' });
       return { chat: chat.summary(), pending: true };
     }
     await this.endProcessBetweenTurns(chat);
@@ -2335,14 +2812,19 @@ export class ChatManager extends EventEmitter {
   private async applyPendingAccount(id: string): Promise<void> {
     const chat = this.chats.get(id);
     const to = chat?.pendingAccount;
-    // A limited turn is the rotation's: it replays on an account of its own, and the choice waits for the next result
+    // A limited turn is the rotation's: it replays on an account of its own, and the choice waits for the next result.
+    // Messages the agent is about to start on, and work it runs in the background, keep the process (D3)
     if (!chat || !to || chat.rateLimited || chat.status === 'busy' || chat.status === 'starting') return;
+    if (chat.written().length > 0 || (chat.alive && runsInBackground(chat.branches))) return;
     await this.endProcessBetweenTurns(chat);
     // Another message may have started a turn while the process was closing
     if (chat.pendingAccount === to && !chat.alive) this.moveTo(chat, to, 'person');
   }
 
-  /** Ends an idle chat's process the way its idle timeout does: the input closes and the CLI exits by itself. */
+  /**
+   * Ends an idle chat's process the way its idle timeout does: the input closes and the CLI exits by
+   * itself. Its callers wait while the chat runs work in the background (D3).
+   */
   private async endProcessBetweenTurns(chat: LiveChat): Promise<void> {
     const proc = chat.proc;
     if (!chat.alive || !proc) return;
@@ -2364,7 +2846,7 @@ export class ChatManager extends EventEmitter {
     chat.forcedReason = 'person';
     // A chat started on an account keeps its pin semantics, on the new account
     if (chat.opts.account) chat.opts.account = to;
-    this.persist();
+    this.persist(chat);
     try {
       this.db.appendRotationEvent({ ts: new Date().toISOString(), event: 'switch', from, to, reason: 'person', detail: chat.name, data: { chatId: chat.id, actor } });
     } catch {
@@ -2414,18 +2896,25 @@ export class ChatManager extends EventEmitter {
     }
     chat.pending.clear();
     for (const message of turn) {
-      // One that never reached the agent keeps the id the page knows it by; one the transcript
-      // already has goes again under an id of its own
-      if (waiting.has(message.id)) chat.receipts.delete(message.id);
-      this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined);
+      // One that never reached the agent keeps the id the page knows it by, and the page hears it
+      // goes on (`carried`); one the transcript already has goes again under an id of its own
+      if (waiting.has(message.id)) this.carry(chat, message);
+      this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined, undefined, fromOf(message));
     }
     return true;
+  }
+
+  /** A message that waited for a process this chat replaces goes on in the new one, under its own id: the page is told so. */
+  private carry(chat: LiveChat, message: SentMessage): void {
+    chat.receipts.delete(message.id);
+    chat.push({ kind: 'delivery', delivery: { id: message.id, state: 'carried', chatId: chat.id, source: message.source } });
   }
 
   /**
    * Goes on after a limit with a turn of the caller's instead of the one that died, counted as a
    * replay is: a workflow resumes its run from the cache, where replaying its lead's turn would launch
-   * it again from nothing. What was still queued for the old process goes with it.
+   * it again from nothing. What was still queued for the old process goes with it, after the
+   * caller's turn and under the ids the page knows the messages by.
    */
   async replayWith(id: string, text: string, account?: string): Promise<boolean> {
     const chat = this.chats.get(id);
@@ -2437,13 +2926,20 @@ export class ChatManager extends EventEmitter {
     chat.rateLimited = false;
     chat.authFailed = false;
     chat.limitRequested = false;
+    const waiting = [...chat.pending.values()];
     if (chat.alive) {
       const proc = chat.proc;
+      // Its messages go on in the next process: stopping this one loses none of them
+      chat.carrying = true;
       this.stop(id);
       if (proc) await once(proc, 'close');
     }
     chat.pending.clear();
     this.sendMessage(id, text);
+    for (const message of waiting) {
+      this.carry(chat, message);
+      this.sendMessage(id, message.text, message.attachments.map((a) => a.id), message.id, undefined, fromOf(message));
+    }
     return true;
   }
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
 import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type {
@@ -33,38 +34,51 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, MODEL_RE, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
+import { EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
 import { OrchestrationEventTracker } from './event-sources.ts';
 import type { EventBus } from './events.ts';
 import { OrchestrationTemplates } from './orchestration-templates.ts';
+import { REVIEW_CHAT_ROLE } from './orchestration-timings.ts';
+import { ThrottledLog } from './throttled-log.ts';
 import {
-  abortMerge,
-  addWorktree,
+  abortMergeAsync,
+  addWorktreeAsync,
   branchExists,
+  branchExistsAsync,
+  branchHeadAsync,
   commitAll,
+  commitAllAsync,
   conflictedPaths,
-  contains,
+  conflictedPathsAsync,
+  containsAsync,
   deleteBranch,
   git,
   headCommit,
+  headCommitAsync,
   isGitRepo,
   isIgnored,
-  lockWorktree,
-  merge,
+  isIgnoredAsync,
+  lockWorktreeAsync,
+  mergeAsync,
+  mergeHeadAsync,
   mergeInProgress,
+  mergeInProgressAsync,
   removeWorktree,
+  removeWorktreeAsync,
   mainTopLevel,
+  mainTopLevelAsync,
   topLevel,
+  topLevelAsync,
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
-import { QUEUE_YIELD_PREFIX } from './admission-queue.ts';
-import { RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
+import { SLOT_RETRY_MS, startWhenAdmitted } from './admission-queue.ts';
+import { isTransientRefusal } from './chat-errors.ts';
 import { effectiveLimits, elapsedMs, normalizeLimits, pastHardLimit, pastSoftLimit, remainingUsd, spentUsd, startClock, timeWarning } from './task-limits.ts';
 import type { TaskContext } from './health-service.ts';
 import {
@@ -124,8 +138,6 @@ export const PLANNER_RUN_NAME = 'orchestration-planner';
 const PROMPT_HEAD = 'Plan a multi-agent orchestration for this objective:\n\n';
 const PROMPT_TAIL = '\n\nSplit it into at most ';
 const MAX_DEP_CONTEXT = 6000;
-/** The `orchestrationTaskId` of the review's chats; `chatRole()` links it with role `review` */
-const REVIEW_ROLE_ID = '__review__';
 /** The `orchestrationTaskId` of a workflow's lead, the one session that runs every task; `chatRole()` links it with role `workflow` */
 const WORKFLOW_LEAD = '__workflow__';
 /** Bounds of a person's reason for accepting the gate (D8): enough to say why, not an essay */
@@ -322,6 +334,44 @@ function checkoutOf(cwd: string): Checkout {
   // An ignored directory is missing from a fresh worktree, and whatever a worker writes there never
   // reaches its branch: in one of those, working at the top is the only way the work survives.
   return { root, subdir: subdir && !isIgnored(root, subdir) ? subdir : '', home: mainTopLevel(cwd) };
+}
+
+/** {@link checkoutOf} without blocking: the integration and a task's worktree are prepared off the event loop. */
+async function checkoutOfAsync(cwd: string): Promise<Checkout> {
+  const root = await topLevelAsync(cwd);
+  const subdir = relative(root, await realpath(cwd));
+  return { root, subdir: subdir && !(await isIgnoredAsync(root, subdir)) ? subdir : '', home: await mainTopLevelAsync(cwd) };
+}
+
+/**
+ * Merges a task's other dependencies into its worktree, in order. A conflict between two of them is
+ * the worker's to resolve, as the first thing it does: it has the context to, and starting it on half
+ * the code would be worse. The merge is left in progress and what the worker owes is returned.
+ */
+async function mergeDependencies(path: string, branch: string, deps: readonly string[]): Promise<PendingMerge | null> {
+  for (const [i, dep] of deps.entries()) {
+    if (await containsAsync(path, dep)) continue;
+    const paths = await mergeAsync(path, dep, `Merge ${dep} into ${branch}`);
+    if (paths) return { branch: dep, paths, remaining: deps.slice(i + 1) };
+  }
+  return null;
+}
+
+/** The dependency merge a worktree holds in progress, as {@link mergeDependencies} left it; null when none is. */
+async function mergeLeftInProgress(root: string, path: string, deps: readonly string[]): Promise<PendingMerge | null> {
+  const head = await mergeHeadAsync(path);
+  if (!head) return null;
+  let merging: string | null = null;
+  for (const dep of deps) {
+    if ((await branchHeadAsync(root, dep)) === head) {
+      merging = dep;
+      break;
+    }
+  }
+  const remaining: string[] = [];
+  for (const dep of deps) if (dep !== merging && !(await containsAsync(path, dep))) remaining.push(dep);
+  // A branch that moved since is named by the commit the merge brings in
+  return { branch: merging ?? head, paths: await conflictedPathsAsync(path), remaining };
 }
 
 /** `claudio/<name>-<id>`: readable in a branch list, and never shared by two graphs. */
@@ -551,6 +601,11 @@ export class Orchestrator {
   private readonly lateArrivals = new Set<string>();
   /** Tasks between the decision to run their chat again and the process that does: they take no hint yet */
   private readonly relaunching = new Set<string>();
+  /** Aborted by a stop or a close: the graph's last steps (its integrator, its synthesis) stop waiting for a place */
+  private readonly placeWaits = new Map<string, AbortController>();
+  /** Each task's running attempt, by `orchestrationId:taskId` (see `stampAttempt`) */
+  private readonly attemptStamps = new Map<string, number>();
+  private attemptSeq = 0;
   /** Reads a running task's health; set by Core, which owns what health is read from */
   health: ((task: OrchestrationTaskState) => Health | null) | null = null;
   /** Tasks whose worker was told it is nearly out of time, by the clock it was told on, so a retry is warned again */
@@ -604,7 +659,7 @@ export class Orchestrator {
       // a database without the review tables is an older one; nothing was running
     }
     this.tracker.baseline(this.list());
-    this.runs.on('chat-result', (runId: string, result: RunResult) => this.follow(runId, result));
+    this.runs.on('chat-result', this.onChatResult);
     this.limitsTimer = setInterval(() => this.enforceLimits(), LIMITS_CHECK_MS);
     this.limitsTimer.unref();
   }
@@ -616,20 +671,41 @@ export class Orchestrator {
    */
   close(): void {
     this.closed = true;
+    // The chat manager outlives this orchestrator in a test, and a result heard after the close would write to a closed database
+    this.runs.off('chat-result', this.onChatResult);
     if (this.limitsTimer) clearInterval(this.limitsTimer);
     this.limitsTimer = null;
     for (const timer of this.timers) clearTimeout(timer);
     this.timers.clear();
+    for (const timer of this.workflowWatchers.values()) clearInterval(timer);
+    this.workflowWatchers.clear();
+    this.scheduled.clear();
+    for (const id of [...this.placeWaits.keys()]) this.endPlaceWaits(id);
   }
 
-  /** `schedule` later, unless the orchestrator closes first */
+  private readonly onChatResult = (runId: string, result: RunResult): void => this.follow(runId, result);
+
+  /** Each graph's pending `scheduleLater`, and when it fires: a graph waits on one timer, not one per refused task */
+  private readonly scheduled = new Map<string, { timer: NodeJS.Timeout; at: number }>();
+
+  /** `schedule` later, unless the orchestrator closes first. A graph already due sooner keeps its timer. */
   private scheduleLater(orch: Orchestration, ms: number): void {
+    if (this.closed) return;
+    const at = Date.now() + ms;
+    const pending = this.scheduled.get(orch.id);
+    if (pending && pending.at <= at) return;
+    if (pending) {
+      clearTimeout(pending.timer);
+      this.timers.delete(pending.timer);
+    }
     const timer = setTimeout(() => {
       this.timers.delete(timer);
+      this.scheduled.delete(orch.id);
       this.schedule(orch);
     }, ms);
     timer.unref();
     this.timers.add(timer);
+    this.scheduled.set(orch.id, { timer, at });
   }
 
   private load(): void {
@@ -725,16 +801,21 @@ export class Orchestrator {
     }
   }
 
-  /** Carries a pre-SQLite `orchestrations.json` into the store once, then renames it away. */
+  /**
+   * Carries a pre-SQLite `orchestrations.json` into the store once, then renames it away: `.migrated`
+   * once carried, `.corrupt` when it could not be read, so what was lost is said and kept to look at.
+   */
   private importLegacy(): void {
     if (!existsSync(this.file)) return;
+    let carried = true;
     try {
       this.db.saveOrchestrations(JSON.parse(readFileSync(this.file, 'utf8')) as Orchestration[]);
-    } catch {
-      // corrupt state file: start clean
+    } catch (err) {
+      carried = false;
+      console.warn(`orchestrations: ${this.file} could not be carried into the database and was set aside as .corrupt: ${errorMessage(err)}`);
     }
     try {
-      renameSync(this.file, `${this.file}.migrated`);
+      renameSync(this.file, `${this.file}.${carried ? 'migrated' : 'corrupt'}`);
     } catch {
       // another process got there first
     }
@@ -749,10 +830,13 @@ export class Orchestrator {
     this.announce();
     try {
       this.db.saveOrchestrations([...this.items.values()]);
-    } catch {
-      // best-effort: a failed save must not abort the orchestration in flight
+    } catch (err) {
+      // A failed save must not abort the orchestration in flight; after a close it is only the shutdown
+      if (!this.closed) this.saveFailures.failed(err);
     }
   }
+
+  private readonly saveFailures = new ThrottledLog('orchestrations: saving the graphs');
 
   list(): Orchestration[] {
     return [...this.items.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -835,7 +919,7 @@ export class Orchestrator {
           this.schedule(orch);
           changed = true;
         } else if (pastSoftLimit(elapsed, limits)) {
-          const key = `${orch.id}:${task.id}:${task.clockStartedAt ?? task.startedAt ?? ''}`;
+          const key = this.warnedKey(orch, task);
           if (this.warned.has(key) || !this.runs.get(task.runId)?.pid || this.relaunching.has(`${orch.id}:${task.id}`)) continue;
           this.warned.add(key);
           try {
@@ -846,7 +930,17 @@ export class Orchestrator {
         }
       }
     }
+    // A warning belongs to one clock of one running task: once that task stopped running, or runs on a new clock, it is never asked about again
+    if (this.warned.size) {
+      const live = new Set<string>();
+      for (const orch of this.items.values()) for (const task of orch.tasks) if (task.status === 'running') live.add(this.warnedKey(orch, task));
+      for (const key of this.warned) if (!live.has(key)) this.warned.delete(key);
+    }
     if (changed) this.persist();
+  }
+
+  private warnedKey(orch: Orchestration, task: OrchestrationTaskState): string {
+    return `${orch.id}:${task.id}:${task.clockStartedAt ?? task.startedAt ?? ''}`;
   }
 
   runningCount(): number {
@@ -978,7 +1072,7 @@ export class Orchestrator {
   /** Lets a graph start new work past today's cap; kept in its document, for the local day it names. */
   grantSpendPass(id: string, day: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     orch.spendPass = day;
     this.persist();
     return orch;
@@ -1007,9 +1101,10 @@ export class Orchestrator {
 
   stop(id: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
-    // Checks started by hand run on a graph that is already over, and stopping it has to reach them
+    if (!orch) throw new NotFoundError('orchestration not found');
+    // Checks started by hand run on a graph that is already over, and stopping it has to reach them; so does an integration retried by hand
     this.cancelChecks(orch.id);
+    this.endPlaceWaits(orch.id);
     if (orch.status !== 'running' && orch.status !== 'waiting') return orch;
     orch.status = 'stopped';
     orch.endedAt = now();
@@ -1054,7 +1149,7 @@ export class Orchestrator {
    */
   resume(id: string, changes: ResumeOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running') return orch;
     // Before anything of the graph is touched, so a mode the CLI would refuse leaves it as it was
     validatePermissionMode(changes.permissionMode);
@@ -1123,7 +1218,7 @@ export class Orchestrator {
    */
   specOf(id: string): OrchestrationSpec {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     return specOfOrchestration(orch);
   }
 
@@ -1140,7 +1235,7 @@ export class Orchestrator {
   /** What a relaunch would launch, for a caller that checks it first: the original with the corrections. */
   relaunchSpec(id: string, changes: RelaunchOrchestrationRequest = {}): OrchestrationSpec {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
     const original = this.specOf(id);
     const { tasks: replaced, ...overrides } = changes.spec ?? {};
@@ -1164,7 +1259,7 @@ export class Orchestrator {
   /** Launches a template on a new objective and directory; what is given here is for this run only. */
   launchTemplate(id: string, req: LaunchOrchestrationTemplateRequest = {}): Orchestration {
     const template = this.templates.get(id);
-    if (!template) throw new Error('template not found');
+    if (!template) throw new NotFoundError('template not found');
     const spec: OrchestrationSpec = { ...template.spec };
     if (req.name?.trim()) spec.name = req.name.trim();
     if (req.objective !== undefined) spec.objective = req.objective;
@@ -1310,48 +1405,44 @@ export class Orchestrator {
    * started from nothing its dependencies had done and rebuilt it. The CLI adopts an existing
    * worktree of the name it is given, so it still locks it and records it as its own.
    */
-  private prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): PreparedWorktree {
-    const { root, subdir, home } = checkoutOf(orch.cwd);
+  private async prepareWorktree(orch: Orchestration, task: OrchestrationTaskState, name: string): Promise<PreparedWorktree> {
+    const { root, subdir, home } = await checkoutOfAsync(orch.cwd);
     const path = worktreePath(home, name);
     const branch = `worktree-${name}`;
     // Before worktrees were resolved from the top level, a graph in a subdirectory put them where
     // the CLI never looked, and every worker failed there before doing anything. Its branch cannot
     // be checked out twice, so that worktree goes; git refuses if it holds anything.
     const old = task.worktree;
-    if (old && existsSync(old) && (!existsSync(path) || realpathSync(old) !== realpathSync(path))) removeWorktree(root, old);
+    if (old && existsSync(old) && (!existsSync(path) || realpathSync(old) !== realpathSync(path))) await removeWorktreeAsync(root, old);
     task.worktree = path;
     task.branch = branch;
     // Handed a name, the CLI finds the worktree from the top level and works at the worktree's top
     const prepared: PreparedWorktree = subdir
       ? { cwd: join(path, subdir), adopt: false, pendingMerge: null }
       : { cwd: root, adopt: true, pendingMerge: null };
+    const deps: string[] = [];
+    for (const t of orch.tasks) {
+      if (task.dependsOn?.includes(t.id) && t.branch && (await branchExistsAsync(root, t.branch))) deps.push(t.branch);
+    }
+    const rest = deps.slice(1);
     // A resumed task continues where its first attempt stopped
     if (!existsSync(path)) {
       // A branch that is already there was cut by an earlier attempt, and its base is that one's
-      const cutNow = !branchExists(root, branch);
-      const deps = orch.tasks
-        .filter((t) => task.dependsOn?.includes(t.id) && t.branch && branchExists(root, t.branch))
-        .map((t) => t.branch as string);
-      const base = deps[0] ?? orch.baseCommit ?? 'HEAD';
-      addWorktree(root, path, branch, base);
-      const rest = deps.slice(1);
-      for (const [i, dep] of rest.entries()) {
-        if (contains(path, dep)) continue;
-        const paths = merge(path, dep, `Merge ${dep} into ${branch}`);
-        // A conflict between two dependencies is the worker's to resolve, as the first thing it does:
-        // it has the context to, and starting it on half the code would be worse.
-        if (paths) {
-          prepared.pendingMerge = { branch: dep, paths, remaining: rest.slice(i + 1) };
-          break;
-        }
-      }
+      const cutNow = !(await branchExistsAsync(root, branch));
+      await addWorktreeAsync(root, path, branch, deps[0] ?? orch.baseCommit ?? 'HEAD');
+      prepared.pendingMerge = await mergeDependencies(path, branch, rest);
       // What "changed by this task" is measured from: its dependencies' work is not its own
-      if (cutNow) task.baseCommit = headCommit(path);
+      if (cutNow) task.baseCommit = await headCommitAsync(path);
+    } else if (!task.runId) {
+      // No worker has run here yet: an earlier launch prepared it and was refused a place. What the
+      // worker is owed is read from the worktree again, never remembered, so a conflict that launch
+      // left in it is not handed to a worker untold (it would work among conflict markers)
+      prepared.pendingMerge = (await mergeLeftInProgress(root, path, rest)) ?? (await mergeDependencies(path, branch, rest));
     }
     if (!prepared.adopt) {
       // A directory holding only untracked files in the checkout does not exist in the worktree
       mkdirSync(prepared.cwd, { recursive: true });
-      lockWorktree(root, path, `claudio orchestration ${orch.id.slice(0, 8)}`);
+      await lockWorktreeAsync(root, path, `claudio orchestration ${orch.id.slice(0, 8)}`);
     }
     return prepared;
   }
@@ -1379,14 +1470,28 @@ export class Orchestrator {
     return resolveEffort('worker', task.model ?? orch.model, task.effort, orch.effort);
   }
 
+  /**
+   * Takes a place in the graph for the task and starts its worker. The task is `running` from here,
+   * while its worktree is prepared off the event loop; what refuses it later hands it back
+   * (`refuse`), and a stop in between leaves it stopped (the attempt's stamp is no longer current).
+   */
   private launch(orch: Orchestration, task: OrchestrationTaskState): boolean {
     // A task that has a chat goes on in it: a new execution, never a new conversation
     if (task.runId && this.runs.get(task.runId)) return this.continueChat(orch, task, task.runId);
+    const was = task.status;
+    const stamp = this.stampAttempt(orch, task);
+    task.status = 'running';
+    void this.startWorker(orch, task, stamp, was);
+    return true;
+  }
+
+  private async startWorker(orch: Orchestration, task: OrchestrationTaskState, stamp: number, was: OrchestrationTaskState['status']): Promise<void> {
+    const isolated = orch.worktree && !task.cwd;
     try {
-      const isolated = orch.worktree && !task.cwd;
       const limits = effectiveLimits(orch.limits, task.limits);
       const name = worktreeName(orch, task);
-      const prepared = isolated ? this.prepareWorktree(orch, task, name) : null;
+      const prepared = isolated ? await this.prepareWorktree(orch, task, name) : null;
+      if (!this.attemptCurrent(orch, task, stamp)) return; // stopped while its worktree was prepared
       const cwd = prepared?.cwd ?? task.cwd ?? orch.cwd;
       // A chat's start no longer creates its folder (D9): a task the plan placed in a folder that does
       // not exist yet gets it here, as it always did
@@ -1415,7 +1520,6 @@ export class Orchestrator {
         },
         { orchestrationId: orch.id, orchestrationTaskId: task.id, queued: true },
       );
-      task.status = 'running';
       task.runId = run.id;
       task.sessionId = run.id;
       task.provider = run.provider ?? LEGACY_PROVIDER;
@@ -1425,11 +1529,14 @@ export class Orchestrator {
       task.costUsd = 0;
       task.startedAt = now();
       startClock(task, task.startedAt);
-      void this.runs.waitForResult(run.id).then((result) => this.settle(orch, task, result));
-      return true;
+      void this.runs.waitForResult(run.id).then((result) => this.settle(orch, task, result, stamp));
     } catch (err) {
-      return this.refuse(orch, task, err, 'start the worker');
+      if (!this.attemptCurrent(orch, task, stamp)) return;
+      task.status = was;
+      this.refuse(orch, task, err, 'start the worker');
     }
+    // Without a worktree to prepare this ran within `schedule`, which saves once it has launched them all
+    if (isolated) this.persist();
   }
 
   /**
@@ -1439,58 +1546,103 @@ export class Orchestrator {
    */
   private continueChat(orch: Orchestration, task: OrchestrationTaskState, chatId: string, nudge: string | null = null): boolean {
     const key = `${orch.id}:${task.id}`;
-    try {
-      const prepared = orch.worktree && !task.cwd ? this.prepareWorktree(orch, task, worktreeName(orch, task)) : null;
-      // Planned before anything changes: a guard that cannot run fails the task without a process
-      const guards = this.guardPlan(orch, 'worker', this.runs.get(chatId)?.cwd ?? prepared?.cwd ?? task.cwd ?? orch.cwd, prepared ? task.worktree : null);
-      const prompt = nudge ?? this.continuation(orch, task);
-      const limits = effectiveLimits(orch.limits, task.limits);
-      // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
-      const remaining = remainingUsd(limits, task);
-      if (remaining !== null && remaining <= 0) {
-        throw new Error(`its cost limit of $${(limits?.maxCostUsd ?? 0).toFixed(2)} is spent`);
-      }
-      task.status = 'running';
-      // A continuation for work still owed is not a new attempt: nothing failed
-      if (nudge === null) task.attempts += 1;
-      task.startedAt ??= now();
-      if (!task.clockStartedAt) startClock(task, now());
-      task.endedAt = null;
-      this.relaunching.add(key);
-      // The previous process may still be on its way out, and a chat has one process at most
-      void this.runs.exited(chatId).then(() => {
-        this.relaunching.delete(key);
-        if (task.status !== 'running') return; // stopped meanwhile
-        try {
-          this.runs.resume(chatId, { prompt, purpose: 'orchestration', queued: true, guards, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
-          // The chat has answered before: only a result after this call is this attempt's
-          void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result));
-          task.error = null;
-        } catch (err) {
-          task.status = 'pending';
-          if (nudge === null) task.attempts -= 1;
-          this.refuse(orch, task, err, 'run the task again');
-        }
-        this.persist();
-      });
-      return true;
-    } catch (err) {
-      return this.refuse(orch, task, err, 'run the task again');
+    const limits = effectiveLimits(orch.limits, task.limits);
+    // The CLI's ceiling is per process, so an attempt gets what the allowance has left, not all of it again
+    const remaining = remainingUsd(limits, task);
+    if (remaining !== null && remaining <= 0) {
+      return this.refuse(orch, task, new Error(`its cost limit of $${(limits?.maxCostUsd ?? 0).toFixed(2)} is spent`), 'run the task again');
     }
+    const was = task.status;
+    const stamp = this.stampAttempt(orch, task);
+    task.status = 'running';
+    // A continuation for work still owed is not a new attempt: nothing failed
+    if (nudge === null) task.attempts += 1;
+    task.startedAt ??= now();
+    if (!task.clockStartedAt) startClock(task, now());
+    task.endedAt = null;
+    this.relaunching.add(key);
+    // The previous process may still be on its way out, and a chat has one process at most
+    void this.runs.exited(chatId).then(async () => {
+      try {
+        const prepared = orch.worktree && !task.cwd ? await this.prepareWorktree(orch, task, worktreeName(orch, task)) : null;
+        if (!this.attemptCurrent(orch, task, stamp)) return; // stopped meanwhile
+        // Planned before the process: a guard that cannot run fails the task without one
+        const guards = this.guardPlan(orch, 'worker', this.runs.get(chatId)?.cwd ?? prepared?.cwd ?? task.cwd ?? orch.cwd, prepared ? task.worktree : null);
+        const prompt = nudge ?? this.continuation(orch, task);
+        this.runs.resume(chatId, { prompt, purpose: 'orchestration', queued: true, guards, ...(remaining !== null ? { maxBudgetUsd: remaining } : {}) });
+        // The chat has answered before: only a result after this call is this attempt's
+        void this.runs.nextResult(chatId).then((result) => this.settle(orch, task, result, stamp));
+        task.error = null;
+      } catch (err) {
+        if (!this.attemptCurrent(orch, task, stamp)) return;
+        task.status = was;
+        if (nudge === null) task.attempts -= 1;
+        this.refuse(orch, task, err, 'run the task again');
+      } finally {
+        this.relaunching.delete(key);
+        this.persist();
+      }
+    });
+    return true;
   }
 
   /**
-   * What a failed launch does. The global run limit is the one transient failure: the task stays
-   * pending and is tried again shortly. Everything else used to be swallowed and retried for ever,
+   * Starts one of the graph's own runs (its integrator, its synthesis), waiting while the refusal is a
+   * place that frees up by itself, as the review gate's runs do; a stop of the graph ends the wait.
+   */
+  private whenAdmitted<T>(orch: Orchestration, start: () => T): Promise<T> {
+    let wait = this.placeWaits.get(orch.id);
+    if (!wait || wait.signal.aborted) {
+      wait = new AbortController();
+      this.placeWaits.set(orch.id, wait);
+    }
+    return startWhenAdmitted(start, { signal: wait.signal });
+  }
+
+  /** Ends whatever of the graph waits for a place. */
+  private endPlaceWaits(id: string): void {
+    this.placeWaits.get(id)?.abort(new Error('stopped while it waited for a place to run'));
+    this.placeWaits.delete(id);
+  }
+
+  /**
+   * Starts a new attempt of the task and returns its stamp. A result, a refusal or a prepared worktree
+   * that arrives for an older stamp belongs to an attempt that was stopped since: a Stop then a
+   * Resume within seconds must not let the stopped process's last word settle the resumed task.
+   */
+  private stampAttempt(orch: Orchestration, task: OrchestrationTaskState): number {
+    const stamp = ++this.attemptSeq;
+    this.attemptStamps.set(`${orch.id}:${task.id}`, stamp);
+    return stamp;
+  }
+
+  /** Whether the attempt of this stamp is still the task's running one. */
+  private attemptCurrent(orch: Orchestration, task: OrchestrationTaskState, stamp: number): boolean {
+    return task.status === 'running' && this.attemptStamps.get(`${orch.id}:${task.id}`) === stamp;
+  }
+
+  /** The stamp of the task's running attempt, which a turn that goes on within it (a limit's replay) carries on. */
+  private currentStamp(orch: Orchestration, task: OrchestrationTaskState): number {
+    return this.attemptStamps.get(`${orch.id}:${task.id}`) ?? this.stampAttempt(orch, task);
+  }
+
+  /** Ends the task's attempt: whatever it still had armed (a result, a prepared worktree) settles nothing. */
+  private endAttempt(orch: Orchestration, task: OrchestrationTaskState): void {
+    this.attemptStamps.delete(`${orch.id}:${task.id}`);
+  }
+
+  /**
+   * What a failed launch does. A place that frees up by itself is the one transient failure: the task
+   * stays pending and is tried again shortly. Everything else used to be swallowed and retried for ever,
    * which left a graph reporting itself as running with nothing running and no way to find out why;
    * it fails visibly, and a person decides.
    */
   private refuse(orch: Orchestration, task: OrchestrationTaskState, err: unknown, doing: string): false {
-    const message = err instanceof Error ? err.message : String(err);
-    // A place that frees up by itself: the count of chats, the memory the machine gets back, a place
-    // kept for a person's chat (`QUEUE_YIELD_PREFIX`), or a guard self-test
-    if (message.includes('Concurrent run limit') || message.startsWith(RESOURCE_REFUSAL_PREFIX) || message.startsWith(QUEUE_YIELD_PREFIX) || err instanceof GuardSelfTestPending) {
-      this.scheduleLater(orch, 3000);
+    const message = errorMessage(err);
+    this.endAttempt(orch, task);
+    // The count of chats, the memory the machine gets back, a place kept for a person's chat, or a guard self-test
+    if (isTransientRefusal(err) || err instanceof GuardSelfTestPending) {
+      this.scheduleLater(orch, SLOT_RETRY_MS);
       return false;
     }
     task.status = 'failed';
@@ -1531,13 +1683,13 @@ ${quoted}
   /** Chats whose next result a task already listens for: a limit and the end of its wait both ask, and one result is settled once. */
   private readonly following = new Set<string>();
 
-  private followNextResult(orch: Orchestration, task: OrchestrationTaskState, chatId: string): void {
+  private followNextResult(orch: Orchestration, task: OrchestrationTaskState, chatId: string, stamp: number): void {
     if (this.following.has(chatId)) return;
     this.following.add(chatId);
     void this.runs.nextResult(chatId).then(
       (result) => {
         this.following.delete(chatId);
-        this.settle(orch, task, result);
+        this.settle(orch, task, result, stamp);
       },
       () => void this.following.delete(chatId),
     );
@@ -1548,8 +1700,9 @@ ${quoted}
    * the task has used its attempts; what a retry cannot mend (a budget that ran out, a task stopped
    * on purpose, a rate limit that account rotation handles) is not tried again at all.
    */
-  private settle(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): void {
-    if (task.status !== 'running') return; // stopped meanwhile
+  private settle(orch: Orchestration, task: OrchestrationTaskState, result: RunResult, stamp: number): void {
+    // Stopped meanwhile, or the last word of an attempt that was stopped and has been started again since
+    if (!this.attemptCurrent(orch, task, stamp)) return;
     // The usage limit is the rotation's: it waits for the reset in this chat (`waitEnded` listens for
     // the replayed turn) or moves the task to a new chat (`moved`). Not a failure, not an attempt
     // The usage limit is the rotation's either way: it moves the chat to another account and replays the
@@ -1560,14 +1713,14 @@ ${quoted}
     // at its weekly limit, held the graph for 50 minutes)
     if (result.isError && result.cause === 'rate-limit' && task.runId) {
       this.charge(orch, task, result);
-      this.followNextResult(orch, task, task.runId);
+      this.followNextResult(orch, task, task.runId, stamp);
       return this.persist();
     }
     const deciding = this.decide(orch, task, result);
     if (!deciding) return this.settleNow(orch, task, result, {});
     void deciding.then((verdict) => {
       // A decision that took its time may have been overtaken by a stop
-      if (task.status === 'running') this.settleNow(orch, task, result, verdict);
+      if (this.attemptCurrent(orch, task, stamp)) this.settleNow(orch, task, result, verdict);
     });
   }
 
@@ -1756,7 +1909,7 @@ ${quoted}
     task.waiting = null;
     if (end === 'resumed') {
       // The turn was sent just before this: only a result after it is the task's next
-      this.followNextResult(orch, task, move.fromChat);
+      this.followNextResult(orch, task, move.fromChat, this.currentStamp(orch, task));
       return this.persist();
     }
     task.status = end === 'cancelled' ? 'stopped' : 'failed';
@@ -1826,8 +1979,10 @@ ${quoted}
     const task = orch?.tasks.find((t) => t.runId === chatId);
     // The result of a running task is settle's to record
     if (!orch || !task || task.status === 'running') return;
-    // A branch given up stays given up, whatever the chat does; only its cost is still owed
-    if (task.status === 'skipped') {
+    // A branch given up stays given up, whatever the chat does; only its cost is still owed. So does a
+    // task Claudio or a person ended by stopping its chat (its time limit, a stop): the stop's own result
+    // says only that the process ended, and the reason the task carries is the one worth reading
+    if (task.status === 'skipped' || (result.cause === 'stopped' && (task.status === 'failed' || task.status === 'stopped'))) {
       this.charge(orch, task, result);
       return this.persist();
     }
@@ -1879,6 +2034,18 @@ ${quoted}
     }
   }
 
+  /** {@link commitTask} off the event loop, for the integration, which a request (a retried integration) reaches. */
+  private async commitTaskAsync(orch: Orchestration, task: OrchestrationTaskState): Promise<void> {
+    if (!task.worktree || !existsSync(task.worktree)) return;
+    try {
+      if ((await mergeInProgressAsync(task.worktree)) && (await conflictedPathsAsync(task.worktree)).length > 0) return;
+      const commit = await commitAllAsync(task.worktree, `${task.name}\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}), task ${task.id}.`);
+      if (commit) task.commit = commit;
+    } catch (err) {
+      task.error = `the work was left uncommitted: ${(err as Error).message}`;
+    }
+  }
+
   /**
    * Builds the one branch a worktree graph delivers: every completed task's branch merged, in
    * dependency order, into `claudio/<name>` from the commit the graph started on. A conflict is
@@ -1892,7 +2059,7 @@ ${quoted}
     let root: string;
     let home: string;
     try {
-      ({ root, home } = checkoutOf(orch.cwd));
+      ({ root, home } = await checkoutOfAsync(orch.cwd));
     } catch {
       root = home = orch.cwd; // no longer a repository: adding the worktree below says so on the record
     }
@@ -1914,40 +2081,46 @@ ${quoted}
     this.persist();
     try {
       // Graphs from before tasks were committed on completion still have their work loose
-      for (const task of tasks) this.commitTask(orch, task);
-      addWorktree(root, path, branch, orch.baseCommit ?? 'HEAD');
-      if (mergeInProgress(path)) abortMerge(path); // a previous attempt stopped half way
+      for (const task of tasks) await this.commitTaskAsync(orch, task);
+      await addWorktreeAsync(root, path, branch, orch.baseCommit ?? 'HEAD');
+      if (await mergeInProgressAsync(path)) await abortMergeAsync(path); // a previous attempt stopped half way
 
       const unmerged: OrchestrationTaskState[] = [];
       for (const task of tasks) {
         const taskBranch = task.branch as string;
-        if (!branchExists(root, taskBranch)) continue; // the CLI removes a worktree that changed nothing
-        if (contains(path, taskBranch)) {
+        if (!(await branchExistsAsync(root, taskBranch))) continue; // the CLI removes a worktree that changed nothing
+        if (await containsAsync(path, taskBranch)) {
           state.merged.push(task.id);
           continue;
         }
-        const paths = merge(path, taskBranch, `Merge task ${task.id}: ${task.name}`);
+        const paths = await mergeAsync(path, taskBranch, `Merge task ${task.id}: ${task.name}`);
         if (!paths) {
           state.merged.push(task.id);
           continue;
         }
-        abortMerge(path);
+        await abortMergeAsync(path);
         state.conflicts.push({ taskId: task.id, paths });
         unmerged.push(task);
       }
       if (unmerged.length > 0) await this.resolveConflicts(orch, state, unmerged);
 
-      const left = tasks.filter((t) => t.branch && branchExists(root, t.branch) && !contains(path, t.branch));
-      if (left.length > 0 || mergeInProgress(path) || conflictedPaths(path).length > 0) {
+      const left: OrchestrationTaskState[] = [];
+      const present: OrchestrationTaskState[] = [];
+      for (const t of tasks) {
+        if (!t.branch || !(await branchExistsAsync(root, t.branch))) continue;
+        present.push(t);
+        if (!(await containsAsync(path, t.branch))) left.push(t);
+      }
+      if (left.length > 0 || (await mergeInProgressAsync(path)) || (await conflictedPathsAsync(path)).length > 0) {
         state.status = 'conflicted';
         state.error = left.length
           ? `not merged: ${left.map((t) => t.id).join(', ')}`
           : 'the integration branch has an unfinished merge';
       } else {
-        state.merged = tasks.filter((t) => t.branch && branchExists(root, t.branch)).map((t) => t.id);
+        state.merged = present.map((t) => t.id);
         state.status = 'merged';
       }
-      state.commit = headCommit(path);
+      state.commit = await headCommitAsync(path);
     } catch (err) {
       state.status = 'failed';
       state.error = (err as Error).message;
@@ -1963,7 +2136,9 @@ ${quoted}
     state.status = 'resolving';
     const integrationDir = state.worktree ?? orch.cwd;
     const guards = this.guardPlan(orch, 'integration', integrationDir, state.worktree);
-    const run = this.runs.start(
+    this.persist();
+    // A slot taken now frees within moments: the integration waits for it rather than fail the graph's last step
+    const run = await this.whenAdmitted(orch, () => this.runs.start(
       {
         prompt:
           `You are integrating the work of a multi-agent orchestration into one branch.\n` +
@@ -1995,7 +2170,7 @@ ${quoted}
         keepAlive: false,
       },
       { orchestrationId: orch.id, orchestrationTaskId: '__integration__' },
-    );
+    ));
     state.integratorRunId = run.id;
     this.persist();
     const result = await this.runs.waitForResult(run.id);
@@ -2032,7 +2207,7 @@ ${quoted}
     try {
       const synthesisDir = onBranch ? this.integratedDir(orch, integration.worktree as string) : orch.cwd;
       const guards = this.guardPlan(orch, 'synthesis', synthesisDir, onBranch ? synthesisDir : null);
-      const run = this.runs.start(
+      const run = await this.whenAdmitted(orch, () => this.runs.start(
         {
           prompt:
             `Synthesize the results of a multi-agent orchestration into one final report.\n` +
@@ -2064,7 +2239,7 @@ ${quoted}
           keepAlive: false,
         },
         { orchestrationId: orch.id, orchestrationTaskId: '__synthesis__' },
-      );
+      ));
       // Kept so the report can be answered: it is a conversation like any other
       orch.synthesisRunId = run.id;
       this.persist();
@@ -2092,7 +2267,7 @@ ${quoted}
    */
   verify(id: string, req: VerifyOrchestrationRequest = {}): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('the checks run when the graph finishes: wait for it, or stop it first');
     if (orch.engine !== 'graph' || !orch.worktree) throw new Error('verification runs on the integration branch, which needs the graph engine with a worktree per task');
     if (this.verifying.has(orch.id)) throw new Error('the checks are already running');
@@ -2186,25 +2361,30 @@ ${quoted}
 
     const root = integration.worktree;
     const control: VerificationControl = { cancelled: false, commands: new Set(), fixerRunId: null, reviewRunIds: new Set(), abort: new AbortController() };
-    this.verifying.set(orch.id, control);
-    const startHead = headCommit(root);
-    // A repository reviewed with no checks has nothing to install for
-    const install = spec.commands.length === 0 ? null : installStep(spec, root, this.integratedDir(orch, root));
     const state: VerificationState = (orch.verification = {
       status: 'running',
       startedAt: now(),
       endedAt: null,
       fixes: [],
       attempts: 0,
-      commands: [...(install ? [{ ...pendingCommand(install.command), install: true }] : []), ...checkRows(spec)],
+      commands: checkRows(spec),
       commits: [],
-      commit: startHead,
+      commit: integration.commit,
       report: '',
       costUsd: 0,
       ...(spec.review ? { review: this.reviewState(spec.review) } : {}),
     });
-    this.persist();
+    // Taken inside the try: a step that throws before the checks start (git reading the head, the
+    // install's detection) must still let go of the graph, or it refuses verify, resume, remove and
+    // retry with "checks are running" until a restart
     try {
+      this.verifying.set(orch.id, control);
+      const startHead = await headCommitAsync(root);
+      state.commit = startHead;
+      // A repository reviewed with no checks has nothing to install for
+      const install = spec.commands.length === 0 ? null : installStep(spec, root, this.integratedDir(orch, root));
+      if (install) state.commands = [{ ...pendingCommand(install.command), install: true }, ...state.commands];
+      this.persist();
       await this.checkAll(orch, spec, state, root, startHead, install, control);
       if (spec.review && state.review) {
         if (state.status === 'passed' || state.status === 'fixed') {
@@ -2233,7 +2413,7 @@ ${quoted}
       this.verifying.delete(orch.id);
     }
     try {
-      state.commit = headCommit(root);
+      state.commit = await headCommitAsync(root);
       // What the fixer committed is part of the branch now
       integration.commit = state.commit;
     } catch {
@@ -2427,6 +2607,13 @@ ${quoted}
         left,
         control,
       );
+      if (attempt.notStarted !== null) {
+        // A fixer that never started is not an attempt: what the checks are owed is said as it is
+        for (const f of failed) spent[f.i] = Math.max(0, (spent[f.i] ?? 1) - 1);
+        state.attempts -= 1;
+        if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
+        return conclude('failed', `${named}, and the fixer could not start (${attempt.notStarted}), so Claudio stopped there.`);
+      }
       notes.push({ covers, note: attempt.note });
       fixerStop = attempt.stop;
       state.commits = commitsSince(root, startHead);
@@ -2523,7 +2710,7 @@ ${quoted}
     earlier: string[],
     budgetUsd: number | null,
     control: VerificationControl,
-  ): Promise<{ note: string; budget: boolean; stop: { kind: FixStopKind; note: string } | null }> {
+  ): Promise<{ note: string; budget: boolean; stop: { kind: FixStopKind; note: string } | null; notStarted: string | null }> {
     const checks = failures.map(({ index, failure }) => {
       const entry = state.commands[index] as VerificationCommand;
       return { command: entry.command, failure: `It ${failure}.`, output: entry.output };
@@ -2534,9 +2721,11 @@ ${quoted}
     // One attempt can be at a parallel group's failed checks: the record names every one
     const record: VerificationFix = { runId: null, command: checks.map((c) => c.command).join('; '), attempt: state.attempts, startedAt: now(), endedAt: null, costUsd: 0 };
     (state.fixes ??= []).push(record);
+    let run: ChatRuntime;
     try {
       const guards = this.guardPlan(orch, 'verification-fixer', dir, dir);
-      const run = this.runs.start(
+      // A slot taken now frees within moments; the wait is bounded by the checks' own time and ended by a stop
+      run = await startWhenAdmitted(() => this.runs.start(
         {
           prompt: fixerPrompt({
             objective: orch.objective ?? orch.name,
@@ -2571,7 +2760,14 @@ ${quoted}
           ...(budgetUsd !== null ? { maxBudgetUsd: budgetUsd } : {}),
         },
         { orchestrationId: orch.id, orchestrationTaskId: '__verification__' },
-      );
+      ), { signal: control.abort.signal, deadline: Date.now() + (spec.timeoutMinutes ?? DEFAULT_VERIFY_MINUTES) * 60_000 });
+    } catch (err) {
+      // Never started: not an attempt, and nothing it could have left behind to commit
+      state.fixes = state.fixes.filter((f) => f !== record);
+      const why = control.cancelled ? 'stopped' : isTransientRefusal(err) ? `no place came free in time (${err.message})` : (err as Error).message;
+      return { note: `the fixer could not start: ${why}`, budget: false, stop: null, notStarted: why };
+    }
+    try {
       control.fixerRunId = run.id;
       // Kept past the attempt, so the fixer's chat stays findable from the graph
       record.runId = run.id;
@@ -2604,7 +2800,7 @@ ${quoted}
     } catch {
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
-    return { note: tail(note, 1500), budget, stop };
+    return { note: tail(note, 1500), budget, stop, notStarted: null };
   }
 
 
@@ -2643,7 +2839,7 @@ ${quoted}
             purpose: 'orchestration',
             name: `${orch.name}:${req.name}`.slice(0, 60),
           },
-          { orchestrationId: orch.id, orchestrationTaskId: REVIEW_ROLE_ID },
+          { orchestrationId: orch.id, orchestrationTaskId: REVIEW_CHAT_ROLE },
         );
         control.reviewRunIds.add(run.id);
         return run.id;
@@ -2680,7 +2876,7 @@ ${quoted}
     } catch {
       return 'full';
     }
-    const asked = this.ask('review.depth', { kind: 'task', id: `${orch.id}:__review__`, data }, projectId);
+    const asked = this.ask('review.depth', { kind: 'task', id: `${orch.id}:${REVIEW_CHAT_ROLE}`, data }, projectId);
     if (stance === 'watch') {
       this.track(asked);
       return 'full';
@@ -2959,7 +3155,7 @@ ${quoted}
           keepAlive: false,
           maxBudgetUsd: budgetUsd,
         },
-        { orchestrationId: orch.id, orchestrationTaskId: REVIEW_ROLE_ID },
+        { orchestrationId: orch.id, orchestrationTaskId: REVIEW_CHAT_ROLE },
       );
       control.fixerRunId = run.id;
       record.runId = run.id;
@@ -3124,7 +3320,7 @@ ${quoted}
   /** Integrates a finished graph again: after resolving by hand, or one from before this existed. */
   retryIntegration(id: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running') throw new Error('the orchestration is still running');
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks, and integrates once they are settled');
     if (orch.integration && ['merging', 'resolving'].includes(orch.integration.status)) return orch;
@@ -3154,7 +3350,7 @@ ${quoted}
    */
   async pullRequest(id: string): Promise<{ branch: string; url: string | null; detail: string; pullRequest: OrchestrationPullRequest | null }> {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     const integration = orch.integration;
     if (integration?.status !== 'merged') throw new Error('the orchestration has no integrated branch yet');
     if (integration.pullRequestUrl) return { branch: integration.branch, url: integration.pullRequestUrl, detail: 'already open', pullRequest: this.pullRequests?.newest(orch.id) ?? null };
@@ -3234,7 +3430,7 @@ ${quoted}
    */
   private async draftFrom(runId: string): Promise<OrchestrationSpec> {
     const run = this.runs.get(runId);
-    if (!run) throw new Error('run not found');
+    if (!run) throw new NotFoundError('run not found');
     if (run.name !== PLANNER_RUN_NAME) throw new Error('that run is not a planner run');
     const result = await this.runs.waitForResult(runId);
     if (result.isError) throw new Error(`planner failed: ${result.result}`);
@@ -3314,7 +3510,7 @@ ${quoted}
    */
   pruneWorktrees(id: string, opts: { force?: boolean } = {}): Array<{ task: string; removed: boolean; detail: string }> {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before removing its worktrees');
     const out: Array<{ task: string; removed: boolean; detail: string }> = [];
     const places: Array<{ id: string; path: string | null | undefined; branch: string | null | undefined; clear: () => void }> = [
@@ -3345,7 +3541,7 @@ ${quoted}
    */
   remove(id: string): void {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.status === 'running' || orch.status === 'waiting') throw new Error('stop the orchestration before deleting it');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const kept = this.pruneWorktrees(id, { force: false }).filter((r) => !r.removed);
@@ -3355,8 +3551,27 @@ ${quoted}
       );
     }
     this.items.delete(id);
+    this.forget(id);
     this.db.deleteOrchestration(id);
     this.announce();
+  }
+
+  /** Drops what the orchestrator keeps in memory about a graph that is gone, so a long-lived server does not grow with every one deleted. */
+  private forget(id: string): void {
+    this.clearWorkflowWatcher(id);
+    this.endPlaceWaits(id);
+    const scheduled = this.scheduled.get(id);
+    if (scheduled) {
+      clearTimeout(scheduled.timer);
+      this.timers.delete(scheduled.timer);
+      this.scheduled.delete(id);
+    }
+    for (const map of [this.workflowBaseline, this.journalFrom, this.journalTasks, this.workflowGrowth, this.journalBytes, this.followedAt]) map.delete(id);
+    for (const set of [this.recordEnded, this.lateArrivals, this.journalReading, this.finishing, this.workflowLaunching]) set.delete(id);
+    const prefix = `${id}:`;
+    for (const key of [...this.warned]) if (key.startsWith(prefix)) this.warned.delete(key);
+    for (const key of [...this.relaunching]) if (key.startsWith(prefix)) this.relaunching.delete(key);
+    for (const key of [...this.attemptStamps.keys()]) if (key.startsWith(prefix)) this.attemptStamps.delete(key);
   }
 
   /** Plans that can still be launched, newest first. */
@@ -3374,11 +3589,11 @@ ${quoted}
     refusal = (task: OrchestrationTaskState) => `task ${task.id} is ${task.status}, so there is nothing to decide about it`,
   ): { orch: Orchestration; task: OrchestrationTaskState } {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
     if (orch.status !== 'running' && orch.status !== 'waiting') throw new Error(`the orchestration is ${orch.status}: resume it instead`);
     const task = orch.tasks.find((t) => t.id === taskId);
-    if (!task) throw new Error('task not found');
+    if (!task) throw new NotFoundError('task not found');
     if (!allowed.includes(task.status)) throw new Error(refusal(task));
     return { orch, task };
   }
@@ -3467,13 +3682,13 @@ ${quoted}
    */
   rerunTask(id: string, taskId: string): Orchestration {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     if (orch.engine !== 'graph') throw new Error('a workflow runs its tasks as one session: resume it instead');
     if (orch.status === 'running') throw new Error('the orchestration is still running: stop it first, or wait for it to finish');
     if (orch.status === 'waiting') throw new Error('the orchestration is waiting for a decision on its tasks: retry or skip them instead');
     if (this.verifying.has(orch.id)) throw new Error('the checks are running on the integration branch: stop the orchestration first');
     const task = orch.tasks.find((t) => t.id === taskId);
-    if (!task) throw new Error('task not found');
+    if (!task) throw new NotFoundError('task not found');
     const redo = this.withDependants(orch, task);
     const busy = redo.find((t) => t.runId && this.runs.get(t.runId)?.pid);
     if (busy) throw new Error(`task ${busy.id} still has a process running: stop it first`);
@@ -3552,7 +3767,7 @@ ${quoted}
 
   /** Whether the CLI in this directory can run workflows, from what the latest run there loaded. */
   private workflowsAvailable(cwd: string): boolean {
-    const tools = this.runs.environments.get(cwd)?.tools;
+    const tools = this.runs.environments.ofDir(cwd)?.tools;
     // Unknown until a run has started there; the run that launches it will say so plainly if not
     return tools === undefined || tools.includes('Workflow');
   }
@@ -3619,6 +3834,7 @@ ${quoted}
             this.runs.send(previous.id, prompt);
             this.followWorkflow(orch, previous.id);
           })
+          .catch((err: unknown) => this.workflowRefused(orch, resumeFrom, err))
           .finally(() => this.workflowLaunching.delete(orch.id));
       } else {
         // No tool policy: the engine's own calls are none, but the subagents it spawns edit and run commands, and F10 shows their calls are hooked
@@ -3651,13 +3867,34 @@ ${quoted}
         this.followWorkflow(orch, run.id);
       }
     } catch (err) {
-      orch.status = 'failed';
-      orch.endedAt = now();
-      for (const t of orch.tasks) {
-        if (t.status === 'pending' || t.status === 'running') {
-          t.status = 'failed';
-          t.error = `could not start the workflow: ${err instanceof Error ? err.message : String(err)}`;
-        }
+      return this.workflowRefused(orch, resumeFrom, err);
+    }
+    this.persist();
+  }
+
+  /**
+   * A workflow's launch or resume was refused. A place that frees up by itself (a slot, memory, a
+   * place kept for a person) is waited for, and the launch tried again; anything else fails the graph
+   * with the reason, as a task's failed start does. Never throws: the resume runs detached, and a
+   * rejection there used to end the server.
+   */
+  private workflowRefused(orch: Orchestration, resumeFrom: string | null, err: unknown): void {
+    if (orch.status !== 'running') return;
+    if (isTransientRefusal(err)) {
+      const timer = setTimeout(() => {
+        this.timers.delete(timer);
+        if (orch.status === 'running' && !this.workflowWatchers.has(orch.id) && !this.workflowLaunching.has(orch.id)) this.launchWorkflow(orch, resumeFrom);
+      }, SLOT_RETRY_MS);
+      timer.unref();
+      this.timers.add(timer);
+      return this.persist();
+    }
+    orch.status = 'failed';
+    orch.endedAt = now();
+    for (const t of orch.tasks) {
+      if (t.status === 'pending' || t.status === 'running') {
+        t.status = 'failed';
+        t.error = `could not start the workflow: ${errorMessage(err)}`;
       }
     }
     this.persist();
@@ -4069,7 +4306,7 @@ ${quoted}
   /** The script a workflow graph runs, as generated from it. */
   workflowScript(id: string): { path: string; script: string } {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     const path = this.scriptPath(orch);
     // A graph edited or never launched as a workflow still has one: the graph compiles either way
     return { path, script: existsSync(path) ? readFileSync(path, 'utf8') : this.compile(orch) };
@@ -4078,7 +4315,7 @@ ${quoted}
   /** Keeps the graph as a workflow of the project, which the CLI can run by name from then on. */
   saveWorkflow(id: string, req: SaveOrchestrationWorkflowRequest = {}): WorkflowDefinition {
     const orch = this.items.get(id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     const name = req.name?.trim() || workflowName(orch.name);
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new Error('name must be lower case letters, digits and dashes');
     const dir = join(orch.cwd, '.claude', 'workflows');

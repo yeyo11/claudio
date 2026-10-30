@@ -1,10 +1,11 @@
 import { join } from 'node:path';
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
 import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@claudio/shared';
 import type {
   AgentReadEntry,
   AuditEntry,
   AuditFilter,
+  HealthSignalAgent,
   HealthSignalKind,
   AuditPage,
   ChatCompaction,
@@ -68,6 +69,57 @@ const KEEP_ROTATION_EVENTS = 2_000;
 export const KEEP_GUARD_EVENTS = 20_000;
 /** Agents' reads of teammates' copies kept: the newest rows */
 export const KEEP_AGENT_READS = 20_000;
+
+/**
+ * Every table that holds rows of one chat by its `chat_id`, beside `executions` (which goes with its
+ * chat by a foreign key). Deleting a chat, by hand or by the trim, deletes its rows in all of them:
+ * the trim used to delete only the chat and its executions, and a busy data dir kept every trimmed
+ * chat's transcript entries, notes and compactions for ever.
+ */
+const CHAT_ROW_TABLES = [
+  'chat_entries',
+  'chat_compactions',
+  'chat_notes',
+  'chat_uploads',
+  'chat_upload_scans',
+  'openai_conversations',
+  'openai_responses',
+  'openai_chat_prompts',
+] as const;
+
+/**
+ * The ones written only for a chat Claudio runs. `chat_uploads` and `chat_upload_scans` also hold
+ * what a scan found in a session started elsewhere, which has no row in `chats`, so a sweep of rows
+ * without a chat leaves those two alone; the trim, which knows the chat was ours, does not.
+ */
+const OWN_CHAT_ROW_TABLES = CHAT_ROW_TABLES.filter((t) => t !== 'chat_uploads' && t !== 'chat_upload_scans');
+
+/** Deletes the rows of chats that are no longer in `chats`, in the tables only Claudio's own chats write. */
+function sweepChatOrphans(db: DatabaseSync): void {
+  for (const table of OWN_CHAT_ROW_TABLES) db.exec(`DELETE FROM ${table} WHERE chat_id NOT IN (SELECT id FROM chats)`);
+}
+
+/** Statements prepared once per connection: `node:sqlite` keeps no cache, and the chat store's writes run on every turn of every chat. */
+const statementCache = new WeakMap<DatabaseSync, Map<string, StatementSync>>();
+
+/**
+ * The prepared statement of `sql` on this connection, prepared on first use and reused after. For
+ * fixed SQL on a hot path only: a statement built from values (an `IN (?, ?…)` of a varying length)
+ * would grow the cache with every shape.
+ */
+export function prepared(db: DatabaseSync, sql: string): StatementSync {
+  let byText = statementCache.get(db);
+  if (!byText) {
+    byText = new Map();
+    statementCache.set(db, byText);
+  }
+  let statement = byText.get(sql);
+  if (!statement) {
+    statement = db.prepare(sql);
+    byText.set(sql, statement);
+  }
+  return statement;
+}
 
 /**
  * Applied in order; `user_version` records how many have run, so each one is written once. A
@@ -180,7 +232,7 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
 
   // What the supervisor proposed when a worker's health turned bad. Rows, because they accumulate;
   // the unique key is the rule "once per signal per chat", held by the store and not by a map that
-  // a restart would empty.
+  // a restart would empty (keyed per occurrence by a later migration).
   `CREATE TABLE supervisor_proposals (
      id               TEXT PRIMARY KEY,
      chat_id          TEXT NOT NULL,
@@ -1482,6 +1534,61 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      FROM (SELECT * FROM audit WHERE actor = 'anonymous' ORDER BY id DESC LIMIT 1000)
      ORDER BY id;
    DELETE FROM audit WHERE actor = 'anonymous';`,
+  // The supervisor answers each occurrence of a signal, not each kind for ever (C3 of
+  // docs/plans/regression-fixes-2026-10-29.md): a second hang of a long lead chat is a new question.
+  // `occurrence` is the call the signal is about, else when it started; the rows before it keep ''
+  // and so still hold their kind for the chat, which is what they were asked about. The agent a
+  // signal named rides with its proposal, so the hint can say whose it is
+  `ALTER TABLE supervisor_proposals ADD COLUMN occurrence TEXT NOT NULL DEFAULT '';
+   ALTER TABLE supervisor_proposals ADD COLUMN agent TEXT;
+   DROP INDEX supervisor_proposals_signal;
+   CREATE UNIQUE INDEX supervisor_proposals_occurrence ON supervisor_proposals (chat_id, signal, occurrence);`,
+  // What Claude loaded is a chat's, not its folder's: two chats in one folder load different servers
+  // and models (docs/plans/regression-fixes-2026-10-29.md, C5). Each row keyed by folder moves under
+  // the chat that last started there, which its JSON names; a row naming none has no chat to go to
+  `CREATE TABLE environments_by_chat (
+     chat_id     TEXT PRIMARY KEY,
+     cwd         TEXT NOT NULL,
+     observed_at TEXT NOT NULL,
+     json        TEXT NOT NULL
+   );
+   INSERT OR REPLACE INTO environments_by_chat (chat_id, cwd, observed_at, json)
+     SELECT json_extract(json, '$.chatId'), cwd, observed_at, json FROM environments
+     WHERE json_valid(json) AND coalesce(json_extract(json, '$.chatId'), '') <> '';
+   DROP TABLE environments;
+   ALTER TABLE environments_by_chat RENAME TO environments;
+   CREATE INDEX environments_cwd ON environments (cwd, observed_at DESC);`,
+  // What the listing learned of each Claude transcript (docs/plans/regression-fixes-2026-10-29.md,
+  // C7): the file as it was read and the fold over its complete lines, so a restart reads rows and
+  // goes on from `end_offset` instead of parsing every transcript on the machine again. The inode
+  // and the mtime are REAL: an inode past 2^53 reads back as the same JavaScript number it was
+  `CREATE TABLE transcript_folds (
+     path         TEXT PRIMARY KEY,
+     ino          REAL NOT NULL,
+     size         INTEGER NOT NULL,
+     mtime_ms     REAL NOT NULL,
+     end_offset   INTEGER NOT NULL,
+     fingerprint  BLOB NOT NULL,
+     summary_json TEXT NOT NULL,
+     updated_at   TEXT NOT NULL
+   );`,
+  // The rows the chat trim left behind before it deleted them with their chat (regression audit
+  // 2026-10-29, 9.8): once, here; from now on the trim takes them with the chat
+  sweepChatOrphans,
+
+  // An account's id is a string: the column was declared INTEGER for claude-swap's numbered accounts,
+  // and its affinity turned an id that looks like a number into one
+  `CREATE TABLE usage_history_text (
+     account TEXT NOT NULL,
+     window  TEXT NOT NULL,
+     at      TEXT NOT NULL,
+     pct     REAL NOT NULL,
+     PRIMARY KEY (account, window, at)
+   );
+   INSERT OR IGNORE INTO usage_history_text (account, window, at, pct) SELECT CAST(account AS TEXT), window, at, pct FROM usage_history;
+   DROP TABLE usage_history;
+   ALTER TABLE usage_history_text RENAME TO usage_history;
+   CREATE INDEX usage_history_at ON usage_history (at);`,
 ];
 
 /**
@@ -1565,13 +1672,18 @@ export const CONTEXT_CONTROL_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof
 export const REVIEW_GATE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE review_rounds')) + 1;
 /** The migration that added the lessons tables: a test starts a database from just before it */
 export const LESSONS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE lessons')) + 1;
-/** The migration that added the instruction evals' tables: a test starts a database from just before it */
-export const EVALS_V2_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_judgements')) + 1;
 export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE eval_runs')) + 1;
 /** The migration that added the Collaborators tables: a test starts a database from just before it */
 export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_records')) + 1;
 /** The migration that added the denied joins: a test starts a database from just before it */
 export const COLLAB_DENIALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_join_denials')) + 1;
+
+/** The migration that keyed the environments by chat: a test starts a database from just before it */
+export const ENVIRONMENTS_BY_CHAT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE environments_by_chat')) + 1;
+/** The migration that swept the rows the chat trim had left: a test starts a database from just before it */
+export const CHAT_ORPHAN_SWEEP_SCHEMA_VERSION = MIGRATIONS.indexOf(sweepChatOrphans) + 1;
+/** The migration that made `usage_history.account` TEXT */
+export const USAGE_ACCOUNT_TEXT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE usage_history_text')) + 1;
 
 /** The migration that gave audit rows their route: a test starts a database from just before it */
 export const AUDIT_ROUTE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ALTER TABLE audit ADD COLUMN route')) + 1;
@@ -1610,6 +1722,9 @@ export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
 
 /** Command runs kept across every kind; the newest few dozen of a kind are all "usual" ever looks at. */
 const KEEP_COMMANDS = 10_000;
+
+/** Chats whose own environment is kept besides each folder's newest: a few months of chats on a busy install */
+const KEEP_ENVIRONMENTS = 5_000;
 
 /** How a command ended: `cancelled` is a person's decision, and a command that hung and was cancelled is that. */
 export type CommandOutcome = 'ok' | 'error' | 'cancelled';
@@ -1960,8 +2075,13 @@ export class Db {
     return this.db;
   }
 
+  /**
+   * One write transaction. IMMEDIATE takes the write lock at the start: a deferred BEGIN that read
+   * first and wrote after could not upgrade while another process held the lock, and SQLite refuses
+   * that upgrade at once (SQLITE_BUSY) instead of waiting out `busy_timeout`.
+   */
   private tx<T>(fn: () => T): T {
-    this.db.exec('BEGIN');
+    this.db.exec('BEGIN IMMEDIATE');
     try {
       const out = fn();
       this.db.exec('COMMIT');
@@ -2006,15 +2126,10 @@ export class Db {
   /** Appends readings; one already stored for the same account, window and instant is left as it was. */
   appendUsagePoints(points: readonly UsageHistoryPoint[]): void {
     if (!points.length) return;
-    const insert = this.db.prepare('INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
-    this.db.exec('BEGIN');
-    try {
+    const insert = prepared(this.db, 'INSERT OR IGNORE INTO usage_history (account, window, at, pct) VALUES (?, ?, ?, ?)');
+    this.tx(() => {
       for (const p of points) insert.run(p.account, p.window, p.at, p.pct);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   /** The newest reading of one account's window, so a sampler can tell whether anything moved. */
@@ -2211,7 +2326,8 @@ export class Db {
    * rows another wrapper process wrote are not ours to drop.
    */
   private saveDocs(table: 'orchestrations', docs: Array<{ id: string; createdAt: string; value: unknown }>): void {
-    const upsert = this.db.prepare(
+    const upsert = prepared(
+      this.db,
       `INSERT INTO ${table} (id, created_at, json) VALUES (?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json`,
     );
@@ -2238,37 +2354,50 @@ export class Db {
    * creation time; the executions of a chat that goes, go with it. With `keep` null nothing is
    * trimmed: only a new chat can push an old one out.
    */
-  saveChats(chats: StoredChat[], keep: number | null): void {
-    const upsertChat = this.db.prepare(
+  /**
+   * Saves the given chats with their executions and trims the table to the newest `keep` chats by
+   * creation time; a chat that goes takes all of its rows with it (`CHAT_ROW_TABLES`). With `keep`
+   * null nothing is trimmed: only a new chat can push an old one out. `protect` names the chats the
+   * caller still runs: an old chat resumed today is the oldest by creation, and the trim must not
+   * take the rows of a conversation that is going on. Returns the ids it trimmed.
+   */
+  saveChats(chats: StoredChat[], keep: number | null, protect: ReadonlySet<string> = new Set()): string[] {
+    const upsertChat = prepared(
+      this.db,
       `INSERT INTO chats (id, created_at, provider, json) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at, provider = excluded.provider, json = excluded.json`,
     );
-    const upsertExecution = this.db.prepare(
+    const upsertExecution = prepared(
+      this.db,
       `INSERT INTO executions (id, chat_id, started_at, json) VALUES (?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET started_at = excluded.started_at, json = excluded.json`,
     );
-    this.tx(() => {
+    return this.tx(() => {
       for (const { record, executions } of chats) {
         const provider = record.provider ?? LEGACY_PROVIDER;
         upsertChat.run(record.id, record.createdAt, provider, JSON.stringify({ ...record, provider }));
         for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
       }
-      if (keep !== null) this.db.prepare('DELETE FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').run(keep);
+      if (keep === null) return [];
+      const past = prepared(this.db, 'SELECT id FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').all(keep) as Array<{ id: string }>;
+      const trimmed = past.map((r) => r.id).filter((id) => !protect.has(id));
+      for (const id of trimmed) this.deleteChatRows(id);
+      return trimmed;
     });
   }
 
   deleteChat(id: string): void {
     this.tx(() => {
-      this.db.prepare('DELETE FROM chats WHERE id = ?').run(id);
-      this.db.prepare('DELETE FROM chat_entries WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM chat_compactions WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM chat_notes WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM chat_uploads WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM chat_upload_scans WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM openai_responses WHERE chat_id = ?').run(id);
-      this.db.prepare('DELETE FROM openai_chat_prompts WHERE chat_id = ?').run(id);
+      this.deleteChatRows(id);
+      // A deleted chat's environment goes with it; the trim leaves it, as a folder's last one
+      prepared(this.db, 'DELETE FROM environments WHERE chat_id = ?').run(id);
     });
+  }
+
+  /** The chat, its executions (by their foreign key) and its rows in every table that keeps them; the caller holds the transaction. */
+  private deleteChatRows(id: string): void {
+    prepared(this.db, 'DELETE FROM chats WHERE id = ?').run(id);
+    for (const table of CHAT_ROW_TABLES) prepared(this.db, `DELETE FROM ${table} WHERE chat_id = ?`).run(id);
   }
 
   // ---------- uploads a chat's messages attached ----------
@@ -2508,7 +2637,7 @@ export class Db {
    * second process replaying the same entries cannot duplicate them. Returns how many were new.
    */
   appendChatEntries(chatId: string, entries: ReadonlyArray<{ seq: number; at: string; entry: unknown }>): number {
-    const insert = this.db.prepare('INSERT INTO chat_entries (chat_id, seq, at, entry) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id, seq) DO NOTHING');
+    const insert = prepared(this.db, 'INSERT INTO chat_entries (chat_id, seq, at, entry) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id, seq) DO NOTHING');
     let added = 0;
     this.tx(() => {
       for (const e of entries) added += Number(insert.run(chatId, e.seq, e.at, JSON.stringify(e.entry)).changes);
@@ -2659,7 +2788,7 @@ export class Db {
   /** Which of `ids` are stored now: a trim, ours or another process's, may have taken one since it was saved. */
   storedChats(ids: readonly string[]): Set<string> {
     const found = new Set<string>();
-    const has = this.db.prepare('SELECT 1 FROM chats WHERE id = ?');
+    const has = prepared(this.db, 'SELECT 1 FROM chats WHERE id = ?');
     for (const id of ids) if (has.get(id)) found.add(id);
     return found;
   }
@@ -2690,9 +2819,30 @@ export class Db {
     return out;
   }
 
+  /** One stored chat with its executions oldest first, or null when it is not stored (never was, or trimmed). */
+  loadChat(id: string): StoredChat | null {
+    const row = prepared(this.db, 'SELECT provider, json FROM chats WHERE id = ?').get(id) as (JsonRow & { provider: string }) | undefined;
+    if (!row) return null;
+    let record: ChatRecord;
+    try {
+      record = { ...(JSON.parse(row.json) as ChatRecord), provider: row.provider };
+    } catch {
+      return null;
+    }
+    const executions: Execution[] = [];
+    for (const e of prepared(this.db, 'SELECT json FROM executions WHERE chat_id = ? ORDER BY started_at ASC').all(id) as unknown as JsonRow[]) {
+      try {
+        executions.push(JSON.parse(e.json) as Execution);
+      } catch {
+        // an execution that cannot be read leaves a gap in the history, not in the chat
+      }
+    }
+    return { record, executions };
+  }
+
   /** When a stored chat was last heard from, which is when an execution a restart cut off stopped. */
   chatUpdatedAt(id: string): string | null {
-    const row = this.db.prepare('SELECT json FROM chats WHERE id = ?').get(id) as JsonRow | undefined;
+    const row = prepared(this.db, 'SELECT json FROM chats WHERE id = ?').get(id) as JsonRow | undefined;
     if (!row) return null;
     try {
       return (JSON.parse(row.json) as ChatRecord).updatedAt;
@@ -2719,12 +2869,11 @@ export class Db {
   // ---------- daily spend ledger ----------
 
   addSpend(row: SpendRow): void {
-    this.db
-      .prepare(
-        `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId);
+    prepared(
+      this.db,
+      `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId);
   }
 
   /** What the ledger holds in `[from, to)`, by purpose and account kind, and how many results carried no cost. */
@@ -2754,12 +2903,11 @@ export class Db {
   // ---------- model context windows ----------
 
   saveModelWindow(model: string, context: number): void {
-    this.db
-      .prepare(
-        `INSERT INTO model_windows (model, context, observed_at) VALUES (?, ?, ?)
-         ON CONFLICT(model) DO UPDATE SET context = excluded.context, observed_at = excluded.observed_at`,
-      )
-      .run(model, context, new Date().toISOString());
+    prepared(
+      this.db,
+      `INSERT INTO model_windows (model, context, observed_at) VALUES (?, ?, ?)
+       ON CONFLICT(model) DO UPDATE SET context = excluded.context, observed_at = excluded.observed_at`,
+    ).run(model, context, new Date().toISOString());
   }
 
   /** The window the CLI last reported for this exact model id; null when it never has. */
@@ -2792,21 +2940,60 @@ export class Db {
 
   // ---------- effective environments ----------
 
-  saveEnvironment(env: EffectiveEnvironment): void {
-    this.db
-      .prepare(
-        `INSERT INTO environments (cwd, observed_at, json) VALUES (?, ?, ?)
-         ON CONFLICT(cwd) DO UPDATE SET observed_at = excluded.observed_at, json = excluded.json`,
-      )
-      .run(env.cwd, env.observedAt, JSON.stringify(env));
+  /**
+   * A chat's latest snapshot: one row per chat, replaced by each of its processes. Past `keep` rows,
+   * not counting each folder's newest, the oldest go, so the table does not grow with every chat ever
+   * started; a chat whose row went shows its folder's last, labelled as such.
+   */
+  saveEnvironment(env: EffectiveEnvironment, keep = KEEP_ENVIRONMENTS): void {
+    this.tx(() => {
+      this.db
+        .prepare(
+          `INSERT INTO environments (chat_id, cwd, observed_at, json) VALUES (?, ?, ?, ?)
+           ON CONFLICT(chat_id) DO UPDATE SET cwd = excluded.cwd, observed_at = excluded.observed_at, json = excluded.json`,
+        )
+        .run(env.chatId, env.cwd, env.observedAt, JSON.stringify(env));
+      this.db
+        .prepare(
+          `DELETE FROM environments WHERE chat_id IN (
+             SELECT chat_id FROM environments e
+             WHERE observed_at < (SELECT MAX(observed_at) FROM environments WHERE cwd = e.cwd)
+             ORDER BY observed_at DESC LIMIT -1 OFFSET ?
+           )`,
+        )
+        .run(keep);
+    });
   }
 
+  /** What a chat's last process loaded; null when no process of it started here */
+  environmentOf(chatId: string): EffectiveEnvironment | null {
+    const row = this.db.prepare('SELECT json FROM environments WHERE chat_id = ?').get(chatId) as { json: string } | undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(row.json) as EffectiveEnvironment;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Each folder's latest snapshot, newest first: what a folder's panel shows before a chat starts there */
   loadEnvironments(): EffectiveEnvironment[] {
-    const rows = this.db.prepare('SELECT json FROM environments ORDER BY observed_at DESC').all() as unknown as Array<{ json: string }>;
+    const rows = this.db
+      .prepare(
+        `SELECT json FROM environments e
+         WHERE observed_at = (SELECT MAX(observed_at) FROM environments WHERE cwd = e.cwd)
+         ORDER BY observed_at DESC`,
+      )
+      .all() as unknown as Array<{ json: string }>;
     const out: EffectiveEnvironment[] = [];
+    const seen = new Set<string>();
     for (const row of rows) {
       try {
-        out.push(JSON.parse(row.json) as EffectiveEnvironment);
+        const env = JSON.parse(row.json) as EffectiveEnvironment;
+        // Two chats observed at the same instant in one folder: the first is the folder's
+        if (seen.has(env.cwd)) continue;
+        seen.add(env.cwd);
+        out.push(env);
       } catch {
         // an unreadable row just drops out of the panel
       }
@@ -2865,14 +3052,14 @@ export class Db {
 
   // ---------- supervisor proposals ----------
 
-  /** False when the chat already has one for that signal: the supervisor answers each signal once. */
+  /** False when the chat already has one for that occurrence of the signal: the supervisor answers each once. */
   saveProposal(p: SupervisorProposal): boolean {
     const result = this.db
       .prepare(
-        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, hint, cost_usd, at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, occurrence, agent, hint, cost_usd, at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.hint, p.costUsd, p.at, p.status);
+      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.occurrence ?? '', p.agent ? JSON.stringify(p.agent) : null, p.hint, p.costUsd, p.at, p.status);
     return Number(result.changes) > 0;
   }
 
@@ -3210,10 +3397,30 @@ interface ProposalRow {
   task_id: string | null;
   orchestration_id: string | null;
   signal: string;
+  occurrence: string;
+  agent: string | null;
   hint: string;
   cost_usd: number;
   at: string;
   status: string;
+}
+
+/** The agent a proposal named, as stored; a row that does not read as one names none */
+function agentOfRow(text: string | null): { agent: HealthSignalAgent } | null {
+  if (!text) return null;
+  try {
+    const value = JSON.parse(text) as Partial<HealthSignalAgent> | null;
+    if (!value || typeof value.parentToolUseId !== 'string') return null;
+    return {
+      agent: {
+        parentToolUseId: value.parentToolUseId,
+        ...(typeof value.description === 'string' ? { description: value.description } : {}),
+        ...(typeof value.subagentType === 'string' ? { subagentType: value.subagentType } : {}),
+      },
+    };
+  } catch {
+    return null;
+  }
 }
 
 function proposalOf(row: ProposalRow): SupervisorProposal {
@@ -3223,6 +3430,8 @@ function proposalOf(row: ProposalRow): SupervisorProposal {
     ...(row.task_id ? { taskId: row.task_id } : {}),
     ...(row.orchestration_id ? { orchestrationId: row.orchestration_id } : {}),
     signal: row.signal as HealthSignalKind,
+    ...(row.occurrence ? { occurrence: row.occurrence } : {}),
+    ...(agentOfRow(row.agent) ?? {}),
     hint: row.hint,
     costUsd: row.cost_usd,
     at: row.at,
@@ -3510,8 +3719,9 @@ export class CollabStore {
     return rows.map(agentReadOf);
   }
 
+  /** IMMEDIATE for the same reason as `Db.tx`: a deferred transaction that reads before it writes cannot wait for the lock */
   private tx<T>(fn: () => T): T {
-    this.sql.exec('BEGIN');
+    this.sql.exec('BEGIN IMMEDIATE');
     try {
       const out = fn();
       this.sql.exec('COMMIT');

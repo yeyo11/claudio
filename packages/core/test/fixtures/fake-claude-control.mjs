@@ -11,6 +11,8 @@
 //                  is killed, or a plain one when it ends: what a hung command a person cancels looks like.
 //                  `wait $!`, not a bare `wait`: that one returns 0 whatever its child died of, so a
 //                  `sleep` killed before its shell made the shell exit cleanly and the call look done
+//   AGENT-SLEEP <seconds>  the same, run by a subagent the lead launched with an `Agent` call: the
+//                  Bash call and its result stream on the subagent's sidechain (`parent_tool_use_id`)
 //   STDERR <text>  writes <text> to stderr and a line that is not the protocol to stdout, then ends the turn
 //   ODD            asks for something no agent may: a control request of a subtype nobody handles, and
 //                  ends the turn with whatever answer it gets back, so a request left unanswered hangs it
@@ -129,12 +131,21 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: `toolu_bash_${randomUUID()}`, name: 'Bash', input: { command: bash[1] } }] } });
       return;
     }
-    const sleep = /^SLEEP (\d+)/m.exec(prompt);
+    const sleep = /^(AGENT-)?SLEEP (\d+)/m.exec(prompt);
     if (sleep) {
       const id = `toolu_sleep_${randomUUID()}`;
-      out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id, name: 'Bash', input: { command: `sleep ${sleep[1]}` } }] } });
+      const seconds = sleep[2];
+      // AGENT-SLEEP: the lead launches a subagent, and the subagent's Bash call runs the tree; its
+      // lines carry `parent_tool_use_id` as the CLI's sidechain does, and the tree is a child of this
+      // process all the same, since a subagent runs inside the CLI
+      const agentId = sleep[1] ? `toolu_agent_${randomUUID()}` : null;
+      if (agentId) {
+        out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: agentId, name: 'Agent', input: { description: 'Run the slow suite', subagent_type: 'general-purpose', prompt: 'run it' } }] } });
+      }
+      const parent = agentId ? { parent_tool_use_id: agentId } : {};
+      out({ type: 'assistant', session_id: sessionId, ...parent, message: { role: 'assistant', content: [{ type: 'tool_use', id, name: 'Bash', input: { command: `sleep ${seconds}` } }] } });
       // Its own process group, so that the fake going away takes the tree with it and no test leaves a `sleep` behind
-      const child = spawn('sh', ['-c', `sleep ${sleep[1]} & wait $!`], { stdio: 'ignore', detached: true });
+      const child = spawn('sh', ['-c', `sleep ${seconds} & wait $!`], { stdio: 'ignore', detached: true });
       const reap = () => {
         try {
           process.kill(-child.pid, 'SIGKILL');
@@ -147,10 +158,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         process.exit(143);
       });
       process.once('exit', reap);
-      out({ type: 'tool_progress', tool_use_id: id, tool_name: 'Bash', parent_tool_use_id: null, elapsed_time_seconds: 90, heartbeat: true });
+      out({ type: 'tool_progress', tool_use_id: id, tool_name: 'Bash', parent_tool_use_id: agentId, elapsed_time_seconds: 90, heartbeat: true });
       child.on('exit', (code, signal) => {
         const failed = signal !== null || code !== 0;
-        out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: failed ? `Exit code ${code ?? 143}` : 'done', is_error: failed }] } });
+        out({ type: 'user', session_id: sessionId, ...parent, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: failed ? `Exit code ${code ?? 143}` : 'done', is_error: failed }] } });
+        if (agentId) out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: agentId, content: failed ? 'the suite failed' : 'the suite passed', is_error: false }] } });
         result(failed ? 'carried on after the command failed' : 'the command finished');
       });
       return;

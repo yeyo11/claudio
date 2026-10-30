@@ -11,11 +11,11 @@
 // and puts the settings and scripts back.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 180_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const savedScripts = existsSync(fake.scripts) ? readFileSync(fake.scripts, 'utf8') : null;

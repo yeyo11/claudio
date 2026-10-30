@@ -1,3 +1,4 @@
+import { isRecord } from './records.ts';
 /**
  * A Home layout is data, not markup: a list of widgets by type, size and config, in the order they
  * are drawn. The web renders whatever layout passes here and the API refuses to store one that does
@@ -87,7 +88,6 @@ const MAX_CONFIG_BYTES = 2048;
 
 export const fitsScope = (rule: Pick<WidgetRule, 'scope'>, scope: DashboardScope): boolean => rule.scope === 'both' || rule.scope === scope;
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isSize = (value: unknown): value is WidgetSize => typeof value === 'string' && (WIDGET_SIZES as readonly string[]).includes(value);
 

@@ -1,7 +1,7 @@
 import type { ChatGuards, GuardOverride, GuardSettings, GuardSwitchableRuleId } from '@claudio/shared';
 
-/** The rules a person can switch, in the order every list shows them; `integrity` is always on and has no switch. */
-export const SWITCHABLE_RULES: readonly GuardSwitchableRuleId[] = ['no-verify', 'push', 'destructive', 'secrets', 'protect-configs'];
+/** The rules a person can switch, in the order every list shows them; `integrity` is one like the others (D6). */
+export const SWITCHABLE_RULES: readonly GuardSwitchableRuleId[] = ['integrity', 'no-verify', 'push', 'destructive', 'secrets', 'protect-configs'];
 
 export interface EffectiveGuards {
   enabled: boolean;

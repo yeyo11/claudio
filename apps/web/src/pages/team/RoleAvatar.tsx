@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useOverview } from '../../api';
 import type { TeamMember } from '@claudio/shared';
 import { isKnownRole, roleFallbackName, roleHue, roleInitials, templateResponsibilityRole } from './model';
 
@@ -55,20 +54,4 @@ export function RoleAvatar({
 /** The model a role runs on, in mono and neutral: a model is a choice, not a state. */
 export function ModelTag({ model }: { model: string }) {
   return <span className={`model-tag ${/opus/i.test(model) ? 'is-opus' : ''}`.trim()}>{model}</span>;
-}
-
-/**
- * The name of the model an alias stands for ("Sonnet 5" for `sonnet`), which the member page writes
- * after the alias as the reference does. The core names an alias after the model id a chat on it
- * reported, or takes the CLI's own label; nothing until then, or for a name that is only the value.
- */
-export function ModelName({ model }: { model: string }) {
-  const models = useOverview().data?.system.models;
-  const label = models?.find((option) => option.value === model.trim())?.label;
-  if (!label || label.toLowerCase() === model.trim().toLowerCase()) return null;
-  return (
-    <span className="member-model-name">
-      <span aria-hidden>·</span> {label}
-    </span>
-  );
 }

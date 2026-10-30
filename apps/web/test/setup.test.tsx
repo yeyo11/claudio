@@ -12,7 +12,7 @@ import { keys } from '../src/api';
 import { DeviceCode, SignInPanel } from '../src/components/setup/SignInPanel';
 import { SignInSession } from '../src/components/setup/SignInSession';
 import { useConnection } from '../src/components/shell/StatusBar';
-import type { AccountView } from '../src/lib/accounts';
+import type { AccountView } from '@claudio/shared';
 import i18n from '../src/i18n';
 import {
   advance,
@@ -334,7 +334,7 @@ async function connectionWith(auth: AuthStatus, claude: { state: ProviderReadine
   const html = await render(<Reading auth={auth} claude={claude.state} {...(accounts ? { accounts } : {})} />, (client) => client.setQueryData(keys.providers, [{ ...provider('claude-code', 'Claude Code', claude.state), reason: claude.reason }]));
   return JSON.parse(html.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"')) as { healthy: boolean; short: string; title: string; detail?: string; tone: string };
 }
-const inUse = (patch: Partial<NonNullable<AuthStatus['inUse']>> = {}): NonNullable<AuthStatus['inUse']> => ({ id: 'work', label: 'work', kind: 'login', signInState: 'ok', checkedAt: null, ...patch });
+const inUse = (patch: Partial<NonNullable<AuthStatus['inUse']>> = {}): NonNullable<AuthStatus['inUse']> => ({ id: 'work', label: 'work', kind: 'login', signInState: 'ok', checkedAt: null, limit: null, plan: null, ...patch });
 
 test('the status bar is healthy on the account in use, even when the CLI\'s own login is empty', async () => {
   const ok = await connection({ ...AUTH, loggedIn: false, inUse: inUse() });

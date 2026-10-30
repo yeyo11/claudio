@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type {
   Account,
+  AccountInUseResponse,
   AccountLoginSession,
   AccountsRefreshResult,
   AccountsSettings,
@@ -13,8 +14,9 @@ import type {
   RotationPolicyRequest,
   UsageHistoryPoint,
 } from '@claudio/shared';
-import { DEFAULT_ID } from '@claudio/accounts';
+import { AccountInUseError, DEFAULT_ID } from '@claudio/accounts';
 import { AccountLogins } from '../account-logins.ts';
+import { NotFoundError } from '@claudio/shared';
 
 /**
  * The Claude accounts (docs/plans/claude-only-fork.md, section 2): who they are, the usage each
@@ -82,7 +84,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.get('/accounts', (): Account[] => {
     core.accounts.reload();
     // The CLI's own login is left out while it has no credential at all: an empty ghost beside the real accounts
-    return core.accounts.listed();
+    return core.accounts.list();
   });
 
   app.post<{ Body: unknown }>('/accounts', async (req, reply): Promise<AccountLoginSession> => {
@@ -107,7 +109,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     // The CLI could not answer at all (no network, a timeout): the account is left as it was. A client acts on the code
     if (error) return reply.status(502).send({ error: `the CLI could not read the usage of ${req.params.id}: ${error}`, code: 'accounts.check-failed' });
     const account = accounts.find((a) => a.id === req.params.id);
-    if (!account) throw new Error(`account ${req.params.id} not found`);
+    if (!account) throw new NotFoundError(`account ${req.params.id} not found`);
     return account;
   });
 
@@ -223,8 +225,14 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return account;
   });
 
-  app.delete<{ Params: { id: string } }>('/accounts/:id', async (req): Promise<{ deleted: true }> => {
-    await core.accounts.remove(req.params.id);
+  app.delete<{ Params: { id: string } }>('/accounts/:id', async (req, reply): Promise<{ deleted: true } | AccountInUseResponse> => {
+    try {
+      await core.accounts.remove(req.params.id);
+    } catch (err) {
+      // The chats a person has to stop or move first, by id, so the page can name them
+      if (err instanceof AccountInUseError) return reply.status(409).send({ error: err.message, code: err.reason, chats: [...err.chats] });
+      throw err;
+    }
     return { deleted: true };
   });
 };

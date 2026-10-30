@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { foldUsage } from '../src/usage.ts';
+import { normalizeMessage } from '@claudio/shared';
+import { foldUsage, OPEN_MESSAGES, UsageFold } from '../src/usage.ts';
 
 let n = 0;
 
@@ -121,4 +122,51 @@ test("a subagent's own compaction says nothing about the main window", () => {
 test('a cloned fold keeps the boundary it saw', () => {
   const fold = foldUsage([assistant('m1', 'claude-opus-5', { in: 1, out: 1, read: 10 }), boundary('2026-01-01T10:05:00.000Z')]);
   assert.equal(fold.clone().context()?.compactedSince?.preTokens, 142_000);
+});
+
+// ---------- a fold kept beside its transcript ----------
+
+/** A long session: messages over several days and models, a few written as several blocks, a subagent's among them. */
+function longSession(): Record<string, unknown>[] {
+  const lines: Record<string, unknown>[] = [];
+  for (let i = 0; i < OPEN_MESSAGES * 3; i++) {
+    const day = `2026-01-0${String(1 + (i % 3))}T10:00:00.000Z`;
+    const model = i % 5 === 0 ? 'claude-haiku-4-5' : 'claude-opus-5';
+    const extra = { timestamp: day, ...(i % 7 === 0 ? { isSidechain: true } : {}) };
+    lines.push(assistant(`m${i}`, model, { in: i, out: 1, read: 100 + i }, extra));
+    // The same message again, with its final figures: counted once, from this line
+    if (i % 4 === 0) lines.push(assistant(`m${i}`, model, { in: i, out: 9, read: 100 + i }, extra));
+    if (i === OPEN_MESSAGES * 2) lines.push(boundary('2026-01-03T10:00:00.000Z'));
+  }
+  return lines;
+}
+
+test('a fold of more messages than it keeps one by one counts every message once, from its last line', () => {
+  const lines = longSession();
+  const fold = foldUsage(lines);
+  // What a sum by message id over the whole transcript says, with nothing settled
+  const last = new Map<string, Record<string, unknown>>();
+  for (const l of lines) if (l.type === 'assistant') last.set(String((l.message as { id: string }).id), l);
+  const expected = [...last.values()].reduce<number>((sum, l) => {
+    const u = (l.message as { usage: Record<string, number> }).usage;
+    return sum + (u.input_tokens ?? 0) + (u.output_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+  }, 0);
+  assert.equal(fold.total().total, expected);
+  assert.equal(fold.tokens().reduce((sum, t) => sum + t.total, 0), expected);
+  assert.equal(fold.days().reduce((sum, d) => sum + d.total, 0), expected);
+  assert.deepEqual(fold.tokens().map((t) => t.model), ['claude-haiku-4-5', 'claude-opus-5'], 'models in the order they were first used');
+});
+
+test('a fold stored as JSON and read back goes on exactly as the fold that was never stored', () => {
+  const lines = longSession();
+  const whole = foldUsage(lines);
+  const half = Math.floor(lines.length / 2);
+  const stored = JSON.parse(JSON.stringify(foldUsage(lines.slice(0, half)).toJSON())) as ReturnType<UsageFold['toJSON']>;
+  const restored = UsageFold.fromJSON(stored);
+  for (const line of lines.slice(half)) {
+    const entry = normalizeMessage(line);
+    if (entry) restored.add(line, entry);
+  }
+  assert.deepEqual(restored.snapshot(), whole.snapshot());
+  assert.deepEqual(restored.clone().snapshot(), whole.snapshot());
 });

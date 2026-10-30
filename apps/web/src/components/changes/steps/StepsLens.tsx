@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useAgentCopy } from '../../../lib/agent-name';
 import { Link, useNavigate } from 'react-router-dom';
 import { parseUnified } from '../../../lib/diff';
-import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
+import { formatDateTime, formatHour, timeAgo } from '@claudio/ui/lib/format';
 import { Menu, type MenuEntry } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
@@ -14,7 +14,7 @@ import { DiffView } from '../DiffView';
 import { Intent } from '../Intent';
 import { StepRisk } from './StepRisk';
 import { Counts } from '../FileMap';
-import { hourMinute, splitPath, unexplainedOf } from '../review-model';
+import { splitPath, unexplainedOf } from '../review-model';
 import { useUnexplainedRows } from '../useUnexplained';
 import {
   conversationHref,
@@ -102,8 +102,8 @@ export { StepScrubber };
 
 /** When a step was made: its time, "now" while it waits for its result */
 function StepTime({ step }: { step: EditStep }) {
-  const { t, i18n } = useTranslation('changes');
-  return <span className="edit-step-time">{step.pending ? t('steps.now') : step.at ? hourMinute(step.at, i18n.language) : `#${step.index}`}</span>;
+  const { t } = useTranslation('changes');
+  return <span className="edit-step-time">{step.pending ? t('steps.now') : step.at ? formatHour(step.at) : `#${step.index}`}</span>;
 }
 
 
@@ -302,7 +302,7 @@ function Patch({ step, wrap, conversation }: { step: EditStep; wrap: boolean; co
 
 /** The other steps on the same file, as cards around this one */
 function SameFile({ steps, current, hrefOf, resultHref }: { steps: EditStep[]; current: EditStep; hrefOf: (id: string) => string; resultHref: ((path: string) => string) | null }) {
-  const { t, i18n } = useTranslation('changes');
+  const { t } = useTranslation('changes');
   const { Agent } = useAgentCopy();
   const around = sameFileWindow(steps, current);
   if (around.total < 2 && !resultHref) return null;
@@ -323,7 +323,7 @@ function SameFile({ steps, current, hrefOf, resultHref }: { steps: EditStep[]; c
                 <span className="edit-step-card-head">
                   <span className="edit-step-card-n">
                     {t('steps.stepN', { n: s.index })}
-                    {s.at || s.pending ? ` · ${s.pending ? t('steps.now') : hourMinute(s.at, i18n.language)}` : ''}
+                    {s.at || s.pending ? ` · ${s.pending ? t('steps.now') : formatHour(s.at)}` : ''}
                   </span>
                   {on && <span className="badge edit-step-this">{t('steps.thisOne')}</span>}
                   <span className="edit-steps-grow" />

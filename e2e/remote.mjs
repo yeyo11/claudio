@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const WORKFLOW = 'e2e.yml';
 const MAX_SHARDS = 4;
@@ -68,7 +69,6 @@ export function parseArgs(argv) {
 
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).trim();
 const gh = (...args) => sh('gh', args);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const say = (line) => console.log(line);
 
 function refuse(message) {

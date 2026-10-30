@@ -12,6 +12,7 @@ import { githubAdapter } from '../src/hosts/github/adapter.ts';
 import { gitlabAdapter } from '../src/hosts/gitlab/adapter.ts';
 import { COMPUTING_SHOWN, MergeError, MergeService, NO_PIPELINE_GRACE, type MergeTarget } from '../src/hosts/merge-service.ts';
 import { tempConfig } from './helpers.ts';
+import { errorMessage } from '@claudio/shared';
 
 // The service against what m0 recorded for the shapes, with the facts each scenario needs written
 // out: calls are answered by their argv, anything else is exit 97 and fails the test, so a changed
@@ -191,7 +192,7 @@ const rejectsWith = async (work: Promise<unknown>, reason: string): Promise<Merg
   try {
     await work;
   } catch (error) {
-    assert.equal(reasonOfError(error), reason, error instanceof Error ? error.message : String(error));
+    assert.equal(reasonOfError(error), reason, errorMessage(error));
     return error as MergeError;
   }
   throw new assert.AssertionError({ message: `expected a ${reason} refusal` });

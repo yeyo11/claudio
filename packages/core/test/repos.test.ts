@@ -58,10 +58,10 @@ test('the parser reads every layout the way git does, without asking git', () =>
   }
 });
 
-test("a repository's checkouts are git's list, with the main checkout git misnames for a separate git dir and a submodule", () => {
+test("a repository's checkouts are git's list, with the main checkout git misnames for a separate git dir and a submodule", async () => {
   for (const e of expected) {
     if (!e.commonDir || !e.worktrees.length) continue;
-    const facts = repoOf(join(root, e.dir));
+    const facts = await repoOf(join(root, e.dir));
     assert.ok(facts);
     const ours = worktreesOf(facts.commonDir, facts.mainCheckout);
     const theirs = e.worktrees.map((w) => ({ ...w, path: at(w.path) ?? '' }));
@@ -88,28 +88,28 @@ test("git's own list, parsed, says what the oracle recorded: bare, detached and 
   assert.deepEqual(worktrees(join(root, 'named.git')).map((w) => w.bare), [true, false]);
 });
 
-test('the main checkout is named for every layout that has one', () => {
-  const main = (dir: string) => repoOf(join(root, dir))?.mainCheckout;
-  assert.equal(main('plain-beside/sub'), join(root, 'plain'));
-  assert.equal(main('plain/.claude/worktrees/cli-wt'), join(root, 'plain'));
-  assert.equal(main('plain-from-beside'), join(root, 'plain'), 'added from another linked worktree, still a child of the main one');
-  assert.equal(main('sep-work/sub'), join(root, 'sep-work'));
-  assert.equal(main('sep-wt'), null, 'nothing on disk names the checkout of a separate git dir from its worktree');
-  assert.equal(main('mod-wt'), join(root, 'super', 'mod'), "a submodule's core.worktree names its checkout");
-  assert.equal(main('bare-layout/main-wt'), null);
-  assert.equal(main('rel-wt/sub/dir'), join(root, 'rel'));
+test('the main checkout is named for every layout that has one', async () => {
+  const main = async (dir: string) => (await repoOf(join(root, dir)))?.mainCheckout;
+  assert.equal(await main('plain-beside/sub'), join(root, 'plain'));
+  assert.equal(await main('plain/.claude/worktrees/cli-wt'), join(root, 'plain'));
+  assert.equal(await main('plain-from-beside'), join(root, 'plain'), 'added from another linked worktree, still a child of the main one');
+  assert.equal(await main('sep-work/sub'), join(root, 'sep-work'));
+  assert.equal(await main('sep-wt'), null, 'nothing on disk names the checkout of a separate git dir from its worktree');
+  assert.equal(await main('mod-wt'), join(root, 'super', 'mod'), "a submodule's core.worktree names its checkout");
+  assert.equal(await main('bare-layout/main-wt'), null);
+  assert.equal(await main('rel-wt/sub/dir'), join(root, 'rel'));
 });
 
-test('a bare repository is imported from the folder that holds it in the .bare layout, else from itself', () => {
-  const layout = repoOf(join(root, 'bare-layout'));
+test('a bare repository is imported from the folder that holds it in the .bare layout, else from itself', async () => {
+  const layout = await repoOf(join(root, 'bare-layout'));
   assert.equal(layout?.bare, true);
   assert.equal(bareImportPath(layout?.commonDir ?? ''), join(root, 'bare-layout'));
-  const named = repoOf(join(root, 'named.git'));
+  const named = await repoOf(join(root, 'named.git'));
   assert.equal(bareImportPath(named?.commonDir ?? ''), join(root, 'named.git'));
-  assert.equal(repoOf(join(root, 'named-wt'))?.commonDir, named?.commonDir, "a bare repository's worktrees group under it");
+  assert.equal((await repoOf(join(root, 'named-wt')))?.commonDir, named?.commonDir, "a bare repository's worktrees group under it");
 });
 
-test('what the parser cannot read is asked of git', () => {
+test('what the parser cannot read is asked of git', async () => {
   let spawns = 0;
   const run = repoGit.run;
   repoGit.run = (cwd, args) => {
@@ -122,7 +122,7 @@ test('what the parser cannot read is asked of git', () => {
     const odd = mkdtempSync(join(tmpdir(), 'claudio-odd-'));
     writeFileSync(join(odd, '.git'), 'not a pointer\n');
     assert.equal(typeof parseRepo(odd), 'symbol');
-    assert.equal(repoOf(odd), undefined);
+    assert.equal(await repoOf(odd), undefined);
     assert.ok(spawns >= 1);
   } finally {
     repoGit.run = run;
@@ -222,7 +222,7 @@ test('a remote never carries what signs in with it', () => {
   assert.equal(stripCredentials('git@github.com:a/b.git'), 'git@github.com:a/b.git');
 });
 
-test("origin's URL is read from the repository's config file, as git reads it, with no process", () => {
+test("origin's URL is read from the repository's config file, as git reads it, with no process", async () => {
   const repo = mkdtempSync(join(tmpdir(), 'claudio-remote-'));
   try {
     execFileSync('git', ['-C', repo, 'init', '-q']);
@@ -234,11 +234,11 @@ test("origin's URL is read from the repository's config file, as git reads it, w
       return run(cwd, args);
     };
     try {
-      assert.equal(remoteOf(commonDir), null);
+      assert.equal(await remoteOf(commonDir), null);
       execFileSync('git', ['-C', repo, 'remote', 'add', 'upstream', 'https://example.com/up.git']);
       execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://user:secret@github.com/a/b.git']);
       assert.equal(originUrlOf(commonDir), execFileSync('git', ['-C', repo, 'config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim());
-      assert.equal(remoteOf(commonDir), 'https://github.com/a/b.git');
+      assert.equal(await remoteOf(commonDir), 'https://github.com/a/b.git');
       assert.equal(spawns, 0);
     } finally {
       repoGit.run = run;
@@ -246,9 +246,55 @@ test("origin's URL is read from the repository's config file, as git reads it, w
     // What the reader would have to interpret, git answers
     writeFileSync(join(commonDir, 'config'), `${readFileSync(join(commonDir, 'config'), 'utf8')}[include]\n\tpath = other\n`);
     assert.equal(originUrlOf(commonDir), undefined);
-    assert.equal(remoteOf(commonDir), 'https://github.com/a/b.git');
+    assert.equal(await remoteOf(commonDir), 'https://github.com/a/b.git');
+    // A list never waits for git: the index answers with what it knew, and with git's answer once it came
+    const index = new RepoIndex();
+    assert.equal(index.remoteOf(commonDir), null);
+    await index.settled();
+    assert.equal(index.remoteOf(commonDir), 'https://github.com/a/b.git');
   } finally {
     rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('a directory only git can place is placed from its stored row while git answers in the background', async () => {
+  const db = new Db(tempConfig());
+  const run = repoGit.run;
+  try {
+    const repo = fresh();
+    // A `.git` the parser cannot read; git, stubbed here, says it belongs to `repo`
+    const odd = realpathSync(mkdtempSync(join(tmpdir(), 'claudio-odd-')));
+    writeFileSync(join(odd, '.git'), 'not a pointer\n');
+    let spawns = 0;
+    let answer: (() => void) | null = null;
+    repoGit.run = () => {
+      spawns += 1;
+      return new Promise((resolve) => {
+        answer = () => resolve(`${join(repo, '.git')}\n${join(repo, '.git')}\nfalse\n${odd}\n`);
+      });
+    };
+    const places = new RepoPlaces(db.connection);
+    const index = new RepoIndex({ places });
+    // Never waited for: the first list sees an unknown, not a stall
+    const first = index.place(odd);
+    assert.deepEqual([first.repo, first.exists, first.source], [null, true, null]);
+    assert.equal(spawns, 1);
+    (answer as (() => void) | null)?.();
+    await index.settled();
+    const answered = index.place(odd);
+    assert.deepEqual([answered.repo?.commonDir, answered.source], [join(repo, '.git'), 'git']);
+
+    // After a restart the stored answer is served at once, and git is asked again behind it
+    places.flush();
+    const restarted = new RepoIndex({ places: new RepoPlaces(db.connection) });
+    const stored = restarted.place(odd);
+    assert.deepEqual([stored.repo?.commonDir, stored.exists, stored.source], [join(repo, '.git'), true, 'git']);
+    assert.equal(spawns, 2);
+    (answer as (() => void) | null)?.();
+    await restarted.settled();
+  } finally {
+    repoGit.run = run;
+    db.close();
   }
 });
 

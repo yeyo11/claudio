@@ -29,10 +29,15 @@ import type {
 import { openStream } from '../sse.ts';
 import { spendGate } from './spend.ts';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
+import { NotFoundError } from '@claudio/shared';
 
 const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'];
 const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal', 'api'];
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
+
+/** Chats a list answers with when it names no limit, and the most one page holds: a client pages for more */
+const CHATS_PAGE = 200;
+const CHATS_PAGE_MAX = 1_000;
 
 /** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */
 export function count(value: string | undefined, name: string): number | undefined {
@@ -88,23 +93,32 @@ function newChatBody(body: unknown): NewChatRequest {
 export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   const { chats } = core;
   const known = async (id: string): Promise<void> => {
-    if (!(await chats.get(id))) throw new Error('chat not found');
+    if (!(await chats.get(id))) throw new NotFoundError('chat not found');
   };
 
-  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; assistant?: string; limit?: string } }>('/chats', (req) => {
-    const { project, loose, origin, workers, state, assistant, limit } = req.query;
-    if (workers !== undefined && workers !== '0' && workers !== '1') throw new Error('workers must be 0 or 1');
-    if (assistant !== undefined && assistant !== '1') throw new Error('assistant must be 1');
-    const [wanted] = listOf(state, STATES, 'state') ?? [];
-    return chats.list({
-      origins: listOf(origin, ORIGINS, 'origin') ?? DEFAULT_ORIGINS,
-      ...(loose === '1' ? { project: null } : project ? { project } : {}),
-      ...(workers === '0' ? { workers: false } : {}),
-      ...(wanted ? { state: wanted } : {}),
-      ...(assistant === '1' ? { assistant: true } : {}),
-      ...(count(limit, 'limit') ? { limit: count(limit, 'limit') as number } : {}),
-    });
-  });
+  // A page at a time, newest activity first: `after` is the `updatedAt~id` of the last chat of the
+  // previous page (also sent as `x-next-cursor`), and `x-total-count` says how many the filter matches
+  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; assistant?: string; limit?: string; after?: string } }>(
+    '/chats',
+    async (req, reply) => {
+      const { project, loose, origin, workers, state, assistant, limit, after } = req.query;
+      if (workers !== undefined && workers !== '0' && workers !== '1') throw new Error('workers must be 0 or 1');
+      if (assistant !== undefined && assistant !== '1') throw new Error('assistant must be 1');
+      const [wanted] = listOf(state, STATES, 'state') ?? [];
+      const page = await chats.page({
+        origins: listOf(origin, ORIGINS, 'origin') ?? DEFAULT_ORIGINS,
+        ...(loose === '1' ? { project: null } : project ? { project } : {}),
+        ...(workers === '0' ? { workers: false } : {}),
+        ...(wanted ? { state: wanted } : {}),
+        ...(assistant === '1' ? { assistant: true } : {}),
+        limit: Math.min(count(limit, 'limit') || CHATS_PAGE, CHATS_PAGE_MAX),
+        ...(after ? { after } : {}),
+      });
+      void reply.header('x-total-count', String(page.total));
+      if (page.next) void reply.header('x-next-cursor', page.next);
+      return page.chats;
+    },
+  );
 
   app.get<{ Querystring: { from?: string; to?: string } }>('/usage', (req) => chats.usage(rangeOf(req.query)));
 
@@ -126,7 +140,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return reply.type('text/markdown; charset=utf-8').send(chatToMarkdown(exported.chat, exported.entries));
   });
 
-  app.post<{ Body: NewChatRequest }>('/chats', { preHandler: spendGate(core) }, async (req, reply) => reply.status(201).send(await chats.create(newChatBody(req.body))));
+  app.post<{ Body: NewChatRequest }>('/chats', { preHandler: spendGate(core) }, async (req, reply) => {
+    const body = newChatBody(req.body);
+    // A model the provider does not list is refused before anything starts (`400 model-unknown`)
+    if (typeof body.model === 'string') await chats.checkModel(body.provider, body.model);
+    return reply.status(201).send(await chats.create(body));
+  });
 
   app.get<{ Params: { id: string }; Querystring: { sidechains?: string; limit?: string; before?: string } }>('/chats/:id', (req) =>
     chats.detail(req.params.id, {
@@ -177,7 +196,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // A person chooses to wait for the reset
   app.post<{ Params: { id: string } }>('/chats/:id/wait', (req, reply) => {
-    if (!core.runtime.get(req.params.id)) throw new Error('chat not found');
+    if (!core.runtime.get(req.params.id)) throw new NotFoundError('chat not found');
     if (!core.runtime.atLimit(req.params.id)) throw Object.assign(new Error('this chat has not reached a limit'), { statusCode: 409 });
     const move = core.rotation.waitFor(req.params.id);
     if (!move) throw Object.assign(new Error('this chat is already waiting'), { statusCode: 409 });
@@ -201,11 +220,20 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     chats.interrupt(req.params.id, req.body?.messageId !== undefined ? { messageId: req.body.messageId } : {}),
   );
 
-  app.post<{ Params: { id: string }; Body: HintRequest }>('/chats/:id/hint', (req) => chats.hint(req.params.id, req.body ?? ({} as HintRequest)));
+  // A hint sent over HTTP is a person's: the Supervisor's own go through core, marked as automatic
+  app.post<{ Params: { id: string }; Body: HintRequest | undefined }>('/chats/:id/hint', (req) =>
+    chats.hint(req.params.id, typeof req.body?.text === 'string' ? req.body.text : '', { source: 'person' }),
+  );
+
+  // Withdraws a message the agent has not read yet (`cancel_async_message`): 409 once it has
+  app.delete<{ Params: { id: string; messageId: string } }>('/chats/:id/messages/:messageId', (req) => chats.cancelMessage(req.params.id, req.params.messageId));
 
   app.post<{ Params: { id: string; toolUseId: string }; Body: CancelCommandRequest }>('/chats/:id/commands/:toolUseId/cancel', (req) =>
     chats.cancelCommand(req.params.id, req.params.toolUseId, req.body ?? {}),
   );
+
+  // Sends a foreground call of the running turn to the background (`background_tasks`), so the agent reads what waits
+  app.post<{ Params: { id: string; toolUseId: string } }>('/chats/:id/commands/:toolUseId/background', (req) => chats.backgroundCall(req.params.id, req.params.toolUseId));
 
   // The MCP servers of a live chat, connectors included, as its process reports them now
   app.get<{ Params: { id: string } }>('/chats/:id/mcp', (req) => chats.mcpServers(req.params.id));
@@ -261,7 +289,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   app.delete<{ Params: { id: string; noteId: string } }>('/chats/:id/notes/:noteId', async (req, reply) => {
     await known(req.params.id);
-    if (!core.db.deleteNote(req.params.id, req.params.noteId)) throw new Error('note not found');
+    if (!core.db.deleteNote(req.params.id, req.params.noteId)) throw new NotFoundError('note not found');
     return reply.status(204).send();
   });
 
@@ -286,7 +314,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // Server-Sent Events: replays buffered events after `since`, then streams live ones.
   app.get<{ Params: { id: string }; Querystring: { since?: string } }>('/chats/:id/stream', (req, reply) => {
-    if (!chats.streams(req.params.id)) throw new Error('chat not found');
+    if (!chats.streams(req.params.id)) throw new NotFoundError('chat not found');
     const lastEventId = Number(req.headers['last-event-id'] ?? req.query.since ?? 0) || 0;
 
     const stream = openStream(req, reply);
@@ -328,7 +356,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   // A subagent's whole conversation, from the transcript the CLI keeps for it beside the chat's.
   app.get<{ Params: { id: string; agentId: string }; Querystring: { after?: string } }>('/chats/:id/subagents/:agentId', async (req) => {
     const detail = await chats.agentTranscript(req.params.id, req.params.agentId, { after: count(req.query.after, 'after') });
-    if (!detail) throw new Error('subagent not found');
+    if (!detail) throw new NotFoundError('subagent not found');
     return detail;
   });
 
@@ -340,14 +368,14 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
         workflowId: req.params.workflowId,
         after: count(req.query.after, 'after'),
       });
-      if (!detail) throw new Error('workflow agent not found');
+      if (!detail) throw new NotFoundError('workflow agent not found');
       return detail;
     },
   );
 
   // What Claude actually loaded (tools, MCP, agents, skills, plugins…) per directory, from the latest chat started there
   app.get<{ Querystring: { cwd?: string } }>('/environments', (req) => {
-    const all = [...core.runtime.environments.values()].sort((a, b) => b.observedAt.localeCompare(a.observedAt));
+    const all = core.runtime.environments.latest();
     return req.query.cwd ? all.filter((e) => e.cwd === req.query.cwd) : all;
   });
 

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { ChatNotFoundError } from './chat-errors.ts';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -34,9 +34,8 @@ import type {
   Overview,
   Account,
   AccountInUse,
-  AuthStatus,
+  AccountView,
   AccountsRefreshResult,
-  AccountsSnapshot,
   PermissionDecision,
   PermissionMode,
   PermissionRequest,
@@ -90,17 +89,19 @@ import type {
 } from '@claudio/shared';
 import { ChatRetention, type RetainedChat } from './chat-retention.ts';
 import { runsIn, type Subsystem } from './subsystems.ts';
-import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, isEffort, workItemKey, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
+import { CLAUDIO_LANGUAGES, claudioLanguage, DEFAULT_ASSISTANT_MODEL, errorMessage, isEffort, NotFoundError, workItemKey, type ClaudioAssistantMarker, type DecisionRecord, type Effort, type GuardStatus, type LessonList, type LessonSettings, type LessonStatus, type LimitWait, type ProjectCodeHost, type ProviderId, type RunGuardEvent, type ToolPolicy } from '@claudio/shared';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountStore, DEFAULT_ID, readCache } from '@claudio/accounts';
+import { AccountStore, DEFAULT_ID, isOut, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { createSettingsRegistry, type SettingsRegistry } from './settings-registry.ts';
-import { GuardLauncher } from './guards/launch.ts';
+import { startGuardSweep } from './guards/files.ts';
+import { GuardLauncher, type GuardRequest } from './guards/launch.ts';
+import { guardPolicyOf } from './guards/resolve.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 import { GuardSettingsStore } from './guards/settings.ts';
 import { GuardEventStore } from './guards/events.ts';
@@ -114,8 +115,8 @@ import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, star
 import { TunnelManager } from './tunnel.ts';
 import { ContextControl } from './context-control.ts';
 import { ChatNotes } from './context-notes.ts';
-import { ChatService, ChatStartError, type Placement } from './chat-service.ts';
-import { ChatManager, type ChatConfinement, type ChatRuntime, type RunResult } from './chats.ts';
+import { ChatService, ChatStartError, type Placement, type RunningCounts } from './chat-service.ts';
+import { ChatManager, type ChatConfinement, type ChatRuntime, type GuardSubject, type RunResult } from './chats.ts';
 import { Connectors } from './connectors.ts';
 import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
@@ -159,13 +160,14 @@ import { youtrackIssueUrl } from './trackers/youtrack/adapter.ts';
 import { ProviderDetector } from './providers/detector.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import { ProvidersSettingsStore } from './providers/settings.ts';
-import { bareImportPath, coreConfigOf, normalizeRemote, RepoIndex, RepoPlaces, type Place } from './repos.ts';
+import { bareImportPath, normalizeRemote, RepoIndex, RepoPlaces, type Place } from './repos.ts';
+import { TranscriptFolds } from './transcript-folds.ts';
 import { lanesRoot } from './evals/lanes.ts';
 import { PermissionBroker } from './permissions.ts';
 import { PushService, riskLine } from './push.ts';
 import { claudioMcp, claudioMcpSync, collabMcpSync, dynamicClaudioServer, assistantChatOptions, type ClaudioMcpIdentity, type ClaudioMcpLaunch, type AssistantChatOptions, type CollabMcpLaunch } from './claudio-mcp.ts';
 import { claudioAssistantPrompt } from './claudio-assistant-prompt.ts';
-import { ChatTools, ToolPresetStore } from './chat-tools.ts';
+import { ChatTools, ToolPresetStore, writeMcpConfigSync } from './chat-tools.ts';
 import { McpConfig } from './config/mcp.ts';
 import { ConfigResources } from './config/resources.ts';
 import { projectScope, userScope, type ConfigScope } from './config/scope.ts';
@@ -229,32 +231,13 @@ import { IssueTriage } from './decisions/issue-triage.ts';
 import { ReviewTriage } from './decisions/review-triage.ts';
 import { DecisionResolvers } from './decisions/resolve.ts';
 import { CliDecisionProvider, decisionRoute } from './decisions/providers/cli.ts';
-import { accountsAtLimit } from './accounts-at-limit.ts';
+import { providerLimitOf, type ProviderLimitSource } from './providers/limits.ts';
 import { JevProvider } from './decisions/providers/jev.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, ModelFallbackStore } from './decisions/settings.ts';
-import { DEFAULT_SUPERVISOR_PRESET, Supervisor, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
-export {
-  DecisionEngine,
-  DEADLINE_MS,
-  lowestConfidence,
-  type DecisionEngineDeps,
-  type DecisionOutcome,
-  type DecisionProvider,
-  type DecisionRequest,
-  type EffectiveDecision,
-  type ProviderResult,
-} from './decisions/engine.ts';
-export { CliDecisionProvider, decisionPrompt, decisionSchema, parseAnswers as parseDecisionAnswers } from './decisions/providers/cli.ts';
-export { DECISION_POINTS, decisionPoint, type DecisionPointDefinition, type DecisionSubject } from './decisions/points.ts';
-export { cutToBytes, maskSecrets, recognizeSecrets, redactState, SECRET_MASK, stateBytes, type SecretRecognizer } from './decisions/redact.ts';
-export {
-  DecisionCredentialStore,
-  DecisionSettingsStore,
-  ModelFallbackStore,
-  DEFAULT_DECISION_SETTINGS,
-  parseDecisionSettings,
-  parseProjectDecisions,
-} from './decisions/settings.ts';
+import { DEFAULT_SUPERVISOR_PRESET, Supervisor, toolsOfRules, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
+export { DECISION_POINTS, decisionPoint } from './decisions/points.ts';
+export { maskSecrets, recognizeSecrets, redactState, SECRET_MASK } from './decisions/redact.ts';
+export { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from './decisions/settings.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 import { TerminalService } from './terminals/service.ts';
@@ -268,196 +251,101 @@ import { OpenAiChatPromptStore } from './openai/system-prompt.ts';
 
 export { parseMcpScope } from './config/mcp.ts';
 export { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
-export { MCP_ENTRY_ENV, type ClaudioMcpLaunch } from './claudio-mcp.ts';
-export { TerminalService, type TerminalClient, type TerminalConnection } from './terminals/service.ts';
-export { TerminalError, type TerminalErrorCode } from './terminals/errors.ts';
+export { MCP_ENTRY_ENV } from './claudio-mcp.ts';
+export { type TerminalClient, type TerminalConnection } from './terminals/service.ts';
+export { TerminalError } from './terminals/errors.ts';
 export type { PeerVerdict } from './terminals/peer.ts';
 export { RESOURCE_KINDS } from './config/resources.ts';
-export { parseVariant, type ConfigScope } from './config/scope.ts';
-export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE, readDataDirLock, type DataDirLock, type DataDirLockHolder } from './data-dir-lock.ts';
-export { APP_SETTING_ENV, DEFAULT_APP_SETTINGS, DEFAULT_CHAT_BUDGET_USD, DEFAULT_CHAT_RETENTION_DAYS, dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type AuthEnv, type CoreConfig, type HeadlessStart } from './paths.ts';
+export { parseVariant } from './config/scope.ts';
+export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE } from './data-dir-lock.ts';
+export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart } from './paths.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
-export { ChatRetention, type ChatRetentionOptions, type RetainedChat } from './chat-retention.ts';
-export { LoginInputError, LoginRefusedError, LoginService } from './setup/logins.ts';
-export { SecretVault } from './secret-vault.ts';
-export { CollaboratorsError, CollaboratorsService, type CollaboratorsErrorCode } from './collab/index.ts';
-export { AGENT_READ_MODES, agentReadScope, copyInScope, type AgentReadChat, type AgentReadDecision, type AgentReadRefusal } from './collab/agent-access.ts';
-export { DashboardLayoutStore } from './dashboard-layouts.ts';
-export { DEFAULT_WORKSPACE_HOSTS, WorkspaceRefusal, Workspaces, workspaceSettingsFromEnv, type WorkspaceChats, type WorkspaceSettings, type WorkspaceSource } from './workspaces/index.ts';
+export { installProcessGuards } from './launcher/process-guards.ts';
+export { ChatRetention, type RetainedChat } from './chat-retention.ts';
+export { CollaboratorsError } from './collab/index.ts';
+export { agentReadScope, type AgentReadRefusal } from './collab/agent-access.ts';
+export { WorkspaceRefusal } from './workspaces/index.ts';
 export * from './openai/index.ts';
-export { GuardSettingsStore, defaultGuardSettings, parseGuardOverride, parseGuardSettingsUpdate } from './guards/settings.ts';
-export { type GuardEvent, type GuardLaunch, findUnsafePath, guardCommand, shellQuote } from './guards/command.ts';
-export { type GuardFiles, startGuardSweep, sweepGuardFiles, writeGuardFiles } from './guards/files.ts';
-export {
-  GUARD_ENTRY_ENV,
-  GuardPreflight,
-  GuardUnavailableError,
-  type GuardUnavailableCode,
-  type PreflightInput,
-  checkGuardPreflight,
-  runGuardSelfTest,
-} from './guards/preflight.ts';
-export { type GuardRequest, GuardLauncher, guardFailure } from './guards/launch.ts';
-export { GuardEventStore, type GuardEventFilter } from './guards/events.ts';
+export { parseGuardOverride } from './guards/settings.ts';
+export { GUARD_ENTRY_ENV } from './guards/preflight.ts';
+export { type GuardRequest } from './guards/launch.ts';
+export { GuardEventStore } from './guards/events.ts';
 export { decide as decideGuard } from './guards/decide.ts';
 export { DEFAULT_LIMITS as GUARD_DEFAULT_LIMITS, type GuardRulesFile } from './guards/input.ts';
-export { guardsWeakened, projectGuardsWeakened, resolveGuards, type GuardResolveContext, type GuardRunKind, type ResolvedGuards } from './guards/resolve.ts';
-export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptions } from './app-settings.ts';
-export { createSettingsRegistry, SettingsError, type SettingsRegistry, type SettingsRegistryDeps } from './settings-registry.ts';
-export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
-export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chats.ts';
-export { ReviewStoreError } from './review-store.ts';
+export { guardsWeakened, projectGuardsWeakened } from './guards/resolve.ts';
+export { AppSettingsStore, RuntimeHosts } from './app-settings.ts';
+export { SettingsError } from './settings-registry.ts';
+export type { ChatRuntime, RunResult } from './chats.ts';
+export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
-export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
+export { ChatConflictError, DEFAULT_ORIGINS } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
-export { compareVersions } from './version-check.ts';
-export { ReleaseWatch, type ReleaseWatchOptions, type ReleaseAsset } from './release-watch.ts';
-export { ServerUpdates, ServerUpdateRefusal, type ServerUpdatesOptions } from './updates/server-update.ts';
-export { resolveClaudeBin, overlayBinary, type ClaudeBinOptions } from './claude-bin.ts';
-export { CliInstaller, CliInstallRefusal, type CliInstallerOptions } from './updates/cli-install.ts';
+export { ServerUpdateRefusal } from './updates/server-update.ts';
+export { resolveClaudeBin, type ClaudeBinOptions } from './claude-bin.ts';
+export { CliInstallRefusal } from './updates/cli-install.ts';
 export { RESTART_EXIT_CODE } from './launcher/protocol.ts';
 export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
 export { EvalFileError } from './evals/definition.ts';
-export { exportRun, type EvalExportFormat } from './evals/export.ts';
-export { stanceOf } from './decisions/stance.ts';
+export { exportRun } from './evals/export.ts';
 
-export {
-  chatControl,
-  chatState,
-  executionOutcome,
-  sessionHolder,
-  stateFromCliAgent,
-  stateFromRun,
-  type CliAgentFacts,
-  type ControlFacts,
-  type RunFacts,
-  type SessionHolder,
-} from './chat-model.ts';
-export { addTokenUsage, emptyTokenUsage, foldUsage, UsageFold, type ContextSnapshot } from './usage.ts';
-export { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
-export { orchestrationTimings, type TimingsChat } from './orchestration-timings.ts';
-export { chatRole } from './chat-service.ts';
-export { CONTEXT_USAGE_CACHE_MS, ContextControl, type CompactAndWaitOptions } from './context-control.ts';
-export { ChatNotes, compactText, ContextRefusal, NOTE_REQUEST_PROMPT, parseSessionNote, SESSION_NOTE_INSTRUCTIONS, TYPED_COMPACT } from './context-notes.ts';
+export { chatState } from './chat-model.ts';
+export { usageReport, type ChatSpend } from './usage-report.ts';
+export { orchestrationTimings } from './orchestration-timings.ts';
+export { ContextControl } from './context-control.ts';
+export { ChatNotes, compactText, ContextRefusal, SESSION_NOTE_INSTRUCTIONS } from './context-notes.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
-export { parseChangeScope, parseDiffContext, type ChangeScope, type DiffOptions } from './changes.ts';
+export { parseChangeScope, parseDiffContext, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
 export { deriveKeyPrefix, parseProjectSettings, parseProjectSetup } from './project-settings.ts';
 export { PROJECT_TEMPLATES } from './project-templates.ts';
-export { agentFileContent, RECORDS_IN_ENGLISH, roleTitleIn, TeamError, TeamService, templateOptionalTeam, templateTeam, type TeamRunSource } from './team.ts';
-export {
-  ASSISTANT_ERRORS,
-  AssistantError,
-  AssistantService,
-  DENIED_TOOLS,
-  memberFile,
-  READ_EVENT_MS,
-  READ_ONLY_TOOLS,
-  type AssistantChatResult,
-  type AssistantDeps,
-  type AssistantKnown,
-  type AssistantLaunch,
-  type AssistantProject,
-} from './assistant.ts';
-export { ProjectDocsError, ProjectDocsService, ProjectDocsStore, mcpServerPrefix, parseDocUrl, type DocsRuntime } from './project-docs.ts';
-export { assistantLanguage, assistantPrompt, assistantSchema, assistantTitle, parseAnswer, type AssistantAnswer, type AssistantBrief, type AssistantGit, type AssistantLanguage } from './assistant-answer.ts';
-export {
-  FLOW_CAUSE,
-  FlowError,
-  flowPrompt,
-  flowTitle,
-  flowResultSchema,
-  FlowService,
-  parseFlowRunQuery,
-  parseResult,
-  stageRules,
-  testCommandRules,
-  testCommands,
-  checkCommandRules,
-  type CheckCommand,
-  type FlowChatResult,
-  type FlowDeps,
-  type FlowLaunch,
-  type FlowProject,
-  type FlowRules,
-} from './flow.ts';
-export {
-  ciOf,
-  codeHostAdapter,
-  PullRequestError,
-  PullRequestService,
-  PullRequestWatcher,
-  pullRequestBody,
-  pullRequestTitle,
-  type WatchSource,
-  type ApproveResult,
-  type PullRequestDeps,
-} from './pull-requests.ts';
-export { ChangeRequestError, type ChangeRequestFix } from './change-requests.ts';
-export { TrackerError, quotedSource } from './trackers/import.ts';
+export { agentFileContent, RECORDS_IN_ENGLISH, TeamError, templateTeam } from './team.ts';
+export { DENIED_TOOLS } from './assistant.ts';
+export { assistantLanguage } from './assistant-answer.ts';
+export { parseFlowRunQuery } from './flow.ts';
+export { changeRequestRefusal, type ChangeRequestFix } from './change-requests.ts';
 export { WebhooksError } from './hosts/webhooks-service.ts';
-export { MergeError, type MergeOutcome, type UpdateOutcome } from './hosts/merge-service.ts';
-export { OrchestrationPullRequestError, OrchestrationPullRequestService, type OpenedPullRequest } from './orchestration-pull-requests.ts';
-export { projectExportFilename, projectToJson, projectToMarkdown, type ProjectExportSource } from './project-export.ts';
-export { Db, MAX_AUDIT_PATH, type PushSubscriptionRecord } from './db.ts';
-export {
-  WorkItemError,
-  WorkItemService,
-  type WorkItemCommentContext,
-  type WorkItemContext,
-  type WorkItemLinkInput,
-  type WorkItemLinkState,
-  type WorkItemProject,
-  type WorkItemServiceDeps,
-} from './work-items.ts';
-export { DEFAULT_DOCUMENTS_PATH, DOCUMENT_CONTENT_MAX, DocumentError, DocumentService, type DocumentServiceDeps, type DocumentsPlace, type TieOptions } from './documents.ts';
-export { DocumentPathError } from './document-paths.ts';
-export { orchestrationDraft, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt, type WorkItemAutomationDeps } from './work-links.ts';
+export { MergeError } from './hosts/merge-service.ts';
+export { OrchestrationPullRequestError } from './orchestration-pull-requests.ts';
+export { projectExportFilename, projectToJson, projectToMarkdown } from './project-export.ts';
+export { Db, MAX_AUDIT_PATH } from './db.ts';
+export { WorkItemError, type WorkItemCommentContext } from './work-items.ts';
+export { DOCUMENT_CONTENT_MAX } from './documents.ts';
 export { AuthStore, DESKTOP_ACTOR } from './security/auth.ts';
 export { CHAT_TOKEN_MAX_AGE_MS, CHAT_TOKEN_PREFIX, ChatTokenStore, chatActor } from './security/chat-tokens.ts';
-export { OidcVerifier, type FetchLike } from './security/oidc.ts';
-export { hasRedacted, redactSecrets, restoreSecrets, SECRET_MAPS } from './security/redact.ts';
-export { describeCron, nextFire, nextFires, parseCron } from './cron.ts';
-export { previewCron, Scheduler, SLOT_GRACE_MS, type ScheduleLauncher } from './schedules.ts';
+export { type FetchLike } from './security/oidc.ts';
+export { redactSecrets } from './security/redact.ts';
+export { previewCron } from './schedules.ts';
 export { SpendGate, localDayOf, localDayWindow } from './spend.ts';
-export { EventBus, type ClaudioEventInput, type Replay } from './events.ts';
-export { PROVIDERS_TTL_MS, ProviderDetector, satisfiesRange, type ClaudeReading, type ProviderDetectorDeps } from './providers/detector.ts';
-export { ProvidersSettingsStore, defaultProvidersSettings } from './providers/settings.ts';
-export { PROVIDER_MANIFESTS, ProviderRegistry, type ProviderManifest } from './providers/registry.ts';
-export { JOURNAL_HANDOFF_BYTES, JournalService, type JournalHandoff, type JournalWrite } from './journal.ts';
-export { MemoryProposalService, type LessonApprovals, type ProposalOrigin } from './memory-proposals.ts';
-export { LessonService, type MiningContext, type MiningResult } from './lessons/service.ts';
+export { EventBus, type ClaudioEventInput } from './events.ts';
+export { defaultProvidersSettings } from './providers/settings.ts';
 export { LessonStore } from './lessons/store.ts';
-export {
-  installDirs,
-  nvmBinDirs,
-  probeLoginShellPath,
-  resolveCommand,
-  resolveUserPath,
-  SHELL_PATH_PROBE_ENV,
-  type ShellPathFailure,
-  type ShellPathResult,
-} from './providers/path.ts';
-export { idOfEndpoint, parseRegistration, payloadOf, PushService, truncateEndpoint, type PushTransport } from './push.ts';
-export {
-  Supervisor,
-  supervisorModeOf,
-  SupervisorConflictError,
-  type ProposalOwner,
-  type SupervisorAnswer,
-  type SupervisorDeps,
-  type SupervisorQuestion,
-} from './supervisor.ts';
+export { resolveUserPath } from './providers/path.ts';
+export { idOfEndpoint } from './push.ts';
+export { Supervisor, supervisorModeOf, SupervisorConflictError, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
 // package.json files, and never has to rewrite source to bump a version.
 const CLAUDIO_VERSION = pkg.version;
 const SYSTEM_TTL_MS = 30_000;
+/** How long one reading of the overview's chats serves every caller, when no event says it changed */
+const OVERVIEW_TTL_MS = 2_000;
+
+/** The part of the overview read from the chats: what costs a listing, and is shared */
+interface OverviewChats {
+  glance: Awaited<ReturnType<ChatService['glance']>>;
+  running: RunningCounts;
+}
+
+/** How long a shutdown waits for what it ended to write its last rows before the database closes: past a chat's stop grace */
+const SHUTDOWN_GRACE_MS = 8_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
+/** A burst of account changes (a refresh reads every account in turn) is one `accounts.changed` */
+const ACCOUNTS_CHANGED_DEBOUNCE_MS = 250;
+/** The provider whose limit is the account in use's */
+const CLAUDE_PROVIDER: ProviderId = 'claude-code';
 /** How long a check of the account in use is good for */
 const ACCOUNT_CHECK_MS = 30 * 60_000;
 
@@ -593,6 +481,8 @@ export class Core {
   /** The Claude accounts of this machine: one config dir each, chosen per process */
   readonly accounts: AccountStore;
   private accountsTimer: NodeJS.Timeout | null = null;
+  /** Stops the sweep of the guard folder; set once it started */
+  private stopGuardSweep: (() => void) | null = null;
   private sampler: SystemSampler | null = null;
   /** Set by `shutdown`: what was still on its way when it ran must not start anything */
   private closed = false;
@@ -671,6 +561,8 @@ export class Core {
   private language: ClaudioLanguage = 'en';
   private readonly sessionsWatcher: SessionsWatcher;
   private readonly changeWatcher: ChangeWatcher;
+  /** The chats' part of the overview being read or last read, dropped by any event that changes what it shows */
+  private overviewMemo: { at: number; value: Promise<OverviewChats> } | null = null;
   private systemCache: { at: number; gen: number; value: SystemRead } | null = null;
   private systemPending: { gen: number; promise: Promise<SystemRead> } | null = null;
   private systemGen = 0;
@@ -701,13 +593,16 @@ export class Core {
         const env = childEnv('claude-code');
         return Boolean(env.CLAUDE_CODE_OAUTH_TOKEN || env.ANTHROPIC_API_KEY);
       },
+      // Read when an account is removed, by which time the runtime exists
+      liveChatsOn: (account) => this.runtime.liveChatsOn(account),
     });
+    this.accounts.onChange(() => this.accountsChangedSoon());
     this.providers = new ProviderDetector({
       processes: this.children,
       config,
       otherAccount: () => this.readyAccountLabel(),
-      defaultExpired: () => this.accounts.list().find((a) => a.id === DEFAULT_ID)?.signInState === 'expired',
-      accountsAtLimit: () => accountsAtLimit(this.accounts.list()),
+      defaultExpired: () => this.accounts.find(DEFAULT_ID)?.signInState === 'expired',
+      limits: this.claudeLimits(),
       registry: new ProviderRegistry(PROVIDER_MANIFESTS, drivers),
       settings: () => this.providersSettings.get(),
       emit: (event) => this.events.emit(event),
@@ -790,7 +685,7 @@ export class Core {
     this.tunnel = new TunnelManager({
       dataDir: config.dataDir,
       tailscaleBin: config.tailscaleBin,
-      port: config.tunnelPort,
+      ...(config.tunnelPort !== null ? { port: config.tunnelPort } : {}),
       enabled: config.tunnelEnabled,
       managed: config.tailscaleManaged,
       security: this.security,
@@ -850,8 +745,6 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db, drivers);
-    // The detector was built before the runtime that keeps the limits: every status carries its limit from here on
-    this.providers.useLimits(this.runtime.limits);
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
@@ -883,7 +776,6 @@ export class Core {
     this.startSubsystem('accountsWatch', () => this.watchAccounts());
     this.sampler = new SystemSampler(this.db, () => this.chats.livePids(), () => admissionLimitsFrom(), samplerSettingsFrom());
     this.startSubsystem('sampler', () => this.sampler?.start());
-    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, undefined, () => this.chats.holdersKey());
     this.runtime.uploads = this.uploads;
     // The UI watches a run's event stream, so the prompt has to arrive on it
     this.permissions.on('requested', (request: PermissionRequest) => {
@@ -910,7 +802,9 @@ export class Core {
     });
     // Hangs off the bus as an observer, so it hears every event without counting as a client
     this.push = new PushService({ config, db: this.db, events: this.events });
-    this.sessions = new SessionStore(config);
+    // Each transcript's fold is kept in the database, so a restart reads rows instead of every transcript
+    this.sessions = new SessionStore(config, { folds: new TranscriptFolds(this.db.connection) });
+    this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, { holdersOf: () => this.chats.holdersKey(), changes: this.sessions });
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
     this.orchestrator.bus = this.events;
     this.guardLauncher = new GuardLauncher({
@@ -921,6 +815,14 @@ export class Core {
     this.orchestrator.guards = this.guardLauncher;
     // A broken guard is known before the first launch; the orchestrator's launches cannot wait for the self-test
     this.startSubsystem('guardSelfTest', () => this.guardLauncher.warm());
+    // Every spawn derives its guard from the settings of now (D6), a respawn included
+    this.runtime.guardPlanner = (chat) => this.guardsAtSpawn(chat);
+    // The folder grows by a rules and a settings file per distinct plan; the ones no live process names go after a week
+    this.startSubsystem('guardSweep', () => {
+      this.stopGuardSweep = startGuardSweep(config.dataDir, () => this.runtime.liveGuardFiles(), (error) => {
+        console.warn(`guards: the sweep of the guard folder failed: ${errorMessage(error)}`);
+      });
+    });
     this.spend = new SpendGate({
       db: this.db,
       cap: () => this.appSettings.dailySpendCapUsd,
@@ -970,11 +872,18 @@ export class Core {
       settings: this.decisionSettings,
       db: this.db,
       ask: (question) => this.askSupervisor(question),
-      // A page is the newest entries, which is all the supervisor reads
-      steps: async (chatId) => (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [],
-      hint: async (proposal) => {
+      // A page is the newest entries, which is all the supervisor reads. A subagent's steps are its
+      // branch of the live stream: the call the signal is about is in the execution that runs now
+      steps: async (chatId, agent) => {
+        if (agent) return (this.runtime.messages(chatId) ?? []).filter((entry) => entry.parentToolUseId === agent.parentToolUseId).slice(-60);
+        return (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [];
+      },
+      hint: async (proposal, source) => {
         if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint);
-        else await this.chats.hint(proposal.chatId, { text: proposal.hint });
+        else await this.chats.hint(proposal.chatId, proposal.hint, { source });
+      },
+      cancel: async (proposal, toolUseId) => {
+        await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint });
       },
       emit: (event) => this.events.emit(event),
       spendOpen: () => this.spend.allows('supervisor'),
@@ -993,7 +902,7 @@ export class Core {
         runtime: this.runtime,
         settings: this.decisionSettings,
         // A decision chat never waits: Claude Code answers, or says that every account is at its limit
-        route: (cli) => decisionRoute(cli, this.accounts.list()),
+        route: (cli) => decisionRoute(cli, this.accountView().atLimit),
         spendOpen: () => this.spend.allows('decision'),
       }),
     );
@@ -1042,10 +951,11 @@ export class Core {
       sessions: this.sessions,
       orchestrator: this.orchestrator,
       place: (dir, recorded) => this.place(dir, recorded),
-      environmentOf: (dir) => this.runtime.environments.get(dir),
+      environmentOf: (chatId, dir) => this.runtime.environments.forChat(chatId, dir),
+      modelsOf: (provider) => this.modelsOf(provider),
       windowOf: (model) => this.db.modelWindow(model),
       memberChat: (chatId) => this.memberChat(chatId),
-      guardsForChat: (cwd) => this.guardsForChat(cwd),
+      guardsForChat: (cwd, opts) => this.guardsForChat(cwd, opts),
       compact: (chat) => this.context.availability(chat),
       teammateReads: (chatId) => {
         const decision = this.agentReadScope(chatId);
@@ -1092,6 +1002,13 @@ export class Core {
       const started = event.type === 'run.updated' && event.status !== event.previousStatus && event.status === 'starting';
       if (started || event.type === 'run.created' || event.type === 'run.ended' || event.type === 'run.removed') this.chats.forgetHolders();
     });
+    // What the overview shows changes with nearly every event, but not with what a chat or a subagent
+    // is doing this second, which arrives every second per working chat. What the chats spent
+    // changes with a chat's run, its orchestration or its project, none of which the listing sees
+    this.events.observe((event) => {
+      if (event.type !== 'chat.activity' && event.type !== 'subagent.activity') this.overviewMemo = null;
+      if (event.type.startsWith('run.') || event.type.startsWith('orchestration.') || event.type.startsWith('project.')) this.chats.forgetSpends();
+    });
     this.changeWatcher = new ChangeWatcher(this.orchestrator, this.events);
     this.startSubsystem('changeWatcher', () => this.changeWatcher.start());
     this.files = new SettingsFiles();
@@ -1123,7 +1040,10 @@ export class Core {
       orchestration: (id) => this.orchestrator.get(id),
       flowOwns: (chatId) => this.flow.ownsChat(chatId),
     });
-    this.events.observe((event) => this.workLinks.observe(event));
+    // What a shutdown stops is not work ending: the reactions to a chat's end stand down once the core closes
+    this.events.observe((event) => {
+      if (!this.closed) this.workLinks.observe(event);
+    });
     const itemRef = (id: string): WorkItemRef | null => {
       const item = this.workItems.find(id);
       return item ? { id: item.id, key: item.key, title: item.title, type: item.type, status: item.status } : null;
@@ -1223,10 +1143,13 @@ export class Core {
       },
       projectKey: (projectId) => this.projectStore.get(projectId)?.name ?? projectId,
       mine: (input, opts) => runMiner({ runtime: this.runtime, settings: currentLessonSettings }, input, opts),
-      limitResetsAt: () => this.limitReadings().find((l) => l.resetsAt)?.resetsAt ?? null,
+      // The earliest account back: the job ran on one that is out now
+      limitResetsAt: () => this.accountView().nextReset,
       emit: (event) => this.events.emit(event),
     });
-    this.events.observe((event) => this.lessonQueue.observe(event));
+    this.events.observe((event) => {
+      if (!this.closed) this.lessonQueue.observe(event);
+    });
     this.startSubsystem('lessonQueue', () => this.lessonQueue.start());
     this.lessons = new LessonService({
       store: lessonStore,
@@ -1457,7 +1380,9 @@ export class Core {
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
-    this.events.observe((event) => this.flow.observe(event));
+    this.events.observe((event) => {
+      if (!this.closed) this.flow.observe(event);
+    });
     this.assistant = new AssistantService({
       db: this.db,
       items: this.workItems,
@@ -1496,12 +1421,17 @@ export class Core {
       emit: (event) => this.events.emit(event),
       decisions: this.decisions,
     });
-    this.events.observe((event) => this.assistant.observe(event));
+    this.events.observe((event) => {
+      if (!this.closed) this.assistant.observe(event);
+    });
     // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation
     // hears it before the flow, which ends its run on it and so stops claiming the chat
     this.runtime.on('chat-result', (chatId: string, result: RunResult) => {
       // A compaction or a note turn is the chat's upkeep, not its work: no item moves and no run ends on it (D8)
       if (result.purpose) return;
+      // A chat the shutdown stopped did not end its work: the run goes on after the restart. The
+      // database stays open while the chats stop, so this is the one place that tells the two apart
+      if (this.closed) return;
       this.workLinks.chatResult(chatId, result);
       void this.flow.chatResult(chatId, result);
       this.assistant.chatResult(chatId, result);
@@ -1590,7 +1520,7 @@ export class Core {
     this.restored = restored.then(
       () => undefined,
       (error: unknown) => {
-        if (!this.closed) console.warn(`restore: ${error instanceof Error ? error.message : String(error)}`);
+        if (!this.closed) console.warn(`restore: ${errorMessage(error)}`);
       },
     );
     this.connectors = new Connectors(config, { account: () => this.accounts.ref(DEFAULT_ID) });
@@ -1720,12 +1650,12 @@ export class Core {
         events: { subscribe: (listener) => this.events.observe(listener) },
       },
     });
-    this.startSubsystem('collaborators', () => void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${error instanceof Error ? error.message : String(error)}`)));
+    this.startSubsystem('collaborators', () => void this.collaborators.start().catch((error: unknown) => console.warn(`collab: ${errorMessage(error)}`)));
     this.settings = createSettingsRegistry({
       appSettings: this.appSettings,
       providers: this.providersSettings,
       // As `PUT /providers/settings` does: the answer does not wait for the probes, `providers.changed` tells the pages
-      providersChanged: () => void this.providers.settingsChanged().catch((error: unknown) => console.warn(`providers: re-detection after a reset failed: ${error instanceof Error ? error.message : String(error)}`)),
+      providersChanged: () => void this.providers.settingsChanged().catch((error: unknown) => console.warn(`providers: re-detection after a reset failed: ${errorMessage(error)}`)),
       lessons: this.lessonSettings,
       decisions: this.decisionSettings,
       guards: this.guards,
@@ -1845,6 +1775,19 @@ export class Core {
     this.systemGen++;
   }
 
+  /**
+   * The models a provider lists, read from the CLI first when none is cached yet (the server warms the
+   * lists at boot, but a request in its first moments would find none); empty when it cannot say
+   */
+  private async modelsOf(provider: ProviderId): Promise<ModelOption[]> {
+    const driver = this.runtime.providers.driverFor(provider);
+    if (!driver) return [];
+    const listed = driver.models();
+    if (listed.length) return listed;
+    await this.accounts.warmModels().catch(() => undefined);
+    return driver.models();
+  }
+
   /** The catalog of the provider a new chat starts with */
   private defaultModels(): ModelOption[] {
     const { providers, providerSettings } = this.runtime;
@@ -1856,7 +1799,8 @@ export class Core {
     // Read here rather than with the rest: the rest costs two `claude` processes and is kept for
     // half a minute, while the models are the default account's stored `initialize` list
     // The account in use moves with rotation and sign-ins, faster than the system read is redone
-    return { ...value, profile: this.profile, auth: { ...value.auth, ...this.accountInUseRead() }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
+    const view = this.accountView();
+    return { ...value, profile: this.profile, auth: { ...value.auth, inUse: view.inUse, inUseReason: view.inUseReason }, models: this.defaultModels(), uptimeSec: Math.round((Date.now() - this.startedAt) / 1000) };
   }
 
   /**
@@ -1968,7 +1912,7 @@ export class Core {
       });
     } catch (err) {
       // Heard from the chat's stream: a closed database (shutting down) must not become the chat's error
-      console.warn(`guard: the verdict on ${chatId} was not recorded: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`guard: the verdict on ${chatId} was not recorded: ${errorMessage(err)}`);
     }
   }
 
@@ -2047,7 +1991,7 @@ export class Core {
     if (!name) throw new Error('name is required');
     validateEffort(request.effort);
     const known = await this.workflowDefinitions(request.cwd);
-    if (!known.some((w) => w.name === name)) throw new Error(`workflow "${name}" not found in .claude/workflows/`);
+    if (!known.some((w) => w.name === name)) throw new NotFoundError(`workflow "${name}" not found in .claude/workflows/`);
     const args = request.args?.trim();
     const prompt = [
       `Run the saved workflow "${name}" with the Workflow tool (pass name: "${name}"${args ? ' and the args below' : ''}).`,
@@ -2075,7 +2019,7 @@ export class Core {
    */
   async purgeProject(id: string): Promise<{ detail: string }> {
     const project = this.projectStore.get(id);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     const res = await execCli(this.config, ['project', 'purge', project.path, '--yes'], { timeoutMs: 60_000 });
     if (res.code !== 0) throw new Error(res.stderr.trim() || 'claude project purge failed');
     // Only that project's transcripts went; the rest stay as they were read
@@ -2090,7 +2034,7 @@ export class Core {
   async resolveScope(projectId?: string): Promise<ConfigScope> {
     if (!projectId || projectId === 'user') return userScope(this.config);
     const project = this.projectStore.get(projectId);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     if (!existsSync(project.path)) throw new Error('project directory is missing on disk');
     return projectScope(project.path);
   }
@@ -2098,7 +2042,7 @@ export class Core {
   /** Claude Code keys a project's memory by its directory, not by the id Claudio gives the project. */
   private memoryKey(projectId: string): string {
     const project = this.projectStore.get(projectId);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     return encodeProjectId(project.path);
   }
 
@@ -2194,10 +2138,10 @@ export class Core {
 
   /** What a restart would stop, counted as the overview counts it */
   async liveWork(): Promise<LiveWork> {
-    const chats = await this.chats.list({ origins: ['claudio', 'external', 'orchestration'] });
+    const glance = await this.chats.glance({ origins: ['claudio', 'external', 'orchestration'] }, 0);
     return {
-      working: chats.filter((c) => c.state === 'working').length,
-      waiting: chats.filter((c) => c.state === 'waiting').length,
+      working: glance.working,
+      waiting: glance.waiting,
       running: this.orchestrator.runningCount(),
       // Every shell ends with the server (docs/terminal.md, Lifetime)
       terminals: this.terminals.running(),
@@ -2235,6 +2179,8 @@ export class Core {
       { prompt, model, purpose: 'assistant', ...effortOption(effort), provider: LEGACY_PROVIDER, ...(project && existsSync(project.path) ? { cwd: project.path } : {}) },
       undefined,
       { projectId: project?.id ?? null, language },
+      // The assistant is never guarded (docs/guards.md): its confinement is its own launch
+      null,
     );
   }
 
@@ -2399,9 +2345,12 @@ export class Core {
   }
 
   /**
-   * The supervisor's question as a housekeeping chat: no transcript, the `read-only` preset (the
-   * stored one, or the shipped one if it was deleted) and the configured ceiling as
-   * `--max-budget-usd`. Removed once it answers, like the auth check: the proposal is its record.
+   * The supervisor's question as a housekeeping chat, confined like a decision's one-shot (C3): no
+   * transcript, no settings file of the person's or the project's, no MCP server, no way back into
+   * Claudio, and only the tools of the `read-only` preset (the stored one, or the shipped one if it
+   * was deleted) under `--restricted` and `dontAsk`, with `cli.supervisorMaxCostUsd` as
+   * `--max-budget-usd`. Removed once it answers, like the auth check: the proposal is its record. A
+   * start refused for room throws its refusal, which the Supervisor retries.
    */
   private async askSupervisor(question: SupervisorQuestion): Promise<SupervisorAnswer> {
     const preset = this.toolPresets.get('read-only') ?? DEFAULT_SUPERVISOR_PRESET;
@@ -2416,9 +2365,14 @@ export class Core {
       purpose: 'supervisor',
       keepAlive: false,
       internal: true,
-      permissionMode: 'manual',
+      api: false,
+      uploads: false,
+      permissionMode: 'dontAsk',
+      permissionPrompts: 'none',
       allowedTools,
       disallowedTools,
+      confine: { tools: toolsOfRules(allowedTools), settingSources: [] },
+      mcp: { servers: [], config: writeMcpConfigSync(this.config.dataDir, {}) },
       toolConfig: { preset, allowedTools, disallowedTools, mcp: null },
       maxBudgetUsd: question.maxCostUsd,
     });
@@ -2444,17 +2398,12 @@ export class Core {
     const sessions = await this.sessions.listSessions();
     for (const s of sessions) if (s.worktree) this.repos.learn(s.worktree);
     // Counted from the chat list the project's page shows, so the figure agrees with it: a chat this
-    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its transcript
-    const listed = await this.chats.list();
+    // process runs (a "Work on it", a flow or an assistant chat) counts before the CLI writes its
+    // transcript. Only where each chat is and when it moved are read; no chat is assembled
+    const listed = await this.chats.placements();
     const records = this.projectStore.list();
     const settings = await this.projectSettingsStore.readAll(records);
-    const real = (path: string) => {
-      try {
-        return realpathSync(path);
-      } catch {
-        return path;
-      }
-    };
+    const real = (path: string) => this.repos.real(path);
 
     // Who made a worktree, the most specific maker first: what a run was for says more than a chat in it
     const creators = new Map<string, WorktreeCreator>();
@@ -2490,13 +2439,13 @@ export class Core {
       tally.chatCount += 1;
       if (at && (!tally.lastActivity || at > tally.lastActivity)) tally.lastActivity = at;
     };
-    for (const chat of listed) {
+    for (const { placement: chat, updatedAt } of listed) {
       if (!chat.project) continue;
       const stat = stats.get(chat.project.id) ?? { chatCount: 0, lastActivity: null, byWorktree: new Map<string, Tally>(), removed: new Set<string>() };
-      bump(stat, chat.updatedAt);
+      bump(stat, updatedAt);
       const key = chat.worktree ? real(chat.worktree.path) : MAIN;
       const of = stat.byWorktree.get(key) ?? { chatCount: 0, lastActivity: null };
-      bump(of, chat.updatedAt);
+      bump(of, updatedAt);
       stat.byWorktree.set(key, of);
       if (chat.worktree && !chat.worktree.exists) stat.removed.add(chat.worktree.path);
       stats.set(chat.project.id, stat);
@@ -2555,7 +2504,7 @@ export class Core {
     if (!p.repo) return { repo: null, insideWorktreeOf: null };
     const facts = this.repos.place(p.path).repo;
     const same = facts?.commonDir === p.repo.commonDir ? facts : null;
-    const bare = coreConfigOf(p.repo.commonDir).bare;
+    const bare = this.repos.configOf(p.repo.commonDir).bare;
     const mainCheckout = bare ? null : (same?.mainCheckout ?? this.repos.worktreesOf(p.repo.commonDir).find((w) => w.main)?.path ?? null);
     const repo: ProjectRepo = { commonDir: p.repo.commonDir, mainCheckout, subdir: p.repo.subdir, remote: p.repo.remote, bare };
     const insideWorktreeOf = same?.worktree ? (mainCheckout ? join(mainCheckout, same.subdir) : bareImportPath(p.repo.commonDir)) : null;
@@ -2796,7 +2745,7 @@ export class Core {
 
   private requireProject(id: string): ProjectRecord {
     const record = this.projectStore.get(id);
-    if (!record) throw new Error('project not found');
+    if (!record) throw new NotFoundError('project not found');
     return record;
   }
 
@@ -2851,7 +2800,7 @@ export class Core {
    */
   /** The person lets a held card's run start past today's cap; the flow dispatches once the gate hears of it. */
   grantFlowSpendPass(itemId: string): FlowSpendPass {
-    if (!this.workItems.find(itemId)) throw new Error('work item not found');
+    if (!this.workItems.find(itemId)) throw new NotFoundError('work item not found');
     return { itemId, day: this.spend.grantItemPass(itemId) };
   }
 
@@ -3011,12 +2960,18 @@ export class Core {
     // Not recorded, as for a member's run: the CLI would otherwise send the run's prompt, rendered
     // for a confined session, to a person who continues the chat after the run
     const extras = { jsonSchema: launch.jsonSchema, keepAlive: false, confine, systemPromptSnapshot: 'off' as const, purpose: 'assistant' as const };
+    // An assistant run is confined and never guarded (D12): said outright, not left to the project's opt-in
     if (launch.resumeChatId) {
       onStart(launch.resumeChatId, LEGACY_PROVIDER, this.effortPassed(options.effort) ?? (resumed ? usedEffort(resumed) : null));
-      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, extras);
+      await this.chats.resume(launch.resumeChatId, { ...options, prompt: launch.prompt }, { ...extras, guards: null });
       return;
     }
-    await this.chats.create({ ...options, ...extras, provider: LEGACY_PROVIDER, policy, prompt: launch.prompt, cwd: launch.cwd }, (started) => onStart(started.id, LEGACY_PROVIDER, usedEffort(started)));
+    await this.chats.create(
+      { ...options, ...extras, provider: LEGACY_PROVIDER, policy, prompt: launch.prompt, cwd: launch.cwd },
+      (started) => onStart(started.id, LEGACY_PROVIDER, usedEffort(started)),
+      undefined,
+      null,
+    );
   }
 
   /** The effort a chat starts with, from what was asked: none when it is not one of the levels. */
@@ -3093,7 +3048,7 @@ export class Core {
         documentsRoot: settings.documents?.path ?? DEFAULT_DOCUMENTS_PATH,
         place,
       }).catch((err: unknown) => {
-        throw new ItemDocumentsError(`the item's documents could not be brought into its worktree: ${err instanceof Error ? err.message : String(err)}`);
+        throw new ItemDocumentsError(`the item's documents could not be brought into its worktree: ${errorMessage(err)}`);
       });
       for (const s of sync.skipped) console.warn(`[flow] ${item.key}: document ${s.path} not brought into the worktree: ${s.reason}`);
       const line = documentsLine(sync.present);
@@ -3108,6 +3063,7 @@ export class Core {
       worktree: place?.cwd ?? null,
       mainCheckout: record.path,
       project: await this.projectSettings(item.projectId),
+      projectId: item.projectId,
       policy: { commands: launch.policy.commands.allow !== 'none', edits: launch.policy.edit.allow !== 'none' },
     });
     const options = {
@@ -3161,12 +3117,52 @@ export class Core {
     );
   }
 
-  /** A person's chat in `cwd`: guarded when its project opted in. Null leaves it as it always ran. */
-  private async guardsForChat(cwd: string): Promise<ChatGuardPlan | null> {
+  /**
+   * A person's chat in `cwd`: guarded when its project opted in and a rule is on. A run that can
+   * neither run commands nor write files (`policy`), or is confined to a tool list, gets none (D12),
+   * and so does the assistant, whose launch passes `null` before this is asked. Null leaves the chat
+   * as it always ran.
+   */
+  private async guardsForChat(cwd: string, opts: { policy?: ToolPolicy | null; confined?: boolean } = {}): Promise<ChatGuardPlan | null> {
     const project = this.projectOf(resolve(cwd)).project;
     if (!project) return null;
     const settings = await this.projectSettings(project.id);
-    return this.guardLauncher.prepare({ kind: 'chat', cwd: resolve(cwd), mainCheckout: this.projectStore.get(project.id)?.path ?? null, project: settings, interactive: true });
+    return this.guardLauncher.prepare(this.chatGuardRequest(resolve(cwd), project.id, settings, opts));
+  }
+
+  private chatGuardRequest(cwd: string, projectId: string, project: Pick<ProjectSettings, 'guards' | 'flow'> | null, opts: { policy?: ToolPolicy | null; confined?: boolean }): GuardRequest {
+    return {
+      kind: 'chat',
+      cwd,
+      mainCheckout: this.projectStore.get(projectId)?.path ?? null,
+      project,
+      projectId,
+      policy: guardPolicyOf(opts.policy),
+      confined: !!opts.confined,
+      interactive: true,
+    };
+  }
+
+  /**
+   * The guard plan of a spawn its caller handed none to (D6): derived again from the request the
+   * chat's last plan came from, with the global settings and the project's as they are now, or, for
+   * a person's chat that ran unguarded, from its project's opt-in. Synchronous, like the spawn: the
+   * self-test ran when the chat's first plan was prepared, or at server start.
+   */
+  private guardsAtSpawn(chat: GuardSubject): ChatGuardPlan | null {
+    const last = chat.plan?.request;
+    let request: GuardRequest | null;
+    if (last) {
+      const projectId = last.projectId ?? null;
+      const record = projectId ? this.projectStore.get(projectId) : undefined;
+      request = projectId ? { ...last, project: this.projectSettingsStore.stored(projectId, record?.name) ?? last.project } : last;
+    } else if (chat.person) {
+      const project = this.projectOf(resolve(chat.cwd)).project;
+      request = project
+        ? this.chatGuardRequest(resolve(chat.cwd), project.id, this.projectSettingsStore.stored(project.id, project.name), { policy: chat.policy, confined: chat.confined })
+        : null;
+    } else request = null;
+    return request ? this.guardLauncher.prepareNow(request) : null;
   }
 
   /**
@@ -3693,41 +3689,136 @@ export class Core {
 
   private async projectView(id: string): Promise<Project> {
     const project = (await this.projects()).find((p) => p.id === id);
-    if (!project) throw new Error('project not found');
+    if (!project) throw new NotFoundError('project not found');
     return project;
   }
 
+  /**
+   * What the dashboard, the status bar and the tray show at a glance. The chats' part, the one that
+   * reads the listing, is read once for every caller for {@link OVERVIEW_TTL_MS}, unless an event
+   * says something it shows changed: the tray asks again on every run event, and several tabs ask
+   * at once. The accounts and the limits are the stores' own, read as they are now.
+   */
   async overview(): Promise<Overview> {
-    // The same lists the screens show, so a count can never disagree with the page it links to; read
-    // in one pass, not once per kind
-    const [system, chats, { tasks, subagents, workflows }] = await Promise.all([
-      this.system(),
-      this.chats.list({ origins: ['claudio', 'external', 'orchestration'] }),
-      this.chats.allActivity(),
-    ]);
+    const [system, { glance, running }] = await Promise.all([this.system(), this.overviewChats()]);
+    const view = this.accountView();
     return {
       system,
-      limits: this.limitReadings(),
-      accounts: this.accountsSnapshot(),
+      limits: this.limitReadings(view),
+      accounts: view,
       counts: {
         projects: this.projectStore.list().length,
-        chats: chats.length,
-        chatsWorking: chats.filter((c) => c.state === 'working').length,
-        chatsWaiting: chats.filter((c) => c.state === 'waiting').length,
-        backgroundTasks: tasks.filter((t) => t.status === 'running').length,
-        subagents: subagents.filter((s) => s.status === 'running').length,
-        workflows: workflows.filter((w) => w.status === 'running').length,
+        chats: glance.total,
+        chatsWorking: glance.working,
+        chatsWaiting: glance.waiting,
+        backgroundTasks: running.backgroundTasks,
+        subagents: running.subagents,
+        workflows: running.workflows,
         orchestrationsRunning: this.orchestrator.runningCount(),
       },
-      recentChats: chats.slice(0, 10),
+      recentChats: glance.recent,
     };
   }
 
-  /** What the dashboard shows of the accounts: how many can take work, and the one new work would start on. */
-  private accountsSnapshot(): AccountsSnapshot {
-    const list = this.accounts.listed();
-    const ready = list.filter((a) => a.enabled && a.signedIn);
-    return { total: list.length, ready: ready.length, current: this.accountInUse()?.id ?? null };
+  private overviewChats(): Promise<OverviewChats> {
+    const memo = this.overviewMemo;
+    if (memo && Date.now() - memo.at < OVERVIEW_TTL_MS) return memo.value;
+    // The same list the chat pages show, so a count can never disagree with the page it links to;
+    // what runs under the chats is counted from the runtime, which streams it, rather than read
+    // from every chat's files
+    const value = Promise.all([this.chats.glance({ origins: ['claudio', 'external', 'orchestration'] }, 10), this.chats.runningCounts()]).then(([glance, running]) => ({ glance, running }));
+    const entry = { at: Date.now(), value };
+    this.overviewMemo = entry;
+    value.catch(() => {
+      if (this.overviewMemo === entry) this.overviewMemo = null;
+    });
+    return value;
+  }
+
+  /**
+   * The accounts as every screen reads them (D2 of docs/plans/regression-fixes-2026-10-29.md): the
+   * account new work starts on, chosen by the same `choose` a chat's launch runs (pin-less, so it
+   * honours `preferred`), the list, and whether every account that could take work is out.
+   * `GET /auth.inUse`, `overview.accounts`, Claude's provider limit and the decision route read this
+   * and nothing else, so the status bar, the chip and the cards cannot disagree.
+   */
+  accountView(now: number = Date.now()): AccountView {
+    const accounts = this.accounts.list(now);
+    const choice = this.accounts.pick({ current: null, now });
+    const account = choice.account ? accounts.find((a) => a.id === choice.account) : undefined;
+    const ready = accounts.filter((a) => a.enabled && a.signedIn);
+    const out = ready.filter((a) => isOut(a.limits, now));
+    const resets = out.flatMap((a) => (a.limits?.resetsAt ? [a.limits.resetsAt] : [])).sort((a, b) => Date.parse(a) - Date.parse(b));
+    const inUse: AccountInUse | null = account
+      ? {
+          id: account.id,
+          label: account.alias ?? account.email ?? account.id,
+          kind: account.kind,
+          signInState: account.signInState,
+          checkedAt: account.checkedAt,
+          limit: account.limits,
+          plan: account.plan,
+        }
+      : null;
+    return {
+      inUse,
+      inUseReason: inUse ? null : ready.length ? 'limit' : 'signed-out',
+      accounts,
+      atLimit: ready.length > 0 && out.length === ready.length,
+      nextReset: resets[0] ?? null,
+      settings: this.accounts.settings(),
+    };
+  }
+
+  /** The account new work would start on; null when none can take work */
+  private accountInUse(): AccountInUse | null {
+    return this.accountView().inUse;
+  }
+
+  /**
+   * Claude's limit is the account in use's. With every account out none is in use, and the reading
+   * shown is the one of the account that is back first.
+   */
+  private claudeLimit(view: AccountView): ProviderLimit | null {
+    const back = view.atLimit ? view.accounts.find((a) => a.limits?.resetsAt === view.nextReset && isOut(a.limits, Date.now())) : undefined;
+    return providerLimitOf(CLAUDE_PROVIDER, view.inUse?.limit ?? back?.limits ?? null);
+  }
+
+  /** Where the provider detector reads Claude's limit, and hears that an account changed. */
+  private claudeLimits(): ProviderLimitSource {
+    return {
+      get: (provider) => (provider === CLAUDE_PROVIDER ? this.claudeLimit(this.accountView()) : null),
+      atLimit: (provider) => provider === CLAUDE_PROVIDER && this.accountView().atLimit,
+      onChange: (listener) => {
+        this.accountListeners.add(listener);
+        return () => void this.accountListeners.delete(listener);
+      },
+    };
+  }
+
+  private readonly accountListeners = new Set<() => void>();
+  private accountsChangedTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * An account's reading or stored state changed (`AccountStore.onChange`). Before 2026-10-29 nothing
+   * said so: the web refetched the accounts only on a rotation or a page action. One
+   * `accounts.changed` per burst, and the detector looks at Claude's status again.
+   */
+  private accountsChangedSoon(): void {
+    if (this.accountsChangedTimer || this.closed) return;
+    this.accountsChangedTimer = setTimeout(() => {
+      this.accountsChangedTimer = null;
+      if (this.closed) return;
+      this.events.emit({ type: 'accounts.changed', title: 'Accounts changed' });
+      for (const listener of [...this.accountListeners]) {
+        try {
+          listener();
+        } catch {
+          // A listener's failure is its own: the event went out all the same
+        }
+      }
+    }, ACCOUNTS_CHANGED_DEBOUNCE_MS);
+    this.accountsChangedTimer.unref();
   }
 
   /** A signed-in account other than the CLI's own login, when there is one: Claude can run on it though the CLI itself is signed out. */
@@ -3754,29 +3845,10 @@ export class Core {
         await this.runtime.noteAccountReading(id, reading);
         if (reading.cli?.available) await this.accounts.confirm(id);
       } catch (e) {
-        failed.push({ id, error: e instanceof Error ? e.message : String(e) });
+        failed.push({ id, error: errorMessage(e) });
       }
     }
-    return { accounts: this.accounts.listed(), failed };
-  }
-
-  /** `inUse` with, when it is null, why: no credential at all, or every signed-in account at its limit */
-  private accountInUseRead(): Pick<AuthStatus, 'inUse' | 'inUseReason'> {
-    const inUse = this.accountInUse();
-    if (inUse) return { inUse, inUseReason: null };
-    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
-    const signedIn = this.accounts.list().some((a) => a.enabled && a.signedIn && !(ghost && a.id === DEFAULT_ID));
-    return { inUse: null, inUseReason: signedIn ? 'limit' : 'signed-out' };
-  }
-
-  /** The account new work would start on, as Settings and the status bar name it; null when none can take work */
-  private accountInUse(): AccountInUse | null {
-    // The CLI's own login is assumed signed in until read: with no credential at all it is a ghost, not an account
-    const ghost = !this.accounts.hasCredential(DEFAULT_ID);
-    const id = this.accounts.pick({ current: null, ...(ghost ? { failedOn: [DEFAULT_ID] } : {}) }).account;
-    const account = id ? this.accounts.list().find((a) => a.id === id) : undefined;
-    if (!account) return null;
-    return { id: account.id, label: account.alias ?? account.email ?? account.id, kind: account.kind, signInState: account.signInState, checkedAt: account.checkedAt };
+    return { accounts: this.accounts.list(), failed };
   }
 
   private checkingInUse = false;
@@ -3842,26 +3914,35 @@ export class Core {
   }
 
   /** One reading per provider that has one, for the overview and the status bar. */
-  private limitReadings(): ProviderLimit[] {
-    return this.runtime.providers.list().flatMap((m) => {
-      const limit = this.runtime.limits.get(m.id);
-      return limit ? [limit] : [];
-    });
+  private limitReadings(view: AccountView = this.accountView()): ProviderLimit[] {
+    const claude = this.claudeLimit(view);
+    return claude ? [claude] : [];
   }
 
   /**
-   * Stops everything this core runs. What has to happen at once happens before it returns; the
-   * promise resolves once the probes and host calls it ended have exited too, which is what a
-   * process about to exit waits for: one left running writes its config home after the server is
-   * gone (see `ChildProcesses`). Callers that only stop the core may ignore it.
+   * Stops everything this core runs. What has to happen at once (every timer, every chat told to
+   * stop) happens before it returns; the promise resolves once what was asked to end has ended and
+   * the database is closed, which is what a process about to exit waits for. The evals, the
+   * terminals, the collaborators and the chats' processes each write rows on their way out, so the
+   * database closes after them, bounded by `SHUTDOWN_GRACE_MS`; a probe or host call left running
+   * writes its config home after the server is gone (see `ChildProcesses`). A second call (a signal
+   * during an in-app restart, a test that restarts a core) gets the first one's promise.
    */
   shutdown(): Promise<void> {
+    this.shuttingDown ??= this.shutdownOnce();
+    return this.shuttingDown;
+  }
+
+  private shuttingDown: Promise<void> | null = null;
+
+  private async shutdownOnce(): Promise<void> {
     this.closed = true;
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();
-    // First, while the database is still open for the row that says its host left
-    this.tunnel.shutdown();
+    // First, while the database is still open for the row that says its host left; taking its
+    // Serve rule away goes on, bounded, and the returned promise waits for it
+    const tunnel = this.tunnel.shutdown();
     this.logins.close();
     this.lessons.stop();
     this.cliVersion.stop();
@@ -3873,7 +3954,7 @@ export class Core {
     this.lessonQueue.stop();
     this.decisionResolvers.stop();
     this.decisions.stop();
-    void this.evals.close().catch(() => undefined);
+    const evals = this.evals.close();
     this.orchestrator.close();
     this.spend.close();
     this.schedules.close();
@@ -3882,16 +3963,29 @@ export class Core {
     this.permissions.close();
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
+    if (this.accountsChangedTimer) clearTimeout(this.accountsChangedTimer);
+    this.stopGuardSweep?.();
     this.sampler?.stop();
     this.rotation.close();
     this.retention?.stop();
-    // The rows that say the shells ended are written before this returns, while the database is open
-    void this.terminals.shutdown();
-    void this.collaborators.dispose();
+    const terminals = this.terminals.shutdown();
+    const collaborators = this.collaborators.dispose();
     this.workspaces.close();
-    this.runtime.stopAll();
+    const chats = this.runtime.stopAll();
+    // Each writes its last rows on its way out (the shells that ended, the evals cut short, a chat's
+    // final execution), so the database waits for them; one that hangs does not hold the exit for ever
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.allSettled([evals, terminals, collaborators, chats, tunnel]),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
+        timer.unref();
+      }),
+    ]);
+    clearTimeout(timer);
     this.repos.flush();
+    this.sessions.flush();
     this.db.close();
-    return this.children.close();
+    await this.children.close();
   }
 }

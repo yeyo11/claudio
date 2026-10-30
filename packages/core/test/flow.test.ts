@@ -18,6 +18,7 @@ import { RECORDS_IN_ENGLISH } from '../src/team.ts';
 import { WorkItemService } from '../src/work-items.ts';
 import { FRONTEND, PASTED_NOTE, REAL_VERIFICATION, SCOPE_AND_COMPLETION, THINK_THROUGH, UNATTENDED } from '../src/prompt-rules.ts';
 import { tempConfig } from './helpers.ts';
+import { RunSlotRefusal } from '../src/chat-errors.ts';
 import { GuardEventStore } from '../src/guards/events.ts';
 
 // The flow starts paid agent runs on its own, so these tests are as much about what must not start
@@ -41,7 +42,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; spendOpen?: boolean; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] }; contextOf?: FlowDeps['contextOf'] } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; spendOpen?: boolean; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] }; contextOf?: FlowDeps['contextOf']; handoff?: FlowDeps['handoff'] } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -61,6 +62,8 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
   const costs = new Map<string, number>();
   /** `resume`: only continuing a chat fails; `started`: the chat to continue is told of, then it fails */
   const failNext: { message: string | null; when?: 'resume' | 'started' } = { message: null };
+  // A full runtime refuses with its own class, as the chat manager does; anything else is a plain failure
+  const failure = (message: string) => (message.startsWith('Concurrent run limit') ? new RunSlotRefusal(8) : new Error(message));
   let chats = 0;
   /** The daily spend cap: closed, no new run starts */
   const spend = { open: opts.spendOpen ?? true, passed: new Set<string>() };
@@ -69,19 +72,19 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     spendOpen: (itemId) => spend.open || spend.passed.has(itemId),
     items,
     project: (id) => (id === 'p1' ? { path: opts.path ?? '/nowhere/p1', settings: state.settings } : null),
-    handoff: () => '# Project journal',
+    handoff: opts.handoff ?? (() => '# Project journal'),
     propose: (_id, proposal) => void proposals.push(proposal),
     tie: async (_item, doc) => void ties.push(doc),
     // As the core does: a chat to continue is told first, and one that cannot be continued fails
     // a run a restart cut off, or gives way to a chat of its own
     launch: async (launch, onStart) => {
-      if (failNext.message && !failNext.when) throw new Error(failNext.message);
+      if (failNext.message && !failNext.when) throw failure(failNext.message);
       launches.push(launch);
       if (launch.resumeChatId) {
         onStart(launch.resumeChatId);
-        if (failNext.message && failNext.when === 'started') throw new Error(failNext.message);
+        if (failNext.message && failNext.when === 'started') throw failure(failNext.message);
         if (!failNext.message) return;
-        if (launch.continuing) throw new Error(failNext.message);
+        if (launch.continuing) throw failure(failNext.message);
       }
       onStart(`chat-${++chats}`);
     },
@@ -548,6 +551,29 @@ test('a runtime at its limit keeps the run queued; any other launch failure fail
   s.failNext.message = null;
   assert.equal(flowRuns(s).at(-1)?.outcome, 'failed');
   assert.equal(s.items.find(it.id)?.status, 'in_review');
+});
+
+test('a step that throws between the claim and the chat fails the run, and never leaves it running without a chat', async () => {
+  // Before, anything awaited after the claim (the journal's handoff here) threw outside the try: the row
+  // stayed running with no chat and held a place of maxParallel until a restart
+  let broken = true;
+  const s = setup({
+    settings: { ...settingsWith(), flow: { ...settingsWith().flow!, maxParallel: 1 } },
+    handoff: () => {
+      if (broken) throw new Error('the journal could not be read');
+      return '# Project journal';
+    },
+  });
+  const first = await item(s, 'in_progress', 'First');
+  assert.deepEqual(running(s), []);
+  const run = flowRuns(s).find((r) => r.itemId === first.id);
+  assert.equal(run?.outcome, 'failed');
+  assert.equal(run?.chatId, null);
+  assert.match(run?.error ?? '', /the journal could not be read/);
+  // Its place is free: the next card starts
+  broken = false;
+  const second = await item(s, 'in_progress', 'Second');
+  assert.equal(running(s)[0]?.itemId, second.id);
 });
 
 test('a person working in the item\'s chat makes the run moot', async () => {

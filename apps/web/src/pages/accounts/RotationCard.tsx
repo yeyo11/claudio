@@ -8,7 +8,7 @@ import { NumberInput, Slider, Switch } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Segmented } from '@claudio/ui/components/ui';
 import { ServerSettingChange } from '../config/SettingChange';
-import { rotationOrder, settingsView, type AccountsSettingsView } from '../../lib/accounts';
+import { rotationOrder } from '../../lib/accounts';
 import { AccountOrderList } from './AccountOrderList';
 
 const STRATEGIES = ['order', 'least-used'] as const;
@@ -19,8 +19,7 @@ const STRATEGIES = ['order', 'least-used'] as const;
  * "In order", the order itself is listed under the strategy; while switching at the limit is off,
  * the fields that only apply to a switch are read-only.
  */
-export function RotationCard({ settings: saved, accounts }: { settings: AccountsSettings; accounts: readonly Account[] }) {
-  const settings = settingsView(saved);
+export function RotationCard({ settings, accounts }: { settings: AccountsSettings; accounts: readonly Account[] }) {
   const { t } = useTranslation(['accountsConfig', 'config']);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -29,9 +28,9 @@ export function RotationCard({ settings: saved, accounts }: { settings: Accounts
   // top. A new saved copy (after a Reset or a Save elsewhere) is then shown at once for every field
   // nobody edited, with nothing to keep in step: two writers of a whole draft raced in the PR #55
   // reviews, and either flashed Discard or kept a stale value that Save wrote back
-  const [edits, setEdits] = useState<Partial<AccountsSettingsView>>({});
-  const draft: AccountsSettingsView = { ...settings, ...edits };
-  const edit = (patch: Partial<AccountsSettingsView>) => setEdits((now) => ({ ...now, ...patch }));
+  const [edits, setEdits] = useState<Partial<AccountsSettings>>({});
+  const draft: AccountsSettings = { ...settings, ...edits };
+  const edit = (patch: Partial<AccountsSettings>) => setEdits((now) => ({ ...now, ...patch }));
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
   const order = rotationOrder(draft.order, accounts);
   const switching = draft.rotateOnLimit;
@@ -39,7 +38,7 @@ export function RotationCard({ settings: saved, accounts }: { settings: Accounts
   // Only the edited fields are sent: the preferred account is set from its card, and a Save here
   // must not write back the copy this card had before that
   const mutation = useMutation({
-    mutationFn: (next: Partial<AccountsSettingsView>) => api.putAccountsSettings(next),
+    mutationFn: (next: Partial<AccountsSettings>) => api.putAccountsSettings(next),
     onSuccess: (saved) => {
       // The saved copy first, so dropping the edits never shows the old values for a frame
       queryClient.setQueryData(keys.accountsSettings, saved);
@@ -51,12 +50,12 @@ export function RotationCard({ settings: saved, accounts }: { settings: Accounts
   });
 
   // A Reset drops that field's unsaved edit, if any, so it shows the saved default; the other edits stay
-  const dropEdit = (field: keyof AccountsSettingsView) => () =>
+  const dropEdit = (field: keyof AccountsSettings) => () =>
     setEdits((now) => {
       const { [field]: _dropped, ...rest } = now;
       return rest;
     });
-  const change = (setting: string, label: string, field: keyof AccountsSettingsView, wording?: (value: SettingDefault) => string) => (
+  const change = (setting: string, label: string, field: keyof AccountsSettings, wording?: (value: SettingDefault) => string) => (
     <ServerSettingChange id={`accounts.${setting}`} label={label} {...(wording ? { wording } : {})} invalidate={[keys.accountsSettings]} onReset={dropEdit(field)} />
   );
 

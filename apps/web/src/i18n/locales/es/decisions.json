@@ -6,6 +6,8 @@
     "cliModel": "Modelo del CLI",
     "effort": "Esfuerzo",
     "maxCostInvalid": "El límite tiene que ser mayor que 0 US$ y como mucho {{max}} US$.",
+    "supervisorCap": "Tope por pista del Supervisor",
+    "supervisorCapLine": "Como mucho {{cost}} por pista: lee los archivos del worker antes de escribirla",
     "jevKey": "Clave de Jev",
     "jevKeyHint": "Se guarda en este equipo y la API nunca la devuelve.",
     "jevKeyInput": "Clave de API de Jev",

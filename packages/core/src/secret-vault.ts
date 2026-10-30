@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
 import { SecretBox } from './secret-box.ts';
+import { isRecord } from '@claudio/shared';
 
 /** The file every secret Claudio hands a CLI through its environment lives in */
 export const VAULT_FILE = 'secrets.json';
 /** The key made beside the data when the environment brings none (Docker only, see `keyFor`) */
 export const KEY_FILE = 'secret.key';
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 type Stored = Record<string, Record<string, string>>;
 
@@ -176,10 +176,10 @@ export class SecretVault {
     if (!existsSync(this.file)) return {};
     try {
       const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      if (!isObject(raw)) return {};
+      if (!isRecord(raw)) return {};
       const out: Stored = {};
       for (const [tool, entry] of Object.entries(raw)) {
-        if (!isObject(entry)) continue;
+        if (!isRecord(entry)) continue;
         const kept: Record<string, string> = {};
         for (const [name, value] of Object.entries(entry)) if (typeof value === 'string' && value) kept[name] = value;
         out[tool] = kept;

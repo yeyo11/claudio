@@ -131,7 +131,7 @@ export function LimitsWidget({ project, title, id }: WidgetProps) {
   const heading = `${id}-title`;
   const five = limits.fiveHour;
   const accounts = useAccounts().data ?? [];
-  const currentAccount = accounts.find((a) => a.id === overview.data?.accounts?.current);
+  const currentAccount = accounts.find((a) => a.id === overview.data?.accounts?.inUse?.id);
   // The account new work starts on; the CLI's own login when no account is known yet
   const email = currentAccount ? accountName(currentAccount) : (overview.data?.system.auth.email ?? null);
   // The other accounts, each with the share of its binding window: a limit is per account

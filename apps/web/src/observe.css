@@ -11,15 +11,11 @@
 .obs-section {
   padding-top: 4px;
 }
-.obs-head,
-.obs-subhead {
+.obs-head {
   margin: 0;
   font-size: var(--fs-small);
   font-weight: var(--fw-strong);
   color: var(--fg-2);
-}
-.obs-subhead {
-  color: var(--text);
 }
 
 /* Added and removed lines: the sign carries the meaning, the colour only reinforces it */

@@ -96,6 +96,10 @@ jobs:
           pnpm --filter @claudio/api openapi:schemas
           git diff --exit-code -- apps/api/src/openapi/schemas.json
 
+      # The numbers docs/status.md states are counted from the tree, never typed by hand
+      - name: docs/status.md counts are up to date
+        run: node scripts/docs-status.mjs --check
+
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build

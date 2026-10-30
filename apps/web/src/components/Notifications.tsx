@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { useClaudioEvents } from '../lib/events';
+import { onResync, useClaudioEvents } from '../lib/events';
 import {
   getPrefs,
   hasUrgent,
@@ -169,28 +169,38 @@ export function NotificationHost() {
   // have been rotated or dropped while no page of ours was open.
   useEffect(() => void syncPush(), []);
 
-  // A chat that was already waiting when the page opened sent its `run.waiting` to nobody
+  // A chat that was already waiting when the page opened sent its `run.waiting` to nobody, and so did
+  // one that started waiting while the feed missed events: the list is seeded on load and again after
+  // every resync, which settles too the prompts answered in the gap
   const announceLatest = useRef(announce);
   announceLatest.current = announce;
   useEffect(() => {
-    const checkedAt = Date.now();
-    let cancelled = false;
-    void (async () => {
-      try {
-        const chats = await api.chats({ state: 'waiting' });
-        const drafts = (await Promise.all(chats.map(async (chat) => waitingDrafts(chat, await api.chatPermissions(chat.id))))).flat();
-        if (cancelled) return;
-        const { added, settled } = seedWaiting(drafts, checkedAt, seen);
-        for (const n of settled) toast.dismissKey(n.key);
-        announceLatest.current(added);
-      } catch {
-        // The feed still tells of what comes next; a failed read only loses what came before
-      }
-    })();
-    return () => {
-      cancelled = true;
+    let reading: AbortController | null = null;
+    const seed = () => {
+      reading?.abort();
+      const current = new AbortController();
+      reading = current;
+      const checkedAt = Date.now();
+      void (async () => {
+        try {
+          const chats = await api.chats({ state: 'waiting' }, { signal: current.signal });
+          const drafts = (await Promise.all(chats.map(async (chat) => waitingDrafts(chat, await api.chatPermissions(chat.id))))).flat();
+          if (current.signal.aborted) return;
+          const { added, settled } = seedWaiting(drafts, checkedAt, seen);
+          for (const n of settled) toast.dismissKey(n.key);
+          announceLatest.current(added);
+        } catch {
+          // The feed still tells of what comes next; a failed read only loses what came before
+        }
+      })();
     };
-    // Once per load: `seen` reads the location through a ref
+    seed();
+    const stop = onResync(seed);
+    return () => {
+      stop();
+      reading?.abort();
+    };
+    // Mounted once: `seen` reads the location through a ref
   }, []);
 
   return null;

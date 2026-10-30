@@ -259,6 +259,7 @@ export class RunEventPublisher {
     if (activityKey(sub.activity) === state.sent) {
       // What was held is no longer news: the line went back to what was last said
       state.latest = null;
+      this.settleSubagent(key, state);
       return;
     }
     state.latest = { run, sub };
@@ -269,17 +270,26 @@ export class RunEventPublisher {
       state.timer.unref();
       return;
     }
-    this.sendSubagentActivity(state, nowMs);
+    this.sendSubagentActivity(key, state, nowMs);
+  }
+
+  /**
+   * Forgets a subagent whose line went quiet (it reported back, or its turn ended) and has nothing
+   * held: a long-lived chat ran hundreds of them, and each kept its state until the chat was forgotten.
+   */
+  private settleSubagent(key: string, state: SubagentActivityState): void {
+    if (state.sent === '' && !state.latest && !state.timer) this.subagentActivities.delete(key);
   }
 
   private flushSubagentActivity(key: string): void {
     const state = this.subagentActivities.get(key);
     if (!state) return;
     state.timer = null;
-    if (state.latest && activityKey(state.latest.sub.activity) !== state.sent) this.sendSubagentActivity(state, Date.now());
+    if (state.latest && activityKey(state.latest.sub.activity) !== state.sent) this.sendSubagentActivity(key, state, Date.now());
+    else this.settleSubagent(key, state);
   }
 
-  private sendSubagentActivity(state: SubagentActivityState, nowMs: number): void {
+  private sendSubagentActivity(key: string, state: SubagentActivityState, nowMs: number): void {
     const latest = state.latest;
     if (!latest) return;
     const { run, sub } = latest;
@@ -295,6 +305,7 @@ export class RunEventPublisher {
       agentId: sub.agentId,
       activity: sub.activity,
     });
+    this.settleSubagent(key, state);
   }
 
   dispose(): void {
@@ -625,9 +636,34 @@ export class OrchestrationEventTracker {
 // ---------- sessions on disk ----------
 
 /**
+ * Who hears of every change the watcher sees, one by one, before they are folded into one event:
+ * the transcript listing, which looks again only at what was named (`sessions.ts`).
+ */
+export interface SessionChanges {
+  /** The watch began (every change from now on is reported) or ended (nothing is) */
+  noteWatching(on: boolean): void;
+  /** A path relative to the projects directory changed; null when the watch could not say which */
+  noteChanged(path: string | null): void;
+}
+
+export interface SessionsWatcherOptions {
+  /** How long changes are folded into one `sessions.changed` */
+  windowMs?: number;
+  /**
+   * Says who holds which session; it is compared on a timer, because a terminal session whose
+   * process exits writes nothing under the projects directory, and a screen would go on showing
+   * its work as running.
+   */
+  holdersOf?: () => Promise<string>;
+  holdersEveryMs?: number;
+  changes?: SessionChanges;
+}
+
+/**
  * Says when the CLI wrote under its projects directory. Nothing else in the server watches those
  * files (readers look at them when asked), so this is the one place that does — with an inotify
- * watch rather than polling, and only while someone is listening to the feed.
+ * watch rather than polling, and only while someone is listening to the feed. Each change also goes
+ * to `changes`, so the transcript listing reads what changed and nothing else.
  */
 export class SessionsWatcher {
   private watcher: FSWatcher | null = null;
@@ -636,19 +672,22 @@ export class SessionsWatcher {
   private wanted = false;
   private holdersTimer: NodeJS.Timeout | null = null;
   private holders: string | null = null;
+  /** A read of the holders under way: the next tick waits for it rather than starting another */
+  private holdersBusy = false;
+  private readonly windowMs: number;
+  private readonly holdersOf: (() => Promise<string>) | undefined;
+  private readonly holdersEveryMs: number;
+  private readonly changes: SessionChanges | undefined;
 
-  /**
-   * `holders` says who holds which session; it is compared on a timer, because a terminal session
-   * whose process exits writes nothing under the projects directory, and a screen would go on
-   * showing its work as running.
-   */
   constructor(
     private readonly dir: string,
     private readonly bus: EventBus,
-    private readonly windowMs = SESSIONS_COALESCE_MS,
-    private readonly holdersOf?: () => Promise<string>,
-    private readonly holdersEveryMs = HOLDERS_POLL_MS,
+    opts: SessionsWatcherOptions = {},
   ) {
+    this.windowMs = opts.windowMs ?? SESSIONS_COALESCE_MS;
+    this.holdersOf = opts.holdersOf;
+    this.holdersEveryMs = opts.holdersEveryMs ?? HOLDERS_POLL_MS;
+    this.changes = opts.changes;
     bus.onDemand = (wanted) => (wanted ? this.start() : this.stop());
   }
 
@@ -656,13 +695,18 @@ export class SessionsWatcher {
     if (!this.holdersOf || this.holdersTimer) return;
     const holdersOf = this.holdersOf;
     this.holdersTimer = setInterval(() => {
+      if (this.holdersBusy) return;
+      this.holdersBusy = true;
       holdersOf()
         .then((now) => {
           const before = this.holders;
           this.holders = now;
           if (this.wanted && before !== null && before !== now) this.touched(null);
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          this.holdersBusy = false;
+        });
     }, this.holdersEveryMs);
     this.holdersTimer.unref();
   }
@@ -672,8 +716,12 @@ export class SessionsWatcher {
     this.watchHolders();
     if (this.watcher) return;
     try {
-      this.watcher = watch(this.dir, { recursive: true, persistent: false }, (_kind, file) => this.touched(file));
+      this.watcher = watch(this.dir, { recursive: true, persistent: false }, (_kind, file) => {
+        this.changes?.noteChanged(file === null ? null : file.toString());
+        this.touched(file);
+      });
       this.watcher.on('error', () => this.restart());
+      this.changes?.noteWatching(true);
     } catch {
       // The directory appears with the first session; look again later instead of holding a watch
       // on a parent for it
@@ -683,6 +731,7 @@ export class SessionsWatcher {
 
   private restart(): void {
     this.watcher?.close();
+    if (this.watcher) this.changes?.noteWatching(false);
     this.watcher = null;
     if (!this.wanted || this.retry) return;
     this.retry = setTimeout(() => {
@@ -707,6 +756,7 @@ export class SessionsWatcher {
   private stop(): void {
     this.wanted = false;
     this.watcher?.close();
+    if (this.watcher) this.changes?.noteWatching(false);
     this.watcher = null;
     for (const t of [this.timer, this.retry]) if (t) clearTimeout(t);
     this.timer = this.retry = null;

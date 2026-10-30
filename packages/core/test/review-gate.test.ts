@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import type { LimitWait } from '@claudio/shared';
-import { ChatRefusal, type RunResult } from '../src/chats.ts';
+import { ChatRefusal, MemoryRefusal, RunSlotRefusal, type RunResult } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import {
   awaitReviewRun,
@@ -213,21 +213,35 @@ test('runs start at most `concurrency` at a time', async () => {
   db.close();
 });
 
-test('a refusal for the concurrent-run limit is retried until a slot frees', async () => {
+test('a refusal for room, a full slot or short memory, is retried by its class until room frees', async () => {
   const { db, context } = setup();
   let refused = 0;
   const { host, launched } = fakeHost({
     start: () => {
-      if (refused < 2) {
-        refused += 1;
-        throw new ChatRefusal('Concurrent run limit reached (8)', 409);
-      }
+      refused += 1;
+      if (refused === 1) throw new RunSlotRefusal(8);
+      if (refused === 2) throw new MemoryRefusal('Not enough memory to start a chat: 300 MB available, below the 512 MB floor');
     },
   });
   const out = await runReviewRound(context(host, { spec: { dimensions: { tests: false } } }));
   assert.equal(out.status, 'passed');
-  assert.equal(refused, 2);
+  assert.equal(refused, 3);
   assert.equal(launched.length, 1);
+  db.close();
+});
+
+test('a refusal that only reads like a full slot is not retried: the class decides, not the words', async () => {
+  const { db, context } = setup();
+  let refused = 0;
+  const { host } = fakeHost({
+    start: () => {
+      refused += 1;
+      throw new ChatRefusal('Concurrent run limit reached (8)', 409);
+    },
+  });
+  const out = await runReviewRound(context(host, { spec: { dimensions: { tests: false } } }));
+  assert.equal(out.status, 'incomplete');
+  assert.ok(refused >= 1);
   db.close();
 });
 

@@ -1,3 +1,4 @@
+import { isRecord } from '@claudio/shared';
 /*
  * Paths into a settings document (`['miner', 'model']`), for the stores' `resetKeys`: a Reset removes
  * what the person stored, so the default applies again, and a default that changes later too
@@ -6,13 +7,12 @@
 
 export type SettingPath = readonly string[];
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** The value at `path`, or undefined when any step of it is missing */
 export function valueAt(doc: unknown, path: SettingPath): unknown {
   let at: unknown = doc;
   for (const key of path) {
-    if (!isObject(at) || !Object.hasOwn(at, key)) return undefined;
+    if (!isRecord(at) || !Object.hasOwn(at, key)) return undefined;
     at = at[key];
   }
   return at;
@@ -32,12 +32,12 @@ export function withoutPaths(doc: Record<string, unknown>, paths: readonly Setti
     const parents: Array<Record<string, unknown>> = [];
     let at: unknown = out;
     for (const key of path.slice(0, -1)) {
-      if (!isObject(at)) break;
+      if (!isRecord(at)) break;
       parents.push(at);
       at = at[key];
     }
     const last = path.at(-1);
-    if (last === undefined || !isObject(at) || parents.length !== path.length - 1) continue;
+    if (last === undefined || !isRecord(at) || parents.length !== path.length - 1) continue;
     delete at[last];
     // Prune upwards: an empty group says nothing, and a store that reads it may refuse `{}`
     let child: Record<string, unknown> = at;

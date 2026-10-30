@@ -5,8 +5,8 @@ import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
 import { PROVIDER_MANIFESTS } from './registry.ts';
+import { isRecord } from '@claudio/shared';
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const LIMIT_ACTIONS: readonly LimitAction[] = ['wait'];
 const MAX_WAIT_HOURS = 48;
@@ -33,7 +33,7 @@ const limitAction = (value: unknown, name: string): LimitAction => {
  * could not pick.
  */
 export function parseOnLimit(input: unknown, name: string): Partial<RotationSettings['onLimit']> {
-  if (!isObject(input)) throw new Error(`${name} must be an object`);
+  if (!isRecord(input)) throw new Error(`${name} must be an object`);
   const result: Partial<RotationSettings['onLimit']> = {};
   if (input.action !== undefined) result.action = limitAction(input.action, `${name}.action`);
   if (input.allowed !== undefined) {
@@ -93,7 +93,7 @@ export class ProvidersSettingsStore {
     if (!existsSync(this.file)) return null;
     try {
       const raw: unknown = JSON.parse(readFileSync(this.file, 'utf8'));
-      return isObject(raw) ? raw : null;
+      return isRecord(raw) ? raw : null;
     } catch {
       return null;
     }
@@ -132,15 +132,15 @@ export class ProvidersSettingsStore {
 
   /** `lenient` skips ids of providers this build does not know, so a file written by another build still loads */
   private parse(input: unknown, lenient = false): ProvidersSettings {
-    if (!isObject(input)) throw new Error('settings must be an object');
+    if (!isRecord(input)) throw new Error('settings must be an object');
     const result = defaultProvidersSettings(this.ids);
 
     if (input.providers !== undefined) {
-      if (!isObject(input.providers)) throw new Error('providers must be an object');
+      if (!isRecord(input.providers)) throw new Error('providers must be an object');
       for (const [id, entry] of Object.entries(input.providers)) {
         if (lenient && !this.ids.includes(id)) continue;
         this.known(id, 'providers key');
-        if (!isObject(entry)) throw new Error(`providers.${id} must be an object`);
+        if (!isRecord(entry)) throw new Error(`providers.${id} must be an object`);
         if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') throw new Error(`providers.${id}.enabled must be a boolean`);
         const path = entry.binaryPath ?? null;
         if (path !== null && (typeof path !== 'string' || path.length > 4096 || !isAbsolute(path))) {
@@ -167,7 +167,7 @@ export class ProvidersSettingsStore {
   }
 
   private parseRotation(input: unknown): RotationSettings {
-    if (!isObject(input)) throw new Error('rotation must be an object');
+    if (!isRecord(input)) throw new Error('rotation must be an object');
     const result = defaultRotationSettings();
     if (input.onLimit !== undefined) {
       const onLimit = { ...result.onLimit, ...parseOnLimit(input.onLimit, 'rotation.onLimit') };

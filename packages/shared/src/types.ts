@@ -531,7 +531,7 @@ export interface ApiChatPolicy {
  * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
  * a confined chat with another policy than its own.
  */
-export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch';
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown';
 
 export interface TranscriptEntry {
   uuid: string;
@@ -720,20 +720,56 @@ export interface RunEvent {
 }
 
 /**
+ * Who a message written into a chat comes from. `person`: someone typed it (a message, a hint from
+ * the page). `supervisor`: the Supervisor sent it on its own, as a hint. `claudio`: Claudio wrote it
+ * for its own reasons, such as telling the agent a command was cancelled. Only a person's message is
+ * the person's to hurry ("Send now"); the others are notices.
+ */
+export type ChatMessageSource = 'person' | 'supervisor' | 'claudio';
+
+/**
+ * Why a message ended `undelivered`, for the page to act on. `cancelled`: withdrawn from the agent's
+ * queue before it read it (`DELETE /chats/:id/messages/:messageId`). `not-read`: the agent went on
+ * without it: its queue no longer held it after an interrupt or a result, and it never read it back.
+ */
+export type MessageUndeliveredReason = 'cancelled' | 'not-read';
+
+/**
  * What became of one message sent to a chat, by its id (docs/chat-delivery.md). `delivered`: the
- * agent took it, into the running turn or as a turn of its own. `undelivered`: its process went away
- * first, or the one that should have read it could not start; `message` carries it, so the page can
- * hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a replay).
+ * agent took it, into the running turn or as a turn of its own, at `at`. `undelivered`: its process
+ * went away first, the one that should have read it could not start, the agent went on without it
+ * (`reason: 'not-read'`) or it was withdrawn (`reason: 'cancelled'`); `message` carries it, so the
+ * page can hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a
+ * replay), under the same id.
  */
 export interface MessageDelivery {
   id: string;
   state: 'delivered' | 'undelivered' | 'carried';
   message?: ChatPendingMessage;
   chatId?: string;
+  /** Who the message comes from; absent on events streamed before it was recorded, which were a person's */
+  source?: ChatMessageSource;
+  /** For `undelivered`, when the page has something to do about it besides showing the sentence of `message.reason` */
+  reason?: MessageUndeliveredReason;
+  /** For `delivered`: when the agent took it, which for a message read mid-turn is later than when it was sent */
+  at?: string;
 }
 
 /** A file sent with a message, as the page shows it: no path on the server's disk. */
 export type ChatPendingAttachment = Pick<Attachment, 'id' | 'name' | 'mediaType' | 'kind' | 'sizeBytes'>;
+
+/**
+ * The call the agent's turn is inside of, which it reads no message before it returns: a foreground
+ * agent (`Agent`, `Task`) or a command. It can be sent to the background
+ * (`POST /chats/:id/commands/:toolUseId/background`), which returns it at once and lets the message in.
+ */
+export interface ChatPendingBlocker {
+  toolUseId: string;
+  /** The tool, as the agent names it: `Agent`, `Task`, `Bash` */
+  name: string;
+  /** What it does, in the agent's words: the agent's description, or the command */
+  description?: string;
+}
 
 /**
  * A message the agent has not taken yet, or one it never will. `written`: in the agent's own queue,
@@ -742,11 +778,16 @@ export type ChatPendingAttachment = Pick<Attachment, 'id' | 'name' | 'mediaType'
  */
 export interface ChatPendingMessage {
   id: string;
+  /** The words, without the framing Claudio wraps around a hint or a notice for the agent */
   text: string;
   attachments: ChatPendingAttachment[];
   state: 'written' | 'held' | 'undelivered';
   sentAt: string;
   reason?: string;
+  /** Who it comes from; `person` for a message stored before it was recorded */
+  source: ChatMessageSource;
+  /** On a `written` message, while the turn waits on a foreground call the agent will not read it before */
+  blockedBy?: ChatPendingBlocker;
 }
 
 /** What a session reports about itself when it starts. */
@@ -1104,6 +1145,20 @@ export interface HealthSignal {
   hint?: string;
   /** The tool call to cancel, when the signal is about one command that is still running */
   toolUseId?: string;
+  /**
+   * The subagent that made the call the signal is about; absent when the lead made it. The CLI has
+   * no documented way to write to one subagent, so a hint about it goes to the lead, which relays it
+   * or stops the agent (docs/decision-engine.md, "The Supervisor").
+   */
+  agent?: HealthSignalAgent;
+}
+
+/** The subagent a health signal is about: the lead's `Agent` call that launched it, and what that call said. */
+export interface HealthSignalAgent {
+  /** The id of the lead's `Agent`/`Task` call, which every line of the subagent's sidechain carries */
+  parentToolUseId: string;
+  description?: string;
+  subagentType?: string;
 }
 
 /**
@@ -1386,6 +1441,11 @@ export interface ChatActivity {
 
 /** What Claude loaded when the chat last started. */
 export interface ChatEnvironment {
+  /**
+   * `chat` when this chat's own last process reported it; `folder` when no process of the chat
+   * started here (one from a terminal), and it is the last chat's in the same folder
+   */
+  source?: 'chat' | 'folder';
   observedAt: string;
   model: string | null;
   permissionMode: string | null;
@@ -5379,14 +5439,40 @@ export interface TailscaleReadiness {
   reason: Localized | null;
 }
 
-/** What the tunnel may be told to do beside starting and stopping it. */
+/** What the tunnel may be told to do beside starting and stopping it (`tunnel-settings.json`). */
 export interface TunnelSettings {
   /** Open the tunnel whenever Claudio starts; off unless the person turns it on */
   startWithClaudio: boolean;
+  /**
+   * The HTTPS port of Claudio's Serve rule on the tailnet name, 1024–65535, 8444 by default. Changed
+   * only while the tunnel is stopped or failed, and read-only where `CLAUDIO_TUNNEL_PORT` sets it
+   */
+  port: number;
 }
 
 /** `PUT /tunnel/settings`: the settings to change, and only those. */
 export type UpdateTunnelSettingsRequest = Partial<TunnelSettings>;
+
+/** `GET /tunnel/settings`: the settings in effect, where each comes from, and their defaults. */
+export interface TunnelSettingsView {
+  settings: TunnelSettings;
+  /** `env` is read-only here (`CLAUDIO_TUNNEL_PORT`); `file` was saved from the app */
+  sources: Record<keyof TunnelSettings, AppSettingSource>;
+  defaults: TunnelSettings;
+}
+
+/** The port a start found serving something else (`tunnel.portTaken`). */
+export interface TunnelPortTaken {
+  port: number;
+  /**
+   * What holds it, from `tailscale serve status --json`, in a few words: the address and where it
+   * forwards to (another Claudio shows as its own `127.0.0.1:<port>`), a TCP forwarder, or a
+   * `tailscale serve` running in a terminal
+   */
+  holder: string;
+  /** The first port above it that the node's Serve config leaves free; null when there is none */
+  nextFree: number | null;
+}
 
 /** `GET /tunnel`, and what `tunnel.changed` carries. */
 export interface TunnelStatus {
@@ -5423,8 +5509,15 @@ export interface TunnelStatus {
   managed: boolean;
   /** Whether Tailscale can carry the tunnel, and if not, why; the UI shows nothing else until it is `ready` */
   tailscale: TailscaleReadiness;
-  /** The HTTPS port on the tailnet name that Claudio's Serve rule uses (`CLAUDIO_TUNNEL_PORT`, 8444 by default) */
+  /**
+   * The HTTPS port on the tailnet name that Claudio's Serve rule uses: the rule's own while one
+   * stands, else the one the next start takes (`settings.port`, or `CLAUDIO_TUNNEL_PORT`; 8444 by default)
+   */
   port: number;
+  /** Where `port` comes from: `env` (`CLAUDIO_TUNNEL_PORT`, read-only here), `file` or `default` */
+  portSource: AppSettingSource;
+  /** While `failed` with `tunnel.portTaken`: what holds the port, and the next free one */
+  portTaken: TunnelPortTaken | null;
   settings: TunnelSettings;
 }
 
@@ -5462,9 +5555,19 @@ export interface CollaboratorsUnavailable {
  * - `online`: reachable, with a home relay;
  * - `no-relay`: bound, but no relay answered in time (`online()` never resolves without one), so
  *   only direct paths can work;
- * - `offline`: no network at all.
+ * - `offline`: no network at all;
+ * - `error`: the endpoint did not bind (a port taken, a relay URL it cannot use); `connectionError`
+ *   says why, and it is tried again with a backoff until it binds.
  */
-export type CollaboratorsConnection = 'off' | 'starting' | 'online' | 'no-relay' | 'offline';
+export type CollaboratorsConnection = 'off' | 'starting' | 'online' | 'no-relay' | 'offline' | 'error';
+
+/** Why the endpoint did not bind, while `connection` is `error`. */
+export interface CollaboratorsConnectionError {
+  /** The binding's own words, first line */
+  message: string;
+  /** When the next bind is tried; null while none is planned (the host itself is restarting) */
+  retryAt: string | null;
+}
 
 /** `<dataDir>/collaborators/settings.json`. */
 export interface CollaboratorsSettings {
@@ -5490,6 +5593,8 @@ export interface CollaboratorsStatus {
   /** This install's endpoint id; null until Collaborators is turned on for the first time */
   endpointId: EndpointId | null;
   connection: CollaboratorsConnection;
+  /** Set while `connection` is `error` */
+  connectionError: CollaboratorsConnectionError | null;
   /** The relay the endpoint calls home, while it has one */
   homeRelay: string | null;
 }
@@ -6386,6 +6491,29 @@ export interface AccountInUse {
   kind: AccountKind;
   signInState: AccountSignInState;
   checkedAt: string | null;
+  /** The account's own reading: what the status bar draws for "Claude", never another account's */
+  limit: AccountLimit | null;
+  /** Subscription type (`max`, `pro`, ...); null when none is known */
+  plan: string | null;
+}
+
+/**
+ * The accounts as every screen reads them, computed once (`Core.accountView()`): the account new work
+ * starts on, the list, and whether every account that could take work is out. `GET /auth.inUse` and
+ * `overview.accounts` are this view, so the status bar, the chip and the cards cannot disagree.
+ */
+export interface AccountView {
+  /** The account new work would start on: the pin-less choice, which honours `settings.preferred`; null when none can take work */
+  inUse: AccountInUse | null;
+  /** Why `inUse` is null; null while it is set */
+  inUseReason: AccountInUseReason | null;
+  /** Every account, the CLI's own login left out while it has no credential */
+  accounts: Account[];
+  /** Every enabled, signed-in account is out (exhausted, with its reset ahead or unknown) */
+  atLimit: boolean;
+  /** ISO time of the earliest reset among the accounts that are out; null when none is or none gave one */
+  nextReset: string | null;
+  settings: AccountsSettings;
 }
 
 /** The answer of refreshing accounts' usage: every account as it lists now, and those the CLI could not read. */
@@ -6406,9 +6534,24 @@ export interface AccountsSettings {
   threshold: number;
   /** Points (0-100) below the threshold an account must fall before it is chosen again */
   hysteresis: number;
-  /** Seconds an account that hit a limit is left alone, when its reset is unknown */
+  /**
+   * Seconds an account is left alone after a rejection that gave no reset (or one of extra usage):
+   * recorded on that account's reading, which reads exhausted until then
+   */
   cooldownSeconds: number;
   strategy: AccountStrategy;
+  /**
+   * The account new work starts on while it has room and the chat's policy allows it; null leaves the
+   * choice to the strategy. A pin wins over it, and a project policy that does not list it too.
+   * `PUT /accounts/settings` accepts an enabled account's id.
+   */
+  preferred: string | null;
+  /**
+   * The global order of the accounts, which the `order` strategy follows; empty means the order they
+   * are listed in. `PUT /accounts/settings` accepts every enabled account's id once (disabled ones
+   * may be listed too); an account added later goes after the ones named.
+   */
+  order: string[];
 }
 
 /** How far an account's sign-in can be trusted. */
@@ -6495,6 +6638,14 @@ export interface AddTokenAccountRequest {
   secret: string;
 }
 
+/** `DELETE /accounts/:id` refused with 409: live chats run on the account; stop them or move them first. */
+export interface AccountInUseResponse {
+  error: string;
+  code: 'account-in-use';
+  /** Ids of the live chats whose process runs on the account */
+  chats: string[];
+}
+
 /** `PATCH /accounts/:id` */
 export interface UpdateAccountRequest {
   alias?: string | null;
@@ -6526,23 +6677,14 @@ export interface AccountLoginCodeRequest {
   code: string;
 }
 
-/** What the dashboard needs about accounts, without the full list. */
-export interface AccountsSnapshot {
-  total: number;
-  /** Accounts that are enabled and signed in */
-  ready: number;
-  /** Id of the account new work would start on; null when none is ready */
-  current: string | null;
-}
-
 // ---------- Overview ----------
 
 export interface Overview {
   system: SystemInfo;
-  /** One reading per provider that has one */
+  /** One reading per provider that has one; Claude's is derived from the account in use (`accounts.inUse.limit`) */
   limits: ProviderLimit[];
-  /** The accounts, without the full list: what the dashboard shows; absent until the server runs the accounts package */
-  accounts?: AccountsSnapshot;
+  /** The account view every screen reads; absent until the server runs the accounts package */
+  accounts?: AccountView;
   counts: {
     projects: number;
     chats: number;
@@ -6592,13 +6734,13 @@ export interface ApiError {
 // worker's last steps when its health turns bad and proposes a hint, which a person sends on, or it
 // sends on its own. A housekeeping chat of the CLI like every other model call. Since
 // docs/plans/settings-ia.md §7.2 its one control is the `supervisor.intervene` point's mode, and its
-// model and cap are the decision engine's CLI settings; `supervisor.json` is read once, by a
+// model and cap are the decision engine's CLI settings (its own cap, `cli.supervisorMaxCostUsd`); `supervisor.json` is read once, by a
 // migration, and never written again.
 
 /**
  * The view `GET /settings/supervisor` derives from the point (deprecated: read
  * `GET /decisions/settings`). `enabled` is the mode not being `off`, `autoSend` the mode being
- * `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.maxCostUsd`.
+ * `active`; `model` and `maxCostUsd` are the engine's `cli.model` and `cli.supervisorMaxCostUsd`.
  */
 export interface SupervisorConfig {
   enabled: boolean;
@@ -6606,7 +6748,7 @@ export interface SupervisorConfig {
   model: string;
   /** Send the proposal to the worker on its own instead of waiting for a person */
   autoSend: boolean;
-  /** Passed to the housekeeping chat as `--max-budget-usd`: the engine's cap per decision */
+  /** Passed to the housekeeping chat as `--max-budget-usd`: the engine's `cli.supervisorMaxCostUsd` */
   maxCostUsd: number;
 }
 
@@ -6624,7 +6766,7 @@ export interface UpdateSupervisorConfigRequest {
 /** `sent`: it reached the worker, by hand or through `autoSend`. */
 export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed';
 
-/** One answer of the supervisor. A row, because they accumulate; at most one per signal per chat. */
+/** One answer of the supervisor. A row, because they accumulate; at most one per occurrence of a signal per chat. */
 export interface SupervisorProposal {
   id: string;
   chatId: string;
@@ -6633,6 +6775,14 @@ export interface SupervisorProposal {
   orchestrationId?: string;
   /** The signal that woke it */
   signal: HealthSignalKind;
+  /**
+   * Which occurrence of the signal: the call it is about (`toolUseId`), else when it started
+   * (`since`). A second hang of the same kind is a new occurrence and gets its own answer. Absent on
+   * proposals made before occurrences were kept.
+   */
+  occurrence?: string;
+  /** The subagent the signal was about, when a subagent made the call; its hint asks the lead to relay or stop it */
+  agent?: HealthSignalAgent;
   /** One or two lines for the worker, ready to send or to edit first */
   hint: string;
   /** What the housekeeping chat cost, as the CLI reported it; added to the graph's when the worker is a task */
@@ -6866,6 +7016,15 @@ export interface AccountSwitchedEvent extends ClaudioEventBase {
   from: string | null;
   to: string | null;
   reason: AccountSwitchReason;
+}
+
+/**
+ * An account's reading or stored state changed (a reading kept, a sign-in marked or cleared, an
+ * account added, removed or enabled, the settings). Debounced to one per 250 ms; it carries nothing:
+ * the reader refetches the accounts, the auth status, the overview and the providers.
+ */
+export interface AccountsChangedEvent extends ClaudioEventBase {
+  type: 'accounts.changed';
 }
 
 /** Work stopped to wait for its provider's limit to reset. */
@@ -9411,6 +9570,7 @@ export type ClaudioEvent =
   | RunLimitWaitingEvent
   | RunAccountRotatedEvent
   | AccountSwitchedEvent
+  | AccountsChangedEvent
   | TaskStartedEvent
   | TaskEndedEvent
   | SubagentStartedEvent
@@ -9497,9 +9657,6 @@ export interface StreamResyncEvent {
   lastEventId: number;
   reason: 'buffer-overflow' | 'server-restarted';
 }
-
-/** Names of the SSE `event:` lines the feed uses besides the ones of {@link ClaudioEventType}. */
-export type StreamControlEventType = StreamHelloEvent['type'] | StreamResyncEvent['type'];
 
 // ---------- Decision engine ----------
 
@@ -9649,10 +9806,24 @@ export interface DecisionPointSettings {
   consent: { at: string; stateVersion: number; providers: DecisionProviderId[] } | null;
 }
 
+/** How the CLI answers: the model and effort of every question, and the two caps. */
+export interface DecisionCliSettings {
+  model: string;
+  effort: string;
+  /** `--max-budget-usd` of one decision; (0, 5] */
+  maxCostUsd: number;
+  /** `--max-budget-usd` of the Supervisor's chat; (0, 5], default 0.25 */
+  supervisorMaxCostUsd: number;
+}
+
 export interface DecisionSettings {
   /** The global default provider */
   provider: DecisionProviderId;
-  cli: { model: string; effort: string; maxCostUsd: number };
+  /**
+   * The CLI's model, effort and cap per decision; `supervisorMaxCostUsd` is the cap of the
+   * Supervisor's chat, which reads the worker's files and so costs more than a one-shot question
+   */
+  cli: DecisionCliSettings;
   /** The key itself is never returned, only whether one is saved and its last four characters */
   jev: { model: 'jev-1.13.0'; keySet: boolean; keyHint: string | null };
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
@@ -9663,7 +9834,8 @@ export interface DecisionSettings {
 /** `PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials */
 export interface DecisionSettingsUpdate {
   provider: DecisionProviderId;
-  cli: { model: string; effort: string; maxCostUsd: number };
+  /** `supervisorMaxCostUsd` absent reads as its default (0.25) */
+  cli: Omit<DecisionCliSettings, 'supervisorMaxCostUsd'> & { supervisorMaxCostUsd?: number };
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   historyDays: number;
 }
@@ -9882,16 +10054,16 @@ export interface DecisionPaletteResult {
 // ── Guards (docs/plans/guards.md) ────────────────────────────────────────────────────────────────
 
 /**
- * A rule of the guard program. `integrity` protects the guard itself and is always on whenever
- * guards are; it is deliberately not a key of any settings or override type, so it cannot be
- * switched off through the API ({@link GuardSwitchableRuleId}). `declared-tools` confines a
- * confined API chat to the tools and paths it declared (docs/plans/headless-image.md, D14.5); it is
- * armed by the chat's launch from its stored policy, never by a setting.
+ * A rule of the guard program. `integrity` protects the guard itself; it is a rule like the others
+ * (D6 of docs/plans/regression-fixes-2026-10-29.md), on by default, and a guard with no rule on is
+ * no guard at all. `declared-tools` confines a confined API chat to the tools and paths it declared
+ * (docs/plans/headless-image.md, D14.5); it is armed by the chat's launch from its stored policy,
+ * never by a setting.
  */
 export type GuardRuleId = 'integrity' | 'no-verify' | 'push' | 'destructive' | 'secrets' | 'protect-configs' | 'declared-tools';
 
-/** The rules a person can switch: every rule but `integrity` and `declared-tools`. */
-export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'integrity' | 'declared-tools'>;
+/** The rules a person can switch: every rule but `declared-tools`. */
+export type GuardSwitchableRuleId = Exclude<GuardRuleId, 'declared-tools'>;
 
 /** `enforce` blocks; `observe` records "would block" and passes, for rollback after a false positive. */
 export type GuardMode = 'enforce' | 'observe';
@@ -9902,7 +10074,7 @@ export interface GuardSettings {
   mode: GuardMode;
   /** Guard workers, the integrator, fixers, synthesis and flow stages; default true (O1) */
   automated: boolean;
-  /** Which switchable rules are on; `protect-configs` ships off, the others on (O2, O3) */
+  /** Which rules are on; `protect-configs` ships off, the others on (O2, O3). None on means no guard runs */
   rules: Record<GuardSwitchableRuleId, boolean>;
   /** Globs, relative to a root, of the existing config files `protect-configs` guards; at most 200, none absolute or with `..` */
   protectConfigs: string[];
@@ -9923,7 +10095,7 @@ export interface UpdateGuardSettingsRequest {
 export interface GuardOverride {
   /** Absent inherits; `false` switches the guard off for the graph or stage (shown as "Guards off") */
   enabled?: boolean;
-  /** Merged over the global rules; `integrity` cannot be named */
+  /** Merged over the global rules */
   rules?: Partial<Record<GuardSwitchableRuleId, boolean>>;
 }
 
@@ -9941,7 +10113,7 @@ export interface GuardRuleInfo {
   id: GuardSettingsRuleId;
   /** On in a fresh install */
   defaultOn: boolean;
-  /** False for `integrity` only */
+  /** Every rule Settings lists is switchable; kept for clients that read it */
   switchable: boolean;
 }
 
@@ -10033,7 +10205,7 @@ export interface GuardCheckResult {
  * run was interrupted; `off`: the chat is not guarded.
  */
 export interface ChatGuards {
-  /** The effective rules, `integrity` first */
+  /** The effective rules, in the order they run */
   rules: GuardRuleId[];
   mode: GuardMode;
   state: 'arming' | 'armed' | 'missing' | 'off';

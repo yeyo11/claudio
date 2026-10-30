@@ -11,6 +11,7 @@ import type { ApiChatPolicy, ToolPreset, Workspace } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { requestPolicyOf } from '../src/routes/openai.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
+import { signInDefault } from './helpers.ts';
 
 // `/v1` parity and typed run errors (docs/plans/headless-image.md, D8 and D16): a `/v1` chat's policy
 // comes from the X-Claudio-* headers, is part of the conversation key and is fixed for the chat (it is
@@ -30,6 +31,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-policy-'));
   prompts = join(root, 'prompts.jsonl');
   process.env.FAKE_OPENAI_PROMPTS = prompts;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,

@@ -14,12 +14,12 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { describePage, networkRecorder } from './driver.mjs';
 import { groupAlive, killGroup } from './processes.mjs';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const runner = join(here, 'run.mjs');
 const linux = existsSync('/proc/self/cmdline');
 const skip = linux ? false : 'needs /proc to look for leftover processes';
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** PIDs whose command line contains `needle`: the way to see a leftover browser without a pattern kill. */
 function processesMatching(needle) {

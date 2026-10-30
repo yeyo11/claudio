@@ -8,13 +8,13 @@ import test from 'node:test';
 import type { ClaudioEvent, FlowRun, FlowRunEvent, ProjectSettings } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { tempConfig } from './helpers.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // The flow through the real core, the fake Claude (`FAKE-LIMIT-ONCE`) (`FAKE-LIMIT-ONCE`):
 // what happens to a run at a usage limit.
 
 const FAKE_CLAUDE = fileURLToPath(new URL('./fixtures/fake-claude.mjs', import.meta.url));
 process.env.FAKE_CLAUDE_LOGGED_IN = '1';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-flow-rotation-'));

@@ -10,11 +10,11 @@
 // The spec removes the accounts it added and puts the settings back.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
 export const timeout = 120_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async ({ page, api, check, dirs }) => {
   const settings = (await api.get('/accounts/settings')).body;

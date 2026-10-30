@@ -2,24 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { UPLOAD_LIMITS } from '../uploads.ts';
 import { extendKey } from './conversation-key.ts';
 import { openAiError } from './errors.ts';
-import {
-  assertDistinctTools,
-  EFFORT_OF,
-  invalid,
-  isRecord,
-  parseFunction,
-  parseImage,
-  present,
-  Refusal,
-  translateRequest,
-  unsupported,
-  type ChatTurn,
-  type ParseOptions,
-  type Parsed,
-} from './request.ts';
+import { assertDistinctTools, EFFORT_OF, invalid, parseFunction, parseImage, present, Refusal, translateRequest, unsupported, type ChatTurn, type ParseOptions, type Parsed } from './request.ts';
 import type { OutputItem, ResponseFunctionTool, ResponseTextFormat, ResponseToolChoice } from './responses-wire.ts';
 import type { RequestImage, RequestInputItem } from './stored-images.ts';
 import type { ChatCompletionRequest, ChatMessage, ClientTool, ImageRef, ResponseFormat, ToolCall, ToolChoice, UserPart } from './wire.ts';
+import { isRecord } from '@claudio/shared';
 
 /**
  * `POST /v1/responses` read into the Chat Completions request the rest of the surface already runs

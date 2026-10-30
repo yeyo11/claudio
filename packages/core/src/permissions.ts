@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { PermissionDecision, PermissionRequest } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 /** Long enough for someone to read the request and decide; a browser tab is not always in front. */
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
@@ -75,7 +76,7 @@ export class PermissionBroker extends EventEmitter {
   answer(id: string, decision: PermissionDecision, runId?: string): PermissionRequest {
     const entry = this.pending.get(id);
     if (!entry || (runId !== undefined && entry.request.runId !== runId)) {
-      throw new Error('permission request not found; it may have timed out');
+      throw new NotFoundError('permission request not found; it may have timed out');
     }
     entry.settle(decision);
     return entry.request;

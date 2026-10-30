@@ -351,18 +351,6 @@ a.list-row:hover {
   padding-left: 32px;
 }
 
-.chip-toggle {
-  background: none;
-  font-family: var(--sans);
-  font-size: var(--fs-small);
-  font-weight: var(--fw-regular);
-  padding: 3px 11px;
-}
-
-.chip-toggle:active {
-  transform: scale(0.97);
-}
-
 .scard {
   padding: 8px;
   gap: 0;
@@ -383,7 +371,6 @@ a.list-row:hover {
 }
 
 /* Targets of at least 24px where the text alone is shorter than that */
-.chip-toggle,
 .detail-task-link,
 .meta .link-btn {
   min-height: 24px;
@@ -455,10 +442,6 @@ a.list-row:hover {
   font-weight: var(--fw-regular);
 }
 
-.today-limits {
-  margin-top: 14px;
-}
-
 .candidate-list {
   list-style: none;
   margin: 8px 0 0;
@@ -512,96 +495,6 @@ a.list-row:hover {
   border-top: 1px solid var(--border);
 }
 
-.lrow {
-  --row-rail: transparent;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 11px 10px 11px 14px;
-  border-bottom: 1px solid var(--border);
-  transition: background var(--dur-fast);
-}
-
-.lrow::before {
-  content: '';
-  position: absolute;
-  inset: 11px auto 11px 0;
-  width: var(--rail-w);
-  border-radius: var(--rail-w);
-  background: var(--row-rail);
-}
-
-.lrow:hover {
-  background: var(--bg-hover);
-}
-
-.lrow.is-ok {
-  --row-rail: var(--ok);
-}
-
-.lrow.is-warn {
-  --row-rail: var(--warn);
-}
-
-.lrow.is-bad {
-  --row-rail: var(--bad);
-}
-
-.lrow.is-muted {
-  --row-rail: var(--border-strong);
-}
-
-.lrow-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
-}
-
-.lrow-mark {
-  flex: none;
-}
-
-.lrow-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.lrow-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  min-width: 0;
-  margin: 0;
-  font-size: var(--fs-body);
-  font-weight: var(--fw-strong);
-  overflow-wrap: anywhere;
-}
-
-.lrow-sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 14px;
-  min-width: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-small);
-}
-
-.lrow-sub .mono,
-.lrow-sub code {
-  font-family: var(--mono);
-  font-size: var(--fs-small);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
 .lrow-actions {
   flex: none;
   display: flex;
@@ -611,14 +504,7 @@ a.list-row:hover {
   gap: 6px;
 }
 
-.lrow-body {
-  min-width: 0;
-}
-
 @media (max-width: 560px) {
-  .lrow-head {
-    flex-wrap: wrap;
-  }
   .lrow-actions {
     flex: 1 1 100%;
     justify-content: flex-start;
@@ -1155,43 +1041,6 @@ a.list-row:hover {
   .card.glow-top.chats-empty {
     padding: 40px 16px;
   }
-}
-
-/* A context window as a ring: amber and red as it fills, with the words in its accessible name */
-.ring {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.ring circle {
-  fill: none;
-  stroke-width: 2;
-}
-
-.ring-track {
-  stroke: var(--border-strong);
-}
-
-.ring-fill {
-  stroke: var(--accent);
-  stroke-linecap: round;
-}
-
-.ring-warn .ring-fill {
-  stroke: var(--warn);
-}
-
-.ring-full .ring-fill {
-  stroke: var(--bad);
-}
-
-.ring-warn .ring-text {
-  color: var(--warn);
-}
-
-.ring-full .ring-text {
-  color: var(--bad);
 }
 
 /* The toolbar's own pieces that only lists use: the key that focuses the search, the phone strip */

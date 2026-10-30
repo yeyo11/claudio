@@ -6,6 +6,8 @@ export type ProviderRules = PolicyTranslation['rules'];
 
 /** A policy names a part the provider cannot enforce, so a run that relies on it must not start. */
 export class PolicyUnsupportedError extends Error {
+  /** The request asked for a policy its provider cannot enforce: the caller's to change */
+  readonly statusCode = 400;
   constructor(
     readonly provider: ProviderId,
     readonly unsupported: string[],

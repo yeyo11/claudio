@@ -635,18 +635,6 @@
   margin-left: auto;
 }
 
-/* ---- the secrets line ---- */
-
-.card-title-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.card-title-icon svg {
-  color: var(--fg-3);
-}
-
 .secrets-warning .alert-body {
   display: flex;
   flex-direction: column;

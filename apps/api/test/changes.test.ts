@@ -9,6 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { ClaudioEvent, ChangeSummary, ChatChanges, Checklist, EditStep, FileDiff, Orchestration } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 // What a worker did on disk, over HTTP: real git worktrees made by real orchestrations, driven by
 // the fake CLI the core tests use, which writes the files a prompt asks for.
@@ -22,7 +23,6 @@ let projectsDir: string;
 let graph: Orchestration;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function settle(id: string): Promise<Orchestration> {
   for (let i = 0; i < 300; i++) {

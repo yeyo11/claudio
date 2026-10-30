@@ -54,4 +54,4 @@ It is recorded here as a timing flake under load, not as a regression of this br
 
 ## Related
 
-[[plans/verify-faster.md]] · [[plans/orchestration-speed.md]] · [[reports/cw-14-qa.md]]
+[[plans/verify-faster.md]] · [[plans/orchestration-speed.md]]

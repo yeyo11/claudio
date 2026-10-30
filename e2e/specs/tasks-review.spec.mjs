@@ -11,10 +11,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 export const timeout = 240_000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function until(condition, label, limit = 15_000) {
   const end = Date.now() + limit;

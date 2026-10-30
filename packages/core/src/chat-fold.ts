@@ -6,7 +6,7 @@ import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
 import { worktreesChanged } from './git.ts';
 import { turnTokens } from './usage.ts';
-import { now, type ChatHost, type ContextSignal, type LiveChat } from './live-chat.ts';
+import { foregroundCall, now, runsInBackground, type ChatHost, type ContextSignal, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
 
 /** The next `seq` of a chat's stored entries; read once from the table, so a resumed chat carries on after what an earlier process wrote */
@@ -30,6 +30,13 @@ export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<Drive
 /** Read when used, so a test can shorten them */
 export const idleTimeoutMs = (): number => Number(process.env.CLAUDIO_IDLE_TIMEOUT_MS ?? 10 * 60_000);
 const viewedIdleMaxMs = (): number => Number(process.env.CLAUDIO_VIEWED_IDLE_MAX_MS ?? 60 * 60_000);
+/**
+ * How long after a result the CLI is given to start on the messages it holds: it starts the next turn
+ * at once and reads them back as it does. Read when used, so a test can shorten it.
+ */
+const readBackMs = (): number => Number(process.env.CLAUDIO_READ_BACK_MS ?? 5000);
+/** Why a message the agent went on without is lost */
+export const NOT_READ = 'the agent went on without reading it';
 
 /**
  * Folds what a driver reports into the chat it belongs to: the settings, the ticker, the history of
@@ -52,7 +59,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         }
         if (native && !chat.nativeId) {
           chat.nativeId = native;
-          host.persist();
+          host.persist(chat);
         }
       } else if (event.sessionId && event.sessionId !== chat.id) {
         // The id was Claudio's to choose, and the agent takes it; if it ever answered otherwise, the
@@ -63,27 +70,25 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         ...(event.permissionMode ? { permissionMode: event.permissionMode } : {}),
         ...(event.model ? { model: event.model } : {}),
       });
+      const init: SessionInit = {
+        version: event.environment.cliVersion ?? null,
+        tools: event.environment.tools ?? [],
+        mcpServers: (event.environment.mcpServers ?? []).map((s) => ({ name: s.name, status: s.status })),
+        structuredOutput: chat.opts.jsonSchema !== undefined,
+      };
+      // Known from the version the process runs, so a first turn that ends before anything is read
+      // back (a local command) does not stop every later message from being followed
+      if (chat.reportsDelivery === null) chat.reportsDelivery = chat.driver.readsBack?.(init) ?? null;
       if (event.cwd) {
         // Started with `--worktree`, the CLI has just made (or adopted) the worktree it reports
         if (chat.opts.worktree && chat.workingDir !== event.cwd) worktreesChanged();
         chat.workingDir = event.cwd;
         chat.activity.setCwd(event.cwd);
       }
-      const environment = { cwd: chat.cwd, observedAt: now(), chatId: chat.id, ...event.environment };
-      host.environments.set(chat.cwd, environment);
-      try {
-        host.db.saveEnvironment(environment);
-      } catch {
-        // the panel only loses this directory until its next run
-      }
+      host.environments.observe({ cwd: chat.cwd, observedAt: now(), chatId: chat.id, ...event.environment });
       chat.push(event.run);
       // What the first event confirms about the installed agent: Core hands it to the detector
-      host.emit('chat-init', chat.provider, {
-        version: event.environment.cliVersion ?? null,
-        tools: event.environment.tools ?? [],
-        mcpServers: (event.environment.mcpServers ?? []).map((s) => ({ name: s.name, status: s.status })),
-        structuredOutput: chat.opts.jsonSchema !== undefined,
-      } satisfies SessionInit);
+      host.emit('chat-init', chat.provider, init);
       return;
     }
 
@@ -190,6 +195,8 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         chat.setStatus('busy');
       }
       if (event.mainAgent) {
+        // The lead is on a turn, whether a message started it or a task notification did
+        chat.turnOpen = true;
         if (event.stopReason !== undefined) chat.stopReason = event.stopReason;
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);
@@ -205,6 +212,8 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // The driver has already folded it into the branches: a notification may have ended an agent
       dropEndedBranches(chat);
       chat.push(event.run);
+      // What waited for the background work to end (a person's account switch) can go ahead now
+      if (!runsInBackground(chat.branches)) host.emit('chat-background-settled', chat.id);
       return;
 
     case 'failed':
@@ -244,8 +253,10 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       return;
 
     case 'guard-missing':
-      // The synthetic results of an interrupt or a stop carry no marker either, and a chat already stopped for it says so once
-      if (chat.guardState === 'missing' || chat.interruptRequested || chat.stopRequested) return;
+      // A chat already stopped for it says so once, and a stop's synthetic results carry no marker
+      // either. An interrupt's are excused by the driver, call by call, so a mark the interrupt left
+      // behind can never hide a real one (report §1.7)
+      if (chat.guardState === 'missing' || chat.stopRequested) return;
       chat.push(event.run);
       host.emit('chat-guard', chat.id, event.guard);
       host.guardMissing(chat);
@@ -271,10 +282,24 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
  */
 function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
   chat.reportsDelivery = true;
+  let taken = false;
   for (const id of ids) {
-    if (chat.pending.get(id)?.state !== 'written') continue;
+    const message = chat.pending.get(id);
+    if (message?.state !== 'written') {
+      // One given up on as not read, which the agent took after all
+      if (chat.unlose(id)) taken = true;
+      continue;
+    }
+    taken = true;
     chat.pending.delete(id);
-    chat.push({ kind: 'delivery', delivery: { id, state: 'delivered' } });
+    chat.push({ kind: 'delivery', delivery: { id, state: 'delivered', source: message.source, at: now() } });
+  }
+  if (taken) {
+    // A message of ours is in a turn of the lead's, the running one or one it starts on it now; and
+    // what else waits is looked at again at that turn's result
+    chat.turnOpen = true;
+    if (chat.settleTimer) clearTimeout(chat.settleTimer);
+    chat.settleTimer = null;
   }
   // The agent is on it: within the turn that runs, or as a turn of its own after the last result,
   // which can stream nothing whole for a long while
@@ -283,7 +308,7 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
     chat.idleSince = null;
     chat.setStatus('busy');
   }
-  host.persist();
+  host.persist(chat);
 }
 
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
@@ -299,6 +324,7 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   };
   if (event.modelUsage.length > 0) chat.lastReportedModelUsage = event.modelUsage;
   if (reportedCost !== null) chat.lastReportedCostUsd = Math.max(chat.lastReportedCostUsd, reportedCost);
+  chat.results++;
   const execution = chat.execution;
   if (execution) {
     execution.turns += event.turns;
@@ -337,12 +363,14 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   // An interrupted turn ends as an error by the agent's own count, but nothing went wrong
   if (isError && !chat.interruptRequested) chat.error = event.failure;
   chat.interruptRequested = false;
+  chat.turnOpen = false;
+  chat.foreground.clear();
   chat.activity.turnEnded();
   // A foreground agent the turn ended on without its answer (an interrupt) is not running any more,
   // as a call left open is not (`trace`); a background one outlives the turn
   chat.branches.endForeground(now());
   chat.branchActivity.clear();
-  host.persist();
+  host.persist(chat);
   chat.push({ ...event.run, outcome: { ...(event.run.outcome as RunOutcome), ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) } });
   // Every result, where waitForResult only hands out the first: a chat continued by hand keeps
   // producing them, and whoever the chat works for has to hear about each
@@ -354,35 +382,81 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     chat.reportsDelivery = false;
     for (const message of chat.written()) chat.pending.delete(message.id);
   }
+  // The turn that ended ran on the message that opened it, whether or not the agent read it back: a
+  // local command's turn reads nothing back. Only one written into a running turn can be dropped unseen
+  for (const message of chat.written()) {
+    if (!message.opens) continue;
+    chat.pending.delete(message.id);
+    chat.push({ kind: 'delivery', delivery: { id: message.id, state: 'delivered', source: message.source, at: now() } });
+  }
   chat.turnOver = true;
   if (chat.opts.keepAlive === false) {
-    // A driver that still holds a turn would write it after the end of the input
+    // A driver that still holds a turn would write it after the end of the input. A one-turn chat's
+    // input ends here even with work in the background: its starter waits for the process to exit
+    // and goes on from there (the orchestrator's continuation), and the CLI waits for that work first
     if (!chat.session?.holdsTurns?.()) chat.session?.endInput();
   } else if (chat.written().length > 0) {
-    // The agent has messages of ours still to read and goes on with them as its next turn: the chat
-    // is not waiting for anyone
+    // The agent has messages of ours still to read and goes on with them as its next turn, reading
+    // each back as it starts: the chat is not waiting for anyone, for as long as that takes
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     chat.idleSince = null;
+    awaitReadBack(host, chat);
   } else {
-    chat.setStatus('idle');
-    chat.idleSince = Date.now();
-    const onIdle = () => {
-      // Someone has the chat open: their next message should not wait for a cold start. Bounded, so a
-      // tab forgotten open does not hold a process for ever (a hidden tab lets go of its stream after 30 s anyway)
-      // A caller preparing a turn for this process (`holdForTurn`) is about to write to it
-      if (chat.preparing > 0 || (chat.viewers > 0 && Date.now() - (chat.idleSince ?? 0) < viewedIdleMaxMs())) {
-        chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
-        chat.idleTimer.unref();
-        return;
-      }
-      chat.session?.endInput();
-    };
-    chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
-    chat.idleTimer.unref();
+    goIdle(chat);
   }
   // Last, so the limit check above still knew this was housekeeping
   host.maybeLimit(chat);
   chat.purpose = null;
+}
+
+/**
+ * The lead is waiting for the person: the chat reads idle, and its process is kept for the next
+ * message until the idle timeout ends its input.
+ */
+export function goIdle(chat: LiveChat): void {
+  chat.setStatus('idle');
+  chat.idleSince = Date.now();
+  if (chat.idleTimer) clearTimeout(chat.idleTimer);
+  const onIdle = () => {
+    // Someone has the chat open: their next message should not wait for a cold start. Bounded, so a
+    // tab forgotten open does not hold a process for ever (a hidden tab lets go of its stream after 30 s anyway)
+    // A caller preparing a turn for this process (`holdForTurn`) is about to write to it. Work the
+    // agent runs in the background would be wound down by the CLI once its input ended (D3), so the
+    // input stays open for as long as that work runs
+    if (chat.preparing > 0 || runsInBackground(chat.branches) || (chat.viewers > 0 && Date.now() - (chat.idleSince ?? 0) < viewedIdleMaxMs())) {
+      chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
+      chat.idleTimer.unref();
+      return;
+    }
+    chat.session?.endInput();
+  };
+  chat.idleTimer = setTimeout(onIdle, idleTimeoutMs());
+  chat.idleTimer.unref();
+}
+
+/**
+ * A result arrived with messages of ours still in the agent's queue. The CLI starts its next turn on
+ * them at once and reads each back as it does; one not read back by then was dropped on the way (a
+ * `UserPromptSubmit` hook can end a prompt, and the CLI says so on no documented channel). It is
+ * settled `not-read`, so a message the agent never takes cannot keep the chat busy, its card waiting
+ * and its run slot held. Only the messages written before the result: one sent since starts a turn
+ * of its own. A turn the CLI started meanwhile leaves the rest to its own result.
+ */
+function awaitReadBack(host: ChatHost, chat: LiveChat): void {
+  if (chat.settleTimer) clearTimeout(chat.settleTimer);
+  const proc = chat.proc;
+  chat.settleTimer = setTimeout(() => {
+    chat.settleTimer = null;
+    if (chat.proc !== proc || !chat.alive || chat.turnOpen) return;
+    const stale = chat.written().filter((m) => m.results < chat.results);
+    for (const message of stale) {
+      chat.pending.delete(message.id);
+      chat.lose(message, NOT_READ, 'not-read');
+    }
+    if (stale.length) host.persist(chat);
+    if (chat.written().length === 0 && chat.status === 'busy') goIdle(chat);
+  }, readBackMs());
+  chat.settleTimer.unref();
 }
 
 /** The parts of a policy a request falls under; a driver lists in `host` the ones it leaves to the judge. */
@@ -479,9 +553,14 @@ function trackActivity(chat: LiveChat, entry: Extract<DriverEvent, { kind: 'mess
   if (entry.isSidechain) return trackBranch(chat, entry);
   for (const block of entry.blocks) {
     if (block.type === 'tool_use') {
-      chat.activity.called(block.id, block.name, (block.input ?? {}) as Record<string, unknown>, entry.timestamp || now());
+      const input = (block.input ?? {}) as Record<string, unknown>;
+      chat.activity.called(block.id, block.name, input, entry.timestamp || now());
+      const holds = foregroundCall(block.name, input);
+      if (holds) chat.foreground.set(block.id, holds);
     } else if (block.type === 'tool_result') {
       chat.activity.answered(block.toolUseId);
+      // Returned, or sent to the background: a message waits for it no more
+      chat.foreground.delete(block.toolUseId);
       // The subagent this call launched reported back. A background one only said it was launched,
       // and goes on until its task notification
       const sub = chat.branches.subagents.get(block.toolUseId);

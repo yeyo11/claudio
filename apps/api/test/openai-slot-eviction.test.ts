@@ -9,6 +9,7 @@ import { Core, loadConfig, RunSlotRefusal } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
+import { signInDefault } from './helpers.ts';
 
 // Run slots against idle API chats (docs/openai-compatible-api.md, "Real-client tests"): every OpenAI
 // conversation is a chat whose process stays up between turns, so a start that finds every slot
@@ -27,6 +28,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-slots-'));
   log = join(root, 'prompts.jsonl');
   process.env.FAKE_OPENAI_PROMPTS = log;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,
@@ -448,19 +451,31 @@ test('a start whose spawn fails ends no idle process', async () => {
   assert.equal(core.runtime.isLeaving(chat), false);
 });
 
-test("a person's chat held warm past its idle timeout gives its slot up as before, background task or not", async () => {
+test("a person's chat held warm past its idle timeout gives its slot up, but never while it runs a background task (D3)", async () => {
   await core.appSettings.update({ maxConcurrentRuns: 1 });
   process.env.CLAUDIO_IDLE_TIMEOUT_MS = '100';
   let unsubscribe = (): void => {};
   try {
-    const person = core.runtime.start({ prompt: 'BACKGROUND' });
+    const busy = core.runtime.start({ prompt: 'BACKGROUND' });
     // A reader keeps it warm past the timeout
-    unsubscribe = core.runtime.subscribe(person.id, () => {});
-    await idle(person.id);
+    unsubscribe = core.runtime.subscribe(busy.id, () => {});
+    await idle(busy.id);
     await pause(250);
-    assert.ok(live(person.id));
+    assert.ok(live(busy.id));
+    // Ending its input would have the CLI kill the task once it had waited long enough for it
+    assert.throws(() => core.runtime.start({ prompt: 'mine' }), (err: unknown) => err instanceof RunSlotRefusal);
+    assert.equal(core.runtime.isLeaving(busy.id), false);
+    unsubscribe();
+    core.runtime.stopAll();
+    await until(() => core.runtime.activeCount() === 0, 'the process to end');
+
+    const quiet = core.runtime.start({ prompt: 'nothing in the background' });
+    unsubscribe = core.runtime.subscribe(quiet.id, () => {});
+    await idle(quiet.id);
+    await pause(250);
+    assert.ok(live(quiet.id));
     core.runtime.start({ prompt: 'mine' });
-    assert.ok(core.runtime.isLeaving(person.id));
+    assert.ok(core.runtime.isLeaving(quiet.id));
   } finally {
     unsubscribe();
     delete process.env.CLAUDIO_IDLE_TIMEOUT_MS;

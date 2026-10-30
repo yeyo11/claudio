@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, GitFork, Hourglass, Lock, MessageSquare, TriangleAlert, Undo2, X } from 'lucide-react';
+import { ArrowDown, GitFork, Lock, MessageSquare, X } from 'lucide-react';
 import { entryText, type Chat, type ChatDetail, type ChatPendingAttachment, type EditStep, type TranscriptEntry } from '@claudio/shared';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { activityTarget } from '@claudio/ui/lib/live';
-import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { useDeleteChat } from '@claudio/chat-ui/components/ChatDelete';
 import { PermissionPrompts } from '@claudio/chat-ui/components/PermissionPrompts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
@@ -43,6 +42,7 @@ import { ContextControlProvider } from './chat/ContextPanel';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
 import { useQueuedMessages } from '@claudio/chat-ui/composer/queued';
+import { QueuedCards } from '@claudio/chat-ui/composer/QueuedCards';
 import { HISTORY_LIMIT } from '@claudio/chat-ui/composer/history';
 import { useStickToBottom } from '@claudio/chat-ui/composer/stick-to-bottom';
 import { useChatItemLinks, WorkItemPartOf } from './chat/WorkItemLinks';
@@ -108,11 +108,14 @@ export function ChatView() {
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
   const { follow, setFollow, jumpToLatest, hold } = useStickToBottom(scroller, Boolean(chat));
-  const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items, stream, transcript.query.dataUpdatedAt);
-  // Words and files handed back to the composer: a message the agent never read
-  const [restore, setRestore] = useState<{ text: string; attachments: ChatPendingAttachment[]; at: number } | null>(null);
-  // A message still waiting for the turn is a card over the box, so it is not also a row here
-  const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
+  const { queued, add: queueMessage, drop: dropQueued, pending: isPending, dated } = useQueuedMessages(chat, transcript.items, stream, transcript.query.dataUpdatedAt);
+  // Words and files handed back to the composer: a message the agent never read. They belong to the
+  // chat they were written in: the route keeps this component across chats, and the next chat's
+  // composer mounts before an effect could clear them, so they carry their chat and only it gets them
+  const [restore, setRestore] = useState<{ chatId: string; text: string; attachments: ChatPendingAttachment[]; at: number } | null>(null);
+  // A message still waiting for the turn is a card over the box, so it is not also a row here; one
+  // the agent took into a running turn is dated when it took it
+  const pendingless = useMemo(() => dated(queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending, dated]);
   const items = pendingless;
   // The person's words are drawn at the end of the conversation the moment Send is pressed; the undo takes them out again if the send fails
   const onSending = useCallback(
@@ -131,10 +134,12 @@ export function ChatView() {
   const limit = useLimitState(chat);
   usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
-  // Another chat starts at its end, with nothing half-typed for a copy of the last one
+  // Another chat starts at its end, with nothing half-typed for a copy of the last one, and nothing
+  // handed back from it (coming back to it later must not hand the words back a second time)
   useEffect(() => {
     setFollow(true);
     setForking(false);
+    setRestore(null);
   }, [id, setFollow]);
 
   // A block that has been stored leaves the stream once the transcript shows it, in the same
@@ -220,7 +225,19 @@ export function ChatView() {
     mutationFn: (messageId: string) => api.interruptChat(id, { messageId }),
     onSettled: invalidate,
   });
-  const sendNowFailed = sendNowError instanceof ApiRequestError && sendNowError.status === 409 ? null : sendNowError;
+  // The call the turn waits on goes to the background instead of ending with the turn (D4); a 409 is
+  // a call that returned meanwhile, and the card clears with the read-back that follows
+  const { mutate: sendToBackground, isPending: backgrounding, error: backgroundError } = useMutation({
+    mutationFn: (toolUseId: string) => api.backgroundChatCall(id, toolUseId),
+    onSettled: invalidate,
+  });
+  // A waiting message taken back before the agent reads it; a 409 is one the agent took meanwhile
+  const { mutate: withdrawMessage, error: withdrawError } = useMutation({
+    mutationFn: (messageId: string) => api.cancelChatMessage(id, messageId),
+    onSettled: invalidate,
+  });
+  const conflict = (error: Error | null) => (error instanceof ApiRequestError && error.status === 409 ? null : error);
+  const sendNowFailed = conflict(sendNowError) ?? conflict(backgroundError) ?? conflict(withdrawError);
   const remove = useDeleteChat(() => navigate('/chats'));
   // Read when pressed, not when the header's actions are built: both change on every render
   const toDelete = useRef({ request: remove.requestDelete, chat });
@@ -369,9 +386,6 @@ export function ChatView() {
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
   // While the agent writes the answer after its calls, the step above is done, not current
   const stepCurrent = working && !writing;
-  // "Send now" is for the oldest message still in the agent's queue: ending the turn has it read
-  // whatever else waits with it, and one held for the next process is read once that one starts
-  const waiting = queued.find((message) => message.state === 'waiting');
 
   return (
     <AgentScope chat={chat}>
@@ -484,49 +498,31 @@ export function ChatView() {
             <Composer key={chat.id} chat={chat} kind="fork" onSent={() => setFollow(true)} />
           </div>
         )}
-        {queued.length > 0 && (
-          <div className={`chat-queued ${queued.every((message) => message.state === 'lost') ? 'is-lost' : ''}`.trimEnd()} role="status" aria-label={t('view.queued.title')}>
-            <ul className="chat-queued-list">
-              {queued.map((message) => (
-                <li key={message.id} className={`chat-queued-item ${message.state === 'lost' ? 'is-lost' : ''}`.trimEnd()}>
-                  {message.state === 'lost' ? <TriangleAlert {...ICON_SM} aria-hidden /> : <Hourglass {...ICON_SM} aria-hidden />}
-                  <span className="chat-queued-text">{message.text || t('view.queued.files', { count: message.attachments.length })}</span>
-                  {message.state === 'lost' && (
-                    <Tooltip content={t('view.queued.restore')}>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        aria-label={t('view.queued.restore')}
-                        onClick={() => {
-                          setRestore({ text: message.text, attachments: message.attachments, at: Date.now() });
-                          dropQueued(message.id);
-                        }}
-                      >
-                        <Undo2 {...ICON_SM} />
-                      </button>
-                    </Tooltip>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="chat-queued-foot">
-              <span className="small muted">
-                {queued.some((message) => message.state === 'lost')
-                  ? t('view.queued.undelivered', { agent })
-                  : waiting
-                    ? t('view.queued.hint', { count: queued.length })
-                    : t('view.queued.held', { count: queued.length, agent })}
-              </span>
-              {waiting && (
-                <Tooltip content={t('view.queued.sendNowHint', { agent })}>
-                  <button type="button" className="btn btn-small" onClick={() => sendNow(waiting.id)} disabled={sendingNow}>
-                    {sendingNow ? t('view.queued.sending') : t('view.queued.sendNow')}
-                  </button>
-                </Tooltip>
-              )}
-            </div>
-          </div>
-        )}
+        <QueuedCards
+          queued={queued}
+          agent={agent}
+          sending={sendingNow}
+          backgrounding={backgrounding}
+          // "Send now" is for the oldest message still in the agent's queue: ending the turn has it read
+          // whatever else waits with it, and one held for the next process is read once that one starts
+          onSendNow={(messageId) => sendNow(messageId)}
+          onBackground={(toolUseId) => sendToBackground(toolUseId)}
+          onRestore={(message) => {
+            setRestore({ chatId: chat.id, text: message.text, attachments: message.attachments, at: Date.now() });
+            dropQueued(message.id);
+          }}
+          onWithdraw={(message) => {
+            // Back in the box at once: if the agent took it meanwhile (409), its read-back shows it sent
+            withdrawMessage(message.id);
+            setRestore({ chatId: chat.id, text: message.text, attachments: message.attachments, at: Date.now() });
+            dropQueued(message.id);
+          }}
+          onDismiss={(message) => {
+            // A lost notice has nothing left to withdraw: it is only put away
+            if (message.state !== 'lost') withdrawMessage(message.id);
+            dropQueued(message.id);
+          }}
+        />
         {limit.phase !== 'none' && composer !== 'fork' && (
           <div className="lim-zone">
             <LimitBanner chat={chat} state={limit} />
@@ -539,7 +535,7 @@ export function ChatView() {
             key={chat.id}
             chat={chat}
             kind={composer}
-            restore={restore}
+            restore={restore?.chatId === chat.id ? restore : null}
             history={sentHistory}
             onSending={onSending}
             writing={writing}

@@ -4,6 +4,8 @@ import http from 'node:http';
 import https from 'node:https';
 import { Readable, Transform, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { errorMessage } from '@claudio/shared';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 /**
  * Why a download failed. `interrupted`: the connection dropped, reset or went quiet once the answer
@@ -73,14 +75,13 @@ const MAX_REDIRECTS = 5;
 const DISK_CODES = new Set(['ENOSPC', 'EDQUOT', 'EACCES', 'EPERM', 'EROFS', 'EISDIR', 'ENOTDIR', 'EMFILE', 'ENFILE', 'EIO']);
 const NO_ANSWER_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'ECONNABORTED']);
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const noop = () => undefined;
 
 /** Any thrown value as a `DownloadError`; a code we do not recognise is taken for a dropped connection, which another attempt may get past */
 function classify(err: unknown, answered: boolean): DownloadError {
   if (err instanceof DownloadError) return err;
   const code = (err as NodeJS.ErrnoException | null)?.code ?? '';
-  const message = err instanceof Error ? err.message : String(err);
+  const message = errorMessage(err);
   if (DISK_CODES.has(code)) return new DownloadError('disk', message, false, undefined, code);
   if (!answered && NO_ANSWER_CODES.has(code)) return new DownloadError('network', message, true);
   return new DownloadError(answered ? 'interrupted' : 'network', message || code || 'the connection failed', true);
@@ -160,7 +161,7 @@ const CONTENT_RANGE = /^bytes (\d+)-(\d+)\/(\d+|\*)$/;
  */
 export async function downloadFile(url: string, file: string, o: DownloadOptions = {}): Promise<DownloadResult> {
   const backoff = o.backoffMs ?? DEFAULT_BACKOFF_MS;
-  const wait = o.wait ?? sleep;
+  const wait = o.wait ?? ((ms: number) => sleep(ms));
   let resume: Resume = { ranges: false, validator: null };
   let total: number | null = o.size ?? null;
   let resumed = 0;

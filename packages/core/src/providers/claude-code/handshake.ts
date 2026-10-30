@@ -38,6 +38,19 @@ export function confirmClaudeInit(init: SessionInit): CapabilityConfirmation {
   return { version: init.version, confirmed, missing };
 }
 
+/**
+ * Whether a session reads back each message it takes. Claudio launches every process with
+ * `--replay-user-messages` (args.ts), which every CLI in the driver's range honours (read back on
+ * 2.1.288 and 2.1.312, docs/chat-delivery.md): the version the init reports decides, not whether the
+ * first turn happened to read anything back. A version the init leaves out, or one outside the range,
+ * says nothing.
+ */
+export function claudeReadsBack(version: string | null): boolean | null {
+  const range = claudeCodeManifest.versions.range;
+  if (!version || !range) return null;
+  return satisfiesRange(version, range) === 'in' ? true : null;
+}
+
 /** The flags the guards load their hooks with, and the capability each one proves */
 const HELP_FLAGS: Array<[ProviderCapability, RegExp]> = [
   ['settingsFlag', /^\s+--settings\s/m],

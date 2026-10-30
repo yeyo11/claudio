@@ -51,8 +51,11 @@ export interface ChatRecord {
   apiPolicy?: ApiChatPolicy;
   /** Set on a `/v1` chat that is not confined: what its request declared, compared with a continuation's */
   apiAsked?: ApiChatPolicy;
-  /** Messages the agent had not taken when this was written, and those lost before: a restart loses them, and says so */
-  pending?: ChatPendingMessage[];
+  /**
+   * Messages the agent had not taken when this was written, and those lost before: a restart loses
+   * them, and says so. A row written before the source was recorded has none: it was a person's.
+   */
+  pending?: Array<Omit<ChatPendingMessage, 'source'> & Partial<Pick<ChatPendingMessage, 'source'>>>;
   createdAt: string;
   updatedAt: string;
 }

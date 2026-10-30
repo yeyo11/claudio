@@ -180,7 +180,8 @@ export const guardRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { cor
     const rules: GuardRulesFile = {
       version: 1,
       mode: 'enforce',
-      rules: ['integrity', ...switchable],
+      // Only the rules asked for, or on: `integrity` is one of them like the others (D6)
+      rules: switchable,
       roots: [...extra],
       mainCheckout: null,
       hooksPathDir: null,

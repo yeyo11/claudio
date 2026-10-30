@@ -23,6 +23,7 @@ import { ReviewsError, type ReviewsService, type ReviewsTarget } from './hosts/r
 import type { PaceOutcome } from './hosts/pacer.ts';
 import { ADDRESS_REFUSALS, addressPromptFor, codeHostAdapter, failingChecks, fixPromptFor, HostFactsCache, threadsToAddress, type ChecksFailingNotice } from './pull-requests.ts';
 import { hostOf } from './work-item-rows.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * An orchestration's change request (docs/plans/code-hosts.md, phase 1): the person asks for it on a
@@ -93,7 +94,6 @@ export class OrchestrationPullRequestError extends Error {
   }
 }
 
-const messageOf = (err: unknown): string => firstLine(err instanceof Error ? err.message : String(err));
 const failureOf = (result: HostResult): string => result.stderrFirstLine || result.reason || `exit ${result.exitCode ?? 'none'}`;
 
 /** Runs git without blocking the server; a failure carries the first line git wrote. */
@@ -292,8 +292,8 @@ export class OrchestrationPullRequestService {
       hold = await this.holdExisting(row, project);
       await pushBranch(orch.cwd, branch, this.env());
     } catch (err) {
-      this.fail(row, 'push', messageOf(err));
-      throw new OrchestrationPullRequestError(`could not push ${branch}: ${messageOf(err)}`, 'push');
+      this.fail(row, 'push', firstLine(errorMessage(err)));
+      throw new OrchestrationPullRequestError(`could not push ${branch}: ${firstLine(errorMessage(err))}`, 'push');
     } finally {
       hold?.release();
     }
@@ -303,7 +303,7 @@ export class OrchestrationPullRequestService {
       this.announce(row, 'Pull request opened');
       return { branch, url: found.url, detail: 'pull request opened', pullRequest: this.newest(orch.id) };
     } catch (err) {
-      const detail = messageOf(err);
+      const detail = firstLine(errorMessage(err));
       this.fail(row, 'create', detail);
       return { branch, url: null, detail: `pushed ${branch}, but no pull request was opened: ${detail}`, pullRequest: this.newest(orch.id) };
     }
@@ -483,7 +483,7 @@ export class OrchestrationPullRequestService {
         hold = await this.deps.merge?.holdForPush(row.id);
         await pushBranch(worktree && existsSync(worktree) ? worktree : row.cwd, row.branch, this.env());
       } catch (err) {
-        const detail = messageOf(err);
+        const detail = firstLine(errorMessage(err));
         if (this.update(row.id, { error_code: 'push', error_detail: detail }, ['open'])) this.announce(row, 'Pushing the fix failed');
         throw new OrchestrationPullRequestError(`could not push ${row.branch}: ${detail}`, 'push');
       } finally {

@@ -145,14 +145,17 @@
       "forbidden": "Only a person can change guards.",
       "readOnlyNote": "Claudio is in read-only mode, so guards cannot be changed here.",
       "rulesLabel": "Rules",
-      "alwaysOn": "Always on",
       "status": {
         "active": "active",
         "observe": "observe",
         "unavailable": "not available",
-        "activeLine": "Active for automated runs · {{count}} rules on",
-        "chatsOnlyLine": "Off for automated runs, on in the chats that opt in · {{count}} rules on",
+        "off": "off",
+        "activeLine_one": "Active for automated runs · {{count}} rule on",
+        "activeLine_other": "Active for automated runs · {{count}} rules on",
+        "chatsOnlyLine_one": "Off for automated runs, on in the chats that opt in · {{count}} rule on",
+        "chatsOnlyLine_other": "Off for automated runs, on in the chats that opt in · {{count}} rules on",
         "observeLine": "Observe mode: nothing is blocked",
+        "offLine": "No rule is on, so no run is guarded: switch a rule on for the settings below to apply",
         "notAvailable": "Not available: {{problem}}"
       },
       "problems": {
@@ -172,7 +175,7 @@
       "rules": {
         "integrity": {
           "name": "Integrity",
-          "description": "Protects the guard itself: Claudio's data, the settings that could switch hooks off, git hooks and config, and nested claude processes."
+          "description": "Protects the guard and Claudio's data, and blocks command lines the guard cannot read."
         },
         "no-verify": {
           "name": "No skipping checks",
@@ -729,6 +732,7 @@
         "who-answers": "Who answers",
         "jev-key": "Jev key",
         "cap": "Cap per decision",
+        "supervisor-cap": "Cap per Supervisor hint",
         "cli-model": "CLI model",
         "cli-effort": "CLI effort",
         "history-days": "Days of history kept"
@@ -765,6 +769,7 @@
         "mode": "Observe only",
         "automated": "Orchestration and flow workers",
         "rule": {
+          "integrity": "Integrity",
           "no-verify": "No skipping checks",
           "push": "No pushing",
           "destructive": "No destructive commands",
@@ -913,6 +918,7 @@
         "who-answers": "engine provider jev cli model",
         "jev-key": "api key secret",
         "cap": "cost dollars limit",
+        "supervisor-cap": "supervisor hint cost dollars limit",
         "cli-model": "advanced haiku",
         "cli-effort": "advanced reasoning",
         "history-days": "retention advanced"
@@ -959,6 +965,7 @@
         "mode": "observe log only false positive",
         "automated": "workers orchestration flow",
         "rule": {
+          "integrity": "integrity guard own files parse",
           "no-verify": "verify hooks skip",
           "push": "push upload",
           "destructive": "delete rm force",
@@ -1861,7 +1868,19 @@
       "body": "This page came through the tunnel, so its address no longer works. To open the tunnel again, use Claudio on its own machine or on your local network."
     },
     "stopFailed": "Could not close the tunnel",
-    "saveFailed": "Could not save the tunnel setting"
+    "saveFailed": "Could not save the tunnel setting",
+    "port": {
+      "label": "Port on the tailnet name",
+      "hint": "The address is https://<name>:<port>. Choose another port when something else on this machine already serves this one.",
+      "fromEnv": "Set by {{variable}} where Claudio runs.",
+      "whileOpen": "Close the tunnel to change its port.",
+      "save": "Save port",
+      "saveFailed": "Could not change the port"
+    },
+    "portTaken": {
+      "holder": "What holds it:",
+      "useNext": "Use the next free port ({{port}})"
+    }
   },
   "appSettings": {
     "fromEnv": "Set by the environment",

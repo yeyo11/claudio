@@ -7,6 +7,7 @@ import type { CollaboratorsUnavailableCode } from '@claudio/shared';
 import { IROH_MODULE_ENV, type CoreToHost, type HostStartOptions, type HostTarget, type HostToCore } from './host/protocol.ts';
 import type { ReplySink } from './serve.ts';
 import type { WireReply } from './wire.ts';
+import { errorMessage } from '@claudio/shared';
 
 /*
  * The core's side of the Collaborators host (docs/plans/collaborators.md §3.2): forks
@@ -74,6 +75,8 @@ export interface CollabHostOptions {
   maxRestarts?: number;
   restartWindowMs?: number;
   restartDelayMs?: (attempt: number) => number;
+  /** How long after the endpoint failed to bind it is asked to bind again; doubles from 1 s up to a minute by default */
+  rebindDelayMs?: (failures: number) => number;
   /** Variables passed to the host on top of what its runtime needs; for tests */
   env?: NodeJS.ProcessEnv;
 }
@@ -133,6 +136,13 @@ class ReplyQueue implements AsyncIterableIterator<HostReplyPart> {
   }
 }
 
+/** Why the endpoint did not bind, and when it is asked again: a port taken, a relay URL that does not parse */
+export interface HostBindError {
+  message: string;
+  /** When the next bind is tried; null while none is planned (the host is restarting, or stopped) */
+  retryAt: string | null;
+}
+
 export class CollabHost {
   private child: ChildProcess | null = null;
   private ready = false;
@@ -148,6 +158,10 @@ export class CollabHost {
   private readonly incoming = new Map<number, AbortController>();
   private stopped: (() => void) | null = null;
   private lastStatus: HostStatus | null = null;
+  /** The last bind failed: said on the page as an error, and tried again with a backoff until a status comes */
+  private bindError: HostBindError | null = null;
+  private bindFailures = 0;
+  private rebindTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly opts: CollabHostOptions) {}
 
@@ -161,17 +175,34 @@ export class CollabHost {
     return this.lastStatus;
   }
 
-  /** Binds the endpoint, forking the host first; again with new options rebinds it */
+  /** Why the last bind failed, while no bind has worked since */
+  get startError(): HostBindError | null {
+    return this.bindError ? { ...this.bindError } : null;
+  }
+
+  /**
+   * Binds the endpoint, forking the host first; again with new options rebinds it. A host that is
+   * not running is forked now, even inside a restart's backoff: the person asked, and the fork
+   * sends `start` before anything else.
+   */
   start(options: HostStartOptions): void {
     if (this.disposed || this.failure) return;
     this.options = options;
-    this.post({ type: 'start', options });
+    this.clearBindError();
+    if (this.child) {
+      this.post({ type: 'start', options });
+      return;
+    }
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+    this.spawn();
   }
 
   /** Closes the endpoint and lets the host go: with Collaborators off, nothing of iroh is loaded */
   async stop(): Promise<void> {
     this.options = null;
     this.lastStatus = null;
+    this.clearBindError();
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = null;
     const child = this.child;
@@ -198,14 +229,20 @@ export class CollabHost {
     const req = this.nextRequest++;
     const queue = new ReplyQueue(() => {
       this.requests.delete(req);
-      this.post({ type: 'cancel', req });
+      // A cancel is for the host that took the request; it never forks one
+      if (this.child) this.post({ type: 'cancel', req });
     });
     if (!this.options || this.failure) {
       queue.end(new Error('Collaborators is not running'));
       return queue;
     }
     this.requests.set(req, queue);
-    this.post({ type: 'request', req, to, frame });
+    if (!this.post({ type: 'request', req, to, frame })) {
+      // Inside a restart's backoff nothing is forked for a request: the peer reads as unreachable,
+      // and the timer brings the host back with its `start`
+      this.requests.delete(req);
+      queue.end(new Error('unreachable: the Collaborators host is restarting'));
+    }
     return queue;
   }
 
@@ -217,6 +254,7 @@ export class CollabHost {
   dispose(): void {
     this.disposed = true;
     this.options = null;
+    this.clearBindError();
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = null;
     if (this.child) this.release(this.child);
@@ -229,13 +267,21 @@ export class CollabHost {
 
   // ---------- The process ----------
 
-  private post(message: CoreToHost): void {
-    if (!this.child && !this.spawn()) return;
+  /**
+   * Hands a message to the host, forking it when none runs. False when it could not be handed: the
+   * host is gone for good, or is inside a restart's backoff, which only its timer ends.
+   */
+  private post(message: CoreToHost): boolean {
+    if (!this.child) {
+      if (this.restartTimer) return false;
+      if (!this.spawn()) return false;
+    }
     if (!this.ready) {
       this.outbox.push(message);
-      return;
+      return true;
     }
     this.deliver(message);
+    return true;
   }
 
   private deliver(message: CoreToHost, done?: () => void): void {
@@ -270,6 +316,9 @@ export class CollabHost {
     const child = fork(launch.entry, [], { execPath: process.execPath, execArgv: launch.execArgv, env, serialization: 'advanced', stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
     this.child = child;
     this.ready = false;
+    // Whatever forked it, a host with options to bind binds first: a request that forked it must
+    // not leave it running with no endpoint
+    if (this.options) this.outbox.push({ type: 'start', options: this.options });
     child.on('message', (message: HostToCore) => {
       if (this.child === child) this.receive(message);
     });
@@ -305,6 +354,11 @@ export class CollabHost {
   private lost(reason: string): void {
     this.failPending(new Error(reason));
     this.lastStatus = null;
+    // What was queued for the dead host is not replayed into the next one: it gets its own `start`
+    this.outbox.length = 0;
+    if (this.rebindTimer) clearTimeout(this.rebindTimer);
+    this.rebindTimer = null;
+    if (this.bindError) this.bindError = { ...this.bindError, retryAt: null };
     if (this.disposed || this.failure || !this.options) return;
     const now = Date.now();
     const window = this.opts.restartWindowMs ?? 60_000;
@@ -319,7 +373,7 @@ export class CollabHost {
     const delay = (this.opts.restartDelayMs ?? ((n) => Math.min(30_000, 500 * 2 ** (n - 1))))(attempt);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
-      if (this.options && !this.child) this.post({ type: 'start', options: this.options });
+      if (this.options && !this.child) this.spawn();
     }, delay);
     this.restartTimer.unref?.();
   }
@@ -328,7 +382,29 @@ export class CollabHost {
     if (this.failure) return;
     this.failure = reason;
     this.options = null;
+    this.clearBindError();
     this.opts.listener?.unavailable?.(reason);
+  }
+
+  private clearBindError(): void {
+    if (this.rebindTimer) clearTimeout(this.rebindTimer);
+    this.rebindTimer = null;
+    this.bindError = null;
+    this.bindFailures = 0;
+  }
+
+  /** The endpoint did not bind: said as an error, and asked again later and later until it binds */
+  private bindFailed(message: string): void {
+    if (!this.options || this.disposed) return;
+    this.bindFailures += 1;
+    const delay = (this.opts.rebindDelayMs ?? ((n) => Math.min(60_000, 1_000 * 2 ** Math.min(n - 1, 6))))(this.bindFailures);
+    this.bindError = { message, retryAt: new Date(Date.now() + delay).toISOString() };
+    if (this.rebindTimer) clearTimeout(this.rebindTimer);
+    this.rebindTimer = setTimeout(() => {
+      this.rebindTimer = null;
+      if (this.options && this.child) this.post({ type: 'start', options: this.options });
+    }, delay);
+    this.rebindTimer.unref?.();
   }
 
   // ---------- Messages ----------
@@ -346,9 +422,11 @@ export class CollabHost {
         if (this.child) this.release(this.child);
         return;
       case 'start-error':
+        this.bindFailed(message.message);
         this.opts.listener?.startError?.(message.message);
         return;
       case 'status':
+        if (this.bindError) this.clearBindError();
         this.lastStatus = message;
         this.opts.listener?.status?.(message);
         return;
@@ -395,7 +473,7 @@ export class CollabHost {
     };
     void this.opts
       .serve(from, frame, sink)
-      .catch((error: unknown) => this.opts.listener?.log?.(`collab: serving ${from.slice(0, 10)} failed: ${error instanceof Error ? error.message : String(error)}`))
+      .catch((error: unknown) => this.opts.listener?.log?.(`collab: serving ${from.slice(0, 10)} failed: ${errorMessage(error)}`))
       .finally(() => {
         if (this.incoming.get(stream) !== controller) return;
         this.incoming.delete(stream);

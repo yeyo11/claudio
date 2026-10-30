@@ -11,6 +11,7 @@ import type { ChatSummary, RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 import { failureOf, TurnRun } from '../src/routes/openai.ts';
+import { signInDefault } from './helpers.ts';
 
 // The OpenAI-compatible routes over a real core and a fake CLI that keeps its process across turns
 // and reports its cost and token counts cumulative, as the real one does (docs/openai-compatible-api.md).
@@ -30,6 +31,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-'));
   prompts = join(root, 'prompts.jsonl');
   process.env.FAKE_OPENAI_PROMPTS = prompts;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,

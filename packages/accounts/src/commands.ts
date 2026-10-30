@@ -5,6 +5,7 @@ import type { Account } from '@claudio/shared';
 import { envFor } from './env.ts';
 import { login } from './login.ts';
 import { AccountStore } from './store.ts';
+import { errorMessage } from '@claudio/shared';
 
 export interface Io {
   out(text: string): void;
@@ -175,7 +176,7 @@ export async function main(argv: readonly string[], io: Io, cli: CliEnv): Promis
         return 2;
     }
   } catch (e) {
-    io.err(e instanceof Error ? e.message : String(e));
+    io.err(errorMessage(e));
     return 1;
   }
 }

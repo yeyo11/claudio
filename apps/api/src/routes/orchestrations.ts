@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { parseChangeScope, parseDiffContext, summarizeOrchestration, type Core, type DiffOptions } from '@claudio/core';
+import { changeRequestRefusal, parseChangeScope, parseDiffContext, summarizeOrchestration, type Core, type DiffOptions } from '@claudio/core';
 import { fromChat, grantAfterOverride, spendGate } from './spend.ts';
 import { overrideWeakens, refuseWeakerOverride } from './guards.ts';
 import type {
@@ -16,6 +16,7 @@ import type {
   UpdateOrchestrationTemplateRequest,
   VerifyOrchestrationRequest,
 } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 /** The file a diff is asked for: required, since a whole-branch diff is not what the panel opens. */
 /** The file a diff is asked for: one path, which a repeated parameter would make a list of. */
@@ -91,7 +92,7 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   app.get<{ Params: { templateId: string } }>('/orchestrations/templates/:templateId', (req) => {
     const template = core.orchestrator.templates.get(req.params.templateId);
-    if (!template) throw new Error('template not found');
+    if (!template) throw new NotFoundError('template not found');
     return template;
   });
 
@@ -117,20 +118,20 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
 
   app.get<{ Params: { id: string } }>('/orchestrations/:id', (req) => {
     const orch = core.orchestrator.get(req.params.id);
-    if (!orch) throw new Error('orchestration not found');
+    if (!orch) throw new NotFoundError('orchestration not found');
     return core.orchestrator.view(orch);
   });
 
   app.get<{ Params: { id: string } }>('/orchestrations/:id/timings', (req) => {
     const timings = core.orchestrationTimings(req.params.id);
-    if (!timings) throw new Error('orchestration not found');
+    if (!timings) throw new NotFoundError('orchestration not found');
     return timings;
   });
 
   // The person lets a graph run past today's cap; a chat's token cannot (security.ts), so an agent never grants itself the pass
   app.post<{ Params: { id: string } }>('/orchestrations/:id/spend-pass', (req) => {
     if (fromChat(req)) throw Object.assign(new Error("a chat's token cannot let a graph run past the daily spend cap"), { statusCode: 403 });
-    if (!core.orchestrator.get(req.params.id)) throw new Error('orchestration not found');
+    if (!core.orchestrator.get(req.params.id)) throw new NotFoundError('orchestration not found');
     return core.orchestrator.view(core.spend.grantPass(req.params.id) as Orchestration);
   });
 
@@ -223,7 +224,7 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
       limit: limit === undefined ? 100 : boundedInt(limit, 'limit', 1, 500),
       offset: offset === undefined ? 0 : boundedInt(offset, 'offset', 0, Number.MAX_SAFE_INTEGER),
     });
-    if (!detail) throw Object.assign(new Error(`orchestration ${req.params.id} not found`), { statusCode: 404 });
+    if (!detail) throw Object.assign(new NotFoundError(`orchestration ${req.params.id} not found`), { statusCode: 404 });
     if (!detail.state && detail.rounds.length === 0 && !core.orchestrator.get(req.params.id)?.verificationSpec?.review) {
       throw Object.assign(new Error('this graph has no review gate'), { statusCode: 404 });
     }
@@ -239,7 +240,14 @@ export const orchestrationRoutes: FastifyPluginAsync<{ core: Core }> = async (ap
   );
 
   // The one step that leaves the machine, so it only ever happens on request
-  app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', async (req) => await core.orchestrator.pullRequest(req.params.id));
+  app.post<{ Params: { id: string } }>('/orchestrations/:id/pull-request', async (req) => {
+    try {
+      return await core.orchestrator.pullRequest(req.params.id);
+    } catch (err) {
+      // Why no change request can be opened is the person's to act on: a 4xx with its code, never a 500
+      throw changeRequestRefusal(err);
+    }
+  });
 
   // The workflow script the graph runs as, or would: generated from the graph, never hand-written
   app.get<{ Params: { id: string } }>('/orchestrations/:id/workflow', (req) => core.orchestrator.workflowScript(req.params.id));

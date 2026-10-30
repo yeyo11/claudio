@@ -710,8 +710,8 @@ None for the owner. The spike in `repo-model` settles D2's parser and D11's impo
 
 Built on 2026-10-19 by the orchestration of [Tasks](#tasks), in the branches `repo-model`,
 `suggestions-core`, `web-projects` and `docs`, with `review` and `e2e-specs` still to land on the
-merged branch. What exists is described in [projects.md](projects.md#a-project-is-a-repository) and
-[decisions/project-identity-common-dir.md](decisions/project-identity-common-dir.md).
+merged branch. What exists is described in [projects.md](../projects.md#a-project-is-a-repository) and
+[decisions/project-identity-common-dir.md](../decisions/project-identity-common-dir.md).
 
 - **Spike.** `packages/core/test/fixtures/repos/make.sh` builds the layouts and `expected.json` is
   git 2.53's recording. From a linked worktree of a `--separate-git-dir` checkout nothing on disk

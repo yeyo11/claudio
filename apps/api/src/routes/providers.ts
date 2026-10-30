@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import { RunNowRefusal } from '@claudio/core';
 import type { ModelOption, ProviderMove, ProviderMoveState, ProviderStatus, ProvidersSettings, RunLimitWaitNowResponse } from '@claudio/shared';
+import { NotFoundError } from '@claudio/shared';
 
 /**
  * Claude Code's detection (served from the detector's cache), a re-detection on demand and the
@@ -64,7 +65,7 @@ export const providerRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
 
   app.get<{ Params: { id: string } }>('/providers/:id', async (req): Promise<ProviderStatus> => {
     const status = (await core.providers.statuses()).find((s) => s.id === req.params.id);
-    if (!status) throw Object.assign(new Error(`provider ${req.params.id} not found`), { statusCode: 404 });
+    if (!status) throw Object.assign(new NotFoundError(`provider ${req.params.id} not found`), { statusCode: 404 });
     return status;
   });
 

@@ -1,54 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import {
-  ASSISTANT_PROPOSAL_KINDS,
-  ASSISTANT_PROPOSAL_KINDS_OF_RUN,
-  ASSISTANT_RESOURCE_KINDS,
-  ASSISTANT_RUN_KINDS,
-  DEFAULT_ASSISTANT_MODEL,
-  EFFORT_LEVELS,
-  EVAL_NAME_PATTERN,
-  assistantResourcePath,
-  isEffort,
-  recommendedEffort,
-  type AcceptAssistantProposalRequest,
-  type ClaudioEvent,
-  type AssistantFinding,
-  type AssistantProposal,
-  type AssistantProposalAction,
-  type AssistantProposalCount,
-  type AssistantProposalKind,
-  type AssistantProposalStatus,
-  type AssistantResourceKind,
-  type AssistantRun,
-  type AssistantRunAction,
-  type AssistantRunDetail,
-  type AssistantRunKind,
-  type AssistantRunStatus,
-  type AssistantSource,
-  type ChatActivity,
-  type ConfigScopeKind,
-  type Effort,
-  type EvalCase,
-  type EvalFile,
-  type Localized,
-  type PermissionMode,
-  type ProjectSettings,
-  type ProjectTeamMember,
-  type ProjectTemplateId,
-  type ProposedResource,
-  type ProposedTeamMember,
-  type ToolPolicy,
-  type StartAssistantRunRequest,
-  type WorkItem,
-  type WorkItemActor,
-  type WorkItemCause,
-  type WorkItemPriority,
-  type WorkItemRef,
-  type WorkItemType,
-  type ProviderId,
-  type ProviderMove,
-} from '@claudio/shared';
+import { ASSISTANT_PROPOSAL_KINDS, ASSISTANT_PROPOSAL_KINDS_OF_RUN, ASSISTANT_RESOURCE_KINDS, ASSISTANT_RUN_KINDS, assistantResourcePath, DEFAULT_ASSISTANT_MODEL, EFFORT_LEVELS, errorMessage, EVAL_NAME_PATTERN, isEffort, recommendedEffort, type AcceptAssistantProposalRequest, type AssistantFinding, type AssistantProposal, type AssistantProposalAction, type AssistantProposalCount, type AssistantProposalKind, type AssistantProposalStatus, type AssistantResourceKind, type AssistantRun, type AssistantRunAction, type AssistantRunDetail, type AssistantRunKind, type AssistantRunStatus, type AssistantSource, type ChatActivity, type ClaudioEvent, type ConfigScopeKind, type Effort, type EvalCase, type EvalFile, type Localized, type PermissionMode, type ProjectSettings, type ProjectTeamMember, type ProjectTemplateId, type ProposedResource, type ProposedTeamMember, type ProviderId, type ProviderMove, type StartAssistantRunRequest, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemPriority, type WorkItemRef, type WorkItemType } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import { openWaitOf } from './rotation.ts';
 import {
@@ -260,7 +212,6 @@ function assistantRules(): ReturnType<typeof rulesFor> {
 
 /** The tools a run has, and may use: reading */
 export const READ_ONLY_TOOLS = assistantRules().allowedTools;
-export const DENIED_READS = DENIED_READ_PATHS.map((path) => `Read(${path})`);
 export const DENIED_TOOLS = assistantRules().disallowedTools;
 
 const RUNS_LISTED = 50;
@@ -645,7 +596,7 @@ export class AssistantService {
       });
       if (!started) throw new Error('the chat did not start');
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       const code = resumeChatId !== null || row.restarts > 0 ? ASSISTANT_ERRORS.restart : ASSISTANT_ERRORS.start;
       this.end(row.id, 'failed', localized(code, `The assistant's chat could not start: ${message}`));
     }
@@ -1051,7 +1002,7 @@ export class AssistantService {
         this.remember(row.id, project, known, evalBrief);
         await this.track(this.launch(this.mustRow(row.id), project, brief, known, row.chat_id));
       } catch (err) {
-        this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, `The assistant could not go on after a restart: ${err instanceof Error ? err.message : String(err)}`));
+        this.end(row.id, 'failed', localized(ASSISTANT_ERRORS.restart, `The assistant could not go on after a restart: ${errorMessage(err)}`));
       }
     }
   }

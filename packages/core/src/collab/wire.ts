@@ -1,4 +1,4 @@
-import { COLLABORATORS_KINDS, type CollaboratorsKind } from '@claudio/shared';
+import { COLLABORATORS_KINDS, isRecord, type CollaboratorsKind } from '@claudio/shared';
 import type { RosterHead, RosterVersion } from './roster.ts';
 
 /*
@@ -68,8 +68,6 @@ export type WireRequest =
   | { type: 'transcript'; shareKey: string; session: string; agent: string | null; offset: number }
   | { type: 'blob'; shareKey: string; sha256: string }
   | { type: 'watch'; shareKeys: string[] };
-
-export type WireRequestType = WireRequest['type'];
 
 // ---------- Replies ----------
 
@@ -236,7 +234,6 @@ export class FrameParser {
 
 // ---------- Validation of what a peer sends ----------
 
-const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const isString = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
 const isKind = (value: unknown): value is CollaboratorsKind => typeof value === 'string' && (COLLABORATORS_KINDS as readonly string[]).includes(value);
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
@@ -254,12 +251,12 @@ export const isAgentFile = (value: unknown): value is string => typeof value ===
 const isEndpointHex = (value: unknown): value is string => typeof value === 'string' && value.length === 64 && HEX.test(value);
 
 function parseHeads(value: unknown): Record<string, RosterHead> | null {
-  if (!isObject(value)) return null;
+  if (!isRecord(value)) return null;
   const heads: Record<string, RosterHead> = Object.create(null) as Record<string, RosterHead>;
   const entries = Object.entries(value);
   if (entries.length > 256) return null;
   for (const [groupId, head] of entries) {
-    if (!isGroupIdOnWire(groupId) || !isObject(head)) return null;
+    if (!isGroupIdOnWire(groupId) || !isRecord(head)) return null;
     if (!isCount(head.version) || head.version < 1 || !isSha256(head.hash)) return null;
     heads[groupId] = { version: head.version, hash: head.hash };
   }
@@ -271,7 +268,7 @@ function parseHeads(value: unknown): Record<string, RosterHead> | null {
  * ill-shaped field, an id that could walk a path. Nothing past this point trusts a peer's strings.
  */
 export function parseRequest(value: unknown): WireRequest | null {
-  if (!isObject(value) || typeof value.type !== 'string') return null;
+  if (!isRecord(value) || typeof value.type !== 'string') return null;
   switch (value.type) {
     case 'hello': {
       const heads = parseHeads(value.heads);
@@ -317,6 +314,6 @@ export function parseRequest(value: unknown): WireRequest | null {
 export function parseDenials(value: unknown): WireDenial[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((d: unknown): WireDenial[] =>
-    isObject(d) && isEndpointHex(d.from) && isSha256(d.tag) && isTime(d.deniedAt) && isTime(d.expiresAt) ? [{ from: d.from, tag: d.tag, deniedAt: d.deniedAt, expiresAt: d.expiresAt }] : [],
+    isRecord(d) && isEndpointHex(d.from) && isSha256(d.tag) && isTime(d.deniedAt) && isTime(d.expiresAt) ? [{ from: d.from, tag: d.tag, deniedAt: d.deniedAt, expiresAt: d.expiresAt }] : [],
   );
 }

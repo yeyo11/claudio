@@ -12,7 +12,7 @@ import { keys } from '../src/api';
 import { ProviderDots } from '../src/components/shell/ProviderDots';
 import { AccountCard, type Connection } from '../src/components/shell/StatusBar';
 import i18n from '../src/i18n';
-import type { AccountView } from '../src/lib/accounts';
+import type { AccountView } from '@claudio/shared';
 import { targetsFor } from '../src/lib/events';
 
 // The audit's §2.11: the status bar, the account chip, the provider's dot and the phone's cards say

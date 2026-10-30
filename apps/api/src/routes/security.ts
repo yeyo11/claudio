@@ -4,6 +4,7 @@ import type { AuditFilter, ClaimHostResult, SetAuthTokenRequest, UpdateAuthConfi
 import { LOOPBACK, hostNameOf, isOwnerActor } from '../security.ts';
 import { revokeTerminalAccess } from '../terminal-socket.ts';
 import { count } from './chats.ts';
+import { errorMessage } from '@claudio/shared';
 
 /**
  * The guard's own configuration, and the trail it leaves. The token is never returned here: it
@@ -46,7 +47,7 @@ export const securityRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
       try {
         await core.appSettings.update({ allowedHosts: [...layers.file, host] });
       } catch (error) {
-        return fail(400, 'host.invalid', error instanceof Error ? error.message : String(error));
+        return fail(400, 'host.invalid', errorMessage(error));
       }
     }
     return { host, allowedHosts: [...core.appSettings.allowedHosts] };

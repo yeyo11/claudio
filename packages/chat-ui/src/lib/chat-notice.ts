@@ -1,4 +1,4 @@
-import type { RunEvent, RunGuardEvent } from '@claudio/shared';
+import type { RunEvent } from '@claudio/shared';
 
 /**
  * The messages nobody typed.
@@ -120,10 +120,4 @@ export function readGuardResult(content: string, excerpt: string): Notice | null
  */
 export function holdsGuardBlock(parts: ReadonlyArray<{ kind: string; result?: { content: string; isError: boolean } | null }>): boolean {
   return parts.some((part) => part.kind === 'call' && part.result?.isError === true && GUARD_BLOCK.test(part.result.content));
-}
-
-/** The same strip from the live `guard` event, which already has the masked excerpt. Only a block and a guard that did not run are shown. */
-export function guardEventNotice(guard: RunGuardEvent): Notice | null {
-  if (guard.outcome !== 'blocked' && guard.outcome !== 'error' && guard.outcome !== 'missing') return null;
-  return { kind: 'guard', rule: guard.rule, detail: guard.excerpt, body: guard.reason, ...(guard.outcome === 'missing' ? { missing: true } : {}) };
 }

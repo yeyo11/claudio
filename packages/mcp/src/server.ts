@@ -1,18 +1,15 @@
 import { ApiError, type ApiClient } from './client.ts';
 import { COLLAB_TOOLS } from './collab-tools.ts';
 import type { ClaudioMcpToolset } from './names.ts';
+import { DEFAULT_HINT, render } from './render.ts';
 import { validate } from './schema.ts';
 import { TOOLS, type Tool } from './tools.ts';
 import { TextResult } from './untrusted.ts';
 import { WRITE_TOOLS } from './write-tools.ts';
-
-/** Longest tool result, in characters, before it is cut */
-export const RESULT_MAX_CHARS = 50_000;
+import { errorMessage } from '@claudio/shared';
 
 /** Newest first: the version the client asked for is used when it is in this list */
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const;
-
-const TRUNCATION_HINT = 'The result was cut. Narrow the call: a smaller limit, one id, or a path.';
 
 interface Request {
   jsonrpc?: unknown;
@@ -29,11 +26,23 @@ export interface Server {
 const reply = (id: Request['id'], result: unknown): string => JSON.stringify({ jsonrpc: '2.0', id: id ?? null, result });
 const fail = (id: Request['id'], code: number, message: string): string => JSON.stringify({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
 
-/** Compact JSON, cut at the cap with a marker that says so */
-export function render(value: unknown): string {
-  const json = JSON.stringify(value) ?? 'null';
-  if (json.length <= RESULT_MAX_CHARS) return json;
-  return `${json.slice(0, RESULT_MAX_CHARS)}…\n{"truncated":true,"hint":${JSON.stringify(TRUNCATION_HINT)}}`;
+/**
+ * The answer to a line whose handling threw: JSON-RPC's internal error, with the request's id when
+ * the line had one, and nothing for a notification, which gets no answer.
+ */
+export function internalError(line: string): string | undefined {
+  let id: Request['id'] = null;
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (parsed && typeof parsed === 'object' && 'id' in parsed) {
+      const raw = (parsed as { id: unknown }).id;
+      if (raw === undefined) return undefined;
+      id = typeof raw === 'string' || typeof raw === 'number' ? raw : null;
+    } else if (parsed && typeof parsed === 'object') return undefined;
+  } catch {
+    // not JSON: answered with a null id
+  }
+  return fail(id, -32603, 'internal error');
 }
 
 /** The tools a process offers for its toolsets, in the order of the catalogue */
@@ -55,10 +64,10 @@ export function createServer(options: { api: ApiClient; version: string; tools?:
     try {
       const result = await tool.run((args ?? {}) as Record<string, unknown>, options.api);
       // A teammate's content comes already fenced and cut to size: cutting it here could lose the closing fence
-      return outcome(result instanceof TextResult ? result.text : render(result), false);
+      return outcome(result instanceof TextResult ? result.text : render(result, undefined, tool.paging ?? DEFAULT_HINT), false);
     } catch (err) {
       if (err instanceof ApiError) return outcome(`${tool.name} failed: ${err.message}`, true);
-      return outcome(`${tool.name} failed: ${err instanceof Error ? err.message : String(err)}`, true);
+      return outcome(`${tool.name} failed: ${errorMessage(err)}`, true);
     }
   }
 

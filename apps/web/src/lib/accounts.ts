@@ -1,4 +1,5 @@
-import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, AccountsSettings, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
+import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, AccountView, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
+import { isRecord } from '@claudio/shared';
 import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
 import { useMemo } from 'react';
@@ -8,59 +9,15 @@ import type { LimitReading } from './shell-live';
 // ---------- The account view (contract C4 of docs/plans/regression-fixes-2026-10-29.md) ----------
 // The server computes one view of the accounts and serves it as `overview.accounts`; every account
 // fact the shell, the chat's banner and the Accounts page show comes from it, so they cannot
-// disagree. The shapes are declared here until `@claudio/shared` carries them (the accounts-core
-// task adds them in parallel); then these become re-exports of the shared ones.
-
-/** `accounts.json` with the preferred account and the global order. */
-export interface AccountsSettingsView extends AccountsSettings {
-  /** The account new work starts on while it has room; null when none is preferred */
-  preferred: string | null;
-  /** Every enabled account id once, in the order the `order` strategy follows; empty means the list's order */
-  order: string[];
-}
-
-/** The account new work would start on, with its own reading: what the status bar names and measures. */
-export interface AccountInUseView extends AccountInUse {
-  limit: AccountLimit | null;
-  plan: string | null;
-}
-
-export interface AccountView {
-  inUse: AccountInUseView | null;
-  /** Why `inUse` is null; null while it is set */
-  inUseReason: AccountInUseReason | null;
-  accounts: Account[];
-  /** Every account that could take work is at its limit */
-  atLimit: boolean;
-  /** The soonest reset among the accounts at their limit */
-  nextReset: string | null;
-  settings: AccountsSettingsView;
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+// disagree.
 
 /**
  * The account view from `overview.accounts`, or null when the server sent none (no accounts
- * package) or an older shape. Read through this so a page never mistakes another shape for it.
+ * package). Read through this so a page never mistakes another shape for it.
  */
 export function accountViewOf(value: unknown): AccountView | null {
   if (!isRecord(value) || !Array.isArray(value.accounts) || !isRecord(value.settings) || !('inUse' in value)) return null;
-  const settings = value.settings;
-  const view = value as unknown as AccountView;
-  // A server whose settings predate the preference still reads as "none preferred, list order"
-  return {
-    ...view,
-    inUseReason: view.inUseReason ?? null,
-    atLimit: view.atLimit === true,
-    nextReset: view.nextReset ?? null,
-    settings: { ...view.settings, preferred: typeof settings.preferred === 'string' ? settings.preferred : null, order: Array.isArray(settings.order) ? view.settings.order : [] },
-  };
-}
-
-/** The preferred and order fields of settings that may come from a server without them. */
-export function settingsView(settings: AccountsSettings): AccountsSettingsView {
-  const raw: Partial<AccountsSettingsView> = settings;
-  return { ...settings, preferred: raw.preferred ?? null, order: raw.order ?? [] };
+  return value as unknown as AccountView;
 }
 
 /**

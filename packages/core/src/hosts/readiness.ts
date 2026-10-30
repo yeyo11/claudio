@@ -18,6 +18,7 @@ import { glabKnownHosts, type GlabKnownHost } from './known-hosts.ts';
 import type { CodeHostManifest } from './manifest.ts';
 import { CodeHostRegistry } from './registry.ts';
 import { parseRemote, resolveSshHost, type SshExec } from './remote.ts';
+import { errorMessage } from '@claudio/shared';
 
 /** git's own page on remotes: what a project without `origin` needs. */
 export const REMOTES_DOCS_URL = 'https://git-scm.com/book/en/v2/Git-Basics-Working-with-Remotes';
@@ -48,7 +49,7 @@ const realSsh: SshExec = (args, timeoutMs) =>
   });
 
 function messageOf(err: unknown): string {
-  const text = err instanceof Error ? err.message : String(err);
+  const text = errorMessage(err);
   return (text.split('\n').find((line) => line.trim()) ?? text).trim().slice(0, 500);
 }
 

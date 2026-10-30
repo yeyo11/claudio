@@ -1,4 +1,4 @@
-/** The part of JSON Schema the tools use: an object of strings, integers, booleans and lists, with limits */
+/** The part of JSON Schema the tools use: an object of strings, numbers, booleans and lists, with limits */
 export interface Schema {
   type: 'object';
   properties: Record<string, Property>;
@@ -7,7 +7,7 @@ export interface Schema {
 }
 
 export interface Property {
-  type: 'string' | 'integer' | 'boolean' | 'array' | 'object';
+  type: 'string' | 'integer' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
   minimum?: number;
   maximum?: number;
@@ -51,8 +51,9 @@ function check(prop: Property, v: unknown, key: string): string | null {
     if (prop.maxLength !== undefined && v.length > prop.maxLength) return `${key} is longer than ${prop.maxLength} characters`;
     if (prop.pattern && !new RegExp(prop.pattern).test(v)) return `${key} does not match ${prop.pattern}`;
     if (prop.enum && !prop.enum.includes(v)) return `${key} must be one of ${prop.enum.join(', ')}`;
-  } else if (prop.type === 'integer') {
-    if (typeof v !== 'number' || !Number.isInteger(v)) return `${key} must be a whole number`;
+  } else if (prop.type === 'integer' || prop.type === 'number') {
+    if (typeof v !== 'number' || !Number.isFinite(v)) return `${key} must be a number`;
+    if (prop.type === 'integer' && !Number.isInteger(v)) return `${key} must be a whole number`;
     if (prop.minimum !== undefined && v < prop.minimum) return `${key} must be at least ${prop.minimum}`;
     if (prop.maximum !== undefined && v > prop.maximum) return `${key} must be at most ${prop.maximum}`;
   } else if (prop.type === 'array') {

@@ -51,8 +51,21 @@
       "sendNow": "Enviar ahora",
       "sending": "Acabando el turno…",
       "sendNowHint": "Acaba el turno en el que está {{agent}}, para que lea lo que espera",
-      "undelivered": "No se ha entregado: {{agent}} se ha detenido antes de leerlo",
-      "restore": "Devolverlo al cuadro"
+      "undelivered": "No se ha entregado: {{agent}} no lo ha leído",
+      "restore": "Devolverlo al cuadro",
+      "blockedAgent": "Espera a que acabe el agente «{{what}}». Interrumpir el turno detiene ese agente",
+      "blockedCommand": "Espera a que acabe el comando «{{what}}». Interrumpir el turno detiene ese comando",
+      "background": "Pasar a segundo plano y entregar",
+      "backgrounding": "Pasando a segundo plano…",
+      "backgroundHint": "El trabajo sigue en segundo plano y {{agent}} lee ya lo que espera",
+      "interrupt": "Interrumpir el turno",
+      "withdraw": "Retirarlo al cuadro",
+      "withdrawHint": "Lo retira antes de que {{agent}} lo lea y lo devuelve al cuadro",
+      "fromSupervisor": "Pista del Supervisor:",
+      "fromClaudio": "Nota de Claudio:",
+      "noticeHint": "Claudio se lo ha escrito a {{agent}}, que lo lee en su siguiente paso",
+      "dismiss": "Descartar",
+      "dismissHint": "Lo retira antes de que {{agent}} lo lea"
     },
     "stopHint": "Mata el proceso en el que corre el chat. Lo enviado y aún no leído se pierde con él",
     "workItem": {
@@ -562,6 +575,19 @@
       "startChat": "Iniciar un chat",
       "acceptProposal": "Aceptar una propuesta del asistente",
       "discardProposal": "Descartar una propuesta del asistente",
+      "checkCriterion": "Marcar un criterio de aceptación de {{item}}",
+      "uncheckCriterion": "Desmarcar un criterio de aceptación de {{item}}",
+      "planOrchestration": "Planificar una orquestación",
+      "launchOrchestration": "Lanzar la orquestación {{name}}",
+      "launchPlannedOrchestration": "Lanzar la orquestación planificada",
+      "stopOrchestration": "Detener una orquestación",
+      "resumeOrchestration": "Reanudar una orquestación detenida",
+      "sendChatMessage": "Enviar un mensaje a otro chat",
+      "hintChat": "Enviar una pista a otro chat",
+      "interruptChat": "Interrumpir el turno de otro chat",
+      "stopChat": "Detener otro chat",
+      "resumeChat": "Reanudar un chat",
+      "forkChat": "Crear un fork de un chat",
       "fields": {
         "title": "Título: {{value}}",
         "status": "Columna: {{value}}",
@@ -569,7 +595,8 @@
         "type": "Tipo: {{value}}",
         "labels": "Etiquetas: {{value}}",
         "criteria": "Criterios de aceptación: {{value}}",
-        "model": "Modelo: {{value}}"
+        "model": "Modelo: {{value}}",
+        "tasks": "Tareas: {{value}}"
       }
     }
   },

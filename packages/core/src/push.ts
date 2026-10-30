@@ -6,25 +6,7 @@ import { join } from 'node:path';
 // `web-push` is CommonJS and builds its exports object from bound methods, which Node's lexer
 // cannot read as named exports: the default import is the whole module, and the only one that works.
 import webpush from 'web-push';
-import {
-  DEFAULT_LEVEL,
-  interrupts,
-  KINDS,
-  LEVELS,
-  notificationsFor,
-  TEST_PUSH_KEY_PREFIX,
-  toolRisk,
-  type ClaudioEvent,
-  type ToolRiskContext,
-  type NotificationDraft,
-  type NotificationKind,
-  type NotificationLevel,
-  type PushKeyInfo,
-  type PushPayload,
-  type PushSendResult,
-  type PushSubscriptionSummary,
-  type RegisterPushSubscriptionRequest,
-} from '@claudio/shared';
+import { DEFAULT_LEVEL, errorMessage, interrupts, KINDS, LEVELS, notificationsFor, TEST_PUSH_KEY_PREFIX, toolRisk, type ClaudioEvent, type NotificationDraft, type NotificationKind, type NotificationLevel, type PushKeyInfo, type PushPayload, type PushSendResult, type PushSubscriptionSummary, type RegisterPushSubscriptionRequest, type ToolRiskContext } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
 import { maskSecrets } from './decisions/redact.ts';
@@ -417,7 +399,7 @@ export class PushService {
       this.doc = doc;
       return doc;
     } catch (error) {
-      this.log(`could not create the VAPID keypair: ${messageOf(error)}`);
+      this.log(`could not create the VAPID keypair: ${errorMessage(error)}`);
       return null;
     }
   }
@@ -441,7 +423,7 @@ export class PushService {
     this.doc = next;
     // The send that asked for this already has what it needs; the file is caught up for the next
     // boot, and a write that fails is retried by the next send rather than failing the push.
-    this.track(this.store(next).catch((error: unknown) => this.log(`could not store the new push subject: ${messageOf(error)}`)));
+    this.track(this.store(next).catch((error: unknown) => this.log(`could not store the new push subject: ${errorMessage(error)}`)));
     return next;
   }
 
@@ -602,7 +584,6 @@ export class PushService {
   }
 }
 
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 /**
  * What the push service actually said. `web-push` throws "Received unexpected response code" for
@@ -610,7 +591,7 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * {"reason":"BadJwtToken"}` from Apple is a misconfigured `sub` claim, not a phone that has gone.
  */
 function reasonFor(error: unknown): string {
-  if (!(error instanceof webpush.WebPushError)) return messageOf(error);
+  if (!(error instanceof webpush.WebPushError)) return errorMessage(error);
   const body = error.body.trim().slice(0, MAX_REASON);
   return body ? `${String(error.statusCode)} ${body}` : String(error.statusCode);
 }

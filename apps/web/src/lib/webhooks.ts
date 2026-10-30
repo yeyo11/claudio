@@ -76,16 +76,6 @@ export function responseWord(reg: Pick<WebhookRegistration, 'lastResponse'>): st
   return r.code !== null ? String(r.code) : r.status;
 }
 
-/** The address without the receiver's path, for a line that names where the notices arrive. */
-export function publicOrigin(url: string | null | undefined): string | null {
-  if (!url) return null;
-  try {
-    return new URL(url).origin;
-  } catch {
-    return null;
-  }
-}
-
 /** Seconds, minutes and hours as the line writes them: `40 s`, `2 min`; whole units, never a clock. */
 export function spanWords(ms: number): { unit: 's' | 'min' | 'h'; value: number } {
   const s = Math.max(0, Math.round(ms / 1000));

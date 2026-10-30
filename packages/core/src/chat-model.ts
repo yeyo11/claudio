@@ -9,6 +9,7 @@ import {
   type Execution,
   type ExecutionOutcome,
   type HealthSignal,
+  type HealthSignalAgent,
   type RunStatus,
 } from '@claudio/shared';
 import { slowAfterMs, type UsualDuration } from './commands.ts';
@@ -156,6 +157,8 @@ export interface RunningCommandFacts {
   startedAt: string;
   /** The call, so that the signal can name what to cancel */
   toolUseId?: string;
+  /** The subagent that runs it, when it is not the lead: the signal names it (C3) */
+  agent?: HealthSignalAgent;
   /** The CLI's own heartbeat: how long it says the command has run, as of `at`. Preferred to the clock, which also counts time spent waiting for a permission */
   heartbeat?: { elapsedSeconds: number; at: string };
   /** What commands of its kind usually take, from the history; without it the fixed limit applies */
@@ -226,6 +229,7 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
         since: command.startedAt,
         detail: command.command,
         ...(command.toolUseId ? { toolUseId: command.toolUseId } : {}),
+        ...(command.agent ? { agent: command.agent } : {}),
       });
     }
   } else if (working && facts.live) {

@@ -251,7 +251,6 @@
     "casePin": "Commit de este caso",
     "casePinHint": "Déjalo vacío para usar el commit de la evaluación.",
     "prompt": "Prompt",
-    "promptHint": "Se envía como único mensaje del intento, hasta {{max}} caracteres.",
     "expectations": "Comprobaciones",
     "addExpectation": "Añadir una comprobación",
     "removeCase": "Quitar el caso",

@@ -1,8 +1,8 @@
 import { execFile, type ChildProcess } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord } from './fs.ts';
 import { envFor, type AccountRef } from './env.ts';
+import { isRecord } from '@claudio/shared';
 
 export interface Identity {
   signedIn: boolean;

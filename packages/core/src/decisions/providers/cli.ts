@@ -1,5 +1,4 @@
-import type { Account, DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ToolPolicy } from '@claudio/shared';
-import { accountsAtLimit } from '../../accounts-at-limit.ts';
+import type { DecisionAnswer, DecisionQuestion, DecisionSettings, DecisionUnavailableReason, ProviderId, ToolPolicy } from '@claudio/shared';
 import { NO_TOOLS_POLICY, runOneShot, type OneShotRuntime } from '../../one-shot.ts';
 import { stoppedOnMaxTokens } from '../../open-items.ts';
 import { PASTED_NOTE, pasted, thinkThrough } from '../../prompt-rules.ts';
@@ -14,9 +13,6 @@ import type { DecisionProvider, DecisionRequest, ProviderResult } from '../engin
 
 /** The part of the chat runtime this provider drives; the tests hand it the real one over a fake CLI */
 export type CliRuntime = OneShotRuntime;
-
-/** What a decision chat may do: nothing. The same policy every one-shot chat runs under. */
-export const DECISION_POLICY: ToolPolicy = NO_TOOLS_POLICY;
 
 /** Where the chat runs: the provider, and the model and effort it is started with */
 export interface CliRoute {
@@ -39,16 +35,13 @@ export interface CliProviderDeps {
 
 /**
  * The route of a decision chat: Claude Code with the configured model, or `rate-limited` when every
- * account is at its limit. The chat chooses its account at launch like any other, so one account at
+ * account is at its limit (`AccountView.atLimit`, the one definition of "out" the account view
+ * shares with the choice). The chat chooses its account at launch like any other, so one account at
  * its limit says nothing while another has room. A decision chat never waits for a reset, so the
  * answer is that reason now.
  */
-export function decisionRoute(
-  cli: DecisionSettings['cli'],
-  accounts: ReadonlyArray<Pick<Account, 'enabled' | 'signedIn' | 'limits'>>,
-  now: number = Date.now(),
-): CliRoute | { unavailable: DecisionUnavailableReason } {
-  if (accountsAtLimit(accounts, now)) return { unavailable: 'rate-limited' };
+export function decisionRoute(cli: DecisionSettings['cli'], atLimit: boolean): CliRoute | { unavailable: DecisionUnavailableReason } {
+  if (atLimit) return { unavailable: 'rate-limited' };
   return { provider: 'claude-code', model: cli.model, effort: cli.effort ?? null };
 }
 

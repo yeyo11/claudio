@@ -91,6 +91,9 @@ importers:
       '@claudio/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@claudio/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@claudio/ui':
         specifier: workspace:*
         version: link:../../packages/ui

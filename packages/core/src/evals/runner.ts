@@ -2,31 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
-import {
-  EVAL_DIR,
-  EVAL_LIMITS,
-  type EvalCall,
-  type EvalCheck,
-  type EvalDefinition,
-  type EvalEstimate,
-  type EvalGate,
-  type EvalJudgedExpectation,
-  type EvalJudgement,
-  type EvalPressure,
-  type EvalRunOutcome,
-  type EvalRunRequest,
-  type EvalRunSummary,
-  type EvalSampleOutcome,
-  type EvalVariant,
-  type EvalVariantInfo,
-  type EvalWarning,
-  type FlowStage,
-  type PermissionMode,
-  type RunEvent,
-  type TranscriptEntry,
-  type ToolPolicy,
-  withoutServerEnv,
-} from '@claudio/shared';
+import { errorMessage, EVAL_DIR, EVAL_LIMITS, withoutServerEnv, type EvalCall, type EvalCheck, type EvalDefinition, type EvalEstimate, type EvalGate, type EvalJudgedExpectation, type EvalJudgement, type EvalPressure, type EvalRunOutcome, type EvalRunRequest, type EvalRunSummary, type EvalSampleOutcome, type EvalVariant, type EvalVariantInfo, type EvalWarning, type FlowStage, type PermissionMode, type RunEvent, type ToolPolicy, type TranscriptEntry } from '@claudio/shared';
 import { agentsDefinitionFile } from '../agents-file.js';
 import type { ChatRuntime, NewChat, RunMeta, RunResult } from '../chats.js';
 import type { CoreConfig } from '../paths.js';
@@ -54,6 +30,7 @@ import { computeGate, gateApplies } from './gate.js';
 import type { JudgeCalibration, JudgeCall } from './judge.js';
 import { foldCalls } from './judge.js';
 import { evaluateExpectations } from './matchers.js';
+import { RunSlotRefusal } from '../chat-errors.js';
 import { sampleEndCheck, sampleOutcomeOf } from './score.js';
 import type { EvalStore } from './store.js';
 
@@ -671,7 +648,7 @@ export class EvalRunner {
         await this.fill(run);
       } while (run.again);
     } catch (err) {
-      await this.finish(run, 'failed', `the runner failed: ${err instanceof Error ? err.message : String(err)}`);
+      await this.finish(run, 'failed', `the runner failed: ${errorMessage(err)}`);
     } finally {
       run.pumping = false;
     }
@@ -711,7 +688,7 @@ export class EvalRunner {
       const entry: InFlight = { reserve: run.reservePerSample * EVAL_LIMITS.costMargin, chatId: null, done: Promise.resolve() };
       run.inflight.set(next, entry);
       entry.done = this.runSample(run, next, entry)
-        .catch((err: unknown) => console.warn(`[evals] sample ${next} failed: ${err instanceof Error ? err.message : String(err)}`))
+        .catch((err: unknown) => console.warn(`[evals] sample ${next} failed: ${errorMessage(err)}`))
         .finally(() => {
           run.inflight.delete(next);
           void this.pump(run);
@@ -765,7 +742,7 @@ export class EvalRunner {
         }
       } catch (err) {
         laneOk = false;
-        this.endSample(run, sampleId, { outcome: 'infra', reason: `lane-failed: ${err instanceof Error ? err.message : String(err)}` });
+        this.endSample(run, sampleId, { outcome: 'infra', reason: `lane-failed: ${errorMessage(err)}` });
         return;
       }
       if (run.abort.signal.aborted) return void this.endSample(run, sampleId, { outcome: run.stopAs, reason: run.stopAs });
@@ -819,7 +796,7 @@ export class EvalRunner {
       });
     } catch (err) {
       // Whatever broke is the runner's or the environment's, not a verdict on the target
-      this.endSample(run, sampleId, { outcome: 'infra', reason: cutToBytes(maskSecrets(err instanceof Error ? err.message : String(err)), 1024), chatId });
+      this.endSample(run, sampleId, { outcome: 'infra', reason: cutToBytes(maskSecrets(errorMessage(err)), 1024), chatId });
     } finally {
       if (chatId) {
         await this.dispose(chatId);
@@ -890,7 +867,8 @@ export class EvalRunner {
     try {
       return this.deps.runtime.start(opts, { evalSampleId: sampleId });
     } catch (err) {
-      if (err instanceof Error && /Concurrent run limit/.test(err.message)) return { refused: true };
+      // Only the count of chats: a sample refused for memory or a person's place fails as any other start would
+      if (err instanceof RunSlotRefusal) return { refused: true };
       throw err;
     }
   }
@@ -1150,12 +1128,12 @@ export class EvalRunner {
       }
       // Each sample settles into its own row, with the cost it reported, before the run closes
       await Promise.all([...run.inflight.values()].map((f) => f.done));
-      await removeRunLanes(run.repo, this.root, run.id).catch((err: unknown) => console.warn(`[evals] lanes of ${run.id} not removed: ${err instanceof Error ? err.message : String(err)}`));
+      await removeRunLanes(run.repo, this.root, run.id).catch((err: unknown) => console.warn(`[evals] lanes of ${run.id} not removed: ${errorMessage(err)}`));
       this.deps.store.endRun(run.id, { outcome, reason, endedAt: new Date(this.now()).toISOString() });
       try {
         this.refreshGate(run.id);
       } catch (err) {
-        console.warn(`[evals] gate of ${run.id} not computed: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(`[evals] gate of ${run.id} not computed: ${errorMessage(err)}`);
       }
       this.active.delete(run.id);
       this.emitRun(run.id);
@@ -1212,7 +1190,7 @@ export class EvalRunner {
     this.stopSweep = startLaneSweep(
       this.root,
       (dir) => this.deps.store.liveRuns().some((r) => runDirName(r.id) === dir),
-      (err) => console.warn(`[evals] lane sweep failed: ${err instanceof Error ? err.message : String(err)}`),
+      (err) => console.warn(`[evals] lane sweep failed: ${errorMessage(err)}`),
     );
   }
 

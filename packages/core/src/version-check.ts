@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeAtomic } from './config/files.ts';
 import type { CoreConfig } from './paths.ts';
+import { errorMessage } from '@claudio/shared';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** How often the daily check looks at the clock; the check itself only runs once the answer is a day old */
@@ -86,7 +87,7 @@ export abstract class VersionCheck<S extends { checkedAt: string | null }> {
       await writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`);
       this.afterCheck(previous);
     } catch (err) {
-      this.lastError = this.failure(err instanceof Error ? err.message : String(err));
+      this.lastError = this.failure(errorMessage(err));
     }
   }
 

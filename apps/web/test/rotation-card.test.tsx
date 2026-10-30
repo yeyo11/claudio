@@ -27,12 +27,14 @@ const account = (id: string, over: Partial<Account> = {}): Account => ({
   ...over,
 });
 
-const settings = (over: Partial<AccountsSettings> & { preferred?: string | null; order?: string[] } = {}): AccountsSettings => ({
+const settings = (over: Partial<AccountsSettings> = {}): AccountsSettings => ({
   rotateOnLimit: true,
   threshold: 90,
   hysteresis: 10,
   cooldownSeconds: 300,
   strategy: 'order',
+  preferred: null,
+  order: [],
   ...over,
 });
 

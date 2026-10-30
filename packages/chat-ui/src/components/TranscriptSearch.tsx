@@ -315,19 +315,6 @@ function Snippet({ hit }: { hit: TranscriptSearchHit }) {
   );
 }
 
-/** The button in a page header that opens the search. */
-export function FindButton({ find }: { find: TranscriptFind }) {
-  const { t } = useTranslation('chat');
-  const mac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
-  return (
-    <Tooltip content={t('find.buttonHint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}F` })}>
-      <button type="button" className="btn" aria-pressed={find.open} onClick={() => (find.open ? find.close() : find.show())}>
-        <Search {...ICON_SM} /> {t('find.button')}
-      </button>
-    </Tooltip>
-  );
-}
-
 export function FindBar({ find, className = '' }: { find: TranscriptFind; className?: string }) {
   const { t } = useTranslation('chat');
   if (!find.open) return null;

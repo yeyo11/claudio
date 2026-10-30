@@ -184,10 +184,10 @@ test('only the tailscaled the image started is Claudio\'s to sign in, and its no
   }
 });
 
-test("the tunnel's Serve port is 8444 unless set, and a value that is not a port stops the start", () => {
+test("the tunnel's Serve port is the setting's unless set, and a value that is not a port stops the start", () => {
   const base = { CLAUDE_CONFIG_DIR: join(scratch, 'switch', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'switch', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'switch', 'workspace') };
-  assert.equal(loadConfig(base).tunnelPort, 8444);
-  assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '' }).tunnelPort, 8444);
+  assert.equal(loadConfig(base).tunnelPort, null);
+  assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '' }).tunnelPort, null);
   assert.equal(loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: '10443' }).tunnelPort, 10443);
   for (const value of ['0', '65536', '84.43', 'https']) {
     assert.throws(() => loadConfig({ ...base, CLAUDIO_TUNNEL_PORT: value }), /CLAUDIO_TUNNEL_PORT/, value);

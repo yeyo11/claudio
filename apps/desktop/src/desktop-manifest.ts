@@ -7,6 +7,7 @@
 import { createHash, type KeyObject } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { VERSION, compareVersions, verifyManifest } from '@claudio/core/launcher/protocol';
+import { errorMessage } from '@claudio/shared';
 
 /** Where a release's assets are; electron-updater's GitHub feed reads the same release */
 export const RELEASE_DOWNLOADS = 'https://github.com/yeyo11/claudio/releases/download';
@@ -91,7 +92,7 @@ async function get(fetchFn: typeof fetch, url: string): Promise<Response | Verif
   try {
     res = await fetchFn(url, { headers: { 'user-agent': 'claudio-desktop' }, signal: AbortSignal.timeout(60_000) });
   } catch (err) {
-    return { ok: false, code: 'fetch-failed', message: `${url}: ${err instanceof Error ? err.message : String(err)}` };
+    return { ok: false, code: 'fetch-failed', message: `${url}: ${errorMessage(err)}` };
   }
   // A release without a signed manifest is refused like a bad signature: nothing vouches for the file
   if (res.status === 404) return { ok: false, code: 'bad-signature', message: `${url} does not exist: the release has no signed desktop manifest` };
@@ -127,7 +128,7 @@ export async function verifyDownload(o: VerifyOptions): Promise<Verified> {
   try {
     got = await hashFile(o.file);
   } catch (err) {
-    return { ok: false, code: 'other', message: `could not read ${o.file}: ${err instanceof Error ? err.message : String(err)}` };
+    return { ok: false, code: 'other', message: `could not read ${o.file}: ${errorMessage(err)}` };
   }
   if (got.size !== want.size || got.sha256 !== want.sha256 || got.sha512 !== want.sha512) {
     return { ok: false, code: 'bad-signature', message: `${name} does not match the signed desktop manifest` };

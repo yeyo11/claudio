@@ -6,7 +6,7 @@ tags: [release, status, ecc]
 # Release readiness for Claudio's first release
 
 Written 2026-10-16 by task z1 of the ECC orchestration, on the merge of every plan's branch. The e2e run
-is z2's and is reported in [release-e2e.md](release-e2e.md); nothing here claims it.
+was z2's, which wrote no report of it; nothing here claims it.
 
 ## What the first release contains
 
@@ -52,7 +52,7 @@ preflight instead of always "available".
 
 ## What the owner must do before tagging
 
-1. Read [release-e2e.md](release-e2e.md): the e2e specs of guards, review gate, lessons and evals were
+1. Run the e2e specs of guards, review gate, lessons and evals were
    written without ever running, with guessed selectors. Fix what the run shows.
 2. Check the web against the design reference in both themes. Not done: `.guard-rules` and `.guard-rule`
    are defined twice with different styles (Settings card and rules Sheet); the eval classes
@@ -69,4 +69,4 @@ preflight instead of always "available".
 
 ## Related
 
-[[status.md]] · [[reports/ecc.md]] · [[reports/release-e2e.md]] · [[guards.md]] · [[lessons.md]] · [[evals.md]]
+[[status.md]] · [[reports/ecc.md]] · [[guards.md]] · [[lessons.md]] · [[evals.md]]

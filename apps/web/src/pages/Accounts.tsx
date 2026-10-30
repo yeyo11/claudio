@@ -1,3 +1,4 @@
+import type { AccountsSettings } from '@claudio/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { formatDateTime, timeAgo, toMs } from '@claudio/ui/lib/format';
-import { accountName, accountUsable, settingsView, sortAccounts, usageStale, useAccountView, type AccountsSettingsView } from '../lib/accounts';
+import { accountName, accountUsable, sortAccounts, usageStale, useAccountView } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { SignInAgainDialog } from './accounts/SignInAgainDialog';
@@ -101,7 +102,7 @@ export function Accounts() {
   const accounts = sortAccounts(data);
   const signingAgain = data.find((a) => a.id === signingIn) ?? null;
   const current = view?.inUse?.id ?? null;
-  const preferred = settings.data ? settingsView(settings.data).preferred : null;
+  const preferred = settings.data?.preferred ?? null;
   const lastRead = data.reduce<string | null>((latest, a) => ((toMs(a.limits?.observedAt) ?? 0) > (toMs(latest) ?? 0) ? (a.limits?.observedAt ?? latest) : latest), null);
   // The rotation's own reasons are said in words; any other text (a wait's cause) is shown as it was recorded
   const reasonText = (reason: string | null): string | null => {
@@ -127,7 +128,7 @@ export function Accounts() {
     return found ? accountName(found) : id;
   };
 
-  const putSettings = (patch: Partial<AccountsSettingsView>) => api.putAccountsSettings(patch);
+  const putSettings = (patch: Partial<AccountsSettings>) => api.putAccountsSettings(patch);
   const toggle = (id: string) => {
     const account = data.find((a) => a.id === id);
     if (!account) return;

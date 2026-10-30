@@ -10,6 +10,7 @@ import type { ChatSummary } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
+import { signInDefault } from './helpers.ts';
 
 // `POST /v1/responses` and its stored responses (docs/openai-compatible-api.md, phase 5), over a
 // real core, the real routes and stub MCP server, and the fake CLI the Chat Completions tests use.
@@ -29,6 +30,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-responses-'));
   log = join(root, 'prompts.jsonl');
   process.env.FAKE_OPENAI_PROMPTS = log;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,

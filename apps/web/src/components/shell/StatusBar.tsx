@@ -1,10 +1,10 @@
-import type { ProviderLimit } from '@claudio/shared';
+import type { AccountView, ProviderLimit } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, LogIn, SquareTerminal, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { api, keys, useSpend } from '../../api';
-import { accountName, accountReading, accountViewOf, connectionOf, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type AccountView, type ConnectionKind } from '../../lib/accounts';
+import { accountName, accountReading, accountViewOf, connectionOf, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type ConnectionKind } from '../../lib/accounts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';

@@ -15,7 +15,6 @@
     "empty": "Aún no hay proyectos",
     "worktree": "worktree",
     "missing": "no está en el disco",
-    "lastActivity": "última actividad {{ago}}",
     "worktrees_one": "{{count}} worktree",
     "worktrees_other": "{{count}} worktrees"
   },

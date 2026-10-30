@@ -1,4 +1,5 @@
 import type { Checklist, ChecklistItem, TouchedFile, TranscriptEntry } from '@claudio/shared';
+import { asRecord } from '@claudio/shared';
 
 /** A tool call read back from a transcript, paired with what came of it. */
 export interface ToolCall {
@@ -13,7 +14,6 @@ export interface ToolCall {
   result: string;
 }
 
-const asRecord = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
 const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 /**

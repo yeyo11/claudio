@@ -398,20 +398,47 @@ export interface ChangeRequestFixResult {
   pullRequest: WorkItemPullRequest | OrchestrationPullRequest | null;
 }
 
+/** How a call is made: a JSON `body`, or a `file` sent as it is (no multipart, no base64 on the way up). */
+export interface CallInit {
+  method?: string;
+  body?: unknown;
+  file?: Blob;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  spendOverride?: boolean;
+}
+
 // Exported for the clients of a feature that keep their routes in a file of their own (lib/api/*)
-export async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal; spendOverride?: boolean } = {}): Promise<T> {
+export async function request<T>(path: string, init: CallInit = {}): Promise<T> {
+  const text = await (await requestResponse(path, init)).text();
+  try {
+    return (text ? JSON.parse(text) : null) as T;
+  } catch {
+    // non-JSON body (e.g. proxy error page)
+    return null as T;
+  }
+}
+
+/**
+ * A call's answer when it is not JSON (a blob's text or bytes), refused the way `request` refuses:
+ * a 401 brings the sign-in screen, a 421 the host screen, and an error body becomes an
+ * `ApiRequestError` in the person's language. Every call of the app goes through here, so none skips
+ * that handling by calling `fetch` itself.
+ */
+export async function requestResponse(path: string, init: CallInit = {}): Promise<Response> {
   const hasBody = init.body !== undefined;
   // A person who already said "go on" for this chat today is not asked again on its next turn
   const scope = spendScope(init.method ?? 'GET', path);
   const override = init.spendOverride === true || (scope !== null && spendAcknowledged(scope));
   const timeout = AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS);
+  const contentType: Record<string, string> = init.file ? { 'content-type': 'application/octet-stream' } : hasBody ? { 'content-type': 'application/json' } : {};
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
       // The language the person reads Claudio in, for what the server writes in it (a chat's title)
-      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...(override ? { [SPEND_OVERRIDE_HEADER]: '1' } : {}), ...authHeaders() },
-      body: hasBody ? JSON.stringify(init.body) : undefined,
+      headers: { ...contentType, 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...(override ? { [SPEND_OVERRIDE_HEADER]: '1' } : {}), ...authHeaders() },
+      body: init.file ?? (hasBody ? JSON.stringify(init.body) : undefined),
       signal: init.signal ? either(init.signal, timeout) : timeout,
     });
   } catch (err) {
@@ -423,14 +450,14 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
     throw err;
   }
-  const text = await res.text();
-  let json: unknown = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    // non-JSON body (e.g. proxy error page)
-  }
   if (!res.ok) {
+    const text = await res.text();
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON body (e.g. proxy error page)
+    }
     const err = json as (Partial<ApiError> & { mode?: AuthMode }) | null;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
@@ -450,7 +477,7 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     if (spend && scope !== null && !override) {
       if (await askSpendCap(spend)) {
         acknowledgeSpend(scope);
-        return request<T>(path, { ...init, spendOverride: true });
+        return requestResponse(path, { ...init, spendOverride: true });
       }
       throw new ApiRequestError(i18n.t('components:spendCap.declined'), res.status, undefined, 'spend-cap', undefined, spend);
     }
@@ -461,23 +488,14 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
     throw refusal;
   }
-  return json as T;
+  return res;
 }
 
 export const enc = encodeURIComponent;
 
 /** The file is the request body, as is: no multipart, no base64 on the way up. */
-async function uploadFile(file: File): Promise<Attachment> {
-  const res = await fetch(`${BASE}/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/octet-stream', ...authHeaders() },
-    body: file,
-    signal: AbortSignal.timeout(5 * 60_000),
-  });
-  const json = (await res.json().catch(() => null)) as (Attachment & Partial<ApiError>) | null;
-  if (!res.ok) throw new ApiRequestError(json?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, json?.detail);
-  return json as Attachment;
-}
+const uploadFile = (file: File): Promise<Attachment> =>
+  request<Attachment>(`/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, { method: 'POST', file, timeoutMs: 5 * 60_000 });
 
 /** Config scope: no projectId means the user scope. */
 export interface Scope {
@@ -491,6 +509,8 @@ export interface JournalQuery {
 }
 
 const num = (value: number | undefined) => (value === undefined ? undefined : String(value));
+/** The page `GET /chats` answers with when it names no limit */
+const CHATS_PAGE = 200;
 
 function qs(params: Record<string, string | undefined>): string {
   const pairs = Object.entries(params).filter((e): e is [string, string] => e[1] !== undefined && e[1] !== '');
@@ -606,20 +626,44 @@ export const api = {
     request<ProjectSettings>(`/projects/${enc(id)}/settings`, { method: 'PUT', body: settings }),
   removeProject: (id: string) => request<{ ok: true }>(`/projects/${enc(id)}`, { method: 'DELETE' }),
   purgeProject: (id: string) => request<{ detail: string }>(`/projects/${enc(id)}/state`, { method: 'DELETE' }),
-  chats: (filter: ChatFilter = {}, o?: ReadOptions) =>
-    request<ChatSummary[]>(
-      `/chats${qs({
-        // `null` is the chats under no project, which the route asks for with `loose`
-        project: filter.project ?? undefined,
-        loose: filter.project === null ? '1' : undefined,
-        origin: filter.origin?.join(','),
-        workers: filter.workers === false ? '0' : undefined,
-        state: filter.state,
-        assistant: filter.assistant ? '1' : undefined,
-        limit: num(filter.limit),
-      })}`,
-      o,
-    ),
+  /**
+   * The chats a filter picks. With a `limit`, that many; without one, every chat, read a page at a
+   * time: the server answers a page of 200, so no single answer carries the machine's whole history,
+   * and the next page starts after the last chat of this one (`<updatedAt>~<id>`, its order).
+   */
+  chats: async (filter: ChatFilter = {}, o?: ReadOptions): Promise<ChatSummary[]> => {
+    const page = (limit: number | undefined, after?: string) =>
+      request<ChatSummary[]>(
+        `/chats${qs({
+          // `null` is the chats under no project, which the route asks for with `loose`
+          project: filter.project ?? undefined,
+          loose: filter.project === null ? '1' : undefined,
+          origin: filter.origin?.join(','),
+          workers: filter.workers === false ? '0' : undefined,
+          state: filter.state,
+          assistant: filter.assistant ? '1' : undefined,
+          limit: num(limit),
+          after,
+        })}`,
+        o,
+      );
+    if (filter.limit !== undefined) return page(filter.limit);
+    const all: ChatSummary[] = [];
+    const seen = new Set<string>();
+    for (let after: string | undefined; ; ) {
+      const chats = await page(CHATS_PAGE, after);
+      // A chat that moved between two pages may come twice; one that brings nothing new is a server
+      // that does not page (an older API behind the dev proxy), and asking again would never end
+      const fresh = chats.filter((chat) => !seen.has(chat.id));
+      for (const chat of fresh) seen.add(chat.id);
+      all.push(...fresh);
+      const last = chats.at(-1);
+      if (!last || chats.length < CHATS_PAGE || fresh.length === 0) return all;
+      const next = `${last.updatedAt ?? ''}~${last.id}`;
+      if (next === after) return all;
+      after = next;
+    }
+  },
   chat: (id: string, page: { limit?: number; before?: number } = {}, o?: ReadOptions) =>
     request<ChatDetail>(
       `/chats/${enc(id)}${qs({ limit: num(page.limit), before: num(page.before) })}`,
@@ -633,6 +677,10 @@ export const api = {
   sendMessage: (id: string, req: ChatMessageRequest) => request<ChatMessageResponse>(`/chats/${enc(id)}/messages`, { method: 'POST', body: req }),
   stopChat: (id: string) => request<ChatSummary>(`/chats/${enc(id)}/stop`, { method: 'POST' }),
   interruptChat: (id: string, req?: ChatInterruptRequest) => request<ChatSummary>(`/chats/${enc(id)}/interrupt`, { method: 'POST', ...(req ? { body: req } : {}) }),
+  /** Withdraws a message the agent has not read yet; 409 once it has */
+  cancelChatMessage: (id: string, messageId: string) => request<ChatSummary>(`/chats/${enc(id)}/messages/${enc(messageId)}`, { method: 'DELETE' }),
+  /** Sends the foreground call the turn waits on to the background, so the agent reads what waits */
+  backgroundChatCall: (id: string, toolUseId: string) => request<ChatSummary>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/background`, { method: 'POST' }),
   updateChat: (id: string, update: ChatSettingsUpdate) => request<ChatSummary>(`/chats/${enc(id)}`, { method: 'PATCH', body: update }),
   chatMcp: (id: string) => request<ChatMcpServers>(`/chats/${enc(id)}/mcp`),
   toggleChatMcp: (id: string, name: string, enabled: boolean) =>
@@ -1369,6 +1417,10 @@ export const keys = {
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
+  // A graph's other reads sit under its own key, never under the list's: the list's patchers take
+  // what they find under `orchestrations` for graphs, and its events refresh the page's reads with it
+  orchestrationWorkflow: (id: string) => ['orchestration', id, 'workflow'] as const,
+  orchestrationWorkflowRun: (id: string, runId: string) => ['orchestration', id, 'workflow-run', runId] as const,
   /** Prefix of a change request's reads (itself, its checks, their logs): `change-request.checks` refreshes them all */
   changeRequest: (id: string) => ['change-request', id] as const,
   changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
@@ -1430,6 +1482,8 @@ export const keys = {
   terminalOne: (id: string) => ['terminal', 'one', id] as const,
   terminalList: (scope: string) => ['terminal', 'list', scope] as const,
   terminalHistory: (from: number) => ['terminal', 'history', from] as const,
+  /** Prefix of every page of the audit log */
+  auditAll: ['security', 'audit'] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
   // ---- the project ecosystem. Every work item read sits under `workItems` or `workItemDetails`, and
@@ -1627,8 +1681,8 @@ export const useChats = (filter: ChatFilter = {}) => {
 };
 
 /** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
-export const useUsage = (range: { from?: string; to?: string } = {}) =>
-  useQuery({ queryKey: keys.usage(range), queryFn: ({ signal }) => api.usage(range, { signal }), refetchInterval: useFallbackInterval() });
+export const useUsage = (range: { from?: string; to?: string } = {}, { enabled = true }: { enabled?: boolean } = {}) =>
+  useQuery({ queryKey: keys.usage(range), queryFn: ({ signal }) => api.usage(range, { signal }), enabled, refetchInterval: useFallbackInterval() });
 
 export interface UsageRange {
   from?: string;
