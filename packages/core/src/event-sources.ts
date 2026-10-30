@@ -655,14 +655,21 @@ export class SessionsWatcher {
   private watchHolders(): void {
     if (!this.holdersOf || this.holdersTimer) return;
     const holdersOf = this.holdersOf;
+    // One look at a time: a slow one (the process table of a busy machine) is not stacked under the next tick's
+    let looking = false;
     this.holdersTimer = setInterval(() => {
+      if (looking) return;
+      looking = true;
       holdersOf()
         .then((now) => {
           const before = this.holders;
           this.holders = now;
           if (this.wanted && before !== null && before !== now) this.touched(null);
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          looking = false;
+        });
     }, this.holdersEveryMs);
     this.holdersTimer.unref();
   }
