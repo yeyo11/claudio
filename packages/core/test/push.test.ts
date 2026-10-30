@@ -10,7 +10,7 @@ import { decisionPoint } from '../src/decisions/points.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import type { ToolCall } from '../src/health.ts';
-import { PushService, absoluteOn, idOfEndpoint, riskLine, truncateEndpoint, type PushTransport } from '../src/push.ts';
+import { PushService, absoluteOn, idOfEndpoint, privateEndpoint, riskLine, truncateEndpoint, type PushTransport } from '../src/push.ts';
 import { readinessFromStatus } from '../src/tunnel.ts';
 import { tempConfig } from './helpers.ts';
 
@@ -96,6 +96,29 @@ test('the VAPID keypair is made on first use and only its public half is ever ha
   assert.deepEqual(await push.keyInfo(), first);
   const reopened = harness();
   assert.equal((await reopened.push.keyInfo()).publicKey !== first.publicKey, true, 'a different data dir gets its own keypair');
+});
+
+test('an endpoint on this machine or its network is refused: the server would POST to it (report §8.8)', () => {
+  const { push } = harness();
+  for (const endpoint of [
+    'https://127.0.0.1/push',
+    'https://10.0.0.5:8443/push',
+    'https://192.168.1.1/x',
+    'https://169.254.169.254/latest/meta-data',
+    'https://[::1]/push',
+    'https://[::ffff:127.0.0.1]/push',
+    'https://[fd00::1]/push',
+    'https://localhost/push',
+    'https://claudio.localhost/push',
+    'https://router/push',
+  ]) {
+    assert.match(privateEndpoint(endpoint) ?? '', /public address/, endpoint);
+    assert.throws(() => push.register({ endpoint, keys }), /public address/, endpoint);
+  }
+  // The push services browsers hand out are public names
+  for (const endpoint of [ENDPOINT, 'https://fcm.googleapis.com/fcm/send/abc', 'https://web.push.apple.com/QGx', 'https://8.8.8.8/push']) {
+    assert.equal(privateEndpoint(endpoint), null, endpoint);
+  }
 });
 
 test('an endpoint is registered once, and the list never hands the whole of it back', () => {

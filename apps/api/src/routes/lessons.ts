@@ -30,7 +30,7 @@ function statusOf(raw: string | undefined): LessonStatus | 'all' {
  * Lessons mined from a person's corrections (docs/plans/lessons.md, "API"). A read needs the project
  * imported; a change needs its Memory module on too. Nothing here writes a lesson in from outside
  * (export only), and a chat's token reaches none of the routes that decide, change or mine one:
- * `CHAT_FORBIDDEN_LESSONS` in `security.ts`.
+ * their `person` class in `ROUTE_DOCS`, which `security.ts` checks.
  */
 export const lessonRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   /** The lesson, after the access check for its project (a global lesson has none) */

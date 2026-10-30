@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-29T12:00:00Z
+updated_at: 2026-10-30T09:00:00Z
 tags:
     - security
     - secrets
@@ -32,16 +32,41 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
   through. It needs an owner credential (refused under `none`, to the desktop and to a chat), its
   wrong tokens count in the sign-in back-off, and a DNS-rebinding page cannot hold the bearer token.
 - **Owner-only routes.** `isOwnerActor` (a `token:*` or OIDC actor) guards the claim, the in-app
-  server update and the CLI install. `CHAT_FORBIDDEN_SYSTEM` lists them for a chat's token; read-only
-  refuses them with `405` ([updates.md](updates.md#who-may-update)).
+  server update and the CLI install. Their class is `person`, so a chat's token gets `403`
+  ([Chat tokens](#chat-tokens)); read-only refuses them with `405` ([updates.md](updates.md#who-may-update)).
 - **`/app` is root-owned in the image**, so an agent running as `node` in `bypassPermissions` can no
   longer rewrite the server it runs under. Updates live in `/data/app` and are re-verified at every
   boot by a root-owned launcher against root-owned public keys ([updates.md](updates.md#how-it-is-trusted)).
 - **Read-only mode** (`CLAUDIO_READ_ONLY`) refuses every write, the setup's included (405).
 - **A chat's own token.** A chat Claudio starts gets its own `CLAUDIO_API_TOKEN`
-  ([chat-environment.md](chat-environment.md)); it may not change the security settings, open the
-  tunnel or touch the setup routes but `GET /setup` (403), since reading a sign-in session would hand
-  it the person's device code.
+  ([chat-environment.md](chat-environment.md)); what it may call is the class of each route, below
+  in [Chat tokens](#chat-tokens).
+- **The guard reads the matched route.** Fastify routes on the decoded, normalised path, so the raw
+  request target is only one spelling of it: the guard decides on `req.routeOptions.url`, a request
+  no route took is guarded unless it is the web app's own (a file of the bundle or the page it falls
+  back to), and a target that is not a plain path is `400 request-target` before anything else: an
+  absolute URL (`GET http://x/api/chats`), a `.` or `..` segment, a broken escape, or a letter, digit
+  or `-._~` percent-encoded (`/%61pi/chats`). An escape of what a client has to escape (a space, an
+  accent) stays a path. Before this, each of those spellings reached `/api/chats` with no credential
+  in token and OIDC mode (report §8.1 of [the 2026-10-29 audit](reports/regression-audit-2026-10-29.md)).
+- **The sign-in back-off** counts failed credentials per client, keyed by the address and the name
+  dialled (`${ip}|${host}`): behind `socat`, Docker's published ports or a tunnel every client
+  arrives from loopback, and the desktop on `localhost` no longer pays for guesses on the LAN name.
+  After 10 failures the wait doubles from 1 s to 60 s. A credential whose hash last succeeded is
+  looked at at once, so the owner is never locked out; one that fails again (rotated, revoked) waits
+  like any guess. A success does not wipe the count, which on a shared key would hand the guesser a
+  fresh allowance at every poll of the owner's.
+- **Cross-site writes under `none`.** With nothing to authenticate, a body-less `POST` is a simple
+  request no preflight stops, so a write whose `Origin` is not the page's own authority (or an origin
+  of `CLAUDIO_CORS_ORIGIN`), or that the browser marks `Sec-Fetch-Site: cross-site`, answers
+  `403 cross-site`. A request with neither header (a CLI, a script, a chat's `curl`) is not a
+  browser's and passes. The terminal's ticket route compares the `Origin` itself and records the
+  refusal in the terminal's history.
+- **The audit trail** records every write under `/api`, by actor and route, never the body, in a log
+  of the newest 50 000 rows. A write refused before its caller was identified (`anonymous`: 400,
+  401, 403 cross-site, 421, 429) goes to a separate ring of the newest 1 000 (`audit_refusals`,
+  `GET /audit/refusals`), so whoever can reach the port cannot flush the history; a stored path is
+  cut at 512 characters.
 - **Remote access** is tailnet-only (`tailscale serve`, never Funnel), and refuses to open while the
   auth mode is `none` ([tunnel.md](tunnel.md)). The host allowlist is in
   [deploy.md](deploy.md#the-host-allowlist-and-why-a-proxy-has-to-be-told-about-it).
@@ -225,12 +250,63 @@ everything it reads is untrusted, and it fails closed.
   reason, is bound to the head it was given on, and a new commit voids it. Reading the gate and
   asking for a retry stay open to a chat's token: a retry only runs Claudio's own gate again.
 
+## Chat tokens
+
+A chat Claudio starts holds a token of its own ([chat-environment.md](chat-environment.md)): an agent
+calls the API with it, and a prompt injection in what the agent reads holds it too. What that token
+may do is decided by construction, per route (decision D1 of
+[the regression fixes](plans/regression-fixes-2026-10-29.md), contract C1).
+
+- **Every route has an access class** in `ROUTE_DOCS` (`apps/api/src/openapi/routes.ts`): `open`
+  (no credential: the probes `GET /health` and `GET /ready`, and the receivers that check their own
+  proof, the webhooks and the `/v1` client-tool stub), `person` (an owner credential only: a chat's
+  token answers `403 chat-forbidden`) or `work` (an owner credential or a chat's own token). Every
+  write declares one, and `apps/api/test/route-access.test.ts` fails on a registered write without
+  it; a read is `work` unless it says `person`. A write nobody classified is `person`: deny by
+  default. The guard reads the class of the matched route once the token is authenticated.
+- **`person`** is everything that administers Claudio or reaches past the chat's work: `/auth`,
+  `/security`, `/accounts`, `/settings`, `/config`, `/memory`, `/plugins`, `/push`, `/schedules`,
+  `/tunnel` (closing it included), `/decisions` but rating a decision, the setup's sign-ins and the
+  three reads that would hand over one (`GET /setup/logins/:id`, `GET /accounts/logins/:id`,
+  `GET /trackers/youtrack/credentials`), every `DELETE`, answering a permission prompt
+  (`POST /chats/:id/permissions/:requestId`, its own chat's or another's), a chat's MCP servers,
+  the project journal, pull requests and integration, change requests' checks, reviews and merges,
+  the Supervisor's send and dismiss, accepting a review gate, the spend pass, lessons, evals but
+  estimating and cancelling, Claude Docs, trackers, webhooks, a project's settings, team and
+  documents, and what spends or widens on the person's say (the assistant's runs, a flow's waiting
+  cards, saving a workflow).
+- **`work`** is what an agent does as part of its work: starting, messaging, resuming, forking,
+  stopping, interrupting, hinting, compacting a chat and asking it for a note; creating, planning,
+  stopping, resuming, retrying, skipping, hinting, verifying and re-reviewing an orchestration;
+  creating, updating, moving, commenting on, relating and linking work items and checking their
+  criteria; accepting, discarding and restoring the assistant's proposals; retrying a flow run;
+  previewing a memory proposal; rating a decision; uploading a file; the `/v1` completions.
+- **Fields a chat may send.** A `work` write whose body could widen the chat lists the fields a
+  chat's token may send (`workFields`); any other answers `403 chat-forbidden-field` naming it.
+  `POST /chats` takes `prompt`, `attachments`, `cwd`, `model`, `name` and `projectId`, never a
+  permission mode, a tool list, a preset, MCP servers, an account or a system prompt;
+  `POST /chats/:id/resume` and `/fork` take `prompt`, `attachments` and `model`; `PATCH /chats/:id`
+  takes `model`, never `permissionMode`. So a chat cannot start a stronger sibling or raise its own
+  mode.
+- **Sign-in codes stay off its event stream.** `login.updated` carries the device code and the URL a
+  person opens (for Tailscale the URL is the sign-in), so `GET /events` sends them only on a stream
+  opened with an owner credential (or on an open install, where every caller is the person's); any
+  other stream gets the sign-in's state with `url` and `code` null, replay included.
+- **Under `mode: none`** the token only labels the request (`chat:<id>` in the audit), and nothing
+  refuses it by class: an open install grants everything to everyone. Three exceptions hold there
+  too, because the label is enough to refuse what must stay the person's whatever the mode: accepting
+  a review gate and writing a reviewer's role ([The review gate](#the-review-gate)), every
+  Collaborators route but the copy reads in scope ([Collaborators](#collaborators)) and every terminal
+  route ([The terminal](#the-terminal)). Some routes also check the label themselves under `none`:
+  the daily spend cap in `PUT /settings/app`, a project's tracker, lessons and providers in its
+  settings document, and the guard settings.
+- **The audit** names the chat on every write it makes (`chat:<id>`).
+
 ## A chat cannot approve its own memory
 
 What a memory proposal writes (`CLAUDE.md`, a memory file, the journal) is read as instructions by every
-later run of the project. `POST /memory-proposals/:proposalId/approve` and `/reject` therefore answer
-403 to a chat's token, with the same error shape as the other routes closed to it; proposing stays
-open, and the person's token decides.
+later run of the project. `POST /memory-proposals/:proposalId/approve` and `/reject` are therefore
+`person` routes ([Chat tokens](#chat-tokens)); proposing stays open, and the person's token decides.
 
 ## Lessons and a chat's token
 
@@ -256,14 +332,13 @@ mining to the delivery ([lessons.md](lessons.md)).
   per lesson; deleting a lesson deletes its evidence.
 - **Nothing is imported.** Lessons can be downloaded as JSON; no route, file or flag reads them in.
 
-## A chat's token cannot compact a chat
+## Compacting and session notes
 
-Compacting is a paid turn over the whole context and is the person's to start. A chat's token can
-read the breakdown, compactions and session notes (`GET /chats/:id/context`, `/compactions`,
-`/notes`), and `POST /chats/:id/compact`, `POST /chats/:id/notes` and `DELETE /chats/:id/notes/:noteId`
-answer 403 to it, as does a `/compact` sent as a message, or as the prompt of a resume or a fork. The
-served notes pass through `maskSecrets`, which covers Claudio's own secrets too. No note ever reaches a
-prompt on its own. See [context-control.md](context-control.md).
+Compacting is a turn of the chat's work like any message, and a chat's token may already send any
+turn to any chat, so `POST /chats/:id/compact` and `POST /chats/:id/notes` are `work` routes (C1),
+and so is a `/compact` sent as a message, a resume or a fork. Deleting a note is a `DELETE`, the
+person's. The served notes pass through `maskSecrets`, which covers Claudio's own secrets too. No
+note ever reaches a prompt on its own. See [context-control.md](context-control.md).
 
 ## The terminal
 
@@ -306,11 +381,11 @@ See [terminal.md](terminal.md).
 ## The daily spend cap is the person's
 
 A prompt injection holding a chat's token could otherwise lift the cap it is bound by (plan:
-[plans/agent-run-improvements.md](plans/agent-run-improvements.md)). The denials are in `apps/api/src/security.ts` and the routes:
+[plans/agent-run-improvements.md](plans/agent-run-improvements.md)). The denials are the routes' classes ([Chat tokens](#chat-tokens)) and the routes' own checks:
 
-- **The cap.** A chat's token that names `dailySpendCapUsd` in `PUT /settings/app` gets `403`
-  (`routes/app-settings.ts`).
-- **The pass.** `POST /orchestrations/:id/spend-pass` is in `CHAT_FORBIDDEN`: a chat token cannot grant
+- **The cap.** `PUT /settings/app` is a `person` route, and under `mode: none` a request labelled
+  with a chat's token that names `dailySpendCapUsd` still gets `403` (`routes/app-settings.ts`).
+- **The pass.** `POST /orchestrations/:id/spend-pass` is a `person` route: a chat token cannot grant
   a graph today's pass. So is `POST /work-items/:itemId/spend-pass`, the same pass for a flow card the
   cap holds (a row in `flow_spend_passes`, good for the local day it names).
 - **The override.** `X-Claudio-Spend-Override: 1` lets a person's request through a `409 spend-cap`.
@@ -340,8 +415,9 @@ protocol (`claudio/collab/1`), never the HTTP API.
 - **A blob is never served by its hash alone.** The hash must be referenced by a shared record of that
   project, and an unknown hash answers like a missing one.
 - **The local routes are the owner's.** Every `/collaborators` route, and the project's `sharing`
-  routes, are in `CHAT_FORBIDDEN_COLLABORATORS`: a chat's token gets `403`, so a teammate's transcript
-  never reaches an agent's context unasked. The copy reads are the one exception, below.
+  routes, are in `CHAT_FORBIDDEN_COLLABORATORS`, one of the three exceptions that hold under
+  `mode: none` too ([Chat tokens](#chat-tokens)): a chat's token gets `403`, so a teammate's
+  transcript never reaches an agent's context unasked. The copy reads are the one exception, below.
 - **The endpoint runs in a child process** (`collab-host.mjs`), so a fault in the native binding
   cannot take the API down.
 
@@ -487,8 +563,8 @@ An instruction eval spends the person's account and runs the commands its file a
 command, `command` assertions), and the file may be repository content someone else wrote. So a
 run needs the person's consent to that file's exact content, and a chat's token gets `403` on every
 eval route that writes or spends: saving or deleting an eval file, consenting to one, starting,
-resuming or re-judging a run, accepting a judge, drafting cases and deleting a run's results
-(`CHAT_FORBIDDEN_EVALS` in `apps/api/src/security.ts`). Reading, estimating and cancelling stay open
+resuming or re-judging a run, accepting a judge, drafting cases and deleting a run's results (their
+`person` class, [Chat tokens](#chat-tokens)). Reading, estimating and cancelling stay open
 ([evals.md](evals.md)).
 
 ## Known limits
@@ -503,5 +579,5 @@ resuming or re-judging a run, accepting a judge, drafting cases and deleting a r
 
 ## Related
 
-[[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[plans/regression-fixes-2026-10-29.md]] · [[reports/regression-audit-2026-10-29.md]] · [[rest-api.md]] · [[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
 [[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]]

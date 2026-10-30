@@ -294,7 +294,7 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
     for (const [method, url, body] of forbidden) {
       const answer = await app.inject(fromChat(method, url, body));
       assert.equal(answer.statusCode, 403, `${method} ${url}`);
-      assert.match(answer.json().error, /chat's token cannot change what the decision engine sends/);
+      assert.equal(answer.json().code, 'chat-forbidden');
     }
     assert.equal(core.decisionCredentials.getKey(), null);
     assert.equal((await app.inject(fromChat('GET', '/api/decisions/settings'))).statusCode, 200);

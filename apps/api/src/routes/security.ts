@@ -52,17 +52,20 @@ export const securityRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     return { host, allowedHosts: [...core.appSettings.allowedHosts] };
   });
 
-  app.get<{ Querystring: AuditFilter & { limit?: string; from?: string } }>('/audit', (req) => {
+  // The log and the ring of anonymous refusals answer the same query the same way
+  const page = (query: AuditFilter & { limit?: string; from?: string }) => {
     // Checked here: the store clamps a number but has nothing to say about `limit=soon`, which
     // would reach SQLite as NaN and come back as the engine complaining about a datatype
-    const limit = count(req.query.limit, 'limit');
-    const from = count(req.query.from, 'from');
-    return core.db.auditPage({
+    const limit = count(query.limit, 'limit');
+    const from = count(query.from, 'from');
+    return {
       ...(limit !== undefined ? { limit } : {}),
       ...(from !== undefined ? { from } : {}),
-      ...(req.query.path ? { path: req.query.path } : {}),
-      ...(req.query.method ? { method: req.query.method } : {}),
-      ...(req.query.status ? { status: req.query.status } : {}),
-    });
-  });
+      ...(query.path ? { path: query.path } : {}),
+      ...(query.method ? { method: query.method } : {}),
+      ...(query.status ? { status: query.status } : {}),
+    };
+  };
+  app.get<{ Querystring: AuditFilter & { limit?: string; from?: string } }>('/audit', (req) => core.db.auditPage(page(req.query)));
+  app.get<{ Querystring: AuditFilter & { limit?: string; from?: string } }>('/audit/refusals', (req) => core.db.auditRefusalsPage(page(req.query)));
 };
