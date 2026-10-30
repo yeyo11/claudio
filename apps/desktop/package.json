@@ -30,6 +30,6 @@
     "@claudio/core": "workspace:*",
     "@claudio/shared": "workspace:*",
     "@claudio/ui": "workspace:*",
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.11"
   }
 }
