@@ -496,9 +496,6 @@
 /* ---------- Tooltip ---------- */
 
 /* Wraps a disabled button so its tooltip still gets pointer events */
-.tooltip-anchor {
-  display: inline-flex;
-}
 
 .tooltip {
   z-index: 1200;

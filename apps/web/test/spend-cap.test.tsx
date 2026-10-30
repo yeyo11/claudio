@@ -197,7 +197,8 @@ test('the views read the same level the server computed', () => {
 });
 
 test('the spend events make the next reading the views', () => {
-  const event = { type: 'spend.changed', id: 1, at: '2026-10-16T10:00:00Z', title: 'Daily spend changed', spend: state(1) } as const;
+  // `spend.changed` carries the state whole, which the feed writes (feed-wiring.test.ts); an alert is read again
+  const event = { type: 'spend.alert', id: 1, at: '2026-10-16T10:00:00Z', title: 'Daily spend at 75 %', level: 'warn', spend: state(1) } as const;
   assert.deepEqual(targetsFor(event)[0]?.[0], keys.spend);
 });
 

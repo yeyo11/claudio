@@ -32,13 +32,6 @@
   min-width: 0;
 }
 
-/* A project's name is one line that ends in an ellipsis before it reaches the control */
-.home-hero-title:has(> .home-hero-icon) h1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .home-hero h1 {
   display: block;
   flex: 0 1 auto;
@@ -46,10 +39,6 @@
   margin: 0;
   text-wrap: balance;
   overflow-wrap: anywhere;
-}
-
-.home-hero-title > .home-hero-icon {
-  flex: none;
 }
 
 .home-hero-summary {
@@ -61,12 +50,6 @@
 
 .home-hero-actions {
   flex: none;
-}
-
-.home-hero-icon {
-  justify-content: center;
-  width: var(--control-h);
-  padding-inline: 0;
 }
 
 /*

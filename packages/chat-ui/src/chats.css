@@ -109,12 +109,7 @@
 .chat-note-ok svg {
   color: var(--ok);
 }
-.chat-note-warn svg {
-  color: var(--warn);
-}
-.chat-note-bad svg {
-  color: var(--bad);
-}
+
 .chat-banner {
   display: flex;
   align-items: center;

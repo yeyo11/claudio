@@ -29,7 +29,7 @@ function render(servers: ChatMcpServers, mode: string = 'default', lang: 'en' | 
   setLanguage(lang);
   const chat = { id: 'c1', execution: { permissionMode: mode } } as unknown as Chat;
   const queries = new QueryClient();
-  queries.setQueryData(mcpKey(chat.id), servers);
+  queries.setQueryData(mcpKey(chat), servers);
   return renderToStaticMarkup(
     <MemoryRouter>
       <QueryClientProvider client={queries}>

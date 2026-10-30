@@ -95,6 +95,10 @@
     "body": "La dirección puede estar mal escrita, o la página ya no existe.",
     "home": "Ir a Inicio"
   },
+  "routeError": {
+    "title": "Algo ha fallado en esta página",
+    "body": "Claudio ha tenido un error al mostrarla. Al recargar se suele arreglar; tus chats y tu trabajo siguen en marcha en el servidor."
+  },
   "appearance": {
     "intro": "Cómo se ve y se mueve Claudio en este navegador. Se guarda aquí, no en el servidor.",
     "theme": "Tema",

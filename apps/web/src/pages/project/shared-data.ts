@@ -22,9 +22,7 @@ import type {
 } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import i18n from '../../i18n';
-import { ApiRequestError, BASE, enc, request, type ReadOptions } from '../../api';
-import { authHeaders } from '../../lib/auth';
+import { enc, request, requestResponse, type ReadOptions } from '../../api';
 import { sharedWith } from '../dashboard/views';
 
 /** A teammate's project, as the routes name it: a share key holds `/` and `#`, so they use its id. */
@@ -70,14 +68,9 @@ export const collaboratorsApi = {
   },
 };
 
-async function blobResponse(ref: SharedRef, sha256: string, o: ReadOptions): Promise<Response> {
-  const res = await fetch(`${BASE}${sharedPath(ref)}/blobs/${enc(sha256)}`, { headers: authHeaders(), signal: o.signal });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
-    throw new ApiRequestError(typeof body?.error === 'string' ? body.error : i18n.t('common:httpError', { status: res.status }), res.status);
-  }
-  return res;
-}
+// Through `requestResponse`, so a refused credential or host brings its screen as every other call does
+const blobResponse = (ref: SharedRef, sha256: string, o: ReadOptions): Promise<Response> =>
+  requestResponse(`${sharedPath(ref)}/blobs/${enc(sha256)}`, { signal: o.signal });
 
 export const collaboratorsKeys = {
   status: ['collaborators', 'status'] as const,

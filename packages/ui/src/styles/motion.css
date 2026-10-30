@@ -101,12 +101,10 @@
     scroll-behavior: auto !important;
   }
   .status-dot-ping,
-  .nav-count-ping,
   .caret {
     animation: none !important;
   }
-  .status-dot-ping,
-  .nav-count-ping {
+  .status-dot-ping {
     display: none;
   }
 }
@@ -121,7 +119,6 @@
 }
 
 :root[data-motion='off'] .status-dot-ping,
-:root[data-motion='off'] .nav-count-ping,
 :root[data-motion='off'] .caret {
   animation: none !important;
 }
@@ -135,7 +132,6 @@
 
 /* What is left of a ping, a pulse or a shimmer after one pass is noise: it does not run at all. */
 :root[data-motion='subtle'] .status-dot-ping,
-:root[data-motion='subtle'] .nav-count-ping,
 :root[data-motion='subtle'] .live-energy::before,
 :root[data-motion='subtle'] .skeleton,
 :root[data-motion='subtle'] .shimmer,
@@ -160,9 +156,7 @@
 }
 
 :root[data-motion='off'] .status-dot-ping,
-:root[data-motion='off'] .nav-count-ping,
-:root[data-motion='subtle'] .status-dot-ping,
-:root[data-motion='subtle'] .nav-count-ping {
+:root[data-motion='subtle'] .status-dot-ping {
   display: none;
 }
 

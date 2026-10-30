@@ -95,6 +95,10 @@
     "body": "The address may be mistyped, or the page is no longer there.",
     "home": "Go to Home"
   },
+  "routeError": {
+    "title": "Something went wrong on this page",
+    "body": "Claudio hit an error while drawing it. Reloading usually fixes it; your chats and work keep running on the server."
+  },
   "appearance": {
     "intro": "How Claudio looks and moves in this browser. Stored here, not on the server.",
     "theme": "Theme",

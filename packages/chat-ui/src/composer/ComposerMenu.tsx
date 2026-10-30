@@ -9,9 +9,8 @@ import { formatNumber } from '@claudio/ui/lib/format';
 import type { AttachmentsState } from '../components/Attachments';
 import { accountItem, useLooseT } from './account-menu';
 import { AccountPicker, useChatAccounts } from './AccountPicker';
-import { mcpKey, serversOn, ServersPanel, useLiveServers } from './ServersPanel';
+import { serversOn, ServersPanel, useLiveServers } from './ServersPanel';
 
-export { mcpKey };
 
 /** Which panel the menu opened beside itself on a desktop; a phone shows them as steps of its sheet. */
 type Panel = 'servers' | 'accounts';
@@ -59,7 +58,7 @@ export function ComposerMenu({
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [panel, setPanel] = useState<Panel | null>(null);
   const accounts = useChatAccounts(chat, accountsOpen || panel === 'accounts');
-  const servers = useLiveServers(chat.id, live && (menuOpen || panel === 'servers'));
+  const servers = useLiveServers(chat, live && (menuOpen || panel === 'servers'));
   const count = serversOn(servers.data);
 
   // The menu closes itself on a choice; the panel opens after it has handed the focus back

@@ -1,44 +1,38 @@
 import type { ChatSummary } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { contextLevel, contextShare, formatPercent, formatTokens } from '../lib/chat-model';
+import { ProgressRing, usageTone } from '@claudio/ui/components/motion';
 import { formatNumber } from '@claudio/ui/lib/format';
-
-const R = 6;
-const C = 2 * Math.PI * R;
+import { contextLevel, contextShare } from '../lib/chat-model';
 
 /**
- * How full a chat's context window is, small enough for a list row: a ring and the percentage.
- * The ring turns amber and red as `ContextMeter` does, and the words it carries say the same.
+ * How full a chat's context window is, as a small ring with the figure inside: neutral until it
+ * nears the point the CLI compacts, then amber and red as `ContextMeter` turns. The share is the one
+ * every other context figure reads (`contextShare`, which counts a compaction's own figure); nothing
+ * is drawn while the model's window is unknown. Its accessible name says what the figure is.
  */
-export function ContextRing({ chat }: { chat: Pick<ChatSummary, 'context'> }) {
+export function ContextRing({ chat, size = 34, stroke = 3, className }: { chat: Pick<ChatSummary, 'context'>; size?: number; stroke?: number; className?: string }) {
   const { t } = useTranslation('chat');
   const { context } = chat;
-  if (!context) return <span className="ring-text muted">—</span>;
   const share = contextShare(chat);
-  if (share === null) {
-    return <span className="ring-text muted">{t('badges.context.tokens', { n: formatTokens(context.used) })}</span>;
-  }
+  if (!context || share === null) return null;
+  const percent = Math.round(Math.min(1, Math.max(0, share)) * 100);
   const level = contextLevel(share);
-  const clamped = Math.min(1, Math.max(0, share));
   const detail = t('badges.context.detail', { used: formatNumber(context.used), window: context.window === null ? '?' : formatNumber(context.window) });
   const note = level === 'full' ? t('badges.context.aboutToCompact') : level === 'warn' ? t('badges.context.fillingUp') : '';
   return (
     <span
-      className={`ring ring-${level}`}
+      className={className}
       role="meter"
       aria-label={t('badges.context.inUse')}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(clamped * 100)}
+      aria-valuenow={percent}
       aria-valuetext={note ? `${detail}, ${note}` : detail}
     >
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <circle className="ring-track" cx="8" cy="8" r={R} />
-        <circle className="ring-fill" cx="8" cy="8" r={R} strokeDasharray={`${clamped * C} ${C}`} transform="rotate(-90 8 8)" />
-      </svg>
-      <span className="ring-text" aria-hidden>
-        {formatPercent(share)}
-      </span>
+      <ProgressRing value={percent / 100} size={size} stroke={stroke} tone={usageTone(percent)}>
+        {/* The figure alone fits the ring; the name above says it is a percentage */}
+        <span aria-hidden>{formatNumber(percent)}</span>
+      </ProgressRing>
     </span>
   );
 }

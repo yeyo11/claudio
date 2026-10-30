@@ -4,6 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
+import { useFallbackInterval } from '../../lib/events';
+import { LIVE_REFRESH_MS } from '../changes/source';
 import { AgentProviderScope, useAgentCopy } from '../../lib/agent-name';
 import { baseName, liveFile, reviewLink, reviewPath, statusLetter, stepFiles, workFiles } from '../../lib/changes-summary';
 import { formatDateTime, timeAgo } from '@claudio/ui/lib/format';
@@ -21,7 +23,6 @@ import { ErrorBox, Loading } from '@claudio/ui/components/ui';
  * happens there, never here, so nothing opens on top of the inspector's sheet on a phone.
  */
 
-const LIVE_REFRESH_MS = 8_000;
 /** Past this the list says how many more there are; the review screen has them all */
 const FILE_ROWS = 12;
 
@@ -239,7 +240,9 @@ export function ChangesSummary({ summary, steps, touched = [], activity = null, 
 /** A chat: its git summary when it works in a checkout, and the steps of its transcript. */
 export function ChatChangesSummary({ chat }: { chat: Chat }) {
   const live = chat.alive;
-  const interval = live ? LIVE_REFRESH_MS : false;
+  // The feed reads them again when an edit lands and when a turn ends: a poll only while it is down
+  const fallback = useFallbackInterval(LIVE_REFRESH_MS);
+  const interval = live ? fallback : false;
   const changes = useQuery({ queryKey: keys.chatChanges(chat.id), queryFn: () => api.chatChanges(chat.id), refetchInterval: interval });
   const steps = useQuery({ queryKey: keys.chatSteps(chat.id), queryFn: () => api.chatSteps(chat.id), refetchInterval: interval });
   if (changes.isLoading) return <Loading />;
@@ -262,7 +265,9 @@ export function ChatChangesSummary({ chat }: { chat: Chat }) {
 export function TaskChangesSummary({ orch, task }: { orch: Orchestration; task: OrchestrationTaskState }) {
   const { t } = useTranslation('observe');
   const live = task.status === 'running';
-  const interval = live ? LIVE_REFRESH_MS : false;
+  // `changes.updated` refreshes the graph's key, which these sit under: a poll only while the feed is down
+  const fallback = useFallbackInterval(LIVE_REFRESH_MS);
+  const interval = live ? fallback : false;
   const hasBranch = Boolean(orch.worktree && task.branch);
   const changes = useQuery({
     queryKey: keys.taskChanges(orch.id, task.id),
@@ -290,10 +295,11 @@ export function TaskChangesSummary({ orch, task }: { orch: Orchestration; task: 
 export function IntegrationChangesSummary({ orch, title }: { orch: Orchestration; title?: string }) {
   const integration = orch.integration;
   const live = integration?.status === 'merging' || integration?.status === 'resolving';
+  const fallback = useFallbackInterval(LIVE_REFRESH_MS);
   const changes = useQuery({
     queryKey: keys.integrationChanges(orch.id),
     queryFn: () => api.integrationChanges(orch.id),
-    refetchInterval: live ? LIVE_REFRESH_MS : false,
+    refetchInterval: live ? fallback : false,
     enabled: Boolean(integration),
   });
   if (!integration) return null;

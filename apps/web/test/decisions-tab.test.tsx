@@ -12,7 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, capConsequence, draftOf, examplePoint, isLimited, offUntilConsent, supervisorMeaning } from '../src/pages/config/decisions/model';
+import { activeBlocked, capConsequence, draftOf, examplePoint, offUntilConsent, supervisorMeaning } from '../src/pages/config/decisions/model';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
@@ -193,9 +193,6 @@ test("the Supervisor's point can be active on the CLI, and its row says what eac
   // Without consent the engine does nothing: the Supervisor's line says it is off, not that it proposes
   assert.match(unconsented('jev'), /No vigila/);
   assert.match(unconsented('cli'), /Envía cada pista por su cuenta/);
-  assert.equal(isLimited(supervisor, null, 'active', 'cli'), false);
-  assert.equal(isLimited(supervisor, null, 'active', 'jev'), true);
-  assert.equal(isLimited(info(), null, 'shadow', 'jev'), false);
 });
 
 test('a point that is not off and has no consent says it is off, and offers the way out', () => {

@@ -143,11 +143,14 @@ export function Empty({
   illustrationText,
   tone,
   size,
+  heading = false,
 }: {
   title: string;
   children?: ReactNode;
   action?: ReactNode;
   icon?: LucideIcon;
+  /** The title as the page's `h1`: for a state drawn with no shell around it, which has no heading of its own */
+  heading?: boolean;
   illustration?: IllustrationName;
   /** Words the illustration draws for this screen, such as the project's own first key */
   illustrationText?: string | undefined;
@@ -163,7 +166,7 @@ export function Empty({
           <Icon size={20} strokeWidth={1.75} />
         </span>
       )}
-      <strong>{title}</strong>
+      {heading ? <h1 className="state-title">{title}</h1> : <strong>{title}</strong>}
       {children && <div className="muted">{children}</div>}
       {action && <div className="state-action">{action}</div>}
     </div>

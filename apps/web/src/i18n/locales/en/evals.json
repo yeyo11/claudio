@@ -251,7 +251,6 @@
     "casePin": "Commit for this case",
     "casePinHint": "Leave empty to use the eval's commit.",
     "prompt": "Prompt",
-    "promptHint": "Sent as the sample's only message, up to {{max}} characters.",
     "expectations": "Checks",
     "addExpectation": "Add a check",
     "removeCase": "Remove the case",

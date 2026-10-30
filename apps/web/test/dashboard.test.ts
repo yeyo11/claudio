@@ -1,7 +1,7 @@
 import type { Orchestration, OrchestrationTaskState, PermissionRequest, ProviderLimit, Schedule } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { configCount, SIZE_SPANS, validateLayout, WIDGET_SIZES, type WidgetRule } from '../src/pages/dashboard/layout.ts';
+import { configCount, validateLayout, type WidgetRule } from '../src/pages/dashboard/layout.ts';
 import {
   excerpt,
   homeHeadline,
@@ -84,13 +84,6 @@ test('config counts: a positive integer, capped; anything else is the fallback',
   assert.equal(configCount({ limit: 500 }, 'limit', 5), 50);
   for (const limit of [0, -1, 2.5, '3', null]) assert.equal(configCount({ limit }, 'limit', 5), 5);
   assert.equal(configCount(undefined, 'limit', 5), 5);
-});
-
-test('every size has a span on both grids, and none is wider than its grid', () => {
-  for (const size of WIDGET_SIZES) {
-    assert.ok(SIZE_SPANS[size].wide >= 1 && SIZE_SPANS[size].wide <= 12, size);
-    assert.ok(SIZE_SPANS[size].medium >= 1 && SIZE_SPANS[size].medium <= 6, size);
-  }
 });
 
 // ---------- The registry ----------

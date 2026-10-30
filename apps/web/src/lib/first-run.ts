@@ -15,8 +15,29 @@ export const shouldShowSetup = (setup: Pick<SetupState, 'seen'>): boolean => !se
 
 export type SetupGate = { state: 'pending' | 'hidden' } | { state: 'shown'; finish: () => void };
 
+/** A query as the gate reads it: what it holds, and whether its last read failed. */
+interface GateRead<T> {
+  data: T | undefined;
+  isError: boolean;
+}
+
 /**
- * Whether the assistant stands in for the app. A failed read hides it: the assistant must never be
+ * The gate's decision, from its two reads. A failed read hides the assistant only when there is
+ * nothing to decide with: react-query keeps the last answer through a refetch that fails (`isError`
+ * with data), and the wizard's own saves refetch the setup state, which probes every tool. One
+ * transient failure there must not drop the person into the app halfway through.
+ */
+export function setupGateState(settings: GateRead<{ setupSeen: boolean }>, setup: GateRead<Pick<SetupState, 'seen'>>, dismissed: boolean): SetupGate['state'] {
+  if (dismissed) return 'hidden';
+  if (settings.data === undefined) return settings.isError ? 'hidden' : 'pending';
+  if (settings.data.setupSeen) return 'hidden';
+  if (setup.data === undefined) return setup.isError ? 'hidden' : 'pending';
+  return shouldShowSetup(setup.data) ? 'shown' : 'hidden';
+}
+
+/**
+ * Whether the assistant stands in for the app. A read that fails before it ever answered hides it
+ * (`setupGateState`): the assistant must never be
  * what keeps a person out of an app that would have worked. `finish` dismisses it for this page load
  * and records it with `POST /setup/seen`; when the server cannot record it (read-only, or the
  * environment owns the setting) it is only remembered until the page reloads.
@@ -38,11 +59,8 @@ export function useSetupGate(): SetupGate {
     },
   });
 
-  if (dismissed || settings.isError || setup.isError) return { state: 'hidden' };
-  if (seen === undefined) return { state: 'pending' };
-  if (seen) return { state: 'hidden' };
-  if (!setup.data) return { state: 'pending' };
-  if (!shouldShowSetup(setup.data)) return { state: 'hidden' };
+  const state = setupGateState(settings, setup, dismissed);
+  if (state !== 'shown') return { state };
   return {
     state: 'shown',
     finish: () => {

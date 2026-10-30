@@ -366,11 +366,6 @@ export function boardColumns(board: Pick<Board, 'columns'> | undefined): BoardCo
   );
 }
 
-/** Items under the column they are in, in board order: the list view and the phone's board. */
-export function groupByStatus<T extends Pick<WorkItem, 'status'>>(items: readonly T[]): Array<{ status: WorkItemStatus; items: T[] }> {
-  return WORK_ITEM_STATUSES.map((status) => ({ status, items: items.filter((item) => item.status === status) }));
-}
-
 /**
  * Whether an item takes a place in its column's count and limit. An epic groups the work rather than
  * being some, so the server leaves it out of the counts, and a card moved before it answers must too.

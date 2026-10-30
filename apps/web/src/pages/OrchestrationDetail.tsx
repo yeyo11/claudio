@@ -240,7 +240,7 @@ function WorkflowCard({ orch }: { orch: Orchestration }) {
   const { t } = useTranslation(['orchestrationDetail', 'config', 'common']);
   const toast = useToast();
   const [name, setName] = useState('');
-  const script = useQuery({ queryKey: ['orchestrations', orch.id, 'workflow'], queryFn: () => api.orchestrationWorkflow(orch.id) });
+  const script = useQuery({ queryKey: keys.orchestrationWorkflow(orch.id), queryFn: () => api.orchestrationWorkflow(orch.id) });
   const save = useMutation({
     mutationFn: (overwrite: boolean) => api.saveOrchestrationWorkflow(orch.id, { ...(name.trim() ? { name: name.trim() } : {}), overwrite }),
     onSuccess: (saved) => toast.success(t('config:detail.savedAs', { name: saved.name }), saved.path),
@@ -391,7 +391,7 @@ function Objective({ text }: { text: string }) {
 function useWorkflowRun(orch: Orchestration | undefined): ChatWorkflow | null {
   const runId = orch?.engine === 'workflow' ? (orch.workflow?.runId ?? null) : null;
   const { data } = useQuery({
-    queryKey: ['orchestrations', orch?.id, 'workflow-run', runId],
+    queryKey: keys.orchestrationWorkflowRun(orch?.id ?? '', runId ?? ''),
     queryFn: () => api.chat(runId ?? '', { limit: 1 }),
     enabled: runId !== null,
     // The chat's own events refresh its page, not this read of it

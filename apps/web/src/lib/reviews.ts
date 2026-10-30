@@ -24,12 +24,6 @@ export const lineKey = (side: ReviewSide, line: number): string => `${side}:${li
  */
 export type ThreadPlace = 'line' | 'outdated' | 'file' | 'general';
 
-export function threadPlace(thread: ReviewThread): ThreadPlace {
-  if (thread.path === null) return 'general';
-  if (thread.isOutdated) return 'outdated';
-  return thread.line === null ? 'file' : 'line';
-}
-
 /** What a file shows of its threads, in the order the page draws them. */
 export interface FileThreads {
   /** Open threads by the line they end on; they stay on the diff */
