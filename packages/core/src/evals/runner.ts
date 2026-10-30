@@ -54,6 +54,7 @@ import { computeGate, gateApplies } from './gate.js';
 import type { JudgeCalibration, JudgeCall } from './judge.js';
 import { foldCalls } from './judge.js';
 import { evaluateExpectations } from './matchers.js';
+import { RunSlotRefusal } from '../chat-errors.js';
 import { sampleEndCheck, sampleOutcomeOf } from './score.js';
 import type { EvalStore } from './store.js';
 
@@ -890,7 +891,8 @@ export class EvalRunner {
     try {
       return this.deps.runtime.start(opts, { evalSampleId: sampleId });
     } catch (err) {
-      if (err instanceof Error && /Concurrent run limit/.test(err.message)) return { refused: true };
+      // Only the count of chats: a sample refused for memory or a person's place fails as any other start would
+      if (err instanceof RunSlotRefusal) return { refused: true };
       throw err;
     }
   }

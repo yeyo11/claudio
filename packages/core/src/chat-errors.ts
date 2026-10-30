@@ -29,3 +29,27 @@ export class RunSlotRefusal extends ChatRefusal {
     super(`Concurrent run limit reached (${String(limit)})`);
   }
 }
+
+/** The machine is short of memory (its words start with `RESOURCE_REFUSAL_PREFIX`): a chat started now could be the one the kernel kills. */
+export class MemoryRefusal extends ChatRefusal {
+  readonly code = 'memory';
+  constructor(message: string) {
+    super(message, 409);
+  }
+}
+
+/** A worker's start gave way to a person's that was refused a place a moment ago (its words start with `QUEUE_YIELD_PREFIX`). */
+export class QueueYieldRefusal extends ChatRefusal {
+  readonly code = 'queue-yield';
+  constructor(message: string) {
+    super(message, 409);
+  }
+}
+
+/**
+ * A refusal that clears by itself within moments: a run slot, the machine's memory, a place kept for
+ * a person. A caller that can wait tries again; anything else is a failure to report.
+ */
+export function isTransientRefusal(err: unknown): err is RunSlotRefusal | MemoryRefusal | QueueYieldRefusal {
+  return err instanceof RunSlotRefusal || err instanceof MemoryRefusal || err instanceof QueueYieldRefusal;
+}
