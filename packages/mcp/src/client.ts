@@ -33,11 +33,11 @@ export interface ReadOptions {
 }
 
 export interface ApiClient {
+  /** The chat this server runs for, from `CLAUDIO_CHAT_ID`; null when it was given none */
+  readonly chatId: string | null;
   get(path: string, query?: Query, opts?: ReadOptions): Promise<unknown>;
   /** The write tools' only way out: a POST or a PATCH with a JSON body, nothing else */
   send(method: 'POST' | 'PATCH', path: string, body?: unknown): Promise<unknown>;
-  /** Kept so the refusal belongs to the client, not to whoever calls it */
-  request(method: string, path: string, query?: Query): Promise<unknown>;
 }
 
 /** The base URL from the environment, or null when it is not an http(s) URL */
@@ -52,14 +52,12 @@ export function apiUrlFrom(value: string | undefined): string | null {
   }
 }
 
-/** `request` and `get` only read; `send` is the one way to write, and only POST and PATCH: nothing here deletes */
+/** `get` only reads; `send` is the one way to write, and only POST and PATCH: nothing here deletes */
 export function createClient(options: ClientOptions): ApiClient {
   const doFetch: FetchLike = options.fetch ?? ((url, init) => fetch(url, init));
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const headers: Record<string, string> = { accept: 'application/json' };
   if (options.token) headers.authorization = `Bearer ${options.token}`;
-  // Informational: it grants nothing, it lets a later audit attribute the call
-  if (options.chatId) headers['x-claudio-chat'] = options.chatId;
 
   async function perform(method: string, path: string, query: Query = {}, body?: unknown, extra: Record<string, string> = {}): Promise<unknown> {
     const search = new URLSearchParams();
@@ -83,7 +81,7 @@ export function createClient(options: ClientOptions): ApiClient {
           return text;
         }
       }
-      throw new ApiError(failure(res.status, text), res.status);
+      throw new ApiError(failure(res.status, text, Boolean(options.token)), res.status);
     } catch (err) {
       if (err instanceof ApiError) throw err;
       const why = controller.signal.aborted ? `no answer within ${timeoutMs / 1000} s` : err instanceof Error ? err.message : String(err);
@@ -94,13 +92,13 @@ export function createClient(options: ClientOptions): ApiClient {
   }
 
   return {
-    request: (method, path, query) => (method === 'GET' ? perform(method, path, query) : Promise.reject(new ApiError(`this server only reads: ${method} is refused`, null))),
+    chatId: options.chatId || null,
     get: (path, query, opts) => perform('GET', path, query, undefined, opts?.tool ? { 'x-claudio-tool': opts.tool } : {}),
     send: (method, path, body) => perform(method, path, {}, body ?? {}),
   };
 }
 
-function failure(status: number, body: string): string {
+function failure(status: number, body: string, hasToken: boolean): string {
   let reason = body.trim();
   try {
     const parsed: unknown = JSON.parse(body);
@@ -108,6 +106,10 @@ function failure(status: number, body: string): string {
   } catch {
     // not JSON: the body is the reason
   }
-  if (status === 401) return `401: Claudio's API is guarded and this chat has no token (CW-10)${reason ? ` (${reason})` : ''}`;
+  // Every process of a chat is minted a token: a refusal of one means the process outlived it (the API restarted)
+  if (status === 401) {
+    const why = hasToken ? "refused this chat's token; a new process of the chat gets a new one" : 'is guarded and this server was given no token (CLAUDIO_API_TOKEN)';
+    return `401: Claudio's API ${why}${reason ? ` (${reason})` : ''}`;
+  }
   return `${status}: ${reason || 'request failed'}`;
 }

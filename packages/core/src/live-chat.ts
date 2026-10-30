@@ -13,7 +13,6 @@ import type {
   ChatOrigin,
   ChatPendingMessage,
   ChatToolConfig,
-  EffectiveEnvironment,
   Effort,
   Execution,
   GuardMode,
@@ -34,6 +33,7 @@ import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
 import type { ChatRecord, StoredChat } from './chat-records.ts';
 import type { BackgroundTask, WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
+import type { EnvironmentSink } from './environments.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, PermissionQuestion, ProviderDriver } from './providers/driver.ts';
@@ -379,7 +379,7 @@ export const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined
 export interface ChatHost {
   readonly db: Db;
   /** Latest `init` snapshot per working directory */
-  readonly environments: Map<string, EffectiveEnvironment>;
+  readonly environments: EnvironmentSink;
   readonly permissions: PermissionBroker | null;
   emit(event: string, ...args: unknown[]): void;
   persist(): void;

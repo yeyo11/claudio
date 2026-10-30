@@ -10,8 +10,11 @@ export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'get_overview',
   'get_board',
   'get_work_item',
+  'list_milestones',
   'list_orchestrations',
   'get_orchestration',
+  'get_orchestration_plan',
+  'list_assistant_proposals',
   'get_team',
   'list_flow_runs',
   'get_journal',
@@ -31,16 +34,29 @@ export const CLAUDIO_MCP_READ_TOOLS: readonly string[] = CLAUDIO_MCP_READ_TOOL_N
 
 /**
  * The tools that change something. None is ever in `--allowedTools`: each call reaches the person as
- * a permission prompt in the chat, and a call nobody confirms never reaches the API.
+ * a permission prompt in the chat, and a call nobody confirms never reaches the API. Each calls only
+ * routes a chat's own token may call (`work`, docs/plans/regression-fixes-2026-10-29.md, C1): no
+ * delete, no setting, no account, no security.
  */
 export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'create_work_item',
   'update_work_item',
+  'check_criterion',
   'move_work_item',
   'comment_work_item',
   'retry_flow_run',
+  'plan_orchestration',
+  'launch_orchestration',
+  'stop_orchestration',
+  'resume_orchestration',
   'retry_orchestration_task',
   'start_chat',
+  'send_chat_message',
+  'hint_chat',
+  'interrupt_chat',
+  'stop_chat',
+  'resume_chat',
+  'fork_chat',
   'accept_assistant_proposal',
   'discard_assistant_proposal',
 ] as const;

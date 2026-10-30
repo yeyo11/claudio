@@ -126,7 +126,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     return reply.type('text/markdown; charset=utf-8').send(chatToMarkdown(exported.chat, exported.entries));
   });
 
-  app.post<{ Body: NewChatRequest }>('/chats', { preHandler: spendGate(core) }, async (req, reply) => reply.status(201).send(await chats.create(newChatBody(req.body))));
+  app.post<{ Body: NewChatRequest }>('/chats', { preHandler: spendGate(core) }, async (req, reply) => {
+    const body = newChatBody(req.body);
+    // A model the provider does not list is refused before anything starts (`400 model-unknown`)
+    if (typeof body.model === 'string') await chats.checkModel(body.provider, body.model);
+    return reply.status(201).send(await chats.create(body));
+  });
 
   app.get<{ Params: { id: string }; Querystring: { sidechains?: string; limit?: string; before?: string } }>('/chats/:id', (req) =>
     chats.detail(req.params.id, {
@@ -347,7 +352,7 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // What Claude actually loaded (tools, MCP, agents, skills, plugins…) per directory, from the latest chat started there
   app.get<{ Querystring: { cwd?: string } }>('/environments', (req) => {
-    const all = [...core.runtime.environments.values()].sort((a, b) => b.observedAt.localeCompare(a.observedAt));
+    const all = core.runtime.environments.latest();
     return req.query.cwd ? all.filter((e) => e.cwd === req.query.cwd) : all;
   });
 

@@ -1462,6 +1462,22 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      removed_at   TEXT
    );
    CREATE INDEX workspaces_removed ON workspaces (removed_at);`,
+
+  // What Claude loaded is a chat's, not its folder's: two chats in one folder load different servers
+  // and models (docs/plans/regression-fixes-2026-10-29.md, C5). Each row keyed by folder moves under
+  // the chat that last started there, which its JSON names; a row naming none has no chat to go to
+  `CREATE TABLE environments_by_chat (
+     chat_id     TEXT PRIMARY KEY,
+     cwd         TEXT NOT NULL,
+     observed_at TEXT NOT NULL,
+     json        TEXT NOT NULL
+   );
+   INSERT OR REPLACE INTO environments_by_chat (chat_id, cwd, observed_at, json)
+     SELECT json_extract(json, '$.chatId'), cwd, observed_at, json FROM environments
+     WHERE json_valid(json) AND coalesce(json_extract(json, '$.chatId'), '') <> '';
+   DROP TABLE environments;
+   ALTER TABLE environments_by_chat RENAME TO environments;
+   CREATE INDEX environments_cwd ON environments (cwd, observed_at DESC);`,
 ];
 
 /**
@@ -1552,6 +1568,9 @@ export const EVALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'st
 export const COLLAB_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_records')) + 1;
 /** The migration that added the denied joins: a test starts a database from just before it */
 export const COLLAB_DENIALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE collab_join_denials')) + 1;
+
+/** The migration that keyed the environments by chat: a test starts a database from just before it */
+export const ENVIRONMENTS_BY_CHAT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE environments_by_chat')) + 1;
 
 /** The migration that gave audit rows their route: a test starts a database from just before it */
 export const AUDIT_ROUTE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ALTER TABLE audit ADD COLUMN route')) + 1;
@@ -2213,6 +2232,7 @@ export class Db {
       this.db.prepare('DELETE FROM openai_conversations WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_responses WHERE chat_id = ?').run(id);
       this.db.prepare('DELETE FROM openai_chat_prompts WHERE chat_id = ?').run(id);
+      this.db.prepare('DELETE FROM environments WHERE chat_id = ?').run(id);
     });
   }
 
@@ -2737,21 +2757,45 @@ export class Db {
 
   // ---------- effective environments ----------
 
+  /** A chat's latest snapshot: one row per chat, replaced by each of its processes */
   saveEnvironment(env: EffectiveEnvironment): void {
     this.db
       .prepare(
-        `INSERT INTO environments (cwd, observed_at, json) VALUES (?, ?, ?)
-         ON CONFLICT(cwd) DO UPDATE SET observed_at = excluded.observed_at, json = excluded.json`,
+        `INSERT INTO environments (chat_id, cwd, observed_at, json) VALUES (?, ?, ?, ?)
+         ON CONFLICT(chat_id) DO UPDATE SET cwd = excluded.cwd, observed_at = excluded.observed_at, json = excluded.json`,
       )
-      .run(env.cwd, env.observedAt, JSON.stringify(env));
+      .run(env.chatId, env.cwd, env.observedAt, JSON.stringify(env));
   }
 
+  /** What a chat's last process loaded; null when no process of it started here */
+  environmentOf(chatId: string): EffectiveEnvironment | null {
+    const row = this.db.prepare('SELECT json FROM environments WHERE chat_id = ?').get(chatId) as { json: string } | undefined;
+    if (!row) return null;
+    try {
+      return JSON.parse(row.json) as EffectiveEnvironment;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Each folder's latest snapshot, newest first: what a folder's panel shows before a chat starts there */
   loadEnvironments(): EffectiveEnvironment[] {
-    const rows = this.db.prepare('SELECT json FROM environments ORDER BY observed_at DESC').all() as unknown as Array<{ json: string }>;
+    const rows = this.db
+      .prepare(
+        `SELECT json FROM environments e
+         WHERE observed_at = (SELECT MAX(observed_at) FROM environments WHERE cwd = e.cwd)
+         ORDER BY observed_at DESC`,
+      )
+      .all() as unknown as Array<{ json: string }>;
     const out: EffectiveEnvironment[] = [];
+    const seen = new Set<string>();
     for (const row of rows) {
       try {
-        out.push(JSON.parse(row.json) as EffectiveEnvironment);
+        const env = JSON.parse(row.json) as EffectiveEnvironment;
+        // Two chats observed at the same instant in one folder: the first is the folder's
+        if (seen.has(env.cwd)) continue;
+        seen.add(env.cwd);
+        out.push(env);
       } catch {
         // an unreadable row just drops out of the panel
       }

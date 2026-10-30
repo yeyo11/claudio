@@ -91,6 +91,11 @@ class ClaudeCodeSession implements DriverSession {
     return mcpSetServersResult(await this.control.request({ subtype: 'mcp_set_servers', servers }));
   }
 
+  async applyFlagSettings(settings: Record<string, unknown>): Promise<void> {
+    // `SDKControlApplyFlagSettingsRequest` in the Agent SDK's sdk.d.ts (0.3.312): merged into the flag layer, never written to a file
+    await this.control.request({ subtype: 'apply_flag_settings', settings });
+  }
+
   answerPermission(requestId: string, decision: PermissionDecision): void {
     this.control.answer(requestId, decision);
   }

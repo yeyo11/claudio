@@ -23,7 +23,6 @@ import {
   type ChatSettingsUpdate,
   type ContextDetail,
   type ChatStartOptions,
-  type EffectiveEnvironment,
   type Execution,
   type ProviderId,
   type PermissionMode,
@@ -40,7 +39,8 @@ import {
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, idleTimeoutMs, recordEntry } from './chat-fold.ts';
-import { CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_SERVER } from '@claudio/mcp';
+import { EnvironmentIndex } from './environments.ts';
 import type { AssistantChatOptions, ClaudioMcpIdentity, CollabMcpLaunch } from './claudio-mcp.ts';
 import { chatsFromRuns, LEGACY_PROVIDER, type LegacyRun, type StoredChat } from './chat-records.ts';
 import type { Db } from './db.ts';
@@ -246,8 +246,8 @@ export class ChatManager extends EventEmitter {
   private lastSwitchAt: number | null = null;
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
   defaults: RunDefaults;
-  /** Latest `init` snapshot per working directory */
-  readonly environments = new Map<string, EffectiveEnvironment>();
+  /** What each chat's last process loaded, from its `init` event, with its folder's last as the fallback */
+  readonly environments: EnvironmentIndex;
 
   private readonly publisher = new RunEventPublisher((event) => this.bus?.emit(event));
   /** The token each process was minted, for a server handed to it at run time, in which the CLI expands no reference */
@@ -293,7 +293,7 @@ export class ChatManager extends EventEmitter {
         driver.modelSource = { listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
       }
     }
-    for (const env of db.loadEnvironments()) this.environments.set(env.cwd, env);
+    this.environments = new EnvironmentIndex(db);
     const manager = this;
     this.host = {
       db,
@@ -1394,8 +1394,27 @@ export class ChatManager extends EventEmitter {
     else {
       this.claudioRefusals.delete(chat.id);
       this.storeClaudioMcp(chat, enabled);
+      await this.allowClaudioReads(chat, session, enabled);
     }
     return this.mcpServers(id);
+  }
+
+  /**
+   * The reads of Claudio's server, allowed ahead of time in the live process as `--allowedTools`
+   * allows them in its next ones: without them a read is denied in a chat whose prompts go nowhere or
+   * under `dontAsk`. The process is given the rules in its flag layer (the CLI's
+   * `apply_flag_settings`); switched off, the rules go with the server. A CLI that refuses the request
+   * keeps the server, whose reads then ask as the chat's mode says, and the chat says so.
+   */
+  private async allowClaudioReads(chat: LiveChat, session: NonNullable<LiveChat['session']>, enabled: boolean): Promise<void> {
+    if (!session.applyFlagSettings) return;
+    try {
+      await session.applyFlagSettings({ permissions: { allow: enabled ? [...CLAUDIO_MCP_READ_TOOLS] : [] } });
+    } catch (err) {
+      if (!enabled) return;
+      const why = err instanceof Error ? err.message : String(err);
+      chat.push({ kind: 'notice', text: `Claudio's reads could not be allowed ahead of time in this process (${why}): they ask as the chat's mode says until its next process.` });
+    }
   }
 
   /** The choice goes on the chat's tool record, which is what a resume, a fork and a respawn start from. */

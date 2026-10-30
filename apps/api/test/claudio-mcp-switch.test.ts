@@ -81,8 +81,8 @@ const servers = async (id: string) => (await app.inject({ method: 'GET', url: `/
 const turn = (id: string, on: boolean) => app.inject({ method: 'PUT', url: `/api/chats/${id}/claudio-mcp`, ...json({ enabled: on }) });
 
 test("the switch hands the live process Claudio's server with the chat's id and token, and takes it away", async () => {
-  // Allowed ahead of time only so the fake makes the call without a person to ask
-  const id = await liveChat({ allowedTools: ['mcp__claudio__list_projects'] });
+  // Nothing allowed by hand: the switch itself allows the reads ahead of time (report §4.4)
+  const id = await liveChat();
   assert.deepEqual((await servers(id)).claudio, { on: false, unavailable: null, error: null });
 
   const on = await turn(id, true);
@@ -98,18 +98,32 @@ test("the switch hands the live process Claudio's server with the chat's id and 
   assert.ok((pushed?.env as Record<string, string[]>).claudio?.includes('CLAUDIO_CHAT_ID'), 'the chat id goes in the request');
   assert.ok((pushed?.env as Record<string, string[]>).claudio?.includes('CLAUDIO_API_TOKEN'), "the process's token goes in the request");
 
+  // The reads are allowed in the live process as --allowedTools allows them in the next one; no write is
+  const allow = (logged().find((l) => l.event === 'apply-flag-settings')?.settings as { permissions?: { allow?: string[] } } | undefined)?.permissions?.allow ?? [];
+  assert.ok(allow.includes('mcp__claudio__list_projects') && allow.includes('mcp__claudio__get_chat'), allow.join(','));
+  assert.ok(allow.every((tool) => tool.startsWith('mcp__claudio__')) && !allow.includes('mcp__claudio__stop_chat'), 'reads only');
+
   // The pushed server is the real one, and it reaches the wrapper that runs the chat
+  const results = () => logged().filter((l) => l.event === 'result').length;
+  const before = results();
   const sent = await app.inject({ method: 'POST', url: `/api/chats/${id}/messages`, ...json({ text: 'mcp: claudio list_projects {}' }) });
   assert.equal(sent.statusCode, 200, sent.body);
   await until('the call to end', () => logged().some((l) => l.event === 'mcp-ended' && l.tool === 'list_projects'));
   const ended = logged().find((l) => l.event === 'mcp-ended' && l.tool === 'list_projects');
-  assert.equal(ended?.isError, false, 'the server answered the call');
+  assert.equal(ended?.isError, false, 'the server answered the call, with nobody asked');
+  await until('the turn to end', () => results() > before);
+  // A write is not allowed ahead of time: with no prompt host it is denied, never run
+  await app.inject({ method: 'POST', url: `/api/chats/${id}/messages`, ...json({ text: 'mcp: claudio stop_chat {"chatId":"other"}' }) });
+  await until('the write to be refused', () => logged().some((l) => l.event === 'mcp-ended' && l.tool === 'stop_chat'));
+  assert.equal(logged().find((l) => l.event === 'mcp-ended' && l.tool === 'stop_chat')?.isError, true);
+  await until('that turn to end', () => results() > before + 1);
 
   const off = await turn(id, false);
   assert.equal(off.statusCode, 200, off.body);
   assert.equal(off.json<ChatMcpServers>().claudio?.on, false);
   assert.equal(off.json<ChatMcpServers>().servers.some((s) => s.name === 'claudio'), false);
   assert.equal(core.runtime.get(id)?.tools?.claudioMcp, undefined, 'off is stored as no switch at all');
+  assert.deepEqual(logged().filter((l) => l.event === 'apply-flag-settings').at(-1)?.settings, { permissions: { allow: [] } }, 'the rules go with the server');
 });
 
 test('a resume of a chat with the switch on starts with the server in its --mcp-config', async () => {
