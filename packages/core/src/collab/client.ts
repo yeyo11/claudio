@@ -631,15 +631,18 @@ export class SyncClient {
 
   /**
    * Tells a peer, without syncing with it, that this side changed: a new roster version, a share.
-   * A connection that was lost is dialled again once; a peer still unreachable is synced with
-   * later, and that run's `hello` tells it the same.
+   * A connection that was lost is dialled again once; a peer that was not reached already is dialled
+   * once only. One still unreachable is synced with later, and that run's `hello` tells it the same.
    */
   async announce(id: string, changed: boolean): Promise<void> {
     const peer = this.peers.get(id);
+    // Only a connection that was up when this began is dialled again: a peer the last run did not
+    // reach would make the second dial wait out the whole dial timeout too, holding the peer's lock
+    const wasOnline = peer?.online ?? false;
     const tell = (): Promise<void> => (peer ? this.exclusive(peer, () => this.hello(id, changed)) : this.hello(id, changed));
     try {
       await tell().catch((error: unknown) => {
-        if (error instanceof PeerError && error.code === 'unreachable') return tell();
+        if (wasOnline && error instanceof PeerError && error.code === 'unreachable') return tell();
         throw error;
       });
     } catch (error) {

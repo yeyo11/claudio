@@ -221,3 +221,12 @@ test('when a copy last synced is kept across restarts, and a copy never pulled h
   assert.equal(next.client.state(owner, 'k1', { path: null }).state, 'offline');
   next.client.stop();
 });
+
+test('a change announced to a peer that is not reached is dialled once, not twice in a row', async () => {
+  const mode = { now: 'down' as Mode };
+  const { client, asked } = setup(mode, { reconcileMs: 60_000 });
+  // Not among the peers the client follows, so no run of its own asks it anything
+  await client.announce(owner, true);
+  assert.equal(asked.filter((t) => t === 'hello').length, 1);
+  client.stop();
+});
