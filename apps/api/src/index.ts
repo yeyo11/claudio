@@ -1,3 +1,5 @@
+// First, before anything can use libuv's thread pool
+import './threadpool.ts';
 import { rmSync, writeFileSync } from 'node:fs';
 import { DataDirLockedError, resolveUserPath } from '@claudio/core';
 import { DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';

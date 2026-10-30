@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import type {
   BoardSettings,
@@ -557,8 +557,9 @@ function shareKeyIn(settings: Record<string, unknown>): string | null {
 }
 
 /**
- * `project-settings/<projectId>.json` in the data directory. Read from disk on every call rather than
- * held in memory: several wrapper processes share the data directory, and a document is small.
+ * `project-settings/<projectId>.json` in the data directory. A document is read again whenever its
+ * file changed (a write of this store, a hand edit), judged by its stat; listing the projects reads
+ * none that did not, so a list that polls parses no JSON.
  *
  * A read writes only what keeps its own answer stable: the document of a project that has none, and
  * the prefix of one that clashes with another project's. A document that does not parse or whose
@@ -570,6 +571,8 @@ export class ProjectSettingsStore {
   private readonly dir: string;
   /** Derivations run one at a time, or two new projects read together could take the same prefix. */
   private lock: Promise<unknown> = Promise.resolve();
+  /** Each document as last read, with the stat of the file it was read from */
+  private readonly docs = new Map<string, { mtimeMs: number; size: number; doc: SettingsDoc }>();
 
   constructor(config: CoreConfig) {
     this.dir = join(config.dataDir, 'project-settings');
@@ -595,12 +598,28 @@ export class ProjectSettingsStore {
     }
   }
 
+  /** The document as the file holds it now, read again only when the file changed since the last read. */
+  private docOf(projectId: string): SettingsDoc | null {
+    const file = this.file(projectId);
+    const info = statSync(file, { throwIfNoEntry: false });
+    if (!info) {
+      this.docs.delete(projectId);
+      return null;
+    }
+    const hit = this.docs.get(projectId);
+    if (hit && hit.mtimeMs === info.mtimeMs && hit.size === info.size) return hit.doc;
+    const doc = this.readDoc(projectId);
+    if (doc) this.docs.set(projectId, { mtimeMs: info.mtimeMs, size: info.size, doc });
+    else this.docs.delete(projectId);
+    return doc;
+  }
+
   private allDocs(): SettingsDoc[] {
     const ids = readdirSync(this.dir)
       .filter((f) => f.endsWith('.json'))
       .map((f) => f.slice(0, -'.json'.length))
       .filter((id) => ID.test(id));
-    return ids.flatMap((id) => this.readDoc(id) ?? []);
+    return ids.flatMap((id) => this.docOf(id) ?? []);
   }
 
   private prefixOf(doc: SettingsDoc): string | null {
@@ -639,14 +658,14 @@ export class ProjectSettingsStore {
    */
   async repath(project: ProjectRecord): Promise<void> {
     await this.serialized(async () => {
-      const doc = this.readDoc(project.id);
+      const doc = this.docOf(project.id);
       if (doc) await this.writeDoc(project, doc.settings);
     });
   }
 
   /** Whether a document exists for the project, removed projects included. */
   has(projectId: string): boolean {
-    return this.readDoc(projectId) !== null;
+    return this.docOf(projectId) !== null;
   }
 
   /**
@@ -657,7 +676,7 @@ export class ProjectSettingsStore {
    */
   stored(projectId: string, name?: string): ProjectSettings | null {
     if (!ID.test(projectId)) return null;
-    const doc = this.readDoc(projectId);
+    const doc = this.docOf(projectId);
     if (!doc) return null;
     const prefix = this.prefixOf(doc) ?? (name === undefined ? null : deriveKeyPrefix(name, this.takenPrefixes(projectId, this.allDocs())));
     return prefix ? sanitizeSettings(doc.settings, prefix) : null;
@@ -669,7 +688,7 @@ export class ProjectSettingsStore {
    * project imported now: a stored prefix that clashes with one of theirs is derived again.
    */
   async read(project: ProjectRecord, active: readonly ProjectRecord[]): Promise<ProjectSettings> {
-    const docOf = (id: string) => this.readDoc(id);
+    const docOf = (id: string) => this.docOf(id);
     const first = this.resolve(project, active, docOf, () => this.allDocs());
     if (first.persist === null) return first.settings;
     return this.serialized(async () => {
@@ -723,10 +742,10 @@ export class ProjectSettingsStore {
   /** Replaces the document whole. The caller has validated it; the prefix's uniqueness is checked here. */
   async write(project: ProjectRecord, settings: ProjectSettings, active: readonly ProjectRecord[]): Promise<void> {
     await this.serialized(async () => {
-      if (this.clashes(project.id, settings.keyPrefix, active, (id) => this.readDoc(id))) {
+      if (this.clashes(project.id, settings.keyPrefix, active, (id) => this.docOf(id))) {
         throw new Error(`key ${settings.keyPrefix} is already used by another project`);
       }
-      const before = this.readDoc(project.id)?.settings;
+      const before = this.docOf(project.id)?.settings;
       this.checkShareKey(project.id, isObject(before) ? shareKeyIn(before) : null, settings.sharing?.shareKey ?? null, active);
       await this.writeDoc(project, settings);
     });
@@ -747,14 +766,14 @@ export class ProjectSettingsStore {
     await this.read(project, active);
     return this.serialized(async () => {
       // Read again under the lock: `before` may be stale by the time this runs
-      const current = this.resolve(project, active, (id) => this.readDoc(id), () => this.allDocs()).settings;
+      const current = this.resolve(project, active, (id) => this.docOf(id), () => this.allDocs()).settings;
       const after = change(current);
-      if (after.keyPrefix !== current.keyPrefix && this.clashes(project.id, after.keyPrefix, active, (id) => this.readDoc(id))) {
+      if (after.keyPrefix !== current.keyPrefix && this.clashes(project.id, after.keyPrefix, active, (id) => this.docOf(id))) {
         throw new Error(`key ${after.keyPrefix} is already used by another project`);
       }
       this.checkShareKey(project.id, current.sharing?.shareKey ?? null, after.sharing?.shareKey ?? null, active);
       if (!settingsChanges(current, after).length) return { before: current, after: current };
-      const raw = this.readDoc(project.id)?.settings;
+      const raw = this.docOf(project.id)?.settings;
       // A file that does not parse has no part worth keeping: the whole document is written
       if (!isObject(raw)) {
         await this.writeDoc(project, after);
@@ -780,11 +799,11 @@ export class ProjectSettingsStore {
    */
   async create(project: ProjectRecord, setup: ReturnType<typeof parseProjectSetup>, active: readonly ProjectRecord[]): Promise<CreatedSettings> {
     return this.serialized(async () => {
-      const existing = this.readDoc(project.id);
+      const existing = this.docOf(project.id);
       if (existing) {
         const stored = this.prefixOf(existing);
         const prefix =
-          stored && !this.clashes(project.id, stored, active, (id) => this.readDoc(id))
+          stored && !this.clashes(project.id, stored, active, (id) => this.docOf(id))
             ? stored
             : deriveKeyPrefix(project.name, this.takenPrefixes(project.id, this.allDocs()));
         const previous = sanitizeSettings(existing.settings, stored ?? prefix);
@@ -829,7 +848,7 @@ export class ProjectSettingsStore {
     return (
       active.find((p) => {
         if (p.id === projectId) return false;
-        const settings = this.readDoc(p.id)?.settings;
+        const settings = this.docOf(p.id)?.settings;
         return isObject(settings) && shareKeyIn(settings) === shareKey;
       }) ?? null
     );
@@ -851,7 +870,9 @@ export class ProjectSettingsStore {
 
   private writeDoc(project: ProjectRecord, settings: unknown): Promise<void> {
     const doc: SettingsDoc = { projectId: project.id, path: project.path, repo: project.repo ? { commonDir: project.repo.commonDir, subdir: project.repo.subdir } : null, settings };
-    return writeAtomic(this.file(project.id), `${JSON.stringify(doc, null, 2)}\n`);
+    // What was read of it is stale the moment it is written, whatever the clock's resolution
+    this.docs.delete(project.id);
+    return writeAtomic(this.file(project.id), `${JSON.stringify(doc, null, 2)}\n`).finally(() => this.docs.delete(project.id));
   }
 
   private serialized<T>(fn: () => Promise<T>): Promise<T> {

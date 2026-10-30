@@ -390,7 +390,7 @@ test('a write under the projects directory becomes one sessions.changed, and onl
   const dir = mkdtempSync(join(tmpdir(), 'claudio-watch-'));
   mkdirSync(join(dir, '-proj'));
   const bus = new EventBus();
-  const watcher = new SessionsWatcher(dir, bus, 40);
+  const watcher = new SessionsWatcher(dir, bus, { windowMs: 40 });
   const seen: ClaudioEvent[] = [];
 
   writeFileSync(join(dir, '-proj', 'before.jsonl'), '{}\n');

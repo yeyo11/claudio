@@ -535,7 +535,7 @@ test('two changes made to one document at once both land', async () => {
   assert.equal(stored?.board.columnLimits.todo, 7);
 });
 
-test('listing the projects reads each settings document once', async () => {
+test('listing the projects reads a settings document only when its file changed', async () => {
   const config = tempConfig();
   let reads = 0;
   class Counting extends ProjectSettingsStore {
@@ -550,7 +550,22 @@ test('listing the projects reads each settings document once', async () => {
   reads = 0;
   const settings = await store.readAll(records);
   assert.deepEqual([...settings.values()].map((s) => s.keyPrefix), ['ALP', 'BTE', 'GMM', 'DLT']);
-  assert.equal(reads, records.length);
+  assert.ok(reads <= records.length, 'each document is read once at most');
+
+  // A list that polls parses nothing that did not change
+  reads = 0;
+  await store.readAll(records);
+  assert.equal(reads, 0);
+
+  // A hand edit is read on the next list, and only that document
+  const file = join(config.dataDir, 'project-settings', 'p1.json');
+  const doc = JSON.parse(readFileSync(file, 'utf8')) as { settings: { modules: string[] } };
+  doc.settings.modules = [];
+  writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+  reads = 0;
+  const edited = await store.readAll(records);
+  assert.equal(reads, 1);
+  assert.deepEqual(edited.get('p1')?.modules, []);
 });
 
 test("a project's tracker is validated by tracker: repository, status map and query", () => {

@@ -34,6 +34,10 @@ const PERMISSION_MODES: readonly PermissionMode[] = ['acceptEdits', 'auto', 'byp
 const ORIGINS: readonly ChatOrigin[] = ['claudio', 'external', 'orchestration', 'internal', 'api'];
 const STATES: readonly ChatState[] = ['working', 'waiting', 'idle'];
 
+/** Chats a list answers with when it names no limit, and the most one page holds: a client pages for more */
+const CHATS_PAGE = 200;
+const CHATS_PAGE_MAX = 1_000;
+
 /** An optional non-negative integer query parameter. Shared, so no route invents its own paging. */
 export function count(value: string | undefined, name: string): number | undefined {
   if (value === undefined || value === '') return undefined;
@@ -91,20 +95,29 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     if (!(await chats.get(id))) throw new Error('chat not found');
   };
 
-  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; assistant?: string; limit?: string } }>('/chats', (req) => {
-    const { project, loose, origin, workers, state, assistant, limit } = req.query;
-    if (workers !== undefined && workers !== '0' && workers !== '1') throw new Error('workers must be 0 or 1');
-    if (assistant !== undefined && assistant !== '1') throw new Error('assistant must be 1');
-    const [wanted] = listOf(state, STATES, 'state') ?? [];
-    return chats.list({
-      origins: listOf(origin, ORIGINS, 'origin') ?? DEFAULT_ORIGINS,
-      ...(loose === '1' ? { project: null } : project ? { project } : {}),
-      ...(workers === '0' ? { workers: false } : {}),
-      ...(wanted ? { state: wanted } : {}),
-      ...(assistant === '1' ? { assistant: true } : {}),
-      ...(count(limit, 'limit') ? { limit: count(limit, 'limit') as number } : {}),
-    });
-  });
+  // A page at a time, newest activity first: `after` is the `updatedAt~id` of the last chat of the
+  // previous page (also sent as `x-next-cursor`), and `x-total-count` says how many the filter matches
+  app.get<{ Querystring: { project?: string; loose?: string; origin?: string; workers?: string; state?: string; assistant?: string; limit?: string; after?: string } }>(
+    '/chats',
+    async (req, reply) => {
+      const { project, loose, origin, workers, state, assistant, limit, after } = req.query;
+      if (workers !== undefined && workers !== '0' && workers !== '1') throw new Error('workers must be 0 or 1');
+      if (assistant !== undefined && assistant !== '1') throw new Error('assistant must be 1');
+      const [wanted] = listOf(state, STATES, 'state') ?? [];
+      const page = await chats.page({
+        origins: listOf(origin, ORIGINS, 'origin') ?? DEFAULT_ORIGINS,
+        ...(loose === '1' ? { project: null } : project ? { project } : {}),
+        ...(workers === '0' ? { workers: false } : {}),
+        ...(wanted ? { state: wanted } : {}),
+        ...(assistant === '1' ? { assistant: true } : {}),
+        limit: Math.min(count(limit, 'limit') || CHATS_PAGE, CHATS_PAGE_MAX),
+        ...(after ? { after } : {}),
+      });
+      void reply.header('x-total-count', String(page.total));
+      if (page.next) void reply.header('x-next-cursor', page.next);
+      return page.chats;
+    },
+  );
 
   app.get<{ Querystring: { from?: string; to?: string } }>('/usage', (req) => chats.usage(rangeOf(req.query)));
 

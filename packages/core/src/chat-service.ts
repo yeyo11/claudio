@@ -99,12 +99,6 @@ import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
 
-/**
- * How long `claude agents --json` is trusted between reads: it is an exec of about half a second,
- * and lists poll. Past `CLI_FRESH_MS` the list is still served while a new read runs in the
- * background; past `CLI_STALE_MS` a caller waits for the new one. Our own chats starting and ending
- * drop it at once.
- */
 /** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
 export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
 export const CANCEL_NOTICE_PREFIX = 'A person cancelled the command';
@@ -116,8 +110,21 @@ export const AUTO_HINT_PREFIX = 'An automatic hint from Claudio, not from the pe
 /** ...and the notice of a command it cancelled on its own */
 export const AUTO_CANCEL_NOTICE_PREFIX = 'Claudio cancelled the command on its own';
 
-const CLI_FRESH_MS = 1_500;
-const CLI_STALE_MS = 10_000;
+/**
+ * How long the CLI's list of its sessions is trusted between reads. Read from the CLI's own records
+ * and `/proc` it costs a few small files, and is kept a second; read by starting `claude agents
+ * --json` it costs a CLI start, and is kept half a minute. Past `fresh` the list is still served
+ * while a new read runs in the background; past `stale` a caller waits for the new one. Our own
+ * chats starting and ending drop it at once (`forgetHolders`).
+ */
+const CLI_TTL = {
+  records: { fresh: 1_000, stale: 5_000 },
+  spawned: { fresh: 30_000, stale: 60_000 },
+} as const;
+/** Past this long in a turn, the MCP servers are not asked: the CLI answers a control request only between its own steps */
+const MCP_BUSY_MS = 2_000;
+/** How long the next pages of a list are cut from the list its first page was */
+const PAGE_REUSE_MS = 1_000;
 /** Ended chats whose delegated work is still listed; each costs a stat per poll. */
 const RECENT_ENDED_CHATS = 30;
 /**
@@ -282,6 +289,64 @@ export interface ChatFilter {
   /** Only the chats of the Claudio assistant, the ones whose runtime record carries its marker */
   assistant?: boolean;
   limit?: number;
+  /** Only the chats after this one in the list's order: a page's `next` */
+  after?: string;
+}
+
+/** One page of a chat list: the chats, how many the filter matches in all, and where the next page starts. */
+export interface ChatPage {
+  chats: ChatSummary[];
+  total: number;
+  /** Null on the last page */
+  next: string | null;
+}
+
+/** What a list needs of a chat before assembling it, so that what is filtered out is never assembled. */
+interface Candidate {
+  id: string;
+  runtime: ChatRuntime | null;
+  summary: TranscriptSummary | null;
+  standing: Standing;
+  /** Computed before assembling only when a filter needs it */
+  placement: Placement | null;
+  updatedAt: string;
+}
+
+/**
+ * The list's order: the most recently active first, the id breaking ties, so a page boundary is a
+ * place in a total order and a cursor (`<updatedAt>~<id>`) names it whatever moved since.
+ */
+const listOrder = (a: { updatedAt: string; id: string }, b: { updatedAt: string; id: string }): number =>
+  a.updatedAt > b.updatedAt ? -1 : a.updatedAt < b.updatedAt ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+
+const cursorOf = (c: { updatedAt: string; id: string }): string => `${c.updatedAt}~${c.id}`;
+
+function parseCursor(cursor: string): { updatedAt: string; id: string } {
+  const at = cursor.lastIndexOf('~');
+  if (at < 0 || at === cursor.length - 1) throw Object.assign(new Error('after must be the next cursor of a previous page'), { statusCode: 400 });
+  return { updatedAt: cursor.slice(0, at), id: cursor.slice(at + 1) };
+}
+
+/** Where a chat works: the worktree its transcript recorded, the folder it started in, or the runtime's. */
+const dirOf = (summary: TranscriptSummary | null, runtime: ChatRuntime | null): string =>
+  summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
+
+/** How many branches of each kind run now, as the inbox lists them. */
+export interface RunningCounts {
+  backgroundTasks: number;
+  subagents: number;
+  workflows: number;
+}
+
+function countRunning(children: Array<Pick<Chat['children'], 'subagents' | 'backgroundTasks' | 'workflows'>>): RunningCounts {
+  const counts: RunningCounts = { backgroundTasks: 0, subagents: 0, workflows: 0 };
+  for (const c of children) {
+    // A command a subagent launched is listed under the subagent, and counted with the others
+    counts.backgroundTasks += [...c.backgroundTasks, ...c.subagents.flatMap((s) => s.tasks)].filter((t) => t.status === 'running').length;
+    counts.subagents += c.subagents.filter((s) => s.status === 'running').length;
+    counts.workflows += c.workflows.filter((w) => w.status === 'running').length;
+  }
+  return counts;
 }
 
 /** What is known of every chat at one moment, gathered once so that listing many costs one pass. */
@@ -311,12 +376,16 @@ interface Standing {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ChatService {
-  private cliCache: { at: number; value: CliSession[] } | null = null;
+  private cliCache: { at: number; value: CliSession[]; spawned: boolean } | null = null;
   /** The read under way, shared by whoever asks meanwhile; `gen` tells one started before an invalidation */
   private cliPending: { gen: number; promise: Promise<CliSession[]> } | null = null;
   private cliGen = 0;
   /** The send under way per chat: the next one waits for it */
   private readonly sending = new Map<string, Promise<void>>();
+  /** What every chat spent, shared by the usage routes while the listing and the runtime stay as they were */
+  private spendsMemo: { generation: number; value: ChatSpend[] } | null = null;
+  /** The list the last page was cut from, for the pages that continue it */
+  private pageMemo: { key: string; at: number; facts: Facts; picked: Candidate[] } | null = null;
 
   constructor(private readonly deps: ChatServiceDeps) {}
 
@@ -326,8 +395,9 @@ export class ChatService {
   async cliSessions(fresh = false): Promise<CliSession[]> {
     const cached = this.cliCache;
     const age = cached ? Date.now() - cached.at : Infinity;
-    if (!fresh && cached && age <= CLI_FRESH_MS) return cached.value;
-    if (!fresh && cached && age <= CLI_STALE_MS) {
+    const ttl = cached?.spawned ? CLI_TTL.spawned : CLI_TTL.records;
+    if (!fresh && cached && age <= ttl.fresh) return cached.value;
+    if (!fresh && cached && age <= ttl.stale) {
       void this.readCliSessions().catch(() => undefined);
       return cached.value;
     }
@@ -353,7 +423,7 @@ export class ChatService {
     const gen = this.cliGen;
     const at = Date.now();
     const promise: Promise<CliSession[]> = (async () => {
-      const agents = await listActiveCliSessions(this.deps.config);
+      const { sessions: agents, spawned } = await listActiveCliSessions(this.deps.config);
       const value = await Promise.all(
         agents.map(async (agent) => ({
           ...agent,
@@ -361,7 +431,7 @@ export class ChatService {
         })),
       );
       // A read that finished late never replaces a newer one
-      if (gen === this.cliGen && (!this.cliCache || this.cliCache.at <= at)) this.cliCache = { at, value };
+      if (gen === this.cliGen && (!this.cliCache || this.cliCache.at <= at)) this.cliCache = { at, value, spawned };
       return value;
     })().finally(() => {
       if (this.cliPending?.promise === promise) this.cliPending = null;
@@ -433,14 +503,14 @@ export class ChatService {
   }
 
   /** One chat, from every source that knows it. Null when none does. */
-  private assemble(id: string, facts: Facts, runtime: ChatRuntime | null, summary: TranscriptSummary | null, known?: Standing): ChatSummary | null {
+  private assemble(id: string, facts: Facts, runtime: ChatRuntime | null, summary: TranscriptSummary | null, known?: Standing, placed?: Placement | null): ChatSummary | null {
     if (!summary && !runtime) return null;
     const { own, foreignProcess, orchestration, origin, state } = known ?? this.standing(id, facts, runtime);
     const holder: SessionHolder = sessionHolder({ ownProcess: own, foreignProcess });
     const control: ChatControl = chatControl({ holder, origin, taskRunning: orchestration?.taskRunning === true, deliverable: orchestration !== null && orchestration.role === 'synthesis' });
 
-    const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
-    const placement = this.deps.place(dir, summary?.worktree ?? null);
+    const dir = dirOf(summary, runtime);
+    const placement = placed ?? this.deps.place(dir, summary?.worktree ?? null);
     const executions: Execution[] = runtime?.executions ?? [];
     const live = executions.find((e) => e.endedAt === null) ?? null;
     const costs = executions.map((e) => e.costUsd).filter((c): c is number => c !== null);
@@ -493,28 +563,88 @@ export class ChatService {
   }
 
   async list(filter: ChatFilter = {}): Promise<ChatSummary[]> {
+    return (await this.page(filter)).chats;
+  }
+
+  /**
+   * One page of the chats a filter picks, newest activity first. Everything a filter reads is known
+   * before a chat is assembled (who holds it, its origin, its project), so only the page's own chats
+   * are assembled: a project's page, or a sidebar asking for the few working chats, would otherwise
+   * pay for every chat on the machine.
+   */
+  async page(filter: ChatFilter = {}): Promise<ChatPage> {
+    const after = filter.after ? parseCursor(filter.after) : null;
+    const { facts, picked } = await this.pageBase(filter);
+    const rest = after ? picked.filter((c) => listOrder(c, after) > 0) : picked;
+    const limit = filter.limit && filter.limit > 0 ? filter.limit : rest.length;
+    const shown = rest.slice(0, limit);
+    const chats = shown.flatMap((c) => this.assemble(c.id, facts, c.runtime, c.summary, c.standing, c.placement) ?? []);
+    const last = shown.at(-1);
+    return { chats, total: picked.length, next: last && rest.length > shown.length ? cursorOf(last) : null };
+  }
+
+  /**
+   * What a page is cut from. A page that continues another (`after`) asked within
+   * {@link PAGE_REUSE_MS} is cut from the same list as the page before it: a client reading every
+   * chat asks for the pages one after the other, and each would otherwise read the facts and order
+   * every chat again, and could skip a chat that moved between two of them.
+   */
+  private async pageBase(filter: ChatFilter): Promise<{ facts: Facts; picked: Candidate[] }> {
+    const { limit: _limit, after: _after, ...picks } = filter;
+    const key = JSON.stringify(picks);
+    const memo = this.pageMemo;
+    if (filter.after && memo && memo.key === key && Date.now() - memo.at < PAGE_REUSE_MS) return memo;
     const facts = await this.facts();
+    const picked = this.candidates(facts, filter);
+    this.pageMemo = { key, at: Date.now(), facts, picked };
+    return { facts, picked };
+  }
+
+  /** How many chats a filter picks and how many of those work or wait, with the newest `recent` of them assembled. */
+  async glance(filter: Omit<ChatFilter, 'limit' | 'after'>, recent: number): Promise<{ total: number; working: number; waiting: number; recent: ChatSummary[] }> {
+    const facts = await this.facts();
+    const picked = this.candidates(facts, filter);
+    return {
+      total: picked.length,
+      working: picked.filter((c) => c.standing.state === 'working').length,
+      waiting: picked.filter((c) => c.standing.state === 'waiting').length,
+      recent: picked.slice(0, recent).flatMap((c) => this.assemble(c.id, facts, c.runtime, c.summary, c.standing, c.placement) ?? []),
+    };
+  }
+
+  /** The chats a filter picks, in the list's order, with what assembling them will need. */
+  private candidates(facts: Facts, filter: Omit<ChatFilter, 'limit' | 'after'>, placeAll = false): Candidate[] {
     const runtimes = new Map(this.deps.runtime.list().map((r) => [r.id, r]));
     const ids = new Set([...facts.transcripts.keys(), ...runtimes.keys()]);
     const origins = filter.origins ?? DEFAULT_ORIGINS;
-    const out: ChatSummary[] = [];
+    const out: Candidate[] = [];
     for (const id of ids) {
       const runtime = runtimes.get(id) ?? null;
+      const summary = facts.transcripts.get(id) ?? null;
+      if (!summary && !runtime) continue;
       if (filter.assistant && !runtime?.claudioAssistant) continue;
-      // What is filtered out is never assembled: a sidebar asking for the few working chats would
-      // otherwise pay for placing every chat on the machine
       const standing = this.standing(id, facts, runtime);
       if (!origins.includes(standing.origin)) continue;
       if (filter.state && standing.state !== filter.state) continue;
-      const chat = this.assemble(id, facts, runtime, facts.transcripts.get(id) ?? null, standing);
-      if (!chat) continue;
       // Every chat of an orchestration but its synthesis is a worker, one whose graph is gone included
-      if (filter.workers === false && chat.origin === 'orchestration' && chat.orchestration?.role !== 'synthesis') continue;
-      if (filter.project !== undefined && (chat.project?.id ?? null) !== filter.project) continue;
-      out.push(chat);
+      if (filter.workers === false && standing.origin === 'orchestration' && standing.orchestration?.role !== 'synthesis') continue;
+      const placement = filter.project !== undefined || placeAll ? this.deps.place(dirOf(summary, runtime), summary?.worktree ?? null) : null;
+      if (filter.project !== undefined && (placement?.project?.id ?? null) !== filter.project) continue;
+      out.push({ id, runtime, summary, standing, placement, updatedAt: summary?.updatedAt ?? runtime?.updatedAt ?? '' });
     }
-    out.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
-    return filter.limit && filter.limit > 0 ? out.slice(0, filter.limit) : out;
+    return out.sort(listOrder);
+  }
+
+  /**
+   * Where each chat of a list is and when it last moved, without assembling one: what counting the
+   * chats of every project and worktree needs.
+   */
+  async placements(filter: Omit<ChatFilter, 'limit' | 'after'> = {}): Promise<Array<{ id: string; updatedAt: string | null; placement: Placement }>> {
+    return this.candidates(await this.facts(), filter, true).map((c) => ({
+      id: c.id,
+      updatedAt: c.updatedAt || null,
+      placement: c.placement ?? this.deps.place(dirOf(c.summary, c.runtime), c.summary?.worktree ?? null),
+    }));
   }
 
   /**
@@ -536,15 +666,38 @@ export class ChatService {
     return usageBreakdown(await this.spends(), range);
   }
 
+  /**
+   * Forgets what the usage routes share: a chat's cost, its orchestration or its project changed,
+   * none of which the listing's generation sees. Told by the core on those events.
+   */
+  forgetSpends(): void {
+    this.spendsMemo = null;
+  }
+
+  /**
+   * One reading of what every chat spent per listing generation, shared by `/usage`, `/usage/series`
+   * and `/usage/breakdown`, which the Usage page asks for at once. The listing itself is shared by
+   * whoever asks while it runs, and costs nothing while nothing changed.
+   */
   private async spends(): Promise<ChatSpend[]> {
-    const transcripts = new Map((await this.deps.sessions.listSessions()).map((t) => [t.id, t]));
+    const listed = await this.deps.sessions.listSessions();
+    const generation = this.deps.sessions.generation;
+    const memo = this.spendsMemo;
+    if (memo && memo.generation === generation) return memo.value;
+    const value = this.readSpends(listed);
+    this.spendsMemo = { generation, value };
+    return value;
+  }
+
+  private readSpends(listed: readonly TranscriptSummary[]): ChatSpend[] {
+    const transcripts = new Map(listed.map((t) => [t.id, t]));
     const runtimes = new Map(this.deps.runtime.list().map((r) => [r.id, r]));
     const orchestrations = this.chatOrchestrations();
     const spend: ChatSpend[] = [];
     for (const id of new Set([...transcripts.keys(), ...runtimes.keys()])) {
       const summary = transcripts.get(id) ?? null;
       const runtime = runtimes.get(id) ?? null;
-      const dir = summary?.worktree?.path ?? summary?.projectPath ?? runtime?.workingDir ?? runtime?.cwd ?? '';
+      const dir = dirOf(summary, runtime);
       const orch = orchestrations.get(id);
       const costs: ChatSpend['costs'] = [];
       const modelCosts: NonNullable<ChatSpend['modelCosts']> = [];
@@ -1243,9 +1396,27 @@ export class ChatService {
     return { chat: await this.require(id), pending };
   }
 
-  /** The MCP servers of the chat's live process; `live: false` when no process of ours runs it. */
+  /**
+   * The MCP servers of the chat's live process; `live: false` when no process of ours runs it, and
+   * while a turn has run for more than {@link MCP_BUSY_MS}: the CLI answers a control request only
+   * between its own steps, so asking then held the request for as long as a step took (seconds,
+   * once fifteen), and the page asks on most of the chat's events.
+   */
   mcpServers(id: string): Promise<ChatMcpServers> {
-    return this.deps.runtime.mcpServers(id);
+    return this.deps.runtime.mcpServers(id, { ask: !this.busyFor(id, MCP_BUSY_MS) });
+  }
+
+  /** Whether the chat's live process has been in one turn for longer than `ms`, from the status its own events record. */
+  private busyFor(id: string, ms: number): boolean {
+    const runtime = this.deps.runtime.get(id);
+    if (runtime?.status !== 'busy') return false;
+    const events = this.deps.runtime.events(id);
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i];
+      if (event?.kind === 'status') return event.status === 'busy' && Date.now() - Date.parse(event.ts) > ms;
+    }
+    // Its status change is older than the events kept: the turn is a long one
+    return true;
   }
 
   /** Switches one MCP server of the live process; the CLI keeps the choice for the chat's folder. */
@@ -1428,6 +1599,31 @@ export class ChatService {
   /** Everything every chat delegated, read in one pass for whoever needs more than one kind of it. */
   async allActivity(): Promise<{ tasks: ChatBackgroundTaskEntry[]; subagents: ChatSubagentEntry[]; workflows: ChatWorkflowEntry[] }> {
     return this.entriesOf(await this.activityChats());
+  }
+
+  /**
+   * How many background commands, subagents and workflows run now, as the inbox counts them. Only a
+   * live session has running work: a process of ours reports it on its stream, which the runtime
+   * holds, so nothing is read for it; a terminal's session streams nothing to Claudio, so its files
+   * are read, as the inbox reads them. An ended chat's branches are all stopped and cost nothing.
+   */
+  async runningCounts(): Promise<RunningCounts> {
+    const runtimes = this.deps.runtime.list();
+    const own = runtimes.filter((r) => r.pid !== null);
+    const children = own.map((r) =>
+      toChildren({ subagents: r.subagents, tasks: r.backgroundTasks.map((t) => ({ ...t, sessionId: t.sessionId ?? r.id })), workflows: r.workflows ?? [] }, r.id),
+    );
+    const owned = new Set(runtimes.map((r) => r.id));
+    const foreign = (await this.cliSessions()).filter((c) => c.live && !owned.has(c.sessionId)).map((c) => c.sessionId);
+    const counts = countRunning(children);
+    // One at a time, so a session that has not written its transcript yet costs only its own count
+    for (const theirs of await Promise.all(foreign.map((id) => this.entriesOf([id]).catch(() => null)))) {
+      if (!theirs) continue;
+      counts.backgroundTasks += theirs.tasks.filter((t) => t.status === 'running').length;
+      counts.subagents += theirs.subagents.filter((s) => s.status === 'running').length;
+      counts.workflows += theirs.workflows.filter((w) => w.status === 'running').length;
+    }
+    return counts;
   }
 
   /** Background commands of every chat, running ones first: the inbox sees a hung one wherever it is. */

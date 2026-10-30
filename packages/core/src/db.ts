@@ -1507,6 +1507,20 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    DROP TABLE environments;
    ALTER TABLE environments_by_chat RENAME TO environments;
    CREATE INDEX environments_cwd ON environments (cwd, observed_at DESC);`,
+  // What the listing learned of each Claude transcript (docs/plans/regression-fixes-2026-10-29.md,
+  // C7): the file as it was read and the fold over its complete lines, so a restart reads rows and
+  // goes on from `end_offset` instead of parsing every transcript on the machine again. The inode
+  // and the mtime are REAL: an inode past 2^53 reads back as the same JavaScript number it was
+  `CREATE TABLE transcript_folds (
+     path         TEXT PRIMARY KEY,
+     ino          REAL NOT NULL,
+     size         INTEGER NOT NULL,
+     mtime_ms     REAL NOT NULL,
+     end_offset   INTEGER NOT NULL,
+     fingerprint  BLOB NOT NULL,
+     summary_json TEXT NOT NULL,
+     updated_at   TEXT NOT NULL
+   );`,
 ];
 
 /**
