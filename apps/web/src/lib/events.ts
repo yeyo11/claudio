@@ -296,6 +296,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
         [keys.providers, NOW], [['providers', 'waits'], NOW], [keys.overview, NOW], [keys.chats, LISTS],
         [keys.workItems, NOW], [['work-item'], NOW, 'no-diffs'], [['flow-runs'], NOW], [['flow'], NOW],
       ];
+    case 'accounts.changed':
+      // Every account fact on screen reads these: the list and the settings (['accounts'] prefix),
+      // the view (`overview.accounts`), the account in use (`/auth`) and the providers' readings
+      return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.providers, NOW]];
     case 'run.accountRotated':
     case 'account.switched':
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.chats, LISTS]];

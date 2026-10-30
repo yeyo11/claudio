@@ -1,6 +1,67 @@
-import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
+import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, AccountsSettings, AccountView, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
 import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
+import { useMemo } from 'react';
+import { useOverview } from '../api';
+import type { LimitReading } from './shell-live';
+
+// ---------- The account view (contract C4 of docs/plans/regression-fixes-2026-10-29.md) ----------
+// The server computes one view of the accounts and serves it as `overview.accounts`; every account
+// fact the shell, the chat's banner and the Accounts page show comes from it, so they cannot
+// disagree.
+
+export type AccountsSettingsView = AccountsSettings;
+export type AccountInUseView = AccountInUse;
+export type { AccountView };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+/**
+ * The account view from `overview.accounts`, or null when the server sent none (no accounts
+ * package) or an older shape. Read through this so a page never mistakes another shape for it.
+ */
+export function accountViewOf(value: unknown): AccountView | null {
+  if (!isRecord(value) || !Array.isArray(value.accounts) || !isRecord(value.settings) || !('inUse' in value)) return null;
+  const settings = value.settings;
+  const view = value as unknown as AccountView;
+  // A server whose settings predate the preference still reads as "none preferred, list order"
+  return {
+    ...view,
+    inUseReason: view.inUseReason ?? null,
+    atLimit: view.atLimit === true,
+    nextReset: view.nextReset ?? null,
+    settings: { ...view.settings, preferred: typeof settings.preferred === 'string' ? settings.preferred : null, order: Array.isArray(settings.order) ? view.settings.order : [] },
+  };
+}
+
+/** The preferred and order fields of settings that may come from a server without them. */
+export function settingsView(settings: Omit<AccountsSettings, 'preferred' | 'order'> & Partial<Pick<AccountsSettings, 'preferred' | 'order'>>): AccountsSettingsView {
+  return { ...settings, preferred: settings.preferred ?? null, order: settings.order ?? [] };
+}
+
+/**
+ * The global order as the Rotation card lists it: the saved order's enabled ids first, then every
+ * other enabled account in the list's order. Each enabled account appears once; one that was
+ * removed or held out drops out.
+ */
+export function rotationOrder(order: readonly string[], accounts: readonly Pick<Account, 'id' | 'enabled'>[]): string[] {
+  const enabled = accounts.filter((a) => a.enabled).map((a) => a.id);
+  const kept = order.filter((id, i) => enabled.includes(id) && order.indexOf(id) === i);
+  return [...kept, ...enabled.filter((id) => !kept.includes(id))];
+}
+
+/** An account's reading as the status bar says it: like a provider's, and silent when there is nothing to say. */
+export function accountReading(limit: AccountLimit | null | undefined): LimitReading | null {
+  if (!limit || limit.state === 'unknown') return null;
+  const used = limit.utilization ?? (limit.window ? limit.windows[limit.window]?.utilization : undefined) ?? null;
+  const percent = used !== null && Number.isFinite(used) ? Math.max(0, Math.min(100, Math.round(used * 100))) : null;
+  return { state: limit.state, percent, resetsAt: limit.resetsAt, window: limit.window };
+}
+
+/** Enabled and signed in, of all the accounts: the "2 of 3 ready" of the phone's card. */
+export function readyCount(accounts: readonly Pick<Account, 'enabled' | 'signedIn'>[]): number {
+  return accounts.filter((a) => a.enabled && a.signedIn).length;
+}
 
 /** What a person calls an account: its alias, else the email the CLI reported, else its id. */
 export const accountName = (account: Pick<Account, 'alias' | 'email' | 'id'>): string => account.alias ?? account.email ?? account.id;
@@ -135,26 +196,41 @@ export type ConnectionKind = 'ready' | 'no-cli' | 'signed-out' | 'expired' | 'li
 
 export interface ConnectionFacts {
   cliInstalled: boolean;
-  inUse: Pick<AccountInUse, 'signInState'> | null;
-  /** From the server when `inUse` is null; absent on an old one */
+  /** The view's account in use; its own reading decides "near" and "limit reached" */
+  inUse: (Pick<AccountInUse, 'signInState'> & { limit?: AccountLimit | null }) | null;
+  /** Why `inUse` is null */
   inUseReason?: AccountInUseReason | null;
-  /** `GET /accounts`, when read */
+  /** The view's accounts */
   accounts: readonly Pick<Account, 'enabled' | 'signedIn'>[];
   /** The default provider's state and reason, when read */
   provider: { state: ProviderReadinessState; reason: ProviderReasonCode | null } | null;
 }
 
+/**
+ * One fact, one source: with an account in use, its own reading says whether it is near or at its
+ * limit, and the provider's limit reasons (a reading of whichever account ran last) are not read.
+ * Only a provider without accounts speaks for its own limit.
+ */
 export function connectionOf(facts: ConnectionFacts): ConnectionKind {
   const { inUse, provider } = facts;
   if (!facts.cliInstalled) return 'no-cli';
   if (inUse?.signInState === 'expired') return 'expired';
-  // The server's reason wins; with none (an old server), the credentials alone decide
   if (inUse === null && facts.inUseReason === 'limit') return 'limit';
   const signedIn = inUse !== null || facts.accounts.some((a) => a.enabled && a.signedIn);
   if (!signedIn || (inUse === null && facts.inUseReason === 'signed-out')) return 'signed-out';
+  if (inUse?.limit?.state === 'exhausted') return 'limit';
+  if (inUse?.limit?.state === 'near') return 'near';
   if (!provider || provider.state === 'ready') return 'ready';
-  if (provider.state === 'degraded') return provider.reason === 'limit-reached' ? 'limit' : provider.reason === 'limit-near' ? 'near' : 'unready';
+  const limitReason = provider.reason === 'limit-reached' || provider.reason === 'limit-near';
+  if (provider.state === 'degraded' && limitReason) return inUse ? 'ready' : provider.reason === 'limit-reached' ? 'limit' : 'near';
+  if (provider.state === 'degraded') return 'unready';
   if (provider.state === 'unknown') return 'unchecked';
   // Any other state is the provider's own word (`providers:state.*`), never "not signed in"
   return 'unready';
+}
+
+/** The account view of the overview, the one source of every account fact on screen; null without one. */
+export function useAccountView(): AccountView | null {
+  const accounts = useOverview().data?.accounts;
+  return useMemo(() => accountViewOf(accounts), [accounts]);
 }
