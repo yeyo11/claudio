@@ -88,19 +88,8 @@ const SETTLED = 2000;
 // The audit log is a Settings card nobody watches move: one read every ten seconds of activity at most
 const AUDIT = 10_000;
 
-/**
- * C4's `accounts.changed` (docs/plans/regression-fixes-2026-10-29.md): the account store changed (an
- * account, a reading, a sign-in or the rotation settings), debounced by the server. Declared here
- * until `@claudio/shared` carries it in `ClaudioEvent`; the unions below then collapse into those.
- */
-interface AccountsChangedEvent {
-  id: number;
-  type: 'accounts.changed';
-}
-type FeedEvent = ClaudioEvent | AccountsChangedEvent;
-
 /** Every event name the server sends; typed as a record so a new event type cannot be forgotten. */
-const EVENT_TYPES: Record<ClaudioEventType | AccountsChangedEvent['type'], true> = {
+const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'run.created': true,
   'run.updated': true,
   'run.ended': true,
@@ -314,7 +303,7 @@ function savedResource(event: AssistantProposalEvent): Target[] {
 }
 
 /** The cached queries an event makes stale, and how soon each should be refetched. */
-export function targetsFor(event: FeedEvent): Target[] {
+export function targetsFor(event: ClaudioEvent): Target[] {
   switch (event.type) {
     // A run is an execution of a chat, and its id is the chat's: what it changes is that chat
     case 'run.created':

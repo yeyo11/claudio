@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-19T18:00:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - accounts
     - rotation
@@ -30,15 +30,21 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
   when it exists**: `GET /accounts` and the overview's count leave it out while it has no credential
   at all (no `.credentials.json`, and no key or token for it in the environment or the vault). A
   desktop whose `~/.claude` is signed in keeps showing it, and an expired default stays listed with
-  **Sign in again**. `GET /accounts/default`, `PATCH` and its login route work either way. The setup
+  **Sign in again**. "Has a credential" means a credentials file, a key or token for it in the
+  environment or the vault, or a sign-in that failed or was confirmed. The rule lives inside
+  `AccountStore.list()`, so every caller (the choice, the view, the routes) sees the same list. On
+  macOS the CLI keeps its login in the keychain and writes no file, so a default with no file and no
+  key counts as having no credential until a check confirms it. `GET /accounts/default`, `PATCH` and its login route work either way. The setup
   assistant and Settings → Claude Code sign in **here**, through `POST /accounts/default/login`, so the
   CLI itself is signed in (the `claude` in the terminal works); Accounts → Add account makes a separate
   login account in its own dir, for rotation
   ([decisions/claude-sign-in-paste-code.md](decisions/claude-sign-in-paste-code.md)).
-- **The account in use** is the one new work would start on (`accounts.pick({ current: null })`).
-  `GET /auth` carries it as `inUse`; Settings → Claude Code, the status bar and the phone's More sheet
-  read it and the provider's readiness, not the default dir's `loggedIn`. A default with no credential
-  is skipped.
+- **The account in use** is the one new work would start on: what a chat's launch would choose,
+  with no pin (`accounts.pick({ current: null })`), so it honours the preferred account. It is a
+  field of the one account view ([below](#one-account-view)); `GET /auth` carries it as `inUse`;
+  Settings → Claude Code, the status bar and the phone's More sheet read it and the provider's
+  readiness, not the default dir's `loggedIn`. A default with no credential is never chosen, on any
+  path.
 - **An alias** is required for `token` and `api-key` accounts only: a `login` account already has
   its email.
 - **Dirs** live in `<data>/accounts/<id>/`. `settings.json`, `CLAUDE.md`, `keybindings.json`,
@@ -51,6 +57,38 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
 - **Nothing is global.** The account is chosen per process, and the variables of the other kinds
   are removed from its environment, so two chats can run on two accounts at once. A live chat stays
   on its account until it is launched again.
+
+## One account view
+
+Until 2026-10-29 the account in use and its limits were computed on several paths that disagreed
+(the audit's §2): the status bar said an account was near its limit because the last
+`rate_limit_event` of *any* chat, on any account, had reached 60 %, while the account's own card drew
+a fine bar. D2 of [plans/regression-fixes-2026-10-29.md](plans/regression-fixes-2026-10-29.md) cut
+that to one fact, the account's own reading, and one place that derives everything from it.
+
+- **`Core.accountView()`** answers an `AccountView`: `inUse` (the account new work starts on, with
+  its own `limit` and `plan`), `inUseReason` (why `inUse` is null: `limit` when an enabled
+  account has a credential, `signed-out` otherwise), `accounts`, `atLimit` (every enabled,
+  signed-in account is out), `nextReset` (the earliest reset among those) and the `settings`.
+  `overview.accounts` is that view, and `GET /auth` names its `inUse`; the status bar, the account
+  chip, the provider dot, the phone cards, the chat's limit banner and the Accounts page read it and
+  nothing else.
+- **Claude's provider limit is derived from it.** The limit the dashboard shows for Claude is the
+  in-use account's reading, or the reading of the account back first when every one is out. The
+  provider-wide reading is gone (`ProviderLimits`, the probe that fed it, the handshake reading, the
+  detector's TTL re-read and `accounts-at-limit.ts`): a `rate_limit_event` feeds only the account
+  its chat ran on. The provider detector reports `degraded` for Claude when `atLimit`, and the
+  decision route waits when the view says so, both reading the same view.
+- **One set of thresholds** (`packages/accounts/src/thresholds.ts`): an account is `near` from 60 % of
+  its binding window and `exhausted` at 100 %; usage bars are neutral under 60 %, warn from 60 % and
+  bad from 75 % or when exhausted. `isOut` is the single definition of "out" (exhausted, with the
+  reset ahead or unknown) that the choice, the view and the decision route share. The rotation
+  threshold is not in that file: it is the person's setting, or a policy's.
+- **`accounts.changed`** is emitted when an account, a reading, a sign-in or the rotation settings
+  change (`AccountStore.onChange`), at most once every 250 ms. The web refreshes the accounts, the
+  overview, `/auth` and the providers on it, so no page polls for it any more; Claude's provider
+  status is looked at again on the same signal. A reload that finds another process wrote the
+  account files tells the listeners too.
 
 ## Usage
 
@@ -71,7 +109,8 @@ sources, the newest reading winning:
 
 A `get_usage` reading is the freshest truth while it is newer than the stream's, and a newer stream
 reading takes the windows back. What only `get_usage` states is kept apart (`limits.cli` on the
-account) so a stream reading does not erase it: the plan (`subscription_type`), the weekly limits
+account) so a stream reading does not erase it: an answer of `rate_limits_available: false` updates
+`cli` alone and never clears an exhausted state the stream recorded: the plan (`subscription_type`), the weekly limits
 scoped to one model, and the credits. An API-key account answers `rate_limits_available: false`: it
 has no subscription limits, and its reading says so (`cli.available: false`). So does a
 `claude setup-token` token on a real account (checked 2026-10-17): its scope reaches inference only,
@@ -94,7 +133,11 @@ each starts a CLI process.
   its own allowance, say). The CLI lists them in `rate_limits.limits[]` as `weekly_scoped` with the
   model's display name; they are kept as `limits.cli.scoped[]`, never as an entry of `windows`.
   The account's own state and binding window come from the session and weekly windows alone, so a
-  spent Fable limit does not mark the account exhausted for Sonnet. Rotation applies a scoped limit
+  spent Fable limit does not mark the account exhausted for Sonnet. The stream follows the same
+  rule: a `rejected` event with a `seven_day_<model>` type goes to `scoped`, never to `windows`. A
+  rejection that came from extra usage (overage) blocks every model, but no window is spent, so it
+  leaves the account out for the time its event gives, as the account's own `outUntil`, without
+  naming a window. Rotation applies a scoped limit
   only to a chat that runs that model: `choose` skips an account whose limit for the chat's model is
   at 100 % until its reset, and waits for that reset when every account is out of it. The model is
   matched by its display name inside the chat's model id.
@@ -170,17 +213,44 @@ tell a refused credential from an unreachable network. The four raw answers are 
 
 ## Choosing and switching
 
-- A new chat that does not name an account takes the one the rotation chooses: with the `least-used`
-  strategy (the default) the enabled account with the most room, with `order` the first in the
-  list. Per-project policies (an ordered list of accounts and a threshold) override the global
-  order, and a chat pinned to an account rotates only within its policy.
+- A new chat that does not name an account takes the one `choose` returns, in this order of
+  precedence:
+  1. **A pin.** A chat pinned to an account keeps it while it can run; otherwise it rotates only
+     within its policy.
+  2. **The preferred account** (`preferred` in `accounts.json`, set from an account's **Use this
+     account** on the Accounts page) while it has room and the chat's policy lists it: under the
+     threshold to stay on it, `hysteresis` points under it to come back to it. A pin wins over it,
+     and a project policy that does not list it wins too.
+  3. **The strategy.** With `least-used` (the default) the enabled account with the most room; with
+     `order` the first in the order, which is the policy's, else the global `order` setting (every
+     enabled account once, reorderable on the Rotation card; an account added later follows the
+     listed ones). Staying put wins over the order: the current account is kept while its binding
+     window is under the threshold.
+- `PUT /accounts/settings` validates `preferred` (an enabled account's id, or null for none) and
+  `order`. Removing an account takes it out of both, and out of every policy.
 - An account whose binding window is at the threshold (90 % by default) is skipped until it falls
-  `hysteresis` points under it, and one that hit a limit is left alone until its reset, or for
-  `cooldownSeconds` when the reset is unknown.
+  `hysteresis` points under it, and one that hit a limit is left alone until its reset. When a
+  rejection gave no reset, `cooldownSeconds` leaves *that account* alone for the time: it is written
+  on its reading as `outUntil`, so the account reads exhausted until then. There is no longer a
+  global gap between switches, which held every other account back as well.
+- **The model the chat asked for is what the choice filters on** (`chat.opts.model`), not the one the
+  CLI resolved: a chat started on `default` runs on any account, instead of waiting for one that
+  offers the Opus it resolved to. A pick that finds no account able to run a named model waits.
 - **At a limit**, the account is marked, another is chosen and the turn is replayed in the same
   chat, resumed on the new account. A person's chat does it when `rotateOnLimit` is on (the
-  default); automated work always does. With no account left, the work waits for the earliest
-  reset.
+  default); automated work always does. With no account left, the work waits for a reset: the
+  earliest among the accounts that can run the turn (`chooseNext(...).waitUntil`), else the reset
+  the turn's own account or refusal gave. An account that cannot run the model the chat asked for
+  does not shorten the wait.
+- **The replay count** (`MAX_LIMIT_REPLAYS`, one per execution) counts replays that landed on no new
+  account, between two turns that went through. A turn that completes without error resets it, and a
+  move to another account is never counted nor held back by it: `chooseNext` passes over every
+  account the turn died on, so a chain of moves ends by itself. Before this, a second limit after a
+  wait-replay left the chat stuck. One slow recovery remains: after a wait-replay the rotation skips
+  the accounts the turn died on before the wait until a turn goes through, so a chain of waits gets
+  there slowly.
+- **A fork keeps its account** and its pin; a fork of a chat that ran on account B does not start
+  on whichever the strategy prefers.
 - **A wait looks again whenever an account changes** (R10). On 2026-10-16 every account was out at
   12:44 UTC, the waits took the earliest reset they knew (13:10), and the CLI's own login restarted
   its window around 12:50 with 0 % used while twelve tasks kept waiting. Now every kept reading
@@ -229,8 +299,23 @@ tell a refused credential from an unreachable network. The four raw answers are 
   shows it disabled as "Sign-in expired".
   The choice is not a pin: the rotation can still move the chat at a limit. It is recorded as a
   rotation event with `reason: 'person'`. Only the person may do it; a chat's own token gets 403.
+- **Removing an account** that a live chat's process runs on answers `409 account-in-use` with the
+  ids of those chats in `chats` (`AccountInUseResponse`): stop them or move them first. Before this
+  a removed account made the next result of that chat throw inside the fold and take the server
+  down.
 
-Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`).
+Settings are `<data>/accounts.json` (`GET`/`PUT /accounts/settings`): `rotateOnLimit`, `threshold`,
+`hysteresis`, `cooldownSeconds`, `strategy`, `preferred` and `order`.
+
+### A crash is a log line
+
+A bad line from the agent no longer ends the server. The fold paths that touch an account
+(`observeSignIn`, the result and the limit events) look it up with the nullable `find`, so a result
+folded onto a removed account is dropped instead of throwing; the stream's line handler records a
+protocol failure on that chat and fails it, not the process; and `apps/api/src/server.ts` and the
+launcher (`packages/core/src/launcher/process-guards.ts`) install `unhandledRejection` and
+`uncaughtException` handlers that log and keep the process up. An orchestration's refused resume used
+to be one such rejection ([orchestrations.md](orchestrations.md#recovery-and-shutdown)).
 
 ## Models
 
@@ -265,6 +350,21 @@ has a credential, `signed-out` otherwise. "Not signed in" is shown only for the 
   kind, alias or email, plan, `enabled`, `signedIn` and its limit, compact.
 - **Web:** the Accounts page, the status bar's account card, New chat's account picker and Home's
   limit widgets.
+  - The status bar's connection item, the account chip, the provider dot and the phone cards read
+    `overview.accounts`; "near" and "limit reached" come from the in-use account's own reading, and a
+    provider's own limit reasons speak only for a provider with no accounts. An unknown cost for the
+    day reads "today, cost not reported".
+  - The chat's limit banner looks only at `chat.atLimit` and the chat's open wait, and shows the
+    reset and window of the account the turn died on. At a limit it offers **Wait for the reset**
+    (primary) and **Switch account** (the composer's own picker, shown once two or more accounts are
+    loaded); while waiting, **Stop waiting** and **Run now**. A chat moved to another account is no
+    longer at that limit and its composer is usable again.
+  - The Accounts page: **Use this account** sets the preferred account and the card shows a
+    **Preferred** tag; holding out the preferred account, or the last usable one, asks first. A card
+    says how old its reading is only when it is older than 10 minutes. The Rotation card lists the
+    global order as a reorderable list (the same list as the policies') and makes threshold,
+    hysteresis and cooldown read-only while switching at the limit is off; saving sends only the
+    edited fields, so it cannot overwrite a preference set from a card.
 
 ## Tests
 
@@ -282,10 +382,18 @@ the rejected `rate_limit_event` before the 429), `workflow-limits.test.ts` for a
 `e2e/specs/chat-account-switch.spec.mjs` covers the on-demand switch from the "+" menu: idle, while
 working, and an exhausted account shown disabled.
 
+The regression fixes of 2026-10-29 are guarded by `packages/accounts/test/choice-and-readings.test.ts`
+(preferred, order, pin precedence, the per-account cooldown, scoped and overage rejections, a
+`get_usage` without limits), `packages/core/test/accounts-rotation.test.ts` (a second limit after a
+wait-replay, the resolved model, a fork), `process-guards.test.ts`, `apps/api/test/accounts.test.ts`
+(the 409 on removal) and, on the web, `status-bar-accounts.test.tsx` (the dot against another
+account's reading), `rotation-card.test.tsx` and `chat-limit.test.tsx`; the e2e specs
+`accounts.spec.mjs` and `status-bar-accounts.spec.mjs` cover the page and the bar.
+
 `packages/accounts/test/cli-usage.test.ts` guards the parser (against a recorded real answer), the
 fold precedence and the per-model choice; `apps/api/test/accounts.test.ts` the refresh routes; and
 `apps/web/test/account-card.test.tsx` the card.
 
 ## Related
 
-[[decisions/get-usage-control-request.md]] · [[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[plans/workflow-engine-limits.md]] · [[orchestrations.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]
+[[decisions/get-usage-control-request.md]] · [[plans/regression-fixes-2026-10-29.md]] · [[pinned-chat-rotation.md]] · [[plans/claude-only-fork.md]] · [[plans/rotation-auth-fixes.md]] · [[plans/workflow-engine-limits.md]] · [[orchestrations.md]] · [[reports/accounts-a0.md]] · [[providers.md]] · [[claudio-mcp-server.md]] · [[desktop.md]] · [[deploy.md]]

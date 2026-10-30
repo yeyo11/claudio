@@ -2389,7 +2389,8 @@ export class Db {
   deleteChat(id: string): void {
     this.tx(() => {
       this.deleteChatRows(id);
-      // A deleted chat's environment goes with it; the trim leaves it, as a folder's last one
+      // A chat deleted on purpose takes its environment with it; a chat the trim retires keeps its row,
+      // which the environments' own bound ages out
       prepared(this.db, 'DELETE FROM environments WHERE chat_id = ?').run(id);
     });
   }

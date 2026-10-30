@@ -15,15 +15,24 @@ for that directory. It works in a chat's composer and on New chat.
 ## Where the list comes from
 
 Claudio doesn't keep its own list. It uses `slash_commands` from the CLI's `init` event, which
-Claudio already stores per directory (`EffectiveEnvironment`, `GET /environments`) and attaches to
-each chat as `chat.environment`. So the list shows exactly what the CLI loaded: skills, plugin and
+Claudio stores per chat (`EffectiveEnvironment`, keyed by chat id; contract C5 of
+[plans/regression-fixes-2026-10-29.md](plans/regression-fixes-2026-10-29.md)) and attaches to each
+chat as `chat.environment`. `GET /environments` answers a directory's: the newest of its chats. So the list shows exactly what the CLI loaded: skills, plugin and
 project commands, and the built-ins that `claude -p` accepts. An interactive-only command (say,
 `/login`) is never offered and then refused.
 
-- **A chat's composer** uses `chat.environment.slashCommands`, the latest environment of the chat's
-  directory.
+- **A chat's composer** uses `chat.environment.slashCommands`, what that chat's own last process
+  loaded. Two chats in one folder can load different servers and models, and before the environment
+  was keyed by chat, the later one overwrote the earlier one's. When none of a chat's processes
+  started here (a chat from a terminal, or one whose row the bound below dropped) the environment is
+  the folder's last, and `chat.environment.source` says `folder` instead of `chat`.
 - **New chat** asks `GET /environments?cwd=…` for the directory it will start in (the chosen one,
   or the wrapper's workspace).
+
+The `environments` table is keyed by `chat_id` (a migration moved each folder's row under the chat
+that last started there; a row naming no chat was dropped). It keeps the newest 5 000 chats' rows
+besides each folder's newest, written in the same transaction as the save, and a chat deleted on
+purpose takes its row with it.
 
 A directory where no chat has started yet has no environment, so no list appears there; the command
 typed by hand still works.
