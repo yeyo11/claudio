@@ -355,6 +355,28 @@ function terminate(child: ChildProcess): void {
   }, KILL_GRACE_MS).unref();
 }
 
+/**
+ * Ends what a command left running in its process group once the command itself exited: a dev
+ * server or a watcher a check started in the background outlived it, once per check pass and per
+ * fixer re-run. Its parent is gone by then, so the tree cannot be walked from it; the group it was
+ * spawned into (`detached`) still holds it, and the kernel does not hand that id to another process
+ * while anything is in the group. A group already empty answers ESRCH, and nothing is sent.
+ */
+function endLeftovers(pid: number): void {
+  try {
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    return; // nothing was left
+  }
+  setTimeout(() => {
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      /* it ended on the first signal */
+    }
+  }, KILL_GRACE_MS).unref();
+}
+
 /** The environment with the agent-run marker set, or cleared: an inherited one must not label a command that is not for an agent */
 function agentRunEnv(env: NodeJS.ProcessEnv, runId: string | undefined): NodeJS.ProcessEnv {
   if (runId) return { ...env, [AGENT_RUN_ENV]: runId };
@@ -409,7 +431,10 @@ export function runCommand(command: string, cwd: string, timeoutMs: number, onSt
     child.stderr?.on('data', collect);
     // `close` waits for the pipes, which a child left behind by the command may hold open for ever
     child.on('close', (code) => finish(code));
-    child.on('exit', (code) => setTimeout(() => finish(code), 500).unref());
+    child.on('exit', (code) => {
+      if (child.pid !== undefined) endLeftovers(child.pid);
+      setTimeout(() => finish(code), 500).unref();
+    });
     child.on('error', (err) => {
       output += `${err.message}\n`;
       finish(null);

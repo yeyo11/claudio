@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { WorkflowDefinition } from '@claudio/shared';
 import type { WorkflowAgentState, WorkflowRun } from './cli-facts.ts';
+import { JsonlCache } from './jsonl-cache.ts';
 
 // Claude Code workflows: scripts started with the Workflow tool that orchestrate subagents inside
 // one session. The CLI reports them live as `local_workflow` tasks whose `task_progress` events carry
@@ -379,16 +380,43 @@ export async function workflowRunBytes(transcript: string, runId: string): Promi
   return bytes;
 }
 
-/** The journal of a workflow run, in the order it was written; a line still being written is left out. */
-export async function readWorkflowJournal(transcript: string, runId: string): Promise<WorkflowJournalLine[]> {
-  const out: WorkflowJournalLine[] = [];
-  for (const entry of await readLines(join(workflowRunDir(transcript, runId), 'journal.jsonl'))) {
-    const type = entry.type;
-    if (type !== 'launched' && type !== 'started' && type !== 'result' && type !== 'failed') continue;
-    out.push({ type, key: text(entry.key), agentId: text(entry.agentId), label: text(entry.label), phase: text(entry.phase), result: entry.result });
-  }
-  return out;
+/** Workflow runs followed at once, at most: each keeps its journal's parsed lines and its failed agents' ends */
+const FOLLOWED_RUNS = 64;
+
+/**
+ * Each journal's lines, read on from the byte where the last read stopped: a running workflow's
+ * watcher reads it every second, and reading it whole each time grew with the run.
+ */
+const journals = new JsonlCache<WorkflowJournalLine[]>(
+  {
+    init: () => [],
+    clone: (lines) => [...lines],
+    add: (lines, entry) => {
+      const type = entry.type;
+      if (type !== 'launched' && type !== 'started' && type !== 'result' && type !== 'failed') return;
+      lines.push({ type, key: text(entry.key), agentId: text(entry.agentId), label: text(entry.label), phase: text(entry.phase), result: entry.result });
+    },
+  },
+  FOLLOWED_RUNS,
+);
+
+/** The journal of a workflow run, in the order it was written; a line still being written is left out. The list is shared: read it, never change it. */
+export async function readWorkflowJournal(transcript: string, runId: string): Promise<readonly WorkflowJournalLine[]> {
+  return (await journals.read(join(workflowRunDir(transcript, runId), 'journal.jsonl'))) ?? [];
 }
+
+/** The last assistant line of each failed agent's transcript, read on from where the last read stopped like the journal. */
+const agentEnds = new JsonlCache<{ last: Record<string, unknown> | null }>(
+  {
+    init: () => ({ last: null }),
+    clone: (state) => ({ ...state }),
+    add: (state, line) => {
+      if (line.type === 'assistant') state.last = line;
+    },
+    mentions: '"assistant"',
+  },
+  FOLLOWED_RUNS,
+);
 
 /** How a workflow agent's transcript ends: its last assistant message and, for one the API refused, why. */
 export interface WorkflowAgentEnd {
@@ -403,8 +431,7 @@ export interface WorkflowAgentEnd {
 
 /** The end of one agent's transcript in a workflow run; null when it has written no assistant message. */
 export async function readAgentEnd(transcript: string, runId: string, agentId: string): Promise<WorkflowAgentEnd | null> {
-  const lines = await readLines(join(workflowRunDir(transcript, runId), `agent-${agentId}.jsonl`));
-  const last = lines.findLast((l) => l.type === 'assistant');
+  const last = (await agentEnds.read(join(workflowRunDir(transcript, runId), `agent-${agentId}.jsonl`)))?.last;
   if (!last) return null;
   const message = (last.message ?? {}) as { content?: unknown };
   const blocks = Array.isArray(message.content) ? (message.content as Array<{ type?: unknown; text?: unknown }>) : [];

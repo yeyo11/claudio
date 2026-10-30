@@ -9,6 +9,7 @@ import type { ClaudioEventInput } from '../src/events.ts';
 import type { EvalDefinition, EvalJudgement, EvalRunRequest, EvalRunSummary, RunEvent, TranscriptEntry } from '@claudio/shared';
 import type { NewChat, RunResult } from '../src/chats.ts';
 import { migrate } from '../src/db.ts';
+import { RunSlotRefusal } from '../src/chat-errors.ts';
 import { EvalConsents, sha256 } from '../src/evals/definition.ts';
 import { createLane, runDirName } from '../src/evals/lanes.ts';
 import {
@@ -51,7 +52,7 @@ class FakeRuntime implements EvalRuntime {
   start(opts: NewChat): { id: string } {
     if (this.refuse > 0) {
       this.refuse--;
-      throw new Error('Concurrent run limit reached (2)');
+      throw new RunSlotRefusal(2);
     }
     const n = this.started.length;
     this.started.push(opts);
