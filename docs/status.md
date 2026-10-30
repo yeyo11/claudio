@@ -133,6 +133,9 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
   installs, and two machines on different networks) and it works. Both binding defects were already
   reported upstream (#276, open; #277, fixed but not released); `@number0/iroh` stays pinned at 1.1.0
   until a release answers them ([reports/iroh-upstream-issues.md](reports/iroh-upstream-issues.md)).
+- **The regression fixes of 2026-10-29.** The audit's branch is built and verified; what the
+  tasks and the reviews left open, with the owner's decisions among them, is the checklist in the
+  plan's [Open](plans/regression-fixes-2026-10-29.md#open), to attack once it is on `main`.
 - **Releases.** release-please keeps the next release pull request open for the
   owner. The open items of each built plan are in its Outcome section.
 - **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were

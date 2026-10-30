@@ -593,40 +593,82 @@ what stands.
 
 ### Open
 
-What the tasks saw and did not close, for the owner or a later change.
+Verified on 2026-10-30 at `502e9bbeb`: lint, typecheck, the full test suites, the OpenAPI schemas
+and the e2e gate over the 21 specs the branch added or changed all pass through Sluice. What the
+tasks and the reviews saw and did not close is listed here as the backlog to attack once the branch
+is on `main`; each item names where it lives.
 
-- **Not run.** The browser suite did not run for any task; the specs written (`accounts`,
-  `status-bar-accounts`, `chat-delivery-cards`, `tasks-board-moves`, `remote-access`) wait for the
-  verification phase. The delivery cards have had no UI review: they only appear mid-turn with
-  messages waiting, which needs a live server with a turn held open.
-- **`still_queued`** (C2) is outside `sdk.d.ts`; the review decides whether it stays.
-- **Accounts.** `AccountStore.list()` still reads the disk per account and `accountView()` calls it
-  twice. The `provider_limits` table and its three `Db` methods are unused. After a wait-replay the
-  rotation still skips the accounts the turn died on until a turn goes through. `switchAccount` does
-  not clear `rateLimited`, which the web works around by comparing accounts.
-- **Guards and Supervisor.** The Supervisor's cap shows while it is off, and with Jev chosen the cap
-  shows while the CLI model it runs on is hidden; both need an owner decision.
-- **MCP.** With permission checks off (bypass), Claudio's write tools run without asking once the
-  server is switched on from "+": the server-side approval of
-  `assistant-everything` (a plan on `feat/assistant-everything`, not merged here) closes it. The `chat.api-write` cause text in a
-  work item's history is missing. A synthetic "model not found" answer to a resumed or forked chat
-  ends it idle, looking healthy (`chat-fold.ts`).
-- **Collaborators and tunnel.** The tunnel port has no row in the settings registry, so no reset
-  control; `TunnelManager.resetSettings(['port'])` is ready.
-- **Web.** `ChangesReview.tsx` and `FileReview.tsx` still poll every 8 s while live; the decision
-  engine and the audit log have no events of their own; there are two parallel collaborators
-  clients; `workitem.moved` refreshes every item page, wider than a move needs. Older defects the
-  reviews found on Home (a 17 px link, a clipped Tailscale row, more than two gradient surfaces
-  signed out) and on the board (72 tap-target hits on phone rows, column headings cut at 1280 px)
-  were not touched.
-- **Tests that follow the machine's load**, not the code: `accounts-rotation` (8 s waits), the API's
-  developer-and-QA flow case and a few core timings fail in a full parallel run on a busy machine and
-  pass alone. The API tests call `core.shutdown()` without waiting, which a test that reopens the
-  same data directory should do.
-- **The generated fixtures.** `strings-snapshot.test.ts` and `class-inventory.test.ts` say no task may
-  update them, but feature commits do; their headers do not match practice.
-- **Left to `hygiene` and `review`.** The shared-helper consolidation, `docs/status.md` counts and the
-  broken links of the audit's §11.3 belong to the `hygiene` row.
+**Decisions for the owner**
+
+- [ ] **`still_queued` (C2).** `interrupt`'s receipt is read for the ids the CLI still queues; it is
+  not in the Agent SDK's `sdk.d.ts`. Confirm it as an exception to the one rule or drop it (then
+  `written` is bounded by the next result alone). `packages/core/src/providers/claude-code/driver.ts`.
+- [ ] **Core reads a web file.** `packages/core/src/team.ts` imports
+  `apps/web/src/i18n/locales/es/team.json` for the Spanish role titles: one copy, but the
+  dependency now points the wrong way. Move the titles to `@claudio/shared` or hand core only ids.
+- [ ] **Chat tokens may compact and add notes** (`POST /chats/:id/compact`, `/notes` are `work`),
+  while the whole tunnel, `/tunnel/stop` included, became `person`. Confirm both.
+- [ ] **The Supervisor's cap** (`decisions.cli.supervisorMaxCostUsd`) shows while the Supervisor is
+  off, and under Jev while its CLI model is hidden. `apps/web/src/pages/config/decisions/`.
+- [ ] **Migrations on an older database.** Every task appended its migration to `db.ts` and the
+  tests pass from an empty database; the list has not been run over a `wrapper.db` written before
+  this branch. Run it once on a copy of the owner's before the release.
+
+**Security**
+
+- [ ] **MCP writes under bypass.** With permission checks off, Claudio's write tools run without
+  asking once the server is switched on from "+". The server-side approval of
+  [assistant-everything](assistant-everything.md) (a plan, not built) closes it.
+- [ ] **The audit page** does not show the new `audit_refusals` ring (`GET /audit/refusals`).
+
+**Delivery and orchestration**
+
+- [ ] **D3 for workers.** An orchestration worker still closes its input when its turn ends with
+  background work running; chats of a person no longer do. `packages/core/src/orchestrator.ts`.
+- [ ] A resumed or forked chat whose model the CLI rejects ends idle and looks healthy
+  (`chat-fold.ts`, the synthetic "model not found" answer).
+- [ ] The delivery cards, the board's "⋯" menu on coarse pointers and the render-error page have
+  had no `/ui-review`.
+
+**Accounts**
+
+- [ ] `switchAccount`/`moveTo` do not clear `rateLimited`; the web works around it by comparing
+  accounts. After a wait-replay the rotation still passes over the accounts the turn died on until
+  a turn goes through.
+- [ ] `AccountStore.list()` reads the disk per account and `accountView()` calls it twice; the
+  `provider_limits` table stays, unwritten, for an older Claudio on the same data directory.
+
+**Collaborators and tunnel**
+
+- [ ] The tunnel port has no row in the settings registry, so no reset control;
+  `TunnelManager.resetSettings(['port'])` is ready.
+- [ ] Two collaborators clients run in parallel in the web, each with its own cache keys.
+
+**Web**
+
+- [ ] `ChangesReview.tsx` and `FileReview.tsx` poll every 8 s while live; the decision engine and
+  the audit log have no events of their own; `workitem.moved` refreshes every item page.
+- [ ] Older defects the reviews noted and no task touched: on Home a 17 px link, a clipped
+  Tailscale row and more than two gradient surfaces signed out; on the board 72 tap-target hits on
+  phone rows and column headings cut at 1280 px.
+
+**Tests and tooling**
+
+- [ ] Tests that follow the machine's load rather than the code: `accounts-rotation` (R10, 8 s
+  waits), `collab-sync` (37 s), `collab-join-answer`'s leave timing, `collab-quiet`'s refusal cap,
+  `setup-logins`' fake start, the API's developer-and-QA flow case. Three were made deterministic
+  on 2026-10-30; the rest pass alone and fail in a full parallel run on a busy machine.
+- [ ] The API tests call `core.shutdown()` without awaiting it; a test that reopens the same data
+  directory should.
+- [ ] `strings-snapshot.test.ts` and `class-inventory.test.ts` say no task may update their
+  fixtures while feature commits do; align the headers with practice.
+- [ ] The `chat.api-write` cause text is missing from a work item's history.
+
+**The owner's install**
+
+- [ ] The desktop updater fails on the owner's machine with `pkexec must be setuid root`
+  (report §0), so the app stays on 0.8.1; the 0.11.x `.deb` has to be installed by hand until the
+  updater copes with a non-setuid `pkexec`.
 
 ## Related
 
