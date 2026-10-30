@@ -341,6 +341,17 @@
   min-width: 0;
 }
 
+/* One line per account at any width: the name shrinks, the arrows never drop below it */
+.rotation-order .list-row-flow {
+  flex-wrap: nowrap;
+}
+
+.rotation-order .list-row-flow > .break {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .rotation-field {
   display: flex;
   flex-direction: column;

@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Chat, Execution, ProviderLimit, ProviderMove, ProviderStatus } from '@claudio/shared';
+import type { Account, Chat, Execution, ProviderLimit, ProviderMove, ProviderStatus } from '@claudio/shared';
 import { ChatUiProvider, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -154,9 +154,12 @@ function render(page: React.ReactNode, client: QueryClient): string {
   );
 }
 
-function seeded(): QueryClient {
+const account = (id: string): Account => ({ id, kind: 'token', alias: id, email: null, organization: null, plan: null, enabled: true, signedIn: true, signInState: 'ok', checkedAt: null, limits: null });
+
+function seeded(accounts: Account[] = [account('acc-a'), account('acc-b')]): QueryClient {
   const client = new QueryClient();
   client.setQueryData(keys.providers, [claude]);
+  client.setQueryData(keys.accounts, accounts);
   return client;
 }
 
@@ -170,6 +173,8 @@ test('at a limit the banner names the window and the reset, and offers to wait a
   assert.match(words, /Wait for the reset/);
   // The way on now: the composer's account picker, never the primary
   assert.match(words, /Switch account/);
+  // With one account there is nothing to switch to, as in the composer's menu
+  assert.doesNotMatch(text(render(<LimitBanner chat={chat()} state={state('limit')} />, seeded([account('acc-a')]))), /Switch account/);
   assert.deepEqual([...html.matchAll(/<button[^>]*class="btn btn-primary"[^>]*>(.*?)<\/button>/g)].map((m) => text(m[1] ?? '').trim()), ['Wait for the reset']);
   // Nothing moves to another chat or program, and nothing animates
   assert.doesNotMatch(words, /Continue on|Start over on|handoff|Move now/);

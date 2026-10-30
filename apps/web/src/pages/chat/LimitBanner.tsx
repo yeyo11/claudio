@@ -83,8 +83,9 @@ function SwitchAccount({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chats');
   const [open, setOpen] = useState(false);
   const accounts = useChatAccounts(chat, open);
-  // Like the composer's "+" menu: with one account there is nothing to switch to
-  if (!accounts.loading && accounts.rows.length < 2) return null;
+  // Like the composer's "+" menu: with one account there is nothing to switch to. Drawn only once the
+  // accounts are read, so it never shows and vanishes again
+  if (accounts.loading || accounts.rows.length < 2) return null;
   return (
     <>
       <button
