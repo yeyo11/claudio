@@ -1,7 +1,7 @@
 import type { BoardColumn, WorkItem, WorkItemStatus } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { WORK_ITEM_STATUSES } from '@claudio/shared';
-import { ArrowDown, ArrowUp, Check, CornerDownRight, TriangleAlert } from 'lucide-react';
+import { Check, TriangleAlert } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -13,9 +13,9 @@ import { Segmented } from '@claudio/ui/components/ui';
 import { columnMeta, stripNamesAssignee, taskPath, workItemLiveState, workItemStrip } from '../../../lib/work-items';
 import { DonePageSkeleton, MoreButton, type BoardSelection } from './BoardColumns';
 import type { LiveSources } from './LiveLine';
-import { foldColumn, neighbourStatus } from './model';
+import { foldColumn } from './model';
 import { ColumnRole, useStripRuns } from './team';
-import { useMoveWorkItem } from './useMoveWorkItem';
+import { useMoveMenu } from './moveMenu';
 import { Assignee, CardContext, CardFacts, EpicProgress, hasFacts } from './WorkItemCard';
 import { WorkItemStrip } from './WorkItemStrip';
 
@@ -47,7 +47,7 @@ export function PhoneBoard({
 }) {
   const { t } = useTranslation('tasks');
   const runs = useStripRuns();
-  const move = useMoveWorkItem();
+  const moveEntries = useMoveMenu(columns);
   const byStatus = new Map(columns.map((column) => [column.status, column]));
   // The first column with work in it: an empty Backlog is not where a phone should open
   const first = WORK_ITEM_STATUSES.find((status) => (byStatus.get(status)?.items.length ?? 0) > 0) ?? 'backlog';
@@ -74,24 +74,6 @@ export function PhoneBoard({
   const jump = (status: WorkItemStatus) => {
     setJumped(status);
     sections.current.get(status)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  };
-
-  const moveEntries = (item: WorkItem, column: BoardColumn): MenuEntry[] => {
-    const at = column.items.findIndex((entry) => entry.id === item.id);
-    const to = (status: WorkItemStatus, index: number, list: readonly WorkItem[]) => move.mutate({ item, drop: { status, index }, column: list });
-    const entries: MenuEntry[] = [];
-    // Done is in closing order: no place in it to move a card to
-    const ranked = column.status !== 'done';
-    if (ranked && at > 0) entries.push({ id: 'up', label: t('move.up'), icon: ArrowUp, onSelect: () => to(column.status, at - 1, column.items) });
-    if (ranked && at >= 0 && at < column.items.length - 1) entries.push({ id: 'down', label: t('move.down'), icon: ArrowDown, onSelect: () => to(column.status, at + 1, column.items) });
-    for (const status of WORK_ITEM_STATUSES) {
-      if (status === column.status) continue;
-      const list = byStatus.get(status)?.items ?? [];
-      // Into the neighbouring columns at the top, where a card goes next; elsewhere at the end
-      const index = status === 'done' || status === neighbourStatus(column.status, 1) || status === neighbourStatus(column.status, -1) ? 0 : list.length;
-      entries.push({ id: status, label: t('move.to', { column: label(status) }), icon: CornerDownRight, onSelect: () => to(status, index, list) });
-    }
-    return entries;
   };
 
   return (
@@ -164,7 +146,7 @@ export function PhoneBoard({
                   selection ? (
                     <SelectRow key={item.id} item={item} selection={selection} project={projectNames?.get(item.projectId)} />
                   ) : (
-                    <PhoneRow key={item.id} item={item} project={projectNames?.get(item.projectId)} epic={epics.get(item.id)} live={live} strip={workItemStrip(item, runs)} more={moveEntries(item, column)} />
+                    <PhoneRow key={item.id} item={item} project={projectNames?.get(item.projectId)} epic={epics.get(item.id)} live={live} strip={workItemStrip(item, runs)} more={moveEntries(item)} />
                   ),
                 )}
                 {status === 'done' && doneLoading && hidden > 0 ? (

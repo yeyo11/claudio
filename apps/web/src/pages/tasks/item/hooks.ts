@@ -4,15 +4,19 @@ import { useTranslation } from 'react-i18next';
 import { api, keys, useOverview } from '../../../api';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { useToast } from '@claudio/ui/components/Toast';
+import { useMoveWorkItem } from '../board/useMoveWorkItem';
 import { personName, uncheckedCriteria } from './model';
 
 /**
  * Every edit a work item's page makes, as mutations. What an answer returns goes straight into the
  * page's cache, so a field shows its new value at once; the event feed (lib/events.ts) refetches
  * the rest (the history the change wrote, the board it sits on). A failure is a toast and the page
- * reads the item again, so nothing stays drawn as saved when it was not.
+ * reads the item again, so nothing stays drawn as saved when it was not. A move is the board's own
+ * (`useMoveWorkItem`): the page, the board beside it and the lists show it at once, at the end of
+ * the column, and a refused one is put back everywhere.
  */
-export function useItemActions(itemId: string) {
+export function useItemActions(item: Pick<WorkItem, 'id' | 'key' | 'projectId'>) {
+  const itemId = item.id;
   const { t } = useTranslation('workItem');
   const qc = useQueryClient();
   const toast = useToast();
@@ -30,13 +34,8 @@ export function useItemActions(itemId: string) {
     onSuccess: merge,
     onError: failed(t('errors.save')),
   });
-  const move = useMutation({
-    mutationFn: (status: WorkItemStatus) => api.moveWorkItem(itemId, { status }),
-    // The column shows at once; a move never fails over a limit, so rolling back is for real errors
-    onMutate: (status) => qc.setQueryData<WorkItemDetail>(key, (old) => (old ? { ...old, status } : old)),
-    onSuccess: (result) => merge(result.item),
-    onError: failed(t('errors.move')),
-  });
+  const moving = useMoveWorkItem();
+  const move = { mutate: (status: WorkItemStatus) => moving.mutate({ item, status }), isPending: moving.isPending };
   const check = useMutation({
     mutationFn: ({ criterionId, checked }: { criterionId: string; checked: boolean }) => api.checkCriterion(itemId, criterionId, checked),
     onMutate: ({ criterionId, checked }) =>
