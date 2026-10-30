@@ -8,8 +8,8 @@ import { errorMessage } from '@claudio/shared';
 
 const GRACE_MS = 2000;
 
-const send = process.send?.bind(process);
-if (!send) {
+const channel = process.send?.bind(process);
+if (!channel) {
   process.stderr.write('collab host: started without an IPC channel; it is only run by the server\n');
   process.exit(2);
 }
@@ -18,19 +18,24 @@ const log = (message: string): void => {
   process.stderr.write(`collab host: ${message}\n`);
 };
 
+// A channel the server already closed (it let this host go the moment it was forked, or it is gone)
+// fails a send asynchronously, as an `error` event on `process` when no callback takes it, and an
+// unhandled `error` ends the process with a stack instead of the quiet exit `disconnect` arranges.
+// So nothing is sent once the channel is down, and a send that fails anyway costs a log line.
+const send = (message: HostToCore): void => {
+  if (!process.connected) return;
+  channel(message, (error: Error | null) => {
+    if (error) log(`sending to the server failed: ${error.message}`);
+  });
+};
+
 // The binding's promises can reject with nobody awaiting them (`LocallyClosed` after a failed
 // write, §7.2): that must cost a log line, not the process and every connection in it
 process.on('unhandledRejection', (reason) => log(`unhandled rejection: ${errorMessage(reason)}`));
 
 const override = process.env[IROH_MODULE_ENV];
 const host = new CollabHostCore({
-  send: (message: HostToCore) => {
-    try {
-      send(message);
-    } catch {
-      // The channel closed: the disconnect handler below is already closing the endpoint
-    }
-  },
+  send,
   load: () => (override ? import(pathToFileURL(override).href) : import('@number0/iroh')),
   log,
 });

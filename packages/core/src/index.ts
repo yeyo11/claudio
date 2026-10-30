@@ -3937,6 +3937,9 @@ export class Core {
 
   private async shutdownOnce(): Promise<void> {
     this.closed = true;
+    // Before anything else ends: what is still in flight (a health check, a holders poll, a chat's
+    // exit) must not start a CLI of its own on the way out
+    this.chats.close();
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();

@@ -40,6 +40,11 @@ nobody's quota is spent: serving a copy never runs Claude.
   the roster). Joining never holds the page for a dial: when neither the owner nor a relay answered
   within a few seconds, the join answers `pending` (`202`) at once, shows as waiting, and goes on
   trying in the background; it becomes a group or a denial on the page as soon as someone answers.
+  That answer is a snapshot taken while the request was still being delivered, so its `relayedBy` is
+  usually null: who ends up holding the request, and the roster once the owner signs it, come
+  through `GET /collaborators/groups` (`pendingJoins`), which the `collaborators.changed` event keeps
+  fresh. The join dialog follows that list (`followJoin` in `apps/web/src/pages/collaborators/model.ts`)
+  and a script does the same rather than reading the answer's `relayedBy`.
 - **Learn how a join ended.** A join that will not be signed does not stay pending: when the owner
   denies it, the joiner's page says "Ana denied your request to join UDD" (the bad tone, with the word
   **Denied** and an icon), and when the invite expires before the owner answered it says "The invite

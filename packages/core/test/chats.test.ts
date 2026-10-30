@@ -682,6 +682,29 @@ test("the CLI's list of sessions is read once for everyone asking at the same ti
   }
 });
 
+test('once the core shuts down, nothing asks the CLI for its sessions: a late caller gets an empty list', async () => {
+  const { config, core } = setup();
+  const log = join(config.dataDir, 'spawns.log');
+  mkdirSync(config.dataDir, { recursive: true });
+  writeFileSync(log, '');
+  process.env.FAKE_CLAUDE_SPAWNS = log;
+  const reads = () => readFileSync(log, 'utf8').split('\n').filter((l) => / agents --json$/.test(l)).length;
+  try {
+    await core.chats.cliSessions();
+    assert.equal(reads(), 1);
+    await core.shutdown();
+    core.chats.forgetHolders();
+    assert.deepEqual(await core.chats.cliSessions(), []);
+    assert.deepEqual(await core.chats.cliSessions(true), []);
+    // The holders key still answers (the process table is read, not the CLI), without a read
+    await core.chats.holdersKey();
+    assert.equal(reads(), 1, 'no read after the shutdown');
+  } finally {
+    delete process.env.FAKE_CLAUDE_SPAWNS;
+    core.shutdown();
+  }
+});
+
 // ---------- daily spend ledger ----------
 
 test('each result writes the increase of its process total to the spend ledger, and a new process starts again from zero', async () => {

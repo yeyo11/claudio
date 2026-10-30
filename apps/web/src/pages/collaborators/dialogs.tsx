@@ -10,8 +10,8 @@ import { CopyButton, ErrorBox, Field } from '@claudio/ui/components/ui';
 import { formatDateTime } from '@claudio/ui/lib/format';
 import { MAX_QR_VERSION } from '@claudio/ui/lib/qr';
 import { QrCode } from '../../components/QrCode';
-import { collaboratorsApi, useCollaboratorsMutation } from '../../lib/api/collaborators';
-import { shortId } from './model';
+import { collaboratorsApi, useCollaboratorGroups, useCollaboratorsMutation } from '../../lib/api/collaborators';
+import { followJoin, shortId } from './model';
 
 /**
  * What an invite shows once made: the text and its QR code, the expiry, the owner's presence rule
@@ -124,13 +124,24 @@ export function JoinDialog({ onClose }: { onClose: () => void }) {
   const join = useCollaboratorsMutation((invite: string) => collaboratorsApi.join(invite));
   const cancel = useCollaboratorsMutation((groupId: string) => collaboratorsApi.cancelJoin(groupId));
   const result: JoinGroupResult | undefined = join.data;
-  const pending = result?.state === 'pending' ? result.pending : null;
+  const sent = result?.state === 'pending' ? result.pending : null;
+  // A `pending` answer is a snapshot taken while the request was still being delivered: the words
+  // follow the groups list the page keeps fresh (see `followJoin`), and the answer says which entry
+  const groups = useCollaboratorGroups(sent !== null);
+  const follow = followJoin(sent, groups.data);
+  const pending = follow.pending;
+  const joinedName = result?.state === 'joined' ? result.group.name : follow.joined;
+  const ended = follow.ended;
 
   useEffect(() => {
-    if (result?.state !== 'joined') return;
-    toast.success(t('join.joined', { group: result.group.name }));
+    if (joinedName === null) return;
+    toast.success(t('join.joined', { group: joinedName }));
     onClose();
-  }, [result, toast, t, onClose]);
+  }, [joinedName, toast, t, onClose]);
+
+  useEffect(() => {
+    if (ended) onClose();
+  }, [ended, onClose]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();

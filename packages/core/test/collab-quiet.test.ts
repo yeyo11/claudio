@@ -187,6 +187,9 @@ test('a watch the owner refuses waits like any failure before the peer is synced
   const mode = { now: 'serving' as Mode };
   const { client, asked } = setup(mode, { reconcileMs: 60_000 });
   client.setPeers([owner]);
+  // The window opens once the first run is through, so a loaded machine that takes longer over the
+  // hello, the catalog and the pulls does not eat into it: the first watch is opened at the run's end
+  await client.idle(owner);
   await new Promise((r) => setTimeout(r, 400));
   client.stop();
   const watches = asked.filter((t) => t === 'watch').length;

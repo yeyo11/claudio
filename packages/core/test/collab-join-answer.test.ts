@@ -313,11 +313,13 @@ test('an invite that expires before the owner answers ends the join as expired, 
   assert.equal(pending.state === 'pending' ? pending.pending.relayedBy?.endpointId : null, ben.id);
   assert.equal(pendingOf(eve, groupId)?.state, 'waiting');
 
-  const expired = await until('the join expires', () => (pendingOf(eve, groupId)?.state === 'expired' ? pendingOf(eve, groupId) : null));
-  assert.ok(expired.endedAt);
-  const ended = eve.events.find((e) => e.type === 'collaborators.join-ended');
-  assert.ok(ended?.type === 'collaborators.join-ended');
+  // The entry is written before the event is announced: waiting for the event sees both
+  const ended = await until('the join expires', () => eve.events.find((e) => e.type === 'collaborators.join-ended') ?? null);
+  assert.ok(ended.type === 'collaborators.join-ended');
   assert.equal(ended.title, 'The invite to UDD expired before Ana answered');
+  const expired = pendingOf(eve, groupId);
+  assert.equal(expired?.state, 'expired');
+  assert.ok(expired?.endedAt);
   const before = net.sent.filter((s) => s.startsWith(`${eve.id}>`)).length;
   await sleep(300);
   assert.equal(net.sent.filter((s) => s.startsWith(`${eve.id}>`)).length, before, 'Eve stops asking');

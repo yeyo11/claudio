@@ -119,9 +119,16 @@ export async function stopBackgroundSession(config: CoreConfig, id: string): Pro
  * reads; elsewhere, or with a CLI that keeps no such records, from `claude agents --json`, a CLI
  * start of about half a second.
  */
-export async function listActiveCliSessions(config: CoreConfig): Promise<{ sessions: Array<Omit<CliSession, 'live'>>; spawned: boolean }> {
+export async function listActiveCliSessions(
+  config: CoreConfig,
+  opts: {
+    /** Asked right before a CLI would be started: false (the caller closed while the records were read) starts none */
+    live?: () => boolean;
+  } = {},
+): Promise<{ sessions: Array<Omit<CliSession, 'live'>>; spawned: boolean }> {
   const records = await cliSessionRecords(config.configDir);
   if (records) return { sessions: records, spawned: false };
+  if (opts.live && !opts.live()) return { sessions: [], spawned: false };
   return { sessions: await agentsFromCli(config), spawned: true };
 }
 

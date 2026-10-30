@@ -315,6 +315,8 @@ export class ChatService {
   /** The read under way, shared by whoever asks meanwhile; `gen` tells one started before an invalidation */
   private cliPending: { gen: number; promise: Promise<CliSession[]> } | null = null;
   private cliGen = 0;
+  /** Set by `close()`: a read that comes later answers nothing and starts no CLI */
+  private closed = false;
   /** The send under way per chat: the next one waits for it */
   private readonly sending = new Map<string, Promise<void>>();
   /** What every chat spent, shared by the usage routes while the listing and the runtime stay as they were */
@@ -326,8 +328,21 @@ export class ChatService {
 
   // ---------- reading ----------
 
+  /**
+   * Stops reading the CLI's list of sessions: the core is shutting down, and a read that a late
+   * caller asks for (a health check in flight, a holders poll, a chat's exit) would otherwise start
+   * a `claude agents --json` that nobody waits for, after the data directory is gone or, in a test,
+   * into the next core's bookkeeping.
+   */
+  close(): void {
+    this.closed = true;
+    this.cliCache = null;
+    this.cliPending = null;
+  }
+
   /** CLI sessions alive on the machine, each marked with whether it is really open for work. */
   async cliSessions(fresh = false): Promise<CliSession[]> {
+    if (this.closed) return [];
     const cached = this.cliCache;
     const age = cached ? Date.now() - cached.at : Infinity;
     const ttl = cached?.spawned ? CLI_TTL.spawned : CLI_TTL.records;
@@ -353,12 +368,14 @@ export class ChatService {
   }
 
   private readCliSessions(join = true): Promise<CliSession[]> {
+    if (this.closed) return Promise.resolve([]);
     const pending = this.cliPending;
     if (join && pending && pending.gen === this.cliGen) return pending.promise;
     const gen = this.cliGen;
     const at = Date.now();
     const promise: Promise<CliSession[]> = (async () => {
-      const { sessions: agents, spawned } = await listActiveCliSessions(this.deps.config);
+      // The records are read first; a core that closed meanwhile starts no CLI on its way out
+      const { sessions: agents, spawned } = await listActiveCliSessions(this.deps.config, { live: () => !this.closed });
       const value = await Promise.all(
         agents.map(async (agent) => ({
           ...agent,

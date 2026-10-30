@@ -3,7 +3,7 @@
  * (docs/plans/collaborators.md §5.1). Plain data, no React: tested without a browser
  * (test/collaborators-page.test.tsx). `--live` never appears here: syncing is not an agent working.
  */
-import type { CollaboratorsKind, CollaboratorsStatus, Group, GroupMember, PeerPresence, SharedProject, SyncState } from '@claudio/shared';
+import type { CollaboratorsKind, CollaboratorsStatus, Group, GroupList, GroupMember, PeerPresence, PendingJoin, SharedProject, SyncState } from '@claudio/shared';
 import { COLLABORATORS_KINDS } from '@claudio/shared';
 
 /** A status tone, always shown beside its word; `muted` is the neutral one (no status colour). */
@@ -169,3 +169,29 @@ export const sharedTabPath = (projectId: string): string => `/?project=${encodeU
 /** Where a shared project not cloned here is read: its own read-only view, by owner and share id (§5.1). */
 export const sharedProjectPath = (project: Pick<SharedProject, 'owner' | 'shareId'>): string =>
   `/collaborators/shared/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.shareId)}`;
+
+/** What the join dialog shows after the route answered `pending`, read against the groups the page keeps fresh. */
+export interface JoinFollow {
+  /** The entry to word: the live one, else the answer's snapshot while the list has not caught up */
+  pending: PendingJoin | null;
+  /** The group's name once the roster lists this install: the dialog says so and closes */
+  joined: string | null;
+  /** The owner denied it, or the invite expired: the page tells it, so the dialog closes */
+  ended: boolean;
+}
+
+/**
+ * The join route answers `pending` while the request is still being delivered (the owner is dialled
+ * first, then a member the invite names), so the answer's `relayedBy` is a snapshot taken early.
+ * Who ends up holding the request, and the roster that lists this install once the owner signs it,
+ * arrive through the groups list: the dialog follows that list and keeps the snapshot only until
+ * the list has the entry.
+ */
+export function followJoin(sent: PendingJoin | null, groups: GroupList | undefined): JoinFollow {
+  if (!sent) return { pending: null, joined: null, ended: false };
+  if (!groups) return { pending: sent, joined: null, ended: false };
+  const live = groups.pendingJoins.find((p) => p.groupId === sent.groupId) ?? null;
+  if (live) return { pending: live, joined: null, ended: live.state !== 'waiting' };
+  const joined = groups.groups.some((g) => g.id === sent.groupId);
+  return { pending: sent, joined: joined ? sent.groupName : null, ended: false };
+}

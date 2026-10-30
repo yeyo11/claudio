@@ -302,7 +302,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake, peers: { ben, cle
     check((await api.put('/collaborators', { enabled: false })).status === 200, 'Ana goes offline again');
     await until(async () => (await api.get('/collaborators')).body?.connection === 'off', 'Ana to go offline again');
     const asked = await cleo.api.post('/collaborators/join', { invite: third.body.text });
-    check(asked.body?.state === 'pending' && asked.body.pending?.relayedBy?.endpointId === benId, `Ben holds Cleo's second request (${asked.status} ${JSON.stringify(asked.body)})`);
+    // The route answers while the request is still being delivered (the owner is dialled first):
+    // who holds it is read from the list once the dial to Ana gives up and Ben takes it
+    check(asked.body?.state === 'pending', `Cleo's second request waits (${asked.status} ${JSON.stringify(asked.body)})`);
+    await until(async () => (await cleo.api.get('/collaborators/groups')).body?.pendingJoins?.find((p) => p.groupId === groupId)?.relayedBy?.endpointId === benId, "Ben to hold Cleo's second request", 60_000);
     // Cleo's page stays open in a tab of its own while Ana answers from hers; the mark proves it is never reloaded
     const cleoTab = await cleo.openTab();
     await cleoTab.goto('/collaborators', 1200);
