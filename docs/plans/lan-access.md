@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-30T12:00:00Z
-updated_at: 2026-10-30T12:00:00Z
+updated_at: 2026-10-30T20:00:00Z
 tags:
     - plan
     - lan
@@ -11,8 +11,9 @@ tags:
 ---
 # Plan: Claudio on the local network
 
-Status: **design settled by the owner on 2026-10-30; not built.** One pull request from `main` at
-0.12.0, orchestrated on `claude-opus-5-5` and `claude-sonnet-5-5`.
+Status: **built on 2026-10-30, not released**; see [Outcome](#outcome). Design settled by the owner
+the same day. One pull request from `main` at 0.12.0, orchestrated on `claude-opus-5-5` and
+`claude-sonnet-5-5`.
 
 This plan is the source of truth for the orchestration, with `CLAUDE.md` and `CONTRIBUTING.md`. Where
 a task prompt and this plan disagree, the plan wins. It narrows the 2026-10-25 plan
@@ -157,6 +158,48 @@ a listener on the LAN port of the owner's machine: tests bind port 0 on loopback
 - mDNS advertising, a firewall helper, or opening the router.
 - Any change to the loopback listener or to how the desktop window reaches the server.
 
+## Outcome
+
+Built on 2026-10-30 by the five tasks above; the feature is documented in
+[lan-access.md](../lan-access.md), the review in [lan-access-security.md](../reports/lan-access-security.md).
+
+**What was built.** Every decision D1–D8 and every contract above:
+
+- `packages/core/src/lan.ts` (`LanListener`), started as a subsystem by `apps/api/src/server.ts` with
+  the request and upgrade forwarders; the `beforeUnguarded` slot is a list; `RuntimeHostOptions` has
+  `peerIsClient` and `backoffKey` uses it; `CLAUDIO_LAN`, `CLAUDIO_LAN_PORT` and `CLAUDIO_LAN_BIND`
+  in `packages/core/src/paths.ts`; the setting ids and registry entries; `GET /lan`,
+  `PUT /lan/settings`, `POST /lan/start`, `POST /lan/stop` and the `lan.changed` event; the desktop's
+  `CLAUDIO_LAN=auto`, the Dockerfile's `CLAUDIO_LAN=off` and Helm's `lan.enabled` and `lan.port`.
+- The card in `apps/web/src/pages/config/RemoteAccessTab.tsx` with its five states, one QR at a time
+  and the plain-HTTP notice, its subsection in `docs/design-system.md`, strings in `en` and `es`, and
+  the card's states in `e2e/specs/remote-access.spec.mjs` (written, not yet run: the browser suite
+  runs once on the merged branch).
+
+**What differs from the plan.**
+
+- `GET /lan` also answers `interfaces`, the machine's IPv4 addresses the card offers as chips.
+- `CLAUDIO_LAN=auto` leaves the switch to the setting; only `on` and `off` fix it (read-only in
+  Settings, `409 lan.enabledFromEnv`).
+- A list in `bind` and `CLAUDIO_LAN_BIND` refuses `0.0.0.0` (review F3).
+- `backoffKey` keys any runtime host by the socket's address when the peer is not loopback, not only
+  a `peerIsClient` one (review F1), and the listener reads the auth mode again once bound (F2).
+- The audit line for the settings write reads "Change the local network settings" (the first
+  Spanish wording read as eavesdropping in a security log).
+
+**What the review found.** Nine findings, three fixed with a test each: F1 a device could spend the
+tunnel's back-off bucket by naming its host; F2 a start racing the switch to `none` reopened the
+listener; F3 `0.0.0.0` in the bind list. Six left: F4 `all` includes public, Docker and tailnet
+interfaces, and on the desktop it opens by itself (owner's decision: narrow `all`, mark the
+interfaces on the card, or let `auto` mean "on for approved networks"); F5 `lan.changed` reaches a
+chat's token like `tunnel.changed`; F6 plain HTTP (accepted by D6); F7 the audit does not say which
+device; F8 Node's default timeouts and no connection cap; F9 a stop spares a busy connection for a
+second. D8 and the owner-only routes held under attack.
+
+**Open.** F4 above; one design-check failure (I3) in the setup wizard's `TailscaleRow.tsx` was
+already on `main` and was left; the browser suite and the owner's check on a real network are still
+to do.
+
 ## Related
 
 - [[plans/tunnel]]
@@ -168,3 +211,5 @@ a listener on the LAN port of the owner's machine: tests bind port 0 on loopback
 - [[rest-api]]
 - [[design-system]]
 - [[plans/headless-image]]
+- [[lan-access]]
+- [[reports/lan-access-security]]
