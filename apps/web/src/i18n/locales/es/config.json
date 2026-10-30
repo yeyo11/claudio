@@ -1948,7 +1948,7 @@
       "choose": "Elegir…",
       "none": "Esta máquina no tiene ninguna dirección de red entre las que elegir.",
       "hintAll": "Todas las direcciones de esta máquina.",
-      "hintChosen": "Solo las direcciones marcadas.",
+      "hintChosen": "Solo las direcciones activadas. Siempre queda una.",
       "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio."
     },
     "http": {

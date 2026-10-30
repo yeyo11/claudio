@@ -5,14 +5,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys, useSettingsState } from '../../api';
-import { Checkbox, NumberInput, Sheet, Switch } from '@claudio/ui/components/controls';
+import { NumberInput, Sheet, Switch } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { QrCode } from '../../components/QrCode';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, CopyButton, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
-import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
@@ -144,7 +143,7 @@ function LanCard({ status, authMode }: { status: LanStatus; authMode: AuthMode }
  * The five states are Listening, Off, Needs a sign-in method (the switch is disabled and the card
  * links to Security, as the tunnel's does), Port in use (the port field takes focus, and the next
  * free port is one press away) and Failed (the error as the system wrote it, in mono). One QR is
- * open at a time: below the addresses on a desktop, in a sheet on a phone. The notice about plain HTTP
+ * open at a time, in a sheet: a panel at the side on a desktop, from the bottom edge on a phone, so opening it moves nothing on the card. The notice about plain HTTP
  * is never behind a click: it is on screen for as long as anything listens or is meant to.
  */
 export function LanPanel({
@@ -168,7 +167,6 @@ export function LanPanel({
 }) {
   const { t } = useTranslation('config');
   const { state, settings } = status;
-  const narrow = useMediaQuery(NARROW);
   const [qrFor, setQrFor] = useState<string | null>(null);
   const previous = useRef<LanState>(state);
   const needsSignIn = state === 'refused' || authMode === 'none';
@@ -211,7 +209,8 @@ export function LanPanel({
         <div className="lan-head" data-setting="lan.enabled">
           <Switch
             checked={settings.enabled === true}
-            disabled={pending || needsSignIn || fromEnv.enabled === true}
+            // Off needs a sign-in method before it can be turned on; what is already on can always be turned off
+            disabled={pending || fromEnv.enabled === true || (needsSignIn && settings.enabled !== true)}
             aria-label={t('lan.switch')}
             onChange={(enabled) => onSettings({ enabled })}
           />
@@ -221,7 +220,7 @@ export function LanPanel({
       }
     >
       {/* A port in use or a failure has an alert of its own: "turn this on" would contradict the switch */}
-      {(state === 'listening' || state === 'off' || state === 'refused') && <p className="small muted">{state === 'listening' ? t('lan.intro.listening') : t('lan.intro.off')}</p>}
+      {(state === 'listening' || state === 'off') && <p className="small muted">{state === 'listening' ? t('lan.intro.listening') : t('lan.intro.off')}</p>}
 
       {state === 'listening' && (
         <>
@@ -254,24 +253,21 @@ export function LanPanel({
               ))}
             </ul>
           )}
-          {openQr && !narrow && (
-            <div className="lan-qr" data-testid="lan-qr">
-              <QrCode text={openQr} label={t('lan.qr.label', { url: openQr })} />
-              <p className="small muted">{t('lan.qr.scan')}</p>
-            </div>
-          )}
-          <Sheet open={openQr !== null && narrow} onOpenChange={(open) => !open && setQrFor(null)} title={t('lan.qr.title')} description={openQr ?? undefined} side="bottom">
+          <Sheet open={openQr !== null} onOpenChange={(open) => !open && setQrFor(null)} title={t('lan.qr.title')} description={openQr ?? undefined}>
             {openQr && (
               <div className="lan-qr lan-qr-sheet" data-testid="lan-qr">
                 <QrCode text={openQr} label={t('lan.qr.label', { url: openQr })} />
+                <div className="lan-qr-text">
+                <code className="mono small break">{openQr}</code>
                 <p className="small muted">{t('lan.qr.scan')}</p>
+              </div>
               </div>
             )}
           </Sheet>
         </>
       )}
 
-      {state === 'refused' && (
+      {(state === 'refused' || (state === 'off' && authMode === 'none')) && (
         <div className="alert alert-warn" role="status" data-testid="lan-auth-required">
           <ShieldAlert {...ICON} className="alert-icon" />
           <div className="alert-body">
@@ -396,9 +392,9 @@ function LanPortSetting({
 }
 
 /**
- * Which of the machine's addresses the listener answers on: all of them, or the ones ticked. The
- * last one ticked cannot be cleared, since a listener on no address is not a setting the server
- * accepts. An address the settings keep that the machine no longer has stays in the list, ticked,
+ * Which of the machine's addresses the listener answers on: all of them, or the ones switched on. The
+ * last one switched on cannot be turned off, since a listener on no address is not a setting the server
+ * accepts. An address the settings keep that the machine no longer has stays in the list, switched on,
  * so the person sees why the listener failed.
  */
 function LanBindSetting({
@@ -446,17 +442,17 @@ function LanBindSetting({
             const on = chosen.includes(option.ip);
             return (
               <li key={option.ip}>
-                <Checkbox
+                <Switch
                   className="check lan-interface"
                   checked={on}
-                  // The last one ticked stays: the listener needs an address to open on
+                  // The last one on stays: the listener needs an address to open on
                   disabled={pending || fromEnv || (on && chosen.length === 1)}
                   aria-label={option.name ? `${option.ip} (${option.name})` : option.ip}
                   onChange={(next) => onSave(next ? [...chosen, option.ip] : chosen.filter((ip) => ip !== option.ip))}
                 >
                   <span className="mono">{option.ip}</span>
                   {option.name && <span className="small muted lan-interface-name">{option.name}</span>}
-                </Checkbox>
+                </Switch>
               </li>
             );
           })}

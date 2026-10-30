@@ -310,7 +310,7 @@ a.part-of { color: inherit; text-decoration: none; }
 .qr { display: block; flex: none; width: 168px; height: 168px; border-radius: var(--r); }
 .qr .paper { fill: #ffffff; }
 .qr .ink { fill: #0b1020; }
-/* Ajustes → Acceso remoto → «En la red local»: las direcciones de la LAN como lista (URL en mono, Copiar y QR), un solo QR abierto a la vez (debajo en escritorio, en una hoja en móvil) y los ajustes bajo ellas. Sin gradiente: la dirección del túnel es de lo que va la pantalla; esta lista es HTTP plano y el aviso va siempre a la vista. */
+/* Ajustes → Acceso remoto → «En la red local»: las direcciones de la LAN como lista (URL en mono, Copiar y QR), un solo QR abierto a la vez (siempre en un Sheet: panel lateral en escritorio, hoja inferior en móvil) y los ajustes bajo ellas. Sin gradiente: la dirección del túnel es de lo que va la pantalla; esta lista es HTTP plano y el aviso va siempre a la vista. */
 .lan-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; margin-inline-start: auto; }
 .lan-addresses { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
 .lan-address { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-width: 0; }
@@ -319,7 +319,7 @@ a.part-of { color: inherit; text-decoration: none; }
 .lan-qr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .lan-bind-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
 .lan-interfaces { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-/* Un contenedor interactivo: conserva su borde (≥ 3:1) y en móvil mide 44 px */
+/* Un contenedor interactivo (un Switch por dirección): conserva su borde (≥ 3:1) y en móvil mide 44 px */
 .lan-interface { display: inline-flex; align-items: center; gap: 7px; min-height: var(--control-h-sm); padding: 4px 12px; border: 1px solid var(--line-2); border-radius: var(--r-sm); color: var(--fg); }
 
 /* ---------- 10. Datos ---------- */

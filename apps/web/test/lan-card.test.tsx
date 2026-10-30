@@ -110,13 +110,17 @@ test('an off card offers the switch and the settings, and no address', () => {
   assert.match(html, /data-testid="lan-bind"/);
 });
 
-test('under authentication none the switch is disabled and the card sends the person to Access', () => {
+test('under authentication none the card sends the person to Access, and the switch can turn it off but not on', () => {
   const html = card(status('refused', { reason: { code: 'lan.authRequired', text: 'x' }, settings: { enabled: true, port: 8791, bind: 'all' } }), 'none');
   assert.match(html, /data-testid="lan-auth-required"/);
   assert.match(html, /href="\/settings\/access#access"/);
-  assert.match(html, /role="switch"[^>]*disabled=""/);
-  // The mode can read none before the server has moved the state: the switch is disabled either way
-  assert.match(card(status('off'), 'none'), /role="switch"[^>]*disabled=""/);
+  // What is on can always be turned off: a switch stuck on would start listening with the first token
+  assert.doesNotMatch(html, /role="switch"[^>]*disabled=""/);
+  assert.doesNotMatch(html, /Turn this on and phones/);
+  // Off under none cannot be turned on, and says why
+  const off = card(status('off'), 'none');
+  assert.match(off, /role="switch"[^>]*disabled=""/);
+  assert.match(off, /data-testid="lan-auth-required"/);
   assert.doesNotMatch(card(status('off'), 'token'), /role="switch"[^>]*disabled=""/);
 });
 
@@ -168,10 +172,12 @@ test('interfaces are All or a chosen few, and the last one chosen cannot be clea
   assert.doesNotMatch(all, /lan-interfaces/);
   const one = card(status('listening', { settings: { enabled: true, port: 8791, bind: ['192.168.0.30'] } }));
   assert.match(one, /data-testid="lan-interfaces"/);
-  assert.match(one, /role="checkbox" aria-checked="true"[^>]*disabled=""[^>]*aria-label="192\.168\.0\.30 \(wlp2s0\)"/);
-  assert.match(one, /role="checkbox" aria-checked="false"[^>]*aria-label="10\.0\.0\.4 \(eth0\)"/);
+  // Switches, not checkboxes: a phone has none of those always visible
+  assert.doesNotMatch(one, /role="checkbox"/);
+  assert.match(one, /role="switch" aria-checked="true"[^>]*disabled=""[^>]*aria-label="192\.168\.0\.30 \(wlp2s0\)"/);
+  assert.match(one, /role="switch" aria-checked="false"[^>]*aria-label="10\.0\.0\.4 \(eth0\)"/);
   assert.doesNotMatch(one.match(/<button[^>]*aria-label="10\.0\.0\.4 \(eth0\)"/)?.[0] ?? '', /disabled/);
-  // An address the settings keep that the machine no longer has stays, ticked, so the person sees it
+  // An address the settings keep that the machine no longer has stays, on, so the person sees it
   const gone = card(status('failed', { settings: { enabled: true, port: 8791, bind: ['192.168.0.30', '172.16.0.9'] } }));
   assert.match(gone, /aria-checked="true"[^>]*aria-label="172\.16\.0\.9"/);
 });

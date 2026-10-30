@@ -224,7 +224,7 @@ export default async ({ page, api, check }) => {
     check(await page.eval(`return document.querySelectorAll('${TAB} button[aria-label^="Copy http://"]').length === 2`), 'each address can be copied');
     check(!(await page.eval(`return !!document.querySelector('[data-testid=lan-qr]')`)), 'no QR code before one is asked for');
     await page.click('[data-testid=lan-qr-toggle]', undefined, 500);
-    check(await page.eval(`return document.querySelectorAll('[data-testid=lan-qr] svg.qr[role=img][aria-label*="192.168.0.30:8791"]').length === 1`), 'the QR code of the first address is drawn, and named');
+    check(await page.eval(`return document.querySelectorAll('.sheet [data-testid=lan-qr] svg.qr[role=img][aria-label*="192.168.0.30:8791"]').length === 1`), 'the QR code of the first address is drawn in a sheet, and named');
     await page.eval(`document.querySelectorAll('[data-testid=lan-qr-toggle]')[1].click(); return true`);
     await page.waitFor(`return document.querySelectorAll('[data-testid=lan-qr]').length === 1 && !!document.querySelector('[data-testid=lan-qr] svg.qr[aria-label*="yeyo-pc.local"]')`, { label: 'the second QR replacing the first' });
     check(true, 'only one QR is open at a time');
@@ -255,7 +255,7 @@ export default async ({ page, api, check }) => {
     await openRemote();
     await page.waitFor(`return !!document.querySelector('[data-testid=lan-auth-required]')`, { label: 'the refused state' });
     check(/sign-in method/i.test(await page.text(`${TAB} .card-head .badge`)), 'the state says it needs a sign-in method');
-    check(await page.eval(`return document.querySelector('[data-setting="lan.enabled"] [role=switch]').disabled`), 'the switch is disabled');
+    check(await page.eval(`return !document.querySelector('[data-setting="lan.enabled"] [role=switch]').disabled`), 'the switch is on and can still be turned off');
     check(await page.eval(`return !!document.querySelector('[data-testid=lan-auth-required] a[href="/settings/access#access"]')`), 'and the card links to Access');
     check(!(await page.eval(`return !!document.querySelector('[data-testid=lan-http-notice]')`)), 'no notice: nothing travels');
   } finally {

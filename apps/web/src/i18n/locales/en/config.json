@@ -1948,7 +1948,7 @@
       "choose": "Choose…",
       "none": "This machine has no network address to choose from.",
       "hintAll": "Every address of this machine.",
-      "hintChosen": "Only the addresses ticked.",
+      "hintChosen": "Only the addresses switched on. At least one stays on.",
       "fromEnv": "Set by {{variable}} where Claudio runs."
     },
     "http": {

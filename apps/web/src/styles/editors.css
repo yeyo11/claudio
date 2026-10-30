@@ -1750,9 +1750,12 @@ button.master-item-on:hover {
 }
 
 .lan-address-url {
+  display: flex;
+  align-items: center;
   flex: 1 1 240px;
   min-width: 0;
-  font-size: var(--fs-body);
+  min-height: 24px;
+  font-size: var(--fs-small);
   color: var(--text);
 }
 
@@ -1762,7 +1765,7 @@ button.master-item-on:hover {
   gap: 4px;
 }
 
-/* One QR at a time, under the list on a desktop and in a sheet on a phone; dark on light like the tunnel's */
+/* One QR at a time, in a Sheet, so opening it shifts nothing; dark on light like the tunnel's */
 .lan-qr {
   display: flex;
   flex-wrap: wrap;
@@ -1770,9 +1773,22 @@ button.master-item-on:hover {
   gap: 8px 16px;
 }
 
-.lan-qr > p {
+.lan-qr-text {
+  display: flex;
   flex: 1 1 200px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lan-qr-text > p {
   margin: 0;
+}
+
+/* Which address the open code belongs to: the pressed button takes the accent fill, beside its word */
+.lan-qr-button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .lan-qr-sheet {
@@ -1786,8 +1802,9 @@ button.master-item-on:hover {
   aspect-ratio: 1;
 }
 
-.lan-qr-sheet > p {
+.lan-qr-sheet .lan-qr-text {
   flex: none;
+  align-items: center;
   text-align: center;
 }
 
@@ -1816,6 +1833,11 @@ button.master-item-on:hover {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text);
+}
+
+/* The address in use is not a faded one: the switch says it is locked, and the hint says why */
+.lan-interface.is-disabled {
+  opacity: 1;
 }
 
 .lan-interface-name {
