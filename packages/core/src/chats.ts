@@ -1475,7 +1475,10 @@ export class ChatManager extends EventEmitter {
    * it. A message absorbed into the turn was read back before the receipt was written.
    */
   private settleQueue(chat: LiveChat, receipt: InterruptReceipt, asked: number): void {
-    if (!receipt.stillQueued) return;
+    // Only an agent known to read back what it takes says anything by leaving a message out of its
+    // queue: otherwise the message the interrupted turn runs on is out of the queue too, and its
+    // turn's result is what settles it
+    if (!receipt.stillQueued || chat.reportsDelivery !== true) return;
     const queued = new Set(receipt.stillQueued);
     const dropped = chat.written().filter((m) => m.order <= asked && !queued.has(m.id));
     for (const message of dropped) {
