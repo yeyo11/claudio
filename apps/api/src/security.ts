@@ -165,8 +165,10 @@ function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
   const host = runtime.get(name);
   if (!host) return `${req.ip}|${name}`;
   // The listener on the local network: the socket's peer is the device itself (`req.ip`, since the
-  // app trusts no proxy header), so each device spends its own budget
-  if (host.peerIsClient) return `runtime:${name}:${req.ip}`;
+  // app trusts no proxy header), so each device spends its own budget. A relay (the tunnel) runs on
+  // this machine and arrives from loopback, so a peer that is not loopback is its own client too,
+  // whatever name it wrote: a device on the network naming the tunnel must not spend the tunnel's
+  if (host.peerIsClient || !LOOPBACK.test(req.ip)) return `runtime:${name}:${req.ip}`;
   const header = host.clientIpHeader ? req.headers[host.clientIpHeader] : undefined;
   // The last hop is the one the provider added; whatever comes before it the client could write
   const client = (Array.isArray(header) ? header.at(-1) : header)?.split(',').at(-1)?.trim();

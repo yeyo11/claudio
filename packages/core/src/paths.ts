@@ -192,6 +192,8 @@ function parseLanBind(value: string | undefined): string[] | null {
     .filter((address) => address !== '');
   if (!addresses.length) return null;
   for (const address of addresses) if (!isIPv4(address)) throw new Error(`CLAUDIO_LAN_BIND: '${address}' is not an IPv4 address`);
+  // Every interface, which is leaving it unset; listed, it would join the allowlist as a name
+  if (addresses.includes('0.0.0.0')) throw new Error("CLAUDIO_LAN_BIND: '0.0.0.0' is every interface: leave CLAUDIO_LAN_BIND unset instead");
   return [...new Set(addresses)];
 }
 

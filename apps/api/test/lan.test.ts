@@ -286,6 +286,71 @@ test("the desktop app's secret is refused from a LAN peer, and from loopback und
   assert.equal((await onLan(port, '/api/overview', { host: `127.0.0.1:${String(port)}`, ...secret })).status, 200);
 });
 
+// docs/reports/lan-access-security.md, F1: the tunnel's name is a runtime host whose traffic shares
+// one bucket, since it all arrives from loopback; a device on the network can write that name in
+// `Host` too, and must not spend the tunnel's budget with it
+test("a device on the network naming the tunnel's host spends its own budget, never the tunnel's", async (t) => {
+  const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
+  const token = await withToken(w.app);
+  w.attach();
+  await listening(w);
+  const tunnelHost = 'node.tail0000.ts.net';
+  w.core.appSettings.runtimeHosts.add(tunnelHost, {});
+  const from = (address: string, credential: string) => ({ url: '/api/overview', remoteAddress: address, headers: { host: tunnelHost, authorization: `Bearer ${credential}` } });
+
+  for (let i = 0; i < 10; i += 1) assert.equal((await w.app.inject(from(PHONE, 'a-guess'))).statusCode, 401, `guess ${String(i + 1)}`);
+  assert.equal((await w.app.inject(from(PHONE, 'a-guess'))).statusCode, 429, 'the guessing device waits');
+  // What the tunnel relays arrives from loopback: neither a wrong guess nor the owner signing in again waits
+  assert.equal((await w.app.inject(from('127.0.0.1', 'a-tunnel-guess'))).statusCode, 401);
+  assert.equal((await w.app.inject(from('127.0.0.1', token))).statusCode, 200);
+});
+
+// F2: the hook closes the listener before the mode turns to none, but a start queued behind that
+// close ran while the mode was still `token` and opened it again under `none`
+test('a start that races authentication being turned off never leaves the listener open', async (t) => {
+  const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
+  await withToken(w.app);
+  w.attach();
+  const port = await listening(w);
+
+  const off = w.core.security.update({ mode: 'none' });
+  const start = w.core.lan.start().catch(() => null);
+  await off;
+  await start;
+  // Whatever order the two took, nothing listens under `none` once both answered
+  assert.equal(w.core.security.mode, 'none');
+  assert.notEqual(lan(w).state, 'listening');
+  assert.deepEqual(w.core.appSettings.runtimeHosts.list(), []);
+  const now = lan(w).port;
+  assert.equal((await onLan(now, '/api/health', { host: `127.0.0.1:${String(now)}` })).status, 0, `port ${String(now)} (was ${String(port)})`);
+});
+
+// F3: `0.0.0.0` is an IPv4 address, so the list took it: the listener then bound every interface
+// while its addresses list and the allowlist named only `0.0.0.0`
+test('the unspecified address is not an interface: refused in the setting and in CLAUDIO_LAN_BIND', async (t) => {
+  const w = await wrapper(t, { CLAUDIO_LAN_PORT: '0' });
+  const token = await withToken(w.app);
+  const put = await w.app.inject({ method: 'PUT', url: '/api/lan/settings', ...json({ bind: ['0.0.0.0'] }, { authorization: `Bearer ${token}` }) });
+  assert.equal(put.statusCode, 400, put.body);
+  assert.throws(() => loadConfig({ CLAUDE_BIN: '/nonexistent/claude', CLAUDIO_LAN_BIND: '0.0.0.0' }), /CLAUDIO_LAN_BIND/);
+});
+
+// D8 from the device's side: a peer on the network that writes a loopback name in `Host`, and a
+// forwarding header that says loopback, is still not this machine
+test("a device on the network writing a loopback Host is neither the desktop app nor a chat", async (t) => {
+  const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0', CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET });
+  await withToken(w.app);
+  w.attach();
+  await listening(w);
+  const chat = w.core.security.chatTokens.mint('chat-lan');
+  for (const credential of [DESKTOP_SECRET, chat]) {
+    for (const host of ['127.0.0.1:43123', 'localhost', '[::1]:43123']) {
+      const res = await w.app.inject({ url: '/api/overview', remoteAddress: PHONE, headers: { host, 'x-forwarded-for': '127.0.0.1', authorization: `Bearer ${credential}` } });
+      assert.equal(res.statusCode, 401, `${credential === chat ? 'chat' : 'desktop'} under ${host}`);
+    }
+  }
+});
+
 test('the terminal stays refused over the LAN unless its remote setting is `any`', async (t) => {
   const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
   const token = await withToken(w.app);

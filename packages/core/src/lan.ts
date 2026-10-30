@@ -106,6 +106,7 @@ const REASONS = {
 };
 
 const LOOPBACK_V4 = /^127\./;
+const UNSPECIFIED_V4 = '0.0.0.0';
 
 const validPort = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= MIN_LAN_PORT && value <= MAX_LAN_PORT;
 
@@ -115,6 +116,8 @@ function parseBind(value: unknown): 'all' | string[] {
   if (value.length > MAX_BIND) throw new Error(`bind takes at most ${String(MAX_BIND)} addresses`);
   const addresses = value.map((each) => (typeof each === 'string' ? each.trim() : each));
   for (const address of addresses) if (typeof address !== 'string' || !isIPv4(address)) throw new Error(`bind: '${String(address)}' is not an IPv4 address`);
+  // Every interface at once, which is `all`; listed, it would join the allowlist as a name
+  if (addresses.includes(UNSPECIFIED_V4)) throw new Error(`bind: '${UNSPECIFIED_V4}' is every interface: choose 'all' instead`);
   return [...new Set(addresses as string[])];
 }
 
@@ -460,6 +463,13 @@ export class LanListener {
       } else {
         this.fail(REASONS.listenFailed(code ? `${code}: ${(error as Error).message}` : String(error)));
       }
+      return false;
+    }
+    // The hook that closes it runs before the mode turns to none, so a start queued behind that close
+    // checked the mode while it was still a guard: read again once bound, and give the port back
+    if (this.deps.security.mode === 'none') {
+      await closeServers(servers, sockets, null);
+      this.refuse();
       return false;
     }
     this.listening = { servers, sockets, busy, port: bound };
