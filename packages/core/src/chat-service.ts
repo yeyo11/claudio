@@ -21,6 +21,7 @@ import {
   type ChatCompactAvailability,
   type ChatControl,
   type ChatDetail,
+  type ChatEnvironment,
   type ChatInterruptRequest,
   type ChatMessageReceipt,
   type ChatMessageRequest,
@@ -53,6 +54,7 @@ import {
   type EditStep,
   type ForkChatRequest,
   type ProviderCapability,
+  type ModelOption,
   type ProviderId,
   type ChatMessageSource,
   type NewChatRequest,
@@ -220,8 +222,13 @@ export interface ChatServiceDeps {
   entries?: TranscriptStore;
   orchestrator: Orchestrator;
   place: (dir: string, recorded: TranscriptSummary['worktree']) => Placement;
-  /** What Claude loaded in a directory, from the init event of the last chat started there */
-  environmentOf: (dir: string) => Parameters<typeof toChatEnvironment>[0] | undefined;
+  /**
+   * The models a provider's CLI lists for `--model`, read once from the CLI when no list is cached
+   * yet; empty when it cannot say. Without it a new chat's model is not checked.
+   */
+  modelsOf?: (provider: ProviderId) => Promise<ModelOption[]>;
+  /** What the chat's last process loaded, from its init event; else its folder's last, labelled `folder` */
+  environmentOf: (chatId: string, dir: string) => { env: Parameters<typeof toChatEnvironment>[0]; source: ChatEnvironment['source'] } | null;
   /** The context window the CLI reported for this exact model id; null when it never has */
   windowOf: (model: string) => number | null;
   health: HealthService;
@@ -568,7 +575,7 @@ export class ChatService {
     if (!summary) return null;
     const runtime = this.deps.runtime.get(id);
     const children = toChildren(await this.branchFacts(id, runtime, summary.alive), id, summary.alive ? undefined : endedAtOf(summary));
-    const env = this.deps.environmentOf(runtime?.cwd ?? summary.cwd);
+    const env = this.deps.environmentOf(id, runtime?.cwd ?? summary.cwd);
     const task = this.deps.orchestrator.taskContext(id);
     const health = this.deps.health.read(id, {
       state: summary.state,
@@ -580,7 +587,7 @@ export class ChatService {
     const chat: Chat = {
       ...summary,
       children,
-      environment: env ? toChatEnvironment(env) : null,
+      environment: env ? { ...toChatEnvironment(env.env), source: env.source } : null,
       health,
       tools: runtime?.tools ?? null,
       ...(this.deps.teammateReads ? { teammateReads: this.deps.teammateReads(id) } : {}),
@@ -842,6 +849,34 @@ export class ChatService {
       throw startFailure(err);
     }
     return this.require(started.id);
+  }
+
+  /**
+   * Refuses a model the provider does not list (`400 model-unknown`): the CLI would start, answer
+   * a synthetic "model not found" and leave the chat idle and healthy-looking (report §4.13). A
+   * model is known by the option's value (the alias, `sonnet`), the id it resolves to, or an id a
+   * chat on it reported, with or without the `[1m]` context suffix; `default` is the CLI's own
+   * choice. A list the CLI cannot give (no CLI, a first start offline) checks nothing: the turn tells.
+   * `POST /chats` asks it before `create`; the OpenAI surface checks the same list in its own shape.
+   */
+  async checkModel(asked: ProviderId | undefined, model: string): Promise<void> {
+    const name = model.trim();
+    if (!name || name === 'default' || !this.deps.modelsOf) return;
+    let provider: ProviderId;
+    try {
+      provider = this.deps.runtime.driverFor(asked).manifest.id;
+    } catch {
+      // No driver for it: the start's own gate refuses it with its reason
+      return;
+    }
+    const listed = await this.deps.modelsOf(provider);
+    if (!listed.length) return;
+    const bare = name.replace(/\[1m\]$/i, '');
+    const found = listed.find((o) => [o.value, o.resolvedModel, ...(o.ids ?? [])].some((known) => known !== undefined && (known === name || known.replace(/\[1m\]$/i, '') === bare)));
+    if (found && !found.disabled) return;
+    if (found?.disabled) throw new ChatStartRefusal(`the model ${name} cannot run here${found.description ? `: ${found.description}` : ''}`, 400, 'model-unknown');
+    const offered = listed.filter((o) => !o.disabled).map((o) => o.value);
+    throw new ChatStartRefusal(`the model ${name} is not one this provider lists (${offered.join(', ')})`, 400, 'model-unknown');
   }
 
   /**

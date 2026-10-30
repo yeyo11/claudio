@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { CLAUDIO_MCP_COLLAB_TOOLS, CLAUDIO_MCP_READ_TOOLS } from '@claudio/mcp';
+import { CLAUDIO_MCP_COLLAB_TOOLS, CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOLS } from '@claudio/mcp';
 import type { PermissionMode } from '@claudio/shared';
 import { claudioMcpSync, collabMcpSync, dynamicClaudioServer, MCP_ENTRY_ENV } from '../src/claudio-mcp.ts';
 import { Core } from '../src/index.ts';
@@ -149,16 +149,18 @@ test('a chat outside the project is not offered the reads, and the assistant has
   });
 });
 
-test("Claudio's server switched on for a chat joins its file with every tool, and only the collab reads are allowed ahead of time", () => {
+test("Claudio's server switched on for a chat joins its file with every tool, and its reads are allowed ahead of time, never a write", () => {
   const { dataDir } = tempConfig();
   const on = collabMcpSync({ ...base(dataDir), toolsets: ['claudio'] }, null);
   assert.equal(on.adds, true);
   assert.equal(serversOf(on.mcpConfig).claudio?.env.CLAUDIO_MCP_TOOLSETS, undefined, 'the default toolset is not named');
   assert.equal(serversOf(on.mcpConfig).claudio?.env.CLAUDIO_CHAT_ID, '${CLAUDIO_CHAT_ID}');
-  assert.deepEqual(on.allowedTools, [], "its tools ask as the chat's mode says");
+  // A read under dontAsk, or in a chat whose prompts go nowhere, would be denied otherwise (report §4.4)
+  assert.deepEqual(on.allowedTools, [...CLAUDIO_MCP_READ_TOOLS], "its writes ask as the chat's mode says");
+  assert.equal(on.allowedTools.some((tool) => CLAUDIO_MCP_WRITE_TOOLS.includes(tool)), false);
   const both = collabMcpSync({ ...base(dataDir), toolsets: ['claudio', 'collab'] }, null);
   assert.equal(serversOf(both.mcpConfig).claudio?.env.CLAUDIO_MCP_TOOLSETS, 'claudio,collab');
-  assert.deepEqual(both.allowedTools, [...CLAUDIO_MCP_COLLAB_TOOLS]);
+  assert.deepEqual(both.allowedTools, [...CLAUDIO_MCP_READ_TOOLS, ...CLAUDIO_MCP_COLLAB_TOOLS]);
 });
 
 test('the server pushed to a live chat carries its id and token written out, since the CLI expands no reference in it', () => {

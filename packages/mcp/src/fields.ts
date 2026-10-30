@@ -95,18 +95,35 @@ export const journalRows = (value: unknown): unknown =>
     };
   });
 
-function documentRow(node: Obj): Obj {
+/** A folder below `depth` keeps its counts and loses its entries, which `more` says are there */
+function documentRow(node: Obj, depth: number): Obj {
+  const children = Array.isArray(node.children) ? objs(node.children) : null;
   return {
     ...pick(node, ['path', 'type', 'title', 'fileCount']),
-    ...(Array.isArray(node.children) ? { children: objs(node.children).map(documentRow) } : {}),
+    ...(children ? (depth > 1 ? { children: children.map((child) => documentRow(child, depth - 1)) } : children.length ? { more: true } : {}) : {}),
   };
 }
 
-export const documentRows = (value: unknown): unknown =>
+export const documentRows = (value: unknown, depth = Number.POSITIVE_INFINITY): unknown =>
   shaped(value, (docs) => {
     if (!isObj(docs) || !Array.isArray(docs.tree)) return docs;
-    return { ...pick(docs, ['root', 'exists', 'fileCount']), tree: objs(docs.tree).map(documentRow) };
+    return { ...pick(docs, ['root', 'exists', 'fileCount']), tree: objs(docs.tree).map((node) => documentRow(node, depth)) };
   });
+
+/** One page of a document by line: `offset` lines skipped, at most `limit` kept, and where the next page starts */
+export function documentPage(value: unknown, offset: number, limit: number): unknown {
+  if (!isObj(value) || typeof value.content !== 'string') return value;
+  const lines = value.content.split('\n');
+  const from = Math.min(offset, lines.length);
+  const to = Math.min(lines.length, from + limit);
+  return {
+    ...pick(value, ['path', 'title', 'size', 'updatedAt']),
+    ...(Array.isArray(value.ties) && value.ties.length ? { ties: value.ties } : {}),
+    lines: { from: from + 1, to, total: lines.length },
+    content: lines.slice(from, to).join('\n'),
+    ...(to < lines.length ? { nextOffset: to } : {}),
+  };
+}
 
 export const chatRows = (value: unknown): unknown =>
   Array.isArray(value)
@@ -133,3 +150,102 @@ export const accountRows = (value: unknown): unknown =>
         ...(isObj(a.limits) ? { limit: pick(a.limits, ['state', 'window', 'utilization', 'resetsAt', 'observedAt', 'source']) } : {}),
       }))
     : value;
+
+export const milestoneRows = (value: unknown): unknown =>
+  Array.isArray(value) ? objs(value).map((m) => pick(m, ['id', 'name', 'state', 'progress', 'closedAt'])) : value;
+
+/** What a proposal is about, in a few words: the member, the resource, the item or the eval case */
+function proposalSubject(p: Obj): string | undefined {
+  const of = (key: string, field: string): string | undefined => (isObj(p[key]) && typeof (p[key] as Obj)[field] === 'string' ? String((p[key] as Obj)[field]) : undefined);
+  return of('member', 'agent') ?? of('resource', 'name') ?? of('workItem', 'title') ?? of('case', 'id');
+}
+
+export const proposalRows = (proposals: readonly Obj[]): Obj[] =>
+  proposals.map((p) => ({ ...pick(p, ['id', 'kind', 'status', 'runId', 'reason', 'createdAt']), ...(proposalSubject(p) ? { subject: proposalSubject(p) } : {}) }));
+
+// ---------- one chat ----------
+
+/** The longest a tool's input or result stays in a transcript summary */
+export const SUMMARY_CLIP_CHARS = 500;
+
+const clip = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max)}…` : text);
+
+/** Every string in a value cut at `max`, its shape kept */
+function clipped(value: unknown, max: number): unknown {
+  if (typeof value === 'string') return clip(value, max);
+  if (Array.isArray(value)) return value.map((v) => clipped(v, max));
+  if (isObj(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, clipped(v, max)]));
+  return value;
+}
+
+/** A transcript entry: `summary` drops thinking and cuts tool inputs and results, `full` keeps the blocks */
+function entryRow(entry: Obj, index: number, full: boolean): Obj {
+  const blocks: Obj[] = [];
+  for (const block of objs(entry.blocks)) {
+    switch (block.type) {
+      case 'text':
+        blocks.push(pick(block, ['type', 'text']));
+        break;
+      case 'thinking':
+        if (full) blocks.push(pick(block, ['type', 'text']));
+        break;
+      case 'tool_use':
+        blocks.push({ ...pick(block, ['type', 'id', 'name']), input: full ? block.input : clipped(block.input, SUMMARY_CLIP_CHARS) });
+        break;
+      case 'tool_result':
+        blocks.push({
+          ...pick(block, ['type', 'toolUseId', 'isError']),
+          content: full || typeof block.content !== 'string' ? block.content : clip(block.content, SUMMARY_CLIP_CHARS),
+        });
+        break;
+      default:
+        blocks.push(pick(block, ['type', 'name', 'mediaType']));
+    }
+  }
+  return { i: index, ...pick(entry, ['role', 'timestamp']), ...(entry.isSidechain === true ? { sidechain: true } : {}), blocks };
+}
+
+const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
+
+/**
+ * A chat as a model reads it: what it is and where it stands, its children counted, its last three
+ * executions, what it waits on, and one page of its transcript. The route's detail carries what the
+ * chat's page draws (every execution, every child, the environment), most of its weight.
+ */
+export function chatView(detail: unknown, permissions: unknown, full: boolean): unknown {
+  if (!isObj(detail) || !isObj(detail.chat)) return detail;
+  const chat = detail.chat;
+  const children = isObj(chat.children) ? chat.children : {};
+  const branches = [...objs(children.subagents), ...objs(children.backgroundTasks), ...objs(children.workflows)];
+  const executions = objs(chat.executions);
+  const from = typeof detail.from === 'number' ? detail.from : 0;
+  return {
+    ...pick(chat, ['id', 'title', 'state', 'model', 'origin', 'alive', 'cwd', 'account', 'atLimit', 'control', 'activity', 'updatedAt']),
+    ...(isObj(chat.project) ? { project: chat.project.name, projectId: chat.project.id } : {}),
+    ...(isObj(chat.orchestration) ? { orchestration: chat.orchestration.id } : {}),
+    ...(isObj(chat.cost) && typeof chat.cost.usd === 'number' ? { costUsd: chat.cost.usd } : {}),
+    ...(isObj(chat.health) ? { health: pick(chat.health, ['level', 'reason']) } : {}),
+    ...(count(chat.pending) ? { pendingMessages: count(chat.pending) } : {}),
+    children: {
+      subagents: count(children.subagents),
+      backgroundTasks: count(children.backgroundTasks),
+      workflows: count(children.workflows),
+      running: branches.filter((b) => b.status === 'running').length,
+    },
+    executions: {
+      total: executions.length,
+      last: executions.slice(-3).map((e) => pick(e, ['id', 'startedAt', 'endedAt', 'outcome', 'error', 'cause', 'model', 'account'])),
+    },
+    // The prompts the chat waits on a person for; an error reading them is said, never hidden as none
+    permissions: Array.isArray(permissions)
+      ? objs(permissions).map((q) => ({ ...pick(q, ['id', 'toolName', 'description', 'requestedAt']), input: clipped(q.input, SUMMARY_CLIP_CHARS) }))
+      : permissions,
+    transcript: {
+      from,
+      ...pick(detail, ['total']),
+      entries: objs(detail.entries).map((entry, i) => entryRow(entry, from + i, full)),
+      // The page above this one, for `before`; absent at the top of the transcript
+      ...(from > 0 ? { olderBefore: from } : {}),
+    },
+  };
+}

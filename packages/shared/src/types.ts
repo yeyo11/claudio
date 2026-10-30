@@ -531,7 +531,7 @@ export interface ApiChatPolicy {
  * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
  * a confined chat with another policy than its own.
  */
-export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch';
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown';
 
 export interface TranscriptEntry {
   uuid: string;
@@ -1441,6 +1441,11 @@ export interface ChatActivity {
 
 /** What Claude loaded when the chat last started. */
 export interface ChatEnvironment {
+  /**
+   * `chat` when this chat's own last process reported it; `folder` when no process of the chat
+   * started here (one from a terminal), and it is the last chat's in the same folder
+   */
+  source?: 'chat' | 'folder';
   observedAt: string;
   model: string | null;
   permissionMode: string | null;

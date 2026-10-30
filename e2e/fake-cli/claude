@@ -706,7 +706,7 @@ function mcpCall(own, text) {
     def = undefined;
   }
   if (!def) return finish(`<tool_use_error>Error: No such tool available: ${name}</tool_use_error>`, true);
-  const allowed = (flag('--allowedTools') ?? '').split(',');
+  const allowed = [...(flag('--allowedTools') ?? '').split(','), ...flagPermissions.allow];
   if (!allowed.includes(name)) return finish(`Permission to use ${name} was denied`, true);
   // The CLI expands `${VAR}` in a config file only: a pushed config reaches the server as written
   const expand = (v) => (pushed ? String(v) : String(v).replace(/\$\{(\w+)\}/g, (_, n) => env[n] ?? ''));
@@ -1011,6 +1011,13 @@ function endTurn({ result = '', error = false, structured = undefined }) {
 const pushedServers = new Map();
 
 /**
+ * The `permissions` of the session's flag layer, as `apply_flag_settings` merged them in (the Agent
+ * SDK's `applyFlagSettings`, sdk.d.ts 0.3.312): an `allow` rule there lets a tool run as
+ * `--allowedTools` does. A request replaces the list, as CLI 2.1.312 does (packages/core/test/fixtures/recordings/claude/apply-flag-settings.json).
+ */
+const flagPermissions = { allow: [] };
+
+/**
  * `mcp_set_servers`, as CLI 2.1.302 answers it (packages/core/test/fixtures/recordings/claude/mcp-set-servers.json):
  * the set replaces the servers pushed before, each one listed by `mcp_status` with the scope `dynamic`.
  * A config the CLI could not start is answered in `errors` and listed `failed` with the same words.
@@ -1299,6 +1306,17 @@ function control(message) {
       return;
     }
     server.status = request.enabled === false ? 'disabled' : server.scope === 'claudeai' ? 'needs-auth' : 'connected';
+    reply({});
+    return;
+  }
+  if (request.subtype === 'apply_flag_settings') {
+    if (!request.settings || typeof request.settings !== 'object' || Array.isArray(request.settings)) {
+      emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: 'settings must be an object' } });
+      return;
+    }
+    const allow = request.settings.permissions?.allow;
+    if (Array.isArray(allow)) flagPermissions.allow = allow.filter((rule) => typeof rule === 'string');
+    log('apply-flag-settings', { settings: request.settings });
     reply({});
     return;
   }

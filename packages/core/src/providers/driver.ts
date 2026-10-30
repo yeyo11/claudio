@@ -220,6 +220,11 @@ export interface DriverSession {
    * the agent added, removed and refused, by name.
    */
   mcpSetServers?(servers: Record<string, Record<string, unknown>>): Promise<McpSetServersResult>;
+  /**
+   * Merges settings into the process's session-scoped flag layer (Claude Code's `apply_flag_settings`),
+   * the layer `--settings` fills: how a live process gets permission rules it was not started with
+   */
+  applyFlagSettings?(settings: Record<string, unknown>): Promise<void>;
   answerPermission(requestId: string, decision: PermissionDecision): void;
   /** One line of stdout */
   readLine(line: string): void;

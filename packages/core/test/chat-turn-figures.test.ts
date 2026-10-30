@@ -13,7 +13,7 @@ import type { DriverSession } from '../src/providers/driver.ts';
 const spends: number[] = [];
 const host = {
   db: {},
-  environments: new Map(),
+  environments: { observe: () => undefined },
   permissions: null,
   emit: () => {},
   persist: () => {},

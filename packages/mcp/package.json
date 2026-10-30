@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/names.ts"
+    ".": "./src/names.ts",
+    "./catalogue": "./src/catalogue.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
