@@ -8,7 +8,7 @@ import type { Orchestration } from '@claudio/shared';
 import type { WorkflowRun } from '../src/cli-facts.ts';
 import { Core } from '../src/index.ts';
 import { readJournalTasks } from '../src/workflow-journal.ts';
-import { tempConfig } from './helpers.ts';
+import { signInDefault, tempConfig } from './helpers.ts';
 
 // A usage limit in a workflow's subagent is held or rotated like a graph task's (R15,
 // docs/plans/workflow-engine-limits.md §2): the lead is handed to the rotation, which moves the
@@ -30,6 +30,7 @@ async function rig(o: { accounts?: number; resetsInS: number; always?: boolean }
   if (o.always) process.env.FAKE_WORKFLOW_LIMIT = 'always';
   else delete process.env.FAKE_WORKFLOW_LIMIT;
   mkdirSync(config.workspaceDir, { recursive: true });
+  signInDefault(config);
   const core = new Core(config);
   await core.accounts.setSettings({ strategy: 'order' });
   const accounts: string[] = [];

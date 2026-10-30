@@ -44,7 +44,7 @@ describe('sign-in state', () => {
     await s.refresh(id);
     const a = s.get(id);
     assert.equal(a.signInState, a.signedIn ? 'ok' : 'unknown');
-    assert.ok(['ok', 'unknown'].includes(s.get('default').signInState), 'the default account has a state too');
+    assert.equal(s.find('default'), null, 'the default dir has no credential at all: it is no account');
   });
 
   it('keeps a login with no credentials file signed in and chosen: a keychain, a token or env sign-in is not signed out', async () => {
@@ -54,12 +54,17 @@ describe('sign-in state', () => {
     await s.refresh(id);
     const a = s.get(id);
     assert.deepEqual([a.signedIn, a.signInState, a.authFailedAt], [true, 'unknown', undefined]);
-    // The CLI's own dir, never read and with no file, is assumed signed in and stays usable
-    const d = s.get('default');
-    assert.deepEqual([d.signedIn, d.signInState], [true, 'unknown']);
-    assert.equal(s.pick({ current: null, now: NOW }).account, 'default');
-    await s.setEnabled('default', false);
     assert.equal(s.pick({ current: null, now: NOW }).account, id);
+    // The CLI's own dir with no file and no key or token in its environment is a ghost, which no
+    // path chooses (2026-10-29: only "in use" left it out, and the rotation could still move work onto it)
+    assert.equal(s.find('default'), null);
+    assert.equal(s.pick({ current: id, failedOn: [id], now: NOW }).account, null);
+    // With a credential it is the account it always was: assumed signed in until read
+    credentials(s.defaultDir, complete);
+    const d = s.get('default');
+    assert.deepEqual([d.signedIn, d.signInState], [true, 'ok']);
+    await s.setEnabled(id, false);
+    assert.equal(s.pick({ current: null, now: NOW }).account, 'default');
   });
 
   it('flags a file with no, or an empty, refreshToken as incomplete and signed out; a fixed file is read again', async () => {
@@ -96,7 +101,8 @@ describe('sign-in state', () => {
     assert.equal(await s.markAuthFailed('default', NOW), true);
     assert.equal(s.get('default').signInState, 'expired');
     assert.equal(await s.clearAuthFailed('default'), true);
-    assert.notEqual(s.get('default').signInState, 'expired');
+    // Cleared, a default dir with no credential is a ghost again
+    assert.equal(s.find('default'), null);
   });
 
   it('clears on a later success, and says false when there was nothing to clear', async () => {
@@ -176,7 +182,7 @@ describe('sign-in state', () => {
 });
 
 describe('choose and the sign-in state', () => {
-  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order' };
+  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [] };
   const two = (a: AccountSignInState | undefined, b: AccountSignInState | undefined, pinned?: string): ReturnType<typeof choose> => {
     const accounts: Candidate[] = [
       { id: 'a', enabled: true, signedIn: true, ...(a ? { signInState: a } : {}) },

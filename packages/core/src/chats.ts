@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
-import { DEFAULT_ID, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
+import { DEFAULT_ID, isOut, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -72,7 +72,7 @@ import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { BranchTracker, DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
-import { ProviderLimits } from './providers/limits.ts';
+import { providerLimitOf } from './providers/limits.ts';
 import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
 import { admissionLimitsFrom, readSystemLoad, RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
@@ -119,14 +119,26 @@ export class AccountSwitchRefusal extends Error {
 
 export { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
 
-/** One replay of a turn lost to a limit per execution: a second failure is a real one, not a quota one */
+/**
+ * Replays of a turn lost to a limit on no new account, between two turns that went through: a second
+ * failure there is a real one, not a quota one. A move to another account is never counted nor held
+ * back by it (`chooseNext` passes over every account the turn died on, so a chain of moves ends by itself).
+ */
 const MAX_LIMIT_REPLAYS = 1;
+
+/**
+ * The model a chat asked for (`--model`), which is what the account choice filters on: the chat's
+ * `model` follows the one the CLI resolved (`default` becomes `claude-opus-…`), and filtering on that
+ * kept a chat started on `default` waiting for an account that offers Opus (regression audit §2.3).
+ * Absent or `default` runs on any account.
+ */
+const askedModel = (chat: LiveChat): string | null => chat.opts.model ?? null;
 
 /** The windows `usage_history` keeps a line for */
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'get' | 'cachedModels' | 'warmModels' | 'canRun'>;
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'find' | 'cachedModels' | 'warmModels' | 'canRun'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -182,8 +194,6 @@ export class ChatManager extends EventEmitter {
   private readonly chats = new Map<string, LiveChat>();
   /** What was last written of each chat, so that a save writes only what changed since */
   private readonly saved = new Map<string, SavedChat>();
-  /** One reading per provider, shared through the database with every process on the data directory */
-  readonly limits: ProviderLimits;
   /** The code half of each provider that can run chats */
   readonly providers: ProviderRegistry;
   /**
@@ -242,8 +252,6 @@ export class ChatManager extends EventEmitter {
    * section and the note on pasted text, or '' when the project gives none; Core sets it
    */
   lessonsFor: ((projectId: string | null, orchestrated: boolean) => string) | null = null;
-  /** Epoch ms of the last time a chat moved to another account, for the cooldown between switches */
-  private lastSwitchAt: number | null = null;
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
   defaults: RunDefaults;
   /** Latest `init` snapshot per working directory */
@@ -282,7 +290,6 @@ export class ChatManager extends EventEmitter {
   ) {
     super();
     this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);
-    this.limits = new ProviderLimits(db);
     this.defaults = config;
     // A switch asked for while a turn ran takes effect when its result arrives
     // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
@@ -305,9 +312,9 @@ export class ChatManager extends EventEmitter {
       emit: (event, ...args) => this.emit(event, ...args),
       persist: () => this.persist(),
       noteActivity: (chat) => this.noteActivity(chat),
+      // The stream's reading is the account's it ran on, and no one else's: no provider-wide reading is kept
       observeLimit: (chat, event) => {
         try {
-          this.limits.observe(chat.provider, event);
           this.observeAccount(chat, event);
         } catch {
           // Output still draining after the database closed (shutdown): losing a limit reading must not become an uncaught error
@@ -817,6 +824,13 @@ export class ChatManager extends EventEmitter {
     // A fork of an assistant chat is an assistant chat: the marker comes from the source, never from the request
     if (known?.opts.claudioAssistant) chat.opts.claudioAssistant = known.opts.claudioAssistant;
     if (known) chat.permissionMode = known.permissionMode;
+    // A fork goes on where its source was, as `ChatStartOptions.account` says: on its account, and
+    // pinned to it when the source was; the rotation still moves it from there at a limit. A request
+    // that names an account wins (applied next)
+    if (known) {
+      chat.account = known.account;
+      if (known.opts.account) chat.opts.account = known.opts.account;
+    }
     this.applyStartOptions(chat, request);
     return this.begin(chat, request.prompt, attachments, room);
   }
@@ -1744,7 +1758,7 @@ export class ChatManager extends EventEmitter {
       reason = movedFor;
     } else {
       const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, now: at, model: chat.model });
+      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), now: at, model: askedModel(chat) });
       to = choice.account ?? chat.account ?? DEFAULT_ID;
       reason = choice.reason;
     }
@@ -1757,26 +1771,39 @@ export class ChatManager extends EventEmitter {
     }
     const from = chat.account;
     if (from && from !== ref.id) {
-      this.lastSwitchAt = at;
       this.bus?.emit({ type: 'account.switched', title: `New work moves from ${from} to ${ref.id}`, from, to: ref.id, reason: reason ?? 'threshold' });
     }
     return ref;
   }
 
   /**
-   * What the chat's account reports, kept per account: a stream reading is stored as it is, and
-   * every change of a window lands in `usage_history`. A turn that died on the limit writes nothing
-   * into the account's reading, since the CLI said neither how much was used nor until when; the chat
-   * only remembers the account, so that its next move does not go back to it.
+   * What the chat's account reports, kept on that account and no other: a stream reading is stored
+   * as it is, and every change of a window lands in `usage_history`. A turn that died on the limit
+   * writes nothing into the account's reading, since the CLI said neither how much was used nor until
+   * when; the chat only remembers the account, so that its next move does not go back to it. A
+   * rejected event with no reset leaves the account out for `cooldownSeconds` on its reading.
    */
   private observeAccount(chat: LiveChat, event: DriverEvent): void {
+    if (event.kind === 'rate-limit' && event.info.status === 'rejected' && event.info.resetsAt) this.refusedUntil.set(chat, new Date(event.info.resetsAt * 1000).toISOString());
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
     if (event.kind !== 'rate-limit' || event.info.status === 'rejected') chat.limitedAccounts.add(id);
     if (event.kind !== 'rate-limit') return;
     const { info } = event;
-    const reading = readingFromEvent({ status: info.status, rateLimitType: info.rateLimitType, resetsAt: info.resetsAt, utilization: info.utilization, unifiedWindows: info.windows }, Date.now());
+    const reading = readingFromEvent(
+      {
+        status: info.status,
+        rateLimitType: info.rateLimitType,
+        resetsAt: info.resetsAt,
+        utilization: info.utilization,
+        unifiedWindows: info.windows,
+        ...(info.isUsingOverage !== undefined ? { isUsingOverage: info.isUsingOverage } : {}),
+        ...(info.overageStatus !== undefined ? { overageStatus: info.overageStatus } : {}),
+      },
+      Date.now(),
+      { cooldownMs: store.settings().cooldownSeconds * 1000 },
+    );
     if (!reading) return;
     void this.noteAccountReading(id, reading).catch(() => undefined);
   }
@@ -1786,7 +1813,8 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!store) return;
     if (!(await store.observe(id, reading))) return;
-    const limit = store.get(id).limits;
+    // Removed since the reading was taken, or the credential-less default: nothing to draw a line for
+    const limit = store.find(id)?.limits;
     if (!limit) return;
     const points: UsageHistoryPoint[] = [];
     for (const window of HISTORY_WINDOWS) {
@@ -1805,12 +1833,25 @@ export class ChatManager extends EventEmitter {
    * stored before the turn's end is announced, which is when the rotation chooses. A turn that
    * went through on an account never confirmed (an OAuth token from the environment has no free
    * check) confirms it: the CLI refuses an invalid token before generating anything.
+   *
+   * A turn that went through also ends the replay count: the next limit is a new one, with a replay
+   * of its own. Before 2026-10-29 the count was reset only on a resume, so after one wait-replay a
+   * chat never rotated again (regression audit §2.2).
+   *
+   * The account may be gone (a person removed it, the store's lookup is nullable): the turn's result
+   * is folded all the same. On 2026-10-25 a throw here went up the stream handler and took the
+   * server down.
    */
   private observeSignIn(chat: LiveChat, authFailed: boolean): void {
+    if (!authFailed) {
+      chat.limitReplays = 0;
+      this.refusedUntil.delete(chat);
+    }
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
-    const account = authFailed ? null : store.get(id);
+    const account = authFailed ? null : store.find(id);
+    if (!authFailed && !account) return;
     const done = authFailed ? store.markAuthFailed(id) : account?.authFailedAt || account?.checkedAt === null ? store.confirm(id) : null;
     void done?.catch(() => undefined);
   }
@@ -1831,7 +1872,7 @@ export class ChatManager extends EventEmitter {
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
     const failedOn = new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)]);
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn: [...failedOn] });
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: [...failedOn] });
   }
 
   /**
@@ -1848,18 +1889,18 @@ export class ChatManager extends EventEmitter {
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
     const newer = (account: string): boolean => {
-      let limit;
-      try {
-        limit = store.get(account).limits;
-      } catch {
-        return false;
-      }
+      const limit = store.find(account)?.limits;
       return !!limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > (since ?? 0);
     };
     const failedOn = since === null ? [] : [...new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)])].filter((a) => !newer(a));
     // Overriding the failures, staying on the account the turn died on last is no reason of its own:
     // the order (or the most room) decides
-    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), lastSwitchAt: this.lastSwitchAt, model: chat.model, failedOn });
+    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn });
+  }
+
+  /** The live chats whose process runs on an account: what removing that account waits for. */
+  liveChatsOn(account: string): string[] {
+    return [...this.chats.values()].filter((c) => c.alive && (c.account ?? DEFAULT_ID) === account).map((c) => c.id);
   }
 
   /** Reads the model lists the account choice needs and does not have yet (no turn, no tokens). */
@@ -1987,7 +2028,13 @@ export class ChatManager extends EventEmitter {
     }
     createInterface({ input: proc.stdout }).on('line', (line) => {
       if (!current()) return;
-      session.readLine(line);
+      // A line the fold cannot take is this chat's failure, never the server's: a throw out of this
+      // handler is an uncaught exception, which took the whole server down on 2026-10-25
+      try {
+        session.readLine(line);
+      } catch (err) {
+        this.failProtocol(chat, `Claudio could not read a line of the agent's output: ${err instanceof Error ? err.message : String(err)}`);
+      }
       this.noteActivity(chat);
     });
     createInterface({ input: proc.stderr }).on('line', (line) => {
@@ -2165,9 +2212,25 @@ export class ChatManager extends EventEmitter {
       chat.limitRequested = true;
       return;
     }
-    if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return;
+    // Announced whatever the replay count says: the rotation may move the turn to another account,
+    // which the count never holds back; only a replay on no new account is bounded by it
     chat.limitRequested = true;
-    this.emit('limit-hit', chat.summary(), this.limits.get(chat.provider));
+    this.emit('limit-hit', chat.summary(), this.limitResetOf(chat.id));
+  }
+
+  /** The reset each chat's last refused turn gave (ISO), until a turn goes through: that turn's own evidence */
+  private readonly refusedUntil = new WeakMap<LiveChat, string>();
+
+  /**
+   * When the account the chat's turn died on comes back, as far as the chat knows: its reading's
+   * reset while it reads out, else the reset the refusal itself gave, which may have passed already
+   * (the wait then goes on at once). Null when neither said. Never another account's reset.
+   */
+  limitResetOf(id: string): string | null {
+    const chat = this.chats.get(id);
+    if (!chat) return null;
+    const limit = this.limitOf(id);
+    return limit?.state === 'exhausted' && limit.resetsAt ? limit.resetsAt : (this.refusedUntil.get(chat) ?? null);
   }
 
   /** A wrapper-generated line in the transcript (account rotations, retries). */
@@ -2227,19 +2290,20 @@ export class ChatManager extends EventEmitter {
    */
   limitComing(id: string): boolean {
     const chat = this.chats.get(id);
-    return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn && chat.limitReplays < MAX_LIMIT_REPLAYS;
+    return !!chat && chat.rateLimited && !chat.limitRequested && !!chat.lastUserTurn;
   }
 
   /**
    * A limit the chat's process met where its stream does not say so: a workflow's subagent, refused by
    * the API, ends in a transcript of its own (R15). It is recorded as the stream's rejected reading or
-   * failed sign-in would be, on the provider and on the account, and the chat is at its limit: a live
+   * failed sign-in would be, on the account it ran on, and the chat is at its limit: a live
    * process is stopped, and its end announces `limit-hit` as a turn of its own that died would. False
-   * when the chat already is at a limit, or has spent its replay without getting anywhere since.
+   * when the chat already is at a limit. A replay spent without a turn going through since does not
+   * stop it: the rotation passes over the accounts the turn died on, and waits when none is left.
    */
   limitReached(id: string, refusal: { resetsAt: string | null; rateLimitType: string | null; auth: boolean }): boolean {
     const chat = this.chats.get(id);
-    if (!chat || chat.rateLimited || chat.limitRequested || !chat.lastUserTurn || chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    if (!chat || chat.rateLimited || chat.limitRequested || !chat.lastUserTurn) return false;
     chat.rateLimited = true;
     if (refusal.auth) {
       chat.authFailed = true;
@@ -2252,7 +2316,6 @@ export class ChatManager extends EventEmitter {
         info: { status: 'rejected', windows: {}, observedAt: now(), ...(refusal.rateLimitType ? { rateLimitType: refusal.rateLimitType } : {}), ...(Number.isFinite(resetsAt) ? { resetsAt } : {}) },
       };
       try {
-        this.limits.observe(chat.provider, event);
         this.observeAccount(chat, event);
       } catch {
         // A closed database (shutting down): the chat is at its limit all the same
@@ -2275,10 +2338,15 @@ export class ChatManager extends EventEmitter {
     return this.chats.get(id)?.rateLimited === true;
   }
 
-  /** The provider's reading as it stands for the chat's provider; null for a chat Claudio does not drive. */
+  /**
+   * The reading of the account the chat ran on, as its provider's limit; null for a chat Claudio does
+   * not drive, one that runs on no account, or one whose account has none. Never another account's:
+   * the provider-wide reading this used to be was whichever account ran last.
+   */
   limitOf(id: string): ProviderLimit | null {
     const chat = this.chats.get(id);
-    return chat ? this.limits.get(chat.provider) : null;
+    if (!chat?.account || !this.accounts) return null;
+    return providerLimitOf(chat.provider, this.accounts.find(chat.account)?.limits ?? null);
   }
 
   /**
@@ -2292,12 +2360,8 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!chat) throw new AccountSwitchRefusal('chat-not-found', 'chat not found');
     if (!store) throw new AccountSwitchRefusal('account-not-found', 'no accounts are configured');
-    let account;
-    try {
-      account = store.get(accountId);
-    } catch {
-      throw new AccountSwitchRefusal('account-not-found', `account ${accountId} not found`);
-    }
+    const account = store.find(accountId);
+    if (!account) throw new AccountSwitchRefusal('account-not-found', `account ${accountId} not found`);
     if (accountId === (chat.account ?? DEFAULT_ID)) {
       if (!chat.pendingAccount) throw new AccountSwitchRefusal('same-account', 'the chat already runs on this account');
       chat.pendingAccount = null;
@@ -2311,15 +2375,15 @@ export class ChatManager extends EventEmitter {
       throw new AccountSwitchRefusal('sign-in-expired', `account ${accountId} needs a new sign-in (${account.signInState})`);
     }
     if (!account.signedIn) throw new AccountSwitchRefusal('signed-out', `account ${accountId} is signed out`);
-    const resets = account.limits?.state === 'exhausted' && account.limits.resetsAt ? Date.parse(account.limits.resetsAt) : null;
-    const out = resets !== null && resets > Date.now();
+    const out = isOut(account.limits, Date.now());
     if (out || chat.limitedAccounts.has(accountId)) {
-      throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out ? ` until ${account.limits?.resetsAt}` : ''}`);
+      throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out && account.limits?.resetsAt ? ` until ${account.limits.resetsAt}` : ''}`);
     }
     // The lists the check looks at may not have been read yet (no turn, no tokens)
     await store.warmModels();
-    if (chat.model && chat.model !== 'default' && !store.canRun(accountId, chat.model)) {
-      throw new AccountSwitchRefusal('model-unavailable', `account ${accountId} does not offer ${chat.model}`);
+    const model = askedModel(chat);
+    if (model && model !== 'default' && !store.canRun(accountId, model)) {
+      throw new AccountSwitchRefusal('model-unavailable', `account ${accountId} does not offer ${model}`);
     }
     if (chat.status === 'busy' || chat.status === 'starting') {
       chat.pendingAccount = accountId;

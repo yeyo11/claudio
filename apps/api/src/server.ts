@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { acquireDataDirLock, Core, dataDirFrom, headlessStartProblems, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
+import { acquireDataDirLock, Core, dataDirFrom, headlessStartProblems, installProcessGuards, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
@@ -87,6 +87,9 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     lock.release();
     throw err;
   }
+  // One chat's or one request's fault is never the server's: logged, and every other chat goes on
+  // (2026-10-25: an account removed under a live chat took the whole server down)
+  const releaseGuards = installProcessGuards((line, err) => app.log.error({ err }, line));
   for (const stray of core.runtime.strays()) {
     app.log.warn(
       `chat ${stray.chatId}: CLI process ${stray.pid} from a previous wrapper is still working on it; ` +
@@ -114,6 +117,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     await app.close();
     await ended;
     lock.release();
+    releaseGuards();
     throw err;
   }
 
@@ -150,6 +154,7 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
       // config home it was started with
       await ended;
       lock.release();
+      releaseGuards();
     })();
     return closing;
   };

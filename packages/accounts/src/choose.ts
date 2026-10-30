@@ -1,4 +1,5 @@
 import type { AccountLimit, AccountSignInState, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
+import { EXHAUSTED, isOut, outUntil } from './thresholds.ts';
 
 /** What `choose` needs of an account; the rest of it is not its business. */
 export interface Candidate {
@@ -18,9 +19,10 @@ export interface ChooseOptions {
   policy?: RotationPolicy | null;
   /** A chat pinned to an account keeps it while it can run, and otherwise rotates only within the policy */
   pinned?: string | null;
-  /** Epoch ms of the last switch, for the cooldown */
-  lastSwitchAt?: number | null;
-  /** The model the chat runs on (an alias or an id); absent or `default` means whatever the account offers */
+  /**
+   * The model the chat asked for (an alias or an id), never the one the CLI resolved it to; absent or
+   * `default` means whatever the account offers
+   */
   model?: string | null;
   /**
    * Whether an account can run the model. An account that cannot is no candidate, so the work waits
@@ -49,12 +51,6 @@ const UNKNOWN_RANK = 0.5;
 
 const signInUsable = (a: Candidate): boolean => a.signInState === undefined || a.signInState === 'ok' || a.signInState === 'unknown';
 
-function exhaustedUntil(limit: AccountLimit | null, now: number): number | null {
-  if (!limit || limit.state !== 'exhausted' || !limit.resetsAt) return null;
-  const t = Date.parse(limit.resetsAt);
-  return t > now ? t : null;
-}
-
 /**
  * When the account is out of the weekly limit that applies to this model alone (`Fable`), the time
  * it comes back (epoch ms); null when the model has no spent scoped limit. The account-wide state
@@ -66,20 +62,35 @@ function scopedOutUntil(limit: AccountLimit | null, model: string | null, now: n
   let until: number | null = null;
   for (const s of limit.cli.scoped) {
     const t = s.resetsAt * 1000;
-    if (s.utilization >= 1 && t > now && wanted.includes(s.model.toLowerCase())) until = until === null ? t : Math.max(until, t);
+    if (s.model && s.utilization >= EXHAUSTED && t > now && wanted.includes(s.model.toLowerCase())) until = until === null ? t : Math.max(until, t);
   }
   return until;
 }
 
 /**
- * Pure: the account the next process should run on.
+ * The global order: `settings.order` as the person arranged it, then every account it does not name
+ * (one added since) in the order they are listed.
+ */
+export function globalOrder(listed: readonly string[], order: readonly string[]): string[] {
+  const known = new Set(listed);
+  const arranged = order.filter((id) => known.has(id));
+  return [...arranged, ...listed.filter((id) => !arranged.includes(id))];
+}
+
+/**
+ * Pure: the account the next process should run on, in this order of precedence.
  *
- * Staying put wins over the order. The current account is kept while its binding window is under
- * the threshold; otherwise the first (`order`) or emptiest (`least-used`) enabled, signed-in,
- * not-exhausted account at least `hysteresis` points under the threshold is taken. Between two
- * switches there are `cooldownSeconds` unless the current account is exhausted. An account out
- * until its reset is skipped, and so is one the work's turn already failed on (`failedOn`); one
- * with no reading is allowed.
+ * 1. A pinned chat keeps its account while it can run.
+ * 2. The preferred account (`settings.preferred`) while it has room and the chat's policy lists it:
+ *    under the threshold to stay on it, `hysteresis` points under it to come back to it.
+ * 3. The strategy. Staying put wins over the order: the current account is kept while its binding
+ *    window is under the threshold; otherwise the first (`order`: the policy's, else the person's
+ *    `settings.order`) or emptiest (`least-used`) enabled, signed-in, not-exhausted account at least
+ *    `hysteresis` points under the threshold is taken.
+ *
+ * An account out until its reset (or for its cooldown, which the reading records as `outUntil`) is
+ * skipped, and so is one the work's turn already failed on (`failedOn`); one with no reading is
+ * allowed.
  */
 export function choose(
   accounts: readonly Candidate[],
@@ -91,7 +102,7 @@ export function choose(
   const threshold = (opts.policy?.threshold ?? settings.threshold) / 100;
   const margin = threshold - settings.hysteresis / 100;
   const byId = new Map(accounts.map((a) => [a.id, a]));
-  const order = (opts.policy?.order ?? accounts.map((a) => a.id)).filter((id) => byId.has(id));
+  const order = (opts.policy?.order ?? globalOrder(accounts.map((a) => a.id), settings.order)).filter((id) => byId.has(id));
   const ready = (id: string): boolean => {
     const a = byId.get(id);
     return !!a && a.enabled && a.signedIn && signInUsable(a) && order.includes(id);
@@ -100,7 +111,7 @@ export function choose(
     const l = limits[id];
     return l && l.state !== 'unknown' ? l.utilization : null;
   };
-  const out = (id: string): boolean => exhaustedUntil(limits[id] ?? null, now) !== null || !!opts.failedOn?.includes(id);
+  const out = (id: string): boolean => isOut(limits[id], now) || !!opts.failedOn?.includes(id);
   const model = opts.model && opts.model !== 'default' ? opts.model : null;
   const runs = (id: string): boolean => !model || !opts.canRun || opts.canRun(id, model);
   const usable = (id: string): boolean => ready(id) && !out(id) && runs(id) && scopedOutUntil(limits[id] ?? null, model, now) === null;
@@ -114,22 +125,21 @@ export function choose(
     if (!a.signedIn || !signInUsable(a)) return 'signed-out';
     return out(a.id) || scopedOutUntil(limits[a.id] ?? null, model, now) !== null ? 'limit' : 'threshold';
   };
-
   const currentUnder = current !== null && usable(current) && (util(current) ?? 0) < threshold;
+
+  const preferred = settings.preferred;
+  if (preferred && usable(preferred)) {
+    const room = util(preferred) ?? 0;
+    if (preferred === current ? room < threshold : room <= margin) {
+      const reason = preferred === current || current === null ? null : currentUnder ? 'person' : reasonFor();
+      return { account: preferred, reason, waitUntil: null };
+    }
+  }
+
   if (current !== null && currentUnder) return { account: current, reason: null, waitUntil: null };
 
-  // Moving off an account that is merely over the threshold waits out the cooldown; one that is out does not
-  const currentOut = current !== null && out(current);
-  const cooling = !!opts.lastSwitchAt && now - opts.lastSwitchAt < settings.cooldownSeconds * 1000;
-  if (current !== null && usable(current) && cooling && !currentOut) return { account: current, reason: null, waitUntil: null };
-
   const pool = order.filter((id) => id !== current && usable(id) && (util(id) ?? 0) <= margin);
-  let pick: string | undefined;
-  if (settings.strategy === 'least-used') {
-    pick = [...pool].sort((a, b) => (util(a) ?? UNKNOWN_RANK) - (util(b) ?? UNKNOWN_RANK))[0];
-  } else {
-    pick = pool[0];
-  }
+  const pick = settings.strategy === 'least-used' ? [...pool].sort((a, b) => (util(a) ?? UNKNOWN_RANK) - (util(b) ?? UNKNOWN_RANK))[0] : pool[0];
   if (pick) return { account: pick, reason: current === null ? null : reasonFor(), waitUntil: null };
 
   // Nobody better: an account over the threshold but not out still beats stopping
@@ -146,7 +156,7 @@ export function choose(
   // Only an account that can run the model is worth waiting for: another one coming back changes nothing
   const resets = order
     .filter((id) => ready(id) && runs(id))
-    .map((id) => exhaustedUntil(limits[id] ?? null, now) ?? scopedOutUntil(limits[id] ?? null, model, now))
+    .map((id) => outUntil(limits[id], now) ?? scopedOutUntil(limits[id] ?? null, model, now))
     .filter((t): t is number => t !== null);
   return { account: null, reason: null, waitUntil: resets.length ? Math.min(...resets) : null };
 }

@@ -6386,6 +6386,29 @@ export interface AccountInUse {
   kind: AccountKind;
   signInState: AccountSignInState;
   checkedAt: string | null;
+  /** The account's own reading: what the status bar draws for "Claude", never another account's */
+  limit: AccountLimit | null;
+  /** Subscription type (`max`, `pro`, ...); null when none is known */
+  plan: string | null;
+}
+
+/**
+ * The accounts as every screen reads them, computed once (`Core.accountView()`): the account new work
+ * starts on, the list, and whether every account that could take work is out. `GET /auth.inUse` and
+ * `overview.accounts` are this view, so the status bar, the chip and the cards cannot disagree.
+ */
+export interface AccountView {
+  /** The account new work would start on: the pin-less choice, which honours `settings.preferred`; null when none can take work */
+  inUse: AccountInUse | null;
+  /** Why `inUse` is null; null while it is set */
+  inUseReason: AccountInUseReason | null;
+  /** Every account, the CLI's own login left out while it has no credential */
+  accounts: Account[];
+  /** Every enabled, signed-in account is out (exhausted, with its reset ahead or unknown) */
+  atLimit: boolean;
+  /** ISO time of the earliest reset among the accounts that are out; null when none is or none gave one */
+  nextReset: string | null;
+  settings: AccountsSettings;
 }
 
 /** The answer of refreshing accounts' usage: every account as it lists now, and those the CLI could not read. */
@@ -6406,9 +6429,24 @@ export interface AccountsSettings {
   threshold: number;
   /** Points (0-100) below the threshold an account must fall before it is chosen again */
   hysteresis: number;
-  /** Seconds an account that hit a limit is left alone, when its reset is unknown */
+  /**
+   * Seconds an account is left alone after a rejection that gave no reset (or one of extra usage):
+   * recorded on that account's reading, which reads exhausted until then
+   */
   cooldownSeconds: number;
   strategy: AccountStrategy;
+  /**
+   * The account new work starts on while it has room and the chat's policy allows it; null leaves the
+   * choice to the strategy. A pin wins over it, and a project policy that does not list it too.
+   * `PUT /accounts/settings` accepts an enabled account's id.
+   */
+  preferred: string | null;
+  /**
+   * The global order of the accounts, which the `order` strategy follows; empty means the order they
+   * are listed in. `PUT /accounts/settings` accepts every enabled account's id once (disabled ones
+   * may be listed too); an account added later goes after the ones named.
+   */
+  order: string[];
 }
 
 /** How far an account's sign-in can be trusted. */
@@ -6495,6 +6533,14 @@ export interface AddTokenAccountRequest {
   secret: string;
 }
 
+/** `DELETE /accounts/:id` refused with 409: live chats run on the account; stop them or move them first. */
+export interface AccountInUseResponse {
+  error: string;
+  code: 'account-in-use';
+  /** Ids of the live chats whose process runs on the account */
+  chats: string[];
+}
+
 /** `PATCH /accounts/:id` */
 export interface UpdateAccountRequest {
   alias?: string | null;
@@ -6526,23 +6572,14 @@ export interface AccountLoginCodeRequest {
   code: string;
 }
 
-/** What the dashboard needs about accounts, without the full list. */
-export interface AccountsSnapshot {
-  total: number;
-  /** Accounts that are enabled and signed in */
-  ready: number;
-  /** Id of the account new work would start on; null when none is ready */
-  current: string | null;
-}
-
 // ---------- Overview ----------
 
 export interface Overview {
   system: SystemInfo;
-  /** One reading per provider that has one */
+  /** One reading per provider that has one; Claude's is derived from the account in use (`accounts.inUse.limit`) */
   limits: ProviderLimit[];
-  /** The accounts, without the full list: what the dashboard shows; absent until the server runs the accounts package */
-  accounts?: AccountsSnapshot;
+  /** The account view every screen reads; absent until the server runs the accounts package */
+  accounts?: AccountView;
   counts: {
     projects: number;
     chats: number;
@@ -6866,6 +6903,15 @@ export interface AccountSwitchedEvent extends ClaudioEventBase {
   from: string | null;
   to: string | null;
   reason: AccountSwitchReason;
+}
+
+/**
+ * An account's reading or stored state changed (a reading kept, a sign-in marked or cleared, an
+ * account added, removed or enabled, the settings). Debounced to one per 250 ms; it carries nothing:
+ * the reader refetches the accounts, the auth status, the overview and the providers.
+ */
+export interface AccountsChangedEvent extends ClaudioEventBase {
+  type: 'accounts.changed';
 }
 
 /** Work stopped to wait for its provider's limit to reset. */
@@ -9411,6 +9457,7 @@ export type ClaudioEvent =
   | RunLimitWaitingEvent
   | RunAccountRotatedEvent
   | AccountSwitchedEvent
+  | AccountsChangedEvent
   | TaskStartedEvent
   | TaskEndedEvent
   | SubagentStartedEvent

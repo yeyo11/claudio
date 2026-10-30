@@ -100,7 +100,7 @@ export function Accounts() {
 
   const accounts = sortAccounts(data);
   const signingAgain = data.find((a) => a.id === signingIn) ?? null;
-  const current = overview.data?.accounts?.current ?? null;
+  const current = overview.data?.accounts?.inUse?.id ?? null;
   const lastRead = data.reduce<string | null>((latest, a) => ((toMs(a.limits?.observedAt) ?? 0) > (toMs(latest) ?? 0) ? (a.limits?.observedAt ?? latest) : latest), null);
   // The rotation's own reasons are said in words; any other text (a wait's cause) is shown as it was recorded
   const reasonText = (reason: string | null): string | null => {
