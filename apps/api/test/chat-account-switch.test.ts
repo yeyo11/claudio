@@ -9,6 +9,7 @@ import { Core, loadConfig } from '@claudio/core';
 import type { Account, Chat, ChatSummary, SwitchChatAccountResponse } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { signInDefault } from './helpers.ts';
 
 // `POST /chats/:id/account` over HTTP, on the fake Claude: every status the route answers, and that
 // a chat's own token never reaches it.
@@ -44,6 +45,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-switch-'));
   cwd = join(root, 'cwd');
   mkdirSync(cwd);
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE_CLAUDE,

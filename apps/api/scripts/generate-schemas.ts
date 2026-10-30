@@ -76,7 +76,7 @@ const ROOT_TYPES = [
   // The project assistant: runs and their proposals
   'AssistantRun', 'AssistantRunDetail', 'StartAssistantRunRequest', 'StartClaudioAssistantChatRequest', 'AssistantProposal', 'AcceptAssistantProposalRequest',
   // Settings that change at runtime, and the tunnel
-  'AppSettings', 'UpdateAppSettingsRequest', 'SettingsState', 'SettingState', 'SettingOverrides', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'UpdateTunnelSettingsRequest',
+  'AppSettings', 'UpdateAppSettingsRequest', 'SettingsState', 'SettingState', 'SettingOverrides', 'StoredDashboardLayout', 'SaveDashboardLayoutRequest', 'TunnelStatus', 'TunnelSettings', 'TunnelSettingsView', 'UpdateTunnelSettingsRequest',
   // The person's own terminal
   'TerminalStatus', 'Terminal', 'CreateTerminalRequest', 'UpdateTerminalSettingsRequest', 'TerminalSettings', 'TerminalTicket', 'TerminalClientFrame', 'TerminalServerFrame', 'TerminalHistoryPage', 'TerminalChangedEvent',
   // Providers

@@ -9,6 +9,7 @@ import { Core, loadConfig, RunSlotRefusal } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
+import { signInDefault } from './helpers.ts';
 
 // Run slots against idle API chats (docs/openai-compatible-api.md, "Real-client tests"): every OpenAI
 // conversation is a chat whose process stays up between turns, so a start that finds every slot
@@ -27,6 +28,8 @@ before(async () => {
   root = mkdtempSync(join(tmpdir(), 'claudio-api-openai-slots-'));
   log = join(root, 'prompts.jsonl');
   process.env.FAKE_OPENAI_PROMPTS = log;
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(
     loadConfig({
       CLAUDE_BIN: FAKE,

@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type { ChatDetail, ChatSummary } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
+import { signInDefault } from './helpers.ts';
 
 /*
  * A new chat names a model its provider lists, or is refused before anything starts (report §4.13):
@@ -31,6 +32,8 @@ before(async () => {
   process.env.CLAUDIO_ADMIT_MEMORY_PRESSURE = '100';
   process.env.CLAUDIO_ADMIT_MEMORY_FLOOR_MB = '0';
   root = mkdtempSync(join(tmpdir(), 'claudio-model-env-'));
+  // The CLI's own login has a credential, so chats start on it
+  signInDefault(join(root, 'claude'));
   core = new Core(loadConfig({ CLAUDE_BIN: FAKE_CLI, CLAUDE_CONFIG_DIR: join(root, 'claude'), CLAUDIO_WORKSPACE_DIR: join(root, 'workspace'), CLAUDIO_DATA_DIR: join(root, 'data') }));
   app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
   cwd = join(root, 'shop');

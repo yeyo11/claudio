@@ -28413,6 +28413,39 @@
     "$ref": "#/components/schemas/DashboardLayout",
     "description": "`PUT /dashboard/layout`: the whole layout of one Home; widget order is the array's order."
   },
+  "TunnelSettingsView": {
+    "type": "object",
+    "properties": {
+      "settings": {
+        "$ref": "#/components/schemas/TunnelSettings"
+      },
+      "sources": {
+        "type": "object",
+        "properties": {
+          "startWithClaudio": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          },
+          "port": {
+            "$ref": "#/components/schemas/AppSettingSource"
+          }
+        },
+        "required": [
+          "startWithClaudio",
+          "port"
+        ],
+        "description": "`env` is read-only here (`CLAUDIO_TUNNEL_PORT`); `file` was saved from the app"
+      },
+      "defaults": {
+        "$ref": "#/components/schemas/TunnelSettings"
+      }
+    },
+    "required": [
+      "settings",
+      "sources",
+      "defaults"
+    ],
+    "description": "`GET /tunnel/settings`: the settings in effect, where each comes from, and their defaults."
+  },
   "UpdateTunnelSettingsRequest": {
     "type": "object",
     "properties": {

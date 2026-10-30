@@ -10,6 +10,7 @@ import { buildApp } from '../src/app.ts';
 import { HEADLESS_ROUTES, servedInHeadless } from '../src/headless.ts';
 import { isSingleLabel } from '../src/security.ts';
 import { startServer } from '../src/server.ts';
+import { signInDefault } from './helpers.ts';
 
 const TOKEN = 'headless-test-token';
 
@@ -199,6 +200,8 @@ test('readiness answers without a credential: starting, then the CLI missing, th
   const installed = { ...core.providers.knownOne('claude-code'), binaryPath: '/usr/bin/claude', version: '2.1.300' };
   Object.assign(core.providers, { knownOne: () => installed, knownSignedIn: () => false });
   assert.deepEqual(await ready(), { status: 503, body: { ready: false, reason: 'signed-out' } });
+  // A sign-in state is an account's: the CLI's own login is one once it has a credential (§2.9)
+  signInDefault(core.config.configDir);
   const account = core.accounts.list()[0];
   assert.ok(account, 'the CLI login is listed');
   Object.assign(core.accounts, { list: () => [{ ...account, enabled: true, signedIn: true, signInState: 'expired' }] });

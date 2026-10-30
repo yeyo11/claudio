@@ -10,6 +10,7 @@ import { Core, loadConfig } from '@claudio/core';
 import type { ChatSummary, ProviderMove, ProviderStatus } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { signInDefault } from './helpers.ts';
 
 // What happens at a usage limit, over HTTP: a chat on the fake Claude that dies against its limit
 // (`FAKE-LIMIT-REPORTED-ONCE`: the CLI's rejected report, then its 429; the 429 alone records no
@@ -52,6 +53,10 @@ before(async () => {
   writeFileSync(join(repo, 'README.md'), 'project\n');
   git('add', '-A');
   git('commit', '-q', '-m', 'initial');
+
+  // The CLI's own login has a credential, so chats start on it
+
+  signInDefault(join(root, 'claude'));
 
   core = new Core(
     loadConfig({
