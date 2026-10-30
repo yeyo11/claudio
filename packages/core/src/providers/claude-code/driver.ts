@@ -64,8 +64,13 @@ class ClaudeCodeSession implements DriverSession {
   }
 
   async interrupt(): Promise<InterruptReceipt> {
-    const response = await this.control.request({ subtype: 'interrupt' } satisfies InterruptRequest);
-    return { stillQueued: stillQueuedOf(response) };
+    this.stream.interrupting();
+    try {
+      const response = await this.control.request({ subtype: 'interrupt' } satisfies InterruptRequest);
+      return { stillQueued: stillQueuedOf(response) };
+    } finally {
+      this.stream.interruptAnswered();
+    }
   }
 
   async backgroundCall(toolUseId: string): Promise<boolean> {

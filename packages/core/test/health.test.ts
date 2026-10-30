@@ -90,6 +90,42 @@ test('the same call getting the same answer over and over is a loop', () => {
   assert.equal(loop(trace([...same, ...same]))?.level, 'bad');
 });
 
+// ---------- whose call it was (C3) ----------
+
+const AGENT = { parentToolUseId: 'toolu_agent', description: 'Run the e2e suite', subagentType: 'general-purpose' };
+const traced = (calls: ToolCall[]): Trace => ({ ...trace(calls), agents: new Map([[AGENT.parentToolUseId, { description: AGENT.description, subagentType: AGENT.subagentType }]]) });
+const bySub: Partial<ToolCall> = { parentToolUseId: AGENT.parentToolUseId };
+
+test("a signal built from a subagent's calls names the agent; the lead's own names none", () => {
+  const stalls = traced([bash('pnpm e2e', 0, 420_000, bySub), bash('pnpm e2e --slow', 430_000, null, bySub)]);
+  const stall = repeatStall(stalls, noHistory, T0 + 740_000);
+  assert.equal(stall?.kind, 'repeat-stall');
+  assert.deepEqual(stall?.agent, AGENT);
+  assert.equal(repeatStall(traced([bash('pnpm e2e', 0, 420_000), bash('pnpm e2e', 430_000, null)]), noHistory, T0 + 740_000)?.agent, undefined);
+
+  const same = Array.from({ length: 4 }, (_, i) => bash('pnpm build', i * 60_000, i * 60_000 + 1000, { ...bySub, isError: true, result: 'error TS2345' }));
+  assert.deepEqual(loop(traced(same))?.agent, AGENT);
+  const weakened = weakenedTests(traced([edit('src/a.test.ts', 'assert.equal(a, 1);', 'a;', bySub)]));
+  assert.deepEqual(weakened[0]?.agent, AGENT);
+  // An agent the trace has no launch for is still named, by its call
+  assert.deepEqual(repeatStall(trace(stalls.calls), noHistory, T0 + 740_000)?.agent, { parentToolUseId: AGENT.parentToolUseId });
+});
+
+test('the same stall or the same step by two agents is two agents getting on, not one stuck', () => {
+  // The lead hangs once and its subagent once: neither has hung twice in a row
+  const mixed = traced([bash('pnpm e2e', 0, 420_000), bash('pnpm e2e', 430_000, null, bySub)]);
+  assert.equal(repeatStall(mixed, noHistory, T0 + 740_000), null);
+  // Two of the same call each is not four
+  const split = [0, 1, 2, 3].map((i) => bash('pnpm build', i * 60_000, i * 60_000 + 1000, { ...(i % 2 ? bySub : {}), isError: true, result: 'error TS2345: Argument of type string' }));
+  assert.equal(loop(traced(split)), null);
+});
+
+test('a hung command run by a subagent names it', () => {
+  const health = chatHealth(facts({ live: { lastEventAt: at(0), commands: [{ command: 'pnpm e2e', startedAt: at(0), toolUseId: 'toolu_x', agent: AGENT }] } }), T0 + 12 * 60_000);
+  assert.equal(health.signals[0]?.kind, 'hung-command');
+  assert.deepEqual(health.signals[0]?.agent, AGENT);
+});
+
 test('the same error text coming back from different calls is a loop too', () => {
   const calls = ['a', 'b', 'c', 'd'].map((f, i) => call('Read', { file_path: `/x/${f}` }, { at: at(i * 1000), isError: true, result: 'EACCES: permission denied, open /x/y' }));
   assert.match(loop(trace(calls))?.reason ?? '', /The same error came back 4 times/);

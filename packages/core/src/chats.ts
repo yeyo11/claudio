@@ -1,11 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, RunSlotRefusal } from './chat-errors.ts';
+import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isCapacityRefusal, MemoryRefusal, RunSlotRefusal } from './chat-errors.ts';
 import { DEFAULT_ID, isOut, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import {
   type AccountSwitchReason,
@@ -34,6 +34,7 @@ import {
   type RunGuardEvent,
   type RunStatus,
   type TokenUsage,
+  type ToolPolicy,
   type TranscriptEntry,
   type UsageHistoryPoint,
 } from '@claudio/shared';
@@ -53,6 +54,7 @@ import {
   processUp,
   runsInBackground,
   type AdoptedChat,
+  type ChatGuardPlan,
   type ChatHost,
   type ChatPulse,
   type ChatRuntime,
@@ -69,13 +71,13 @@ import {
 import { removeChatExtrasConfigs, writeChatExtrasConfigSync } from './chat-tools.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
+import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace, type TraceAgent } from './health.ts';
 import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { BranchTracker, DriverEvent, InterruptReceipt, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { providerLimitOf } from './providers/limits.ts';
 import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
-import { admissionLimitsFrom, readSystemLoad, RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
+import { admissionLimitsFrom, readSystemLoad } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
@@ -118,7 +120,7 @@ export class AccountSwitchRefusal extends Error {
   }
 }
 
-export { ChatNotFoundError, ChatRefusal, DeliveryRefusal, RunSlotRefusal } from './chat-errors.ts';
+export { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isCapacityRefusal, MemoryRefusal, RunSlotRefusal } from './chat-errors.ts';
 
 /**
  * Replays of a turn lost to a limit on no new account, between two turns that went through: a second
@@ -139,6 +141,19 @@ const askedModel = (chat: LiveChat): string | null => chat.opts.model ?? null;
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
+/** What a guard plan is derived from at a spawn: the chat's folder, the plan it last had, and what kind of chat it is. */
+export interface GuardSubject {
+  cwd: string;
+  /** The plan the last process ran with; its `request` is what a new one is derived from */
+  plan: ChatGuardPlan | null;
+  /** A person's own chat, guarded by its project's opt-in when nothing else says how */
+  person: boolean;
+  /** The tool policy of an automated run, when it stated one */
+  policy: ToolPolicy | null;
+  /** Confined to a tool list (`--restricted`/`--tools`): such a run is never guarded */
+  confined: boolean;
+}
+
 export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'find' | 'cachedModels' | 'warmModels' | 'canRun'>;
 const MAX_ATTACHMENTS = 20;
 
@@ -258,6 +273,14 @@ export class ChatManager extends EventEmitter {
    * section and the note on pasted text, or '' when the project gives none; Core sets it
    */
   lessonsFor: ((projectId: string | null, orchestrated: boolean) => string) | null = null;
+  /**
+   * A process's guard plan, derived again from the settings as they are now (D6). Called at every
+   * spawn the caller did not hand a plan to: a respawn after a limit, a queued message, a send to a
+   * chat whose process ended. Core sets it; without it a chat keeps the plan it was started with.
+   */
+  guardPlanner: ((chat: GuardSubject) => ChatGuardPlan | null) | null = null;
+  /** The chats whose next spawn uses the plan its caller just handed over, rather than deriving one */
+  private readonly guardsGiven = new WeakSet<LiveChat>();
   /** Read as each run starts, so a change in the settings applies to the next one; Core sets the layered store */
   defaults: RunDefaults;
   /** Latest `init` snapshot per working directory */
@@ -647,17 +670,33 @@ export class ChatManager extends EventEmitter {
         for (const call of calls.values()) call.endedAt ??= event.ts;
         continue;
       }
+      // A subagent's calls stream on its sidechain, each line naming the lead's call that launched it
+      const parent = event.entry?.parentToolUseId ?? null;
       for (const block of event.entry?.blocks ?? []) {
         if (block.type === 'tool_use') {
           const input = block.input && typeof block.input === 'object' ? (block.input as Record<string, unknown>) : {};
-          calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '' });
+          calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '', ...(parent ? { parentToolUseId: parent } : {}) });
         } else if (block.type === 'tool_result') {
           const call = calls.get(block.toolUseId);
           if (call) Object.assign(call, { endedAt: event.ts, isError: block.isError, result: block.content.slice(0, 300) });
         }
       }
     }
-    return { executionStartedAt: live.startedAt, lastEventAt: chat.activityAt, calls: [...calls.values()], heartbeats: new Map(chat.heartbeats), ...(guards.length ? { guards } : {}) };
+    // Who each subagent is, by the call that launched it: what a signal about one of its calls names
+    const agents = new Map<string, TraceAgent>();
+    for (const call of calls.values()) {
+      if (!call.parentToolUseId || agents.has(call.parentToolUseId)) continue;
+      const sub = chat.branches.subagents.get(call.parentToolUseId);
+      agents.set(call.parentToolUseId, sub ? { description: sub.description, subagentType: sub.subagentType } : {});
+    }
+    return {
+      executionStartedAt: live.startedAt,
+      lastEventAt: chat.activityAt,
+      calls: [...calls.values()],
+      heartbeats: new Map(chat.heartbeats),
+      ...(guards.length ? { guards } : {}),
+      ...(agents.size ? { agents } : {}),
+    };
   }
 
   /**
@@ -680,8 +719,7 @@ export class ChatManager extends EventEmitter {
     if (table.length === 0) throw new Error('a command can only be cancelled where /proc lists the processes, which this system does not');
     const cli = cliProcessOf(table, chat.proc.pid, chat.id);
     if (!cli) throw new Error('the CLI process is gone');
-    const { roots, unclaimed } = commandRoots(table, cli.pid, open.map((c) => Date.parse(c.at)));
-    const root = roots[at];
+    const { roots, unclaimed } = commandRoots(table, cli.pid, open.map((c) => Date.parse(c.at)));    const root = roots[at];
     if (!root) throw new Error('no process of this command was found: it has not started yet, or has ended');
     // Never the CLI itself, whatever the clock says: that is stopping the chat, which has its own action
     if (root.argv.includes('stream-json')) throw new Error('the process found for this command is a CLI, not a command');
@@ -725,6 +763,18 @@ export class ChatManager extends EventEmitter {
     return [...this.chats.values()].filter((r) => r.alive).length;
   }
 
+  /**
+   * The guard files the chats' plans name: the sweep of the guard folder never removes these, since a
+   * process reads its rules file on every tool call. A chat without a process counts too: its plan
+   * is what it would be launched with until its next spawn derives another.
+   */
+  liveGuardFiles(): string[] {
+    return [...this.chats.values()].flatMap((chat) => {
+      const plan = chat.opts.guards;
+      return plan ? [plan.settingsPath, join(dirname(plan.settingsPath), `${plan.rulesSha256.slice(0, 16)}.rules.json`)] : [];
+    });
+  }
+
   /** The chats whose process is up, with its pid: what the resource report of the machine is grouped by */
   livePids(): Array<{ chatId: string; pid: number }> {
     return [...this.chats.values()].flatMap((chat) => (chat.alive && chat.proc?.pid !== undefined ? [{ chatId: chat.id, pid: chat.proc.pid }] : []));
@@ -755,7 +805,10 @@ export class ChatManager extends EventEmitter {
     const attachments = this.resolveAttachments(opts.attachments);
     const origin = opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : opts.apiClient ? 'api' : 'claudio';
     if (opts.apiPolicy) opts.apiAttachments = attachments.map((a) => a.path);
-    return this.begin(new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver), opts.prompt, attachments, room);
+    const chat = new LiveChat(randomUUID(), opts, meta, origin, null, this.chatDefaults(), driver);
+    // The starter derived the plan a moment ago, or chose none: the first process runs as it said
+    this.guardsGiven.add(chat);
+    return this.begin(chat, opts.prompt, attachments, room);
   }
 
   /**
@@ -964,10 +1017,10 @@ export class ChatManager extends EventEmitter {
       room = found;
       // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
       const { refusal } = readSystemLoad(this.admission);
-      if (refusal) throw new ChatRefusal(refusal, 409);
+      if (refusal) throw new MemoryRefusal(refusal);
     } catch (err) {
       // The person is told exactly what they were told before; the refusal only also reserves the next place
-      if (kind === 'interactive' && (err instanceof RunSlotRefusal || (err instanceof ChatRefusal && err.message.startsWith(RESOURCE_REFUSAL_PREFIX)))) {
+      if (kind === 'interactive' && isCapacityRefusal(err)) {
         this.interactive.hold();
       }
       throw err;
@@ -1024,6 +1077,7 @@ export class ChatManager extends EventEmitter {
     if (options.guards !== undefined) {
       if (options.guards === null) delete opts.guards;
       else opts.guards = options.guards;
+      this.guardsGiven.add(chat);
     }
     if (options.extraMcpServers !== undefined) {
       if (options.extraMcpServers === null) delete opts.extraMcpServers;
@@ -1133,6 +1187,30 @@ export class ChatManager extends EventEmitter {
     chat.remember(receipt);
     this.persist();
     return receipt;
+  }
+
+  /**
+   * The guard plan of the process about to start (D6). A plan the caller just handed over stands; any
+   * other spawn derives it again from the settings of now, so a rule switched off since the chat
+   * started is off for its next process too. The Claudio assistant and housekeeping are never
+   * guarded, and a confined API chat keeps the `declared-tools` guard its policy armed.
+   */
+  private planGuards(chat: LiveChat): void {
+    const given = this.guardsGiven.delete(chat);
+    if (chat.opts.claudioAssistant || chat.origin === 'internal') {
+      delete chat.opts.guards;
+      return;
+    }
+    if (given || chat.opts.apiPolicy || !this.guardPlanner) return;
+    const plan = this.guardPlanner({
+      cwd: chat.cwd,
+      plan: chat.opts.guards ?? null,
+      person: chat.opts.purpose === 'person' || chat.opts.purpose === undefined,
+      policy: chat.opts.toolConfig?.policy ?? null,
+      confined: !!chat.opts.confine,
+    });
+    if (plan) chat.opts.guards = plan;
+    else delete chat.opts.guards;
   }
 
   /**
@@ -2033,6 +2111,7 @@ export class ChatManager extends EventEmitter {
     if (!existsSync(chat.cwd)) throw cwdMissing(chat.cwd, chat.opts.apiPolicy?.workspaceId ?? null);
     this.confineAssistant(chat);
     this.confineApiChat(chat);
+    this.planGuards(chat);
     const account = this.chooseAccount(chat);
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));

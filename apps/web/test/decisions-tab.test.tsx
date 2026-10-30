@@ -34,7 +34,7 @@ const info = (over: Partial<DecisionPointInfo> = {}): DecisionPointInfo => ({
 
 const settings = (points: DecisionSettings['points'] = {}, over: Partial<DecisionSettings> = {}): DecisionSettings => ({
   provider: 'cli',
-  cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02 },
+  cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: 0.25 },
   jev: { model: 'jev-1.13.0', keySet: false, keyHint: null },
   points,
   historyDays: 30,
@@ -90,6 +90,7 @@ const engine = (saved: DecisionSettings, decisions: number | null = 0) =>
       draft={draftOf(saved)}
       patch={() => undefined}
       costValid
+      supervisorCostValid
       daysValid
       decisions={decisions}
       advancedOpen={false}

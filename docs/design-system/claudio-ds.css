@@ -2734,8 +2734,7 @@ a.cont-from:hover { color: var(--fg); }
 .guard-rule { display: flex; align-items: flex-start; gap: 12px; min-height: var(--touch); padding: 8px 0; border-bottom: 1px solid var(--line); }
 .guard-rule:last-child { border-bottom: 0; }
 .guard-rule-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
-.guard-rule-id, .guard-always { font-size: var(--fs-small); color: var(--fg-2); }
-.guard-rule.is-locked > svg { color: var(--fg-2); }
+.guard-rule-id { font-size: var(--fs-small); color: var(--fg-2); }
 .guard-tag { cursor: pointer; }
 .teammate-read { flex: none; white-space: nowrap; color: var(--fg-2); }
 .chip.guard { border-color: transparent; background: var(--warn-soft); color: var(--fg); font-variant-numeric: tabular-nums; text-decoration: none; }

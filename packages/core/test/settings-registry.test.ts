@@ -109,7 +109,7 @@ test("a decision point's reset removes mode and threshold, keeps its consent, an
   // One field of `cli` goes, the others stay
   await core.settings.reset('engine.cli-model');
   const cli = fileOf(core, 'decisions.json').cli as Record<string, unknown>;
-  assert.deepEqual(cli, { effort: 'low', maxCostUsd: 0.02 });
+  assert.deepEqual(cli, { effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: 0.25 });
   assert.equal(core.decisionSettings.get().cli.model, 'haiku');
   assert.equal(core.decisionSettings.get().cli.effort, 'low');
 });

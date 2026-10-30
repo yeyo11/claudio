@@ -13,7 +13,7 @@ import {
   type UpdateGuardSettingsRequest,
 } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, ShieldCheck } from 'lucide-react';
+import { ShieldCheck, ShieldOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -103,12 +103,17 @@ export function GuardsCardView(props: GuardsCardViewProps) {
   );
 }
 
+/** How many rules are on: with none, no run is guarded at all (D6), whatever else the settings say */
+const rulesOn = (settings: GuardSettingsView['settings']): number => Object.values(settings.rules).filter(Boolean).length;
+
 function StatusTag({ data }: { data: GuardSettingsView }) {
   const { t } = useTranslation('config');
   const { status, settings } = data;
   if (!status.available) {
     return <Tag tone="bad" icon={ShieldCheck}>{t('security.guards.status.unavailable')}</Tag>;
   }
+  // "Active" only says so while a rule is on: with none, nothing runs to be active
+  if (rulesOn(settings) === 0) return <Tag icon={ShieldOff}>{t('security.guards.status.off')}</Tag>;
   if (settings.mode === 'observe') return <Tag tone="warn" icon={ShieldCheck}>{t('security.guards.status.observe')}</Tag>;
   return <Tag tone="ok" icon={ShieldCheck}>{t('security.guards.status.active')}</Tag>;
 }
@@ -116,14 +121,21 @@ function StatusTag({ data }: { data: GuardSettingsView }) {
 function StatusLine({ data }: { data: GuardSettingsView }) {
   const { t } = useTranslation('config');
   const { status, settings } = data;
-  // `integrity` is always on, so it counts with the switchable rules that are
-  const on = 1 + Object.values(settings.rules).filter(Boolean).length;
+  const on = rulesOn(settings);
   if (!status.available) {
     const problem = status.problem ?? 'bad-path';
     return (
       <p className="guard-status is-bad" role="status">
         <ShieldCheck {...ICON_SM} aria-hidden />
         <span>{t('security.guards.status.notAvailable', { problem: t(`security.guards.problems.${problem}`) })}</span>
+      </p>
+    );
+  }
+  if (on === 0) {
+    return (
+      <p className="guard-status" role="status">
+        <ShieldOff {...ICON_SM} aria-hidden />
+        <span>{t('security.guards.status.offLine')}</span>
       </p>
     );
   }
@@ -149,6 +161,8 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
   const { settings } = data;
   const forbidden = isForbidden(saveError);
   const locked = readOnly || saving;
+  // With no rule on there is no guard to run for automated work or to observe with: the status line says to switch a rule on first
+  const idle = rulesOn(settings) === 0;
   const change = (id: string, label: string, wording?: (value: SettingDefault) => string) => (
     <ServerSettingChange id={id} label={label} {...(wording ? { wording } : {})} invalidate={[keys.guardSettings]} />
   );
@@ -174,7 +188,7 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
       <div className="guard-switches">
         <div className="guard-row" data-setting="guards.automated">
           <div className="setting-change-row">
-            <Switch checked={settings.automated} disabled={locked} onChange={(automated) => onSave({ automated })}>
+            <Switch checked={settings.automated} disabled={locked || idle} onChange={(automated) => onSave({ automated })}>
               {t('security.guards.automated.label')}
             </Switch>
             <p className="small muted">{t('security.guards.automated.hint')}</p>
@@ -184,32 +198,20 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
 
         <ul className="guard-rules" aria-label={t('security.guards.rulesLabel')}>
           {GUARD_RULES.map((rule) => (
-            <li key={rule.id} className={`guard-rule ${rule.switchable ? '' : 'is-locked'}`} data-rule={rule.id} {...(rule.switchable ? { 'data-setting': `guards.rule.${rule.id}` } : {})}>
+            <li key={rule.id} className="guard-rule" data-rule={rule.id} data-setting={`guards.rule.${rule.id}`}>
               {/* The head line, the description under it at the same start on every rule, and the slot at the head line's end */}
               <div className="setting-change-row">
                 <div className="guard-rule-head">
-                  {rule.switchable ? (
-                    <Switch
-                      checked={settings.rules[rule.id as GuardSwitchableRuleId]}
-                      disabled={locked}
-                      onChange={(on) => onSave({ rules: { [rule.id]: on } })}
-                    >
-                      {t(`security.guards.rules.${rule.id}.name`)}
-                    </Switch>
-                  ) : (
-                    <span className="guard-rule-locked">
-                      <Lock {...ICON_SM} aria-hidden />
-                      <span className="strong">{t(`security.guards.rules.${rule.id}.name`)}</span>
-                      <Tag>{t('security.guards.alwaysOn')}</Tag>
-                    </span>
-                  )}
+                  <Switch checked={settings.rules[rule.id as GuardSwitchableRuleId]} disabled={locked} onChange={(on) => onSave({ rules: { [rule.id]: on } })}>
+                    {t(`security.guards.rules.${rule.id}.name`)}
+                  </Switch>
                   <code className="mono small muted">{rule.id}</code>
                 </div>
                 <p className="small muted">
                   {t(`security.guards.rules.${rule.id}.description`)}
-                  {rule.switchable && <Overridden id={`guards.rule.${rule.id}`} />}
+                  <Overridden id={`guards.rule.${rule.id}`} />
                 </p>
-                {rule.switchable && change(`guards.rule.${rule.id}`, t(`security.guards.rules.${rule.id}.name`))}
+                {change(`guards.rule.${rule.id}`, t(`security.guards.rules.${rule.id}.name`))}
               </div>
             </li>
           ))}
@@ -217,7 +219,7 @@ function GuardsBody(props: GuardsCardViewProps & { data: GuardSettingsView }) {
 
         <div className="guard-row" data-setting="guards.mode">
           <div className="setting-change-row">
-            <Switch checked={settings.mode === 'observe'} disabled={locked} onChange={(observe) => onSave({ mode: observe ? 'observe' : 'enforce' })}>
+            <Switch checked={settings.mode === 'observe'} disabled={locked || idle} onChange={(observe) => onSave({ mode: observe ? 'observe' : 'enforce' })}>
               {t('security.guards.observe.label')}
             </Switch>
             <p className="small text-warn">{t('security.guards.observe.hint')}</p>

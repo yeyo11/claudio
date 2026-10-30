@@ -159,6 +159,7 @@ const LESSON_PATHS = {
 const ENGINE_PATHS = {
   'engine.who-answers': ['provider'],
   'engine.cap': ['cli', 'maxCostUsd'],
+  'engine.supervisor-cap': ['cli', 'supervisorMaxCostUsd'],
   'engine.cli-model': ['cli', 'model'],
   'engine.cli-effort': ['cli', 'effort'],
   'engine.history-days': ['historyDays'],

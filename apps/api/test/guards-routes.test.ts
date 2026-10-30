@@ -66,6 +66,11 @@ test('GET and PUT /settings/guards read, merge, and emit guards.changed', async 
   assert.equal(view.settings.mode, 'observe');
   assert.equal(view.settings.rules.push, false);
   assert.equal(view.settings.rules.destructive, true, 'rules merge over the stored ones');
+  // Integrity is switched like the others, and every rule listed can be
+  assert.equal(first.settings.rules.integrity, true);
+  assert.ok(first.rules.every((rule) => rule.switchable));
+  const off = await app.inject({ method: 'PUT', url: '/api/settings/guards', ...json({ rules: { integrity: false } }) });
+  assert.equal(off.json<GuardSettingsView>().settings.rules.integrity, false);
   assert.ok(seen.some((event) => event.type === 'guards.changed'), 'guards.changed was emitted');
 });
 
@@ -75,7 +80,7 @@ test('PUT /settings/guards answers 400 for a body the store refuses', async (t) 
   assert.equal((await put({ nope: true })).statusCode, 400);
   assert.equal((await put({ automated: 'yes' })).statusCode, 400);
   assert.equal((await put({ mode: 'loud' })).statusCode, 400);
-  assert.equal((await put({ rules: { integrity: false } })).statusCode, 400);
+  assert.equal((await put({ rules: { 'declared-tools': false } })).statusCode, 400);
   assert.equal((await put({ protectConfigs: Array.from({ length: 201 }, (_, i) => `f${i}`) })).statusCode, 400);
   assert.equal((await put({ protectConfigs: ['/etc/passwd'] })).statusCode, 400);
   assert.equal((await put({ protectConfigs: ['../x'] })).statusCode, 400);
@@ -166,7 +171,10 @@ test("POST /guards/check gives the engine's verdict with the current settings un
 
   assert.equal((await check({ input: {} })).statusCode, 400);
   assert.equal((await check({ tool: 'Bash', input: 'ls' })).statusCode, 400);
-  assert.equal((await check({ tool: 'Bash', input: {}, rules: ['integrity'] })).statusCode, 400);
+  assert.equal((await check({ tool: 'Bash', input: {}, rules: ['declared-tools'] })).statusCode, 400);
+  // `integrity` is asked for like any rule, and left out it does not run (D6)
+  assert.equal((await check({ tool: 'Bash', input: { command: "echo 'unbalanced" }, rules: ['integrity'] })).json<GuardCheckResult>().verdict, 'block');
+  assert.equal((await check({ tool: 'Bash', input: { command: "echo 'unbalanced" }, rules: ['push'] })).json<GuardCheckResult>().verdict, 'pass');
   assert.equal((await check({ tool: 'Bash', input: {}, roots: ['relative'] })).statusCode, 400);
   assert.equal((await check({ tool: 'Bash', input: { command: 'ls' }, roots: [root] })).statusCode, 200);
 });

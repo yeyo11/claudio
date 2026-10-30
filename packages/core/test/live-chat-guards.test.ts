@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { RunEvent } from '@claudio/shared';
-import { ChatManager } from '../src/chats.ts';
+import { ChatManager, type GuardSubject } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { writeGuardFiles } from '../src/guards/files.ts';
 import { DEFAULT_LIMITS, type GuardRulesFile } from '../src/guards/input.ts';
@@ -147,6 +147,65 @@ describe('guarded chats', () => {
     await chats.exited(chat.id);
     assert.deepEqual(guardEvents(chat.id), []);
     assert.ok(!chats.events(chat.id).some((e) => e.kind === 'other' || e.kind === 'stderr' || e.kind === 'notice'));
+  });
+
+  it('derives the plan again at a spawn nobody handed one to: a switch turned off reaches the next process (D6)', async () => {
+    const asked: GuardSubject[] = [];
+    let next: ChatGuardPlan | null = null;
+    chats.guardPlanner = (subject) => {
+      asked.push(subject);
+      return next;
+    };
+    const chat = chats.start({ prompt: 'hello', name: 'guarded', keepAlive: false, guards: plan });
+    assert.equal(chats.get(chat.id)?.guards?.state, 'arming');
+    await chats.exited(chat.id);
+    assert.equal(asked.length, 0, 'the plan its starter derived stands for the first process');
+
+    // Every rule went off meanwhile: the process the next message starts runs with no guard
+    chats.send(chat.id, 'again');
+    assert.equal(asked.length, 1);
+    assert.equal(asked[0]?.plan?.settingsPath, plan.settingsPath, 'asked with the plan the last process had');
+    assert.equal(asked[0]?.person, true);
+    assert.equal(chats.get(chat.id)?.guards, undefined);
+    await chats.exited(chat.id);
+    assert.equal(chats.get(chat.id)?.status, 'completed');
+
+    // And on again: the next process arms before it reads a word
+    next = plan;
+    chats.send(chat.id, 'once more');
+    assert.equal(chats.get(chat.id)?.guards?.state, 'arming');
+    await chats.exited(chat.id);
+    assert.equal(asked.length, 2);
+  });
+
+  it("a plan the caller hands over stands, null included, and is not derived again", async () => {
+    let asked = 0;
+    chats.guardPlanner = () => {
+      asked += 1;
+      return plan;
+    };
+    const chat = chats.start({ prompt: 'hello', name: 'plain', keepAlive: false });
+    await chats.exited(chat.id);
+    chats.resume(chat.id, { prompt: 'again', guards: null });
+    assert.equal(asked, 0);
+    assert.equal(chats.get(chat.id)?.guards, undefined);
+    await chats.exited(chat.id);
+  });
+
+  it('housekeeping is never guarded, whatever it is handed', async () => {
+    chats.guardPlanner = () => plan;
+    const chat = chats.start({ prompt: 'hello', name: 'supervisor', keepAlive: false, internal: true, guards: plan });
+    assert.equal(chats.get(chat.id)?.guards, undefined);
+    await chats.exited(chat.id);
+    assert.equal(chats.get(chat.id)?.status, 'completed');
+  });
+
+  it('names the files of every plan it holds, for the sweep of the guard folder', () => {
+    const chat = chats.start({ prompt: 'hello', name: 'guarded', keepAlive: false, guards: plan });
+    const files = chats.liveGuardFiles();
+    assert.ok(files.includes(plan.settingsPath));
+    assert.ok(files.some((file) => file.endsWith(`${plan.rulesSha256.slice(0, 16)}.rules.json`) && existsSync(file)), files.join(' '));
+    assert.ok(chats.get(chat.id));
   });
 
   it('does not wait for a guard on a chat that has none', async () => {

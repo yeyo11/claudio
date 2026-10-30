@@ -1,6 +1,6 @@
 import type { GuardOverride, GuardSettings, GuardSwitchableRuleId } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
-import { Lock, ShieldAlert } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -85,15 +85,6 @@ export function GuardRow({
       {wanted && (
         <Sheet open={open} onOpenChange={setOpen} title={t('guards.sheet.title')} description={t('guards.sheet.body')} side="auto">
           <div className="guard-rules">
-            <div className="guard-rule is-locked">
-              <Lock {...ICON_SM} aria-hidden />
-              <span className="guard-rule-text">
-                <span className="guard-rule-name">{t('guards.rule.integrity.name')}</span>
-                <span className="guard-rule-desc">{t('guards.rule.integrity.hint')}</span>
-                <span className="guard-rule-id mono">integrity</span>
-              </span>
-              <span className="guard-always">{t('guards.alwaysOn')}</span>
-            </div>
             {SWITCHABLE_RULES.map((id) => (
               <div key={id} className="guard-rule">
                 <Switch
