@@ -8,7 +8,7 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import type { ProviderLimit, ProvidersSettings } from '@claudio/shared';
 import type { ClaudioEventInput } from '../src/events.ts';
 import { loadConfig } from '../src/paths.ts';
-import { ProviderLimits, type ProviderLimitStore } from '../src/providers/limits.ts';
+import type { ProviderLimitSource } from '../src/providers/limits.ts';
 import { ProviderDetector, satisfiesRange } from '../src/providers/detector.ts';
 import { confirmClaudeInit } from '../src/providers/claude-code/handshake.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from '../src/providers/registry.ts';
@@ -39,7 +39,7 @@ async function fake(name: string, body: string): Promise<string> {
   return file;
 }
 
-function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => boolean; settings?: ProvidersSettings | null; events?: ClaudioEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry; defaultExpired?: () => boolean; otherAccount?: () => string | null } = {}) {
+function detector(options: { limits?: ProviderLimitSource; settings?: ProvidersSettings | null; events?: ClaudioEventInput[]; probeTimeoutMs?: number; env?: NodeJS.ProcessEnv; registry?: ProviderRegistry; defaultExpired?: () => boolean; otherAccount?: () => string | null } = {}) {
   const env = { PATH: bin, HOME: home, CLAUDE_CONFIG_DIR: join(home, '.claude'), CLAUDIO_DATA_DIR: join(home, 'data'), ...options.env };
   return new ProviderDetector({
     config: loadConfig(env),
@@ -50,7 +50,6 @@ function detector(options: { limits?: ProviderLimits; accountsAtLimit?: () => bo
     settings: () => options.settings ?? null,
     emit: (event) => options.events?.push(event),
     limits: options.limits,
-    accountsAtLimit: options.accountsAtLimit,
     defaultExpired: options.defaultExpired,
     otherAccount: options.otherAccount,
     registry: options.registry,
@@ -327,42 +326,69 @@ describe('capabilities confirmed by a session', () => {
 });
 
 describe('provider limits in the status', () => {
-  const memory = (): ProviderLimitStore => {
-    const rows = new Map<string, ProviderLimit>();
-    return { upsertProviderLimit: (l) => !!rows.set(l.provider, l), providerLimit: (p) => rows.get(p) ?? null, providerLimits: () => [...rows.values()] };
+  /** What Core hands the detector: Claude's limit from the account in use, and whether every account is out */
+  const source = () => {
+    let limit: ProviderLimit | null = null;
+    let atLimit = false;
+    const listeners = new Set<() => void>();
+    const changed = (): void => {
+      for (const listener of listeners) listener();
+    };
+    const limits: ProviderLimitSource = {
+      get: (provider) => (provider === 'claude-code' ? limit : null),
+      atLimit: (provider) => provider === 'claude-code' && atLimit,
+      onChange: (listener) => {
+        listeners.add(listener);
+        return () => void listeners.delete(listener);
+      },
+    };
+    return {
+      limits,
+      set(next: { limit?: ProviderLimit | null; atLimit?: boolean }): void {
+        if (next.limit !== undefined) limit = next.limit;
+        if (next.atLimit !== undefined) atLimit = next.atLimit;
+        changed();
+      },
+      changed,
+    };
   };
-  /** A chat's real rejection: the five-hour window is spent until an hour from now */
-  const reject = (limits: ProviderLimits): void =>
-    limits.observe('claude-code', { kind: 'rate-limit', info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, windows: {}, observedAt: new Date().toISOString() } });
-
-  it('serves a limit a chat reported without a detection, and announces it', async () => {
-    await fake('claude', CLAUDE('2.1.285', true));
-    const limits = new ProviderLimits(memory());
-    const events: ClaudioEventInput[] = [];
-    const d = detector({ limits, events });
-    await d.refresh();
-    events.length = 0;
-    reject(limits);
-    const status = d.knownOne('claude-code');
-    assert.deepEqual([status?.state, status?.reason], ['degraded', 'limit-reached']);
-    assert.equal(events.filter((e) => e.type === 'providers.changed').length, 1);
+  const reading = (state: ProviderLimit['state']): ProviderLimit => ({
+    provider: 'claude-code',
+    state,
+    window: 'five_hour',
+    utilization: state === 'near' ? 0.7 : 0.2,
+    resetsAt: new Date(Date.now() + 3_600_000).toISOString(),
+    windows: {},
+    observedAt: new Date().toISOString(),
+    source: 'stream',
   });
 
-  it('keeps Claude ready at its limit while another account has room, with the limit on the status', async () => {
+  it('is degraded at the limit only when no account can take the work, and announces the change once', async () => {
     await fake('claude', CLAUDE('2.1.285', true));
-    const limits = new ProviderLimits(memory());
-    let allOut = false;
-    const d = detector({ limits, accountsAtLimit: () => allOut });
+    const s = source();
+    const events: ClaudioEventInput[] = [];
+    const d = detector({ limits: s.limits, events });
     await d.refresh();
-    reject(limits);
-    const status = d.knownOne('claude-code');
-    assert.deepEqual([status?.state, status?.limit?.state], ['ready', 'exhausted']);
-    allOut = true;
+    events.length = 0;
+    s.set({ limit: reading('ok') });
+    assert.equal(d.knownOne('claude-code')?.state, 'ready');
+    s.set({ limit: null, atLimit: true });
     assert.deepEqual([d.knownOne('claude-code')?.state, d.knownOne('claude-code')?.reason], ['degraded', 'limit-reached']);
+    s.changed();
+    assert.equal(events.filter((e) => e.type === 'providers.changed').length, 2, 'ready → ready with a limit, then limit-reached; a change that moves nothing is quiet');
+  });
+
+  it('is near when the account in use is near, whatever another account reads', async () => {
+    await fake('claude', CLAUDE('2.1.285', true));
+    const s = source();
+    const d = detector({ limits: s.limits });
+    await d.refresh();
+    s.set({ limit: reading('near') });
+    assert.deepEqual([d.knownOne('claude-code')?.state, d.knownOne('claude-code')?.reason, d.knownOne('claude-code')?.limit?.state], ['degraded', 'limit-near', 'near']);
   });
 
   it('reads a provider whose limit was never reported as having none', async () => {
-    const status = await statusOf(detector({ limits: new ProviderLimits(memory()) }), 'claude-code');
+    const status = await statusOf(detector({ limits: source().limits }), 'claude-code');
     assert.equal(status.limit, null);
   });
 });

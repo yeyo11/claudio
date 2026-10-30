@@ -9,6 +9,7 @@ import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, rmSync 
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NODE_FILES, TRIAL_MS, run, type Boot, type Running } from './machine.ts';
+import { installProcessGuards } from './process-guards.ts';
 import { VERSION, compareVersions, imageBase, loadKeys, readImageInfo, type ImageInfo } from './protocol.ts';
 
 const POLL_MS = 1000;
@@ -79,6 +80,8 @@ export async function launch(options: LauncherOptions): Promise<number> {
   };
   process.on('SIGTERM', forward);
   process.on('SIGINT', forward);
+  // PID 1 of the container: if it went down, so would the server it supervises and the container
+  const releaseGuards = installProcessGuards((line) => o.log(line));
   let image: ImageInfo | null = null;
   try {
     return await run({
@@ -128,6 +131,7 @@ export async function launch(options: LauncherOptions): Promise<number> {
   } finally {
     process.off('SIGTERM', forward);
     process.off('SIGINT', forward);
+    releaseGuards();
   }
 }
 

@@ -22,7 +22,7 @@ import { ClaudeCodeDriver } from './claude-code/driver.ts';
 import type { CapabilityConfirmation, HandshakeResult, ProviderDriver } from './driver.ts';
 import type { ProviderConfigHome, ProviderManifest, ProviderSignedInUsers } from './manifest.ts';
 import { installDirs, resolveCommand } from './path.ts';
-import { limitAt, type HandshakeLimits, type ProviderLimits } from './limits.ts';
+import type { ProviderLimitSource } from './limits.ts';
 import { ProviderRegistry } from './registry.ts';
 import { childEnv } from '../child-env.ts';
 
@@ -57,21 +57,16 @@ export interface ProviderDetectorDeps {
   /** Whether the CLI's own login was found refused by a run (an expired session, a revoked token) */
   defaultExpired?: () => boolean;
   /**
-   * Where each provider's usage limit is read from and kept. A provider that has reached or neared
-   * its limit is `degraded` while it lasts, and a handshake that read the limits records them here.
+   * Where each provider's usage limit is read from: Claude's is the account in use's. A provider none
+   * of whose accounts can take work is `degraded` with `limit-reached`, one whose account in use is
+   * near its limit with `limit-near`.
    */
-  limits?: ProviderLimits;
+  limits?: ProviderLimitSource;
   /**
    * A signed-in account other than the CLI's own login, by its label. Claude runs on it, so it is
    * ready though the CLI's own login is signed out.
    */
   otherAccount?: () => string | null;
-  /**
-   * Whether every Claude account is at its limit. Claude's own limit is the reading of the account
-   * that ran last, so without this one exhausted account would read as Claude at its limit while
-   * another has room. Absent, the provider's limit is taken as it is.
-   */
-  accountsAtLimit?: () => boolean;
   /** Extra command names tried before a manifest's own, per provider (Claude Code's `CLAUDE_BIN`) */
   commandAliases?: Record<ProviderId, string[]>;
   /** The PATH to search; defaults to the current one plus the install directories */
@@ -241,16 +236,27 @@ export class ProviderDetector {
     if (deps.limits) this.useLimits(deps.limits);
   }
 
+  /** What the statuses last announced said of the limits, so an account change that moves none of them stays quiet */
+  private announcedLimits: string | null = null;
+  private stopLimits: (() => void) | null = null;
+
   /**
-   * Where the limits are read from. Core builds the detector before the runtime that keeps them, so
-   * it hands them over here once they exist; without them no status carries its limit.
+   * Where the limits are read from: the deps' `limits` at construction, or one handed over later.
+   * Without one no status carries its limit.
    */
-  useLimits(limits: ProviderLimits): void {
+  useLimits(limits: ProviderLimitSource): void {
+    this.stopLimits?.();
     this.deps.limits = limits;
     // A limit reached or left changes what a status says without any detection
-    limits.onChange(() => {
-      if (this.cache && !this.closed) this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: this.known() ?? [] });
-    });
+    this.stopLimits =
+      limits.onChange?.(() => {
+        if (!this.cache || this.closed) return;
+        const known = this.known() ?? [];
+        const key = JSON.stringify(known.map((s) => [s.id, s.state, s.reason, s.limit?.state ?? null]));
+        if (key === this.announcedLimits) return;
+        this.announcedLimits = key;
+        this.deps.emit?.({ type: 'providers.changed', title: 'Providers changed', providers: known });
+      }) ?? null;
   }
 
   /** What the last detection saw, whatever its age, without starting one; null before the first */
@@ -263,17 +269,14 @@ export class ProviderDetector {
    * cache keeps statuses without it, so a limit that moves never counts as a detection that changed.
    */
   private withLimit(status: ProviderStatus): ProviderStatus {
-    const store = this.deps.limits;
-    if (!store) return status;
-    const limit = store.get(status.id);
+    const source = this.deps.limits;
+    if (!source) return status;
+    const limit = source.get(status.id);
     const next: ProviderStatus = { ...status, limit };
-    if (status.state !== 'ready' || !limit) return next;
-    if (limit.state === 'exhausted') {
-      // Another account takes the work: Claude is ready, and the limit stays on the status for its bars
-      if (status.id === 'claude-code' && this.deps.accountsAtLimit && !this.deps.accountsAtLimit()) return next;
-      return { ...next, state: 'degraded', reason: 'limit-reached' };
-    }
-    if (limit.state === 'near') return { ...next, state: 'degraded', reason: 'limit-near' };
+    if (status.state !== 'ready') return next;
+    // Out only when no account can take the work: one account at its limit leaves Claude ready on another
+    if (source.atLimit(status.id)) return { ...next, state: 'degraded', reason: 'limit-reached' };
+    if (limit?.state === 'near') return { ...next, state: 'degraded', reason: 'limit-near' };
     return next;
   }
 
@@ -368,6 +371,8 @@ export class ProviderDetector {
 
   close(): void {
     this.closed = true;
+    this.stopLimits?.();
+    this.stopLimits = null;
     this.watching = false;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
@@ -558,11 +563,10 @@ export class ProviderDetector {
 
     const key = `${manifest.id}\0${binaryPath}\0${version}`;
     const kept = this.handshakes.get(key);
-    // A provider at or near its limit is read again every TTL, so its recovery is seen without a chat
-    const watching = this.deps.limits?.raw(manifest.id)?.state;
+    // The handshake reads no limits (the accounts' `get_usage` and the stream do), so a kept one stands
+    // until a failed one is due again
     const aged = kept ? this.now() - kept.at >= this.ttlMs : false;
-    const refresh = aged && (watching === 'near' || watching === 'exhausted');
-    if (kept && ('result' in kept ? !refresh : !aged)) return { permissionModes, handshake: 'result' in kept ? kept.result : null };
+    if (kept && ('result' in kept || !aged)) return { permissionModes, handshake: 'result' in kept ? kept.result : null };
 
     const abort = new AbortController();
     const outcome = await this.timed(driver.handshake(env, abort.signal).catch(() => null), this.probeTimeoutMs * 2);
@@ -570,8 +574,6 @@ export class ProviderDetector {
     const result = outcome === 'timeout' ? null : outcome;
     this.handshakes.set(key, result ? { at: this.now(), result } : { at: this.now(), failed: true });
     if (!result) return { permissionModes, handshake: null };
-    const read = (result as HandshakeResult & HandshakeLimits).rateLimits;
-    if (read) this.deps.limits?.observeProbe(manifest.id, read);
 
     // The handshake's version is the agent's own and may read differently from `--version`, so what
     // it confirmed is filed under the version the probe read, the one a status is compared with

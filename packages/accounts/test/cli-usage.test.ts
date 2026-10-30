@@ -164,7 +164,7 @@ describe('choosing with a per-model limit', () => {
     { id: 'a', enabled: true, signedIn: true },
     { id: 'b', enabled: true, signedIn: true },
   ];
-  const settings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 0, strategy: 'order' as const };
+  const settings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 0, strategy: 'order' as const, preferred: null, order: [] };
 
   it('skips an account whose Fable limit is spent when the chat runs Fable', () => {
     const limits = { a: limitWith(1), b: limitWith(0.1) };
@@ -221,7 +221,7 @@ describe('checkCredential', () => {
 describe('check and hasCredential', () => {
   it('records checkedAt and clears a failed sign-in on a valid check; an unknown one changes nothing', async () => {
     const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'check-')), defaultDir, claude: FAKE, env: env() });
-    assert.equal(store.get('default').checkedAt, null);
+    assert.equal(store.find('default'), null, 'no credential file: a ghost until something says it has one');
     await store.markAuthFailed('default');
     assert.equal(store.get('default').signInState, 'expired');
     assert.equal(await store.check('default'), 'valid');
@@ -237,10 +237,10 @@ describe('check and hasCredential', () => {
     const empty = mkdtempSync(join(root, 'empty-'));
     const store = new AccountStore({ dataDir: mkdtempSync(join(root, 'vis-')), defaultDir: empty, claude: FAKE, env: env() });
     const login = await store.add({ kind: 'login' });
-    assert.deepEqual(store.listed().map((a) => a.id), [login.id]);
-    assert.equal(store.get('default').id, 'default');
+    assert.deepEqual(store.list().map((a) => a.id), [login.id]);
+    assert.equal(store.find('default'), null, 'nor found by id: no path can choose it');
     writeFileSync(join(empty, '.credentials.json'), '{}');
-    assert.deepEqual(store.listed().map((a) => a.id), ['default', login.id]);
+    assert.deepEqual(store.list().map((a) => a.id), ['default', login.id]);
   });
 
   it('keeps an expired default in the list and counts a credential from the environment', async () => {
@@ -250,6 +250,6 @@ describe('check and hasCredential', () => {
     await store.markAuthFailed('default');
     assert.equal(store.hasCredential('default'), true);
     const viaEnv = new AccountStore({ dataDir: mkdtempSync(join(root, 'vis-')), defaultDir: empty, claude: FAKE, env: env(), defaultEnvCredential: () => true });
-    assert.equal(viaEnv.listed()[0]?.id, 'default');
+    assert.equal(viaEnv.list()[0]?.id, 'default');
   });
 });

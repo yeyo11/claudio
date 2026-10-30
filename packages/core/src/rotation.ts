@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ChatNotFoundError } from './chat-errors.ts';
-import type { LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderLimit, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
+import type { LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
@@ -65,7 +65,7 @@ export class RunNowRefusal extends Error {
 
 export interface RotationDeps {
   db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent'>;
-  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'limits' | 'providers' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'roomFor' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
+  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'providers' | 'limitResetOf' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'roomFor' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
@@ -127,8 +127,8 @@ export class ProviderRotation {
   private readonly now: () => number;
   private readonly pollMs: number;
   private readonly slackMs: number;
-  private readonly listener = (run: ChatRuntime, limit: ProviderLimit | null): void => {
-    void this.onLimitHit(run, limit);
+  private readonly listener = (run: ChatRuntime, limitResetsAt: string | null): void => {
+    void this.onLimitHit(run, limitResetsAt);
   };
   private started = false;
   private unsubscribe: (() => void) | null = null;
@@ -185,11 +185,11 @@ export class ProviderRotation {
   }
 
   /** Announces the limit and, for automated work, acts on it. Never throws: it runs from an event. */
-  async onLimitHit(run: ChatRuntime, limit: ProviderLimit | null): Promise<void> {
+  async onLimitHit(run: ChatRuntime, limitResetsAt: string | null): Promise<void> {
     const provider = run.provider ?? LEGACY_PROVIDER;
     const auth = this.deps.runtime.signInFailed(run.id);
     // A sign-in failure is no limit: it has its notice below, and the account's own state says it needs signing in
-    if (!auth) this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limit?.resetsAt ?? null });
+    if (!auth) this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limitResetsAt });
     // A sample is run again from scratch on whichever account has room: replaying it would mix two accounts' behaviour
     if (this.deps.evalSample?.(run.id)) return;
     const work = this.deps.work?.(run.id) ?? null;
@@ -212,8 +212,10 @@ export class ProviderRotation {
       }
       const moved = await this.moveToAccount(run, auth);
       if (moved.moved || !automated) return;
-      // The accounts know when the first of them is back; the provider's reading is whichever ran last
-      const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : (limit?.resetsAt ?? null);
+      // The accounts know when the first of them that can take the turn is back (`chooseNext`); else
+      // the reset the account the turn died on gave (`limitResetOf`: that account's reading, or the refusal),
+      // which may have passed by now: the wait then goes on at once
+      const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : limitResetsAt;
       this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
@@ -222,7 +224,7 @@ export class ProviderRotation {
       // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
       if (automated && !this.waits.has(run.id)) {
         try {
-          this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : `handling the limit failed: ${why}`, resetsAt: limit?.resetsAt ?? null, projectId: null });
+          this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : `handling the limit failed: ${why}`, resetsAt: limitResetsAt, projectId: null });
         } catch {
           /* the notice above is all that is left to say */
         }
@@ -271,15 +273,18 @@ export class ProviderRotation {
 
   /**
    * Starts a wait for the chat's provider to reset: what a person's click on "Wait for the reset"
-   * does, and the floor of automated work. Null when the chat already has an open wait.
+   * does, and the floor of automated work. Null when the chat already has an open wait. The reset it
+   * waits for is the earliest one among the accounts the chat could go on with (`chooseNext`), never
+   * another account's that merely ran last (regression audit §2.7).
    */
   waitFor(chatId: string, decidedBy: ProviderMoveDecider = 'person'): ProviderMove | null {
     const run = this.deps.runtime.get(chatId);
     if (!run) throw new ChatNotFoundError();
-    const limit = this.deps.runtime.limits.get(run.provider ?? LEGACY_PROVIDER);
+    const back = this.deps.runtime.chooseNext(chatId)?.waitUntil ?? null;
     const work = this.deps.work?.(chatId) ?? null;
     const projectId = this.deps.projectOf(run.workingDir ?? run.cwd);
-    return this.startWait(run, work, { decidedBy, decisionId: null, reason: null, resetsAt: limit?.resetsAt ?? null, projectId });
+    const resetsAt = back !== null ? new Date(back).toISOString() : this.deps.runtime.limitResetOf(chatId);
+    return this.startWait(run, work, { decidedBy, decisionId: null, reason: null, resetsAt, projectId });
   }
 
   private startWait(run: ChatRuntime, work: ChatWork | null, opts: { decidedBy: ProviderMoveDecider; decisionId: string | null; reason: string | null; resetsAt: string | null; projectId: string | null }): ProviderMove | null {
@@ -375,17 +380,9 @@ export class ProviderRotation {
         else this.arm(row);
         return;
       }
-      // No reset is known: a later reading (another chat's, another process's) may say when it is, or that it is over
-      const limit = this.deps.runtime.limits.get(row.fromProvider);
-      if (limit?.resetsAt) {
-        this.learned.set(id, limit.resetsAt);
-        this.arm(row);
-        return;
-      }
-      if (limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > Date.parse(row.at)) {
-        await this.resume(row);
-        return;
-      }
+      // No reset is known: a later reading of one of the chat's accounts may say when it is (`goOnIfRoom`
+      // learns it), or that one has room. A reading of whichever account ran last is no evidence: it
+      // resumed waits on accounts still out before 2026-10-29
       if (now >= Date.parse(row.at) + this.maxWaitHours(row) * HOUR_MS) this.end(row, 'failed', 'limit-wait-expired');
       else this.arm(row);
     } catch {

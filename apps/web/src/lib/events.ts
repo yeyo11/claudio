@@ -95,6 +95,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'run.limitWaiting': true,
   'run.accountRotated': true,
   'account.switched': true,
+  'accounts.changed': true,
   'task.started': true,
   'task.ended': true,
   'subagent.started': true,
@@ -298,6 +299,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'run.accountRotated':
     case 'account.switched':
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
+    case 'accounts.changed':
+      // An account's reading or state moved: the one account view behind every screen is read again
+      return [[keys.accounts, NOW], [keys.auth, NOW], [keys.overview, NOW], [keys.providers, NOW]];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit
       return [[keys.accounts, NOW], [keys.providers, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.chats, LISTS]];

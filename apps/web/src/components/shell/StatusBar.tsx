@@ -207,8 +207,10 @@ function CurrentAccountCard({ now, connection }: { now: Now; connection: Connect
   const { t } = useTranslation('shell');
   const windowOf = useLimitWindowName();
   const accounts = useAccounts().data ?? [];
-  const snapshot = now.overview.data?.accounts;
-  const current = accounts.find((a) => a.id === snapshot?.current) ?? null;
+  const view = now.overview.data?.accounts;
+  const current = accounts.find((a) => a.id === view?.inUse?.id) ?? null;
+  const total = view?.accounts.length ?? 0;
+  const ready = view?.accounts.filter((a) => a.enabled && a.signedIn).length ?? 0;
   if (!current) return <ProviderCard now={now} connection={connection} />;
   const name = accountName(current);
   const exhausted = current.limits?.state === 'exhausted';
@@ -226,7 +228,7 @@ function CurrentAccountCard({ now, connection }: { now: Now; connection: Connect
             <span className="more-account-name ellipsis">{name}</span>
             <span className="more-account-meta ellipsis">
               <StatusDot tone={tone} live={connection.live && tone === 'ok' && rows.length === 0} />
-              {[word, snapshot && snapshot.total > 1 ? t('account.ofTotal', { ready: snapshot.ready, total: snapshot.total }) : null].filter(Boolean).join(' · ')}
+              {[word, total > 1 ? t('account.ofTotal', { ready, total }) : null].filter(Boolean).join(' · ')}
             </span>
           </span>
           <ChevronRight {...ICON} className="more-cell-chevron" />
@@ -247,7 +249,7 @@ function CurrentAccountCard({ now, connection }: { now: Now; connection: Connect
 function AccountChip({ now }: { now: Now }) {
   const { t } = useTranslation('shell');
   const accounts = useAccounts().data ?? [];
-  const current = accounts.find((a) => a.id === now.overview.data?.accounts?.current);
+  const current = accounts.find((a) => a.id === now.overview.data?.accounts?.inUse?.id);
   if (!current || accounts.length < 2) return null;
   const pct = usagePct(current.limits);
   const tone = pct === null ? 'neutral' : usageTone(pct, current.limits?.state === 'exhausted');

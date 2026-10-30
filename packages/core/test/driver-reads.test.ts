@@ -7,7 +7,6 @@ import { ClaudeBranches } from '../src/providers/claude-code/branches.ts';
 import { unreportedOf } from '../src/providers/claude-code/context-usage.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import type { DriverEvent } from '../src/providers/driver.ts';
-import { limitFromInfo } from '../src/providers/limits.ts';
 
 function attach() {
   const written: Array<Record<string, unknown>> = [];
@@ -104,16 +103,21 @@ test('a result is a sign-in failure by its 401 as the CLI recorded it, never by 
   assert.equal(resultOf({ is_error: false, api_error_status: 401, result: 'ok' }), false);
 });
 
-test('a limit says it is using overage and when that resets; without them it reads as before', () => {
-  const base: RateLimitInfo = { status: 'allowed', windows: { '5h': { utilization: 0.2, resetsAt: 1_800_000_000 } }, observedAt: 'x' };
-  const plain = limitFromInfo('claude-code', base, 'stream', 'x');
-  assert.equal(plain.overage, undefined);
-  assert.equal(plain.state, 'ok');
-  const over = limitFromInfo('claude-code', { ...base, isUsingOverage: true, overageResetsAt: 1_800_003_600, overageStatus: 'allowed' }, 'stream', 'x');
-  assert.deepEqual(over.overage, { status: 'allowed', using: true, resetsAt: new Date(1_800_003_600_000).toISOString() });
-  assert.equal(over.state, 'near');
-  assert.equal(limitFromInfo('claude-code', { ...base, windows: {}, surpassedThreshold: 0.75 }, 'stream', 'x').state, 'near');
-  assert.equal(limitFromInfo('claude-code', { ...base, windows: {}, utilization: 0.4 }, 'stream', 'x').utilization, 0.4);
+test('a limit event keeps whether it is using overage and when that resets; without them it reads as before', () => {
+  const read = (info: Record<string, unknown>): RateLimitInfo => {
+    const { session, events } = attach();
+    session.readLine(JSON.stringify({ type: 'rate_limit_event', rate_limit_info: info }));
+    const event = events.find((e) => e.kind === 'rate-limit');
+    assert.ok(event && event.kind === 'rate-limit');
+    return event.info;
+  };
+  const base = { status: 'allowed', rateLimitType: 'five_hour', resetsAt: 1_800_000_000, unifiedWindows: { five_hour: { utilization: 0.2, resetsAt: 1_800_000_000 } } };
+  const plain = read(base);
+  assert.equal(plain.isUsingOverage, undefined);
+  assert.deepEqual(plain.windows, base.unifiedWindows);
+  // What overage means for the account (out, not a spent window) is the account reading's to say
+  const over = read({ ...base, isUsingOverage: true, overageResetsAt: 1_800_003_600, overageStatus: 'allowed', surpassedThreshold: 0.75, utilization: 0.4 });
+  assert.deepEqual([over.isUsingOverage, over.overageResetsAt, over.overageStatus, over.surpassedThreshold, over.utilization], [true, 1_800_003_600, 'allowed', 0.75, 0.4]);
 });
 
 const recorded = (file: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/recordings/claude/${file}`, import.meta.url)), 'utf8')) as Record<string, unknown>;
