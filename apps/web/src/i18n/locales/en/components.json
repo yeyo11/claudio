@@ -225,7 +225,6 @@
     "credentialHint": "OAuth token or API key",
     "apiReference": "API reference",
     "apiReferenceHint": "Interactive OpenAPI docs (Scalar) in a new tab",
-    "userScope": "User scope",
     "placeholderLabel": "Search pages, projects, chats and actions",
     "newChat": "New chat",
     "newChatHint": "Start a conversation with {{agent}}",

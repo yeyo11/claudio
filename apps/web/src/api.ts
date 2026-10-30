@@ -398,20 +398,47 @@ export interface ChangeRequestFixResult {
   pullRequest: WorkItemPullRequest | OrchestrationPullRequest | null;
 }
 
+/** How a call is made: a JSON `body`, or a `file` sent as it is (no multipart, no base64 on the way up). */
+export interface CallInit {
+  method?: string;
+  body?: unknown;
+  file?: Blob;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  spendOverride?: boolean;
+}
+
 // Exported for the clients of a feature that keep their routes in a file of their own (lib/api/*)
-export async function request<T>(path: string, init: { method?: string; body?: unknown; timeoutMs?: number; signal?: AbortSignal; spendOverride?: boolean } = {}): Promise<T> {
+export async function request<T>(path: string, init: CallInit = {}): Promise<T> {
+  const text = await (await requestResponse(path, init)).text();
+  try {
+    return (text ? JSON.parse(text) : null) as T;
+  } catch {
+    // non-JSON body (e.g. proxy error page)
+    return null as T;
+  }
+}
+
+/**
+ * A call's answer when it is not JSON (a blob's text or bytes), refused the way `request` refuses:
+ * a 401 brings the sign-in screen, a 421 the host screen, and an error body becomes an
+ * `ApiRequestError` in the person's language. Every call of the app goes through here, so none skips
+ * that handling by calling `fetch` itself.
+ */
+export async function requestResponse(path: string, init: CallInit = {}): Promise<Response> {
   const hasBody = init.body !== undefined;
   // A person who already said "go on" for this chat today is not asked again on its next turn
   const scope = spendScope(init.method ?? 'GET', path);
   const override = init.spendOverride === true || (scope !== null && spendAcknowledged(scope));
   const timeout = AbortSignal.timeout(init.timeoutMs ?? REQUEST_TIMEOUT_MS);
+  const contentType: Record<string, string> = init.file ? { 'content-type': 'application/octet-stream' } : hasBody ? { 'content-type': 'application/json' } : {};
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method: init.method ?? 'GET',
       // The language the person reads Claudio in, for what the server writes in it (a chat's title)
-      headers: { ...(hasBody ? { 'content-type': 'application/json' } : {}), 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...(override ? { [SPEND_OVERRIDE_HEADER]: '1' } : {}), ...authHeaders() },
-      body: hasBody ? JSON.stringify(init.body) : undefined,
+      headers: { ...contentType, 'accept-language': i18n.resolvedLanguage ?? i18n.language, ...(override ? { [SPEND_OVERRIDE_HEADER]: '1' } : {}), ...authHeaders() },
+      body: init.file ?? (hasBody ? JSON.stringify(init.body) : undefined),
       signal: init.signal ? either(init.signal, timeout) : timeout,
     });
   } catch (err) {
@@ -423,14 +450,14 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
     throw err;
   }
-  const text = await res.text();
-  let json: unknown = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    // non-JSON body (e.g. proxy error page)
-  }
   if (!res.ok) {
+    const text = await res.text();
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      // non-JSON body (e.g. proxy error page)
+    }
     const err = json as (Partial<ApiError> & { mode?: AuthMode }) | null;
     // The guard refused the credential: every page is about to fail the same way, so the app
     // shows one sign-in screen instead of an error on each of them
@@ -450,7 +477,7 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     if (spend && scope !== null && !override) {
       if (await askSpendCap(spend)) {
         acknowledgeSpend(scope);
-        return request<T>(path, { ...init, spendOverride: true });
+        return requestResponse(path, { ...init, spendOverride: true });
       }
       throw new ApiRequestError(i18n.t('components:spendCap.declined'), res.status, undefined, 'spend-cap', undefined, spend);
     }
@@ -461,23 +488,14 @@ export async function request<T>(path: string, init: { method?: string; body?: u
     if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
     throw refusal;
   }
-  return json as T;
+  return res;
 }
 
 export const enc = encodeURIComponent;
 
 /** The file is the request body, as is: no multipart, no base64 on the way up. */
-async function uploadFile(file: File): Promise<Attachment> {
-  const res = await fetch(`${BASE}/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/octet-stream', ...authHeaders() },
-    body: file,
-    signal: AbortSignal.timeout(5 * 60_000),
-  });
-  const json = (await res.json().catch(() => null)) as (Attachment & Partial<ApiError>) | null;
-  if (!res.ok) throw new ApiRequestError(json?.error ?? `HTTP ${res.status} ${res.statusText}`, res.status, json?.detail);
-  return json as Attachment;
-}
+const uploadFile = (file: File): Promise<Attachment> =>
+  request<Attachment>(`/uploads?name=${encodeURIComponent(file.name || 'pasted')}`, { method: 'POST', file, timeoutMs: 5 * 60_000 });
 
 /** Config scope: no projectId means the user scope. */
 export interface Scope {
@@ -1399,6 +1417,10 @@ export const keys = {
   orchestrations: ['orchestrations'] as const,
   planDrafts: ['orchestrations', 'plans'] as const,
   orchestration: (id: string) => ['orchestration', id] as const,
+  // A graph's other reads sit under its own key, never under the list's: the list's patchers take
+  // what they find under `orchestrations` for graphs, and its events refresh the page's reads with it
+  orchestrationWorkflow: (id: string) => ['orchestration', id, 'workflow'] as const,
+  orchestrationWorkflowRun: (id: string, runId: string) => ['orchestration', id, 'workflow-run', runId] as const,
   /** Prefix of a change request's reads (itself, its checks, their logs): `change-request.checks` refreshes them all */
   changeRequest: (id: string) => ['change-request', id] as const,
   changeRequestChecks: (id: string) => ['change-request', id, 'checks'] as const,
@@ -1460,6 +1482,8 @@ export const keys = {
   terminalOne: (id: string) => ['terminal', 'one', id] as const,
   terminalList: (scope: string) => ['terminal', 'list', scope] as const,
   terminalHistory: (from: number) => ['terminal', 'history', from] as const,
+  /** Prefix of every page of the audit log */
+  auditAll: ['security', 'audit'] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
   // ---- the project ecosystem. Every work item read sits under `workItems` or `workItemDetails`, and
@@ -1657,8 +1681,8 @@ export const useChats = (filter: ChatFilter = {}) => {
 };
 
 /** What the chats spent over a range of days (`YYYY-MM-DD`, inclusive), or ever. */
-export const useUsage = (range: { from?: string; to?: string } = {}) =>
-  useQuery({ queryKey: keys.usage(range), queryFn: ({ signal }) => api.usage(range, { signal }), refetchInterval: useFallbackInterval() });
+export const useUsage = (range: { from?: string; to?: string } = {}, { enabled = true }: { enabled?: boolean } = {}) =>
+  useQuery({ queryKey: keys.usage(range), queryFn: ({ signal }) => api.usage(range, { signal }), enabled, refetchInterval: useFallbackInterval() });
 
 export interface UsageRange {
   from?: string;

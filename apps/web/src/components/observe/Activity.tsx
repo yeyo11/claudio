@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TranscriptEntry } from '@claudio/shared';
 import { api } from '../../api';
+import { useFallbackInterval } from '../../lib/events';
 import { openCallInTurn } from '@claudio/chat-ui/lib/liveness';
 import { describeCall, lastEventAt } from '../../lib/observe';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
@@ -23,12 +24,13 @@ function useNow(on: boolean): number {
 
 /** The newest part of a chat's transcript, for a chat the page does not already hold. */
 export function useChatTail(chatId: string | null, live: boolean): TranscriptEntry[] | null {
+  const fallback = useFallbackInterval();
   const { data } = useQuery({
-    // Under the chat's own key: the events that say the chat moved refresh it
+    // Under the chat's own key: the events that say the chat moved refresh it, so it polls only while the feed is down
     queryKey: ['chat', chatId, 'tail'],
     queryFn: () => api.chat(chatId ?? '', { limit: 40 }),
     enabled: Boolean(chatId),
-    refetchInterval: live ? 5_000 : false,
+    refetchInterval: live ? fallback : false,
   });
   return data?.entries ?? null;
 }

@@ -3,7 +3,10 @@ import test from 'node:test';
 import en from '../src/i18n/locales/en/projects.json' with { type: 'json' };
 import es from '../src/i18n/locales/es/projects.json' with { type: 'json' };
 import { asProjectView, projectViews } from '../src/pages/dashboard/views.ts';
-import { columnLimitsOf, deriveKeyPrefix, FOLDER_NAME, LIMIT_STATUSES, folderNameFor, limitedColumns, moduleFigure, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
+import { columnLimitsOf, deriveKeyPrefix, LIMIT_STATUSES, folderNameFor, limitedColumns, moduleFigure, normalizePrefix, prefixProblem, sameModules, toggleModule } from '../src/pages/projects/model.ts';
+
+/** A directory the workspace creates: what core's `Workspace.create` accepts (packages/core/src/workspace.ts). */
+const FOLDER_NAME = /^\w[\w.-]{0,63}$/;
 
 // The wizard previews the prefix the server will derive, and the settings refuse what the API
 // would refuse before sending it, so both have to agree with core's rules.

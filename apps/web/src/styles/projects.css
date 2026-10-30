@@ -660,8 +660,7 @@
   gap: 8px;
 }
 
-.wizard-phone input,
-.wizard-phone .combobox-input {
+.wizard-phone input {
   min-height: 44px;
   font-size: var(--fs-input);
 }
@@ -788,25 +787,6 @@
 
 .project-head-facts > .ellipsis {
   min-width: 0;
-}
-
-.project-head-phone {
-  align-items: flex-start;
-  flex-wrap: nowrap;
-  gap: 12px;
-}
-
-.project-head-phone .icon-btn {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  margin-left: -10px;
-  justify-content: center;
-  align-items: center;
-}
-
-.project-head-phone h1 {
-  font-size: var(--fs-title);
 }
 
 /* The tab strip: taller than a card's, each tab with its icon and a neutral count */

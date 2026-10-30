@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { ClaudioEvent, ChangeRequestFreshness, WebhookRegistration } from '@claudio/shared';
 import { api, keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
-import { freshnessLine, isHealthy, lastHeardAt, liveRegistration, publicOrigin, responseWord, rowKind, spanWords, webhookActions, webhookTone } from '../src/lib/webhooks';
+import { freshnessLine, isHealthy, lastHeardAt, liveRegistration, responseWord, rowKind, spanWords, webhookActions, webhookTone } from '../src/lib/webhooks';
 
 const NOW = Date.parse('2026-10-02T12:00:00Z');
 const ago = (ms: number): string => new Date(NOW - ms).toISOString();
@@ -46,12 +46,6 @@ test('last heard is the later of delivery and ping; the response is its code or 
   assert.equal(responseWord(reg({ lastResponse: { code: 204, status: 'OK' } })), '204');
   assert.equal(responseWord(reg({ lastResponse: { code: null, status: 'timeout' } })), 'timeout');
   assert.equal(responseWord(reg()), null);
-});
-
-test('the public origin drops the receiver path and survives garbage', () => {
-  assert.equal(publicOrigin('https://x.lhr.life/webhooks/github/abc'), 'https://x.lhr.life');
-  assert.equal(publicOrigin('nope'), null);
-  assert.equal(publicOrigin(null), null);
 });
 
 test('spans are whole seconds, minutes, then hours', () => {

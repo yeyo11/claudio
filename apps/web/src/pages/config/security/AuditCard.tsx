@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../../api';
+import { useFallbackInterval } from '../../../lib/events';
 import { Combobox, Select, Tooltip, type SelectOption } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, Empty, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
@@ -66,10 +67,12 @@ export function AuditCard() {
     ...AUDIT_METHODS.map((value) => ({ value, label: value })),
   ];
 
+  const fallback = useFallbackInterval();
   const { data, error, isLoading, isFetching, refetch } = useQuery({
     queryKey: keys.audit({ from, path, method, status }),
     queryFn: () => api.audit({ limit: AUDIT_PAGE, from, path, method: method || undefined, status: status || undefined }),
-    refetchInterval: 15_000,
+    // Every event reads the log again at a slow pace (`ALWAYS` in lib/events)
+    refetchInterval: fallback,
     placeholderData: (previous) => previous,
   });
   const entries: AuditEntry[] = data?.entries ?? [];
@@ -313,11 +316,13 @@ export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
  */
 export function AuditLatest() {
   const { t } = useTranslation(['config', 'common']);
+  const fallback = useFallbackInterval();
   const { data, error, isLoading } = useQuery({
     // Its own entry under the audit's prefix: the detail's first page holds more rows than this
     queryKey: [...keys.audit({ from: 0 }), 'latest'],
     queryFn: () => api.audit({ limit: AUDIT_LATEST, from: 0 }),
-    refetchInterval: 15_000,
+    // Every event reads the log again at a slow pace (`ALWAYS` in lib/events)
+    refetchInterval: fallback,
   });
   const entries = data?.entries ?? [];
   return (

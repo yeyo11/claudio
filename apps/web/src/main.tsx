@@ -8,6 +8,7 @@ import { App } from './App';
 import { keys } from './api';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ConfirmProvider } from '@claudio/ui/components/Dialog';
+import { RouteError } from './components/RouteError';
 import { SpendCapProvider } from './components/SpendCapDialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import '@fontsource-variable/geist';
@@ -50,6 +51,8 @@ const queryClient: QueryClient = new QueryClient({
 const router = createBrowserRouter([
   {
     path: '*',
+    // A render that throws anywhere in the app lands here, in the person's language, not on the router's developer page
+    errorElement: <RouteError />,
     element: (
       <TooltipProvider>
         <ToastProvider>

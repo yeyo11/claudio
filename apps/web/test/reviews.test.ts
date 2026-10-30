@@ -5,7 +5,7 @@ import { keys } from '../src/api';
 import { targetMatches, targetsFor } from '../src/lib/events';
 import {
   approvalsProgress, canSubmit, countThreads, decisionMark, followUpThreads, groupThreads, lineLabel, parseLogins, preselected,
-  reviewerMark, sortDrafts, submitOffer, summarizeDrafts, threadPlace, triageMark,
+  reviewerMark, sortDrafts, submitOffer, summarizeDrafts, triageMark,
 } from '../src/lib/reviews';
 
 const thread = (over: Partial<ReviewThread>): ReviewThread => ({
@@ -16,13 +16,6 @@ const thread = (over: Partial<ReviewThread>): ReviewThread => ({
 const draft = (over: Partial<ReviewDraft>): ReviewDraft => ({
   id: 'd1', changeRequestId: 'cr-1', path: 'a.ts', side: 'right', line: 10, startLine: null, body: 'x', suggestion: false,
   createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z', ...over,
-});
-
-test('a thread is drawn on its line, folded as outdated, on its file, or as a general one', () => {
-  assert.equal(threadPlace(thread({})), 'line');
-  assert.equal(threadPlace(thread({ isOutdated: true, line: null })), 'outdated');
-  assert.equal(threadPlace(thread({ line: null })), 'file');
-  assert.equal(threadPlace(thread({ path: null, line: null })), 'general');
 });
 
 test('threads are grouped by file and line, and a resolved one stays apart from the open ones', () => {

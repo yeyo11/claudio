@@ -765,12 +765,6 @@ button.master-item-on:hover {
   letter-spacing: var(--tracking-title);
 }
 
-.settings-head-sub {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-small);
-}
-
 /* A detail's way back to its group, above its title: a quiet link, not a button */
 .settings-back {
   display: inline-flex;
@@ -1069,13 +1063,6 @@ button.master-item-on:hover {
 .settings-cell-chevron {
   flex: none;
   color: var(--text-faint);
-}
-
-/* The Install screen's halo, from under the header, as on the reference */
-.settings-phone-install.glow-top {
-  margin: calc(-1 * var(--main-pad-top)) calc(-1 * var(--main-pad-x)) 0;
-  padding: var(--main-pad-top) var(--main-pad-x) 0;
-  background-size: 100% 360px;
 }
 
 /*
@@ -1409,7 +1396,6 @@ button.master-item-on:hover {
 .appearance .pref-row {
   align-items: start;
 }
-
 
 /* Three tiles on one line at every width: they share the control column instead of wrapping */
 .appearance-themes {

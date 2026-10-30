@@ -84,11 +84,6 @@ export function resetThemePreference(): void {
   setThemePreference(DEFAULT_THEME);
 }
 
-/** The Appearance row's "Changed": the choice differs from the default. */
-export function useThemeChanged(): boolean {
-  return useThemePreference() !== DEFAULT_THEME;
-}
-
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
