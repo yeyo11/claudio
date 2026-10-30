@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { test } from 'node:test';
-import { claudioChildren, cliProcessOf, commandRoots, descendantsOf, forgetProcessTable, processTable, recentProcessTable, terminateTree, type ProcessEntry } from '../src/processes.ts';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { claudioChildren, cliProcessOf, cliSessionRecords, commandRoots, descendantsOf, forgetProcessTable, processTable, recentProcessTable, terminateTree, type ProcessEntry } from '../src/processes.ts';
 
 // Cancelling a command kills a process tree, so what is under test is that it is exactly that tree:
 // found from the process table by parentage and start time, and nothing else on the machine.
@@ -145,4 +148,32 @@ test('recentProcessTable reads the table once per window, and again after it or 
   recentProcessTable(read, 5_001);
   assert.equal(reads, 4);
   forgetProcessTable();
+});
+
+// ---------- the CLI's own records of its processes ----------
+
+test("the CLI's sessions are read from the record each process keeps, kept only while that process still runs", { skip: !(existsSync('/proc/self/stat') && existsSync('/etc/machine-id')) && 'only where /proc and a machine id name the processes' }, async () => {
+  const configDir = mkdtempSync(join(tmpdir(), 'claudio-cli-records-'));
+  try {
+    assert.equal(await cliSessionRecords(configDir), null, 'a CLI that keeps no records is asked instead');
+    const sessions = join(configDir, 'sessions');
+    mkdirSync(sessions);
+    const stat = readFileSync('/proc/self/stat', 'utf8');
+    const procStart = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+    const domain = `linux:${readFileSync('/etc/machine-id', 'utf8').trim()}:${readlinkSync('/proc/self/ns/pid')}`;
+    const record = (pid: number, over: object = {}) => ({ pid, sessionId: `s-${String(pid)}`, cwd: '/work', kind: 'interactive', status: 'busy', startedAt: 1, name: 'n', procStart, pidDomain: domain, ...over });
+    const write = (name: string, body: object | string) => writeFileSync(join(sessions, name), typeof body === 'string' ? body : JSON.stringify(body));
+    write(`${String(process.pid)}.json`, record(process.pid));
+    // The same pid, but the process that wrote it is gone and the pid was reused
+    write('1.json', record(1, { procStart: '999999999999' }));
+    // A pid nothing runs
+    write('4194303.json', record(4194303));
+    // Written in another pid namespace: not a pid of ours to check
+    write(`${String(process.ppid)}.json`, record(process.ppid, { pidDomain: 'linux:other:pid:[1]' }));
+    write('7.json', '{"half');
+    write(`${String(process.pid)}.other.key`, 'not a record');
+    assert.deepEqual(await cliSessionRecords(configDir), [{ pid: process.pid, sessionId: `s-${String(process.pid)}`, cwd: '/work', kind: 'interactive', status: 'busy', startedAt: 1, name: 'n' }]);
+  } finally {
+    rmSync(configDir, { recursive: true, force: true });
+  }
 });

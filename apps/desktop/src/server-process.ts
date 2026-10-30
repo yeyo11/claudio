@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:os';
 import { createInterface } from 'node:readline';
+import { withServerThreadpool } from '@claudio/core/launcher/protocol';
 import type { LogFile } from './log.ts';
 
 const READY_PREFIX = 'CLAUDIO_READY ';
@@ -50,7 +51,7 @@ export interface ServerEnvOptions {
 
 export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
   return {
-    ...opts.base,
+    ...withServerThreadpool(opts.base),
     PATH: opts.PATH,
     // The port this install used last, so its address survives a restart; PORT still wins,
     // and 0 on a first start lets the operating system choose one to remember

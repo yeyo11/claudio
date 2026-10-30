@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-19T18:00:00Z
+updated_at: 2026-10-30T02:30:00Z
 tags:
     - cli
     - one-rule
@@ -23,7 +23,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Auth status | `claude auth status --json` |
 | Run / continue a conversation | `claude -p --input-format stream-json --output-format stream-json` (one long-lived process per run, multi-turn over stdin; `--resume` when the process is gone) |
 | Background tasks & subagents | `system/task_*` events and `Task` tool calls in the stream |
-| Live CLI sessions | `claude agents --json` |
+| Live CLI sessions | on Linux, the record each CLI process writes for itself (`$CLAUDE_CONFIG_DIR/sessions/<pid>.json`), kept while `/proc/<pid>/stat` shows the start time it recorded (`procStart`) in the same pid namespace (`pidDomain`): what `claude agents --json` itself reads; elsewhere, or with a CLI that writes no such records, `claude agents --json` ([transcript-listing.md](transcript-listing.md)) |
 | Session history & projects | transcripts in `$CLAUDE_CONFIG_DIR/projects/*/*.jsonl` |
 | MCP servers | `claude mcp add-json` / `claude mcp remove` (user scope) |
 | Context breakdown | the `get_context_usage` control request (`detail: summary` unless asked) |
@@ -63,4 +63,4 @@ Claudio asks GitHub the same way about its own releases (`CLAUDIO_UPDATE_CHECK=o
 
 ## Related
 
-[[providers.md]] · [[accounts.md]] · [[guards.md]] · [[decision-engine.md]] · [[lessons.md]] · [[evals.md]] · [[context-control.md]] · [[plans/claude-only-fork.md]]
+[[providers.md]] · [[accounts.md]] · [[guards.md]] · [[decision-engine.md]] · [[lessons.md]] · [[evals.md]] · [[context-control.md]] · [[plans/claude-only-fork.md]] · [[transcript-listing.md]]

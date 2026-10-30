@@ -15,6 +15,20 @@ export const RESTART_EXIT_CODE = 75;
  */
 export const DATA_DIR_LOCKED_EXIT_CODE = 73;
 
+/**
+ * libuv's thread pool for the server, unless its environment names one: every file read, DNS lookup
+ * and hash of the server queues on it, and the default of four held a listing of the machine's
+ * transcripts behind itself and every request behind that (docs/plans/regression-fixes-2026-10-29.md,
+ * C7). libuv reads the variable once, when the pool is first used, so whoever starts the server
+ * puts it in the server's environment, and the server's entry sets it before anything else runs.
+ */
+export const SERVER_THREADPOOL_SIZE = '16';
+
+/** `env` with the server's thread pool, unless it already names one. */
+export function withServerThreadpool(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return env.UV_THREADPOOL_SIZE ? env : { ...env, UV_THREADPOOL_SIZE: SERVER_THREADPOOL_SIZE };
+}
+
 /** `2.1.278` and nothing looser: `latest` or `stable` mean the image does not pin */
 export const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
