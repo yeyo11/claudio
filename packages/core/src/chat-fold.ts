@@ -218,8 +218,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // The driver has already folded it into the branches: a notification may have ended an agent
       dropEndedBranches(chat);
       chat.push(event.run);
-      // What waited for the background work to end (a person's account switch, the end of a
-      // one-turn chat's input) can go ahead now
+      // What waited for the background work to end (a person's account switch) can go ahead now
       if (!runsInBackground(chat.branches)) host.emit('chat-background-settled', chat.id);
       return;
 
@@ -396,10 +395,10 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   }
   chat.turnOver = true;
   if (chat.opts.keepAlive === false) {
-    // A driver that still holds a turn would write it after the end of the input. A CLI whose input
-    // ends while work of its own runs in the background winds that work down once it has waited
-    // long enough (D3): the input ends when the work does (`chat-background-settled`)
-    if (!chat.session?.holdsTurns?.() && !runsInBackground(chat.branches)) chat.session?.endInput();
+    // A driver that still holds a turn would write it after the end of the input. A one-turn chat's
+    // input ends here even with work in the background: its starter waits for the process to exit
+    // and goes on from there (the orchestrator's continuation), and the CLI waits for that work first
+    if (!chat.session?.holdsTurns?.()) chat.session?.endInput();
   } else if (chat.written().length > 0) {
     // The agent has messages of ours still to read and goes on with them as its next turn, reading
     // each back as it starts: the chat is not waiting for anyone, for as long as that takes

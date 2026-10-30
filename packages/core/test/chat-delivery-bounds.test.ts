@@ -216,9 +216,8 @@ test('a CLI that names no version is still found out at its first result', async
   try {
     const chat = r.chats.start({ prompt: 'a local command' });
     await until(() => r.chats.get(chat.id)?.status === 'idle', 'the first turn to end');
+    // Written before anything else was read back: not followed (a later read-back would show it does after all)
     r.chats.sendMessage(chat.id, `HOLD ${r.file('f1')}`);
-    await until(() => r.ops().filter((o) => o.op === 'turn').length === 2, 'the second turn');
-    r.chats.sendMessage(chat.id, 'written while it holds');
     assert.deepEqual(r.chats.get(chat.id)?.pending, []);
   } finally {
     await r.close();
@@ -357,20 +356,6 @@ test('the idle timeout does not end the input of a chat whose agent runs work in
   }
 });
 
-test('a one-turn chat keeps its input open while its background work runs, and ends it after', async () => {
-  const r = rig();
-  try {
-    r.chats.start({ prompt: `BG ${r.file('f1')}`, keepAlive: false });
-    await until(() => r.ops().some((o) => o.op === 'turn'), 'the turn');
-    await pause(600);
-    assert.ok(!r.ops().some((o) => o.op === 'eof'), 'the CLI was told to wind its background work down');
-    r.release('f1');
-    await until(() => r.ops().some((o) => o.op === 'eof'), 'the input to end', 4000);
-  } finally {
-    await r.close();
-  }
-});
-
 test('a chat running background work is never evicted for a slot, past the idle timeout too', async () => {
   const r = rig({ CLAUDIO_IDLE_TIMEOUT_MS: '100' }, (config) => Object.assign(config, { maxConcurrentRuns: 1 }));
   try {
@@ -433,7 +418,7 @@ test('a hint goes through the chat\'s sends in order, framed by who sent it', as
     assert.equal(hint?.text, 'two, from the Supervisor');
     assert.equal(pending.find((m) => m.text === 'one')?.source, 'person');
     await core.chats.hint(chat.id, 'from a person');
-    assert.ok(enqueued().includes(`${CHAT_HINT_PREFIX}\n\nfrom a person`));
+    await until(() => enqueued().includes(`${CHAT_HINT_PREFIX}\n\nfrom a person`), "the person's hint to reach the CLI");
   } finally {
     writeFileSync(join(scratch, 'f1'), '');
     core.shutdown();

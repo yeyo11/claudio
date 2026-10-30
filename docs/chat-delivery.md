@@ -168,11 +168,13 @@ So while `runsInBackground(chat.branches)`:
 
 - the idle timeout does not end the chat's input (it is armed again until the work is over);
 - the chat is never evicted for a run slot, past the idle timeout too;
-- a one-turn chat (`keepAlive: false`) keeps its input open at its result, and it ends once the work
-  is over and no turn of the lead's is under way;
 - `endBetweenTurns` refuses with 409;
 - a person's account switch waits: it is answered `pending`, the chat gets a notice saying why, and
   the move happens once the work is over.
+
+A one-turn chat (`keepAlive: false`, an orchestration's worker) still has its input ended at its
+result: its starter waits for the process to exit and continues the chat from there, and the CLI
+waits for the background work before it exits, up to that ceiling.
 
 ## Edge cases the server handles
 

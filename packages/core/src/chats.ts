@@ -294,12 +294,7 @@ export class ChatManager extends EventEmitter {
     // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
     this.on('chat-result', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     // What waited for the agent's background work goes ahead once it is over (D3)
-    this.on('chat-background-settled', (chatId: string) =>
-      setImmediate(() => {
-        this.endOneTurnInput(chatId);
-        void this.applyPendingAccount(chatId).catch(() => undefined);
-      }),
-    );
+    this.on('chat-background-settled', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
     for (const driver of drivers) {
       if (driver instanceof ClaudeCodeDriver) {
@@ -2485,18 +2480,6 @@ export class ChatManager extends EventEmitter {
     await this.endProcessBetweenTurns(chat);
     // Another message may have started a turn while the process was closing
     if (chat.pendingAccount === to && !chat.alive) this.moveTo(chat, to, 'person');
-  }
-
-  /**
-   * A one-turn chat (`keepAlive: false`) whose input was kept open at its result for the work it ran
-   * in the background: that work is over, and with no turn of the lead's under way the input ends,
-   * as it would have at the result.
-   */
-  private endOneTurnInput(id: string): void {
-    const chat = this.chats.get(id);
-    if (!chat?.alive || chat.opts.keepAlive !== false || chat.turnOpen || runsInBackground(chat.branches)) return;
-    if (chat.proc?.stdin.writableEnded || chat.session?.holdsTurns?.()) return;
-    chat.session?.endInput();
   }
 
   /**
