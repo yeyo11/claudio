@@ -86,7 +86,7 @@ export function LiveSettings({ chat }: { chat: Chat }) {
 export function LiveOptions({ chat, onOpenServers, onOpenEnvironment }: { chat: Chat; onOpenServers?: () => void; onOpenEnvironment?: () => void }) {
   const { t } = useTranslation(['chat', 'work']);
   const { tools } = chat;
-  const servers = useLiveServers(chat.id, Boolean(chat.execution));
+  const servers = useLiveServers(chat, Boolean(chat.execution));
   const count = serversOn(servers.data);
   // The same words as the chip: the live count while the process is up, else what the chat started with
   const serversWords = count

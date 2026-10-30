@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../../api';
+import { useFallbackInterval } from '../../../lib/events';
 import { Collapsible, NumberInput } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
@@ -248,7 +249,8 @@ function JevUnavailable({ provider }: { provider: DecisionProviderId }) {
   const recent = useQuery({
     queryKey: keys.decisionsRecent({ provider: 'jev', limit: RECENT }),
     queryFn: () => api.decisions({ provider: 'jev', limit: RECENT }),
-    refetchInterval: 30_000,
+    // Decisions are taken on prompts, whose events read them again
+    refetchInterval: useFallbackInterval(),
   });
   if (provider !== 'jev' || !recent.data) return null;
   const failed = recent.data.items.filter((row) => row.status === 'unavailable');

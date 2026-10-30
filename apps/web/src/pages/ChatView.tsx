@@ -109,8 +109,10 @@ export function ChatView() {
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
   const { follow, setFollow, jumpToLatest, hold } = useStickToBottom(scroller, Boolean(chat));
   const { queued, add: queueMessage, drop: dropQueued, pending: isPending } = useQueuedMessages(chat, transcript.items, stream, transcript.query.dataUpdatedAt);
-  // Words and files handed back to the composer: a message the agent never read
-  const [restore, setRestore] = useState<{ text: string; attachments: ChatPendingAttachment[]; at: number } | null>(null);
+  // Words and files handed back to the composer: a message the agent never read. They belong to the
+  // chat they were written in: the route keeps this component across chats, and the next chat's
+  // composer mounts before an effect could clear them, so they carry their chat and only it gets them
+  const [restore, setRestore] = useState<{ chatId: string; text: string; attachments: ChatPendingAttachment[]; at: number } | null>(null);
   // A message still waiting for the turn is a card over the box, so it is not also a row here
   const pendingless = useMemo(() => (queued.length === 0 ? transcript.items : transcript.items.filter((entry) => !isPending(entry))), [transcript.items, queued.length, isPending]);
   const items = pendingless;
@@ -131,10 +133,12 @@ export function ChatView() {
   const limit = useLimitState(chat);
   usePageTitle(chat ? t('view.pageTitle', { title: displayTitle(chat) }) : t('view.pageTitleFallback'));
 
-  // Another chat starts at its end, with nothing half-typed for a copy of the last one
+  // Another chat starts at its end, with nothing half-typed for a copy of the last one, and nothing
+  // handed back from it (coming back to it later must not hand the words back a second time)
   useEffect(() => {
     setFollow(true);
     setForking(false);
+    setRestore(null);
   }, [id, setFollow]);
 
   // A block that has been stored leaves the stream once the transcript shows it, in the same
@@ -498,7 +502,7 @@ export function ChatView() {
                         className="icon-btn"
                         aria-label={t('view.queued.restore')}
                         onClick={() => {
-                          setRestore({ text: message.text, attachments: message.attachments, at: Date.now() });
+                          setRestore({ chatId: chat.id, text: message.text, attachments: message.attachments, at: Date.now() });
                           dropQueued(message.id);
                         }}
                       >
@@ -539,7 +543,7 @@ export function ChatView() {
             key={chat.id}
             chat={chat}
             kind={composer}
-            restore={restore}
+            restore={restore?.chatId === chat.id ? restore : null}
             history={sentHistory}
             onSending={onSending}
             writing={writing}

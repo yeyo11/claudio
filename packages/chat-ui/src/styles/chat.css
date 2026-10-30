@@ -1226,7 +1226,6 @@
   min-width: 0;
 }
 
-
 .insp-head {
   display: flex;
   align-items: center;
@@ -1996,17 +1995,6 @@ a.attachment-chip:hover {
 
 .attachments-pending {
   margin: 0 0 8px;
-}
-
-.attach-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.attach-row .attachments-pending {
-  margin: 0;
 }
 
 .composer-attach {

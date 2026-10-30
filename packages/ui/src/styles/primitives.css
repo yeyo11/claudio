@@ -28,13 +28,6 @@
   letter-spacing: var(--tracking-title);
 }
 
-.card-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: auto;
-}
-
 .grid-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -561,7 +554,6 @@ input.is-invalid {
   transition: transform var(--dur-base) var(--ease-spring), background var(--dur-base);
 }
 
-
 .switch-on .switch-knob {
   transform: translateX(16px);
   background: var(--on-accent);
@@ -683,12 +675,6 @@ input.is-invalid {
 .count-on {
   background: var(--accent-soft);
   color: var(--accent);
-}
-
-/* A count of things running now */
-.count-live {
-  background: var(--live-soft);
-  color: var(--live);
 }
 
 .row-busy {

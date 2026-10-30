@@ -70,7 +70,7 @@ function useStatusWords(chat: Chat, kind: ComposerKind, choices: StartChoices): 
       : presetChoice !== undefined
         ? presetChoice
         : (chat.tools?.preset?.name ?? t('status.noPreset'));
-  const live = useLiveServers(chat.id, kind === 'send' && Boolean(chat.execution));
+  const live = useLiveServers(chat, kind === 'send' && Boolean(chat.execution));
   const mcpChoice = starting ? choices.mcp : undefined;
   const servers = mcpChoice === undefined ? (chat.tools?.mcp ?? null) : mcpChoice;
   // On a running chat the chip counts what the "+" panel has switched since the start; the panel's own query

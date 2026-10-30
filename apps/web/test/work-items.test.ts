@@ -15,7 +15,6 @@ import {
   filtersFromSearch,
   filtersToSearch,
   firstKey,
-  groupByStatus,
   hasFilters,
   inProjects,
   isLive,
@@ -137,25 +136,6 @@ test('a board always has its five columns, and the open count leaves Done out wh
   );
   assert.equal(openCount(board), 9);
   assert.equal(openCount(undefined), undefined);
-});
-
-test('grouping keeps the board order inside each column', () => {
-  const items = [
-    { id: 'a', status: 'todo' },
-    { id: 'b', status: 'backlog' },
-    { id: 'c', status: 'todo' },
-  ] as const satisfies ReadonlyArray<Pick<WorkItem, 'status'> & { id: string }>;
-  const groups = groupByStatus(items);
-  assert.deepEqual(
-    groups.map((g) => [g.status, g.items.map((i) => i.id)]),
-    [
-      ['backlog', ['b']],
-      ['todo', ['a', 'c']],
-      ['in_progress', []],
-      ['in_review', []],
-      ['done', []],
-    ],
-  );
 });
 
 test('an item is live only while its chat works or its node runs; a waiting chat waits, still', () => {

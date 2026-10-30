@@ -24,6 +24,7 @@ import type {
   RunStatus,
   RunUpdatedEvent,
   SettingsChangedEvent,
+  SpendState,
   StoredDashboardLayout,
   StreamHelloEvent,
   StreamResyncEvent,
@@ -35,14 +36,16 @@ import type {
 } from '@claudio/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
-import { dispatchEvent, setFeedState, useFeedState, type FeedState } from './feed';
+import { dispatchEvent, dispatchResync, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
 import { hasLiveStream } from '@claudio/chat-ui/lib/chats';
+import { isEditTool } from '@claudio/chat-ui/lib/edit-chips';
 import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 
 export {
   FALLBACK_POLL_MS,
+  onResync,
   subscribeEvents,
   useClaudioEvents,
   useFallbackInterval,
@@ -58,6 +61,7 @@ export {
  * events without opening a second connection:
  *
  *   subscribeEvents(listener)      plain subscription; returns the unsubscribe function
+ *   onResync(listener)             called after events were missed and every query was invalidated
  *   useClaudioEvents(listener)     the same inside a component, always calling its latest closure
  *   useFeedState()                 'connecting' | 'open' | 'closed'
  *   useFallbackInterval(ms)        a refetchInterval that is `false` while the stream is open
@@ -81,6 +85,8 @@ const CHATS = 2500;
 // A turn that ended is read once now and once more after the process let go: whether a chat is still
 // held (`alive`), and so whether its branches still run, is settled a moment after the turn
 const SETTLED = 2000;
+// The audit log is a Settings card nobody watches move: one read every ten seconds of activity at most
+const AUDIT = 10_000;
 
 /** Every event name the server sends; typed as a record so a new event type cannot be forgotten. */
 const EVENT_TYPES: Record<ClaudioEventType, true> = {
@@ -191,6 +197,40 @@ const chatOf = (event: { runId: string; sessionId: string | null }): Target[] =>
 
 // The transcript pages of a chat, not everything under its key: permissions, the checklist and the
 // changes have events or intervals of their own, and a turn moving is no news to them
+// What a turn may have written that no event announces: the CLI's memory files
+const afterTurn: Target[] = [[keys.memoryProjects, OVERVIEW]];
+
+/** Tools whose call rewrites the agent's plan, the checklist (core's `CHECKLIST_TOOLS`). */
+const CHECKLIST_TOOLS: ReadonlySet<string> = new Set(['TaskCreate', 'TaskUpdate', 'TodoWrite']);
+
+/**
+ * What a tool call announced by `chat.activity` changes besides the line: an edit changes the chat's
+ * files, a checklist tool its plan (a worker's under its graph). Read once the call had time to land;
+ * a burst of edits folds into one read. A worker's branch has `changes.updated` of its own.
+ */
+function landing(event: ChatActivityEvent): Target[] {
+  const tool = event.activity?.kind === 'tool' ? event.activity.tool : undefined;
+  const chatId = event.sessionId ?? event.runId;
+  if (!tool || !chatId) return [];
+  if (isEditTool(tool)) return [[['chat', chatId, 'changes'], CHATS]];
+  if (!CHECKLIST_TOOLS.has(tool)) return [];
+  return [
+    [['chat', chatId, 'checklist'], CHATS],
+    ...(event.orchestrationId && event.taskId ? ([[[...keys.orchestration(event.orchestrationId), 'checklist', event.taskId], CHATS]] as Target[]) : []),
+  ];
+}
+
+// Health is read with the chat, and with the graph for a worker; a Supervisor's proposal hangs on it
+const healthTargets = (event: { runId: string; orchestrationId: string | null }): Target[] => [
+  [keys.chats, LISTS],
+  [['chat', event.runId], NOW],
+  ...(event.orchestrationId ? ([[keys.orchestration(event.orchestrationId), NOW], [keys.orchestrations, LISTS]] as Target[]) : []),
+];
+
+// The MCP servers of the chat's process, apart from its scope (see `chatMcpEach`)
+const mcpOf = (event: { runId: string; sessionId: string | null }): Target[] =>
+  [...new Set([event.runId, event.sessionId].filter((id): id is string => Boolean(id)))].map((id) => [keys.chatMcpEach(id), NOW]);
+
 const transcriptOf = (id: string): Target[] => [
   [keys.chat(id), NOW],
   [['chat', id, 'tail'], NOW],
@@ -280,14 +320,15 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'run.ended':
       return [
         [keys.chats, LISTS], [['chat', event.runId], NOW], [['chat', event.runId], SETTLED], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW],
-        [['environments'], NOW], ...activity(OVERVIEW), ...liveCards(true),
+        [['environments'], NOW], ...activity(OVERVIEW), ...liveCards(true), ...afterTurn,
       ];
     case 'run.removed':
       return [[keys.chats, LISTS], [keys.overview, OVERVIEW], [keys.projects, OVERVIEW], [['usage'], OVERVIEW]];
     case 'run.waiting':
     case 'permission.requested':
     case 'permission.resolved':
-      return [[keys.chatPermissions(event.runId), NOW], [keys.chats, LISTS], [keys.overview, NOW]];
+      // A prompt is where the decision engine answers too: its recent decisions move with it
+      return [[keys.chatPermissions(event.runId), NOW], [keys.chats, LISTS], [keys.overview, NOW], [['decisions'], LISTS]];
     case 'run.limitWaiting':
       // A flow run that waits changes its card, its item's runs and the waits they read; the
       // event names the chat, not the item, so those are read by prefix (only mounted ones refetch)
@@ -331,25 +372,25 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       // Whatever the board reads about this graph's branches sits under its key, changes included
       return [[keys.orchestration(event.orchestrationId), NOW]];
     case 'chat.activity':
-      // Nothing is refetched: the event carries the whole line, and `patchActivity` writes it into
-      // the caches that show it. A working agent changes it every few seconds, and reading every
-      // list again for one line of text is what the server's throttle was meant to spare.
-      return [];
+      // The line itself is not refetched: the event carries it whole, and `patchActivity` writes it
+      // into the caches that show it. A working agent changes it every few seconds, and reading every
+      // list again for one line of text is what the server's throttle was meant to spare. Only what
+      // the call is about to change is read again, once it had time to land: the files, the plan.
+      return landing(event);
     case 'schedule.changed':
     case 'schedule.fired':
       // The runs of every schedule sit under the same prefix as the list
       return [[keys.schedules, NOW]];
     case 'health.changed':
+      // A server of the process failing or coming back is one of the things that move health: the
+      // composer's list of them is read again here, and only here, besides a new process
+      return [...healthTargets(event), ...mcpOf(event)];
     case 'supervisor.proposed':
-      // Health is read with the chat, and with the graph for a worker; a proposal hangs on it
-      return [
-        [keys.chats, LISTS], [['chat', event.runId], NOW],
-        ...(event.orchestrationId ? ([[keys.orchestration(event.orchestrationId), NOW], [keys.orchestrations, LISTS]] as Target[]) : []),
-      ];
+      return healthTargets(event);
     case 'sessions.changed':
       // Chats begun in a terminal are read from disk, so their tasks, subagents and workflows move with it
       return [
-        [keys.chats, CHATS], [['chat'], CHATS], [keys.projects, CHATS], [keys.overview, CHATS], [['usage'], CHATS], ...activity(CHATS),
+        [keys.chats, CHATS], [['chat'], CHATS], [keys.projects, CHATS], [keys.overview, CHATS], [['usage'], CHATS], ...activity(CHATS), [keys.memoryProjects, CHATS],
       ];
     case 'system.release':
       // Reading it back costs nothing: the server answers from release.json, not from GitHub
@@ -474,6 +515,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       // The setup state: a sign-in that ended may have made a tool ready
       return event.login.endedAt ? [[keys.setup, NOW]] : [];
     case 'spend.changed':
+      // The event carries the spend whole, which `patchSpend` writes; "Today" is the usage report of
+      // the server's day, which a result just added to, read at the pace of the overview
+      return [[keys.usage({ from: event.spend.day, to: event.spend.day }), OVERVIEW]];
     case 'spend.alert':
       // The status bar, the Usage line and the wait lines read the day's spend: the next reading is theirs
       return [[keys.spend, NOW]];
@@ -507,36 +551,50 @@ export function patchActivity(client: QueryClient, event: ChatActivityEvent): vo
   const patchChat = (chat: ChatSummary): ChatSummary => (chat.id === chatId ? { ...chat, activity } : chat);
 
   client.setQueriesData<ChatSummary[]>({ queryKey: keys.chats }, (chats) =>
-    chats?.some((chat) => chat.id === chatId) ? chats.map(patchChat) : chats,
+    Array.isArray(chats) && chats.some((chat) => chat.id === chatId) ? chats.map(patchChat) : chats,
   );
   // The chat's own page: its ticker falls back to this line between the blocks its stream shows
   client.setQueryData<ChatDetail>(keys.chat(chatId), (detail) => (detail ? { ...detail, chat: { ...detail.chat, activity } } : detail));
   client.setQueriesData<Overview>({ queryKey: keys.overview }, (overview) =>
-    overview?.recentChats.some((chat) => chat.id === chatId) ? { ...overview, recentChats: overview.recentChats.map(patchChat) } : overview,
+    overview && Array.isArray(overview.recentChats) && overview.recentChats.some((chat) => chat.id === chatId)
+      ? { ...overview, recentChats: overview.recentChats.map(patchChat) }
+      : overview,
   );
   // A team member at work shows its chat's line, as the Flow screen does for each running run
   const patchRuns = (runs: FlowRun[]): FlowRun[] => (runs.some((run) => run.chatId === chatId) ? runs.map((run) => (run.chatId === chatId ? { ...run, activity } : run)) : runs);
   client.setQueriesData<Team>({ queryKey: ['team'] }, (team) =>
-    team?.members?.some((member) => member.running.some((run) => run.chatId === chatId))
+    Array.isArray(team?.members) && team.members.some((member) => Array.isArray(member.running) && member.running.some((run) => run.chatId === chatId))
       ? { ...team, members: team.members.map((member) => ({ ...member, running: patchRuns(member.running) })) }
       : team,
   );
   // ['flow', id, 'waiting'] shares the prefix and holds an array, which has no `running`
   client.setQueriesData<ProjectFlow>({ queryKey: ['flow'] }, (flow) =>
-    flow?.running?.some((run) => run.chatId === chatId) ? { ...flow, running: patchRuns(flow.running) } : flow,
+    Array.isArray(flow?.running) && flow.running.some((run) => run.chatId === chatId) ? { ...flow, running: patchRuns(flow.running) } : flow,
   );
   // A running assistant shows its chat's line ("Reading src/webhooks/stripe.ts")
   const patchAssistant = <R extends AssistantRun>(run: R): R => (run.chatId === chatId ? { ...run, activity } : run);
   client.setQueriesData<AssistantRun[]>({ queryKey: ['assistant', 'runs'] }, (runs) =>
-    runs?.some((run) => run.chatId === chatId) ? runs.map(patchAssistant) : runs,
+    Array.isArray(runs) && runs.some((run) => run.chatId === chatId) ? runs.map(patchAssistant) : runs,
   );
   client.setQueriesData<AssistantRunDetail>({ queryKey: keys.assistantRunEach }, (run) => (run?.chatId === chatId ? patchAssistant(run) : run));
   if (!event.orchestrationId || !event.taskId) return;
   const patchGraph = <O extends Orchestration | OrchestrationSummary>(orch: O): O =>
     orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map((task) => (task.id === event.taskId ? { ...task, activity } : task)) } : orch;
-  client.setQueriesData<Orchestration>({ queryKey: keys.orchestration(event.orchestrationId) }, (orch) => (orch ? patchGraph(orch) : orch));
-  client.setQueriesData<OrchestrationSummary[]>({ queryKey: keys.orchestrations }, (list) => list?.map(patchGraph));
+  // Only the graph itself: its page's other reads (the workflow, its run, the review) sit under the same prefix
+  client.setQueryData<Orchestration>(keys.orchestration(event.orchestrationId), (orch) => (isGraph(orch) ? patchGraph(orch) : orch));
+  client.setQueriesData<OrchestrationSummary[]>({ queryKey: keys.orchestrations }, (list) =>
+    isGraphList(list) && list.some((orch) => orch.id === event.orchestrationId) ? list.map(patchGraph) : list,
+  );
 }
+
+/**
+ * Whether a cached value is a graph, or a list of them. Other reads share the prefixes
+ * (`['orchestrations', 'templates']`, `['orchestration', id, 'review']`), and a patcher that took one of
+ * them for a graph would throw on it.
+ */
+const isGraph = (value: unknown): value is Orchestration | OrchestrationSummary =>
+  typeof value === 'object' && value !== null && 'tasks' in value && Array.isArray(value.tasks);
+const isGraphList = (value: unknown): value is OrchestrationSummary[] => Array.isArray(value) && value.every(isGraph);
 
 /**
  * Writes what a subagent is doing into the caches that list it, in place: the chat's detail and the
@@ -550,7 +608,7 @@ export function patchSubagentActivity(client: QueryClient, event: SubagentActivi
   const named = (sub: ChatSubagent) => sub.id === event.toolUseId || (event.agentId !== null && sub.id === event.agentId);
   const patch = <S extends ChatSubagent>(subs: S[]): S[] => (subs.some(named) ? subs.map((sub) => (named(sub) ? { ...sub, activity } : sub)) : subs);
   client.setQueryData<ChatDetail>(keys.chat(chatId), (detail) => {
-    if (!detail || !detail.chat.children.subagents.some(named)) return detail;
+    if (!detail || !Array.isArray(detail.chat?.children?.subagents) || !detail.chat.children.subagents.some(named)) return detail;
     return { ...detail, chat: { ...detail.chat, children: { ...detail.chat.children, subagents: patch(detail.chat.children.subagents) } } };
   });
   // Every list under the prefix holds entries of every chat: only this chat's are touched
@@ -570,7 +628,7 @@ export function patchOrchestrationTask(client: QueryClient, event: Orchestration
   const patchTask = (task: OrchestrationTaskSummary): OrchestrationTaskSummary =>
     task.id === event.taskId ? { ...task, status: event.status, runId: event.runId, error: event.error, ...(ended ? { activity: null, health: null } : {}) } : task;
   client.setQueriesData<OrchestrationSummary[]>({ queryKey: keys.orchestrations }, (list) =>
-    list?.some((orch) => orch.id === event.orchestrationId)
+    isGraphList(list) && list.some((orch) => orch.id === event.orchestrationId)
       ? list.map((orch) => (orch.id === event.orchestrationId ? { ...orch, tasks: orch.tasks.map(patchTask) } : orch))
       : list,
   );
@@ -615,10 +673,12 @@ export function patchRun(client: QueryClient, event: RunUpdatedEvent): boolean {
     return { ...chat, state, updatedAt, cost: { ...chat.cost, usd } };
   };
   client.setQueriesData<ChatSummary[]>({ queryKey: keys.chats }, (chats) =>
-    chats?.some((chat) => ids.has(chat.id)) ? chats.map(patchChat) : chats,
+    Array.isArray(chats) && chats.some((chat) => ids.has(chat.id)) ? chats.map(patchChat) : chats,
   );
   client.setQueriesData<Overview>({ queryKey: keys.overview }, (overview) =>
-    overview?.recentChats.some((chat) => ids.has(chat.id)) ? { ...overview, recentChats: overview.recentChats.map(patchChat) } : overview,
+    overview && Array.isArray(overview.recentChats) && overview.recentChats.some((chat) => ids.has(chat.id))
+      ? { ...overview, recentChats: overview.recentChats.map(patchChat) }
+      : overview,
   );
   return moved;
 }
@@ -655,6 +715,50 @@ class Invalidations {
   }
 }
 
+/**
+ * What every event makes stale, at a slow pace: the audit log records the requests that make the
+ * events, and has no event of its own. A burst folds into one read, and an idle server costs none.
+ */
+const ALWAYS: readonly Target[] = [[keys.auditAll, AUDIT]];
+
+/** One cache write an event makes in place; returns what it found stale besides `targetsFor`. */
+type Patcher = (client: QueryClient, event: ClaudioEvent) => readonly Target[];
+
+const PATCHERS: readonly Patcher[] = [
+  (client, event) => (event.type === 'chat.activity' ? (patchActivity(client, event), []) : []),
+  (client, event) => (event.type === 'subagent.activity' ? (patchSubagentActivity(client, event), []) : []),
+  (client, event) => (event.type === 'orchestration.task' ? (patchOrchestrationTask(client, event), []) : []),
+  (client, event) => (event.type === 'settings.changed' || event.type === 'tunnel.changed' ? (patchSettings(client, event), []) : []),
+  (client, event) => {
+    if (event.type === 'dashboard.layout') client.setQueryData<StoredDashboardLayout>(keys.dashboardLayout(event.project), { project: event.project, layout: event.layout });
+    return [];
+  },
+  (client, event) => {
+    if (event.type === 'spend.changed') client.setQueryData<SpendState>(keys.spend, event.spend);
+    return [];
+  },
+  // A row that changed state makes the lists filtered or counted by state wrong
+  (client, event) => (event.type === 'run.updated' && event.previousStatus === null && patchRun(client, event) ? [[keys.chats, LISTS], [keys.overview, OVERVIEW]] : []),
+];
+
+/**
+ * What one event does to the app: the reads it makes stale are scheduled and its listeners hear it
+ * first, then each in-place patch runs on its own. A patch is an optimisation over the refetch
+ * already scheduled, so one that throws on a cache shaped otherwise costs that optimisation and
+ * nothing else: the lists, the detail and every listener still get the event.
+ */
+export function applyEvent(client: QueryClient, schedule: (targets: readonly Target[]) => void, event: ClaudioEvent): void {
+  schedule([...targetsFor(event), ...ALWAYS]);
+  dispatchEvent(event);
+  for (const patch of PATCHERS) {
+    try {
+      schedule(patch(client, event));
+    } catch (error) {
+      console.error(`[claudio] patching the caches for ${event.type} failed:`, error);
+    }
+  }
+}
+
 // ---------- the connection ----------
 
 /** Opens the connection and wires it to the caches; returns what closes it. */
@@ -667,10 +771,12 @@ function startEventFeed(client: QueryClient): () => void {
   let lastId = 0;
   let bootId: string | null = null;
 
-  // Everything on screen may have changed while events were being missed
+  // Everything on screen may have changed while events were being missed; what is not a cached
+  // read (the notifications) is brought in line by whoever holds it
   const resync = () => {
     invalidations.cancel();
     void client.invalidateQueries();
+    dispatchResync();
   };
 
   const onEvent = (raw: MessageEvent) => {
@@ -682,16 +788,7 @@ function startEventFeed(client: QueryClient): () => void {
     }
     if (event.id <= lastId) return;
     lastId = event.id;
-    if (event.type === 'chat.activity') patchActivity(client, event);
-    if (event.type === 'subagent.activity') patchSubagentActivity(client, event);
-    if (event.type === 'orchestration.task') patchOrchestrationTask(client, event);
-    if (event.type === 'settings.changed' || event.type === 'tunnel.changed') patchSettings(client, event);
-    if (event.type === 'dashboard.layout') client.setQueryData<StoredDashboardLayout>(keys.dashboardLayout(event.project), { project: event.project, layout: event.layout });
-    if (event.type === 'run.updated' && event.previousStatus === null && patchRun(client, event)) {
-      invalidations.schedule([[keys.chats, LISTS], [keys.overview, OVERVIEW]]);
-    }
-    invalidations.schedule(targetsFor(event));
-    dispatchEvent(event);
+    applyEvent(client, (targets) => invalidations.schedule(targets), event);
   };
 
   const connect = () => {

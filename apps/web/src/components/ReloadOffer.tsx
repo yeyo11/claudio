@@ -5,7 +5,7 @@ import { dismissReloadOffer, isChunkLoadError, noticeStaleChunk, reloadApp, useR
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Empty } from '@claudio/ui/components/ui';
 
-function ReloadButton() {
+export function ReloadButton() {
   const { t } = useTranslation('shell');
   const [reloading, setReloading] = useState(false);
   return (
@@ -56,19 +56,49 @@ function StalePage() {
   );
 }
 
+/** How long a chunk that failed to load is given before it is asked for again. */
+export const CHUNK_RETRY_MS = 600;
+
 /**
- * `React.lazy`, for code that may have been deployed away. A chunk the server no longer has raises
- * the reload offer and renders `fallback` (a page that says so) instead of taking the app down with
- * it; any other failure is thrown as before.
+ * Loads a chunk, asking once more after a moment when it fails as a chunk does: a network blip or a
+ * server restarting fails the first request of a chunk that is still there. Resolves to null when
+ * the second answer is the same, which is when the chunk is gone; any other failure is thrown.
  */
-export function lazyPage<P extends object>(load: () => Promise<ComponentType<P>>, fallback: ComponentType<P> = StalePage) {
-  return lazy(async () => {
-    try {
-      return { default: await load() };
-    } catch (error) {
-      if (!isChunkLoadError(error)) throw error;
+export async function loadChunk<T>(load: () => Promise<T>, wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))): Promise<T | null> {
+  try {
+    return await load();
+  } catch (error) {
+    if (!isChunkLoadError(error)) throw error;
+  }
+  await wait(CHUNK_RETRY_MS);
+  try {
+    return await load();
+  } catch (error) {
+    if (!isChunkLoadError(error)) throw error;
+    return null;
+  }
+}
+
+/**
+ * `React.lazy`, for code that may have been deployed away. A chunk that fails to load is asked for
+ * once more; when it is gone, the reload offer is raised and `fallback` (a page that says so) is
+ * rendered instead of taking the app down with it. `React.lazy` keeps whatever it resolved for good,
+ * so after a fallback the next visit to the route starts a load of its own rather than finding the
+ * fallback cached for the session. Any other failure is thrown as before.
+ */
+export function lazyPage<P extends object>(load: () => Promise<ComponentType<P>>, fallback: ComponentType<P> = StalePage): ComponentType<P> {
+  const attempt = (): ComponentType<P> =>
+    lazy(async () => {
+      const page = await loadChunk(load);
+      if (page) return { default: page };
       noticeStaleChunk();
+      current = attempt();
       return { default: fallback };
-    }
-  });
+    });
+  let current = attempt();
+  return function LazyPage(props: P) {
+    // Read once per mount: a remount after a fallback picks up the fresh attempt
+    const [Page] = useState(() => current);
+    return <Page {...props} />;
+  };
 }

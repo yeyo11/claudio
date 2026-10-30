@@ -44,17 +44,6 @@ export const justStreamed = (entry: TranscriptEntry, now = Date.now()): boolean 
   return mark !== undefined && now - mark.at < FRESH_MS;
 };
 
-/** How many entries at the end of `page` came from the stream and have not been read back yet. */
-export function unconfirmedTail(page: ChatDetail): number {
-  let count = 0;
-  for (let i = page.entries.length - 1; i >= 0; i--) {
-    const entry = page.entries[i];
-    if (!entry || !streamed.has(entry)) break;
-    count++;
-  }
-  return count;
-}
-
 /** What a message says, as a transcript line and the stream's copy of it both put it. */
 const said = (entry: TranscriptEntry): string => entryText(entry).trim();
 
@@ -78,8 +67,6 @@ export function optimisticEntry(id: string, text: string, now = new Date()): Tra
   optimistic.add(entry);
   return entry;
 }
-
-export const isOptimistic = (entry: TranscriptEntry): boolean => optimistic.has(entry);
 
 /** `page` without the optimistic entry `id` (its send failed). */
 export function dropOptimistic(page: ChatDetail, id: string): ChatDetail {

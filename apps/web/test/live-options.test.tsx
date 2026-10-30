@@ -25,7 +25,7 @@ const chat = (tools: unknown) => ({ id: 'c1', execution: { model: 'opus', permis
 const render = (c: Chat, lang: 'en' | 'es', handlers: { servers?: () => void; env?: () => void } = {}) => {
   setLanguage(lang);
   const client = new QueryClient();
-  client.setQueryData(mcpKey(c.id), {
+  client.setQueryData(mcpKey(c), {
     servers: [
       { name: 'a', status: 'connected' },
       { name: 'b', status: 'connected' },

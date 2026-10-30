@@ -339,7 +339,6 @@
     "failedWhy": "Could not open the {{noun}}: {{reason}}",
     "keptBadge": "worktree kept",
     "keptWhy": "Its worktree was kept: it had uncommitted changes.",
-    "readyBadge": "waits for you",
     "approveWhy": "Approving it opens its {{noun}} against {{base}}.",
     "offerWhy": "Opening its {{noun}} pushes its branch and proposes it to {{base}}."
   },
