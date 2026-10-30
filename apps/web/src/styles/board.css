@@ -471,6 +471,12 @@ button.workitem-mrow-more-link {
   height: var(--touch);
 }
 
+/* The card clips what overflows its corner: the ring goes inside the target */
+.workitem-card-more .icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
+
 
 .workitem-card-title {
   margin: 0;
