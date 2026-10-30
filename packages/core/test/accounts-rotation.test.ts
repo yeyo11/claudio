@@ -105,7 +105,10 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
   };
 }
 
-const waitFor = async (check: () => boolean, ms = 8000): Promise<void> => {
+// A limit path spawns the fake CLI once per account plus a model read each: well under a second
+// alone, but the full test gate runs every package's suite at once and slows it 10–20×. Each check
+// waits for something to happen, so the budget only bounds how long a real failure takes to report.
+const waitFor = async (check: () => boolean, ms = 30_000): Promise<void> => {
   const end = Date.now() + ms;
   while (!check()) {
     if (Date.now() > end) throw new Error('timed out waiting');
