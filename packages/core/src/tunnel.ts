@@ -163,8 +163,9 @@ function runCli(bin: string, args: string[], timeoutMs: number, signal?: AbortSi
       }
       const code = (error as NodeJS.ErrnoException).code;
       const missing = code === 'ENOENT' || code === 'EACCES';
-      // `execFile` kills a call that outlives its timeout; a string code is a spawn failure, a number is the CLI's own exit status
-      const unanswered = !missing && (error.killed === true || typeof code === 'string');
+      // `execFile` kills a call that outlives its timeout; a string code is a spawn failure, a number is the CLI's own exit status.
+      // A call ended by a signal gave no answer either, whoever sent it: its half-written output says nothing about Tailscale
+      const unanswered = !missing && (error.killed === true || typeof code === 'string' || !!(error as { signal?: unknown }).signal);
       resolve({ ok: false, missing, unanswered, stdout, stderr: stderr || error.message });
     });
   });
