@@ -36,7 +36,8 @@
     "cancel": "Cancelar",
     "turnOff": "Desactivar",
     "byN0": "El descubrimiento y los relays los gestiona n0",
-    "byN0Relay": "El descubrimiento lo gestiona n0 · relay"
+    "byN0Relay": "El descubrimiento lo gestiona n0 · relay",
+    "bindRetry": "Se vuelve a intentar a las {{time}}."
   },
   "connection": {
     "online": "Conectado",
@@ -44,7 +45,8 @@
     "starting": "Conectando…",
     "noRelay": "Ningún relay ha respondido: solo funcionan las conexiones directas",
     "offline": "Sin red",
-    "off": "Desactivado"
+    "off": "Desactivado",
+    "error": "No ha arrancado"
   },
   "groups": {
     "title": "Grupos",

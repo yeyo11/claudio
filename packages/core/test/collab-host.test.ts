@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { createSocket } from 'node:dgram';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import type * as IrohModule from '@number0/iroh';
@@ -259,4 +260,115 @@ test('two forked hosts: the serving side answers through IPC and the bytes arriv
   assert.deepEqual(asked, [{ from: endpointIdFromSeed(seedB), frame: { type: 'blob', shareKey: 'github.com/acme/api', sha256: 'e'.repeat(64) } }]);
   await serving.stop();
   await asking.stop();
+});
+
+// ---------- Offline cases (docs/reports/regression-audit-2026-10-29.md §5.1, §5.2, §5.6) ----------
+
+test('a request during the restart backoff fails at once as unreachable, and the host still binds when the timer fires', needsIroh, async () => {
+  const statuses: HostStatus[] = [];
+  const restarts: number[] = [];
+  const host = new CollabHost({
+    serve: async () => undefined,
+    listener: { status: (s) => statuses.push(s), restarted: (r) => restarts.push(r.attempt) },
+    restartDelayMs: () => 400,
+  });
+  hosts.push(host);
+  host.start(options());
+  await until('the first status', () => statuses.length > 0);
+  const firstPid = await until('the first host', () => host.pid);
+  process.kill(firstPid, 'SIGKILL');
+  await until('the restart planned', () => restarts.length === 1);
+  // Inside the backoff: a sync timer, a blob open or a pull asks a peer
+  const began = Date.now();
+  await assert.rejects(async () => {
+    for await (const _ of host.request({ endpointId: 'a'.repeat(64), ticket: null }, { type: 'hello', heads: {} })) break;
+  }, /unreachable/);
+  assert.ok(Date.now() - began < 300, 'it fails fast instead of waiting for a dial');
+  assert.equal(host.pid, null, 'nothing was forked for the request');
+  // The timer brings the host back, and it binds: before, the request's fork never got its `start`
+  const count = statuses.length;
+  await until('a status from the new host', () => statuses.length > count && host.pid !== null && host.pid !== firstPid);
+  await host.stop();
+});
+
+test('an endpoint that cannot bind says why, and is bound once the cause is gone', needsIroh, async () => {
+  const holder = createSocket('udp4');
+  await new Promise<void>((resolve) => holder.bind(0, '127.0.0.1', () => resolve()));
+  const port = holder.address().port;
+  const errors: string[] = [];
+  const statuses: HostStatus[] = [];
+  const host = new CollabHost({
+    serve: async () => undefined,
+    listener: { status: (s) => statuses.push(s), startError: (m) => errors.push(m) },
+    rebindDelayMs: () => 150,
+  });
+  hosts.push(host);
+  host.start({ ...options(), bindAddr: `127.0.0.1:${String(port)}` });
+  await until('the bind error', () => errors.length > 0);
+  const error = host.startError;
+  assert.ok(error);
+  assert.ok(error.message.length > 0);
+  assert.ok(error.retryAt, 'the next try is planned');
+  assert.equal(statuses.length, 0);
+  await until('tried again', () => errors.length > 1);
+  // The port is free again: the next try binds, and the error is gone
+  await new Promise<void>((resolve) => holder.close(() => resolve()));
+  await until('bound', () => statuses.length > 0);
+  assert.equal(host.startError, null);
+  await host.stop();
+});
+
+test('a dial that times out and completes later is closed, never left for requests to land on', needsIroh, async () => {
+  assert.ok(iroh);
+  const module = iroh;
+  const fromA: HostToCore[] = [];
+  const fromB: HostToCore[] = [];
+  const a = new CollabHostCore({ send: (m) => fromA.push(m), load: async () => module, log: () => undefined, dialTimeoutMs: 600 });
+  const b = new CollabHostCore({ send: (m) => fromB.push(m), load: async () => module, log: () => undefined });
+  cores.push(a, b);
+  type Status = Extract<HostToCore, { type: 'status' }>;
+  const bound = (from: HostToCore[]) => (): Status | undefined => from.find((m): m is Status => m.type === 'status' && m.directAddresses.length > 0 && m.connection !== 'starting');
+  a.handle({ type: 'start', options: options() });
+  b.handle({ type: 'start', options: options() });
+  const statusA = await until('A bound', bound(fromA));
+  const statusB = await until('B bound', bound(fromB));
+  const direct = statusB.directAddresses.find((addr) => addr.startsWith('127.0.0.1:')) ?? statusB.directAddresses[0];
+  assert.ok(direct);
+  const [bHost, bPort] = [direct.slice(0, direct.lastIndexOf(':')), Number(direct.slice(direct.lastIndexOf(':') + 1))];
+
+  // A slow path to B: a relay of UDP datagrams that drops A's until it is opened, as a peer whose
+  // network wakes up after the dialler gave up
+  let open = false;
+  let aAddr: { address: string; port: number } | null = null;
+  const front = createSocket('udp4');
+  const back = createSocket('udp4');
+  await new Promise<void>((resolve) => front.bind(0, '127.0.0.1', () => resolve()));
+  await new Promise<void>((resolve) => back.bind(0, '127.0.0.1', () => resolve()));
+  front.on('message', (msg, rinfo) => {
+    aAddr = { address: rinfo.address, port: rinfo.port };
+    if (open) back.send(msg, bPort, bHost);
+  });
+  back.on('message', (msg) => {
+    if (aAddr) front.send(msg, aAddr.port, aAddr.address);
+  });
+  try {
+    const endpointB = module.EndpointId.fromBytes([...Buffer.from(statusB.endpointId, 'hex')]);
+    const ticket = module.EndpointTicket.fromAddr(new module.EndpointAddr(endpointB, null, [`127.0.0.1:${String(front.address().port)}`])).toString();
+    a.handle({ type: 'request', req: 1, to: { endpointId: statusB.endpointId, ticket }, frame: { type: 'hello', heads: {} } });
+    const failed = await until('the dial given up', () => fromA.find((m) => m.type === 'response-error' && m.req === 1));
+    assert.match(failed.type === 'response-error' ? failed.message : '', /did not answer/);
+    // The path opens: the handshake A still sends completes, and A closes that connection
+    open = true;
+    const seenByB = (): boolean[] => fromB.flatMap((m) => (m.type === 'peer' && m.endpointId === statusA.endpointId ? [m.connected] : []));
+    await until('B saw the late connection', () => seenByB().includes(true), 30_000);
+    await until('and saw it closed', () => seenByB().at(-1) === false, 15_000);
+    assert.equal(
+      fromA.find((m) => m.type === 'peer' && m.endpointId === statusB.endpointId && m.connected),
+      undefined,
+      'A never took the late connection for a peer',
+    );
+  } finally {
+    front.close();
+    back.close();
+  }
 });

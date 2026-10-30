@@ -21,7 +21,7 @@
 // CLI was asked to do:
 //
 //   FAKE_TAILSCALE_STATE=<file>  { version, daemon, backendState, dnsName, magicDNS, certDomains,
-//                                  operator, serve, delayMs }; any key left out takes the default below
+//                                  operator, serve, serveDisabled, delayMs }; any key left out takes the default below
 //   FAKE_TAILSCALE_LOG=<file>    appends one JSON line per call: { argv }
 //
 // `delayMs` holds every call that long before it answers, the way a machine at 97 % CPU does: a
@@ -159,6 +159,8 @@ if (command === 'serve') {
     process.exit(0);
   }
   if (!rest.includes('--bg')) fail('error: the fake only serves in the background (--bg)');
+  // As 1.102.4 answers on a tailnet whose admin has not turned Serve on: the address is lines below the first
+  if (state.serveDisabled) fail('Serve is not enabled on your tailnet.\nTo enable, visit:\n\n         https://login.tailscale.com/f/serve?node=nFAKE0000\n');
   if (!state.operator) fail("sending serve config: Access denied: serve config denied\n\nUse 'sudo tailscale serve --bg ...'.\nTo not require root, use 'sudo tailscale set --operator=$USER' once.");
   const target = /^\d+$/.test(positional[0]) ? `http://127.0.0.1:${positional[0]}` : positional[0];
   serve.TCP = { ...serve.TCP, [port]: { HTTPS: true } };

@@ -87,6 +87,14 @@ const VAULT_TOOL = 'collaborators';
 const VAULT_KEY = 'secretKey';
 const SEED = /^[0-9a-f]{64}$/;
 const PENDING_MS = 30 * 1000;
+/**
+ * How long `POST /collaborators/join` waits for the owner or a relay before it answers `pending`:
+ * a dial to an offline owner and each relay can take 20 s each, and the attempt goes on after the
+ * answer, its outcome arriving as an event
+ */
+const JOIN_WAIT_MS = 8 * 1000;
+/** How long a leave nobody acknowledged is sent again before it is given up */
+const LEAVE_RETRY_DAYS = 14;
 /** Members an invite names to relay a join through when the owner is offline (§3.3) */
 const MAX_RELAYS = 3;
 
@@ -122,7 +130,7 @@ export class CollaboratorsError extends Error {
 }
 
 /** What the service is handed to bind the endpoint: `CollabHost`, or a stand-in in a test */
-export type HostHandle = Pick<CollabHost, 'start' | 'stop' | 'dispose' | 'request' | 'disconnect' | 'unavailable' | 'status'>;
+export type HostHandle = Pick<CollabHost, 'start' | 'stop' | 'dispose' | 'request' | 'disconnect' | 'unavailable' | 'status' | 'startError'>;
 
 export interface CollaboratorsDeps {
   config: CoreConfig;
@@ -141,8 +149,10 @@ export interface CollaboratorsDeps {
   reconcileMs?: number;
   retryMs?: number;
   debounceMs?: number;
-  /** How often a join waiting for its owner is tried again */
+  /** How often a join waiting for its owner, and a leave nobody acknowledged, are tried again */
   pendingMs?: number;
+  /** How long a join waits for an answer before it answers `pending` and goes on in the background */
+  joinWaitMs?: number;
   /** How long a peer may stay silent in the middle of an answer before its connection is dropped */
   idleMs?: number;
   log?(message: string): void;
@@ -168,6 +178,16 @@ interface OwnPendingJoin {
 }
 
 const PENDING_STATES: readonly PendingJoinState[] = ['waiting', 'denied', 'expired'];
+
+/**
+ * A leave not yet acknowledged by a member it was sent to: `collaborators/pending-leaves.json`. The
+ * group is gone here already; the owner only learns it from this, and until then lists this install.
+ */
+interface PendingLeave {
+  groupId: string;
+  endpointId: string;
+  since: string;
+}
 
 const now = (): string => new Date().toISOString();
 const short = (id: string): string => id.slice(0, 8);
@@ -199,6 +219,12 @@ export class CollaboratorsService {
   private readonly server: CollabServer;
   private readonly dir: string;
   private readonly pendingFile: string;
+  private readonly leavesFile: string;
+  /** The `retryPending` in flight: a second call joins it, and asks for one more pass once it ends */
+  private pendingRun: Promise<void> | null = null;
+  private pendingAgain = false;
+  /** Joins whose first attempt still runs after `join` answered `pending` */
+  private readonly joining = new Set<string>();
   /** Every chain held, by group id: the serving side asks on every request */
   private readonly chains = new Map<string, RosterVersion[]>();
   private readonly tickets = new Map<string, string>();
@@ -220,6 +246,7 @@ export class CollaboratorsService {
     this.groups = new GroupsStore(deps.config);
     this.dir = join(deps.config.dataDir, 'collaborators');
     this.pendingFile = join(this.dir, 'pending-joins.json');
+    this.leavesFile = join(this.dir, 'pending-leaves.json');
     for (const doc of this.groups.all()) {
       if (!doc.chain.length) continue;
       this.chains.set(doc.groupId, doc.chain);
@@ -241,7 +268,10 @@ export class CollaboratorsService {
           this.presence.clear();
           this.changed('settings');
         },
-        startError: (message) => this.log(`collab: the endpoint did not start: ${message}`),
+        startError: (message) => {
+          this.log(`collab: the endpoint did not start: ${message}`);
+          this.changed('settings');
+        },
         log: (message) => this.log(message),
       },
     });
@@ -355,12 +385,14 @@ export class CollaboratorsService {
       settings,
       endpointId: this.endpointId(),
       connection: this.connection(settings),
+      connectionError: settings.enabled && !this.failure && !this.host.unavailable ? this.host.startError : null,
       homeRelay: this.hostStatus?.homeRelay ?? null,
     };
   }
 
   private connection(settings: CollaboratorsSettings): CollaboratorsConnection {
     if (!settings.enabled || this.failure || this.host.unavailable) return 'off';
+    if (this.host.startError) return 'error';
     const status = this.hostStatus;
     if (!status) return 'starting';
     if (status.connection === 'no-relay' && status.directAddresses.length === 0) return 'offline';
@@ -442,11 +474,16 @@ export class CollaboratorsService {
 
   // ---------- The host ----------
 
+  /**
+   * The endpoint's status. Its first status after a bind, and every move back to `online` (a relay
+   * that came back after an outage), reach out at once: every peer is synced and every waiting join
+   * and leave is sent again, rather than each waiting out its own backoff.
+   */
   private onStatus(status: HostStatus): void {
     const first = !this.hostStatus;
     const before = this.hostStatus?.connection;
     this.hostStatus = status;
-    if (first) {
+    if (first || (status.connection === 'online' && before !== 'online')) {
       this.refreshPeers();
       this.client.pokeAll();
       void this.retryPending();
@@ -721,8 +758,10 @@ export class CollaboratorsService {
     if (head.owner === me && head.members.some((m) => m.endpointId !== me)) {
       throw new CollaboratorsError('conflict', 'Transfer the group to another member before leaving it');
     }
-    const others = head.members.filter((m) => m.endpointId !== me).sort((a, b) => (a.endpointId === head.owner ? -1 : b.endpointId === head.owner ? 1 : 0));
-    if (this.hostStatus) await Promise.all(others.map((m) => this.client.sendLeave(m.endpointId, groupId)));
+    const others = head.members.filter((m) => m.endpointId !== me);
+    // Told after the fact, never waited for: an offline member would hold the page for its whole
+    // dial. The leaves are kept until a member acknowledges them, and sent again with the joins
+    await this.updateLeaves((all) => [...all.filter((l) => l.groupId !== groupId), ...others.map((m) => ({ groupId, endpointId: m.endpointId, since: now() }))]);
     const before = this.peerIds();
     await this.serialized(async () => {
       this.chains.delete(groupId);
@@ -741,6 +780,45 @@ export class CollaboratorsService {
     for (const id of after) this.client.poke(id);
     this.refreshPeers();
     this.changed('roster', groupId);
+    void this.retryPending();
+  }
+
+  private readLeaves(): PendingLeave[] {
+    if (!existsSync(this.leavesFile)) return [];
+    try {
+      const raw = JSON.parse(readFileSync(this.leavesFile, 'utf8')) as unknown;
+      if (!Array.isArray(raw)) return [];
+      return raw.flatMap((l: unknown): PendingLeave[] =>
+        isObject(l) && typeof l.groupId === 'string' && typeof l.endpointId === 'string' && typeof l.since === 'string' ? [{ groupId: l.groupId, endpointId: l.endpointId, since: l.since }] : [],
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  /** Read, changed and written under the roster lock, so two passes never overwrite each other */
+  private updateLeaves(change: (all: PendingLeave[]) => PendingLeave[]): Promise<void> {
+    return this.serialized(() => writeAtomic(this.leavesFile, `${JSON.stringify(change(this.readLeaves()), null, 2)}\n`));
+  }
+
+  /**
+   * Sends each leave nobody acknowledged yet. One acknowledged, or older than `LEAVE_RETRY_DAYS`,
+   * goes; a member that answered anything but `ack` is told again later, like one that did not answer.
+   */
+  private async sendLeaves(): Promise<void> {
+    const cutoff = Date.now() - LEAVE_RETRY_DAYS * 24 * 60 * 60 * 1000;
+    const done: PendingLeave[] = [];
+    for (const leave of this.readLeaves()) {
+      if (Date.parse(leave.since) < cutoff || (await this.client.sendLeave(leave.endpointId, leave.groupId))) done.push(leave);
+    }
+    if (!done.length) return;
+    const gone = (l: PendingLeave) => done.some((d) => d.groupId === l.groupId && d.endpointId === l.endpointId);
+    await this.updateLeaves((all) => all.filter((l) => !gone(l)));
+  }
+
+  /** Leaves still waiting for a member's acknowledgement, for a test */
+  pendingLeaves(): Array<{ groupId: string; endpointId: string }> {
+    return this.readLeaves().map(({ groupId, endpointId }) => ({ groupId, endpointId }));
   }
 
   // ---------- Invites and joins ----------
@@ -782,34 +860,71 @@ export class CollaboratorsService {
       throw new CollaboratorsError('not-ready', 'The endpoint is not bound yet');
     }
     const sealed = sealJoin(invite.owner, joinPayloadFor(invite, { endpointId: me, ...this.me() }));
-    let relayedBy: string | null = null;
+    // Kept before anything is dialled: the attempt may outlive this request, and a restart in the
+    // meantime still finds the join to send again
+    const pending: OwnPendingJoin = { invite, sentAt: now(), relayedBy: null, heldVersion: held?.version ?? 0 };
+    await this.updatePending((all) => [...all.filter((p) => p.invite.groupId !== invite.groupId), pending]);
+    this.changed('roster', invite.groupId);
+    this.joining.add(invite.groupId);
+    const attempt = this.firstJoin(invite, sealed, me, heldAsMember).finally(() => this.joining.delete(invite.groupId));
+    const wait = new Promise<null>((resolve) => setTimeout(() => resolve(null), this.deps.joinWaitMs ?? JOIN_WAIT_MS).unref());
+    const answer = await Promise.race([attempt, wait]);
+    if (answer) {
+      if (answer instanceof CollaboratorsError) throw answer;
+      return answer;
+    }
+    // Nobody answered yet: `pending`, and the attempt goes on. What it ends with arrives as events
+    // (the roster that lists this install, or `collaborators.join-ended`)
+    void attempt.then((late) => {
+      if (late instanceof CollaboratorsError) this.log(`collab: the join of ${short(invite.groupId)} was refused: ${late.message}`);
+    });
+    const view = this.readPending().find((p) => p.invite.groupId === invite.groupId) ?? pending;
+    return { state: 'pending', pending: this.pendingView(view) };
+  }
+
+  /**
+   * The first send of a join: to the owner, else to a member the invite names. A refusal is the
+   * error the route answers, returned rather than thrown so an attempt that outlived the request
+   * ends quietly; the pending entry goes with it.
+   */
+  private async firstJoin(invite: Invite, sealed: string, me: string, heldAsMember: boolean): Promise<JoinGroupResult | CollaboratorsError> {
+    const groupId = invite.groupId;
+    const drop = async (): Promise<void> => {
+      await this.updatePending((all) => all.filter((p) => p.invite.groupId !== groupId));
+      this.changed('roster', groupId);
+    };
     try {
       const outcome = await this.client.sendJoin(invite, sealed, me);
       if (outcome.state === 'joined') {
-        await this.joined(invite.groupId, outcome.chain);
-        return { state: 'joined', group: this.getGroup(invite.groupId) };
+        await this.joined(groupId, outcome.chain);
+        return { state: 'joined', group: this.getGroup(groupId) };
       }
-      if (outcome.state === 'denied') throw new CollaboratorsError('refused', `${invite.ownerName || 'The owner'} denied the request to join ${invite.groupName} with this invite`);
-      relayedBy = outcome.relayedBy;
+      if (outcome.state === 'denied') {
+        await drop();
+        return new CollaboratorsError('refused', `${invite.ownerName || 'The owner'} denied the request to join ${invite.groupName} with this invite`);
+      }
+      const relayedBy = outcome.relayedBy;
+      await this.updatePending((all) => all.map((q) => (q.invite.groupId === groupId ? { ...q, relayedBy } : q)));
+      this.changed('roster', groupId);
     } catch (error) {
-      if (error instanceof CollaboratorsError) throw error;
       if (error instanceof PeerError && (error.code === 'refused' || error.code === 'bad-request' || error.code === 'protocol')) {
-        throw new CollaboratorsError('refused', `The owner refused the invite${error.message && error.message !== error.code ? `: ${error.message}` : ''}`);
+        await drop();
+        return new CollaboratorsError('refused', `The owner refused the invite${error.message && error.message !== error.code ? `: ${error.message}` : ''}`);
       }
-      if (heldAsMember) return { state: 'joined', group: this.getGroup(invite.groupId) };
+      if (heldAsMember) {
+        await drop();
+        return { state: 'joined', group: this.getGroup(groupId) };
+      }
       // Nobody answered: kept, and sent again until someone does
     }
-    const pending: OwnPendingJoin = { invite, sentAt: now(), relayedBy, heldVersion: held?.version ?? 0 };
-    await this.writePending([...this.readPending().filter((p) => p.invite.groupId !== invite.groupId), pending]);
-    this.changed('roster', invite.groupId);
-    return { state: 'pending', pending: this.pendingView(pending) };
+    const view = this.readPending().find((p) => p.invite.groupId === groupId);
+    return view ? { state: 'pending', pending: this.pendingView(view) } : { state: 'joined', group: this.getGroup(groupId) };
   }
 
   /** `DELETE /collaborators/join/:groupId`: stops waiting, or dismisses a join that ended; a member may still hold the request */
   async cancelJoin(groupId: string): Promise<void> {
-    const pending = this.readPending();
-    if (!pending.some((p) => p.invite.groupId === groupId)) throw new CollaboratorsError('not-found', 'No request to join that group');
-    await this.writePending(pending.filter((p) => p.invite.groupId !== groupId));
+    if (!this.readPending().some((p) => p.invite.groupId === groupId)) throw new CollaboratorsError('not-found', 'No request to join that group');
+    await this.updatePending((all) => all.filter((p) => p.invite.groupId !== groupId));
     this.changed('roster', groupId);
   }
 
@@ -820,8 +935,7 @@ export class CollaboratorsService {
       const next = held ? extendChain(held, chain) : chain;
       await this.commit(groupId, next);
     });
-    const pending = this.readPending();
-    if (pending.some((p) => p.invite.groupId === groupId)) await this.writePending(pending.filter((p) => p.invite.groupId !== groupId));
+    if (this.readPending().some((p) => p.invite.groupId === groupId)) await this.updatePending((all) => all.filter((p) => p.invite.groupId !== groupId));
   }
 
   private readPending(): OwnPendingJoin[] {
@@ -846,8 +960,13 @@ export class CollaboratorsService {
     }
   }
 
-  private writePending(pending: OwnPendingJoin[]): Promise<void> {
-    return writeAtomic(this.pendingFile, `${JSON.stringify(pending, null, 2)}\n`);
+  /**
+   * `pending-joins.json` read, changed and written under the roster lock: a pass of `retryPending`,
+   * a join and a cancel never overwrite each other's change (a `relayedBy` over a denial). Never
+   * called from inside `serialized`, which it would wait for.
+   */
+  private updatePending(change: (all: OwnPendingJoin[]) => OwnPendingJoin[]): Promise<void> {
+    return this.serialized(() => writeAtomic(this.pendingFile, `${JSON.stringify(change(this.readPending()), null, 2)}\n`));
   }
 
   private pendingView(p: OwnPendingJoin): PendingJoin {
@@ -868,17 +987,23 @@ export class CollaboratorsService {
    * page, saying which, until the person dismisses it, and nothing asks after it again.
    */
   private async endJoin(groupId: string, state: Exclude<PendingJoinState, 'waiting'>): Promise<void> {
-    const all = this.readPending();
-    const found = all.find((q) => q.invite.groupId === groupId);
-    if (!found || (found.state ?? 'waiting') !== 'waiting') return;
-    const ended: OwnPendingJoin = { ...found, state, endedAt: now() };
-    await this.writePending(all.map((q) => (q.invite.groupId === groupId ? ended : q)));
+    // Cast, so the assignment inside the callback is not narrowed away
+    let ended = null as OwnPendingJoin | null;
+    await this.updatePending((all) => {
+      const found = all.find((q) => q.invite.groupId === groupId);
+      if (!found || (found.state ?? 'waiting') !== 'waiting') return all;
+      const next: OwnPendingJoin = { ...found, state, endedAt: now() };
+      ended = next;
+      return all.map((q) => (q.invite.groupId === groupId ? next : q));
+    });
+    const found = ended;
+    if (!found) return;
     const { ownerName, groupName } = found.invite;
     const owner = ownerName || short(found.invite.owner);
     this.deps.emit({
       type: 'collaborators.join-ended',
       title: state === 'denied' ? `${owner} denied the request to join ${groupName}` : `The invite to ${groupName} expired before ${owner} answered`,
-      pending: this.pendingView(ended),
+      pending: this.pendingView(found),
     });
     this.log(`collab: the join of ${short(groupId)} ${state === 'denied' ? 'was denied' : 'expired unanswered'}`);
   }
@@ -889,13 +1014,37 @@ export class CollaboratorsService {
     this.pendingTimer.unref?.();
   }
 
-  /** Each join still waiting: the chain is asked for, and a join nobody took is sent again */
-  private async retryPending(): Promise<void> {
+  /**
+   * Each join still waiting, and each leave nobody acknowledged. One pass at a time: a pass can
+   * outlast `PENDING_MS` (each dial to an offline owner and relay waits out its timeout), so a call
+   * during one joins it and asks for one more pass after it, never a second pass beside it.
+   */
+  private retryPending(): Promise<void> {
+    if (this.pendingRun) {
+      this.pendingAgain = true;
+      return this.pendingRun;
+    }
+    this.pendingRun = (async () => {
+      do {
+        this.pendingAgain = false;
+        await this.pendingPass();
+      } while (this.pendingAgain && !this.disposed);
+    })().finally(() => {
+      this.pendingRun = null;
+    });
+    return this.pendingRun;
+  }
+
+  /** One pass: the chain is asked for, and a join nobody took is sent again; then the leaves */
+  private async pendingPass(): Promise<void> {
     if (!this.hostStatus) return;
     const me = this.endpointId();
     if (!me) return;
+    await this.sendLeaves().catch((error: unknown) => this.log(`collab: sending the leaves failed: ${error instanceof Error ? error.message : String(error)}`));
     for (const p of this.readPending()) {
       if ((p.state ?? 'waiting') !== 'waiting') continue;
+      // The join's first attempt still runs: it is not sent a second time beside it
+      if (this.joining.has(p.invite.groupId)) continue;
       try {
         const answer = await this.client.fetchJoinAnswer(p.invite, me);
         if (answer?.state === 'joined') {
@@ -917,7 +1066,7 @@ export class CollaboratorsService {
           if (outcome.state === 'joined') await this.joined(p.invite.groupId, outcome.chain);
           else if (outcome.state === 'denied') await this.endJoin(p.invite.groupId, 'denied');
           else {
-            await this.writePending(this.readPending().map((q) => (q.invite.groupId === p.invite.groupId ? { ...q, relayedBy: outcome.relayedBy } : q)));
+            await this.updatePending((all) => all.map((q) => (q.invite.groupId === p.invite.groupId && (q.state ?? 'waiting') === 'waiting' ? { ...q, relayedBy: outcome.relayedBy } : q)));
             this.changed('roster', p.invite.groupId);
           }
         }
@@ -1294,7 +1443,7 @@ export class CollaboratorsService {
 
   private syncState(owner: string, shareKey: string): ReturnType<SyncClient['state']> {
     const live = this.presence.get(owner);
-    return this.client.state(owner, shareKey, { path: live?.online ? live.path : null, lastSeenAt: this.deps.store.peer(owner)?.lastSeenAt ?? null });
+    return this.client.state(owner, shareKey, { path: live?.online ? live.path : null });
   }
 
   private resolveShare(owner: string, shareId: string): KnownShare {
@@ -1437,7 +1586,10 @@ export class CollaboratorsService {
     }
   }
 
-  /** Pulls one kind of a copy now, as a reader that wants it fresh asks; quiet when the owner is away */
+  /**
+   * Pulls one kind of a copy now, as a reader that wants it fresh asks; quiet when the owner is away,
+   * and at once when the last run did not reach it (`SyncClient.pull` never dials an offline owner)
+   */
   async refresh(owner: string, shareId: string, kind: CollaboratorsKind): Promise<void> {
     const share = this.resolveShare(owner, shareId);
     try {

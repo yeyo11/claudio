@@ -815,7 +815,7 @@ export class Core {
     this.tunnel = new TunnelManager({
       dataDir: config.dataDir,
       tailscaleBin: config.tailscaleBin,
-      port: config.tunnelPort,
+      ...(config.tunnelPort !== null ? { port: config.tunnelPort } : {}),
       enabled: config.tunnelEnabled,
       managed: config.tailscaleManaged,
       security: this.security,
@@ -4070,8 +4070,9 @@ export class Core {
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();
-    // First, while the database is still open for the row that says its host left
-    this.tunnel.shutdown();
+    // First, while the database is still open for the row that says its host left; taking its
+    // Serve rule away goes on, bounded, and the returned promise waits for it
+    const tunnel = this.tunnel.shutdown();
     this.logins.close();
     this.lessons.stop();
     this.cliVersion.stop();
@@ -4105,7 +4106,7 @@ export class Core {
     // final execution), so the database waits for them; one that hangs does not hold the exit for ever
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([
-      Promise.allSettled([evals, terminals, collaborators, chats]),
+      Promise.allSettled([evals, terminals, collaborators, chats, tunnel]),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
         timer.unref();

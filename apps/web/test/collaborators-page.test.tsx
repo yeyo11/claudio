@@ -33,6 +33,7 @@ const status = (extra: Partial<CollaboratorsStatus> = {}): CollaboratorsStatus =
   settings: { enabled: true, displayName: 'Jose', label: 'desktop', relayUrl: null, assistantReads: true },
   endpointId: SELF,
   connection: 'online',
+  connectionError: null,
   homeRelay: 'https://euc1-1.relay.n0.iroh.link./',
   ...extra,
 });
@@ -127,6 +128,16 @@ test("the You card's connection: ok connected, neutral through a relay, warn wit
   assert.deepEqual(connectionWord(status({ connection: 'no-relay' }), []), { key: 'connection.noRelay', tone: 'warn' });
   assert.deepEqual(connectionWord(status({ connection: 'offline' }), []), { key: 'connection.offline', tone: 'bad' });
   assert.equal(connectionWord(status({ connection: 'starting' }), []).tone, 'muted');
+  assert.deepEqual(connectionWord(status({ connection: 'error' }), []), { key: 'connection.error', tone: 'bad' });
+});
+
+test('an endpoint that did not bind says why and when it is tried again, instead of "Connecting…" for ever', () => {
+  const html = page(status({ connection: 'error', connectionError: { message: 'Failed to bind sockets', retryAt: new Date(Date.now() + 30_000).toISOString() }, homeRelay: null }));
+  assert.match(html, /data-testid="collab-connection-error"/);
+  assert.ok(text(html).includes('Did not start'));
+  assert.ok(text(html).includes('Failed to bind sockets'));
+  assert.ok(text(html).includes('Trying again at'));
+  assert.ok(!text(html).includes('Connecting…'));
 });
 
 test('presence and sync are ok while connected and idle while waiting, never live', () => {

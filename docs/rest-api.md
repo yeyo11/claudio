@@ -118,8 +118,9 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/tunnel` | `{ state, url, since, reason, checking, enabled, managed, tailscale, port, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, or `active` with `tunnel.tailscaleNotAnswering` after ten minutes without an answer from the CLI, `checking` true while the last readings got no answer (the tunnel stays `active`), `enabled` false where the deploy does not offer the tunnel (`CLAUDIO_TUNNEL`), `managed` true where Claudio runs the `tailscaled` itself (the image) and signs it in from the setup, `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds |
-| PUT | `/tunnel/settings` | `{ startWithClaudio }`, off by default. Emits `tunnel.changed` |
+| GET | `/tunnel` | `{ state, url, since, reason, checking, enabled, managed, tailscale, port, portSource, portTaken, settings }`: `url` and `since` only while `active`, `reason` (with a `code`) only while `failed`, or `active` with `tunnel.tailscaleNotAnswering` after ten minutes without an answer from the CLI, `checking` true while the last readings got no answer (the tunnel stays `active`), `enabled` false where the deploy does not offer the tunnel (`CLAUDIO_TUNNEL`), `managed` true where Claudio runs the `tailscaled` itself (the image) and signs it in from the setup, `tailscale` whether the CLI is installed, signed in, connected and has HTTPS on (`state`, `version`, `host`, `reason`), read again from the CLI at most every two seconds; `portSource` says whether the port comes from `CLAUDIO_TUNNEL_PORT` (`env`), the settings (`file`) or the default, and `portTaken`, while `failed` with `tunnel.portTaken`, what holds the port (`holder`) and the next free one (`nextFree`) |
+| GET | `/tunnel/settings` | `{ settings: { startWithClaudio, port }, sources, defaults }`; a port `CLAUDIO_TUNNEL_PORT` sets reads `env` and is read-only |
+| PUT | `/tunnel/settings` | `{ startWithClaudio?, port? }`: `startWithClaudio` off by default; `port` 1024–65535 (8444 by default), `409 tunnel.portWhileRunning` unless the tunnel is stopped or failed, `409 tunnel.portFromEnv` where `CLAUDIO_TUNNEL_PORT` sets it. Emits `tunnel.changed` |
 | POST | `/tunnel/start` | Adds Claudio's `tailscale serve` rule on `port`; `409` while the auth mode is `none` or where `enabled` is false, `failed` with the reason when Tailscale is not ready or the port serves something else. The address shows, and the node's exact name joins the allowlist, once the rule reads back from the Serve config |
 | POST | `/tunnel/stop` | Takes the name off the allowlist and removes only Claudio's Serve rule; turning the auth mode to `none` does it first. `403` for a chat's token, like every `/tunnel` route |
 
@@ -493,13 +494,13 @@ Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](p
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/collaborators` | On or off, the settings, this install's endpoint id, the connection (`off`, `starting`, `online`, `no-relay`, `offline`) and `unavailable` with its reason when the module cannot load |
+| GET | `/collaborators` | On or off, the settings, this install's endpoint id, the connection (`off`, `starting`, `online`, `no-relay`, `offline`, `error` when the endpoint did not bind, with `connectionError: { message, retryAt }`) and `unavailable` with its reason when the module cannot load |
 | PUT | `/collaborators` | `{ enabled?, displayName?, label?, relayUrl?, assistantReads? }`; turning it on generates the key once and binds the endpoint. Emits `collaborators.changed` |
 | GET | `/collaborators/groups` | The groups, each with its roster head, members and whether it is frozen, and the joins this install sent that wait for an owner |
 | POST | `/collaborators/groups` | `{ name }`: this install becomes the owner |
-| DELETE | `/collaborators/groups/:id` | Leave: deletes the copies and tells the owner. An owner with members transfers first (409) |
+| DELETE | `/collaborators/groups/:id` | Leave: deletes the copies at once and tells the members in the background, again until one acknowledges it (up to 14 days). An owner with members transfers first (409) |
 | POST | `/collaborators/groups/:id/invites` | Owner: a one-time invite, valid 7 days, as the text to paste |
-| POST | `/collaborators/join` | `{ invite }`: `joined`, or `pending` while a member holds the request for an offline owner |
+| POST | `/collaborators/join` | `{ invite }`: `joined`, or `pending` while a member holds the request for an offline owner; `202` with `pending` when nobody answered within a few seconds, while the join goes on trying |
 | DELETE | `/collaborators/join/:groupId` | Stop waiting for a pending join, or dismiss one the owner denied or whose invite expired |
 | GET | `/collaborators/groups/:id/join-requests` | Owner: joins relayed while it was offline |
 | POST | `/collaborators/groups/:id/join-requests/:from/accept` | Owner: sign the joiner in |
@@ -512,12 +513,12 @@ Teammates' Claudios sharing projects read only, peer to peer over iroh ([plan](p
 | GET | `/collaborators/shared/:owner/:shareId` | One shared project as the list gives it, for the read-only view of a project not cloned here; 404 once it is no longer shared |
 | PUT | `/collaborators/shared/:owner/:shareId/link` | `{ projectId }`: show the shared project inside a local one |
 | DELETE | `/collaborators/shared/:owner/:shareId/link` | Undo the link |
-| GET | `/collaborators/shared/:owner/:shareId/chats?refresh=1` | The copies held (chats); `refresh=1` pulls from the owner first |
-| GET | `/collaborators/shared/:owner/:shareId/memory?refresh=1` | The copies held (memory); `refresh=1` pulls from the owner first |
-| GET | `/collaborators/shared/:owner/:shareId/journal?refresh=1` | The copies held (the journal); `refresh=1` pulls from the owner first |
-| GET | `/collaborators/shared/:owner/:shareId/documents?refresh=1` | The copies held (documents); `refresh=1` pulls from the owner first |
-| GET | `/collaborators/shared/:owner/:shareId/work-items?refresh=1` | The copies held (the board); `refresh=1` pulls from the owner first |
-| GET | `/collaborators/shared/:owner/:shareId/artifacts?refresh=1` | The copies held (artifacts); `refresh=1` pulls from the owner first |
+| GET | `/collaborators/shared/:owner/:shareId/chats?refresh=1` | The copies held (chats); `refresh=1` pulls from the owner first, unless the last sync did not reach it: then the copy answers at once |
+| GET | `/collaborators/shared/:owner/:shareId/memory?refresh=1` | The copies held (memory); `refresh=1` pulls from the owner first, unless the last sync did not reach it: then the copy answers at once |
+| GET | `/collaborators/shared/:owner/:shareId/journal?refresh=1` | The copies held (the journal); `refresh=1` pulls from the owner first, unless the last sync did not reach it: then the copy answers at once |
+| GET | `/collaborators/shared/:owner/:shareId/documents?refresh=1` | The copies held (documents); `refresh=1` pulls from the owner first, unless the last sync did not reach it: then the copy answers at once |
+| GET | `/collaborators/shared/:owner/:shareId/work-items?refresh=1` | The copies held (the board); `refresh=1` pulls from the owner first, unless the last sync did not reach it: then the copy answers at once |
+| GET | `/collaborators/shared/:owner/:shareId/artifacts?refresh=1` | The copies held (artifacts); `refresh=1` pulls from the owner first, unless the last sync did not reach it: then the copy answers at once |
 | GET | `/collaborators/shared/:owner/:shareId/chats/:chatId/transcript?limit=&before=` | A copied transcript, paged as `GET /chats/:id` pages a local one |
 | GET | `/collaborators/shared/:owner/:shareId/chats/:chatId/subagents/:agentId?workflow=&limit=&before=` | A copied subagent's (or workflow agent's) transcript, pulled with its chat's |
 | GET | `/collaborators/agent-reads?owner=&shareId=&chatId=&since=&limit=` | What agents read of teammates' copies, newest first: chat, tool, copy, kind and record ids |
