@@ -96,6 +96,7 @@ import { SessionStoreTranscripts, TranscriptUnavailable, type TranscriptStore } 
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
+import { REVIEW_CHAT_ROLE } from './orchestration-timings.ts';
 
 /**
  * How long `claude agents --json` is trusted between reads: it is an exec of about half a second,
@@ -190,7 +191,7 @@ export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
       return 'synthesis';
     case '__workflow__':
       return 'workflow';
-    case '__review__':
+    case REVIEW_CHAT_ROLE:
       return 'review';
     default:
       return 'task';
