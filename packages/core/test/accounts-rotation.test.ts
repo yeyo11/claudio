@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AccountStore, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
+import { AccountInUseError, AccountStore, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
 import type { ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
 import { Core } from '../src/index.ts';
@@ -28,10 +28,11 @@ interface Spawn {
   authToken: string | null;
 }
 
-async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; expired?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[]; resetsIn?: number; pollMs?: number } = {}) {
+async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string, string>) => string[]; expired?: (ids: Record<string, string>) => string[]; lite?: (ids: Record<string, string>) => string[]; resetsIn?: number; pollMs?: number; resolvedModel?: string } = {}) {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const db = new Db(config);
-  const store = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: FAKE_CLAUDE });
+  let live: ChatManager | null = null;
+  const store = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: FAKE_CLAUDE, liveChatsOn: (id) => live?.liveChatsOn(id) ?? [] });
   await store.setSettings({ strategy: 'order' });
   const a = await store.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });
   const b = await store.add({ kind: 'api-key', alias: 'beta', secret: 'key-beta' });
@@ -53,8 +54,10 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
   set('FAKE_CLAUDE_EXPIRED_DIRS', (opts.expired?.(dirs) ?? []).join(','));
   set('FAKE_CLAUDE_LITE_DIRS', (opts.lite?.(dirs) ?? []).join(','));
   set('FAKE_CLAUDE_LIMIT_RESETS_IN', opts.resetsIn ? String(opts.resetsIn) : '');
+  set('FAKE_CLAUDE_RESOLVED_MODEL', opts.resolvedModel ?? '');
   const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
   chats.accounts = store;
+  live = chats;
   const settings = defaultProvidersSettings(['claude-code']);
   settings.rotation = defaultRotationSettings();
   const events: ClaudioEventInput[] = [];
@@ -97,6 +100,7 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
       delete process.env.FAKE_CLAUDE_LITE_DIRS;
       delete process.env.FAKE_CLAUDE_EXPIRED_DIRS;
       delete process.env.FAKE_CLAUDE_LIMIT_RESETS_IN;
+      delete process.env.FAKE_CLAUDE_RESOLVED_MODEL;
     },
   };
 }
@@ -265,22 +269,26 @@ test('readings land in usage_history once per change', async () => {
   }
 });
 
-test('the overview counts the accounts and names the one new work starts on', async () => {
+test('the overview serves the account view and names the one new work starts on, as /auth does', async () => {
   const config = tempConfig();
   const core = new Core({ ...config, claudeBin: FAKE_CLAUDE });
   try {
-    // The CLI's own login has no credential at all here, so it is not counted
-    assert.deepEqual((await core.overview()).accounts, { total: 0, ready: 0, current: null });
+    // The CLI's own login has no credential at all here, so it is no account
+    const empty = (await core.overview()).accounts;
+    assert.deepEqual([empty?.inUse, empty?.inUseReason, empty?.accounts.length, empty?.atLimit, empty?.nextReset], [null, 'signed-out', 0, false, null]);
     mkdirSync(config.configDir, { recursive: true });
     writeFileSync(join(config.configDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'a', refreshToken: 'r' } }));
     const before = (await core.overview()).accounts;
-    assert.deepEqual(before, { total: 1, ready: 1, current: DEFAULT_ID });
+    assert.equal(before?.accounts.length, 1);
+    assert.equal(before?.inUse?.id, DEFAULT_ID);
     await core.accounts.add({ kind: 'token', alias: 'alpha', secret: 'tok' });
     await core.accounts.setEnabled(DEFAULT_ID, false);
     const after = (await core.overview()).accounts;
-    assert.equal(after?.total, 2);
-    assert.equal(after?.ready, 1);
-    assert.notEqual(after?.current, DEFAULT_ID);
+    assert.equal(after?.accounts.length, 2);
+    assert.equal(after?.inUse?.label, 'alpha');
+    assert.equal(after?.settings.strategy, 'least-used');
+    // One view: what the status bar's /auth names is what the overview names
+    assert.deepEqual((await core.system(true)).auth.inUse, after?.inUse);
   } finally {
     core.shutdown();
   }
@@ -310,7 +318,7 @@ test('an automated run whose account sign-in expired moves to the next account, 
     // Until it is cleared
     await r.store.clearAuthFailed(DEFAULT_ID);
     assert.notEqual(r.store.get(DEFAULT_ID).signInState, 'expired');
-    assert.equal(r.store.pick({ current: null, pinned: null, policy: r.store.policyFor(null), lastSwitchAt: 0 }).account, DEFAULT_ID);
+    assert.equal(r.store.pick({ current: null, pinned: null, policy: r.store.policyFor(null) }).account, DEFAULT_ID);
   } finally {
     r.close();
   }
@@ -469,6 +477,108 @@ test('run now is refused while every account reads out, and the wait stays (R11)
     const [move] = r.db.providerMoves({ chatId: chat.id });
     await assert.rejects(r.rotation.runNow(move?.id ?? ''), (e: unknown) => e instanceof RunNowRefusal && e.code === 'no-room' && /until/.test(e.message));
     assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting');
+  } finally {
+    r.close();
+  }
+});
+
+// The regressions of 2026-10-29 (docs/reports/regression-audit-2026-10-29.md, §2 and §4.12)
+
+test('an account a live chat runs on is not removed; one removed behind the app\'s back leaves the chat and the server going (§2.1)', async () => {
+  const r = await rig();
+  const gate = join(r.config.dataDir, 'go-on');
+  try {
+    const results: string[] = [];
+    r.chats.on('chat-result', (id: string) => results.push(id));
+    const chat = r.chats.start({ prompt: `FAKE-WAIT-FOR ${gate}`, name: 'live', keepAlive: false, account: r.ids.a });
+    await waitFor(() => r.chats.liveChatsOn(r.ids.a).includes(chat.id));
+    await assert.rejects(r.store.remove(r.ids.a), (e: unknown) => e instanceof AccountInUseError && e.statusCode === 409 && e.chats.includes(chat.id));
+    assert.ok(r.store.find(r.ids.a), 'still there');
+    // The terminal's claudio-accounts shares the data dir and knows of no chat: it removes the account anyway
+    const terminal = new AccountStore({ dataDir: r.config.dataDir, defaultDir: r.config.configDir, claude: FAKE_CLAUDE });
+    await terminal.remove(r.ids.a);
+    r.store.reload();
+    assert.equal(r.store.find(r.ids.a), null);
+    // The turn ends well on an account that is gone: the fold looks it up and goes on (on 10-25 it threw and the server died)
+    writeFileSync(gate, '');
+    await r.chats.exited(chat.id);
+    assert.deepEqual(results, [chat.id]);
+    assert.equal(r.chats.get(chat.id)?.status, 'completed');
+  } finally {
+    r.close();
+  }
+});
+
+test('a second limit after a wait-replay still rotates: the replay count never holds back a move (§2.2)', async () => {
+  // The CLI's own login is out (its reset a few seconds away, again at every turn); alpha reads out a while longer
+  const r = await rig({ work, limited: (d) => [d[DEFAULT_ID] ?? ''], resetsIn: 3 });
+  try {
+    await r.store.setEnabled(r.ids.b, false);
+    await r.store.setEnabled(r.ids.c, false);
+    // Read now, so the choice at the limit does not spend the login's reset reading them
+    await r.store.warmModels();
+    const at = Date.now();
+    const out = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(at / 1000) + 9 }, at);
+    assert.ok(out);
+    await r.store.observe(r.ids.a, out);
+    const chat = r.chats.start({ prompt: 'hello', name: 'twice', keepAlive: false });
+    // First limit → wait → at the reset the turn is replayed on no new account → second limit → it
+    // waits for alpha and goes on there. Before the fix the second limit announced nothing at all
+    await waitFor(() => r.chats.accountOf(chat.id) === r.ids.a && r.chats.get(chat.id)?.status === 'completed', 30_000);
+    const dirs = r.spawns().map((s) => s.dir);
+    assert.ok(dirs.filter((d) => d === r.dirs[DEFAULT_ID]).length >= 2, 'the CLI\'s own login was replayed after its first wait');
+    assert.equal(dirs.at(-1), r.dirs[r.ids.a]);
+    assert.ok(r.db.providerMoves({ chatId: chat.id }).length >= 2, 'a wait for each limit');
+  } finally {
+    r.close();
+  }
+});
+
+test('a chat started on default moves to an account without the model the CLI resolved it to (§2.3)', async () => {
+  // Only the CLI's own login offers opus, and it is out; the CLI reports `default` as claude-opus-5-5
+  const r = await rig({ work, limited: (d) => [d[DEFAULT_ID] ?? ''], lite: (d) => Object.values(d).slice(1), resolvedModel: 'claude-opus-5-5' });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'default model', keepAlive: false, model: 'default' });
+    await waitFor(() => r.chats.accountOf(chat.id) === r.ids.a && r.spawns().length === 2);
+    await r.chats.exited(chat.id);
+    assert.equal(r.chats.get(chat.id)?.model, 'claude-opus-5-5', 'the chat reads the resolved model');
+    assert.equal(r.db.providerMoves({ chatId: chat.id }).length, 0, 'and never waited for an account that offers it');
+  } finally {
+    r.close();
+  }
+});
+
+test('a fork keeps its source\'s account and pin (§4.12)', async () => {
+  const r = await rig();
+  try {
+    const source = r.chats.start({ prompt: 'hello', name: 'source', keepAlive: false, account: r.ids.b });
+    await r.chats.exited(source.id);
+    const known = r.chats.get(source.id);
+    assert.ok(known);
+    const fork = r.chats.fork(source.id, { prompt: 'in a copy' }, { cwd: known.cwd, name: known.name, model: null });
+    // A fork's process is held between turns: its result, not its exit, is the end of the turn
+    await r.chats.waitForResult(fork.id);
+    assert.equal(r.chats.accountOf(fork.id), r.ids.b);
+    assert.equal(r.chats.get(fork.id)?.accountPinned, true);
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.b]);
+  } finally {
+    r.close();
+  }
+});
+
+test('new work starts on the preferred account, a pin still wins, and settings.order drives the order strategy (§2.10)', async () => {
+  const r = await rig();
+  try {
+    await r.store.setSettings({ preferred: r.ids.c });
+    const free = r.chats.start({ prompt: 'one', name: 'free', keepAlive: false });
+    const pinned = r.chats.start({ prompt: 'two', name: 'pinned', keepAlive: false, account: r.ids.b });
+    await Promise.all([r.chats.exited(free.id), r.chats.exited(pinned.id)]);
+    assert.equal(r.chats.accountOf(free.id), r.ids.c);
+    assert.equal(r.chats.accountOf(pinned.id), r.ids.b);
+    await r.store.setSettings({ preferred: null, order: [r.ids.b, r.ids.a, r.ids.c, DEFAULT_ID] });
+    const ordered = r.chats.start({ prompt: 'three', name: 'ordered', keepAlive: false });
+    await r.chats.exited(ordered.id);
+    assert.equal(r.chats.accountOf(ordered.id), r.ids.b);
   } finally {
     r.close();
   }

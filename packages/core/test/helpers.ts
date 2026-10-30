@@ -17,6 +17,15 @@ process.once('exit', removeRoots);
 /**
  * Isolated config/workspace/data dirs so tests never touch the real ~/.claude.
  */
+/**
+ * Gives the CLI's own login a credentials file, so it is an account the rotation chooses. Without a
+ * credential of any kind it is a ghost that no choice lands on (regression audit 2026-10-29, §2.9).
+ */
+export function signInDefault(config: CoreConfig): void {
+  mkdirSync(config.configDir, { recursive: true });
+  writeFileSync(join(config.configDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'test-access', refreshToken: 'test-refresh' } }));
+}
+
 export function tempConfig(): CoreConfig {
   const root = mkdtempSync(join(tmpdir(), 'claudio-test-'));
   roots.add(root);

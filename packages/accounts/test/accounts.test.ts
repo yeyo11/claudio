@@ -157,7 +157,8 @@ describe('readings', () => {
     const l = fold(r, NOW);
     assert.equal(l.window, 'five_hour');
     assert.equal(l.utilization, 0.68);
-    assert.equal(l.state, 'ok');
+    assert.equal(l.state, 'near', 'near from 0.6, where the bars turn warn');
+    assert.equal(fold(readingFromEvent(info('allowed', 0.59, 0.32), NOW) ?? r, NOW).state, 'ok');
     assert.equal(l.source, 'stream');
     assert.equal(fold(readingFromEvent(info('allowed', 0.2, 0.8), NOW) ?? r, NOW).window, 'seven_day');
     assert.equal(fold(readingFromEvent(info('allowed_warning', 0.2, 0.8), NOW) ?? r, NOW).state, 'near');
@@ -182,10 +183,13 @@ describe('readings', () => {
     assert.equal(l.windows.seven_day?.utilization, 0.97);
   });
 
-  it('a rejected event that names no window or no reset is no reading', () => {
+  it('a rejected event with no reset is no reading without a cooldown; one with a reset but no window is out until it', () => {
     assert.equal(readingFromEvent({ status: 'rejected' }, NOW), null);
     assert.equal(readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour' }, NOW), null);
-    assert.equal(readingFromEvent({ status: 'rejected', resetsAt: sec(NOW) + 600 }, NOW), null);
+    const r = readingFromEvent({ status: 'rejected', resetsAt: sec(NOW) + 600 }, NOW);
+    assert.ok(r);
+    const l = fold(r, NOW);
+    assert.deepEqual([l.state, l.window, l.resetsAt], ['exhausted', null, new Date(sec(NOW + 600_000) * 1000).toISOString()]);
   });
 
   it('reads the CLI cache, stamped, and a window past its reset reads unknown', () => {
@@ -262,7 +266,7 @@ describe('readings', () => {
 });
 
 describe('choose', () => {
-  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order' };
+  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [] };
   const accts = ['a', 'b', 'c'].map((id) => ({ id, enabled: true, signedIn: true }));
   const lim = (u: number | null, extra: Partial<AccountLimit> = {}): AccountLimit => ({
     state: u === null ? 'unknown' : u >= 1 ? 'exhausted' : u >= 0.75 ? 'near' : 'ok',
@@ -281,7 +285,7 @@ describe('choose', () => {
     assert.equal(choose(accts, { a: lim(1), b: lim(0.83), c: lim(0.9) }, settings, opts).account, 'b', 'the emptier of the two with room');
     assert.equal(choose(accts, { a: lim(1), b: lim(0.83), c: lim(0.9) }, settings, opts).reason, 'limit');
     // An account merely near the threshold still keeps its chat: the margin is about flapping, and it holds
-    assert.equal(choose(accts, { a: lim(0.92), b: lim(0.85), c: lim(0.9) }, settings, { ...opts, lastSwitchAt: NOW - 3600_000 }).account, 'a', 'no move between accounts that are all near the threshold');
+    assert.equal(choose(accts, { a: lim(0.92), b: lim(0.85), c: lim(0.9) }, settings, opts).account, 'a', 'no move between accounts that are all near the threshold');
     const allOut = choose(accts, { a: lim(1), b: lim(1), c: lim(1) }, settings, opts);
     assert.equal(allOut.account, null, 'with every account out there is nothing to move to');
   });
@@ -315,10 +319,10 @@ describe('choose', () => {
     assert.equal(c.reason, 'threshold');
   });
 
-  it('holds the cooldown unless the current account is exhausted', () => {
+  it('moves off an account over the threshold at once: the cooldown is per account, not a gap between switches', () => {
     const limits = { a: lim(0.95), b: lim(0.1) };
-    const opts = { current: 'a', now: NOW, lastSwitchAt: NOW - 60_000 };
-    assert.equal(choose(accts, limits, settings, opts).account, 'a');
+    const opts = { current: 'a', now: NOW };
+    assert.deepEqual(choose(accts, limits, settings, opts), { account: 'b', reason: 'threshold', waitUntil: null });
     assert.deepEqual(choose(accts, { ...limits, a: lim(1) }, settings, opts), { account: 'b', reason: 'limit', waitUntil: null });
   });
 

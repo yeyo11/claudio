@@ -393,9 +393,10 @@ export function driverConformance(name: string, harness: DriverHarness): void {
         await chats.exited(chat.id);
         assert.equal(results[0]?.cause, 'rate-limit');
         assert.equal(resultOf(chats.events(chat.id))[0]?.outcome?.cause, 'rate-limit');
-        // What `rateLimited` is for: the chat announces the limit once, and its provider's reading says so
+        // What `rateLimited` is for: the chat announces the limit once, and says it is at its limit. The
+        // reading is its account's (none in this rig): a provider keeps no reading of its own
         assert.deepEqual(limitHits, [chat.id]);
-        assert.equal(chats.limitOf(chat.id)?.state, 'exhausted');
+        assert.equal(chats.atLimit(chat.id), true);
       },
       'rateLimitWindows',
     );
