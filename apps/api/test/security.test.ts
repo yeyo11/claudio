@@ -1076,6 +1076,14 @@ test("a chat's token may send a work route only the fields an agent chooses, and
     ['POST', '/api/chats/nope/resume', { prompt: 'go', permissionMode: 'bypassPermissions' }, 'permissionMode'],
     ['POST', '/api/chats/nope/fork', { prompt: 'go', toolPreset: 'everything' }, 'toolPreset'],
     ['PATCH', '/api/chats/nope', { permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    // The other ways to start work a chat may take: a stronger sibling through them is the same escalation
+    ['POST', '/api/work-items/nope/work', { permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/work-items/nope/work', { model: 'sonnet', mcp: { servers: [] } }, 'mcp'],
+    ['POST', '/api/orchestrations', { name: 'g', tasks: [], permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/orchestrations', { name: 'g', tasks: [], allowedTools: ['Bash'] }, 'allowedTools'],
+    ['POST', '/api/orchestrations', { name: 'g', tasks: [], verification: { commands: [] } }, 'verification'],
+    ['POST', '/api/orchestrations/nope/relaunch', { spec: { permissionMode: 'bypassPermissions' } }, 'spec'],
+    ['POST', '/api/orchestrations/nope/verify', { verification: { commands: [] } }, 'verification'],
   ] as const) {
     const answer = await app.inject({ method, url, ...fromChatWith(token, body) });
     assert.equal(answer.statusCode, 403, `${method} ${url} ${field}`);
@@ -1086,6 +1094,7 @@ test("a chat's token may send a work route only the fields an agent chooses, and
   // What an agent may choose goes through to the route, which knows no such chat
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/resume', ...fromChatWith(token, { prompt: 'go', model: 'sonnet', attachments: [] }) })).statusCode, 404);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/nope', ...fromChatWith(token, { model: 'sonnet' }) })).statusCode, 404);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/work-items/nope/work', ...fromChatWith(token, { model: 'sonnet' }) })).statusCode, 404);
   // The owner sets anything
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/nope', ...authed(owner, { permissionMode: 'plan' }) })).statusCode, 404);
 

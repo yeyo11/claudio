@@ -70,7 +70,6 @@ import {
 import { randomUUID } from 'node:crypto';
 import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
-import { gitRaw } from './git.ts';
 import type { Db } from './db.ts';
 import { runRef } from './event-sources.ts';
 import { rulesOnDriver } from './tool-policy.ts';

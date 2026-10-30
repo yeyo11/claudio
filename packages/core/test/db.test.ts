@@ -720,17 +720,6 @@ test('the provider rotation tables upgrade from the version before, keeping chat
   raw.close();
 });
 
-test('an older limit reading never overwrites a newer one', () => {
-  const db = new Db(tempConfig());
-  const reading = (observedAt: string, utilization: number) => ({ provider: 'codex', state: 'near' as const, window: '5h', utilization, resetsAt: null, windows: {}, observedAt, source: 'probe' as const });
-  assert.equal(db.upsertProviderLimit(reading(at(10), 0.8)), true);
-  assert.equal(db.upsertProviderLimit(reading(at(5), 0.1)), false);
-  assert.equal(db.providerLimit('codex')?.utilization, 0.8);
-  assert.equal(db.upsertProviderLimit(reading(at(11), 0.9)), true);
-  assert.equal(db.providerLimits()[0]?.utilization, 0.9);
-  db.close();
-});
-
 test('two connections racing one wait claim: one winner; one open wait per chat', () => {
   const config = tempConfig();
   const a = new Db(config);

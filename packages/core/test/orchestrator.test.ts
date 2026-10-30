@@ -769,6 +769,13 @@ test('a hint reaches a task that is running and none that has finished', async (
     .flatMap((e) => e.entry?.blocks ?? [])
     .map((b) => (b.type === 'text' ? b.text : ''));
   assert.ok(said.some((text) => text.startsWith('A hint from the person') && text.includes('look at the config first')), said.join('|'));
+  // The Supervisor's own hint is not passed off as the person's (C2): the worker is told it is automatic
+  orchestrator.hintTask(started.id, 'slow', 'the command has hung for 3 min', 'supervisor');
+  const later = runs
+    .events(slowChat as string)
+    .flatMap((e) => e.entry?.blocks ?? [])
+    .map((b) => (b.type === 'text' ? b.text : ''));
+  assert.ok(later.some((text) => text.startsWith('An automatic hint from Claudio') && text.includes('the command has hung')), later.join('|'));
 
   orchestrator.stop(started.id);
   db.close();

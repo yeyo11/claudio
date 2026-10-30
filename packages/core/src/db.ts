@@ -39,10 +39,8 @@ import type {
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
-  ProviderLimit,
   ProviderMove,
   ProviderMoveState,
-  RateLimitWindow,
   RotationEvent,
   SpendPurpose,
   SupervisorProposal,
@@ -1826,44 +1824,6 @@ function migrateRunsToChats(db: DatabaseSync): void {
 /** How long a closed provider move stays in the history. */
 const KEEP_PROVIDER_MOVES_MS = 90 * 24 * 60 * 60 * 1000;
 
-interface ProviderLimitRow {
-  provider: string;
-  state: string;
-  binding_window: string | null;
-  utilization: number | null;
-  resets_at: string | null;
-  windows: string;
-  overage: string | null;
-  observed_at: string;
-  source: string;
-}
-
-function toProviderLimit(row: ProviderLimitRow): ProviderLimit {
-  let windows: Record<string, RateLimitWindow> = {};
-  try {
-    windows = JSON.parse(row.windows) as Record<string, RateLimitWindow>;
-  } catch {
-    // an unreadable windows column leaves the summary fields, which is what the banner reads
-  }
-  let overage: ProviderLimit['overage'];
-  try {
-    if (row.overage) overage = JSON.parse(row.overage) as ProviderLimit['overage'];
-  } catch {
-    // an unreadable overage column reads as no overage news
-  }
-  return {
-    provider: row.provider,
-    state: row.state as ProviderLimit['state'],
-    window: row.binding_window,
-    utilization: row.utilization,
-    resetsAt: row.resets_at,
-    windows,
-    ...(overage ? { overage } : {}),
-    observedAt: row.observed_at,
-    source: row.source as ProviderLimit['source'],
-  };
-}
-
 interface ProviderMoveRow {
   id: string;
   at: string;
@@ -2666,36 +2626,10 @@ export class Db {
     return out;
   }
 
-  // ---------- provider limits and moves ----------
-
-  /**
-   * Records a provider's limit reading. An older reading never overwrites a newer one, whichever
-   * process writes last. Returns whether the row changed.
-   */
-  upsertProviderLimit(limit: ProviderLimit): boolean {
-    const result = this.db
-      .prepare(
-        `INSERT INTO provider_limits (provider, state, binding_window, utilization, resets_at, windows, overage, observed_at, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (provider) DO UPDATE SET
-           state = excluded.state, binding_window = excluded.binding_window, utilization = excluded.utilization,
-           resets_at = excluded.resets_at, windows = excluded.windows, overage = excluded.overage, observed_at = excluded.observed_at, source = excluded.source
-         WHERE excluded.observed_at >= provider_limits.observed_at`,
-      )
-      .run(limit.provider, limit.state, limit.window, limit.utilization, limit.resetsAt, JSON.stringify(limit.windows), limit.overage ? JSON.stringify(limit.overage) : null, limit.observedAt, limit.source);
-    return Number(result.changes) > 0;
-  }
-
-  /** Every stored limit reading, by provider id. */
-  providerLimits(): ProviderLimit[] {
-    const rows = this.db.prepare('SELECT * FROM provider_limits ORDER BY provider').all() as unknown as ProviderLimitRow[];
-    return rows.map(toProviderLimit);
-  }
-
-  providerLimit(provider: string): ProviderLimit | null {
-    const row = this.db.prepare('SELECT * FROM provider_limits WHERE provider = ?').get(provider) as unknown as ProviderLimitRow | undefined;
-    return row ? toProviderLimit(row) : null;
-  }
+  // ---------- provider moves ----------
+  // (`provider_limits` stays in the schema, unwritten: a provider's limit is the reading of the
+  // account in use since D2 of docs/plans/regression-fixes-2026-10-29.md, and an older Claudio on
+  // the same data directory may still write the table)
 
   /**
    * Records a move. Returns false, and writes nothing, when the chat already has an open wait and
