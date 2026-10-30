@@ -103,6 +103,17 @@
     "portFromEnv": "The tunnel port is set by CLAUDIO_TUNNEL_PORT where Claudio runs, so it cannot be changed here.",
     "portWhileRunning": "Close the tunnel before changing its port: the rule on the current port is taken away first."
   },
+  "lan": {
+    "disabled": "This Claudio does not listen on the local network. Whoever runs it can turn it on with CLAUDIO_LAN=on.",
+    "authRequired": "Listening on the local network needs a sign-in method: turn on a token or OIDC in Security first.",
+    "notReady": "Claudio is not serving yet, so there is nothing to listen for.",
+    "portInUse": "Another program holds port {{port}}. Choose another port, or free this one.",
+    "addressMissing": "This machine has no address {{address}} now, so Claudio cannot listen on it. Choose the interfaces again.",
+    "listenFailed": "Claudio could not listen on the local network: {{detail}}",
+    "enabledFromEnv": "Whether Claudio listens on the local network is set by CLAUDIO_LAN where it runs, so it cannot be changed here.",
+    "portFromEnv": "The port is set by CLAUDIO_LAN_PORT where Claudio runs, so it cannot be changed here.",
+    "bindFromEnv": "The interfaces are set by CLAUDIO_LAN_BIND where Claudio runs, so they cannot be changed here."
+  },
   "collaborators": {
     "sync": {
       "forbidden": "The owner no longer shares this project with this install: it stopped sharing it or removed this install from the group",

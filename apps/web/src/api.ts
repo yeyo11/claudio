@@ -273,6 +273,7 @@ import type {
   TriageWorkItemRequest,
   TriageWorkItemResult,
   TunnelStatus,
+  LanStatus,
   Terminal,
   TerminalHistoryPage,
   TerminalStatus,
@@ -286,6 +287,7 @@ import type {
   UpdateOrchestrationTemplateRequest,
   UpdateProjectRequest,
   UpdateScheduleRequest,
+  UpdateLanSettingsRequest,
   UpdateTunnelSettingsRequest,
   UpdateWorkItemRequest,
   UsageBreakdown,
@@ -951,6 +953,10 @@ export const api = {
   updateTunnelSettings: (body: UpdateTunnelSettingsRequest) => request<TunnelStatus>('/tunnel/settings', { method: 'PUT', body }),
   startTunnel: () => request<TunnelStatus>('/tunnel/start', { method: 'POST' }),
   stopTunnel: () => request<TunnelStatus>('/tunnel/stop', { method: 'POST' }),
+  lan: (o: ReadOptions = {}) => request<LanStatus>('/lan', o),
+  updateLanSettings: (body: UpdateLanSettingsRequest) => request<LanStatus>('/lan/settings', { method: 'PUT', body }),
+  startLan: () => request<LanStatus>('/lan/start', { method: 'POST' }),
+  stopLan: () => request<LanStatus>('/lan/stop', { method: 'POST' }),
   guardEvents: (page: { limit?: number; before?: number } = {}, o: ReadOptions = {}) =>
     request<GuardEventPage>(`/guard-events${qs({ limit: num(page.limit), before: num(page.before) })}`, o),
   checkGuard: (body: GuardCheckRequest) => request<GuardCheckResult>('/guards/check', { method: 'POST', body }),
@@ -1596,6 +1602,8 @@ export const keys = {
   // Read again on `spend.changed` (lib/events.ts)
   spend: ['spend'] as const,
   tunnel: ['tunnel'] as const,
+  // Written whole from `lan.changed` (lib/events.ts)
+  lan: ['lan'] as const,
   // Written whole from `dashboard.layout` (lib/events.ts), never refetched for it
   dashboardLayout: (project: string) => ['dashboard-layout', project] as const,
   availablePlugins: (q: string) => ['plugins', 'available', q] as const,
