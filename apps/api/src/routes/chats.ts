@@ -201,11 +201,20 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     chats.interrupt(req.params.id, req.body?.messageId !== undefined ? { messageId: req.body.messageId } : {}),
   );
 
-  app.post<{ Params: { id: string }; Body: HintRequest }>('/chats/:id/hint', (req) => chats.hint(req.params.id, req.body ?? ({} as HintRequest)));
+  // A hint sent over HTTP is a person's: the Supervisor's own go through core, marked as automatic
+  app.post<{ Params: { id: string }; Body: HintRequest | undefined }>('/chats/:id/hint', (req) =>
+    chats.hint(req.params.id, typeof req.body?.text === 'string' ? req.body.text : '', { source: 'person' }),
+  );
+
+  // Withdraws a message the agent has not read yet (`cancel_async_message`): 409 once it has
+  app.delete<{ Params: { id: string; messageId: string } }>('/chats/:id/messages/:messageId', (req) => chats.cancelMessage(req.params.id, req.params.messageId));
 
   app.post<{ Params: { id: string; toolUseId: string }; Body: CancelCommandRequest }>('/chats/:id/commands/:toolUseId/cancel', (req) =>
     chats.cancelCommand(req.params.id, req.params.toolUseId, req.body ?? {}),
   );
+
+  // Sends a foreground call of the running turn to the background (`background_tasks`), so the agent reads what waits
+  app.post<{ Params: { id: string; toolUseId: string } }>('/chats/:id/commands/:toolUseId/background', (req) => chats.backgroundCall(req.params.id, req.params.toolUseId));
 
   // The MCP servers of a live chat, connectors included, as its process reports them now
   app.get<{ Params: { id: string } }>('/chats/:id/mcp', (req) => chats.mcpServers(req.params.id));
