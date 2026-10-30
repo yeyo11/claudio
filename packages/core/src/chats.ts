@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
+import { ChatNotFoundError, ChatRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
 import { DEFAULT_ID, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
@@ -66,15 +66,17 @@ import {
   type SentMessage,
 } from './live-chat.ts';
 import { removeChatExtrasConfigs, writeChatExtrasConfigSync } from './chat-tools.ts';
+import { ChatTable } from './chat-table.ts';
+import { ThrottledLog } from './throttled-log.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace } from './health.ts';
-import { cliProcessOf, commandRoots, processTable, terminateTree } from './processes.ts';
+import { cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree, type ProcessEntry } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { BranchTracker, DriverEvent, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { ProviderLimits } from './providers/limits.ts';
 import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
-import { admissionLimitsFrom, readSystemLoad, RESOURCE_REFUSAL_PREFIX } from './system-load.ts';
+import { admissionLimitsFrom, readSystemLoad } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
 import type { SessionStore } from './sessions.ts';
 import type { UploadStore } from './uploads.ts';
@@ -87,6 +89,12 @@ export type { AdoptedChat, ChatConfinement, ChatPulse, ChatRuntime, ExecutionExt
 export { STRUCTURED_OUTPUT_TOOL } from './providers/claude-code/stream.ts';
 
 const MAX_PERSISTED_CHATS = 200;
+/** How long a stopped chat's process tree has to leave on SIGTERM before it gets SIGKILL */
+const STOP_GRACE_MS = 5000;
+/** An ended chat nobody has touched for this long is retired from memory to its summary (see `ChatTable`) */
+export const RETIRE_AFTER_MS = 60 * 60_000;
+/** How often the chats that ended are looked at for retiring */
+const RETIRE_SWEEP_MS = 5 * 60_000;
 /**
  * The accounts a chat's latest executions died on at their limit, newest first, up to the first
  * that did not. Recorded on the executions, so it survives a restart; the chat's set covers the turn
@@ -117,7 +125,7 @@ export class AccountSwitchRefusal extends Error {
   }
 }
 
-export { ChatNotFoundError, ChatRefusal, RunSlotRefusal } from './chat-errors.ts';
+export { ChatNotFoundError, ChatRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
 
 /** One replay of a turn lost to a limit per execution: a second failure is a real one, not a quota one */
 const MAX_LIMIT_REPLAYS = 1;
@@ -179,9 +187,20 @@ interface SavedChat {
  * process already exited, it is respawned with `--resume` when a new message arrives.
  */
 export class ChatManager extends EventEmitter {
-  private readonly chats = new Map<string, LiveChat>();
+  /** Working and lately ended chats in memory, the rest retired to their summary and woken from their row (`ChatTable`) */
+  private readonly chats = new ChatTable((id) => this.wake(id));
   /** What was last written of each chat, so that a save writes only what changed since */
   private readonly saved = new Map<string, SavedChat>();
+  /**
+   * Chats that changed since they were last written: every event a chat emits marks it, and so does
+   * a save asked for it by name. A save writes these and no others; comparing every chat in memory
+   * with what was last written of it, on every turn of every chat, was most of a save's cost.
+   */
+  private readonly dirty = new Set<string>();
+  /** Retires the chats that ended long enough ago; unref'd, so it never keeps a process up */
+  private readonly retireTimer: NodeJS.Timeout;
+  /** How long an ended chat stays in memory before it is retired to its summary; a test shortens it */
+  retireAfterMs = RETIRE_AFTER_MS;
   /** One reading per provider, shared through the database with every process on the data directory */
   readonly limits: ProviderLimits;
   /** The code half of each provider that can run chats */
@@ -288,6 +307,8 @@ export class ChatManager extends EventEmitter {
     // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
     this.on('chat-result', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
+    this.retireTimer = setInterval(() => this.retireEnded(), RETIRE_SWEEP_MS);
+    this.retireTimer.unref();
     for (const driver of drivers) {
       if (driver instanceof ClaudeCodeDriver) {
         driver.modelSource = { listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
@@ -303,7 +324,7 @@ export class ChatManager extends EventEmitter {
         return manager.permissions;
       },
       emit: (event, ...args) => this.emit(event, ...args),
-      persist: () => this.persist(),
+      persist: (chat) => this.persist(chat),
       noteActivity: (chat) => this.noteActivity(chat),
       observeLimit: (chat, event) => {
         try {
@@ -391,17 +412,28 @@ export class ChatManager extends EventEmitter {
     }
   }
 
-  private persist(): void {
+  /**
+   * Writes the chats that changed: the ones named here, which changed without an event, and every
+   * one that emitted an event since it was last written (`dirty`).
+   */
+  private persist(...touched: LiveChat[]): void {
     // Internal chats are persisted too. The origin means "housekeeping: no transcript, hidden from
     // the chat list", not "disposable": the orchestration planner is internal and costs real
     // money, and dropping it on restart took the only record of that work with it. The other
     // internal chat, the auth check, removes itself as soon as it finishes.
     //
-    // Every chat is compared with what was last written of it and only what changed is written:
-    // this runs on every turn of every chat, and rewriting all of them each time was most of its
-    // cost. The table is trimmed only when a chat is new to it, the only way it can grow.
+    // A dirty chat is compared with what was last written of it and only what changed is written:
+    // this runs on every turn of every chat. The table is trimmed only when a chat is new to it, the
+    // only way it can grow.
+    for (const chat of touched) this.dirty.add(chat.id);
+    if (this.dirty.size === 0) return;
+    const ids = [...this.dirty];
+    this.dirty.clear();
     const candidates: Array<{ chat: LiveChat; record: StoredChat['record']; recordJson: string; executionJson: Map<string, string>; known: SavedChat | undefined }> = [];
-    for (const chat of this.chats.values()) {
+    for (const id of ids) {
+      // Removed since, or retired: a retired chat was written before it was
+      const chat = this.chats.peek(id);
+      if (!chat) continue;
       const record = chat.record();
       const known = this.saved.get(chat.id);
       const recordJson = JSON.stringify(record);
@@ -421,31 +453,127 @@ export class ChatManager extends EventEmitter {
         added ||= !kept;
         return { record, executions: chat.executions.filter((e) => kept?.executions.get(e.id) !== executionJson.get(e.id)) };
       });
-      this.db.saveChats(changed, added ? MAX_PERSISTED_CHATS : null);
+      // What this process holds in memory is a conversation going on: the trim never takes its rows
+      const trimmed = this.db.saveChats(changed, added ? MAX_PERSISTED_CHATS : null, new Set([...this.chats.values()].map((c) => c.id)));
       for (const { chat, recordJson, executionJson } of candidates) this.saved.set(chat.id, { record: recordJson, executions: executionJson });
-    } catch {
-      // persistence is best-effort: losing a save must never take the live chat down with it
+      // A retired chat whose row went is gone, as a restart would find it
+      this.chats.forgetRetired(trimmed);
+      for (const id of trimmed) this.saved.delete(id);
+    } catch (err) {
+      // Persistence must never take the live chat down with it, but it must not fail unseen: the
+      // chats stay dirty, so the next save tries them again
+      for (const { chat } of candidates) this.dirty.add(chat.id);
+      this.saveFailures.failed(err);
     }
   }
 
-  /** Carries a pre-SQLite `runs.json` into the store once, then renames it out of the way. */
+  private readonly saveFailures = new ThrottledLog('chats: saving the chats');
+
+  /**
+   * Carries a pre-SQLite `runs.json` into the store once, then renames it out of the way:
+   * `.migrated` once carried, `.corrupt` when it could not be read, so what was lost is said and kept.
+   */
   private importLegacy(): void {
     if (!existsSync(this.file)) return;
+    let carried = true;
     try {
       this.db.saveChats(chatsFromRuns(JSON.parse(readFileSync(this.file, 'utf8')) as LegacyRun[]).chats, MAX_PERSISTED_CHATS);
-    } catch {
-      // corrupt file: there is nothing to carry over
+    } catch (err) {
+      carried = false;
+      console.warn(`chats: ${this.file} could not be carried into the database and was set aside as .corrupt: ${err instanceof Error ? err.message : String(err)}`);
     }
     try {
-      renameSync(this.file, `${this.file}.migrated`);
+      renameSync(this.file, `${this.file}.${carried ? 'migrated' : 'corrupt'}`);
     } catch {
       // another process got there first
     }
   }
 
+  /** What was last written of a chat, as `persist` compares it */
+  private static savedOf(chat: LiveChat): SavedChat {
+    return { record: JSON.stringify(chat.record()), executions: new Map(chat.executions.map((e) => [e.id, JSON.stringify(e)])) };
+  }
+
   /**
-   * Loads the chats of previous wrapper processes. Their event buffers are rebuilt from the
-   * session transcripts, so a restored chat can be opened and continued like a live one.
+   * A retired chat, back from its row in the store: what a restart restores of it, and nothing it
+   * had only in memory (its event buffer, its last result). Null when the row is gone.
+   */
+  private wake(id: string): LiveChat | null {
+    let entry: StoredChat | null;
+    try {
+      entry = this.db.loadChat(id);
+    } catch {
+      return null; // the store closed under it: a shutdown
+    }
+    const driver = entry ? this.providers.driverFor(entry.record.provider ?? '') : null;
+    if (!entry || !driver) return null;
+    const chat = LiveChat.restore(entry, this.config, driver);
+    this.saved.set(id, ChatManager.savedOf(chat));
+    this.watch(chat);
+    return chat;
+  }
+
+  /** Whether nothing holds the chat in memory any more: no process, nobody reading it or waiting on it, nothing left to deliver or replay. */
+  private retirable(chat: LiveChat, cutoff: string): boolean {
+    return (
+      !chat.alive &&
+      (chat.status === 'completed' || chat.status === 'failed' || chat.status === 'stopped') &&
+      chat.endedAt !== null &&
+      chat.endedAt <= cutoff &&
+      chat.viewers === 0 &&
+      chat.preparing === 0 &&
+      chat.pending.size === 0 &&
+      !chat.respawnQueued &&
+      !chat.carrying &&
+      // A limit's wait and replay need the turn it holds in memory
+      !chat.rateLimited &&
+      !chat.limitRequested &&
+      !chat.authFailed &&
+      !chat.pendingAccount &&
+      !this.leftovers.has(chat.id) &&
+      // Only the manager's own listener: a caller waiting for the chat's next result holds it
+      chat.emitter.listenerCount('event') <= 1
+    );
+  }
+
+  /**
+   * Retires from memory the chats that ended more than `retireAfterMs` before `nowMs` and that nothing
+   * holds, keeping the summary waking them would read back. Runs on a timer; returns the ids retired.
+   */
+  retireEnded(nowMs: number = Date.now()): string[] {
+    const cutoff = new Date(nowMs - this.retireAfterMs).toISOString();
+    const retired: string[] = [];
+    for (const chat of [...this.chats.values()]) {
+      if (!this.retirable(chat, cutoff)) continue;
+      // Written first: the row is the chat from here on. One whose write failed stays until it goes through
+      this.persist(chat);
+      if (this.dirty.has(chat.id)) continue;
+      let entry: StoredChat | null = null;
+      try {
+        entry = this.db.loadChat(chat.id);
+      } catch {
+        return retired; // the store closed: a shutdown
+      }
+      // Trimmed by another process sharing the file: kept, and written whole again by the next save
+      if (!entry) continue;
+      const summary = LiveChat.restore(entry, this.config, chat.driver).summary();
+      chat.emitter.removeAllListeners('event');
+      this.chats.retire(chat.id, summary);
+      this.saved.delete(chat.id);
+      // A list that showed it as it was in memory hears what it reads now
+      this.publisher.observe(summary);
+      retired.push(chat.id);
+    }
+    return retired;
+  }
+
+  /**
+   * Loads the chats of previous wrapper processes from their rows. No transcript is replayed into
+   * them: a chat's page reads its transcript from the session store, and replaying every stored
+   * chat's at each start held the start for as long as the slowest transcript took. A chat that
+   * ended long ago is retired at once to its summary, and woken when something needs it; only one a
+   * restart cut off, or with a process of a previous wrapper still on it, stays in memory, and the
+   * transcript's summary says when the cut one really stopped.
    */
   async restore(sessions: SessionStore): Promise<void> {
     for (const manifest of this.providers.list()) {
@@ -461,22 +589,25 @@ export class ChatManager extends EventEmitter {
       const pids = live.filter((p) => p.sessionId === record.id).map((p) => p.pid);
       if (pids.length) this.leftovers.set(record.id, pids);
     }
+    const cutoff = new Date(Date.now() - this.retireAfterMs).toISOString();
+    const cut: LiveChat[] = [];
     for (const entry of stored) {
       const driver = this.providers.driverFor(entry.record.provider ?? '');
-      if (!driver) continue;
+      if (!driver || this.chats.has(entry.record.id)) continue;
       const chat = LiveChat.restore(entry, this.config, driver);
-      this.chats.set(chat.id, chat);
-      const page = await sessions.getSession(chat.id, { includeSidechains: true }).catch(() => null);
-      for (const item of page?.entries ?? []) chat.push({ kind: 'message', entry: item });
-      // The transcript is written as the CLI works, so its last line is when the process really
-      // stopped; the stored record can be older than that
-      const heard = page?.summary.updatedAt;
-      const cut = chat.cutOff;
-      if (cut?.endedAt && heard && heard > cut.endedAt && heard <= now()) {
-        cut.endedAt = heard;
-        chat.endedAt = heard;
-      }
       const pids = this.leftovers.get(chat.id);
+      // What is read back is what was written: nothing to save again. One the restore cut off has
+      // an execution it ended just now, and is written whole below
+      if (!chat.cutOff) this.saved.set(chat.id, ChatManager.savedOf(chat));
+      if (!chat.cutOff && !pids && chat.endedAt !== null && chat.endedAt <= cutoff) {
+        this.chats.set(chat.id, chat);
+        this.chats.retire(chat.id, chat.summary());
+        this.saved.delete(chat.id);
+        this.publisher.baseline(chat.summary());
+        continue;
+      }
+      this.chats.set(chat.id, chat);
+      if (chat.cutOff) cut.push(chat);
       if (pids) {
         chat.push({
           kind: 'notice',
@@ -485,16 +616,26 @@ export class ChatManager extends EventEmitter {
             'It is not tracked here, so the chat cannot be resumed beside it: wait for it to finish, or stop the chat to end it.',
           data: { pids },
         });
+        chat.updatedAt = entry.record.updatedAt; // push() bumped it
       }
-      chat.updatedAt = entry.record.updatedAt; // push() bumped it
       this.watch(chat);
+    }
+    for (const chat of cut) {
+      // The transcript is written as the CLI works, so its last line is when the process really
+      // stopped; the stored record can be older than that. Its summary is cached, not a replay
+      const heard = (await sessions.summary(chat.id).catch(() => null))?.updatedAt;
+      const execution = chat.cutOff;
+      if (execution?.endedAt && heard && heard > execution.endedAt && heard <= now()) {
+        execution.endedAt = heard;
+        chat.endedAt = heard;
+      }
     }
     // The executions the restore closed as interrupted are written down, so a second start does
     // not have to conclude it again
-    if (stored.length) this.persist();
+    this.persist(...cut);
     // What the servers core's callers added pointed at (a stub in a server that is gone) died with
     // the processes that read them: no process of this wrapper is running yet
-    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.get(chatId)?.alive);
+    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.peek(chatId)?.alive);
   }
 
   /** Processes found at start working on a restored chat's session that are still up. */
@@ -526,8 +667,11 @@ export class ChatManager extends EventEmitter {
     if (created) this.publisher.created(chat.summary());
     else this.publisher.baseline(chat.summary());
     chat.emitter.on('event', (event: RunEvent) => {
-      // Partials only stream text and stderr changes nothing a list shows
-      if (event.kind !== 'partial' && event.kind !== 'stderr') this.publisher.observe(chat.summary());
+      // A partial is only text on its way: it is neither stored nor shown in a list
+      if (event.kind === 'partial') return;
+      this.dirty.add(chat.id);
+      // stderr changes nothing a list shows
+      if (event.kind !== 'stderr') this.publisher.observe(chat.summary());
     });
   }
 
@@ -572,11 +716,12 @@ export class ChatManager extends EventEmitter {
   }
 
   list(): ChatRuntime[] {
-    return [...this.chats.values()].map((r) => r.summary()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return this.chats.summaries().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
+  /** A retired chat answers with the summary it was retired with, which is what waking it would read back */
   get(id: string): ChatRuntime | null {
-    return this.chats.get(id)?.summary() ?? null;
+    return this.chats.summaryOf(id);
   }
 
   /**
@@ -776,7 +921,7 @@ export class ChatManager extends EventEmitter {
     } catch (err) {
       // Refused before any process started (something else holds the session): an adopted chat is not ours yet
       chat.purpose = null;
-      if (!known) this.chats.delete(id);
+      if (!known) this.discardUnstarted(id);
       throw err;
     }
     if (!known) this.watch(chat, true);
@@ -930,7 +1075,7 @@ export class ChatManager extends EventEmitter {
     }
     // A person's chat goes before a worker: while one was refused a place, the places that free up are kept for its retry
     if (kind === 'worker' && this.interactive.active()) {
-      throw new ChatRefusal(`${QUEUE_YIELD_PREFIX}: a chat a person asked for is waiting for a place`, 409);
+      throw new QueueYieldRefusal(`${QUEUE_YIELD_PREFIX}: a chat a person asked for is waiting for a place`);
     }
     let room: LiveChat[];
     try {
@@ -940,10 +1085,10 @@ export class ChatManager extends EventEmitter {
       room = found;
       // Refused by the machine's memory, not by the count: a chat started now could be the one the kernel kills
       const { refusal } = readSystemLoad(this.admission);
-      if (refusal) throw new ChatRefusal(refusal, 409);
+      if (refusal) throw new MemoryRefusal(refusal);
     } catch (err) {
       // The person is told exactly what they were told before; the refusal only also reserves the next place
-      if (kind === 'interactive' && (err instanceof RunSlotRefusal || (err instanceof ChatRefusal && err.message.startsWith(RESOURCE_REFUSAL_PREFIX)))) {
+      if (kind === 'interactive' && (err instanceof RunSlotRefusal || err instanceof MemoryRefusal)) {
         this.interactive.hold();
       }
       throw err;
@@ -1025,7 +1170,7 @@ export class ChatManager extends EventEmitter {
     try {
       this.spawnProcess(chat, sent(prompt, attachments), room);
     } catch (err) {
-      this.chats.delete(chat.id);
+      this.discardUnstarted(chat.id);
       throw err;
     }
     // After the spawn, so the announcement carries the status the process started with
@@ -1106,7 +1251,7 @@ export class ChatManager extends EventEmitter {
     }
     const receipt = { id: message.id, taken };
     chat.remember(receipt);
-    this.persist();
+    this.persist(chat);
     return receipt;
   }
 
@@ -1196,13 +1341,14 @@ export class ChatManager extends EventEmitter {
       // The CLI's own children (a build, Vitest, Chromium) are not its to keep: they go with it, descendants first
       const table = processTable();
       const root = table.find((p) => p.pid === proc.pid);
-      if (root) terminateTree(root, table, 5000);
-      proc.kill('SIGTERM');
+      // The tree's own signal reaches the root last; signalling it again here sent it SIGTERM twice
+      if (root) terminateTree(root, table, STOP_GRACE_MS);
+      else proc.kill('SIGTERM');
       // The process being stopped, not whatever `chat.proc` is by then: a chat resumed within these
       // seconds has a new process, and this used to kill it
       setTimeout(() => {
         if (proc.exitCode === null && proc.signalCode === null) proc.kill('SIGKILL');
-      }, 5000).unref();
+      }, STOP_GRACE_MS).unref();
     }
     return chat.summary();
   }
@@ -1249,7 +1395,7 @@ export class ChatManager extends EventEmitter {
     if (!chat) throw new ChatNotFoundError();
     if (chat.opts.permissionPrompts !== prompts) {
       chat.opts.permissionPrompts = prompts;
-      this.persist();
+      this.persist(chat);
     }
     return chat.summary();
   }
@@ -1281,7 +1427,7 @@ export class ChatManager extends EventEmitter {
       chat.opts.model = next;
       chat.setSettings({ model: next });
     }
-    this.persist();
+    this.persist(chat);
     return chat.summary();
   }
 
@@ -1402,7 +1548,7 @@ export class ChatManager extends EventEmitter {
   private storeClaudioMcp(chat: LiveChat, enabled: boolean): void {
     const { claudioMcp: _was, ...rest } = chat.tools ?? { preset: null, allowedTools: [], disallowedTools: [], mcp: chat.opts.mcp ?? null };
     chat.opts.toolConfig = enabled ? { ...rest, claudioMcp: true } : rest;
-    this.persist();
+    this.persist(chat);
   }
 
   /**
@@ -1419,6 +1565,22 @@ export class ChatManager extends EventEmitter {
     return this.mcpServers(id);
   }
 
+  /**
+   * Forgets a chat whose first process never started: it is not a chat of Claudio's yet. A spawn that
+   * threw has ended its execution and written it (`spawnProcess`), and that row goes too, or the
+   * failed start would come back as a chat at the next restart.
+   */
+  private discardUnstarted(id: string): void {
+    this.chats.delete(id);
+    this.dirty.delete(id);
+    if (!this.saved.delete(id)) return;
+    try {
+      this.db.deleteChat(id);
+    } catch {
+      // the store closed: there is no restart to come back in
+    }
+  }
+
   remove(id: string): boolean {
     const chat = this.chats.get(id);
     if (!chat || chat.alive) return false;
@@ -1427,15 +1589,48 @@ export class ChatManager extends EventEmitter {
     this.bus?.emit({ type: 'run.removed', title: `${chat.name} removed`, runId: id });
     this.db.deleteChat(id);
     this.saved.delete(id);
-    this.persist();
+    this.dirty.delete(id);
     removeChatExtrasConfigs(this.config.dataDir, (chatId) => chatId === id);
     return true;
   }
 
-  stopAll(): void {
-    for (const chat of this.chats.values()) if (chat.alive) this.stop(chat.id);
+  /**
+   * Stops every live chat, then resolves once their processes and everything they started are gone:
+   * at once for what leaves on SIGTERM, and after `graceMs` for the rest, which then gets SIGKILL.
+   * `stop` arms that escalation on an unref'd timer, which a server that exits right after never
+   * reached: a child ignoring SIGTERM outlived the server. The stops themselves happen before this
+   * returns, so a caller that does not wait still has every chat told to stop.
+   */
+  async stopAll(graceMs = STOP_GRACE_MS): Promise<void> {
+    // Read before the stops, while each tree still hangs from its CLI: a child whose parent has
+    // exited is adopted by init and could no longer be told from a stranger's
+    const table = processTable();
+    const trees: ProcessEntry[] = [];
+    const closing: Array<Promise<unknown>> = [];
+    for (const chat of [...this.chats.values()]) {
+      if (!chat.alive) continue;
+      const proc = chat.proc;
+      const root = proc ? table.find((p) => p.pid === proc.pid) : undefined;
+      if (root) trees.push(...descendantsOf(table, root.pid), root);
+      if (proc && proc.exitCode === null && proc.signalCode === null) closing.push(once(proc, 'close').catch(() => undefined));
+      this.stop(chat.id);
+    }
     // The processes take a moment to exit; their credentials go now, with the wrapper
     this.chatTokens.revokeAll();
+    if (trees.length === 0 && closing.length === 0) return;
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([Promise.all(closing), new Promise<void>((resolve) => (timer = setTimeout(resolve, graceMs)))]);
+    clearTimeout(timer);
+    // Only what is still the same process (pid and start time): a pid reused since is somebody else's
+    const now = processTable();
+    for (const victim of trees) {
+      if (!now.some((p) => p.pid === victim.pid && p.started === victim.started)) continue;
+      try {
+        process.kill(victim.pid, 'SIGKILL');
+      } catch {
+        // gone in between
+      }
+    }
   }
 
   /** Resolves with the first `result` after the call, or when the process exits. */
@@ -1941,17 +2136,23 @@ export class ChatManager extends EventEmitter {
     } else delete env.CLAUDIO_API_URL;
     // A confined API chat's git reads no configuration but the run's own (D14.7)
     if (chat.opts.apiPolicy) Object.assign(env, confinedGitEnv(chat.cwd, this.workspacesRoot));
-    // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
-    const tmpDir = chat.opts.guards?.tmpDir;
-    if (tmpDir) {
-      mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
-      env.TMPDIR = tmpDir;
-    }
     let proc: ChildProcessWithoutNullStreams;
     try {
+      // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
+      const tmpDir = chat.opts.guards?.tmpDir;
+      if (tmpDir) {
+        mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
+        env.TMPDIR = tmpDir;
+      }
       proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
     } catch (error) {
       if (token) this.chatTokens.revoke(token);
+      // The execution has begun and the chat says it is starting: a spawn that throws at once (ENOMEM,
+      // E2BIG, a temp dir that cannot be made) ends both as a process that failed would, or the chat
+      // stays `starting` with an execution that never ends
+      chat.error = error instanceof Error ? error.message : String(error);
+      chat.procClosed = true;
+      this.finalize(chat, 'failed');
       throw error;
     }
     // Only now that a process exists: a spawn that failed has ended nobody's. Nothing yields between
@@ -2021,7 +2222,7 @@ export class ChatManager extends EventEmitter {
     });
 
     // Recorded at once: a wrapper that dies from here on leaves an execution to read back as interrupted, not a gap
-    this.persist();
+    this.persist(chat);
     this.writeUserMessage(chat, first, announce);
   }
 
@@ -2148,7 +2349,7 @@ export class ChatManager extends EventEmitter {
     chat.branchActivity.clear();
     chat.setStatus(status);
     this.noteActivity(chat);
-    this.persist();
+    this.persist(chat);
     this.maybeLimit(chat);
     chat.purpose = null;
     this.emit('chat-context', chat.id, { kind: 'ended', stopped: chat.stopRequested, error: chat.error } satisfies ContextSignal);
@@ -2258,7 +2459,7 @@ export class ChatManager extends EventEmitter {
         // A closed database (shutting down): the chat is at its limit all the same
       }
     }
-    this.persist();
+    this.persist(chat);
     if (chat.alive) this.stop(id);
     else this.maybeLimit(chat);
     return true;
@@ -2272,7 +2473,8 @@ export class ChatManager extends EventEmitter {
 
   /** The chat's last turn died on its provider's limit and nothing has started on it since. */
   atLimit(id: string): boolean {
-    return this.chats.get(id)?.rateLimited === true;
+    // Never wakes a retired chat: one at its limit is never retired, and every listed chat asks
+    return this.chats.peek(id)?.rateLimited === true;
   }
 
   /** The provider's reading as it stands for the chat's provider; null for a chat Claudio does not drive. */
@@ -2301,7 +2503,7 @@ export class ChatManager extends EventEmitter {
     if (accountId === (chat.account ?? DEFAULT_ID)) {
       if (!chat.pendingAccount) throw new AccountSwitchRefusal('same-account', 'the chat already runs on this account');
       chat.pendingAccount = null;
-      this.persist();
+      this.persist(chat);
       return { chat: chat.summary(), pending: false };
     }
     if (accountId === chat.pendingAccount) return { chat: chat.summary(), pending: true };
@@ -2323,7 +2525,7 @@ export class ChatManager extends EventEmitter {
     }
     if (chat.status === 'busy' || chat.status === 'starting') {
       chat.pendingAccount = accountId;
-      this.persist();
+      this.persist(chat);
       return { chat: chat.summary(), pending: true };
     }
     await this.endProcessBetweenTurns(chat);
@@ -2364,7 +2566,7 @@ export class ChatManager extends EventEmitter {
     chat.forcedReason = 'person';
     // A chat started on an account keeps its pin semantics, on the new account
     if (chat.opts.account) chat.opts.account = to;
-    this.persist();
+    this.persist(chat);
     try {
       this.db.appendRotationEvent({ ts: new Date().toISOString(), event: 'switch', from, to, reason: 'person', detail: chat.name, data: { chatId: chat.id, actor } });
     } catch {

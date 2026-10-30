@@ -52,7 +52,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         }
         if (native && !chat.nativeId) {
           chat.nativeId = native;
-          host.persist();
+          host.persist(chat);
         }
       } else if (event.sessionId && event.sessionId !== chat.id) {
         // The id was Claudio's to choose, and the agent takes it; if it ever answered otherwise, the
@@ -283,7 +283,7 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
     chat.idleSince = null;
     chat.setStatus('busy');
   }
-  host.persist();
+  host.persist(chat);
 }
 
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
@@ -342,7 +342,7 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   // as a call left open is not (`trace`); a background one outlives the turn
   chat.branches.endForeground(now());
   chat.branchActivity.clear();
-  host.persist();
+  host.persist(chat);
   chat.push({ ...event.run, outcome: { ...(event.run.outcome as RunOutcome), ...(cause ? { cause } : {}), ...(stopReason ? { stopReason } : {}) } });
   // Every result, where waitForResult only hands out the first: a chat continued by hand keeps
   // producing them, and whoever the chat works for has to hear about each

@@ -382,7 +382,8 @@ export interface ChatHost {
   readonly environments: Map<string, EffectiveEnvironment>;
   readonly permissions: PermissionBroker | null;
   emit(event: string, ...args: unknown[]): void;
-  persist(): void;
+  /** Writes the chat (and whatever else changed since its last write) to the store */
+  persist(chat: LiveChat): void;
   noteActivity(chat: LiveChat): void;
   /** Folds what the chat's provider reported about its limit into the provider's reading */
   observeLimit(chat: LiveChat, event: DriverEvent): void;

@@ -136,7 +136,8 @@ test('a run a restart cut off continues in its own chat; with no chat to continu
     // running: counted later, the cut run's own first spawn would read as a fresh chat after the restart
     await until(() => spawnsOf(spawns).some((l) => l.includes(chatId)), (seen) => seen, 'the cut run to log its spawn');
   } finally {
-    core.shutdown();
+    // Resolved once the stopped chat's last state is written and the database closed: only then is the row the test deletes gone for good
+    await core.shutdown();
   }
   // The chat's record is lost (trimmed, or removed), so nothing can continue it
   const raw = new DatabaseSync(join(config.dataDir, 'wrapper.db'));

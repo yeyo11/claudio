@@ -238,7 +238,12 @@ export function bootTimeMs(): number | null {
 /** Every descendant of `root` (not `root` itself), children before their parents. */
 export function descendantsOf(table: readonly ProcessEntry[], root: number): ProcessEntry[] {
   const children = new Map<number, ProcessEntry[]>();
-  for (const entry of table) children.set(entry.ppid, [...(children.get(entry.ppid) ?? []), entry]);
+  // Grown in place: copying a parent's list on every child made a table of a few thousand processes quadratic
+  for (const entry of table) {
+    const siblings = children.get(entry.ppid);
+    if (siblings) siblings.push(entry);
+    else children.set(entry.ppid, [entry]);
+  }
   const out: ProcessEntry[] = [];
   const seen = new Set([root]);
   const walk = (pid: number) => {
