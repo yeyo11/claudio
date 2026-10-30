@@ -1836,7 +1836,7 @@ button.master-item-on:hover {
 }
 
 /* The address in use is not a faded one: the switch says it is locked, and the hint says why */
-.lan-interface.is-disabled {
+.lan-interfaces .lan-interface.is-disabled {
   opacity: 1;
 }
 

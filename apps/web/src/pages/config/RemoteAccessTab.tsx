@@ -253,7 +253,7 @@ export function LanPanel({
               ))}
             </ul>
           )}
-          <Sheet open={openQr !== null} onOpenChange={(open) => !open && setQrFor(null)} title={t('lan.qr.title')} description={openQr ?? undefined}>
+          <Sheet open={openQr !== null} onOpenChange={(open) => !open && setQrFor(null)} title={t('lan.qr.title')}>
             {openQr && (
               <div className="lan-qr lan-qr-sheet" data-testid="lan-qr">
                 <QrCode text={openQr} label={t('lan.qr.label', { url: openQr })} />
