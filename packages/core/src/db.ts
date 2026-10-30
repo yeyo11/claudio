@@ -1608,6 +1608,9 @@ export function migrate(db: DatabaseSync, until = MIGRATIONS.length): void {
 /** Command runs kept across every kind; the newest few dozen of a kind are all "usual" ever looks at. */
 const KEEP_COMMANDS = 10_000;
 
+/** Chats whose own environment is kept besides each folder's newest: a few months of chats on a busy install */
+const KEEP_ENVIRONMENTS = 5_000;
+
 /** How a command ended: `cancelled` is a person's decision, and a command that hung and was cancelled is that. */
 export type CommandOutcome = 'ok' | 'error' | 'cancelled';
 
@@ -2757,14 +2760,29 @@ export class Db {
 
   // ---------- effective environments ----------
 
-  /** A chat's latest snapshot: one row per chat, replaced by each of its processes */
-  saveEnvironment(env: EffectiveEnvironment): void {
-    this.db
-      .prepare(
-        `INSERT INTO environments (chat_id, cwd, observed_at, json) VALUES (?, ?, ?, ?)
-         ON CONFLICT(chat_id) DO UPDATE SET cwd = excluded.cwd, observed_at = excluded.observed_at, json = excluded.json`,
-      )
-      .run(env.chatId, env.cwd, env.observedAt, JSON.stringify(env));
+  /**
+   * A chat's latest snapshot: one row per chat, replaced by each of its processes. Past `keep` rows,
+   * not counting each folder's newest, the oldest go, so the table does not grow with every chat ever
+   * started; a chat whose row went shows its folder's last, labelled as such.
+   */
+  saveEnvironment(env: EffectiveEnvironment, keep = KEEP_ENVIRONMENTS): void {
+    this.tx(() => {
+      this.db
+        .prepare(
+          `INSERT INTO environments (chat_id, cwd, observed_at, json) VALUES (?, ?, ?, ?)
+           ON CONFLICT(chat_id) DO UPDATE SET cwd = excluded.cwd, observed_at = excluded.observed_at, json = excluded.json`,
+        )
+        .run(env.chatId, env.cwd, env.observedAt, JSON.stringify(env));
+      this.db
+        .prepare(
+          `DELETE FROM environments WHERE chat_id IN (
+             SELECT chat_id FROM environments e
+             WHERE observed_at < (SELECT MAX(observed_at) FROM environments WHERE cwd = e.cwd)
+             ORDER BY observed_at DESC LIMIT -1 OFFSET ?
+           )`,
+        )
+        .run(keep);
+    });
   }
 
   /** What a chat's last process loaded; null when no process of it started here */

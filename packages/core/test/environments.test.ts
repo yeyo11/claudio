@@ -94,3 +94,18 @@ test('the migration moves each folder row under the chat that last started there
     db.close();
   }
 });
+
+test('the table keeps the newest chats and every folder newest, never one row per chat ever started', () => {
+  const db = new Db(tempConfig());
+  try {
+    // An old folder nobody started a chat in since: its one row stays, whatever its age
+    db.saveEnvironment(env('lonely', '/work/old', '2026-01-01T00:00:00.000Z'), 3);
+    for (let i = 0; i < 10; i++) db.saveEnvironment(env(`busy-${i}`, '/work/busy', new Date(Date.UTC(2026, 9, 1, 0, i)).toISOString()), 3);
+    const kept = ['lonely', ...Array.from({ length: 10 }, (_, i) => `busy-${i}`)].filter((id) => db.environmentOf(id));
+    assert.deepEqual(kept, ['lonely', 'busy-6', 'busy-7', 'busy-8', 'busy-9'], "three besides each folder's newest");
+    // A chat whose row went shows its folder's last, labelled
+    assert.deepEqual(new EnvironmentIndex(db).forChat('busy-0', '/work/busy')?.source, 'folder');
+  } finally {
+    db.close();
+  }
+});
