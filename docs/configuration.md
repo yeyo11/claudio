@@ -53,7 +53,7 @@ README's.
 | `CLAUDIO_TUNNEL` | on | Whether Settings → Access & safety → Remote access may serve Claudio on the tailnet through `tailscale serve`: `on`/`1`/`true` or `off`/`0`/`false`, empty meaning the default; anything else stops the server at startup. In the image, `off` also keeps the entrypoint from starting its own tailscaled. See [docs/tunnel.md](tunnel.md) |
 | `CLAUDIO_TAILSCALE_MANAGED` | set by the image's entrypoint | `1` when the tailscaled behind the CLI is Claudio's own (the image's), which the app then signs in and out. Not for setting by hand |
 | `CLAUDIO_TAILSCALE_HOSTNAME` | `claudio` | The node's name when the image's Tailscale signs in (`tailscale up --hostname`); a DNS label, or the server stops at startup |
-| `CLAUDIO_TUNNEL_PORT` | `8444` | The HTTPS port of Claudio's Serve rule on the tailnet name, kept off 443 so a Serve rule of your own is never touched. Not a port between 1 and 65535 stops the server at startup |
+| `CLAUDIO_TUNNEL_PORT` | unset | The HTTPS port of Claudio's Serve rule on the tailnet name. Unset, the port is the one chosen in Settings → Remote access (`tunnel-settings.json`, `8444` by default, kept off 443 so a Serve rule of your own is never touched); set, it fixes the port and the setting reads it, read-only. Not a port between 1 and 65535 stops the server at startup |
 | `TAILSCALE_BIN` | `tailscale` | The Tailscale CLI the tunnel runs |
 | `CLAUDIO_CORS_ORIGIN` | – (CORS off) | Comma-separated origins (or `*`, which echoes the caller) for external browser clients. The event streams obey this list too. The bundled UI never needs it: in dev it uses the Vite `/api` proxy, in production it is same-origin |
 | `VITE_API_TARGET` | `http://localhost:8797` | Where the Vite dev server proxies `/api` |

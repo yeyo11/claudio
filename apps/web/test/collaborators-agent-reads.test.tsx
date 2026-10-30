@@ -93,6 +93,7 @@ const status = {
   settings: settings(),
   endpointId: 'me',
   connection: 'online',
+  connectionError: null,
   homeRelay: null,
 } as unknown as CollaboratorsStatus;
 

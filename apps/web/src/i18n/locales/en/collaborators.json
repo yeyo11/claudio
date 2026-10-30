@@ -36,7 +36,8 @@
     "cancel": "Cancel",
     "turnOff": "Turn off",
     "byN0": "Discovery and relays are run by n0",
-    "byN0Relay": "Discovery is run by n0 · relay"
+    "byN0Relay": "Discovery is run by n0 · relay",
+    "bindRetry": "Trying again at {{time}}."
   },
   "connection": {
     "online": "Connected",
@@ -44,7 +45,8 @@
     "starting": "Connecting…",
     "noRelay": "No relay answered: only direct connections work",
     "offline": "No network",
-    "off": "Off"
+    "off": "Off",
+    "error": "Did not start"
   },
   "groups": {
     "title": "Groups",

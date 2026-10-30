@@ -25,6 +25,7 @@ const host = (): HostHandle => ({
   },
   disconnect: () => undefined,
   unavailable: null,
+  startError: null,
   status: null,
 });
 
