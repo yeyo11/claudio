@@ -5,7 +5,7 @@
  * and what may be picked for "Orchestrate". The shared vocabulary (columns, filters, live) is in
  * lib/work-items.ts.
  */
-import type { Board, BoardColumn, WorkItem, WorkItemRef, WorkItemStatus } from '@claudio/shared';
+import type { Board, BoardColumn, BoardColumnSummary, WorkItem, WorkItemRef, WorkItemStatus } from '@claudio/shared';
 import { BOARD_DONE_PAGE, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { countsInColumn } from '../../../lib/work-items';
 
@@ -36,9 +36,16 @@ export function doneLimitFor(shown: number): number | undefined {
  * for an item closed before that was recorded), as the server holds it. A card is never placed by
  * hand inside Done: one moved there is the newest and heads the column.
  */
-export function newestDoneFirst<T extends Pick<WorkItem, 'closedAt' | 'updatedAt' | 'id'>>(items: readonly T[]): T[] {
-  const when = (item: T) => item.closedAt ?? item.updatedAt;
-  return [...items].sort((a, b) => (when(a) > when(b) ? -1 : when(a) < when(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+export function newestDoneFirst<T extends DoneOrdered>(items: readonly T[]): T[] {
+  return [...items].sort(doneOrder);
+}
+
+type DoneOrdered = Pick<WorkItem, 'closedAt' | 'updatedAt' | 'id'>;
+
+/** Done's order, as the server's `newestDone` sorts it: newest closed first, the id breaking a tie. */
+function doneOrder(a: DoneOrdered, b: DoneOrdered): number {
+  const when = (item: DoneOrdered) => item.closedAt ?? item.updatedAt;
+  return when(a) > when(b) ? -1 : when(a) < when(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 /**
@@ -66,15 +73,68 @@ export interface Drop {
   index: number;
 }
 
+// Ranks, ids and project ids are ASCII: code unit order is SQLite's BINARY order, which the server sorts by
+const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 /**
- * The neighbour a card lands after, as `POST /work-items/:id/move` takes it: null for the top of the
- * column, otherwise the card drawn just above the drop. Named by the cards on screen, so on a
- * filtered board a card lands after the one the person saw above it.
+ * The order of an open column as the server holds it (`ORDER BY project_id, rank, id`): on the All
+ * projects board each project's cards are one group, in that project's own rank order.
  */
-export function afterIdFor(column: readonly Pick<WorkItem, 'id'>[], itemId: string, index: number): string | null {
-  const others = column.filter((item) => item.id !== itemId);
-  const at = Math.max(0, Math.min(index, others.length));
-  return at === 0 ? null : (others[at - 1]?.id ?? null);
+export function boardOrder(a: Pick<WorkItem, 'projectId' | 'rank' | 'id'>, b: Pick<WorkItem, 'projectId' | 'rank' | 'id'>): number {
+  return compareText(a.projectId, b.projectId) || compareText(a.rank, b.rank) || compareText(a.id, b.id);
+}
+
+/**
+ * Where one project's cards sit in a column, `[start, end)`. A rank only means something inside its
+ * project, so a card is placed, and its neighbour named, within this span; on a project's own board
+ * the span is the whole column. A column without the project's cards gives the empty span where its
+ * group would be.
+ */
+export function projectSpan(column: readonly Pick<WorkItem, 'projectId'>[], projectId: string): { start: number; end: number } {
+  const first = column.findIndex((item) => item.projectId === projectId);
+  if (first < 0) {
+    const at = column.filter((item) => compareText(item.projectId, projectId) < 0).length;
+    return { start: at, end: at };
+  }
+  let end = first;
+  while (end < column.length && column[end]?.projectId === projectId) end += 1;
+  return { start: first, end };
+}
+
+type Placed = Pick<WorkItem, 'id' | 'projectId'>;
+
+/**
+ * Where a card dropped at `index` among the column's other cards may land: inside its own project's
+ * group, at the nearest edge of it when the pointer is over another project's cards. The drop line
+ * the board draws and the neighbour the API is told both come from this place.
+ */
+export function placeInGroup(column: readonly Placed[], item: Placed, index: number): number {
+  const others = column.filter((entry) => entry.id !== item.id);
+  const { start, end } = projectSpan(others, item.projectId);
+  return Math.max(start, Math.min(index, end));
+}
+
+/**
+ * The neighbour a card lands after, as `POST /work-items/:id/move` takes it: null for the top of its
+ * project's group (the top of the column on a project's board), otherwise the card of its project
+ * drawn just above the drop. Named by the cards on screen, so on a filtered board a card lands after
+ * the one the person saw above it.
+ */
+export function afterIdFor(column: readonly Placed[], item: Placed, index: number): string | null {
+  const others = column.filter((entry) => entry.id !== item.id);
+  const { start } = projectSpan(others, item.projectId);
+  const at = placeInGroup(column, item, index);
+  return at === start ? null : (others[at - 1]?.id ?? null);
+}
+
+/**
+ * Which slot of a column the pointer is over: before the first card whose middle is below it, or the
+ * end. `boxes` are the column's other cards top to bottom, the dragged one left out, counted the way
+ * {@link afterIdFor} and {@link keyboardDrop} count.
+ */
+export function dropSlot(boxes: readonly { top: number; height: number }[], y: number): number {
+  const at = boxes.findIndex((box) => y < box.top + box.height / 2);
+  return at < 0 ? boxes.length : at;
 }
 
 /** True when the drop leaves the card where it already is: nothing to ask the server. */
@@ -89,32 +149,90 @@ export function isSamePlace(board: Pick<Board, 'columns'>, itemId: string, drop:
 const overLimit = (count: number, limit: number | null) => limit !== null && count > limit;
 
 /**
- * The board as it looks once the card has moved, drawn before the server answers so the card does
- * not jump back while the request is in flight. Counts and limits follow the card; a board that
- * does not hold it is returned as it was, since a filter may have left it out.
+ * Where a move asks the card to go, as the API takes it: a column, and the card of its project it
+ * follows (null: the top of its group; absent: the end of it).
  */
-export function moveOnBoard<T extends Pick<Board, 'columns'>>(board: T, itemId: string, drop: Drop): T {
-  let moving: WorkItem | undefined;
-  for (const column of board.columns) moving ??= column.items.find((item) => item.id === itemId);
-  if (!moving) return board;
-  const from = moving.status;
-  if (from === 'done' && drop.status === 'done') return board;
-  // Into Done it is the newest closed item, so it heads the column wherever it was dropped
-  const moved: WorkItem = drop.status === 'done' && from !== 'done' ? { ...moving, status: 'done', closedAt: new Date().toISOString() } : { ...moving, status: drop.status };
-  const index = drop.status === 'done' ? 0 : drop.index;
+export interface MoveTarget {
+  status: WorkItemStatus;
+  afterId?: string | null | undefined;
+}
+
+/**
+ * A move as the board asks for it, before its neighbour is named. Dropped somewhere (`place`): the
+ * index among the cards drawn in the target column, and those cards in order, which name the
+ * neighbour within the item's project. Without a place (the item's page, an approval): the end of
+ * its group.
+ */
+export type MovePlace =
+  | { item: Pick<WorkItem, 'id' | 'projectId'>; status: WorkItemStatus; place: { index: number; column: readonly Pick<WorkItem, 'id' | 'projectId'>[] } }
+  | { item: Pick<WorkItem, 'id'>; status: WorkItemStatus; place?: undefined };
+
+/** The API's target for a move: the column, and the card of the item's own project it follows. */
+export function moveTarget(move: MovePlace): MoveTarget {
+  // Done is in closing order: a card moved there has no neighbour to name
+  if (!move.place || move.status === 'done') return { status: move.status };
+  return { status: move.status, afterId: afterIdFor(move.place.column, move.item, move.place.index) };
+}
+
+/**
+ * The board with `next` in the column of its status at `place(items)`, wherever this board drew it
+ * before. Counts and limits follow the card; a board that does not hold it is returned as it was,
+ * since a filter may have left it out.
+ */
+function relocate<T extends Pick<Board, 'columns'>>(board: T, next: WorkItem, place: (items: readonly WorkItem[]) => number): T {
+  const before = board.columns.find((column) => column.items.some((item) => item.id === next.id));
+  const was = before?.items.find((item) => item.id === next.id);
+  if (!before || !was) return board;
+  const crosses = before.status !== next.status;
   const columns = board.columns.map((column): BoardColumn => {
-    let items = column.items.filter((item) => item.id !== itemId);
+    let items = column.items.filter((item) => item.id !== next.id);
     let count = column.count;
-    const crosses = from !== drop.status && countsInColumn(moving);
-    if (column.status === from && crosses) count -= 1;
-    if (column.status === drop.status) {
-      if (crosses) count += 1;
-      const at = Math.max(0, Math.min(index, items.length));
-      items = [...items.slice(0, at), moved, ...items.slice(at)];
+    if (column.status === before.status && crosses && countsInColumn(was)) count -= 1;
+    if (column.status === next.status) {
+      if (crosses && countsInColumn(next)) count += 1;
+      const at = Math.max(0, Math.min(place(items), items.length));
+      items = [...items.slice(0, at), next, ...items.slice(at)];
     }
     return { ...column, items, count, overLimit: overLimit(count, column.limit) };
   });
   return { ...board, columns };
+}
+
+/**
+ * The board as it looks once the card has moved, drawn before the server answers so the card does
+ * not jump back while the request is in flight. The card goes after the neighbour the API is told
+ * when this board draws it, or else to the edge of its project's group the target names; into Done
+ * it is the newest closed item and heads the column.
+ */
+export function moveOnBoard<T extends Pick<Board, 'columns'>>(board: T, itemId: string, target: MoveTarget): T {
+  let moving: WorkItem | undefined;
+  for (const column of board.columns) moving ??= column.items.find((item) => item.id === itemId);
+  if (!moving) return board;
+  const from = moving.status;
+  if (from === 'done' && target.status === 'done') return board;
+  const moved: WorkItem = target.status === 'done' && from !== 'done' ? { ...moving, status: 'done', closedAt: new Date().toISOString() } : { ...moving, status: target.status };
+  return relocate(board, moved, (items) => {
+    if (target.status === 'done') return 0;
+    const { start, end } = projectSpan(items, moved.projectId);
+    if (target.afterId === null) return start;
+    const after = target.afterId === undefined ? -1 : items.findIndex((entry) => entry.id === target.afterId);
+    return after >= start && after < end ? after + 1 : end;
+  });
+}
+
+/**
+ * The board with the item where the server holds it, by its own status and rank: what a move's
+ * answer writes, and, given the item as it was, what puts a refused move back. Done is in closing
+ * order, newest first; an open column in project, then rank order. With the answer's column summary,
+ * that column of the item's own project board takes the server's count and limit.
+ */
+export function placeOnBoard<T extends Pick<Board, 'columns'> & { projectId?: string | null }>(board: T, item: WorkItem, summary?: BoardColumnSummary): T {
+  const placed = relocate(board, item, (items) => {
+    const after = items.findIndex((entry) => (item.status === 'done' ? doneOrder(entry, item) : boardOrder(entry, item)) > 0);
+    return after < 0 ? items.length : after;
+  });
+  if (!summary || placed === board || board.projectId !== item.projectId) return placed;
+  return { ...placed, columns: placed.columns.map((column) => (column.status === summary.status ? { ...column, ...summary } : column)) };
 }
 
 /**
@@ -212,11 +330,6 @@ export function labelsInUse(items: readonly Pick<WorkItem, 'labels'>[]): string[
   const seen = new Map<string, string>();
   for (const item of items) for (const label of item.labels) if (!seen.has(label.toLocaleLowerCase())) seen.set(label.toLocaleLowerCase(), label);
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
-}
-
-/** Items in rank order inside each column: what the list shows, "ordered by their place on the board". */
-export function byRank<T extends Pick<WorkItem, 'rank' | 'id'>>(items: readonly T[]): T[] {
-  return [...items].sort((a, b) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.id < b.id ? -1 : 1));
 }
 
 /**

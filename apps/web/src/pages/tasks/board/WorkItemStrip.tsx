@@ -160,7 +160,7 @@ export function WorkItemStrip({
             event.stopPropagation();
             event.preventDefault();
             if (opensPr) openPr.mutate({ ...item, pullRequestReadiness: readiness });
-            else move.mutate({ item, drop: { status: 'done', index: 0 }, column: [] });
+            else move.mutate({ item, status: 'done' });
           }}
           onKeyDown={(event) => event.stopPropagation()}
         >

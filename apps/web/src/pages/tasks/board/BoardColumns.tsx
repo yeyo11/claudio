@@ -2,13 +2,15 @@ import type { BoardColumn, WorkItem, WorkItemStatus } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { WORK_ITEM_STATUSES } from '@claudio/shared';
 import { ChevronDown, Plus, TriangleAlert } from 'lucide-react';
-import { Fragment, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FocusEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@claudio/ui/components/icons';
+import { COARSE, useMediaQuery } from '@claudio/ui/lib/media';
 import { WorkItemStatusIcon } from '../../../components/work-item-icons';
 import { columnMeta } from '../../../lib/work-items';
 import type { LiveSources } from './LiveLine';
-import { foldColumn, isSamePlace, keyboardDrop, type Drop, type NotSelectable } from './model';
+import { dropSlot, foldColumn, isSamePlace, keyboardDrop, placeInGroup, type Drop, type NotSelectable } from './model';
+import { useMoveMenu } from './moveMenu';
 import { ColumnRole } from './team';
 import { useMoveWorkItem } from './useMoveWorkItem';
 import { WorkItemCard } from './WorkItemCard';
@@ -32,9 +34,10 @@ const DRAG_TYPE = 'application/x-claudio-work-item';
 
 /**
  * The five columns of a board, side by side. A card moves by pointer (drag it between or inside
- * columns) or by keyboard (Space picks it up, the arrows carry it, Space drops it, Escape puts it
- * back), and either way the API is told which card it now follows. A column over its limit says so
- * in words and in the warn colour, and still takes the card.
+ * columns), by keyboard (Space picks it up, the arrows carry it, Space drops it, Escape or leaving
+ * the card puts it back) or, under a finger, through its "⋯"; either way the API is told which card
+ * of its own project it now follows, so on the All projects board a card lands inside its project's
+ * group. A column over its limit says so in words and in the warn colour, and still takes the card.
  */
 export function BoardColumns({
   columns,
@@ -42,7 +45,6 @@ export function BoardColumns({
   epics,
   live,
   selection,
-  moving = true,
   doneShown,
   doneLoading = false,
   onMoreDone,
@@ -55,8 +57,6 @@ export function BoardColumns({
   epics: ReadonlyMap<string, { done: number; total: number }>;
   live: LiveSources;
   selection: BoardSelection | null;
-  /** Off while a filter hides cards: a drop between visible cards is still honest, so it stays on */
-  moving?: boolean;
   /** How many Done cards are drawn; "and N more" asks for the next page of them */
   doneShown: number;
   /** The next page of Done is on its way: two skeleton cards hold its place */
@@ -67,12 +67,17 @@ export function BoardColumns({
 }) {
   const { t } = useTranslation('tasks');
   const move = useMoveWorkItem();
+  const moveEntries = useMoveMenu(columns);
+  // A finger gets the card's "⋯": the browser's drag and drop is a mouse's
+  const coarse = useMediaQuery(COARSE);
   const [dragId, setDragId] = useState<string | null>(null);
   const [target, setTarget] = useState<Drop | null>(null);
   const [grab, setGrab] = useState<Grab | null>(null);
   const [said, setSaid] = useState('');
   const refocus = useRef<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const grabRef = useRef(grab);
+  grabRef.current = grab;
 
   const byStatus = new Map(columns.map((column) => [column.status, column]));
   const label = (status: WorkItemStatus) => t(columnMeta(status).label);
@@ -96,17 +101,62 @@ export function BoardColumns({
     boardRef.current?.querySelector<HTMLElement>(`[data-item-id="${CSS.escape(id)}"]`)?.focus();
   });
 
+  // A card that leaves the board (moved elsewhere, removed, filtered out) ends what was carrying it
+  const held = (id: string | null) => id !== null && columns.some((column) => column.items.some((item) => item.id === id));
+  useEffect(() => {
+    if (grab && !held(grab.id)) setGrab(null);
+    if (dragId && !held(dragId)) {
+      setDragId(null);
+      setTarget(null);
+    }
+  });
+
+  // A drag ends wherever it ends: on another part of the page, or after its card was drawn again
+  useEffect(() => {
+    if (!dragId) return;
+    const end = () => {
+      setDragId(null);
+      setTarget(null);
+    };
+    document.addEventListener('dragend', end);
+    document.addEventListener('drop', end);
+    return () => {
+      document.removeEventListener('dragend', end);
+      document.removeEventListener('drop', end);
+    };
+  }, [dragId]);
+
   const counts = (without: string): Record<WorkItemStatus, number> =>
     Object.fromEntries(WORK_ITEM_STATUSES.map((status) => [status, (byStatus.get(status)?.items ?? []).filter((item) => item.id !== without).length])) as Record<
       WorkItemStatus,
       number
     >;
 
-  const commit = (item: Pick<WorkItem, 'id' | 'key'>, drop: Drop) => {
-    const board = { columns };
-    if (isSamePlace(board, item.id, drop)) return;
-    const column = byStatus.get(drop.status)?.items ?? [];
-    move.mutate({ item, drop, column });
+  const columnItems = (status: WorkItemStatus) => byStatus.get(status)?.items ?? [];
+  // Inside the card's own project: the drop line is drawn, and the neighbour named, within its group
+  const placed = (item: Pick<WorkItem, 'id' | 'projectId'>, drop: Drop): Drop =>
+    drop.status === 'done' ? { status: 'done', index: 0 } : { status: drop.status, index: placeInGroup(columnItems(drop.status), item, drop.index) };
+
+  const commit = (item: Pick<WorkItem, 'id' | 'key' | 'projectId'>, drop: Drop) => {
+    if (isSamePlace({ columns }, item.id, drop)) return;
+    move.mutate({ item, status: drop.status, place: { index: drop.index, column: columnItems(drop.status) } });
+  };
+
+  const cancelGrab = (item: Pick<WorkItem, 'key'>, origin: Drop) => {
+    setGrab(null);
+    say(t('drag.cancelled', { key: item.key, column: label(origin.status) }));
+  };
+
+  // Leaving a picked-up card puts it back. Carried into another column the card is drawn again and
+  // takes the focus back right after, so the check waits for that
+  const cardBlur = (item: WorkItem) => (event: FocusEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget || grabRef.current?.id !== item.id) return;
+    window.setTimeout(() => {
+      const current = grabRef.current;
+      if (current?.id !== item.id) return;
+      const focused = document.activeElement instanceof HTMLElement ? document.activeElement.closest<HTMLElement>('[data-item-id]') : null;
+      if (focused?.dataset.itemId !== item.id) cancelGrab(item, current.origin);
+    }, 0);
   };
 
   const say = (text: string) => setSaid(text);
@@ -127,8 +177,10 @@ export function BoardColumns({
     if (grab && grab.id === item.id) {
       if (ARROWS.has(event.key)) {
         event.preventDefault();
-        const next = keyboardDrop(grab.at, event.key as 'ArrowUp', counts(item.id));
-        if (!next) return;
+        const step = keyboardDrop(grab.at, event.key as 'ArrowUp', counts(item.id));
+        const next = step && placed(item, step);
+        // The edge of the card's project group is an edge too
+        if (!next || (next.status === grab.at.status && next.index === grab.at.index)) return;
         refocus.current = item.id;
         setGrab({ ...grab, at: next });
         say(where(next, counts(item.id)[next.status] + 1));
@@ -141,15 +193,14 @@ export function BoardColumns({
       } else if (event.key === 'Escape' || event.key === 'Tab') {
         if (event.key === 'Escape') event.preventDefault();
         refocus.current = event.key === 'Escape' ? item.id : null;
-        setGrab(null);
-        say(t('drag.cancelled', { key: item.key, column: label(grab.origin.status) }));
+        cancelGrab(item, grab.origin);
       }
       return;
     }
     if (event.key === 'Enter') {
       event.preventDefault();
       onOpen(item);
-    } else if (event.key === ' ' && moving) {
+    } else if (event.key === ' ') {
       event.preventDefault();
       const column = byStatus.get(item.status)?.items ?? [];
       const origin = { status: item.status, index: column.findIndex((entry) => entry.id === item.id) };
@@ -162,33 +213,28 @@ export function BoardColumns({
   };
 
   // ---- a pointer drag, with the browser's own drag and drop ----
-  const dropIndex = (event: DragEvent<HTMLElement>, status: WorkItemStatus): number => {
-    // Done is in closing order: whatever lands there heads it
-    if (status === 'done') return 0;
-    const cards = [...event.currentTarget.querySelectorAll<HTMLElement>('[data-item-id]')].filter((el) => el.dataset.itemId !== dragId);
-    const at = cards.findIndex((el) => {
-      const box = el.getBoundingClientRect();
-      return event.clientY < box.top + box.height / 2;
-    });
-    return at < 0 ? cards.length : at;
+  const dropAt = (event: DragEvent<HTMLElement>, status: WorkItemStatus, item: WorkItem): Drop => {
+    const cards = [...event.currentTarget.querySelectorAll<HTMLElement>('[data-item-id]')].filter((el) => el.dataset.itemId !== item.id);
+    return placed(item, { status, index: dropSlot(cards.map((el) => el.getBoundingClientRect()), event.clientY) });
   };
 
   const columnDrag = (status: WorkItemStatus) => ({
     onDragOver: (event: DragEvent<HTMLElement>) => {
-      if (!dragId) return;
+      const item = dragId ? itemById(dragId) : undefined;
+      if (!item) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'move';
-      const index = dropIndex(event, status);
-      if (target?.status !== status || target.index !== index) setTarget({ status, index });
+      const at = dropAt(event, status, item);
+      if (target?.status !== at.status || target.index !== at.index) setTarget(at);
     },
     onDrop: (event: DragEvent<HTMLElement>) => {
-      if (!dragId) return;
+      const item = dragId ? itemById(dragId) : undefined;
+      if (!item) return;
       event.preventDefault();
-      const item = itemById(dragId);
-      const drop = { status, index: dropIndex(event, status) };
+      const drop = dropAt(event, status, item);
       setDragId(null);
       setTarget(null);
-      if (item) commit(item, drop);
+      commit(item, drop);
     },
   });
 
@@ -246,10 +292,14 @@ export function BoardColumns({
                     }
                     grabbed={grab?.id === item.id}
                     dragging={dragId === item.id}
-                    draggable={moving && !selection && !grab}
+                    draggable={!selection}
+                    more={coarse && !selection ? moveEntries(item) : undefined}
                     onOpen={() => onOpen(item)}
                     onKeyDown={cardKeys(item)}
+                    onBlur={cardBlur(item)}
                     onDragStart={(event) => {
+                      // A pointer takes over from a keyboard grab left on another card
+                      if (grab) setGrab(null);
                       event.dataTransfer.effectAllowed = 'move';
                       event.dataTransfer.setData(DRAG_TYPE, item.id);
                       event.dataTransfer.setData('text/plain', item.key);

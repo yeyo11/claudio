@@ -315,7 +315,7 @@ function Narrow({ item, actions, person }: { item: WorkItemDetail; actions: Item
  */
 export function WorkItemView({ item, variant }: { item: WorkItemDetail; variant: ItemVariant }) {
   const narrow = useMediaQuery(NARROW);
-  const actions = useItemActions(item.id);
+  const actions = useItemActions(item);
   const person = usePersonName();
   useRefreshPullRequestOnOpen(item);
   if (narrow) return <Narrow item={item} actions={actions} person={person} />;

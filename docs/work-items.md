@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T06:00:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - work-items
     - pull-request
@@ -607,7 +607,7 @@ an imported one may take later, so the imported project's item wins.
   items leave each description out: `description` is `''` and `hasDescription` says whether there is
   one, since a description may run to 100,000 characters and no card shows it. The item's own page
   fetches it whole. The Done column holds its `doneLimit` most recently closed items (20 by default)
-  in rank order and counts the rest in `more`; once the board's own page is used up, "Mostrar N más"
+  newest first and counts the rest in `more`; once the board's own page is used up, "Mostrar N más"
   asks for a larger `doneLimit`. The column counts stay over every item, so the limits and the
   sidebar count do not change with the page, and the header counts what Done leaves out. An epic's
   progress is read from its own page when the board holds only part of Done, since its closed
@@ -631,11 +631,30 @@ an imported one may take later, so the imported project's item wins.
   failed one is bad, with its word and its reason worded from the run's cause ("Falló al
   comprobarla · ninguna cuenta tenía cupo"), and the raw error behind it. The foot leaves out an
   assignee the strip already starts with (`stripNamesAssignee`).
-- **Moving a card.** On a desktop, drag it with the pointer, between columns or within one. From the
-  keyboard: Space picks the card up, the arrows carry it, Space drops it and Escape cancels, and each
-  step is announced. Every move names the card it lands after (`afterId`), so the order survives a
-  reload. The move is drawn at once in every cached board and list. If the API refuses it, the card
-  goes back and a toast says so.
+- **Moving a card** (C9 of the [regression fixes](plans/regression-fixes-2026-10-29.md)).
+  - **How.** On a desktop, drag it with the pointer, between columns or within one. From the
+    keyboard: Space picks the card up, the arrows carry it, Space drops it, and Escape, Tab or
+    focus leaving the card puts it back; each step is announced. Under a coarse pointer (a touch
+    screen wider than a phone) each card also has a "⋯" with the phone's moves (`useMoveMenu`). The
+    item's page and panel, and the strip's approval, move through the same hook.
+  - **Where it lands.** Every move names the card it lands after (`afterId`), so the order survives
+    a reload. A rank only means something inside its project, and the server refuses a neighbour
+    from another project, so the client names it within the card's own project: `afterIdFor` and
+    `placeInGroup` (`board/model.ts`) clamp the drop into the project's group of the column, and
+    the drop line is drawn there. On a project's board the group is the whole column; on All
+    projects a card dragged over another project's cards lands at the nearest edge of its own group.
+  - **The caches** (`useMoveWorkItem`). The move is drawn at once in every cached board, flat list,
+    list page (`InfiniteData`) and item page that holds the card. Moves share one mutation scope,
+    so they run one after another. A read that lands while a move is in flight (an event's refresh,
+    a poll) gets the move drawn on it again. The answer (`MoveWorkItemResult`) is written into those caches:
+    the card goes where its rank puts it and the column takes the server's count. A read that was
+    in flight when the answer came is cancelled and asked again, so it cannot draw the card back.
+    There is no blanket refetch; the server's `workitem.moved` refreshes the views. If the API
+    refuses a move, only that card is put back, as it was (a second move in flight is kept), and a
+    toast says so.
+  - **Ending a drag.** A drag ends on a document-level `dragend` or `drop`, and a grab or a drag
+    whose card left the board (moved by someone else, removed, filtered out) is dropped, so neither
+    can leave the board stuck. A keyboard grab never turns off pointer drag for the other cards.
 - **Toolbar.**
   - Search: `/` focuses it.
   - Filters: type, priority, label, assignee, epic and milestone, plus project on All projects. They
@@ -667,7 +686,8 @@ an imported one may take later, so the imported project's item wins.
   view. The next page loads as the end comes into view, or from "Cargar más"; each group's figures
   come from the board, so a head does not grow as pages arrive.
 - **All projects**: with All projects selected, every card names its project and no column shows a
-  limit, as `GET /work-items/board` answers.
+  limit, as `GET /work-items/board` answers. A column holds each project's cards as one group
+  (`ORDER BY project_id, rank`), and a card moves only inside its own group (see "Moving a card").
 - **Milestones** (`/tasks/milestones`):
   - the open milestones as cards with their progress; the first one gets the screen's `grad-border`;
   - the closed ones as rows, with Reopen; the rows' actions are ghost buttons;
