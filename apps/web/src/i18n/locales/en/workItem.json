@@ -201,7 +201,6 @@
   },
   "errors": {
     "save": "Could not save the change",
-    "move": "Could not move the task",
     "relate": "Could not add the relation",
     "comment": "Could not send the comment",
     "create": "Could not create the task",

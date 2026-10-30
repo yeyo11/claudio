@@ -460,6 +460,23 @@ button.workitem-mrow-more-link {
   cursor: inherit;
 }
 
+/* A finger's "⋯" on a card: a full touch target that does not make the card's first row taller */
+.workitem-card-more {
+  display: inline-flex;
+  margin: calc((16px - var(--touch)) / 2) -10px calc((16px - var(--touch)) / 2) -4px;
+}
+
+.workitem-card-more .icon-btn {
+  width: var(--touch);
+  height: var(--touch);
+}
+
+/* The card clips what overflows its corner: the ring goes inside the target */
+.workitem-card-more .icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -4px;
+}
+
 
 .workitem-card-title {
   margin: 0;
