@@ -761,11 +761,9 @@ test('closed moves are pruned and open waits never are', () => {
 
 test('the cost backfill prices only the jev rows that kept tokens and lost their cost', () => {
   const raw = new DatabaseSync(':memory:');
-  migrate(raw);
-  // A database as the release before the backfill left it
-  raw.exec(`PRAGMA user_version = ${String(JEV_COST_SCHEMA_VERSION - 1)}`);
-  // What the migrations after it added is not there yet, or migrating again would add it twice
-  raw.exec('ALTER TABLE flow_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN effort; ALTER TABLE assistant_runs DROP COLUMN eval_name; ALTER TABLE provider_limits DROP COLUMN overage; DROP TABLE terminal_sessions; DROP TABLE terminal_attachments; DROP TABLE spend_ledger; DROP TABLE spend_alerts; DROP TABLE flow_spend_passes; ALTER TABLE flow_runs DROP COLUMN checks; ALTER TABLE memory_proposals DROP COLUMN target_paths; DROP TABLE chat_compactions; DROP TABLE chat_notes; DROP TABLE guard_events; DROP TABLE review_findings; DROP TABLE review_runs; DROP TABLE review_rounds; ALTER TABLE memory_proposals DROP COLUMN lesson_id; DROP TABLE lesson_jobs; DROP TABLE lesson_signals; DROP TABLE lesson_evidence; DROP TABLE lessons; DROP TABLE eval_judgements; DROP TABLE eval_checks; DROP TABLE eval_calls; DROP TABLE eval_samples; DROP TABLE eval_variants; DROP TABLE eval_runs; DROP TABLE collab_records; DROP TABLE collab_transcript_lines; DROP TABLE collab_peers; DROP TABLE collab_join_requests; DROP TABLE collab_used_invites; DROP TABLE chat_uploads; DROP TABLE chat_upload_scans; DROP TABLE collab_join_denials; DROP TABLE collab_agent_reads; DROP TABLE system_samples; DROP TABLE repo_places; ALTER TABLE audit DROP COLUMN route; DROP TABLE openai_conversations; DROP TABLE openai_responses; DROP TABLE openai_chat_prompts; DROP TABLE workspaces; DROP TABLE audit_refusals;');
+  // A database as the release before the backfill left it: migrated up to it, not migrated whole and
+  // then undone, which every later migration would have to be added to
+  migrate(raw, JEV_COST_SCHEMA_VERSION - 1);
   const insert = raw.prepare(
     `INSERT INTO decisions (id, point, kind, subject_kind, provider, model, mode, status, state, questions, acted, visible, saved_run, latency_ms, input_tokens, cost_usd, at)
      VALUES (?, 'run.continuation', 'act', 'flow_run', ?, 'm', 'shadow', 'answered', '{}', '[]', 0, 0, 0, 1, ?, ?, '2026-09-30T10:00:00Z')`,

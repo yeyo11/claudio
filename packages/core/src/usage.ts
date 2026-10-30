@@ -86,12 +86,64 @@ export function localDay(iso: string): string | null {
   return `${String(t.getFullYear())}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
 }
 
+/** The newest compaction boundary of the main conversation, as the context meter is told of it. */
+interface Boundary {
+  /** Where it stands among the lines folded */
+  order: number;
+  at: string;
+  trigger: 'manual' | 'auto';
+  preTokens: number;
+  postTokens: number | null;
+}
+
+/** The last response of the main conversation that read any context, reduced to what the meter shows. */
+interface LastResponse {
+  used: number;
+  model: string | null;
+  order: number;
+}
+
+/**
+ * How many of the newest messages are kept one by one. The CLI writes the blocks of one message one
+ * after the other, so a later line only ever updates one of the last few; older messages are added
+ * into the totals, which keeps the fold of a long transcript small enough to store with its summary.
+ */
+export const OPEN_MESSAGES = 64;
+
+/** The totals of the messages no later line changes any more. */
+interface Settled {
+  /** Per model, in the order the models were first used */
+  models: Map<string | null, ChatModelTokens>;
+  /** Per day and model, keyed `${day}\0${model}`, in the order they first appeared */
+  days: Map<string, DayTokens>;
+  total: TokenUsage;
+  /** The last of them that read any context; an open message that did comes after it */
+  context: LastResponse | null;
+}
+
+const emptySettled = (): Settled => ({ models: new Map(), days: new Map(), total: emptyTokenUsage(), context: null });
+
+/** A {@link UsageFold} as plain JSON: what `transcript_folds` keeps, so a restart goes on from it. */
+export interface UsageFoldJson {
+  lines: number;
+  boundary: Boundary | null;
+  /** The open messages, oldest first, as `[id, usage, model, sidechain, at, order]` */
+  open: Array<[string, TokenUsage, string | null, boolean, string | null, number]>;
+  models: ChatModelTokens[];
+  days: DayTokens[];
+  total: TokenUsage;
+  context: LastResponse | null;
+}
+
+const usesContext = (u: TokenUsage): boolean => u.input + u.cacheRead + u.cacheCreation > 0;
+
 /**
  * Folds a transcript into what was spent and how full the context is, in one pass.
  *
  * The CLI writes one line per content block of an assistant message, each carrying the whole
  * message's usage: summing lines would count a message once per block. Usage is therefore kept by
- * message id, and the last line of an id holds its final figures.
+ * message id, and the last line of an id holds its final figures; a message that left the newest
+ * {@link OPEN_MESSAGES} is final and goes into the totals.
  *
  * Sidechains (a subagent's messages, inside its parent's transcript) count towards what was spent,
  * because it was paid for, but not towards the context, because a subagent has a window of its own.
@@ -101,8 +153,8 @@ export class UsageFold {
   private readonly byMessage = new Map<string, MessageUsage>();
   /** Counts every line folded: the order a boundary and a response came in */
   private lines = 0;
-  /** The newest boundary of the main conversation */
-  private boundary: { order: number; at: string; trigger: 'manual' | 'auto'; preTokens: number; postTokens: number | null } | null = null;
+  private boundary: Boundary | null = null;
+  private settled: Settled = emptySettled();
 
   /** `line` is the raw transcript line and `entry` what `normalizeMessage` made of it. */
   add(line: Record<string, unknown>, entry: TranscriptEntry): void {
@@ -136,6 +188,27 @@ export class UsageFold {
       at: entry.timestamp,
       order,
     });
+    if (this.byMessage.size > OPEN_MESSAGES) this.settleOldest();
+  }
+
+  private settleOldest(): void {
+    const oldest = this.byMessage.entries().next();
+    if (oldest.done) return;
+    const [id, m] = oldest.value;
+    this.byMessage.delete(id);
+    const { settled } = this;
+    let byModel = settled.models.get(m.model);
+    if (!byModel) settled.models.set(m.model, (byModel = { model: m.model, ...emptyTokenUsage() }));
+    addTokenUsage(byModel, m.usage);
+    const day = m.at ? localDay(m.at) : null;
+    if (day) {
+      const key = `${day}\0${m.model ?? ''}`;
+      let byDay = settled.days.get(key);
+      if (!byDay) settled.days.set(key, (byDay = { day, model: m.model, ...emptyTokenUsage() }));
+      addTokenUsage(byDay, m.usage);
+    }
+    addTokenUsage(settled.total, m.usage);
+    if (!m.sidechain && usesContext(m.usage)) settled.context = { used: m.usage.input + m.usage.cacheRead + m.usage.cacheCreation, model: m.model, order: m.order };
   }
 
   /** An independent copy: a fold kept with a transcript is extended by later passes, and a half-written last line must not leak into it. */
@@ -144,12 +217,19 @@ export class UsageFold {
     for (const [id, m] of this.byMessage) copy.byMessage.set(id, m);
     copy.lines = this.lines;
     copy.boundary = this.boundary;
+    copy.settled = {
+      models: new Map([...this.settled.models].map(([model, row]) => [model, { ...row }])),
+      days: new Map([...this.settled.days].map(([key, row]) => [key, { ...row }])),
+      total: { ...this.settled.total },
+      context: this.settled.context,
+    };
     return copy;
   }
 
   /** Everything spent, sidechains included, per model. Models appear in the order they were first used. */
   tokens(): ChatModelTokens[] {
     const byModel = new Map<string | null, ChatModelTokens>();
+    for (const [model, row] of this.settled.models) byModel.set(model, { ...row });
     for (const { usage, model } of this.byMessage.values()) {
       let row = byModel.get(model);
       if (!row) byModel.set(model, (row = { model, ...emptyTokenUsage() }));
@@ -161,6 +241,7 @@ export class UsageFold {
   /** What was spent on each day, per model, oldest day first. A response with no timestamp belongs to no day. */
   days(): DayTokens[] {
     const rows = new Map<string, DayTokens>();
+    for (const [key, row] of this.settled.days) rows.set(key, { ...row });
     for (const { usage, model, at } of this.byMessage.values()) {
       const day = at ? localDay(at) : null;
       if (!day) continue;
@@ -177,7 +258,7 @@ export class UsageFold {
   }
 
   total(): TokenUsage {
-    const total = emptyTokenUsage();
+    const total = { ...this.settled.total };
     for (const { usage } of this.byMessage.values()) addTokenUsage(total, usage);
     return total;
   }
@@ -188,17 +269,44 @@ export class UsageFold {
    * placeholders) says nothing about the context, so it is skipped.
    */
   context(): ContextSnapshot | null {
-    let last: MessageUsage | null = null;
+    let last = this.settled.context;
     for (const m of this.byMessage.values()) {
-      if (!m.sidechain && m.usage.input + m.usage.cacheRead + m.usage.cacheCreation > 0) last = m;
+      if (!m.sidechain && usesContext(m.usage)) last = { used: m.usage.input + m.usage.cacheRead + m.usage.cacheCreation, model: m.model, order: m.order };
     }
     const since = this.boundary && (!last || this.boundary.order > last.order) ? this.boundary : null;
     if (!last) return null;
     return {
-      used: last.usage.input + last.usage.cacheRead + last.usage.cacheCreation,
+      used: last.used,
       model: last.model,
       ...(since ? { compactedSince: { at: since.at, trigger: since.trigger, preTokens: since.preTokens, postTokens: since.postTokens } } : {}),
     };
+  }
+
+  toJSON(): UsageFoldJson {
+    return {
+      lines: this.lines,
+      boundary: this.boundary,
+      open: [...this.byMessage].map(([id, m]) => [id, m.usage, m.model, m.sidechain, m.at, m.order]),
+      models: [...this.settled.models.values()],
+      days: [...this.settled.days.values()],
+      total: this.settled.total,
+      context: this.settled.context,
+    };
+  }
+
+  /** The fold {@link toJSON} wrote, ready to take the lines after it. */
+  static fromJSON(json: UsageFoldJson): UsageFold {
+    const fold = new UsageFold();
+    fold.lines = json.lines;
+    fold.boundary = json.boundary;
+    for (const [id, usage, model, sidechain, at, order] of json.open) fold.byMessage.set(id, { usage: { ...usage }, model, sidechain, at, order });
+    fold.settled = {
+      models: new Map(json.models.map((row) => [row.model, { ...row }])),
+      days: new Map(json.days.map((row) => [`${row.day}\0${row.model ?? ''}`, { ...row }])),
+      total: { ...json.total },
+      context: json.context,
+    };
+    return fold;
   }
 }
 
