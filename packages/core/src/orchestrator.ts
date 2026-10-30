@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFil
 import { join, relative, resolve } from 'node:path';
 import type {
   ChatActivity,
+  ChatMessageSource,
   ToolPolicy,
   DecisionPointId,
   Health,
@@ -75,7 +76,7 @@ import {
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
-import type { ChatWork } from './chat-service.ts';
+import { AUTO_HINT_PREFIX, type ChatWork } from './chat-service.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { SLOT_RETRY_MS, startWhenAdmitted } from './admission-queue.ts';
 import { isTransientRefusal } from './chat-errors.ts';
@@ -3739,16 +3740,20 @@ ${quoted}
   }
 
   /**
-   * A nudge for a worker whose task is still running, sent from the orchestration board. A finished
-   * task takes none: its result already fed the tasks that depend on it, so its way forward is a fork.
+   * A nudge for a worker whose task is still running, sent from the orchestration board, or by the
+   * Supervisor on its own (`source: 'supervisor'`), which the worker is told is automatic (C2). A
+   * finished task takes none: its result already fed the tasks that depend on it, so its way forward
+   * is a fork.
    */
-  hintTask(id: string, taskId: string, text: string): Orchestration {
+  hintTask(id: string, taskId: string, text: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'> = 'person'): Orchestration {
     const { orch, task } = this.decidable(id, taskId, ['running'], (t) =>
       `task ${t.id} is ${t.status}: a hint reaches a worker that is still running, and the way forward for a finished task is a fork of its chat`,
     );
-    if (!text?.trim()) throw new Error('text is required');
+    const words = text?.trim();
+    if (!words) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
-    this.runs.send(task.runId, `${ORCHESTRATION_HINT_PREFIX}\n\n${text.trim()}`);
+    const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : AUTO_HINT_PREFIX;
+    this.runs.send(task.runId, `${prefix}\n\n${words}`, [], undefined, { source, words });
     return orch;
   }
 

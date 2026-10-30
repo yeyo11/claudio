@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Account, AccountLimit } from '@claudio/shared';
-import { accountName, accountReading, accountUsable, accountViewOf, canSignInAgain, connectionOf, type ConnectionFacts, readyCount, rotationOrder, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
+import { accountName, accountReading, accountUsable, canSignInAgain, connectionOf, type ConnectionFacts, readyCount, rotationOrder, signInProblem, sortAccounts, usagePct, windowRows } from '../src/lib/accounts.ts';
 
 const limit = (state: AccountLimit['state'], utilization: number | null): AccountLimit => ({
   state,
@@ -109,17 +109,6 @@ test('connectionOf: signed out only when no account has a credential, or the sig
 });
 
 // ---------- the account view (C4) ----------
-
-const settings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order' as const };
-
-test('accountViewOf reads the overview\'s view, and refuses any other shape', () => {
-  const view = { inUse: null, inUseReason: 'signed-out', accounts: [], atLimit: false, nextReset: null, settings: { ...settings, preferred: 'b', order: ['b', 'a'] } };
-  assert.deepEqual(accountViewOf(view)?.settings.order, ['b', 'a']);
-  assert.equal(accountViewOf(view)?.settings.preferred, 'b');
-  // The snapshot an older server sent is not a view
-  assert.equal(accountViewOf({ total: 2, ready: 1, current: 'a' }), null);
-  assert.equal(accountViewOf(undefined), null);
-});
 
 test('rotationOrder lists every enabled account once: the saved order first, then the rest in list order', () => {
   const accounts = [account('a'), account('b'), account('c'), account('off', { enabled: false })];

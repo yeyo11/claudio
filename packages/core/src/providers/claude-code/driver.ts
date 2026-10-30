@@ -64,6 +64,7 @@ class ClaudeCodeSession implements DriverSession {
   }
 
   async interrupt(): Promise<InterruptReceipt> {
+    // The guard watcher excuses the calls this interrupt cuts short, until the CLI answers it
     this.stream.interrupting();
     try {
       const response = await this.control.request({ subtype: 'interrupt' } satisfies InterruptRequest);

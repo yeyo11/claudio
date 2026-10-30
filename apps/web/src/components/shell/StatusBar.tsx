@@ -4,7 +4,7 @@ import { ChevronRight, LogIn, SquareTerminal, TriangleAlert } from 'lucide-react
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { api, keys, useSpend } from '../../api';
-import { accountName, accountReading, accountViewOf, connectionOf, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type ConnectionKind } from '../../lib/accounts';
+import { accountName, accountReading, connectionOf, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type ConnectionKind } from '../../lib/accounts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
@@ -54,7 +54,7 @@ export function useConnection(overview: Now['overview'], feedOpen: boolean): Con
   // The account view is the one source: the account new work starts on, its plan, its reading and
   // the rotation's switch. Without one (a server without accounts) `/auth`'s account in use, the
   // same fact without its reading, stands in, and the CLI's own login names the plan
-  const view = accountViewOf(overview.data?.accounts);
+  const view = overview.data?.accounts ?? null;
   const inUse = view ? view.inUse : (auth?.inUse ?? null);
   const claude = useProviders().data?.find((s) => s.id === CLAUDE_CODE_ID);
   const kind = connectionOf({

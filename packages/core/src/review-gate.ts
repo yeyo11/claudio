@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { LimitWait, ReviewDimension, ReviewFinding, ReviewGateSpec, ReviewRound, ReviewRunState, ReviewSide } from '@claudio/shared';
+import { SLOT_RETRY_MS, startWhenAdmitted } from './admission-queue.ts';
 import { isTransientRefusal } from './chat-errors.ts';
 import type { RunResult } from './chats.ts';
 import { collectReviewDiff, type ReviewChunk, type ReviewDiff, type ReviewDiffFile } from './review-diff.ts';
@@ -10,7 +11,6 @@ import { scanDiff, securityTriggered, type ScanFile, type ScanFinding } from './
 import { REVIEW_FINDINGS_SCHEMA, REVIEW_VERDICTS_SCHEMA, parseFindings, parseVerdicts, type ParsedFinding } from './review-schemas.ts';
 import type { ReviewStore } from './review-store.ts';
 import { errorMessage } from '@claudio/shared';
-import { setTimeout as sleep } from 'node:timers/promises';
 
 /*
  * One round of the review gate: preparing, reviewing and verifying (docs/plans/review-gate.md,
@@ -26,8 +26,6 @@ export const VERIFIER_MAX_TURNS = 24;
 export const VERIFIER_BATCH = 4;
 /** Verifier runs per round, which bounds what a flood of high findings can cost */
 export const VERIFIER_RUNS_MAX = 6;
-/** A start is refused for room (a full slot, short memory) until some frees; the tasks poll every 3 s too */
-export const SLOT_RETRY_MS = 3000;
 /** Cost of a reviewer's fixed prompt (role, rules, tools) before it reads any chunk, in USD */
 export const FIXED_PROMPT_USD = 0.05;
 /** USD per million input tokens of a Sonnet-class reviewer; set from the v0 recordings, never fetched */
@@ -420,32 +418,26 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
       return fail('failed', `the role could not be prepared: ${(err as Error).message}`);
     }
     const deadline = Date.now() + timeoutMs;
-    let chatId: string | null = null;
-    for (;;) {
-      try {
-        chatId = host.start({
-          prompt: meta.prompt(role.body, 'system'),
-          cwd: ctx.dir,
-          model: meta.model,
-          jsonSchema: meta.schema,
-          ...launch,
-          maxBudgetUsd: Math.min(runCap, left),
-          maxTurns: kind === 'reviewer' ? REVIEWER_MAX_TURNS : VERIFIER_MAX_TURNS,
-          name: meta.name.slice(0, 60),
-        });
-        break;
-      } catch (err) {
-        const message = errorMessage(err);
-        // No room for a run, a slot or memory: room frees soon, and the wait counts against the run's own time
-        const capacity = isTransientRefusal(err);
-        if (capacity && Date.now() < deadline) {
-          // An abort ends the wait early; the signal is looked at just below
-          await sleep(retryMs, undefined, { signal }).catch(() => undefined);
-          if (signal.aborted) return fail('cancelled', 'stopped');
-          continue;
-        }
-        return fail('failed', capacity ? 'no room for a run came free in time' : message);
-      }
+    let chatId: string;
+    try {
+      // No room for a run, a slot or memory: room frees soon, and the wait counts against the run's own time
+      chatId = await startWhenAdmitted(
+        () =>
+          host.start({
+            prompt: meta.prompt(role.body, 'system'),
+            cwd: ctx.dir,
+            model: meta.model,
+            jsonSchema: meta.schema,
+            ...launch,
+            maxBudgetUsd: Math.min(runCap, left),
+            maxTurns: kind === 'reviewer' ? REVIEWER_MAX_TURNS : VERIFIER_MAX_TURNS,
+            name: meta.name.slice(0, 60),
+          }),
+        { deadline, signal, retryMs },
+      );
+    } catch (err) {
+      if (signal.aborted) return fail('cancelled', 'stopped');
+      return fail('failed', isTransientRefusal(err) ? 'no room for a run came free in time' : errorMessage(err));
     }
     store.updateRun(runId, { state: 'running', chatId, startedAt: new Date().toISOString() });
     tally.running += 1;

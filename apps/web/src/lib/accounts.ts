@@ -1,8 +1,6 @@
 import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, AccountView, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
-import { isRecord } from '@claudio/shared';
 import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
-import { useMemo } from 'react';
 import { useOverview } from '../api';
 import type { LimitReading } from './shell-live';
 
@@ -10,15 +8,6 @@ import type { LimitReading } from './shell-live';
 // The server computes one view of the accounts and serves it as `overview.accounts`; every account
 // fact the shell, the chat's banner and the Accounts page show comes from it, so they cannot
 // disagree.
-
-/**
- * The account view from `overview.accounts`, or null when the server sent none (no accounts
- * package). Read through this so a page never mistakes another shape for it.
- */
-export function accountViewOf(value: unknown): AccountView | null {
-  if (!isRecord(value) || !Array.isArray(value.accounts) || !isRecord(value.settings) || !('inUse' in value)) return null;
-  return value as unknown as AccountView;
-}
 
 /**
  * The global order as the Rotation card lists it: the saved order's enabled ids first, then every
@@ -212,6 +201,5 @@ export function connectionOf(facts: ConnectionFacts): ConnectionKind {
 
 /** The account view of the overview, the one source of every account fact on screen; null without one. */
 export function useAccountView(): AccountView | null {
-  const accounts = useOverview().data?.accounts;
-  return useMemo(() => accountViewOf(accounts), [accounts]);
+  return useOverview().data?.accounts ?? null;
 }

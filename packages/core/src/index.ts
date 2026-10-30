@@ -879,11 +879,11 @@ export class Core {
         return (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [];
       },
       hint: async (proposal, source) => {
-        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint);
+        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint, source);
         else await this.chats.hint(proposal.chatId, proposal.hint, { source });
       },
       cancel: async (proposal, toolUseId) => {
-        await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint });
+        await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint }, { source: 'supervisor' });
       },
       emit: (event) => this.events.emit(event),
       spendOpen: () => this.spend.allows('supervisor'),

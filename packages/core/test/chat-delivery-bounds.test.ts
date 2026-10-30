@@ -373,13 +373,14 @@ test("a person's account switch waits for the background work, says so, and move
   const r = rig();
   const store = new AccountStore({ dataDir: r.config.dataDir, defaultDir: r.config.configDir, claude: FAKE_QUEUE });
   try {
-    // Two accounts: the CLI's own login has no credential here, so it is never chosen (D2), and the
-    // chat starts on the first one it can run on
-    const first = await store.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });
-    const account = await store.add({ kind: 'token', alias: 'beta', secret: 'tok-beta' });
+    // Two accounts: the CLI's own login has no credential here and is never chosen (C4), so the chat
+    // starts on one of these and the person moves it to the other
+    const alpha = await store.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });
+    const beta = await store.add({ kind: 'token', alias: 'beta', secret: 'tok-beta' });
     r.chats.accounts = store;
-    const chat = r.chats.start({ prompt: `BG ${r.file('f1')}`, account: first.id });
+    const chat = r.chats.start({ prompt: `BG ${r.file('f1')}` });
     await until(() => r.chats.get(chat.id)?.status === 'idle', 'the turn to end');
+    const account = r.chats.get(chat.id)?.account === alpha.id ? beta : alpha;
     const switched = await r.chats.switchAccount(chat.id, account.id, 'person');
     assert.equal(switched.pending, true);
     assert.ok(r.chats.events(chat.id).some((e) => e.kind === 'notice' && /waits for the work running in the background/.test(e.text ?? '')));

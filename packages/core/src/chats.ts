@@ -1486,7 +1486,7 @@ export class ChatManager extends EventEmitter {
       chat.lose(message, NOT_READ, 'not-read');
     }
     if (dropped.length === 0) return;
-    this.persist();
+    this.persist(chat);
     // They were all that kept a chat busy between turns: it waits for the person now
     if (!chat.turnOpen && chat.written().length === 0 && chat.status === 'busy' && chat.opts.keepAlive !== false) {
       if (chat.settleTimer) clearTimeout(chat.settleTimer);
@@ -1532,7 +1532,7 @@ export class ChatManager extends EventEmitter {
     // Not written to any agent yet: it is Claudio's own to drop
     if (message.state === 'held' || chat.armingQueue.some((queued) => queued.message.id === messageId)) {
       chat.withdraw(message);
-      this.persist();
+      this.persist(chat);
       return chat.summary();
     }
     const session = chat.session;
@@ -1540,7 +1540,7 @@ export class ChatManager extends EventEmitter {
     if (!(await session.cancelMessage(messageId))) throw new DeliveryRefusal('the agent has already taken this message', 'taken');
     const still = chat.pending.get(messageId);
     if (still) chat.withdraw(still);
-    this.persist();
+    this.persist(chat);
     return chat.summary();
   }
 
@@ -2799,7 +2799,7 @@ export class ChatManager extends EventEmitter {
     // input closed (D3): the switch waits for that work, and the chat says why it has not moved
     if (chat.alive && runsInBackground(chat.branches)) {
       chat.pendingAccount = accountId;
-      this.persist();
+      this.persist(chat);
       this.notice(chat.id, `The switch to account ${accountId} waits for the work running in the background: ending the process now would stop it.`, { account: accountId, reason: 'background' });
       return { chat: chat.summary(), pending: true };
     }
