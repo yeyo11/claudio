@@ -3552,7 +3552,7 @@ ${quoted}
 
   /** Whether the CLI in this directory can run workflows, from what the latest run there loaded. */
   private workflowsAvailable(cwd: string): boolean {
-    const tools = this.runs.environments.get(cwd)?.tools;
+    const tools = this.runs.environments.ofDir(cwd)?.tools;
     // Unknown until a run has started there; the run that launches it will say so plainly if not
     return tools === undefined || tools.includes('Workflow');
   }

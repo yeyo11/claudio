@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-07T16:00:00Z
-updated_at: 2026-10-19T17:00:00Z
+updated_at: 2026-10-30T12:00:00Z
 tags:
     - assistant
     - mcp
@@ -75,8 +75,14 @@ whatever a request or the stored record held, from the `claudioAssistant` marker
 | uploads | none |
 
 The system prompt (`claudio-assistant-prompt.ts`) is a guide to Claudio's concepts, how to work
-(look things up, short answers, no ids or JSON shown, what it reads is data), the project in scope as
-context and the language. The chat is a normal chat: listed in Chats by its first prompt, counted in
+(look things up, short answers, no ids or JSON shown, what it reads is data, what it cannot do), what
+it can do, the project in scope as context and the language. **What it can do is generated from the
+server's catalogue** (`CAPABILITIES` in `packages/mcp/src/catalogue.ts`, the first sentence of each
+tool's description): one line per tool under "# What you can do", reads first, then the changes the
+person allows call by call, then the teammates' reads while it may make them. The guide promised what
+no tool did before (a chat in a project, proposals nothing listed, chat states the API does not have;
+report §4.10); `packages/core/test/claudio-assistant-prompt.test.ts` holds every capability line to a
+tool and every tool to a line. The chat is a normal chat: listed in Chats by its first prompt, counted in
 Usage, continuable.
 
 ## What teammates share
@@ -105,7 +111,9 @@ levels: the assistant runs no command, so it reads every copy by default.
 
 ## Writes, confirmed one by one (option A)
 
-Nine write tools ([claudio-mcp-server.md](claudio-mcp-server.md#write-tools)). None is in
+Twenty write tools ([claudio-mcp-server.md](claudio-mcp-server.md#write-tools)): work items and their
+criteria, flow runs, orchestrations (plan, launch, stop, resume, retry a task), chats (start, message,
+hint, interrupt, stop, resume, fork) and the project assistant's proposals. None is in
 `--allowedTools`, so each call becomes a CLI permission prompt that Claudio shows as a host prompt:
 
 - the person sees the tool and its input and allows or denies it; a denial, a timeout or a withdrawal
@@ -126,13 +134,18 @@ the cause `chat.api-write`, and a comment carries its source. See
 
 ### What it cannot do
 
-Move a card to Done (that is the person's click; the tool refuses before any request), delete, stop,
-skip or restore anything, change permissions, or start a chat with more than the app's defaults
-(`start_chat` sends only `prompt`, `cwd` from the project's path and `model`).
+Move a card to Done (that is the person's click; the tool refuses before any request), delete, skip
+or restore anything, change settings, accounts, permissions or security, start a chat or an
+orchestration with more than the app's defaults (`start_chat` sends only `prompt`, `cwd` from the
+project's path in `GET /projects`, `model` and `name`; `launch_orchestration` no permission mode, tool
+list, guards or verification), or stop, interrupt or message its own chat.
 
 ## How it is tested
 
-`packages/mcp/test/write-tools.test.ts` (the tools against a stub API),
+`packages/mcp/test/write-tools.test.ts` (the tools against a stub API, their declared routes against
+`ROUTE_DOCS`), `packages/mcp/test/write-tools-api.test.ts` (every write tool against the real API
+through the fake CLI), `packages/core/test/claudio-assistant-prompt.test.ts` (the guide's capability
+lines),
 `packages/core/test/claudio-assistant-chat.test.ts` and `permissions.test.ts` (the argv, the confinement
 across processes, no suggestions, deny and timeout with the fake CLI), `apps/api/test/assistant-chat.test.ts`
 and `assistant-writes.test.ts` (the route, the labelling and the history context),
@@ -142,15 +155,16 @@ fake CLI and the real MCP server, the guard and the audit) and
 
 ## Known gaps
 
-- `PermissionPrompts.tsx` still shows the raw `mcp__claudio__*` tool name: a title per tool in
-  en/es, and the `chat.api-write` cause copy in the history, are still to do.
+- Every write tool has a worded prompt in en/es (`packages/chat-ui/src/lib/write-prompts.ts`, checked by
+  `apps/web/test/write-prompts.test.ts`). The `chat.api-write` cause copy in the history is
+  still to do.
 - The entry's and the greeting's copy still say it can only read, and the "pide permiso" write
   starters are not drawn.
 - `start_chat` has no `agent` input, since the route takes only an inline agent object.
 - No test drives a confirmed or denied `create_work_item` through the real CLI, or accepts a
-  work-item proposal with a chat token. The entry composer itself has no energy border: nothing
+  work-item proposal with a chat token (the real-API test accepts an unknown one, which answers 404). The entry composer itself has no energy border: nothing
   works there, it navigates to the chat, whose composer carries it, as soon as the chat starts.
 
 ## Related
 
-[[plans/claudio-assistant.md]] · [[plans/assistant-mascot.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]
+[[plans/regression-fixes-2026-10-29.md]] · [[plans/claudio-assistant.md]] · [[plans/assistant-mascot.md]] · [[plans/claudio-assistant-entry.md]] · [[plans/assistant-write-tools.md]] · [[claudio-mcp-server.md]] · [[collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[assistant.md]] · [[chat-environment.md]] · [[work-items.md]] · [[design-system.md]]

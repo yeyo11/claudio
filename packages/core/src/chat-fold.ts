@@ -85,13 +85,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         chat.workingDir = event.cwd;
         chat.activity.setCwd(event.cwd);
       }
-      const environment = { cwd: chat.cwd, observedAt: now(), chatId: chat.id, ...event.environment };
-      host.environments.set(chat.cwd, environment);
-      try {
-        host.db.saveEnvironment(environment);
-      } catch {
-        // the panel only loses this directory until its next run
-      }
+      host.environments.observe({ cwd: chat.cwd, observedAt: now(), chatId: chat.id, ...event.environment });
       chat.push(event.run);
       // What the first event confirms about the installed agent: Core hands it to the detector
       host.emit('chat-init', chat.provider, init);

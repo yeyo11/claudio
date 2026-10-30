@@ -18,6 +18,7 @@ const TRANSCRIPT_MAX = 200;
 const owner = str('The endpoint id of the install that shares the project, as collab_list_shared gives it', { minLength: 1, maxLength: 200 });
 const shareId = str('The shareId of the shared project, as collab_list_shared gives it', { minLength: 1, maxLength: 200 });
 
+const COPY_ROUTE = 'GET /collaborators/shared/:owner/:shareId';
 const copyPath = (args: Record<string, unknown>): string => `/collaborators/shared/${seg(need(args, 'owner'))}/${seg(need(args, 'shareId'))}`;
 
 const str0 = (value: unknown): string => (typeof value === 'string' ? value : '');
@@ -47,12 +48,15 @@ function copyTool(
   properties: Parameters<typeof schema>[0],
   required: string[],
   what: string,
+  /** The copy's routes it reads, below `/collaborators/shared/:owner/:shareId` */
+  under: readonly string[],
   read: (args: Record<string, unknown>, api: ApiClient, base: string) => Promise<unknown>,
 ): Tool {
   return {
     name,
     description,
     inputSchema: schema({ owner, shareId, ...properties }, ['owner', 'shareId', ...required]),
+    routes: [COPY_ROUTE, ...under.map((path) => `${COPY_ROUTE}${path}`)],
     run: async (args, api) => {
       const source = await sourceOf(api, args, name);
       return fromTeammate(source, what, await read(args, api, copyPath(args)));
@@ -66,6 +70,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     description:
       "The projects teammates share with this install that this chat may read, by person and install: each with the owner and shareId the other collab_ tools take, what it shares and when the copy was last synced. Use it first for 'what is my teammate working on'.",
     inputSchema: schema({}),
+    routes: ['GET /collaborators/shared'],
     run: async (_args, api) => {
       const list = objs(await api.get('/collaborators/shared', {}, { tool: 'collab_list_shared' }));
       if (!list.length) return new TextResult('No project shared with this install is readable by this chat.');
@@ -97,6 +102,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     { limit: int('How many chats', 1, PAGE_MAX) },
     [],
     'Chats',
+    ['/chats'],
     async (args, api, base) =>
       limited(objs(await api.get(`${base}/chats`, {}, { tool: 'collab_read_chats' })), numArg(args, 'limit')).map((chat) => ({
         ...pick(chat, ['id', 'title', 'firstPrompt', 'messageCount', 'startedAt', 'updatedAt', 'model', 'origin', 'branch', 'live']),
@@ -115,6 +121,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     },
     ['chatId'],
     'A chat transcript',
+    ['/chats/:chatId/transcript', '/chats/:chatId/subagents/:agentId'],
     async (args, api, base) => {
       const chat = `${base}/chats/${seg(need(args, 'chatId'))}`;
       const agentId = text(args, 'agentId');
@@ -131,6 +138,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     { name: str('One memory file, by name', { minLength: 1, maxLength: 300 }) },
     [],
     'Project memory',
+    ['/memory'],
     async (args, api, base) => {
       const files = objs(await api.get(`${base}/memory`, {}, { tool: 'collab_read_memory' })).map((file) => pick(file, ['name', 'isIndex', 'description', 'type', 'updatedAt', 'content']));
       const name = text(args, 'name');
@@ -146,6 +154,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     {},
     [],
     'Documents and artifacts',
+    ['/documents', '/artifacts'],
     async (_args, api, base) => {
       const [documents, artifacts] = await Promise.all([
         api.get(`${base}/documents`, {}, { tool: 'collab_read_documents' }),
@@ -171,6 +180,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     },
     [],
     'The board',
+    ['/work-items'],
     async (args, api, base) => {
       const board = await api.get(`${base}/work-items`, {}, { tool: 'collab_read_board' });
       const items = objs(isObj(board) ? board.items : []);
@@ -199,6 +209,7 @@ export const COLLAB_TOOLS: readonly Tool[] = [
     { limit: int('How many entries', 1, PAGE_MAX) },
     [],
     'The journal',
+    ['/journal'],
     async (args, api, base) =>
       limited(objs(await api.get(`${base}/journal`, {}, { tool: 'collab_read_journal' })), numArg(args, 'limit') ?? 50).map((entry) => ({
         ...pick(entry, ['id', 'kind', 'text', 'documentPath', 'createdAt']),

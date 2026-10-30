@@ -575,6 +575,19 @@
       "startChat": "Start a chat",
       "acceptProposal": "Accept a proposal of the assistant",
       "discardProposal": "Discard a proposal of the assistant",
+      "checkCriterion": "Check an acceptance criterion of {{item}}",
+      "uncheckCriterion": "Uncheck an acceptance criterion of {{item}}",
+      "planOrchestration": "Plan an orchestration",
+      "launchOrchestration": "Launch the orchestration {{name}}",
+      "launchPlannedOrchestration": "Launch the planned orchestration",
+      "stopOrchestration": "Stop an orchestration",
+      "resumeOrchestration": "Resume a stopped orchestration",
+      "sendChatMessage": "Send a message to another chat",
+      "hintChat": "Send a hint to another chat",
+      "interruptChat": "Interrupt another chat's turn",
+      "stopChat": "Stop another chat",
+      "resumeChat": "Resume a chat",
+      "forkChat": "Create a fork of a chat",
       "fields": {
         "title": "Title: {{value}}",
         "status": "Column: {{value}}",
@@ -582,7 +595,8 @@
         "type": "Type: {{value}}",
         "labels": "Labels: {{value}}",
         "criteria": "Acceptance criteria: {{value}}",
-        "model": "Model: {{value}}"
+        "model": "Model: {{value}}",
+        "tasks": "Tasks: {{value}}"
       }
     }
   },
