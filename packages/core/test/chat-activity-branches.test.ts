@@ -225,6 +225,24 @@ test('what a subagent is doing goes out at most once per subagent per window, ne
   publisher.dispose();
 });
 
+test('a subagent that went quiet is forgotten: one that starts again later is news at once', async () => {
+  // A long-lived chat runs hundreds of subagents; each used to keep its state until the chat was forgotten
+  const seen: ClaudioEvent[] = [];
+  const publisher = new RunEventPublisher((e) => seen.push({ ...e, id: seen.length + 1, at: '' } as ClaudioEvent), 250, 60);
+  const run = runtime([{ toolUseId: 'toolu_a', subagentType: 'Explore', description: 'Find the feed', status: 'running', startedAt: '', endedAt: null }]);
+  const said = () => seen.flatMap((e) => (e.type === 'subagent.activity' ? [e] : []));
+  publisher.subagentActivity(run, { toolUseId: 'toolu_a', agentId: 'agent-1', activity: { kind: 'tool', tool: 'Read', since: '1' } });
+  await new Promise((r) => setTimeout(r, 80));
+  publisher.subagentActivity(run, { toolUseId: 'toolu_a', agentId: 'agent-1', activity: null });
+  // Inside the window the quiet line opened: a subagent still remembered would be held until it closed
+  publisher.subagentActivity(run, { toolUseId: 'toolu_a', agentId: 'agent-1', activity: { kind: 'tool', tool: 'Grep', since: '2' } });
+  assert.deepEqual(
+    said().map((e) => e.activity?.tool ?? null),
+    ['Read', null, 'Grep'],
+  );
+  publisher.dispose();
+});
+
 // ---------- end to end, over a real process ----------
 
 async function until<T>(read: () => T | undefined | null | false, what: string): Promise<T> {
