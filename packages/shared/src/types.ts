@@ -5521,6 +5521,72 @@ export interface TunnelStatus {
   settings: TunnelSettings;
 }
 
+// ---------- On the local network ----------
+
+// A second listener inside the server, on a fixed port of the machine's own addresses, so devices on
+// the person's network reach Claudio without a forwarder in front of it (docs/plans/lan-access.md).
+// It only listens while the guard asks for a credential, its addresses join the allowlist only while
+// it does, and each device on it is told apart by its own address. Plain HTTP: no TLS.
+
+/**
+ * `off`: not listening. `refused`: it should listen, but the guard asks for no credential (`mode:
+ * none`). `port-in-use`: something else on the machine holds the port. `failed`: the listener could
+ * not open for another reason (an address the machine no longer has, say).
+ */
+export type LanState = 'off' | 'listening' | 'refused' | 'port-in-use' | 'failed';
+
+/** `lan-settings.json`: whether, where and on which port the listener opens. */
+export interface LanSettings {
+  /**
+   * Whether it listens whenever Claudio starts. `null` is the launcher's default (`CLAUDIO_LAN`):
+   * on for the desktop app (`auto`) and with `on`, off where nothing set it. A status always says
+   * what applies (a boolean); a `PUT` with `null` goes back to the default.
+   */
+  enabled: boolean | null;
+  /** 1024–65535, 8791 by default; read-only where `CLAUDIO_LAN_PORT` sets it */
+  port: number;
+  /** Every IPv4 address of the machine, or the ones listed; read-only where `CLAUDIO_LAN_BIND` sets it */
+  bind: 'all' | string[];
+}
+
+/** `PUT /lan/settings`: the settings to change, and only those. */
+export type UpdateLanSettingsRequest = Partial<LanSettings>;
+
+/** An address a device on the network opens Claudio at. */
+export interface LanAddress {
+  /** The IPv4 address the listener answers on; for a `.local` name, the one it resolved to */
+  ip: string;
+  /** `<hostname>.local` when it resolves to one of the listening addresses; null for the bare address */
+  host: string | null;
+  /** `http://<ip or host>:<port>` */
+  url: string;
+}
+
+/** A network interface of the machine with an IPv4 address the listener could bind to. */
+export interface LanInterface {
+  /** The operating system's name for it (`wlp2s0`, `eth0`) */
+  name: string;
+  ip: string;
+}
+
+/** `GET /lan`, and what `lan.changed` carries. */
+export interface LanStatus {
+  state: LanState;
+  /** Why it is `refused`, `port-in-use` or `failed`, with a code a client translates; null otherwise */
+  reason: Localized | null;
+  /** The port it listens on, or would */
+  port: number;
+  /** Where devices open it; empty unless `listening` */
+  addresses: LanAddress[];
+  /** The machine's IPv4 interfaces, loopback left out, to choose `bind` from */
+  interfaces: LanInterface[];
+  settings: LanSettings;
+  /** Whether it may listen here at all: false where `CLAUDIO_LAN=off` */
+  available: boolean;
+  /** While `port-in-use`: what holds the port (the address it was taken on) and the next free one */
+  portTaken: TunnelPortTaken | null;
+}
+
 // ---------- Collaborators ----------
 
 // Teammates' Claudios share projects read only, peer to peer over iroh (docs/plans/collaborators.md).
@@ -8627,6 +8693,15 @@ export interface TunnelChangedEvent extends ClaudioEventBase {
   tunnel: TunnelStatus;
 }
 
+/**
+ * The listener on the local network opened, closed, was refused, failed, changed its addresses or had
+ * its settings changed. Carries the whole status; never a notification.
+ */
+export interface LanChangedEvent extends ClaudioEventBase {
+  type: 'lan.changed';
+  lan: LanStatus;
+}
+
 // ---------- Terminal: the person's own shell ----------
 
 /** What a terminal is opened in: a project's directory or worktree, a chat's working directory, or the workspace where chats outside any project run. */
@@ -9618,6 +9693,7 @@ export type ClaudioEvent =
   | SettingsChangedEvent
   | DashboardLayoutChangedEvent
   | TunnelChangedEvent
+  | LanChangedEvent
   | TerminalChangedEvent
   | WebhookChangedEvent
   | LoginUpdatedEvent

@@ -148,6 +148,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'assistant.proposal': true,
   'settings.changed': true,
   'tunnel.changed': true,
+  'lan.changed': true,
   'terminal.changed': true,
   'dashboard.layout': true,
   'webhook.changed': true,
@@ -506,6 +507,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.overview, NOW]];
     case 'tunnel.changed':
       // The event carries the whole status, which `patchSettings` writes
+      return [];
+    case 'lan.changed':
+      // The event carries the whole status; the Remote access card reads it from the feed
       return [];
     case 'terminal.changed':
       // The terminal's own view reads this feed; no cached query depends on it yet

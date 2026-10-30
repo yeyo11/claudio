@@ -7758,6 +7758,9 @@
         "$ref": "#/components/schemas/TunnelChangedEvent"
       },
       {
+        "$ref": "#/components/schemas/LanChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/TerminalChangedEvent"
       },
       {
@@ -12722,6 +12725,194 @@
       "port"
     ],
     "description": "What the tunnel may be told to do beside starting and stopping it (`tunnel-settings.json`)."
+  },
+  "LanChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "lan.changed"
+      },
+      "lan": {
+        "$ref": "#/components/schemas/LanStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "lan",
+      "title",
+      "type"
+    ],
+    "description": "The listener on the local network opened, closed, was refused, failed, changed its addresses or had its settings changed. Carries the whole status; never a notification."
+  },
+  "LanStatus": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/LanState"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Localized"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Why it is `refused`, `port-in-use` or `failed`, with a code a client translates; null otherwise"
+      },
+      "port": {
+        "type": "number",
+        "description": "The port it listens on, or would"
+      },
+      "addresses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LanAddress"
+        },
+        "description": "Where devices open it; empty unless `listening`"
+      },
+      "interfaces": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/LanInterface"
+        },
+        "description": "The machine's IPv4 interfaces, loopback left out, to choose `bind` from"
+      },
+      "settings": {
+        "$ref": "#/components/schemas/LanSettings"
+      },
+      "available": {
+        "type": "boolean",
+        "description": "Whether it may listen here at all: false where `CLAUDIO_LAN=off`"
+      },
+      "portTaken": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/TunnelPortTaken"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "While `port-in-use`: what holds the port (the address it was taken on) and the next free one"
+      }
+    },
+    "required": [
+      "state",
+      "reason",
+      "port",
+      "addresses",
+      "interfaces",
+      "settings",
+      "available",
+      "portTaken"
+    ],
+    "description": "`GET /lan`, and what `lan.changed` carries."
+  },
+  "LanState": {
+    "type": "string",
+    "enum": [
+      "off",
+      "listening",
+      "refused",
+      "port-in-use",
+      "failed"
+    ],
+    "description": "`off`: not listening. `refused`: it should listen, but the guard asks for no credential (`mode: none`). `port-in-use`: something else on the machine holds the port. `failed`: the listener could not open for another reason (an address the machine no longer has, say)."
+  },
+  "LanAddress": {
+    "type": "object",
+    "properties": {
+      "ip": {
+        "type": "string",
+        "description": "The IPv4 address the listener answers on; for a `.local` name, the one it resolved to"
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "`<hostname>.local` when it resolves to one of the listening addresses; null for the bare address"
+      },
+      "url": {
+        "type": "string",
+        "description": "`http://<ip or host>:<port>`"
+      }
+    },
+    "required": [
+      "ip",
+      "host",
+      "url"
+    ],
+    "description": "An address a device on the network opens Claudio at."
+  },
+  "LanInterface": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The operating system's name for it (`wlp2s0`, `eth0`)"
+      },
+      "ip": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "ip"
+    ],
+    "description": "A network interface of the machine with an IPv4 address the listener could bind to."
+  },
+  "LanSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": [
+          "boolean",
+          "null"
+        ],
+        "description": "Whether it listens whenever Claudio starts. `null` is the launcher's default (`CLAUDIO_LAN`): on for the desktop app (`auto`) and with `on`, off where nothing set it. A status always says what applies (a boolean); a `PUT` with `null` goes back to the default."
+      },
+      "port": {
+        "type": "number",
+        "description": "1024–65535, 8791 by default; read-only where `CLAUDIO_LAN_PORT` sets it"
+      },
+      "bind": {
+        "anyOf": [
+          {
+            "type": "string",
+            "const": "all"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Every IPv4 address of the machine, or the ones listed; read-only where `CLAUDIO_LAN_BIND` sets it"
+      }
+    },
+    "required": [
+      "enabled",
+      "port",
+      "bind"
+    ],
+    "description": "`lan-settings.json`: whether, where and on which port the listener opens."
   },
   "TerminalChangedEvent": {
     "type": "object",
