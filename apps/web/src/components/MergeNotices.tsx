@@ -2,7 +2,7 @@ import type { MergeState } from '@claudio/shared';
 import { CircleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@claudio/ui/components/icons';
-import { timeAgo } from '@claudio/ui/lib/format';
+import { formatHour, timeAgo } from '@claudio/ui/lib/format';
 import { autoMergeOffKey } from '../lib/merge';
 
 /**
@@ -18,7 +18,7 @@ export function MergeNotices({ state, host }: { state: Pick<MergeState, 'limited
     <>
       {state.limitedUntil && (
         <p className="small muted" role="status">
-          {t('limited', { host, time: new Date(state.limitedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
+          {t('limited', { host, time: formatHour(state.limitedUntil) })}
         </p>
       )}
       {(off || state.rebaseOnHostWhy) && (

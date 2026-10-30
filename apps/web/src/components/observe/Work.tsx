@@ -1,13 +1,13 @@
-import type { Chat, Orchestration, OrchestrationTaskState, TranscriptEntry } from '@claudio/shared';
+import type { Orchestration, OrchestrationTaskState } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { GitMerge, ListChecks, Terminal, X } from 'lucide-react';
+import { ListChecks, X } from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Card, StatusBadge } from '@claudio/ui/components/ui';
 import { ActivityLine, useChatTail } from './Activity';
-import { ChatChangesSummary, IntegrationChangesSummary, TaskChangesSummary } from './Changes';
+import { IntegrationChangesSummary, TaskChangesSummary } from './Changes';
 import { ChecklistView } from './Checklist';
 import { HealthBadge, HealthPanel, isStepIn } from './Health';
 
@@ -100,42 +100,3 @@ export function IntegrationChanges({ orch }: { orch: Orchestration }) {
 }
 
 // ---------- a chat ----------
-
-/** What a chat is doing now and the plan it keeps, for the side of its page. */
-export function ChatActivityCard({ chat, entries }: { chat: Chat; entries: TranscriptEntry[] | null }) {
-  const { t } = useTranslation('observe');
-  // Waiting on a permission prompt is not running a command, so only `working` says a call is in flight
-  const live = chat.alive && chat.state === 'working';
-  return (
-    <Card
-      title={
-        <span className="title-icon">
-          <Terminal {...ICON_SM} /> {t('activity.title')}
-        </span>
-      }
-    >
-      <div className="stack">
-        <ActivityLine entries={entries} live={live} />
-        <Section title={t('checklist.title')}>
-          <ChecklistView queryKey={['chat', chat.id, 'checklist']} load={() => api.chatChecklist(chat.id)} live={live} />
-        </Section>
-      </div>
-    </Card>
-  );
-}
-
-/** What a chat changed, and the way into its review. */
-export function ChatChangesCard({ chat }: { chat: Chat }) {
-  const { t } = useTranslation('observe');
-  return (
-    <Card
-      title={
-        <span className="title-icon">
-          <GitMerge {...ICON_SM} /> {t('changes.title')}
-        </span>
-      }
-    >
-      <ChatChangesSummary chat={chat} />
-    </Card>
-  );
-}

@@ -29,8 +29,7 @@ import type {
   UpdateCollaboratorsRequest,
   UpdateProjectSharingRequest,
 } from '@claudio/shared';
-import { BASE, enc, request, type ReadOptions } from '../../api';
-import { authHeaders } from '../auth';
+import { enc, request, type ReadOptions } from '../../api';
 
 /** What a shared project is addressed by in the routes: the sharing install and the key's id. */
 export interface SharedRef {
@@ -93,14 +92,6 @@ export const collaboratorsApi = {
   sharedTranscript: (ref: SharedRef, chatId: string, o: ReadOptions = {}) => request<SharedTranscriptPage>(`${shared(ref)}/chats/${enc(chatId)}/transcript`, o),
   /** What agents read of the copies, newest first (docs/plans/collaborators-agent-access.md) */
   agentReads: (q: AgentReadQuery, o: ReadOptions = {}) => request<AgentReadList>(agentReadsPath(q), o),
-  /** Where a blob is served; the first open fetches it from the owner, so it may take a while */
-  sharedBlobUrl: (ref: SharedRef, sha256: string) => `${BASE}${shared(ref)}/blobs/${enc(sha256)}`,
-  /** A blob as text (a document's content), with the credential a bare URL cannot carry */
-  sharedBlobText: async (ref: SharedRef, sha256: string, o: ReadOptions = {}): Promise<string> => {
-    const res = await fetch(collaboratorsApi.sharedBlobUrl(ref, sha256), { headers: authHeaders(), signal: o.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`.trim());
-    return res.text();
-  },
 };
 
 export const collaboratorsKeys = {
@@ -142,13 +133,6 @@ export const useJoinRequests = (groupId: string, enabled = true) =>
 
 export const useSharedProjects = (enabled = true) =>
   useQuery({ queryKey: collaboratorsKeys.shared, queryFn: ({ signal }) => collaboratorsApi.sharedProjects({ signal }), enabled });
-
-export const useProjectSharing = (projectId: string | null) =>
-  useQuery({
-    queryKey: collaboratorsKeys.sharing(projectId ?? ''),
-    queryFn: ({ signal }) => collaboratorsApi.projectSharing(projectId ?? '', { signal }),
-    enabled: Boolean(projectId),
-  });
 
 /**
  * A change to Collaborators: on success every read under `'collaborators'` is read again, since a

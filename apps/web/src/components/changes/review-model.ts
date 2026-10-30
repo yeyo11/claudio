@@ -98,11 +98,6 @@ export function groupByDir<T extends { path: string }>(files: T[]): TreeGroup<T>
   return groups;
 }
 
-export function matchesFilter(path: string, filter: string): boolean {
-  const q = filter.trim().toLowerCase();
-  return !q || path.toLowerCase().includes(q);
-}
-
 function normalise(parts: string[]): string[] {
   const out: string[] = [];
   for (const p of parts) {

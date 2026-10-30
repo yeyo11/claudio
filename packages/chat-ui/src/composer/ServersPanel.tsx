@@ -15,7 +15,8 @@ const TONE: Record<LiveMcpServer['status'], string> = { connected: 'ok', 'needs-
 /** How often the list is read again while a server is still connecting. */
 const PENDING_POLL_MS = 2000;
 
-export const mcpKey = (chatId: string) => [...chatKeys.chatScope(chatId), 'mcp'] as const;
+/** The servers' key: the chat's live process names it, since a process of its own starts its servers again. */
+export const mcpKey = (chat: Pick<Chat, 'id' | 'execution'>) => chatKeys.chatMcp(chat.id, chat.execution?.id ?? null);
 
 /** The name Claudio's own server goes by in the CLI's list */
 const CLAUDIO_SERVER = 'claudio';
@@ -49,15 +50,22 @@ export function serversOn(data: Pick<ChatMcpServers, 'servers' | 'claudio'> | un
   return { on, total: list.length + (claudio ? 1 : 0) };
 }
 
-/** The servers of the live process, read when `enabled` (the menu is open) and again while one connects. */
-export function useLiveServers(chatId: string, enabled: boolean) {
+/**
+ * The servers of the live process, read when `enabled` and again while one connects. Each read asks
+ * the CLI, so it is not repeated on a timer or on the chat's own events: a new process has a key of
+ * its own, `health.changed` refreshes it, a switch writes its answer, and a panel that shows the list
+ * (`fresh`) reads it again as it opens. A failure is not retried: the summaries just stay empty.
+ */
+export function useLiveServers(chat: Pick<Chat, 'id' | 'execution'>, enabled: boolean, { fresh = false }: { fresh?: boolean } = {}) {
   const { client } = useChatUi();
+  const chatId = chat.id;
   return useQuery({
-    queryKey: mcpKey(chatId),
+    queryKey: mcpKey(chat),
     queryFn: () => client.chatMcp(chatId),
     enabled,
-    // Opening the menu is asking what the servers are now
-    staleTime: 0,
+    retry: false,
+    staleTime: Infinity,
+    refetchOnMount: fresh ? 'always' : true,
     refetchInterval: (q) => (q.state.data?.servers.some((s) => s.status === 'pending') ? PENDING_POLL_MS : false),
   });
 }
@@ -91,10 +99,11 @@ function LiveServers({ chat }: { chat: Chat }) {
   const { t } = useTranslation('chat');
   const { client, paths } = useChatUi();
   const queryClient = useQueryClient();
-  const servers = useLiveServers(chatId, true);
+  // Opening the panel is asking what the servers are now
+  const servers = useLiveServers(chat, true, { fresh: true });
   const toggle = useMutation({
     mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) => client.toggleChatMcp(chatId, name, enabled),
-    onSuccess: (data) => queryClient.setQueryData(mcpKey(chatId), data),
+    onSuccess: (data) => queryClient.setQueryData(mcpKey(chat), data),
   });
 
   if (servers.isLoading) return <Skeleton rows={2} height={5} />;
@@ -158,7 +167,7 @@ function ClaudioRow({ chat, state, server }: { chat: Chat; state: ChatClaudioMcp
   const turn = useMutation({
     mutationFn: (enabled: boolean) => client.setChatClaudioMcp(chat.id, enabled),
     onSuccess: (data) => {
-      queryClient.setQueryData(mcpKey(chat.id), data);
+      queryClient.setQueryData(mcpKey(chat), data);
       // The chat's tool record holds the choice: its options and start forms read it from there
       void queryClient.invalidateQueries({ queryKey: chatKeys.chatScope(chat.id) });
     },

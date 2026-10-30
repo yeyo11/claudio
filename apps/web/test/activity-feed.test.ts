@@ -36,7 +36,9 @@ const chat = (id: string): ChatSummary => ({ id, title: id, activity: null }) as
 const task = (id: string): OrchestrationTaskState => ({ id, name: id, prompt: '', status: 'running' }) as OrchestrationTaskState;
 
 test('what a chat is doing refetches nothing: the event is the whole news', () => {
-  assert.deepEqual(targetsFor(event()), []);
+  // Only what an edit is about to change is read again (feed-wiring.test.ts), never the lists
+  assert.deepEqual(targetsFor(event({ activity: { kind: 'tool', tool: 'Read', target: 'src/app.ts', since: '2026-09-21T10:00:00.000Z' } })), []);
+  assert.ok(targetsFor(event()).every(([key]) => key[0] === 'chat' && key[2] === 'changes'));
 });
 
 test('the activity is written into every cache that shows the chat, and nowhere else', () => {

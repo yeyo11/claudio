@@ -128,6 +128,13 @@ export const chatKeys = {
   /** The pages of a chat read back from its newest one, kept across visits */
   chatEarlier: (id: string) => ['chat', id, 'transcript', RUN_TAG] as const,
   chatPermissions: (id: string) => ['chat', id, 'permissions'] as const,
+  /**
+   * The MCP servers of a chat's live process, one key per process (its execution). Kept out of
+   * `chatScope` on purpose: every read is a control request to the CLI, and the scope is refreshed by
+   * every branch, task and status event of the chat. `chatMcpEach` is the prefix `health.changed` refreshes.
+   */
+  chatMcpEach: (id: string) => ['chat-mcp', id] as const,
+  chatMcp: (id: string, execution: string | null) => ['chat-mcp', id, execution] as const,
   chatTasks: (chatId: string) => ['tasks', 'chat', chatId] as const,
   agentDetail: ['agent-detail'] as const,
   agent: (chatId: string, workflowId: string, agentId: string) => ['agent-detail', chatId, workflowId, agentId] as const,

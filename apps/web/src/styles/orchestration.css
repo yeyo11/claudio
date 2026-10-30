@@ -2146,14 +2146,6 @@
   .rg-foot .btn { justify-content: center; min-height: var(--touch); }
 }
 
-.rg-actions-note {
-  flex: 1 1 200px;
-  min-width: 0;
-  font-size: var(--fs-small);
-  color: var(--fg-3);
-  line-height: 1.45;
-}
-
 .rg-accept {
   display: flex;
   flex-direction: column;

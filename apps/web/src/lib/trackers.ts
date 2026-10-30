@@ -102,9 +102,6 @@ export function statusChoices(id: TrackerId, column: TrackerMappedStatus): strin
   return column === 'done' ? ['completed'] : [];
 }
 
-/** Whether a column's mapping does something on this tracker, so the form can say so beside the others. */
-export const columnSyncs = (id: TrackerId, column: TrackerMappedStatus): boolean => hasNamedStatuses(id) || statusChoices(id, column).length > 0;
-
 /** The map without a column that was cleared (an empty string reads as not synced). */
 export function setMapped(map: Partial<Record<TrackerMappedStatus, string>>, column: TrackerMappedStatus, value: string): Partial<Record<TrackerMappedStatus, string>> {
   const next = { ...map };
@@ -118,21 +115,14 @@ export type IssueTone = 'ok' | 'warn' | 'bad' | 'idle' | 'muted';
 /** The chip's sync mark: failed is bad, synced is ok, and nothing synced yet has no mark. */
 export const SYNC_TONE: Record<IssueSyncState, IssueTone | null> = { none: null, synced: 'ok', failed: 'bad' };
 
-export const syncLabelKey = (state: IssueSyncState): `sync.${IssueSyncState}` => `sync.${state}`;
-
 /** Sync again is offered where a write failed; a person asks for it, and it is never retried by itself. */
 export const canSyncAgain = (issue: Pick<IssueRef, 'syncState'>): boolean => issue.syncState === 'failed';
 
 /** What a chip says: the key as its tracker writes it. */
 export const issueChipText = (issue: Pick<IssueRef, 'tracker' | 'key'>): string => issueRef(issue.tracker, issue.key);
 
-/** An issue is closed in the tracker's own words; both built trackers say `closed`. */
-export const isIssueClosed = (state: string): boolean => state.toLowerCase() === 'closed';
-
 /** The triage marks' tones: a mark is advice, so none of them is a status colour of failure. */
 export const TRIAGE_TONE: Record<IssueTriageMark, IssueTone> = { ready: 'ok', 'needs-refining': 'warn', 'not-for-agents': 'muted' };
-
-export const triageLabelKey = (mark: IssueTriageMark): `triage.${IssueTriageMark}` => `triage.${mark}`;
 
 /** An issue already imported cannot be picked again; everything else in the page can. */
 export const isSelectable = (issue: Pick<TrackerIssue, 'importedItemId'>): boolean => issue.importedItemId === null;

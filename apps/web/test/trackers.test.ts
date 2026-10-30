@@ -4,7 +4,7 @@ import type { ClaudioEvent, CodeHostStatus, TrackerIssue, TrackerStatus } from '
 import { api, keys } from '../src/api';
 import { targetsFor } from '../src/lib/events';
 import {
-  canChooseTracker, canSyncAgain, columnSyncs, importKeys, isSelectable, issueRef, setMapped, statusChoices, toggleAll, toggleKey, trackerAction, trackerEntry, trackerTone, withTrackerEntry,
+  canChooseTracker, canSyncAgain, importKeys, isSelectable, issueRef, setMapped, statusChoices, toggleAll, toggleKey, trackerAction, trackerEntry, trackerTone, withTrackerEntry,
 } from '../src/lib/trackers';
 
 const status = (id: TrackerStatus['id'], state: TrackerStatus['state']) => ({ id, state }) as TrackerStatus;
@@ -49,8 +49,6 @@ test('settings entries default to on and are replaced one at a time', () => {
 
 test('only the done column writes to GitHub and GitLab', () => {
   assert.deepEqual(statusChoices('github-issues', 'done'), ['completed']);
-  assert.equal(columnSyncs('gitlab-issues', 'in_review'), false);
-  assert.equal(columnSyncs('youtrack', 'in_review'), true);
   assert.deepEqual(setMapped({ done: 'completed' }, 'done', ''), {});
   assert.deepEqual(setMapped({}, 'done', 'completed'), { done: 'completed' });
 });

@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Minimize2 } from 'lucide-react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { mcpKey } from '@claudio/chat-ui/composer/ComposerMenu';
+import { mcpKey, useLiveServers } from '@claudio/chat-ui/composer/ServersPanel';
 import { useAgentName } from '@claudio/chat-ui/lib/agent';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
@@ -130,8 +130,9 @@ export function ContextPanel({ chat, onClose, onCompact }: { chat: Chat; onClose
     placeholderData: keepPreviousData,
   });
   const live = usage.data?.live === true;
-  const serversKey = mcpKey(chat.id);
-  const servers = useQuery({ queryKey: serversKey, queryFn: () => api.chatMcp(chat.id), enabled: live, staleTime: 0 });
+  const serversKey = mcpKey(chat);
+  // The composer's read of the same list: one cache, read again as the panel opens
+  const servers = useLiveServers(chat, live, { fresh: true });
   const toggle = useMutation({
     mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) => api.toggleChatMcp(chat.id, name, enabled),
     onSuccess: (data) => {

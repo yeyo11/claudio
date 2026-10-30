@@ -385,19 +385,6 @@
   color: var(--fg-3);
 }
 
-.team-run-working {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.team-live-spin,
-.team-live-verb {
-  color: var(--live);
-  white-space: nowrap;
-}
-
 /* The time goes to the end of the line and never wraps under the verb on a narrow card */
 .team-live-time {
   flex: none;
@@ -790,7 +777,6 @@ a.flow-run-item:hover .flow-run-item-title {
 }
 
 .flow-run-badge {
-
 }
 
 /* A failure's reason: bad, with its word in bold, the raw error in mono, and its way on */
@@ -1435,26 +1421,6 @@ a.flow-run-item:hover .flow-run-item-title {
 
 .member-props .prop-key {
   width: 96px;
-}
-
-.member-model {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.member-model .combobox,
-.member-model input {
-  min-width: 0;
-}
-
-.member-model-name {
-  flex-shrink: 0;
-  font-size: var(--fs-small);
-  color: var(--fg-2);
-  white-space: nowrap;
 }
 
 .member-columns {
@@ -2147,46 +2113,12 @@ a.member-run:hover {
   color: var(--fg-3);
 }
 
-.workitem-card-live.has-role.has-ticker {
-  align-items: flex-start;
-}
-
-/* What an item waits for from the person: the idle badge with its word, and on approval the move */
-.workitem-waiting {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: var(--fs-small);
-}
-
-.workitem-waiting.is-approval {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.workitem-waiting-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.workitem-waiting-text {
-  color: var(--fg-2);
-  min-width: 0;
-}
-
 .workitem-approve {
   justify-content: center;
 }
 
 .workitem-mrow .workitem-approve {
   min-height: 44px;
-}
-
-.workitem-mrow .workitem-waiting {
-  align-self: stretch;
 }
 
 /* A card that came back from QA carries one more fact: the foot wraps rather than push its avatar out */

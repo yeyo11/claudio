@@ -2,11 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../api';
+import { useFallbackInterval } from '../../lib/events';
 import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 
 /** The projects Claude keeps memory for, read every 15 s: the overview's table and the group's line share it. */
-export const useMemoryProjects = () => useQuery({ queryKey: keys.memoryProjects, queryFn: () => api.memoryProjects(), refetchInterval: 15_000 });
+// A turn that ended or a transcript that moved may have written memory: the feed reads it again then
+export const useMemoryProjects = () => useQuery({ queryKey: keys.memoryProjects, queryFn: () => api.memoryProjects(), refetchInterval: useFallbackInterval() });
 
 /**
  * Settings → Instructions & memory → Memory (docs/plans/settings-ia.md §6.4). Claude's memory is kept
