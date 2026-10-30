@@ -126,6 +126,22 @@ test('moves run one after another, and a refused one puts back its own card only
   assert.deepEqual(ids(client.getQueryData<Board>(boardKey), 'backlog'), ['a2']);
 });
 
+test('a read that lands while the move is in flight keeps the card where it was dropped', async () => {
+  const { client, boardKey, sent, move } = setup();
+  const a1 = item('a1', 'todo', { rank: 'a' });
+  const done = move({ item: a1, status: 'in_review' });
+  await tick();
+  // An event's refresh answers with the order from before the move
+  await client.fetchQuery({ queryKey: boardKey, staleTime: 0, queryFn: async () => board() });
+  assert.deepEqual(ids(client.getQueryData<Board>(boardKey), 'in_review'), ['a1'], 'the move is drawn on the late answer again');
+  assert.deepEqual(ids(client.getQueryData<Board>(boardKey), 'todo'), ['a2']);
+  sent[0]?.answer.resolve({ item: { ...a1, status: 'in_review' }, column: { status: 'in_review', limit: null, count: 1, overLimit: false } });
+  await done;
+  // Once answered, the hold is let go: a later read is drawn as the server sends it
+  await client.fetchQuery({ queryKey: boardKey, staleTime: 0, queryFn: async () => board() });
+  assert.deepEqual(ids(client.getQueryData<Board>(boardKey), 'todo'), ['a1', 'a2']);
+});
+
 test('a read that left before the move landed does not draw the card back', async () => {
   const { client, boardKey, sent, move } = setup();
   const reads: Array<ReturnType<typeof deferred<Board>>> = [];

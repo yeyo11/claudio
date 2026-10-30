@@ -9,9 +9,10 @@ import { moveOnBoard, moveTarget, placeOnBoard, type MovePlace, type MoveTarget 
 /** A move, and the item's key for the toast that says a refused one went back. */
 export type MoveRequest = MovePlace & { item: Pick<WorkItem, 'id' | 'key'> };
 
-/** What a refused move puts back: the item as every cache held it before. */
+/** What a refused move puts back (the item as every cache held it before), and the hold to let go. */
 interface Undo {
   previous: WorkItem | null;
+  release: () => void;
 }
 
 /** Every move of every board runs one after another, so each one's neighbour is named on the board the last one left. */
@@ -33,23 +34,41 @@ interface Patch {
  * pages, the item by key and the item's own page. A read that does not hold it is left alone.
  */
 function patchCaches(queryClient: QueryClient, itemId: string, patch: Patch): void {
-  const one = <T extends WorkItem>(entry: T): T => (entry.id === itemId ? { ...entry, ...patch.item(entry) } : entry);
-  const update = (value: unknown): unknown => {
-    if (isBoard(value)) return patch.board(value);
-    if (isPages(value)) {
-      if (!value.pages.some((page) => page.items.some((entry) => entry.id === itemId))) return value;
-      return { ...value, pages: value.pages.map((page) => ({ ...page, items: page.items.map(one) })) };
-    }
-    if (isList(value)) return value.some((entry) => entry.id === itemId) ? value.map(one) : value;
-    if (isItem(value)) return value.id === itemId ? one(value) : value;
-    return value;
-  };
   for (const prefix of [keys.workItems, keys.workItem(itemId)]) {
     for (const [key, value] of queryClient.getQueriesData({ queryKey: prefix })) {
-      const next = update(value);
+      const next = patchValue(value, itemId, patch);
       if (next !== value) queryClient.setQueryData(key, next);
     }
   }
+}
+
+/** One cached read with the patch applied, or the same value when it does not hold the item. */
+function patchValue(value: unknown, itemId: string, patch: Patch): unknown {
+  const one = <T extends WorkItem>(entry: T): T => (entry.id === itemId ? { ...entry, ...patch.item(entry) } : entry);
+  if (isBoard(value)) return patch.board(value);
+  if (isPages(value)) {
+    if (!value.pages.some((page) => page.items.some((entry) => entry.id === itemId))) return value;
+    return { ...value, pages: value.pages.map((page) => ({ ...page, items: page.items.map(one) })) };
+  }
+  if (isList(value)) return value.some((entry) => entry.id === itemId) ? value.map(one) : value;
+  if (isItem(value)) return value.id === itemId ? one(value) : value;
+  return value;
+}
+
+/**
+ * While a move is in flight, a read that lands (an event's refresh, a poll) answers with the order
+ * from before the move: the move is drawn on it again, so the card does not flicker back. Answers
+ * the function that stops it, called once the server has answered.
+ */
+function holdWhileInFlight(queryClient: QueryClient, itemId: string, patch: Patch): () => void {
+  const covers = (key: QueryKey) => key[0] === keys.workItems[0] || (key[0] === keys.workItemDetails[0] && key[1] === itemId && key.length === 2);
+  return queryClient.getQueryCache().subscribe((event) => {
+    // A write of our own (`setQueryData`) is marked manual: only a read from the server is drawn over
+    if (event.type !== 'updated' || event.action.type !== 'success' || event.action.manual || !covers(event.query.queryKey)) return;
+    const value: unknown = event.query.state.data;
+    const next = patchValue(value, itemId, patch);
+    if (next !== value) queryClient.setQueryData(event.query.queryKey, next);
+  });
 }
 
 /** The item as the caches hold it now: a board's card, a list's row, or else its own page. */
@@ -85,9 +104,9 @@ async function cancelInFlight(queryClient: QueryClient, itemId: string): Promise
 /**
  * Moves a card. Every cached board, list, list page and item page that holds it shows it in its new
  * place at once; the API is told which card of its project it goes after, so the order survives a
- * reload and a second person's move. Moves run one after another (one scope for them all). The
- * answer is written into the caches where the server placed the card, so a read that left before
- * the move cannot draw it back; a refused move puts back only this card, as it was, and says why.
+ * reload and a second person's move. Moves run one after another (one scope for them all). A read
+ * that lands while the move is in flight gets the move drawn on it again, and the answer is written
+ * into the caches where the server placed the card, so no read from before the move draws it back; a refused move puts back only this card, as it was, and says why.
  * The server's `workitem.moved` refreshes the rest, here and in any other tab.
  */
 export function moveOptions(
@@ -103,19 +122,22 @@ export function moveOptions(
       await queryClient.cancelQueries({ queryKey: keys.workItem(item.id) });
       const previous = cachedItem(queryClient, item.id);
       const target = moveTarget(request);
-      const closing = target.status === 'done' && previous?.status !== 'done';
-      patchCaches(queryClient, item.id, {
+      const closedAt = target.status === 'done' && previous?.status !== 'done' ? new Date().toISOString() : null;
+      const optimistic: Patch = {
         board: (board) => moveOnBoard(board, item.id, target),
-        item: (entry) => ({ ...entry, status: target.status, ...(closing ? { closedAt: new Date().toISOString() } : {}) }),
-      });
-      return { previous };
+        item: (entry) => ({ ...entry, status: target.status, ...(closedAt ? { closedAt } : {}) }),
+      };
+      patchCaches(queryClient, item.id, optimistic);
+      return { previous, release: holdWhileInFlight(queryClient, item.id, optimistic) };
     },
-    onSuccess: async ({ item, column }) => {
+    onSuccess: async ({ item, column }, _request, undo) => {
+      undo?.release();
       const asked = await cancelInFlight(queryClient, item.id);
       patchCaches(queryClient, item.id, { board: (board) => placeOnBoard(board, item, column), item: () => item });
       for (const queryKey of asked) void queryClient.invalidateQueries({ queryKey, exact: true });
     },
     onError: (error, request, undo) => {
+      undo?.release();
       const previous = undo?.previous;
       if (previous) patchCaches(queryClient, request.item.id, { board: (board) => placeOnBoard(board, previous), item: () => previous });
       else void queryClient.invalidateQueries({ queryKey: keys.workItems });

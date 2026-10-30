@@ -645,7 +645,8 @@ an imported one may take later, so the imported project's item wins.
     projects a card dragged over another project's cards lands at the nearest edge of its own group.
   - **The caches** (`useMoveWorkItem`). The move is drawn at once in every cached board, flat list,
     list page (`InfiniteData`) and item page that holds the card. Moves share one mutation scope,
-    so they run one after another. The answer (`MoveWorkItemResult`) is written into those caches:
+    so they run one after another. A read that lands while a move is in flight (an event's refresh,
+    a poll) gets the move drawn on it again. The answer (`MoveWorkItemResult`) is written into those caches:
     the card goes where its rank puts it and the column takes the server's count. A read that was
     in flight when the answer came is cancelled and asked again, so it cannot draw the card back.
     There is no blanket refetch; the server's `workitem.moved` refreshes the views. If the API
