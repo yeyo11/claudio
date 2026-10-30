@@ -309,7 +309,7 @@ export { AppSettingsStore, RuntimeHosts, type RunDefaults, type RuntimeHostOptio
 export { createSettingsRegistry, SettingsError, type SettingsRegistry, type SettingsRegistryDeps } from './settings-registry.ts';
 export { DEFAULT_TUNNEL_PORT, MIN_TAILSCALE_VERSION, TunnelManager, TunnelRefusedError, parseTailscaleVersion, readinessFromStatus, servePortUse, type ServePortUse, type TunnelDeps, type TunnelTiming } from './tunnel.ts';
 export type { AdoptedChat, ChatRuntime, NewChat, RunResult } from './chats.ts';
-export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, isCapacityRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
+export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, isTransientRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
 export { ReviewStoreError } from './review-store.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, ChatStartError, DEFAULT_ORIGINS, startFailure, type ChatFilter, type Placement } from './chat-service.ts';
@@ -467,6 +467,8 @@ interface OverviewChats {
   glance: Awaited<ReturnType<ChatService['glance']>>;
   running: RunningCounts;
 }
+/** How long a shutdown waits for what it ended to write its last rows before the database closes: past a chat's stop grace */
+const SHUTDOWN_GRACE_MS = 8_000;
 /** How often an idle account's usage cache is read again */
 const ACCOUNTS_CACHE_MS = 5 * 60_000;
 /** A burst of account changes (a refresh reads every account in turn) is one `accounts.changed` */
@@ -1167,7 +1169,10 @@ export class Core {
       orchestration: (id) => this.orchestrator.get(id),
       flowOwns: (chatId) => this.flow.ownsChat(chatId),
     });
-    this.events.observe((event) => this.workLinks.observe(event));
+    // What a shutdown stops is not work ending: the reactions to a chat's end stand down once the core closes
+    this.events.observe((event) => {
+      if (!this.closed) this.workLinks.observe(event);
+    });
     const itemRef = (id: string): WorkItemRef | null => {
       const item = this.workItems.find(id);
       return item ? { id: item.id, key: item.key, title: item.title, type: item.type, status: item.status } : null;
@@ -1271,7 +1276,9 @@ export class Core {
       limitResetsAt: () => this.accountView().nextReset,
       emit: (event) => this.events.emit(event),
     });
-    this.events.observe((event) => this.lessonQueue.observe(event));
+    this.events.observe((event) => {
+      if (!this.closed) this.lessonQueue.observe(event);
+    });
     this.startSubsystem('lessonQueue', () => this.lessonQueue.start());
     this.lessons = new LessonService({
       store: lessonStore,
@@ -1502,7 +1509,9 @@ export class Core {
       emit: (event) => this.events.emit(event),
     });
     this.team.runs = (projectId) => this.flow.runs(projectId);
-    this.events.observe((event) => this.flow.observe(event));
+    this.events.observe((event) => {
+      if (!this.closed) this.flow.observe(event);
+    });
     this.assistant = new AssistantService({
       db: this.db,
       items: this.workItems,
@@ -1541,12 +1550,17 @@ export class Core {
       emit: (event) => this.events.emit(event),
       decisions: this.decisions,
     });
-    this.events.observe((event) => this.assistant.observe(event));
+    this.events.observe((event) => {
+      if (!this.closed) this.assistant.observe(event);
+    });
     // Every result, not only a run's first: a chat worked on by hand ends many turns. The automation
     // hears it before the flow, which ends its run on it and so stops claiming the chat
     this.runtime.on('chat-result', (chatId: string, result: RunResult) => {
       // A compaction or a note turn is the chat's upkeep, not its work: no item moves and no run ends on it (D8)
       if (result.purpose) return;
+      // A chat the shutdown stopped did not end its work: the run goes on after the restart. The
+      // database stays open while the chats stop, so this is the one place that tells the two apart
+      if (this.closed) return;
       this.workLinks.chatResult(chatId, result);
       void this.flow.chatResult(chatId, result);
       this.assistant.chatResult(chatId, result);
@@ -4035,12 +4049,22 @@ export class Core {
   }
 
   /**
-   * Stops everything this core runs. What has to happen at once happens before it returns; the
-   * promise resolves once the probes and host calls it ended have exited too, which is what a
-   * process about to exit waits for: one left running writes its config home after the server is
-   * gone (see `ChildProcesses`). Callers that only stop the core may ignore it.
+   * Stops everything this core runs. What has to happen at once (every timer, every chat told to
+   * stop) happens before it returns; the promise resolves once what was asked to end has ended and
+   * the database is closed, which is what a process about to exit waits for. The evals, the
+   * terminals, the collaborators and the chats' processes each write rows on their way out, so the
+   * database closes after them, bounded by `SHUTDOWN_GRACE_MS`; a probe or host call left running
+   * writes its config home after the server is gone (see `ChildProcesses`). A second call (a signal
+   * during an in-app restart, a test that restarts a core) gets the first one's promise.
    */
   shutdown(): Promise<void> {
+    this.shuttingDown ??= this.shutdownOnce();
+    return this.shuttingDown;
+  }
+
+  private shuttingDown: Promise<void> | null = null;
+
+  private async shutdownOnce(): Promise<void> {
     this.closed = true;
     this.forgetSecrets();
     this.releaseVault();
@@ -4058,7 +4082,7 @@ export class Core {
     this.lessonQueue.stop();
     this.decisionResolvers.stop();
     this.decisions.stop();
-    void this.evals.close().catch(() => undefined);
+    const evals = this.evals.close();
     this.orchestrator.close();
     this.spend.close();
     this.schedules.close();
@@ -4072,14 +4096,24 @@ export class Core {
     this.sampler?.stop();
     this.rotation.close();
     this.retention?.stop();
-    // The rows that say the shells ended are written before this returns, while the database is open
-    void this.terminals.shutdown();
-    void this.collaborators.dispose();
+    const terminals = this.terminals.shutdown();
+    const collaborators = this.collaborators.dispose();
     this.workspaces.close();
-    this.runtime.stopAll();
+    const chats = this.runtime.stopAll();
+    // Each writes its last rows on its way out (the shells that ended, the evals cut short, a chat's
+    // final execution), so the database waits for them; one that hangs does not hold the exit for ever
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([
+      Promise.allSettled([evals, terminals, collaborators, chats]),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
+        timer.unref();
+      }),
+    ]);
+    clearTimeout(timer);
     this.repos.flush();
     this.sessions.flush();
     this.db.close();
-    return this.children.close();
+    await this.children.close();
   }
 }

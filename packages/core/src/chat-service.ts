@@ -98,6 +98,7 @@ import { SessionStoreTranscripts, TranscriptUnavailable, type TranscriptStore } 
 import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
+import { REVIEW_CHAT_ROLE } from './orchestration-timings.ts';
 
 /** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
 export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
@@ -206,7 +207,7 @@ export function chatRole(orchestrationTaskId: string): OrchestrationChatRole {
       return 'synthesis';
     case '__workflow__':
       return 'workflow';
-    case '__review__':
+    case REVIEW_CHAT_ROLE:
       return 'review';
     default:
       return 'task';

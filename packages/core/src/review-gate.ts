@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { LimitWait, ReviewDimension, ReviewFinding, ReviewGateSpec, ReviewRound, ReviewRunState, ReviewSide } from '@claudio/shared';
-import { isCapacityRefusal } from './chat-errors.ts';
+import { isTransientRefusal } from './chat-errors.ts';
 import type { RunResult } from './chats.ts';
 import { collectReviewDiff, type ReviewChunk, type ReviewDiff, type ReviewDiffFile } from './review-diff.ts';
 import { anchor, dedupe, fingerprint, isBlocking, roundStatus, type AnchorIndex, type LineRange } from './review-findings.ts';
@@ -437,7 +437,7 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         // No room for a run, a slot or memory: room frees soon, and the wait counts against the run's own time
-        const capacity = isCapacityRefusal(err);
+        const capacity = isTransientRefusal(err);
         if (capacity && Date.now() < deadline) {
           const slept = await sleep(retryMs, signal);
           if (slept.kind === 'abort') return fail('cancelled', 'stopped');

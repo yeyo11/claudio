@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { ChatMessageSource, DecisionMode, HealthSignal, HealthSignalAgent, HealthSignalKind, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
-import { isCapacityRefusal } from './chat-errors.ts';
+import { isTransientRefusal } from './chat-errors.ts';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
 import type { Db } from './db.ts';
@@ -390,7 +390,7 @@ export class Supervisor {
       try {
         return await this.deps.ask(question);
       } catch (error) {
-        if (!isCapacityRefusal(error)) throw error;
+        if (!isTransientRefusal(error)) throw error;
         if (this.now() >= deadline) return null;
         await pause(this.deps.roomRetryMs ?? ROOM_RETRY_MS);
         if (this.mode() === 'off' || this.deps.spendOpen?.() === false) return null;

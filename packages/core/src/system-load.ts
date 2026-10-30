@@ -28,10 +28,7 @@ export function admissionLimitsFrom(env: NodeJS.ProcessEnv = process.env): Admis
   };
 }
 
-/**
- * The words of a refusal for lack of memory. The prefix is what the orchestrator matches to wait
- * its turn instead of failing the task, so it must not change without that match changing too.
- */
+/** The words of a refusal for lack of memory; callers tell it by its class, `MemoryRefusal`. */
 export const RESOURCE_REFUSAL_PREFIX = 'Not enough memory to start a chat';
 
 /**

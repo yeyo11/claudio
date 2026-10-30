@@ -259,6 +259,7 @@ export class RunEventPublisher {
     if (activityKey(sub.activity) === state.sent) {
       // What was held is no longer news: the line went back to what was last said
       state.latest = null;
+      this.settleSubagent(key, state);
       return;
     }
     state.latest = { run, sub };
@@ -269,17 +270,26 @@ export class RunEventPublisher {
       state.timer.unref();
       return;
     }
-    this.sendSubagentActivity(state, nowMs);
+    this.sendSubagentActivity(key, state, nowMs);
+  }
+
+  /**
+   * Forgets a subagent whose line went quiet (it reported back, or its turn ended) and has nothing
+   * held: a long-lived chat ran hundreds of them, and each kept its state until the chat was forgotten.
+   */
+  private settleSubagent(key: string, state: SubagentActivityState): void {
+    if (state.sent === '' && !state.latest && !state.timer) this.subagentActivities.delete(key);
   }
 
   private flushSubagentActivity(key: string): void {
     const state = this.subagentActivities.get(key);
     if (!state) return;
     state.timer = null;
-    if (state.latest && activityKey(state.latest.sub.activity) !== state.sent) this.sendSubagentActivity(state, Date.now());
+    if (state.latest && activityKey(state.latest.sub.activity) !== state.sent) this.sendSubagentActivity(key, state, Date.now());
+    else this.settleSubagent(key, state);
   }
 
-  private sendSubagentActivity(state: SubagentActivityState, nowMs: number): void {
+  private sendSubagentActivity(key: string, state: SubagentActivityState, nowMs: number): void {
     const latest = state.latest;
     if (!latest) return;
     const { run, sub } = latest;
@@ -295,6 +305,7 @@ export class RunEventPublisher {
       agentId: sub.agentId,
       activity: sub.activity,
     });
+    this.settleSubagent(key, state);
   }
 
   dispose(): void {
