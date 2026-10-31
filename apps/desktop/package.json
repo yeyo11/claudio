@@ -22,8 +22,8 @@
     "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && pnpm run package:stage && electron-builder --linux --config electron-builder.yml --publish never"
   },
   "devDependencies": {
-    "electron": "^44.9.1",
-    "electron-builder": "^26.15.3",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2"
   },
   "dependencies": {
