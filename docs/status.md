@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-10-29T12:00:00Z
+updated_at: 2026-10-30T20:00:00Z
 tags:
     - status
     - project-state
@@ -22,9 +22,9 @@ pull request is in [CHANGELOG.md](../CHANGELOG.md), so a release never leaves th
 | Version | The root `package.json`'s; release-please keeps it the same across all ten `package.json` files, and [CHANGELOG.md](../CHANGELOG.md) says what each release carried |
 | Released | On GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), from release-please's release pull requests. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 1,760 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,224 lines of `packages/shared/src/types.ts` |
-| REST | 44 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 650 unit and integration test files, plus 95 browser specs under `e2e/specs/` |
+| Source | 1,764 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,300 lines of `packages/shared/src/types.ts` |
+| REST | 45 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 652 unit and integration test files, plus 95 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards, also dispatched by `pnpm e2e:remote`), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
@@ -136,6 +136,9 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
 - **The regression fixes of 2026-10-29.** The audit's branch is built and verified; what the
   tasks and the reviews left open, with the owner's decisions among them, is the checklist in the
   plan's [Open](plans/regression-fixes-2026-10-29.md#open), to attack once it is on `main`.
+- **The local network listener's choices.** `all` listens on every IPv4 interface, the Docker bridge
+  and `tailscale0` included (F4), and on the desktop it opens by itself once a token is on; whether to
+  narrow it is the owner's, in the plan's [Outcome](plans/lan-access.md#outcome).
 - **Releases.** release-please keeps the next release pull request open for the
   owner. The open items of each built plan are in its Outcome section.
 - **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were
@@ -213,6 +216,7 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
 | [`plans/unified-updates.md`](plans/unified-updates.md) | In PR #46 (built 2026-10-19, phase 2; CI and the owner's checks pending): one update mechanism for the desktop, the container and Helm. A release is a **shell** (Electron, the launcher machine, the guard, the keys; changed only by a package) and a signed **payload** (the server bundle) that installs in-app on both hosts with no password and restarts only the server; `minShell` beside `minImage`, key ids in `.sig` files and a signed desktop manifest; the app never escalates (no `pkexec`): the `.deb` registers a signed apt repository on GitHub Pages and a `.deb` without it gets one checked command to copy; `install.sh` takes the AppImage only where Chromium's sandbox runs without root; the Updates card has two zones and offers only what can install; a free `models.list` check for API keys and **Not confirmed** for an environment OAuth token; the tunnel survives a slow Tailscale CLI; tests leave nothing in tmp. See [Outcome](plans/unified-updates.md#outcome), [updates.md](updates.md), [desktop.md](desktop.md#updating) and the decisions [shell-payload-updates](decisions/shell-payload-updates.md) and [apt-repository](decisions/apt-repository.md) |
 | [`plans/projects-as-repositories.md`](plans/projects-as-repositories.md) | Built (2026-10-19, see [the Outcome](plans/projects-as-repositories.md#outcome); the browser review and the e2e specs still run on the merged branch): a project is a git repository (`commonDir` + subdir) and its worktrees are its children; placement read from git's files and the CLI's `worktree-state`, remembered in `repo_places` so removed worktrees stay history; suggestions grouped by repository with `$HOME`, workspace roots and folders of repositories excluded; a project imported inside a worktree can be re-pointed at the main repository (`PATCH /projects/:id` `path`) |
 | [`plans/headless-image.md`](plans/headless-image.md) | Built (2026-10-29, orchestration `f354f179`), not released: the `headless` image target (648 MB, over the 500 MB goal) and `CLAUDIO_PROFILE=headless`, serving only chats, `/v1`, models, [workspaces](workspaces.md) and the sign-in; every headless chat and every workspace chat (any profile) is a confined API chat ([decision](decisions/confined-api-chat.md)) behind the `declared-tools` guard, while the full profile's other chats, `/v1` included, are unchanged; `/v1` policy headers in the key, typed `422` run errors and `usage.cost_usd`; `/api/ready`; a missing `cwd` refused in every profile; a required spend cap; chat retention; `claudio login` / `status`. The checks with the real CLI and the container measures are the owner's; see [Outcome](plans/headless-image.md#outcome) |
+| [`plans/lan-access.md`](plans/lan-access.md) | Built (2026-10-30, one orchestration, not released): Claudio listens on the local network itself, a second listener on port 8791 with the guard, the host allowlist and a back-off bucket per device, refused under auth mode `none`, on by default in the desktop app only, with the **On the local network** card in Remote access and `CLAUDIO_LAN*`. The security review fixed three findings and left six. See [lan-access.md](lan-access.md), [reports/lan-access-security.md](reports/lan-access-security.md) and the plan's [Outcome](plans/lan-access.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
@@ -315,4 +319,4 @@ possible to keep honest.
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
 [[decision-engine.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/claudio-assistant.md]] · [[claudio-assistant.md]] ·
-[[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/web-packages.md]] · [[api-wire.md]] · [[plans/agent-wire-format.md]] · [[plans/multi-provider.md]] · [[providers.md]] · [[plans/in-app-setup.md]] · [[setup.md]] · [[security-model.md]] · [[terminal.md]] · [[collaborators.md]]
+[[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/web-packages.md]] · [[api-wire.md]] · [[plans/agent-wire-format.md]] · [[plans/multi-provider.md]] · [[providers.md]] · [[plans/in-app-setup.md]] · [[setup.md]] · [[security-model.md]] · [[lan-access.md]] · [[plans/lan-access.md]] · [[terminal.md]] · [[collaborators.md]]

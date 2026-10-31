@@ -118,6 +118,7 @@ ENV NODE_ENV=production \
     CLAUDIO_DATA_DIR=/data \
     CLAUDIO_PROFILE=headless \
     CLAUDIO_TUNNEL=off \
+    CLAUDIO_LAN=off \
     CLAUDIO_DEFAULT_PERMISSION_MODE=dontAsk \
     CLAUDIO_SERVER_UPDATE=off \
     DISABLE_AUTOUPDATER=1 \
@@ -298,6 +299,9 @@ ENV NODE_ENV=production \
     CLAUDIO_DEFAULT_PERMISSION_MODE=bypassPermissions \
     DISABLE_AUTOUPDATER=1 \
     CLAUDIO_WEB_DIST=/app/web \
+    # The container's network is the bridge, not the person's: its published port is the way in, so
+    # the second listener stays off unless CLAUDIO_LAN=on (docs/plans/lan-access.md, D2)
+    CLAUDIO_LAN=off \
     # The guard is the image's own, never an update's: the launcher keeps this value when it starts
     # an overlay, which carries its own mcp.mjs but neither the guard nor the launcher
     CLAUDIO_GUARD_ENTRY=/app/guard.mjs \

@@ -2111,6 +2111,36 @@ bad always sit beside a word and the shield icon.
   (`--warn-soft`), text in `--fg`, the shield in `--warn`.
 - **`notice.is-guard`** is the transcript strip, warn; `.is-bad` when the guard did not run.
 
+### On the local network: the first card of Remote access
+
+Settings → Access & safety → Remote access opens with the card **En la red local** (`LanPanel` in
+`RemoteAccessTab.tsx`, [plans/lan-access.md](plans/lan-access.md)), above the Tailscale card. It is
+built like the tunnel's and adds `.lan-head`, `.lan-addresses`, `.lan-address`, `.lan-address-url`,
+`.lan-address-actions`, `.lan-qr`, `.lan-bind-head`, `.lan-interfaces` and `.lan-interface`
+(`claudio-ds.css`, `editors.css`). Not drawn in `reference/`: it reuses the drawn card, `Tag`, alert,
+`Switch` and `Segmented`, with the layout of the plan's Design section.
+
+- **The head** is the title, then the switch, the state in a `Tag` with its word, and the
+  `Changed · Reset` slot of `lan.enabled`, at the end of the line (stacked under the title on a
+  phone). The port and the interfaces each carry their own slot on their own line.
+- **Five states, a word each:** Escuchando (ok), Apagado (idle), **Necesita un método de acceso** (warn;
+  mode `none`, the switch disabled and an alert that links to Acceso, as the tunnel's does), **Puerto
+  ocupado** (bad; "Otro programa ocupa el puerto N", what holds it in mono, the port field takes focus,
+  and **Usar el siguiente puerto libre** is the same small button as the tunnel's) and Fallido (bad; the
+  system's error in mono, with Intentar de nuevo). Where the deploy turns it off the card is the
+  tunnel's "turned off" alert with the variable.
+- **The addresses** are a list, not a surface: each URL in mono with Copiar and **QR**, no gradient and
+  no energy border (the tunnel's address is the one that takes `.grad-border`, so a screen with both
+  keeps within two gradient surfaces). One QR is open at a time, always in a
+  `Sheet` (a side panel on a desktop, a bottom sheet on a phone), so opening it shifts nothing on the card. `QrCode` is the same dark-on-light SVG in both themes.
+- **Interfaces** are `Segmented` (Todas / Elegir…), and with Elegir… one `Switch` chip per address
+  (mono address, interface name beside it). The last one switched on cannot be turned off; it keeps its full contrast, and the hint says why.
+- **The plain HTTP notice** is a warn alert, always on screen while the card listens, fails or is
+  waiting on a port; never behind a click, and never shown while the card is off or refused (nothing
+  travels then). It names Tailscale as the way for a phone.
+- **Phone:** the card stacks, URLs wrap (`overflow-wrap: anywhere`), and every target (Copiar, QR,
+  the segments, the interface switches, the port steppers) is at least 44 px.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |

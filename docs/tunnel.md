@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-30T03:30:00Z
+updated_at: 2026-10-30T20:00:00Z
 tags:
     - tunnel
     - remote-access
@@ -21,6 +21,14 @@ Funnel.
 
 Until 2026-10-06 the tunnel went through localhost.run over `ssh`; why it moved, and what was
 measured, is in [the plan](plans/tunnel.md#the-move-to-tailscale-2026-10-06).
+
+## A phone and the local network
+
+Claudio can also listen on the local network ([lan-access.md](lan-access.md)), but for a phone this
+is the way to use: Tailscale gives the phone HTTPS, so it can install the app and receive push
+notifications, and its token is encrypted. The local network is plain HTTP on a port of its own: no
+installable app, no push, and a token in clear. Use it for a laptop at home; use the tailnet for the
+phone, and for any network you do not trust. Both can run at once.
 
 ## The rule it follows
 
@@ -298,4 +306,4 @@ never contains the address, and it never becomes a notification. The rows are in
 
 ## Related
 
-[[plans/tunnel.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[providers.md]] · [[security-model.md]]
+[[plans/tunnel.md]] · [[lan-access.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[code-hosts.md]] · [[layered-settings.md]] · [[deploy.md]] · [[desktop.md]] · [[notifications.md]] · [[plans/mobile.md]] · [[providers.md]] · [[security-model.md]]

@@ -57,9 +57,8 @@ export function Access({ detail }: GroupScreenProps<'access'>) {
         <HostsSettings />
       </SettingsSection>
       <SettingsSection id="remote" title={t(sectionLabel('remote'))}>
-        <div className="settings-block" data-setting="remote.tunnel">
-          <RemoteAccessTab />
-        </div>
+        {/* The tab marks its own blocks: `lan.*` on the local network card's rows, `remote.tunnel` on the tunnel's */}
+        <RemoteAccessTab />
       </SettingsSection>
       <SettingsSection id="secrets" title={t(sectionLabel('secrets'))}>
         <div className="settings-block" data-setting="secrets.storage">

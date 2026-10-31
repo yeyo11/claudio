@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
+import { isIPv4 } from 'node:net';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import type { AppSettingValues, PermissionMode, ServerProfile } from '@claudio/shared';
@@ -56,6 +57,17 @@ export interface CoreConfig {
    * unset, so the port is the tunnel's setting (`tunnel-settings.json`, 8444 by default)
    */
   tunnelPort: number | null;
+  /**
+   * The listener on the local network, from `CLAUDIO_LAN` (docs/plans/lan-access.md, D2): `on` and
+   * `off` fix it, `auto` (what the desktop app sets) listens whenever the guard asks for a credential
+   * unless the person turned it off; null when unset, where it stays off until the person turns it on.
+   * The image and Helm set `off`.
+   */
+  lan: LanSwitch | null;
+  /** The listener's port as `CLAUDIO_LAN_PORT` fixes it; null when unset, so it is the setting's (8791 by default) */
+  lanPort: number | null;
+  /** The IPv4 addresses `CLAUDIO_LAN_BIND` fixes the listener to; null when unset, so they are the setting's */
+  lanBind: string[] | null;
   configDir: string;
   /** Global CLI config file holding user-scope mcpServers */
   globalConfigFile: string;
@@ -149,6 +161,40 @@ function parseTunnelSwitch(value: string | undefined, fallback: boolean): boolea
   if (['on', '1', 'true'].includes(word)) return true;
   if (['off', '0', 'false'].includes(word)) return false;
   throw new Error(`CLAUDIO_TUNNEL: '${value}' is neither on nor off`);
+}
+
+/** `CLAUDIO_LAN`: whether the server listens on the local network. Like the tunnel's, a typo stops the start */
+export type LanSwitch = 'on' | 'off' | 'auto';
+
+function parseLanSwitch(value: string | undefined): LanSwitch | null {
+  if (!isSet(value)) return null;
+  const word = value.trim().toLowerCase();
+  if (['on', '1', 'true'].includes(word)) return 'on';
+  if (['off', '0', 'false'].includes(word)) return 'off';
+  if (word === 'auto') return 'auto';
+  throw new Error(`CLAUDIO_LAN: '${value}' is none of on, off or auto`);
+}
+
+function parseLanPort(value: string | undefined): number | null {
+  if (!isSet(value)) return null;
+  const port = Number(value.trim());
+  // 0 is whatever the system hands out, as PORT=0 is: a test's or a second instance's
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error(`CLAUDIO_LAN_PORT: '${value}' is not a port between 0 and 65535`);
+  return port;
+}
+
+/** Comma-separated IPv4 addresses; a name or an IPv6 address is refused, since only an exact address joins the allowlist */
+function parseLanBind(value: string | undefined): string[] | null {
+  if (!isSet(value)) return null;
+  const addresses = value
+    .split(',')
+    .map((address) => address.trim())
+    .filter((address) => address !== '');
+  if (!addresses.length) return null;
+  for (const address of addresses) if (!isIPv4(address)) throw new Error(`CLAUDIO_LAN_BIND: '${address}' is not an IPv4 address`);
+  // Every interface, which is leaving it unset; listed, it would join the allowlist as a name
+  if (addresses.includes('0.0.0.0')) throw new Error("CLAUDIO_LAN_BIND: '0.0.0.0' is every interface: leave CLAUDIO_LAN_BIND unset instead");
+  return [...new Set(addresses)];
 }
 
 /** A flag the image's entrypoint sets: only an explicit yes counts */
@@ -383,6 +429,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     tailscaleManaged: parseYes(env.CLAUDIO_TAILSCALE_MANAGED),
     tailscaleHostname: parseTailscaleHostname(env.CLAUDIO_TAILSCALE_HOSTNAME),
     tunnelPort: parseTunnelPort(env.CLAUDIO_TUNNEL_PORT),
+    lan: parseLanSwitch(env.CLAUDIO_LAN),
+    lanPort: parseLanPort(env.CLAUDIO_LAN_PORT),
+    lanBind: parseLanBind(env.CLAUDIO_LAN_BIND),
     configDir,
     globalConfigFile,
     projectsDir: join(configDir, 'projects'),

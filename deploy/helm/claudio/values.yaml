@@ -96,6 +96,15 @@ tunnel:
   # CLAUDIO_TUNNEL_PORT, which fixes it and shows it read-only in the UI.
   port: null
 
+# The second listener, on the local network (Settings > Remote access): plain HTTP on its own port,
+# only while auth is `token` or `oidc`. Off as in the image, since the pod's network is the cluster's
+# and the Service is the way in; `true` writes CLAUDIO_LAN=on and adds the port to the container.
+lan:
+  enabled: false
+  # The listener's port (1024-65535). Empty leaves it to the app's setting (8791 by default); a
+  # number writes CLAUDIO_LAN_PORT, which fixes it and shows it read-only in the UI.
+  port: null
+
 # The person's own terminal (Settings > Terminal): a login shell in the pod, as user `node`, with the
 # vault's tool credentials. `false` (the default) writes CLAUDIO_TERMINAL=off, which vetoes the
 # feature for the whole deployment and shows it read-only in the UI; `true` writes `on`, which
