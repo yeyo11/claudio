@@ -22,9 +22,9 @@ pull request is in [CHANGELOG.md](../CHANGELOG.md), so a release never leaves th
 | Version | The root `package.json`'s; release-please keeps it the same across all ten `package.json` files, and [CHANGELOG.md](../CHANGELOG.md) says what each release carried |
 | Released | On GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), from release-please's release pull requests. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 1,760 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,224 lines of `packages/shared/src/types.ts` |
-| REST | 44 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 650 unit and integration test files, plus 95 browser specs under `e2e/specs/` |
+| Source | 1,764 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,300 lines of `packages/shared/src/types.ts` |
+| REST | 45 route files, documented as OpenAPI 3.1 and served at `/docs` |
+| Tests | 652 unit and integration test files, plus 95 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards, also dispatched by `pnpm e2e:remote`), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
