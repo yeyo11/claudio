@@ -101,6 +101,6 @@ jobs:
             --verify-with packaging/apt/claudio-archive-keyring.gpg
 
       # actions/deploy-pages deploys the artifact named github-pages from this run
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
