@@ -4,7 +4,7 @@
 
 # Claudio
 
-**Run Claude Code as a service.**
+**Run Claude Code as a service, with many agents working in parallel on your own machine.**
 
 [![CI](https://github.com/yeyo11/claudio/actions/workflows/ci.yml/badge.svg)](https://github.com/yeyo11/claudio/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/yeyo11/claudio?sort=semver)](https://github.com/yeyo11/claudio/releases/latest)
@@ -21,10 +21,28 @@ conversations from anywhere, run agents in parallel on a project's board, and ke
 Claude account when one runs out of quota. It drives Claude Code through its CLI and nothing else,
 so whatever the CLI can do, Claudio can do, and nothing more.
 
+It's for developers who run more than one Claude Code agent at a time and want to see, from the desk
+or the phone, which one is waiting for them.
+
+Try it in one container:
+
+```bash
+docker run -d --init --name claudio --restart unless-stopped -p 127.0.0.1:8797:8797 \
+  -v claudio-config:/home/node/.claude -v claudio-data:/data -v claudio-workspace:/workspace \
+  ghcr.io/yeyo11/claudio
+```
+
+Then open <http://localhost:8797>, sign in with the owner token the container printed once in its
+log (`docker logs claudio`), and sign in to Claude in the setup assistant.
+
 Read the launch article,
-[Claudio: run Claude Code as a service](https://josegarrido.dev/en/claudio-run-claude-code-as-a-service/)
-([en español](https://josegarrido.dev/es/claudio-claude-code-como-servicio/)), and every launch on
-[the project's page](https://josegarrido.dev/en/projects/claudio/) of the author's blog.
+[Claudio: run Claude Code as a service](https://josegarrido.dev/en/claudio-run-claude-code-as-a-service/?utm_source=github&utm_medium=referral&utm_campaign=claudio-readme)
+([en español](https://josegarrido.dev/es/claudio-claude-code-como-servicio/?utm_source=github&utm_medium=referral&utm_campaign=claudio-readme)),
+and every launch on
+[the project's page](https://josegarrido.dev/en/projects/claudio/?utm_source=github&utm_medium=referral&utm_campaign=claudio-readme)
+of the author's blog.
+
+If Claudio is useful to you, a star helps other Claude Code users find it.
 
 ## What it does
 
