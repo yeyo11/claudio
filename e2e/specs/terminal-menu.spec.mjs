@@ -134,6 +134,15 @@ export default async ({ page, api, check, dirs }) => {
     check(true, 'Search in the menu opened the search field and it kept the keyboard');
     await page.press('Escape');
 
+    // ---- 6b. a second right click while the menu is open moves it, and the browser draws nothing ----
+    await rightClick(false, { fx: 0.3, fy: 0.3 });
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the menu to move' });
+    const again = await rightClick(false, { fx: 0.7, fy: 0.3 });
+    check(again.taken, 'a second right click is taken over as well, not left to the browser');
+    await page.waitFor(`const m = document.querySelector('[role=menu]'); return !!m && Math.abs(m.getBoundingClientRect().left - ${again.x}) <= 12`, { label: 'the menu at the second point' });
+    await page.press('Escape');
+    await closed();
+
     // ---- 7. the light theme ----
     await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
     await page.goto(`/?project=${encodeURIComponent(projectId)}`, 1500);

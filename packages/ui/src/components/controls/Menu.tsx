@@ -148,7 +148,9 @@ export function PointerMenu({
   onCloseAutoFocus?: (event: Event) => void;
 }) {
   return (
-    <RadixMenu.Root open={at !== null} onOpenChange={(next) => !next && onClose()}>
+    // Not modal: a second right click elsewhere on the surface must reach it and move the menu, where
+    // a modal layer would block it and let the browser draw its own
+    <RadixMenu.Root modal={false} open={at !== null} onOpenChange={(next) => !next && onClose()}>
       <RadixMenu.Trigger asChild>
         <span className="menu-anchor" aria-hidden style={{ left: (at?.x ?? 0) + POINTER_NUDGE, top: (at?.y ?? 0) + POINTER_NUDGE }} />
       </RadixMenu.Trigger>

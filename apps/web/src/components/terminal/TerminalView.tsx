@@ -344,7 +344,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
         }
         if (ctrl && event.shiftKey && event.key.toLowerCase() === 'c') {
           const text = term.getSelection();
-          if (text) void copyText(text);
+          // Says so, as the menu's Copy does
+          if (text) void copyText(text).then((done) => done && latest.current.toast.success(latest.current.t('notices.copied')));
           event.preventDefault();
           return false;
         }
@@ -366,7 +367,9 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       // expect); a phone's long press is xterm's selection, and its `⋯` sheet is the menu there
       const onContext = (event: MouseEvent) => {
         const { compact, onContextMenu } = latest.current;
-        if (event.shiftKey || compact || !onContextMenu) return;
+        // A touch screen's long press fires `contextmenu` too, at any width
+        const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+        if (event.shiftKey || compact || touch || !onContextMenu) return;
         event.preventDefault();
         onContextMenu({ x: event.clientX, y: event.clientY, hasSelection: term.hasSelection() });
       };
