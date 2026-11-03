@@ -268,3 +268,13 @@ export function pasteChunks(text: string): string[] {
   }
   return out;
 }
+
+// ---------- closing ----------
+
+/**
+ * Whether closing `closedId` leaves the list with no terminal at all. A list that never held it (a
+ * first load that came back empty, a close of something already gone) is not a list that was emptied.
+ */
+export function emptiedByClose(terminals: readonly Pick<Terminal, 'id'>[], closedId: string): boolean {
+  return terminals.some((terminal) => terminal.id === closedId) && terminals.every((terminal) => terminal.id === closedId);
+}
