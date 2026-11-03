@@ -13,7 +13,7 @@ tags:
 # Terminal context menu, phone paste, schedule tools in the MCP, `/v1` client tools named like Claude Code's
 
 Status: **proposed, waiting for the owner's approval** before the orchestration is launched. One
-branch, one pull request (`feat/terminal-menu-schedules-mcp-v1-tools`), four independent pieces.
+branch, one pull request (`feat/terminal-menu-schedules-mcp-v1-tools`), five independent pieces.
 
 ## 1. Findings (verified in the code, 2026-11-03)
 
@@ -34,6 +34,14 @@ The `⋯` menu (`TerminalPanel.tsx`, entries `copy` and `paste`) already offers 
   does nothing, with no toast. `copyText` has a fallback for this case; `paste` has none.
 - When the browser does refuse, the toast `notices.pasteBlocked` says "Paste with Ctrl+Shift+V
   instead", which a phone cannot do.
+
+### 1.2b The dock stays open, empty, after the last terminal is closed
+
+`TerminalDock` renders `TerminalWorkspace` with `scope={{ all: true }}`. Closing the last terminal
+(`closeCurrent`, or the server ending it with `reason === 'closed'`) leaves `terminals` empty and the
+workspace draws its `term-empty` body ("No hay ninguna terminal abierta…") inside the open dock: a
+panel with nothing in it, to be hidden by hand. `bar.hide` already exists and `autoOpen` only runs
+once per opening, so nothing hides it. Reported by the owner with a screenshot, 2026-11-03.
 
 ### 1.3 Schedules from an agent
 
@@ -88,6 +96,23 @@ allow list is empty (`X-Claudio-Allowed-Tools: []`) says the client wants none o
 - Copy on a phone: `copyText` already has the HTTP fallback; the `⋯` menu keeps "Copy selection",
   and when nothing is selected the toast says how to select ("Press and hold the text to select it").
 - Copy en/es with parity, `es` per `apps/web/src/i18n/GLOSSARY.md` (infinitive buttons, Spain).
+
+### 2.2b The dock closes with its last terminal
+
+- `TerminalWorkspace` gets an optional `onEmptied` callback. It fires when the list goes from at
+  least one terminal to none **because a terminal was closed** (the person's close, or the server's
+  `closed`), never on the first load and never when the list is empty because nothing was ever
+  opened. `TerminalDock` passes `bar.hide`, and the "+" in the status bar opens the dock again, with
+  its usual first shell.
+- Closing one of several terminals changes nothing: the next tab takes the front.
+- "No more" means none in the dock's scope, which is every project (`{ all: true }`): a terminal of
+  another project keeps the dock open.
+- Opening the dock with no terminal still shows the empty state until `autoOpen` opens a shell, as
+  now. A terminal that ends by itself (`exited`, not `closed`) keeps its tab with the reopen action,
+  so the dock stays.
+- Focus goes back to where it was before the dock opened (the page), not to a hidden panel.
+- No new copy, colour or motion: only a state change. The empty body stays for the places that use
+  `TerminalWorkspace` without `onEmptied`.
 
 ### 2.3 Schedule tools in Claudio's MCP server
 
@@ -145,9 +170,10 @@ Models: `claude-sonnet-5-5` for the graph's workers, fixer and synthesis; `claud
 | `mcp-schedules` | §2.3: six tools, names, catalogue, rendering, write prompts en/es, docs, tests next to `write-tools.test.ts` and `write-tools-api.test.ts` | `packages/mcp/*`, `packages/chat-ui/src/lib/write-prompts.ts`, the plan docs, tests | — | `pnpm typecheck`, mcp and web tests |
 | `term-menu` | §2.1: shared entries, pointer-anchored `Menu`, Shift keeps the native one, toast, tests (unit for the entries, e2e spec for the right click) | `apps/web/src/components/terminal/*`, `packages/ui/src/components/controls/*`, design-system docs and CSS if a variant is added, i18n en/es | — | `pnpm typecheck`, web tests, the token test, `e2e` gate on `terminal` specs through Sluice |
 | `term-paste` | §2.2: the paste sheet, the fallback in `paste()`, copy of the toasts, i18n en/es, phone screenshots | same folder as `term-menu` | `term-menu` (shares `TerminalView.tsx` and `TerminalPanel.tsx`) | same, plus a phone-width e2e check |
-| `review` | `/ui-review` on the two terminal changes, both themes and phone; check the four tasks against this plan; one PR | — | the four above | `verify` with every gate, then `queue_enqueue` |
+| `term-autoclose` | §2.2b: `onEmptied` in `TerminalWorkspace`, `bar.hide` from the dock, focus back to the page; tests: the last terminal closed hides the dock, one of two does not, an empty first load does not, a terminal of another project keeps it | `apps/web/src/components/terminal/TerminalWorkspace.tsx`, `TerminalDock.tsx`, tests, e2e spec | — | `pnpm typecheck`, web tests, `e2e` gate on `terminal` specs through Sluice |
+| `review` | `/ui-review` on the three terminal changes, both themes and phone; check the five tasks against this plan; one PR | — | the five above | `verify` with every gate, then `queue_enqueue` |
 
-`v1-tools` and `mcp-schedules` run in parallel with the terminal pair: they share no file.
+`v1-tools`, `mcp-schedules`, `term-menu` and `term-autoclose` run in parallel: they share no file (`term-autoclose` touches the workspace and the dock, not the view or the panel).
 
 ## 4. Not in this PR
 
