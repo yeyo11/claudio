@@ -97,8 +97,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
   const search = useRef<SearchAddon | null>(null);
   const connection = useRef<TerminalConnection | null>(null);
   const refit = useRef<() => void>(() => undefined);
-  // The paste sheet, for a page that cannot read the clipboard itself
-  const [pasting, setPasting] = useState(false);
+  // The paste sheet, for a page that cannot read the clipboard itself; `refused` when the browser said no
+  const [pasting, setPasting] = useState<{ refused: boolean } | null>(null);
   // Held in a ref so the long-lived xterm handlers always call the latest of them
   const latest = useRef({ ...props, t, toast });
   latest.current = { ...props, t, toast };
@@ -117,16 +117,15 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       // No `navigator.clipboard` outside a secure context (a LAN address over HTTP): the sheet is the way in
       const clipboard = window.isSecureContext ? navigator.clipboard : undefined;
       if (!clipboard?.readText) {
-        setPasting(true);
+        setPasting({ refused: false });
         return;
       }
       let text = '';
       try {
         text = await clipboard.readText();
       } catch {
-        // Refused: say so, and let the person paste where the browser always allows it
-        latest.current.toast.info(latest.current.t('notices.pasteBlocked'));
-        setPasting(true);
+        // Refused: the sheet says so itself, a toast would sit under its scrim
+        setPasting({ refused: true });
         return;
       }
       sendPaste(text);
@@ -141,14 +140,16 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
     forget: () => connection.current?.forget(),
   }));
 
-  function sendPaste(text: string): void {
-    if (!text) return;
+  /** Whether the text was taken; `notify: false` leaves the refusal to the caller (the sheet shows it inline) */
+  function sendPaste(text: string, notify = true): boolean {
+    if (!text) return true;
     if (pasteTooLarge(text)) {
-      latest.current.toast.error(latest.current.t('notices.pasteTooLarge'));
-      return;
+      if (notify) latest.current.toast.error(latest.current.t('notices.pasteTooLarge'));
+      return false;
     }
     // Through xterm, so a shell that asked for bracketed paste gets one
     xterm.current?.paste(cleanPaste(text));
+    return true;
   }
 
   useEffect(() => {
@@ -427,9 +428,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       {pasting && (
         <PasteSheet
           compact={props.compact}
-          onSend={sendPaste}
+          refused={pasting.refused}
+          onSend={(text) => sendPaste(text, false)}
           onClose={() => {
-            setPasting(false);
+            setPasting(null);
             xterm.current?.focus();
           }}
           returnFocus={() => xterm.current?.textarea ?? null}

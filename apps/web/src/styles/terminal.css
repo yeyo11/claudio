@@ -133,6 +133,15 @@
   resize: none;
 }
 
+/* The bad colour comes with its words (the alert under the field), never alone */
+.term-paste textarea[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
+.term-paste-error {
+  color: var(--bad);
+}
+
 /* ---- tabs ---- */
 .term-space {
   display: flex;
