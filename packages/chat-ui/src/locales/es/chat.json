@@ -588,6 +588,9 @@
       "stopChat": "Detener otro chat",
       "resumeChat": "Reanudar un chat",
       "forkChat": "Crear un fork de un chat",
+      "createSchedule": "Crear la programación {{name}}",
+      "updateSchedule": "Cambiar una programación",
+      "runSchedule": "Ejecutar una programación ahora, diga lo que diga su calendario",
       "fields": {
         "title": "Título: {{value}}",
         "status": "Columna: {{value}}",
@@ -596,7 +599,26 @@
         "labels": "Etiquetas: {{value}}",
         "criteria": "Criterios de aceptación: {{value}}",
         "model": "Modelo: {{value}}",
-        "tasks": "Tareas: {{value}}"
+        "tasks": "Tareas: {{value}}",
+        "cron": "Expresión: {{value}}",
+        "timezone": "Zona: {{value}}",
+        "overlap": "Si la última ejecución sigue en marcha: {{value}}",
+        "enabledOn": "Activada",
+        "enabledOff": "Desactivada",
+        "targetChat": "Inicia: un chat",
+        "targetOrchestration": "Inicia: una orquestación",
+        "name": "Nombre: {{value}}"
+      },
+      "overlaps": {
+        "parallel": "iniciar igualmente",
+        "skip": "no iniciar nada",
+        "queue": "iniciar al terminar"
+      },
+      "preview": {
+        "words": "En palabras: {{value}}",
+        "next": "Próximas ejecuciones: {{value}}",
+        "invalid": "Esta expresión no es válida: {{value}}",
+        "loading": "Comprobando la expresión…"
       }
     }
   },

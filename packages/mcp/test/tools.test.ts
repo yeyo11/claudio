@@ -59,6 +59,8 @@ test('every tool is called once and answers with the seeded data', async () => {
     ['list_assistant_proposals', { projectId: s.project.id }, '['],
     ['list_providers', {}, 'claude-code'],
     ['list_accounts', {}, 'default'],
+    ['list_schedules', {}, '['],
+    ['preview_schedule', { cron: '0 3 * * *', timezone: 'UTC' }, 'valid'],
   ];
   for (const [name, args, expected] of calls) {
     const result = await s.call(name, args);
@@ -73,7 +75,11 @@ test('every tool is called once and answers with the seeded data', async () => {
   const plan = await s.call('get_orchestration_plan', { runId: 'nope' });
   assert.equal(plan.isError, true);
   assert.match(plan.text, /^get_orchestration_plan failed: 4\d\d/);
-  const covered = new Set([...calls.map(([n]) => n), 'get_chat', 'get_orchestration_plan']);
+  // A schedule that does not exist: the route is reached and answers so (schedule-tools.test.ts reads real ones)
+  const runs = await s.call('get_schedule_runs', { scheduleId: 'nope' });
+  assert.equal(runs.isError, true);
+  assert.match(runs.text, /^get_schedule_runs failed: 404/);
+  const covered = new Set([...calls.map(([n]) => n), 'get_chat', 'get_orchestration_plan', 'get_schedule_runs']);
   assert.deepEqual([...covered].sort(), [...CLAUDIO_MCP_READ_TOOL_NAMES].sort());
 });
 

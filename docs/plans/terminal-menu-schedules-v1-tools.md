@@ -46,9 +46,17 @@ once per opening, so nothing hides it. Reported by the owner with a screenshot, 
 ### 1.3 Schedules from an agent
 
 Claudio's own MCP server (`packages/mcp`, tool names in `src/names.ts`) has no schedule tool, although
-the REST API has the whole surface (`/schedules`, `docs/rest-api.md#schedules`). A chat's token is not
-refused on `/schedules` (`apps/api/src/security.ts` lists no schedule rule), so the routes are
-reachable; the tools are what is missing.
+the REST API has the whole surface (`/schedules`, `docs/rest-api.md#schedules`).
+
+**Correction, found while building (2026-11-03).** The first version of this section said a chat's
+token is not refused on `/schedules`. That holds for the reads only. `security.ts` has no schedule
+rule because the class lives in `ROUTE_DOCS`: `POST /schedules`, `PATCH /schedules/:id` and
+`POST /schedules/:id/run` are `access: 'person'` (decision D1 of
+[regression-fixes-2026-10-29.md](regression-fixes-2026-10-29.md), `/schedules` listed under
+`person` in [../security-model.md](../security-model.md)), so a guarded install answers a chat's token
+`403 chat-forbidden`. And `write-tools.test.ts` ("a chat token may call it (work)") refuses a write tool
+that declares a `person` route. A schedule runs later with nobody watching, and its target is a whole
+`NewChatRequest` or `OrchestrationSpec`, which `workFields` (top-level names only) cannot narrow.
 
 ### 1.4 `/v1` client tools that share a name with Claude Code's
 
@@ -137,6 +145,30 @@ catalogued in `tools.ts` (the test that compares the two stays green):
 - The assistant's write-prompt copy (`packages/chat-ui/src/lib/write-prompts.ts`) gets one entry per
   tool, en/es.
 - Docs: `docs/plans/claudio-mcp-server.md` and the assistant's doc list the new tools.
+
+**Built (2026-11-03).** The three reads (`list_schedules`, `get_schedule_runs`, `preview_schedule`)
+are `work` routes. The three writes (`create_schedule`, `update_schedule`, `run_schedule`) are built
+as the table says, with the prompts below, **but on an install that guards its API a chat's token gets
+`403 chat-forbidden` from them** (see the correction in §1.3): the person approves the prompt and the
+tool then answers the 403 as its error. Nothing was widened to avoid it: the routes stay `person`, and
+`write-tools.test.ts` carries a three-route exception (`PERSON_UNTIL_APPROVAL`) that a test in
+`schedule-tools.test.ts` keeps honest. The owner decides how they become usable, outside this task:
+
+1. **Wait for the assistant's server-side approval** ([assistant-everything.md](assistant-everything.md)),
+   which lets the assistant's token call `person` routes after a single-use approval bound to the
+   call's body. The tools then work unchanged, and the exception is deleted.
+2. **Reclassify the three routes as `work`**, with a check of the target's own fields for a chat's
+   token (the same fields `POST /chats` and `POST /orchestrations` list in `workFields`, never a
+   permission mode, a tool list or a server), in `apps/api/src/security.ts` and `routes.ts`, with
+   `docs/security-model.md` and `route-access.test.ts` changed to match.
+
+The tools build the target from named fields only, as `start_chat` and `launch_orchestration` do, so
+a confirmed call cannot schedule more than the defaults. The prompt (`write-prompts.ts`, en/es) shows
+the expression, the zone, what each fire starts, the overlap policy and whether it is on; the
+permission component then asks `GET /schedules/preview` through the chat client's optional
+`schedulePreview` and adds the expression in words and the next fires (and the server's reason when
+the expression is wrong). A prompt is built from the input alone, so the preview is a read the app
+makes, not something the tool knows.
 
 ### 2.4 `/v1` client tools named like Claude Code's
 

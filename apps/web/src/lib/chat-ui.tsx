@@ -4,6 +4,7 @@ import { withToken } from './auth';
 import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { TeammateName } from '../components/TeammateName';
 import { reviewLink, reviewPath } from './changes-summary';
+import { describeCron } from './cron-words';
 import { useFallbackInterval } from './feed';
 import { useProviderLabel } from './provider-status';
 import { settingsHref } from '../pages/config/settingsGroups';
@@ -25,6 +26,12 @@ export const chatClient: ChatClient = {
   chatMcp: api.chatMcp,
   toggleChatMcp: api.toggleChatMcp,
   setChatClaudioMcp: api.setChatClaudioMcp,
+  // The words in the UI language, as the schedules page says them: the API describes an expression only in English
+  schedulePreview: async (cron, timezone) => {
+    const preview = await api.schedulePreview(cron, timezone, 3);
+    const words = describeCron(cron);
+    return words ? { ...preview, description: words } : preview;
+  },
   accounts: () => api.accounts(),
   accountModels: (id) => api.accountModels(id),
   switchChatAccount: api.switchChatAccount,

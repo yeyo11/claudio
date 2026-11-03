@@ -129,6 +129,60 @@ async function launchSpec(args: Record<string, unknown>, api: ApiClient): Promis
   return { ...graph, cwd, tasks, ...(planId ? { plannerRunId: planId } : {}) };
 }
 
+const OVERLAPS = ['parallel', 'skip', 'queue'];
+const scheduleId = str('The schedule id, as list_schedules gives it', { minLength: 1, maxLength: 200 });
+const cron = str('Five fields (minute, hour, day of month, month, day of week), or @hourly, @daily, @weekly, @monthly, @yearly; preview_schedule says what it will do', { minLength: 1, maxLength: 200 });
+const timezone = str("An IANA zone such as Europe/Madrid; the server's when left out", { minLength: 1, maxLength: 100 });
+const overlap = str('What a fire does while the last run is still going: parallel (the default) starts anyway, skip starts nothing, queue starts it when that run ends', { enum: OVERLAPS });
+const scheduleTargetSpec: Property = {
+  type: 'object',
+  description:
+    'What each fire starts. kind chat: a chat with a prompt (and projectId, model, name). kind orchestration: a graph from tasks, or from a planner draft with fromPlan, in a project (and name, objective, model, effort, concurrency, synthesize, worktree, maxAttempts, limits)',
+  properties: {
+    kind: str('chat or orchestration', { enum: ['chat', 'orchestration'] }),
+    projectId: str('The project id the work happens in, as list_projects gives it', { minLength: 1, maxLength: 200 }),
+    prompt: prompt('The first message of each chat (kind chat)'),
+    name: str('What the chat or the orchestration is called', { minLength: 1, maxLength: 200 }),
+    model,
+    fromPlan: str('The planner chat id plan_orchestration answered with (kind orchestration)', { minLength: 1, maxLength: 200 }),
+    objective: str('What the orchestration should achieve', { maxLength: 100_000 }),
+    tasks: { type: 'array', description: 'The tasks of the graph (kind orchestration), when not from a plan', items: taskSpec, maxItems: PAGE_MAX },
+    effort: str('How hard the workers think', { enum: EFFORTS }),
+    concurrency: int('How many workers run at once; the default is 3', 1, 16),
+    synthesize: bool('Whether a final agent writes a report from the results'),
+    worktree: bool('Whether each worker works in its own git worktree'),
+    maxAttempts: int('Attempts a failed task gets, the first included', 1, 5),
+    limits,
+  },
+  required: ['kind'],
+  additionalProperties: false,
+};
+
+/**
+ * The target a schedule starts, built as `start_chat` and `launch_orchestration` build theirs: only
+ * the fields named here reach the route, so a confirmed call cannot schedule more than the defaults
+ */
+async function scheduleTarget(value: unknown, api: ApiClient): Promise<Obj> {
+  if (!isRecord(value)) throw new Error('a schedule needs a target');
+  const rest = without(value, 'kind');
+  if (value.kind === 'chat') {
+    const project = text(rest, 'projectId');
+    const cwd = project ? await projectPath(api, project) : undefined;
+    if (!text(rest, 'prompt')) throw new Error('a chat target needs a prompt');
+    return { kind: 'chat', chat: { prompt: need(rest, 'prompt'), ...(cwd ? { cwd } : {}), ...only(rest, ['model', 'name']) } };
+  }
+  if (value.kind === 'orchestration') return { kind: 'orchestration', spec: await launchSpec(rest, api) };
+  throw new Error('the target kind is chat or orchestration');
+}
+
+const SCHEDULE_FIELDS = ['name', 'cron', 'timezone', 'overlap', 'enabled'] as const;
+/** What identifies a schedule or a run of one, and when it fires next; never the target's prompts */
+const SCHEDULE_KEEP = ['id', 'name', 'cron', 'timezone', 'enabled', 'overlap', 'lastRunAt', 'nextRunAt', 'scheduleId', 'status', 'at', 'chatId', 'orchestrationId', 'error'] as const;
+function scheduleResult(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  return { ...only(value, SCHEDULE_KEEP), ...(isRecord(value.target) && typeof value.target.kind === 'string' ? { target: value.target.kind } : {}) };
+}
+
 export const WRITE_TOOLS: readonly Tool[] = [
   {
     name: 'create_work_item',
@@ -364,5 +418,34 @@ export const WRITE_TOOLS: readonly Tool[] = [
     inputSchema: schema({ proposalId: str('The proposal id, as list_assistant_proposals gives it', { minLength: 1, maxLength: 200 }) }, ['proposalId']),
     routes: ['POST /assistant/proposals/:proposalId/discard'],
     run: async (args, api) => identify(await api.send('POST', `/assistant/proposals/${seg(need(args, 'proposalId'))}/discard`)),
+  },
+  {
+    name: 'create_schedule',
+    description:
+      'Creates a schedule: a chat or an orchestration that Claudio starts by itself on a cron expression, enabled unless enabled is false. It keeps spending while nobody watches, so check the expression with preview_schedule first.',
+    inputSchema: schema({ name: str('What the schedule is called', { minLength: 1, maxLength: 200 }), cron, timezone, target: scheduleTargetSpec, overlap, enabled: bool('false creates it switched off') }, ['name', 'cron', 'target']),
+    routes: ['GET /projects', 'GET /orchestrations/plans/:runId', 'POST /schedules'],
+    run: async (args, api) => scheduleResult(await api.send('POST', '/schedules', { ...only(args, SCHEDULE_FIELDS), target: await scheduleTarget(args.target, api) })),
+  },
+  {
+    name: 'update_schedule',
+    description: "Changes the fields given of a schedule, its expression, target and overlap policy included; enabled false switches it off. Changing the expression, the zone or switching it on starts its clock afresh.",
+    inputSchema: schema(
+      { scheduleId, name: str('The new name', { minLength: 1, maxLength: 200 }), cron, timezone, target: scheduleTargetSpec, overlap, enabled: bool('true switches it on, false switches it off') },
+      ['scheduleId'],
+    ),
+    routes: ['GET /projects', 'GET /orchestrations/plans/:runId', 'PATCH /schedules/:id'],
+    run: async (args, api) => {
+      const body = { ...only(args, SCHEDULE_FIELDS), ...(args.target === undefined ? {} : { target: await scheduleTarget(args.target, api) }) };
+      if (Object.keys(body).length === 0) throw new Error('nothing to change: pass at least one field besides scheduleId');
+      return scheduleResult(await api.send('PATCH', `/schedules/${seg(need(args, 'scheduleId'))}`, body));
+    },
+  },
+  {
+    name: 'run_schedule',
+    description: "Runs a schedule's target now, whatever its timetable says and even while it is switched off; the run is recorded and does not move when it fires next. It spends now.",
+    inputSchema: schema({ scheduleId }, ['scheduleId']),
+    routes: ['POST /schedules/:id/run'],
+    run: async (args, api) => scheduleResult(await api.send('POST', `/schedules/${seg(need(args, 'scheduleId'))}/run`)),
   },
 ];
