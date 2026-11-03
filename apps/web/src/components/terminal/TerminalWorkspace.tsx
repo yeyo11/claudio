@@ -10,7 +10,7 @@ import { keys } from '../../api';
 import { TerminalPanel } from './TerminalPanel';
 import { TerminalStatus } from './TerminalStatus';
 import { openTerminalWindow, useDetachedTerminals } from './terminal-window';
-import { baseName, requestFor, type LinkState } from './terminal-model';
+import { baseName, emptiedByClose, requestFor, type LinkState } from './terminal-model';
 import { scopeKey, useCloseTerminal, useOpenTerminal, useTerminalList, type TerminalScopeKey } from './use-terminals';
 
 /** What a tab is called when the caller does not say: the directory's name, numbered when two share it. */
@@ -45,6 +45,7 @@ export function TerminalWorkspace({
   onToggle,
   selectedId,
   onSelect,
+  onEmptied,
 }: {
   scope: TerminalScopeKey;
   /** The body that opens a terminal on its own (`autoOpen`) */
@@ -65,6 +66,8 @@ export function TerminalWorkspace({
   onToggle?: () => void;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** The last terminal of the scope was closed (by the person, or the server said `closed`): never on a first load, nor for one that ended by itself */
+  onEmptied?: () => void;
 }) {
   const { t } = useTranslation('terminal');
   const queryClient = useQueryClient();
@@ -126,10 +129,27 @@ export function TerminalWorkspace({
   const reopen = (from: Terminal) => {
     open.mutate(requestFor(from));
   };
+  // Said once per terminal: the person's close and the server's `closed` for it can both arrive
+  const announced = useRef(new Set<string>());
+  const announceEmptied = (id: string) => {
+    if (announced.current.has(id)) return;
+    announced.current.add(id);
+    onEmptied?.();
+  };
+  // What the tabs show now, for a close that answers after something else was opened
+  const shown = useRef(terminals.length);
+  shown.current = terminals.length;
   const closeCurrent = (terminal: Terminal) => {
+    // Asked before the tab is forgotten: afterwards the list no longer holds it
+    const last = emptiedByClose(terminals, terminal.id);
     forget(terminal.id, true);
-    // A close that failed brings the tab back, attached again
-    close.mutate(terminal.id, { onError: () => forget(terminal.id, false) });
+    // A close that failed brings the tab back, attached again; the dock goes only once the server said yes
+    close.mutate(terminal.id, {
+      onSuccess: () => {
+        if (last && shown.current === 0) announceEmptied(terminal.id);
+      },
+      onError: () => forget(terminal.id, false),
+    });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -203,7 +223,11 @@ export function TerminalWorkspace({
           }}
           onLink={(link) => setLinks((all) => ({ ...all, [current.id]: link }))}
           onEnded={(reason) => {
-            if (reason === 'closed') forget(current.id, true);
+            if (reason === 'closed') {
+              const last = emptiedByClose(terminals, current.id);
+              forget(current.id, true);
+              if (last) announceEmptied(current.id);
+            }
             refresh();
           }}
           onReopen={() => reopen(current)}
