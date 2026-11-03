@@ -58,6 +58,8 @@ interface Props {
   /** The app's own shortcuts, handed back before xterm sees the key */
   onToggle?: () => void;
   onSearch?: () => void;
+  /** A right click (without Shift) on a desktop screen: where, and whether text is selected */
+  onContextMenu?: (menu: { x: number; y: number; hasSelection: boolean }) => void;
   /** Lets the phone's sticky Ctrl and Alt apply to what its keyboard types */
   transformInput?: (typed: string) => string;
 }
@@ -342,7 +344,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
         }
         if (ctrl && event.shiftKey && event.key.toLowerCase() === 'c') {
           const text = term.getSelection();
-          if (text) void copyText(text);
+          // Says so, as the menu's Copy does
+          if (text) void copyText(text).then((done) => done && latest.current.toast.success(latest.current.t('notices.copied')));
           event.preventDefault();
           return false;
         }
@@ -360,11 +363,17 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       element.addEventListener('paste', onPaste, true);
       cleanups.push(() => element.removeEventListener('paste', onPaste, true));
 
+      // The panel draws the menu. Shift keeps the browser's own (spell check, inspect, what xterm users
+      // expect); a phone's long press is xterm's selection, and its `⋯` sheet is the menu there
       const onContext = (event: MouseEvent) => {
-        const text = term.getSelection();
-        if (!text) return;
+        const { compact, onContextMenu } = latest.current;
+        // A long press fires `contextmenu` too, at any width. Chromium says which pointer did it; where a
+        // browser does not, the screen's primary pointer is the best guess
+        const kind = (event as MouseEvent & { pointerType?: string }).pointerType;
+        const touch = kind ? kind === 'touch' : typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+        if (event.shiftKey || compact || touch || !onContextMenu) return;
         event.preventDefault();
-        void copyText(text);
+        onContextMenu({ x: event.clientX, y: event.clientY, hasSelection: term.hasSelection() });
       };
       element.addEventListener('contextmenu', onContext);
       cleanups.push(() => element.removeEventListener('contextmenu', onContext));
