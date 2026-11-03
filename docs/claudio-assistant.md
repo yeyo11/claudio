@@ -111,9 +111,9 @@ levels: the assistant runs no command, so it reads every copy by default.
 
 ## Writes, confirmed one by one (option A)
 
-Twenty write tools ([claudio-mcp-server.md](claudio-mcp-server.md#write-tools)): work items and their
+Twenty-three write tools ([claudio-mcp-server.md](claudio-mcp-server.md#write-tools)): work items and their
 criteria, flow runs, orchestrations (plan, launch, stop, resume, retry a task), chats (start, message,
-hint, interrupt, stop, resume, fork) and the project assistant's proposals. None is in
+hint, interrupt, stop, resume, fork), schedules (create, change, run now) and the project assistant's proposals. None is in
 `--allowedTools`, so each call becomes a CLI permission prompt that Claudio shows as a host prompt:
 
 - the person sees the tool and its input and allows or denies it; a denial, a timeout or a withdrawal

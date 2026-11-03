@@ -174,6 +174,9 @@ construction. CW-17 adds a separate writer.
 | `get_chat` | `GET /chats/:id?limit=20`, and `GET /chats/:id/permissions` when the chat uses host prompts | `chatId`. Returns the chat's metadata and summary, its last 20 transcript entries, and what it is waiting on. It is **never** the export or the stream |
 | `get_usage` | `GET /usage?from=&to=` and `GET /usage/breakdown?from=&to=` | `from?`, `to?` (`YYYY-MM-DD`). The default is today |
 | `list_providers` (was `list_accounts`) | `GET /providers` (never `POST /providers/refresh`, which runs every installed CLI) | none. Returns each provider with its readiness and its limit per window, which answers "limits". Renamed when providers phase 4 retired claude-swap and `/accounts` |
+| `list_schedules` | `GET /schedules` | none. Added 2026-11-03 ([terminal-menu-schedules-v1-tools.md](terminal-menu-schedules-v1-tools.md) §2.3) |
+| `get_schedule_runs` | `GET /schedules/:id/runs?limit=` | `scheduleId`, `limit?` (≤ 50, default 25) |
+| `preview_schedule` | `GET /schedules/preview?cron=&timezone=&count=` | `cron`, `timezone?`, `count?` (≤ 20). Saves nothing |
 
 The architect may merge or split tools, but three things must stay covered: every group the card names
 (projects, work items, orchestrations, flow runs and team, journal and documents, chats, usage and

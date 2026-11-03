@@ -5,7 +5,7 @@ Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }
 // The helper reads the global i18next, which the app's instance sets up
 const { default: i18n } = await import('i18next');
 await import('../src/i18n/index.ts');
-const { describeWrite } = await import('@claudio/chat-ui/lib/write-prompts');
+const { describeWrite, previewLines, previewLoading, scheduleToCheck } = await import('@claudio/chat-ui/lib/write-prompts');
 
 const P = 'mcp__claudio__';
 // packages/mcp/src/write-tools.ts
@@ -30,6 +30,9 @@ const WRITE_TOOLS = [
   'fork_chat',
   'accept_assistant_proposal',
   'discard_assistant_proposal',
+  'create_schedule',
+  'update_schedule',
+  'run_schedule',
 ];
 
 test('every write tool has a title in the person’s words', async () => {
@@ -78,6 +81,43 @@ test('Spanish says the same in Spanish, with no wire names', async () => {
     assert.equal(describeWrite(`${P}create_work_item`, { title: 'Arreglar', type: 'bug' })?.title, 'Crear bug: Arreglar');
     const shown = JSON.stringify(describeWrite(`${P}create_work_item`, { title: 'x', status: 'in_progress', priority: 'urgent' }));
     assert.doesNotMatch(shown, /in_progress|urgent\b|projectId/);
+  } finally {
+    await i18n.changeLanguage('en');
+  }
+});
+
+test('a schedule says its expression, what it starts, the overlap and whether it is on, in both languages', async () => {
+  const input = { name: 'Nightly tidy', cron: '0 3 * * *', timezone: 'Europe/Madrid', overlap: 'skip', enabled: false, target: { kind: 'chat', projectId: 'p1', prompt: 'Tidy the repo', model: 'sonnet' } };
+  await i18n.changeLanguage('en');
+  const create = describeWrite(`${P}create_schedule`, input);
+  assert.equal(create?.title, 'Create the schedule Nightly tidy');
+  assert.equal(create?.detail, 'Expression: 0 3 * * *\nZone: Europe/Madrid\nStarts: a chat\nTidy the repo\nModel: sonnet\nIf the last run is still going: start nothing\nSwitched off');
+  assert.equal(describeWrite(`${P}update_schedule`, { scheduleId: 's1', target: { kind: 'orchestration', tasks: [{ id: 'a', name: 'Look', prompt: 'p' }] } })?.detail, 'Starts: an orchestration\nTasks: Look');
+  assert.equal(describeWrite(`${P}update_schedule`, { scheduleId: 's1', name: 'Weekly' })?.detail, 'Name: Weekly');
+  assert.equal(previewLoading(), 'Checking the expression…');
+  assert.equal(describeWrite(`${P}run_schedule`, { scheduleId: 's1' })?.title, 'Run a schedule now, whatever its timetable says');
+  await i18n.changeLanguage('es');
+  try {
+    const es = describeWrite(`${P}create_schedule`, input);
+    assert.equal(es?.title, 'Crear la programación Nightly tidy');
+    assert.equal(es?.detail, 'Expresión: 0 3 * * *\nZona: Europe/Madrid\nInicia: un chat\nTidy the repo\nModelo: sonnet\nSi la última ejecución sigue en marcha: no iniciar nada\nDesactivada');
+    assert.doesNotMatch(JSON.stringify(es), /skip|projectId|\{\{/);
+  } finally {
+    await i18n.changeLanguage('en');
+  }
+});
+
+test('the server preview adds the expression in words and its next fires, or says what is wrong', async () => {
+  assert.deepEqual(scheduleToCheck(`${P}create_schedule`, { cron: ' @daily ', timezone: 'UTC' }), { cron: '@daily', timezone: 'UTC' });
+  assert.deepEqual(scheduleToCheck(`${P}update_schedule`, { scheduleId: 's1', cron: '@daily' }), { cron: '@daily', timezone: undefined });
+  assert.equal(scheduleToCheck(`${P}update_schedule`, { scheduleId: 's1', enabled: false }), null, 'an update that keeps the expression has nothing to check');
+  assert.equal(scheduleToCheck(`${P}run_schedule`, { cron: '@daily' }), null);
+  await i18n.changeLanguage('en');
+  assert.deepEqual(previewLines({ valid: true, description: 'At 03:00', timezone: 'UTC', next: ['a', 'b'] }, (iso) => iso.toUpperCase()), ['In words: At 03:00', 'Next fires: A · B']);
+  assert.deepEqual(previewLines({ valid: false, error: 'minute is out of range', timezone: 'UTC', next: [] }, String), ['This expression is not valid: minute is out of range']);
+  await i18n.changeLanguage('es');
+  try {
+    assert.deepEqual(previewLines({ valid: true, description: 'A las 03:00', timezone: 'UTC', next: ['a'] }, String), ['En palabras: A las 03:00', 'Próximas ejecuciones: a']);
   } finally {
     await i18n.changeLanguage('en');
   }

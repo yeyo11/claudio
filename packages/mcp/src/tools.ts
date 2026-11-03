@@ -1,6 +1,6 @@
 import type { ApiClient, Query } from './client.ts';
 import type { ClaudioMcpToolName } from './names.ts';
-import { accountRows, boardRows, chatRows, chatView, documentPage, documentRows, flowRunRows, journalRows, milestoneRows, objs, orchestrationRows, projectRows, proposalRows, providerRows, teamRows, type Obj } from './fields.ts';
+import { accountRows, boardRows, chatRows, chatView, documentPage, documentRows, flowRunRows, journalRows, milestoneRows, objs, orchestrationRows, projectRows, proposalRows, providerRows, scheduleRows, scheduleRunRows, teamRows, type Obj } from './fields.ts';
 import type { Property, Schema } from './schema.ts';
 import { errorMessage, isRecord } from '@claudio/shared';
 
@@ -340,5 +340,37 @@ export const TOOLS: readonly Tool[] = [
     inputSchema: schema({}),
     routes: ['GET /accounts'],
     run: async (_args, api) => accountRows(await api.get('/accounts')),
+  },
+  {
+    name: 'list_schedules',
+    description:
+      "Lists the schedules (recurring chats and orchestrations), oldest first, with their cron expression, whether each is enabled, its overlap policy, when it last fired and when it fires next, and what it starts. Use it for 'what runs on its own' and to find a schedule id.",
+    inputSchema: schema({}),
+    routes: ['GET /schedules'],
+    run: async (_args, api) => scheduleRows(await api.get('/schedules')),
+  },
+  {
+    name: 'get_schedule_runs',
+    description:
+      "Reads the history of one schedule, newest first, 25 runs unless limit says otherwise: each run's status (started, failed, skipped, overlapped or queued), its slot and the chat or orchestration it started. Use it for 'did the nightly run fire' and 'why did it fail'.",
+    inputSchema: schema({ scheduleId: str('The schedule id, as list_schedules gives it', { minLength: 1, maxLength: 200 }), limit: int('How many runs; the default is 25', 1, PAGE_MAX) }, ['scheduleId']),
+    routes: ['GET /schedules/:id/runs'],
+    paging: 'The history was cut to fit: ask for a smaller limit.',
+    run: async (args, api) => scheduleRunRows(await api.get(`/schedules/${seg(need(args, 'scheduleId'))}/runs`, { limit: num(args, 'limit') ?? LIST_DEFAULT })),
+  },
+  {
+    name: 'preview_schedule',
+    description:
+      "Says what a cron expression will do: it in words, the zone it is read in and its next fires, or which field is wrong. Nothing is saved. Use it to check an expression before the person creates a schedule.",
+    inputSchema: schema(
+      {
+        cron: str('Five fields (minute, hour, day of month, month, day of week), or @hourly, @daily, @weekly, @monthly, @yearly', { minLength: 1, maxLength: 200 }),
+        timezone: str("An IANA zone such as Europe/Madrid; the server's when left out", { minLength: 1, maxLength: 100 }),
+        count: int('How many upcoming fires to list; the default is 5', 1, 20),
+      },
+      ['cron'],
+    ),
+    routes: ['GET /schedules/preview'],
+    run: (args, api) => api.get('/schedules/preview', pick(args, ['cron', 'timezone', 'count'])),
   },
 ];

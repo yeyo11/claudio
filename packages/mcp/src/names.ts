@@ -25,6 +25,9 @@ export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'get_usage',
   'list_providers',
   'list_accounts',
+  'list_schedules',
+  'get_schedule_runs',
+  'preview_schedule',
 ] as const;
 
 export type ClaudioMcpReadToolName = (typeof CLAUDIO_MCP_READ_TOOL_NAMES)[number];
@@ -59,6 +62,9 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'fork_chat',
   'accept_assistant_proposal',
   'discard_assistant_proposal',
+  'create_schedule',
+  'update_schedule',
+  'run_schedule',
 ] as const;
 
 export type ClaudioMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];
