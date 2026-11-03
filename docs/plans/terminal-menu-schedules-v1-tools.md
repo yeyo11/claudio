@@ -40,17 +40,14 @@ The `⋯` menu (`TerminalPanel.tsx`, entries `copy` and `paste`) already offers 
 Claudio's own MCP server (`packages/mcp`, tool names in `src/names.ts`) has no schedule tool, although
 the REST API has the whole surface (`/schedules`, `docs/rest-api.md#schedules`). A chat's token is not
 refused on `/schedules` (`apps/api/src/security.ts` lists no schedule rule), so the routes are
-reachable; the tools are what is missing. Pando's own cronjobs are a different thing in another
-repository (configuration only, `[CronJobs]` in `.pando.toml`; `pando cronjob` has `list`, `run`,
-`install`, `uninstall`, no `create`; the MCP server exposes no cron tool): out of this PR, reported in
-the "Not in this PR" section.
+reachable; the tools are what is missing.
 
 ### 1.4 `/v1` client tools that share a name with Claude Code's
 
 `clientToolsProblem` (`packages/core/src/openai/client-tools.ts`) refuses a client tool named like a
 built-in (`bash`, `edit`, `glob`, `grep`…), case-blind, with `400 invalid_request_error` on
 `tools[i].function.name`. Reason: the model would see `Bash` and `mcp__client__bash` side by side and
-a `tool_choice` or a call read back would be ambiguous. Pando's coder agent sends exactly those
+a `tool_choice` or a call read back would be ambiguous. A coding-agent client sends exactly those
 names, so it cannot use Claudio as its model.
 
 The CLI can drop its own tools from the list instead of denying them: `--tools=<list>`, which
@@ -154,12 +151,10 @@ Models: `claude-sonnet-5-5` for the graph's workers, fixer and synthesis; `claud
 
 ## 4. Not in this PR
 
-- Pando's cronjobs. They live in Pando's repository; a creation command and an MCP tool for them are
-  a Pando feature. Findings above are enough for an issue there.
 - A rename layer for `/v1` tool names (rejected: a name map in every request, response and history
   for a case the empty allow list already covers). It stays an option if a client cannot send the
   header.
 
 ## Related
 
-[[plans/terminal.md]] · [[openai-compatible-api.md]] · [[plans/claudio-mcp-server.md]] · [[rest-api.md]] · [[design-system.md]] · [[reports/terminal-pando.md]]
+[[plans/terminal.md]] · [[openai-compatible-api.md]] · [[plans/claudio-mcp-server.md]] · [[rest-api.md]] · [[design-system.md]]
