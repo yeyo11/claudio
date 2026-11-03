@@ -117,7 +117,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       // No `navigator.clipboard` outside a secure context (a LAN address over HTTP): the sheet is the way in
       const clipboard = window.isSecureContext ? navigator.clipboard : undefined;
       if (!clipboard?.readText) {
-        setPasting(true);
+        openSheet();
         return;
       }
       let text = '';
@@ -126,7 +126,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       } catch {
         // Refused: say so, and let the person paste where the browser always allows it
         latest.current.toast.info(latest.current.t('notices.pasteBlocked'));
-        setPasting(true);
+        openSheet();
         return;
       }
       sendPaste(text);
@@ -141,14 +141,23 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
     forget: () => connection.current?.forget(),
   }));
 
-  function sendPaste(text: string): void {
-    if (!text) return;
+  /** Whether the text went to the shell: an empty or oversized paste does not */
+  function sendPaste(text: string): boolean {
+    if (!text) return false;
     if (pasteTooLarge(text)) {
       latest.current.toast.error(latest.current.t('notices.pasteTooLarge'));
-      return;
+      return false;
     }
     // Through xterm, so a shell that asked for bracketed paste gets one
     xterm.current?.paste(cleanPaste(text));
+    return true;
+  }
+
+  // The sheet is drawn on <body>, which element full screen hides behind the terminal's frame: it
+  // would hold the keyboard out of sight, so full screen ends first
+  function openSheet(): void {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    setPasting(true);
   }
 
   useEffect(() => {

@@ -2086,7 +2086,8 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   menu, so the two cannot drift. Shift + right click leaves the browser's own menu. The panel stays
   inside the terminal's frame, closes on `Escape` and gives the keyboard back to the terminal. A copy
   from it shows the `notices.copied` toast, as the `⋯` does, and so does `Ctrl+Shift+C`. On a shell
-  that has ended, its last screen keeps Copy and Search, and Paste is off with "The shell has ended". A
+  that has ended, its last screen keeps Copy and Search, and Paste is off with "The shell has ended";
+  with no screen left (it ended before the page opened) all three are off with that reason. A
   phone or touch screen has no context menu: a long press selects and the `⋯` sheet copies.
 - **Paste sheet.** Where the page cannot read the clipboard (no `navigator.clipboard` over plain HTTP,
   or the browser refused), Paste opens `PasteSheet` (`components/terminal/PasteSheet.tsx`): a bottom
@@ -2094,8 +2095,9 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   `.term-paste` textarea (shell input, so in mono; 16 px on touch, autofocused), a `muted small`
   helper line that describes it ("Press and hold the box, then choose Paste" on touch) and the footer
   Cancel · **Send to terminal** (the zone's primary action, off while the field is empty). The text
-  goes through the same clean, chunk and 1 MiB cap as any paste. A refusal still says so in a toast,
-  which names no key.
+  goes through the same clean, chunk and 1 MiB cap as any paste; over the cap the sheet stays open with
+  the text. A refusal still says so in a toast, which names no key. A terminal in full screen leaves
+  it before the sheet opens, since the sheet is drawn outside the frame.
 - **Closing the last terminal.** The dock hides when its last terminal is closed (by the person, once
   the server accepted, or the server's `closed`) and gives the keyboard back to what had it before the
   dock opened. A terminal of any project keeps it open, a shell that ended by itself keeps its tab,

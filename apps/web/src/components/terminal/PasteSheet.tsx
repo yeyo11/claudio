@@ -16,7 +16,8 @@ export function PasteSheet({
   returnFocus,
 }: {
   compact: boolean;
-  onSend: (text: string) => void;
+  /** Whether the text was sent: a refused one (over the cap) keeps the sheet open with the text */
+  onSend: (text: string) => boolean;
   onClose: () => void;
   returnFocus?: () => HTMLElement | null;
 }) {
@@ -36,8 +37,7 @@ export function PasteSheet({
 
   const send = () => {
     if (!text) return;
-    onSend(text);
-    onClose();
+    if (onSend(text)) onClose();
   };
 
   const body = (
