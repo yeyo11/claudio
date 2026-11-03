@@ -13,7 +13,7 @@ tags:
 Claudio ships a small MCP server, named **`claudio`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
-`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 19 read tools (CW-6), twenty
+`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 22 read tools (CW-6, and the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)), twenty
 write tools (CW-17 and the regression fixes of 2026-10-29, [below](#write-tools)) and seven reads of
 teammates' shared copies (R13, [below](#teammates-shared-copies)). What they answer, how a large
 answer is cut and which routes they may call were set by
@@ -58,6 +58,9 @@ other method; the write tools below go through `send`, the only way to write.
 | `get_usage` | usage and its breakdown for a date range; a bound left out is the server's day (`day` of `GET /spend`), never all of history |
 | `list_providers` | the agent providers with their readiness, account and usage limit per window, as last detected (claude-swap's accounts are gone since providers phase 4) |
 | `list_accounts` | the Claude accounts with their kind, plan, state and usage limit per account, from `GET /accounts` |
+| `list_schedules` | the schedules, oldest first: cron, zone, enabled, overlap policy, last and next fire, and what each starts, from `GET /schedules` |
+| `get_schedule_runs` | one schedule's history, newest first, 25 unless `limit` (at most 50) says otherwise, from `GET /schedules/:id/runs` |
+| `preview_schedule` | what a cron expression will do (in words, its zone, its next fires, or the field that is wrong) from `GET /schedules/preview`; nothing is saved |
 
 The names live in `packages/mcp/src/names.ts` (`CLAUDIO_MCP_SERVER`, `CLAUDIO_MCP_READ_TOOLS`); a test
 keeps the catalogue in `tools.ts` equal to that list, and the allow list is built from it.
@@ -103,6 +106,8 @@ field that is null or absent is left out. The detail tools (`get_work_item`, `ge
 | `list_chats` | `id`, `title`, `state`, `origin`, `model`, `messageCount`, `updatedAt`, `atLimit`, `project` (name), `projectId`, `orchestration` (id), `costUsd` |
 | `list_providers` | `id`, `label`, `state`, `reason`, `account`, `version`, `limit` (`state`, `window`, `utilization`, `resetsAt`) |
 | `list_accounts` | `id`, `kind`, `alias`, `email`, `plan`, `enabled`, `signedIn`, `limit` (`state`, `window`, `utilization`, `resetsAt`, `observedAt`, `source`) |
+| `list_schedules` | `id`, `name`, `cron`, `timezone`, `enabled`, `overlap`, `lastRunAt`, `nextRunAt`, `target` (`kind`, then for a chat its `name`, `cwd`, `model` and the first 200 characters of its `prompt`, for an orchestration its `name`, `cwd`, `model` and `tasks` counted) |
+| `get_schedule_runs` | `id`, `at`, `slot`, `status`, `chatId`, `orchestrationId`, `error` |
 
 Rules for every tool:
 

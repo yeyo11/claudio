@@ -25,6 +25,9 @@ export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'get_usage',
   'list_providers',
   'list_accounts',
+  'list_schedules',
+  'get_schedule_runs',
+  'preview_schedule',
 ] as const;
 
 export type ClaudioMcpReadToolName = (typeof CLAUDIO_MCP_READ_TOOL_NAMES)[number];
