@@ -122,6 +122,11 @@ export interface SessionLaunch {
   mcpConfigAdds?: boolean;
   /** No MCP server loads but those of `mcpConfig`, and none without one: a confined API chat's */
   strictMcpConfig?: true;
+  /**
+   * The only built-in tools the session lists (`--tools`), `[]` for none: a `/v1` chat whose client
+   * tools may share their names. It only removes tools. A confinement's own list takes its place.
+   */
+  builtinTools?: string[];
   confine?: ChatConfinement;
   /** Where attached files live, when this session may read them */
   uploadsDir?: string;

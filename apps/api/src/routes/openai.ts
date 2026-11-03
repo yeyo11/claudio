@@ -307,7 +307,7 @@ export function isConfinedRequest(core: Pick<Core, 'profile'>, read: (name: stri
 export function requestPolicyOf(
   core: Pick<Core, 'config' | 'profile' | 'toolPresets'>,
   read: (name: string) => string | undefined,
-  context: { cwd: string | undefined; schema: boolean },
+  context: { cwd: string | undefined; schema: boolean; clientTools?: boolean },
 ): ApiChatPolicy {
   const workspace = read(WORKSPACE_HEADER);
   if (workspace !== undefined && !WORKSPACE_ID.test(workspace)) throw badHeader(WORKSPACE_HEADER, 'must be a workspace id (from POST /api/workspaces).');
@@ -349,6 +349,10 @@ export function requestPolicyOf(
       maxTurns: turns !== undefined ? Number(turns) : null,
       maxBudgetUsd: budgetUsd ?? core.config.chatBudgetUsd,
       schema: context.schema,
+      // Client tools with an explicit `[]`: the process lists none of Claude Code's tools, so a client
+      // tool may be named like one (`dropsBuiltinTools`). A confined chat lists only its declared
+      // tools already (`confinementOf`), so its policy needs no such field
+      ...(listed !== undefined && declared.length === 0 && context.clientTools ? { builtinTools: [] } : {}),
     };
   }
   const problem = declaredToolsProblem(declared);
@@ -357,6 +361,24 @@ export function requestPolicyOf(
     { ...(turns !== undefined ? { maxTurns: Number(turns) } : {}), ...(budgetUsd !== undefined ? { maxBudgetUsd: budgetUsd } : {}), ...(context.schema ? { jsonSchema: {} } : {}) },
     { workspaceId: workspace ?? null, allowedTools: declared, budgetUsd: core.config.chatBudgetUsd },
   );
+}
+
+/**
+ * Whether a request's chat lists none of Claude Code's tools: it declares client tools and an
+ * explicit empty `X-Claudio-Allowed-Tools` (not a header left out, nor a preset without rules). Its
+ * process starts with `--tools=` (a confined one through its confinement, any other through
+ * `ApiChatPolicy.builtinTools`), so a client tool named `bash` has nothing to be confused with.
+ */
+export function dropsBuiltinTools(read: (name: string) => string | undefined, tools: readonly unknown[]): boolean {
+  const listed = read(ALLOWED_TOOLS_HEADER);
+  if (tools.length === 0 || listed === undefined) return false;
+  try {
+    const parsed: unknown = JSON.parse(listed);
+    return Array.isArray(parsed) && parsed.length === 0;
+  } catch {
+    // `requestPolicyOf` refuses it, naming the header
+    return false;
+  }
 }
 
 /**
@@ -385,7 +407,7 @@ const RESPONSES_PARAMS: ParamNames = { format: 'text.format', toolName: (i) => `
  * answer; not supported yet, the owner's call). `tool_choice: none` makes the tools context the model
  * is told not to use: they are left out and named in `x-claudio-ignored`.
  */
-function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: string[], names: ParamNames): OpenAiFailure | null {
+function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: string[], names: ParamNames, builtinToolsDropped: boolean): OpenAiFailure | null {
   const fields = (body ?? {}) as Record<string, unknown>;
   if (Array.isArray(fields.functions) && fields.functions.length > 0) {
     return { kind: 'unsupported-parameter', param: 'functions', message: 'The legacy `functions` parameter is not supported: declare the same functions in `tools`.' };
@@ -398,7 +420,7 @@ function refusalOf(request: ChatCompletionRequest, body: unknown, ignored: strin
   if (request.responseFormat.type !== 'text') {
     return { kind: 'unsupported-parameter', param: names.format, message: `Client \`tools\` together with \`${names.format}\` are not supported yet: send one or the other.` };
   }
-  return clientToolsProblem(request.tools, names.toolName);
+  return clientToolsProblem(request.tools, names.toolName, { builtinToolsDropped });
 }
 
 // ---------- serialising one conversation ----------
@@ -788,7 +810,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (!parsed.ok) return answer(reply, parsed.error);
     const request = parsed.value;
     const ignored: string[] = [];
-    const refusal = refusalOf(request, req.body, ignored, CHAT_COMPLETION_PARAMS);
+    const refusal = refusalOf(request, req.body, ignored, CHAT_COMPLETION_PARAMS, dropsBuiltinTools((name) => header(req, name), request.tools));
     if (refusal) throw fail(refusal);
     const turn = translateOpenAiRequest(request);
     const id = `chatcmpl-${randomUUID().replaceAll('-', '')}`;
@@ -817,7 +839,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     if (!parsed.ok) return answer(reply, parsed.error);
     const fresh = parsed.value;
     const ignored: string[] = [];
-    const refusal = refusalOf(fresh.chat, req.body, ignored, RESPONSES_PARAMS);
+    const refusal = refusalOf(fresh.chat, req.body, ignored, RESPONSES_PARAMS, dropsBuiltinTools((name) => header(req, name), fresh.chat.tools));
     if (refusal) throw fail(refusal);
     let request = fresh;
     let previous: Previous | null = null;
@@ -953,7 +975,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     const named = header(req, CHAT_ID_HEADER);
     const cwdHeader = header(req, CWD_HEADER);
     const cwd = cwdHeader === undefined ? undefined : cwdOf(core, cwdHeader);
-    const policy = requestPolicyOf(core, (name) => header(req, name), { cwd, schema: turn.jsonSchema !== undefined });
+    const policy = requestPolicyOf(core, (name) => header(req, name), { cwd, schema: turn.jsonSchema !== undefined, clientTools: request.tools.length > 0 });
     // The policy is in the seed: the same history with another workspace, other tools or other
     // ceilings is another conversation, never the old chat on new rules (D8)
     const seed: OpenAiKeySeed = { ...turn.keySeed, policy: openAiPolicyKey(policy) };
@@ -1318,7 +1340,7 @@ export const openAiRoutes: FastifyPluginAsync<OpenAiRouteOptions> = async (app, 
     return fail({
       kind: 'start-refused',
       code: 'policy_mismatch',
-      message: `Chat ${chatId} runs with another policy than this request's (workspace, allowed tools, max turns, budget or response format); send the values it was created with, or start a new conversation.`,
+      message: `Chat ${chatId} runs with another policy than this request's (workspace, allowed tools, Claude Code's tools, max turns, budget or response format); send the values it was created with, or start a new conversation.`,
     });
   }
 

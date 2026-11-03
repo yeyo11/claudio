@@ -51,9 +51,12 @@ export function buildArgs(spec: SessionLaunch): string[] {
     // A confined API chat's own attachments, one folder per upload: `--restricted` keeps the file
     // tools to these and the working directory, and never to the uploads folder as a whole
     for (const dir of spec.confine.addDirs ?? []) args.push('--add-dir', dir);
+  } else {
+    // Removes built-in tools from the model's list, never adds one; the `=` form keeps `[]` a value
+    if (spec.builtinTools) args.push(`--tools=${spec.builtinTools.join(',')}`);
+    // Attached files live outside every project; this is what lets Claude open them by path
+    if (spec.uploadsDir) args.push('--add-dir', spec.uploadsDir);
   }
-  // Attached files live outside every project; this is what lets Claude open them by path
-  else if (spec.uploadsDir) args.push('--add-dir', spec.uploadsDir);
   // The CLI creates, names and locks the worktree itself, and works in it for the session
   if (spec.worktree) args.push('--worktree', spec.worktree);
   // The CLI stops the chat itself once the ceiling is reached, which no amount of watching from

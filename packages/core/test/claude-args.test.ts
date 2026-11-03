@@ -27,6 +27,8 @@ interface Case {
   resumeAt?: string;
 }
 
+const ASKED = { workspaceId: null, allowedTools: [], maxTurns: null, maxBudgetUsd: 1, schema: false };
+
 const CASES: Case[] = [
   { name: 'new' },
   { name: 'new, model and effort', chat: { model: 'opus', effort: 'high' } },
@@ -51,6 +53,11 @@ const CASES: Case[] = [
   { name: 'resume at a message', then: 'resume', resumeAt: 'msg-1' },
   { name: 'no uploads', chat: { uploads: false } },
   { name: 'internal', chat: { internal: true } },
+  // A `/v1` chat whose client tools may share Claude Code's names: none of the CLI's tools, a resume too
+  { name: 'no built-in tools', chat: { apiAsked: { ...ASKED, builtinTools: [] } } },
+  { name: 'no built-in tools, resumed', then: 'resume', chat: { apiAsked: { ...ASKED, builtinTools: [] } } },
+  // A confinement's own list is the one `--tools`, whatever else the chat carries
+  { name: 'confined beats no built-in tools', chat: { confine: { tools: ['Read'], settingSources: [] }, apiAsked: { ...ASKED, builtinTools: [] } } },
   { name: 'bypass mode', chat: { permissionMode: 'bypassPermissions' } },
   // The settings file and the hook events, and neither `--bare` nor `--safe-mode`; this CLI never arms, so the run fails at once
   {

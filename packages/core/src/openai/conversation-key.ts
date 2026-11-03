@@ -96,9 +96,12 @@ export function seedKey(seed: KeySeed): string {
   return sha256(JSON.stringify([KEY_VERSION, seed.model, seed.systemPrompt ?? '', seed.user ?? null, seed.policy ?? null]));
 }
 
-/** What a policy is in the seed: every field, the declared rules in the order given (as the chat stores them). */
-export function policyKey(policy: { workspaceId: string | null; allowedTools: readonly string[]; maxTurns: number | null; maxBudgetUsd: number; schema: boolean }): string {
-  return JSON.stringify([policy.workspaceId, [...policy.allowedTools], policy.maxTurns, policy.maxBudgetUsd, policy.schema]);
+/**
+ * What a policy is in the seed: every field, the declared rules in the order given (as the chat
+ * stores them). The built-in tool list joins only when set, so every key from before it stays the same.
+ */
+export function policyKey(policy: { workspaceId: string | null; allowedTools: readonly string[]; maxTurns: number | null; maxBudgetUsd: number; schema: boolean; builtinTools?: readonly string[] | undefined }): string {
+  return JSON.stringify([policy.workspaceId, [...policy.allowedTools], policy.maxTurns, policy.maxBudgetUsd, policy.schema, ...(policy.builtinTools ? [[...policy.builtinTools]] : [])]);
 }
 
 /** The chain one message further. System and developer messages leave it as it is: they are in the seed. */

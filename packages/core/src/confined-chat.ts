@@ -136,6 +136,13 @@ export function samePolicy(a: ApiChatPolicy, b: ApiChatPolicy): boolean {
     a.maxBudgetUsd === b.maxBudgetUsd &&
     a.schema === b.schema &&
     a.allowedTools.length === b.allowedTools.length &&
-    a.allowedTools.every((rule, i) => rule === b.allowedTools[i])
+    a.allowedTools.every((rule, i) => rule === b.allowedTools[i]) &&
+    sameList(a.builtinTools, b.builtinTools)
   );
+}
+
+/** Absent (the CLI's own tools) and empty (none) are two policies: a process lists one or the other */
+function sameList(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a.length === b.length && a.every((name, i) => name === b[i]);
 }
