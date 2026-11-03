@@ -240,7 +240,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kpi` | `.usage-tile`, `.usage-hero` (Usage on a phone), the widget headline figures | big-number tiles. A phone shows one figure, not a row of tiles |
 | `.bar`, `.segbar`, `.ring` | `.meter-*`, `.gauge*`, `.progress`, `.ring*`, `.ctx-bar`, `.slice-*`, `.board-task-fill` | see the thresholds below |
 | `.list-row`, `.sel` | `.crow`, `.list-row`, `.master-item`, `.now-row`, `.widget-row`, `.account-row`, `.rotation-cell`, `.settings-cell` | clickable rows. The selected row gets an accent inset. A cell that opens a screen of its own ends in a chevron |
-| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry. Its popup is the listbox (WAI-ARIA APG editable combobox): the wrapper Radix renders is `role="presentation"` with no tabindex, never an unnamed dialog (2026-10-20) |
+| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. `PointerMenu` (components/controls/Menu) is the same panel opened at the pointer by a right click (`.menu-anchor` is its empty fixed anchor); a touch device never gets it, the `Sheet` stands in. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry. Its popup is the listbox (WAI-ARIA APG editable combobox): the wrapper Radix renders is `role="presentation"` with no tabindex, never an unnamed dialog (2026-10-20) |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar. A `Tooltip` opens on hover and on keyboard focus only: a focus that follows Tab, an arrow, Home/End or PageUp/PageDown within a second, on a `:focus-visible` trigger. Focus the app places (a dialog autofocusing its first control, or giving focus back to its opener after Escape, Enter or a click) never opens one, so none is left open with nobody looking (2026-10-20) |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |
@@ -2079,6 +2079,14 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   worded as in the audit log (`ActorName`: `local` "Local access", `desktop`, `env`, `claudio`, `anonymous`, in
   sans); any other actor is an id, in mono. The directory button's `aria-label` is the path it shows and "Show the
   full path" / "Hide the full path".
+- **Context menu.** A right click on a terminal screen opens a `PointerMenu` at the pointer with
+  Copy (disabled, with its reason "Select some text first", when nothing is selected), Paste and
+  Search, the shortcuts in mono (`Ctrl+Shift+C`, `Ctrl+Shift+V`, `Ctrl+Shift+F`). The three entries are
+  `terminalEntries()` (`components/terminal/terminal-entries.ts`), the same list that heads the `⋯`
+  menu, so the two cannot drift. Shift + right click leaves the browser's own menu. The panel stays
+  inside the terminal's frame, closes on `Escape` and gives the keyboard back to the terminal. A copy
+  from it shows the `notices.copied` toast, as the `⋯` does. A phone has none: a long press selects
+  and the `⋯` sheet copies.
 - **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
   chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
   fit follows the host's box only.

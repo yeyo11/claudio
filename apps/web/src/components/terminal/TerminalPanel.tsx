@@ -1,8 +1,8 @@
-import { CaseSensitive, ChevronDown, ChevronUp, ClipboardPaste, Copy, ExternalLink, Maximize2, Minimize2, Minus, Plus, Regex, RotateCcw, Search, X } from 'lucide-react';
+import { CaseSensitive, ChevronDown, ChevronUp, ExternalLink, Maximize2, Minimize2, Minus, Plus, Regex, RotateCcw, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@claudio/shared';
-import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
+import { PointerMenu, type MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -11,6 +11,7 @@ import { useDecorativeMotion } from '@claudio/ui/lib/motion';
 import { KeyBar, type Modifiers } from './KeyBar';
 import { TerminalView, type TerminalEndedBy, type TerminalViewHandle } from './TerminalView';
 import { TerminalStatus } from './TerminalStatus';
+import { terminalEntries } from './terminal-entries';
 import { baseName, withModifiers, type LinkState } from './terminal-model';
 import { clampFont, useScreenReaderMode, useTerminalFont } from './terminal-prefs';
 import { useFullscreen } from './terminal-window';
@@ -57,6 +58,10 @@ export function TerminalPanel({
   const [query, setQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [regex, setRegex] = useState(false);
+  // Where a right click opened the menu, and whether text was selected then
+  const [pointer, setPointer] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
+  // The search field takes the keyboard itself: the menu must not hand it back to the screen
+  const searchTakesFocus = useRef(false);
   const [mods, setMods] = useState<Modifiers>({ ctrl: false, alt: false });
   const font = useTerminalFont(compact);
   const [screenReader] = useScreenReaderMode();
@@ -99,10 +104,22 @@ export function TerminalPanel({
     onClose();
   };
 
+  const shared = (hasSelection?: boolean) =>
+    terminalEntries({
+      t,
+      running,
+      compact,
+      hasSelection,
+      onCopy: () => void copy(),
+      onPaste: () => void view.current?.paste(),
+      onSearch: () => {
+        searchTakesFocus.current = true;
+        setSearching(true);
+      },
+    });
+
   const entries: MenuEntry[] = [
-    { id: 'copy', label: t('menu.copy'), icon: Copy, onSelect: () => void copy(), disabled: !running },
-    { id: 'paste', label: t('menu.paste'), icon: ClipboardPaste, onSelect: () => void view.current?.paste(), disabled: !running },
-    { id: 'search', label: t('menu.search'), icon: Search, onSelect: () => setSearching(true), shortcut: compact ? undefined : 'Ctrl+Shift+F', disabled: !running },
+    ...shared(),
     { id: 'font-up', label: t('menu.fontUp', { size: clampFont(font.size + 1) }), icon: Plus, onSelect: () => font.set(font.size + 1) },
     { id: 'font-down', label: t('menu.fontDown', { size: clampFont(font.size - 1) }), icon: Minus, onSelect: () => font.set(font.size - 1) },
     { id: 'close', label: t('menu.close'), icon: X, destructive: true, onSelect: close },
@@ -209,6 +226,10 @@ export function TerminalPanel({
           onEnded={onEnded}
           onToggle={onToggle}
           onSearch={() => setSearching(true)}
+          onContextMenu={(menu) => {
+            searchTakesFocus.current = false;
+            setPointer(menu);
+          }}
           transformInput={(typed) => {
             if (!mods.ctrl && !mods.alt) return typed;
             setMods({ ctrl: false, alt: false });
@@ -220,6 +241,20 @@ export function TerminalPanel({
           <p className="muted">{t('panel.gone')}</p>
         </div>
       )}
+      <PointerMenu
+        entries={shared(pointer?.hasSelection)}
+        at={pointer}
+        label={t('menu.label')}
+        boundary={frame.current}
+        container={fullscreen.active ? frame.current : null}
+        onClose={() => setPointer(null)}
+        onCloseAutoFocus={(event) => {
+          // Back to the screen the click was on, unless Search just opened its own field
+          event.preventDefault();
+          if (searchTakesFocus.current) searchTakesFocus.current = false;
+          else view.current?.focus();
+        }}
+      />
       {compact && running && <KeyBar mods={mods} onMods={setMods} onSend={(data) => view.current?.input(data)} />}
     </section>
   );
