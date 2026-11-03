@@ -23,6 +23,8 @@ export function TerminalDock() {
   const bar = useTerminalBar();
   const { project, projects } = useProjectScope();
   const drag = useRef<{ y: number; height: number } | null>(null);
+  // The dock mounts when it is shown, so this is where the keyboard was before: the page
+  const before = useRef<Element | null>(document.activeElement);
 
   const { hide } = bar;
   useEffect(() => {
@@ -32,6 +34,14 @@ export function TerminalDock() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [hide]);
+
+  // The last terminal is gone: the dock hides and the keyboard goes back to the page, not to a panel that no longer exists
+  const emptied = () => {
+    hide();
+    const target = before.current;
+    if (target instanceof HTMLElement && target.isConnected && !target.closest('#terminal-bar')) target.focus();
+    else if (document.activeElement instanceof HTMLElement && document.activeElement.closest('#terminal-bar')) document.activeElement.blur();
+  };
 
   const move = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (drag.current) bar.setHeight(drag.current.height + drag.current.y - event.clientY);
@@ -78,6 +88,7 @@ export function TerminalDock() {
         selectedId={bar.selectedId}
         onSelect={bar.select}
         onToggle={bar.toggle}
+        onEmptied={emptied}
         renderNew={({ open, pending }) => <NewTerminal icon project={project} projects={projects} pending={pending} onOpen={open} />}
         trailing={
           <Tooltip content={t('bar.hide')}>
