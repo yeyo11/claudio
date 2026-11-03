@@ -1,11 +1,11 @@
 import type { PermissionDecision, PermissionRequest, PermissionUpdate } from '@claudio/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardList, MessageCircleQuestion, Plug, ShieldQuestion, X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { upperFirst, useAgentName } from '../lib/agent';
-import { describeWrite } from '../lib/write-prompts';
+import { describeWrite, previewLines, scheduleToCheck } from '../lib/write-prompts';
 import { modeLabel, toolKindLabel } from '../lib/wire-words';
 import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
@@ -13,6 +13,7 @@ import { useChatPermissions } from '../lib/chats';
 import { PROMPT_PARAM } from '../lib/permission-param';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
+import { formatDateTime } from '@claudio/ui/lib/format';
 import { RichText } from './Transcript';
 import { RiskLine, useToolRisk } from './RiskTag';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from '@claudio/ui/components/ui';
@@ -56,6 +57,25 @@ function useAnswer(request: PermissionRequest) {
   });
 }
 
+/**
+ * What a schedule the assistant asks to create or change will do, from the server: its expression in
+ * words and its next fires. A schedule runs later with nobody watching, so the person reads this
+ * before answering. Empty while it loads, when the client has no preview, and when the read fails:
+ * the expression itself is already in the prompt.
+ */
+function useScheduleLines(request: PermissionRequest): string[] {
+  const { client } = useChatUi();
+  const check = scheduleToCheck(request.toolName, request.input);
+  const preview = useQuery({
+    queryKey: ['schedule-prompt-preview', check?.cron, check?.timezone ?? ''],
+    queryFn: () => (client.schedulePreview && check ? client.schedulePreview(check.cron, check.timezone) : Promise.reject(new Error('no preview'))),
+    enabled: check !== null && client.schedulePreview !== undefined,
+    retry: false,
+    staleTime: 60_000,
+  });
+  return preview.data ? previewLines(preview.data, formatDateTime) : [];
+}
+
 /** Deny with a reason the model can read: one it can learn from beats one it can only retry blindly. */
 function DenyReason({ value, onChange, disabled, placeholder }: { value: string; onChange: (v: string) => void; disabled: boolean; placeholder: string }) {
   return <input className="permission-reason" aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} disabled={disabled} />;
@@ -66,7 +86,9 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   const answer = useAnswer(request);
   const [reason, setReason] = useState('');
   // A write tool of the assistant is said in the person's words, and never offers to be remembered
-  const write = describeWrite(request.toolName, request.input);
+  const base = describeWrite(request.toolName, request.input);
+  const scheduleLines = useScheduleLines(request);
+  const write = base && scheduleLines.length ? { ...base, detail: [...scheduleLines, base.detail].filter(Boolean).join('\n') } : base;
   const suggestions = write ? [] : (request.suggestions ?? []);
   const described = request.description ?? request.input.description;
   const description = !write && typeof described === 'string' ? described : '';

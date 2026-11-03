@@ -25,6 +25,7 @@ export const chatClient: ChatClient = {
   chatMcp: api.chatMcp,
   toggleChatMcp: api.toggleChatMcp,
   setChatClaudioMcp: api.setChatClaudioMcp,
+  schedulePreview: (cron, timezone) => api.schedulePreview(cron, timezone),
   accounts: () => api.accounts(),
   accountModels: (id) => api.accountModels(id),
   switchChatAccount: api.switchChatAccount,

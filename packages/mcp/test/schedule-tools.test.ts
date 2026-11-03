@@ -19,13 +19,13 @@ after(() => s.close());
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
-test('the schedule tools are reads, and no write tool is named for a schedule yet', () => {
+test('the schedule reads are work routes; the writes declare routes that are still the person’s', () => {
   for (const name of ['list_schedules', 'get_schedule_runs', 'preview_schedule'] as const) assert.ok(CLAUDIO_MCP_READ_TOOL_NAMES.includes(name), name);
-  // The writes wait for a decision about the routes' class (the plan, §2.3): a name here without its tool would fail the catalogue test
-  assert.deepEqual(CLAUDIO_MCP_WRITE_TOOL_NAMES.filter((n) => n.endsWith('_schedule')), []);
+  // The writes exist (the plan, §2.3) though their routes are person: write-tools.test.ts lists the exception
+  assert.deepEqual(CLAUDIO_MCP_WRITE_TOOL_NAMES.filter((n) => n.endsWith('_schedule')), ['create_schedule', 'update_schedule', 'run_schedule']);
   const docs = ROUTE_DOCS as Record<string, { access?: string }>;
   for (const route of ['GET /schedules', 'GET /schedules/:id/runs', 'GET /schedules/preview']) assert.equal(docs[route]?.access ?? 'work', 'work', route);
-  // What blocks the writes, held here so a change of class is noticed and the tools get built
+  // Held here so the day a route becomes work, the exception in write-tools.test.ts is removed
   for (const route of ['POST /schedules', 'PATCH /schedules/:id', 'POST /schedules/:id/run']) assert.equal(docs[route]?.access, 'person', route);
 });
 

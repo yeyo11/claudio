@@ -18,6 +18,7 @@ import type {
   PermissionDecision,
   PermissionRequest,
   ResumeChatRequest,
+  SchedulePreview,
   SwitchChatAccountResponse,
 } from '@claudio/shared';
 import { RUN_TAG } from './chat-pages';
@@ -54,6 +55,8 @@ export interface ChatClient {
   toggleChatMcp(id: string, name: string, enabled: boolean): Promise<ChatMcpServers>;
   /** Switches Claudio's own MCP server in the running process, and keeps the choice on the chat */
   setChatClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers>;
+  /** What a cron expression will do, for the prompt of a schedule the assistant asks to create; absent, the prompt shows the expression as it is */
+  schedulePreview?(cron: string, timezone: string | undefined): Promise<SchedulePreview>;
   /** The accounts a chat could run on */
   accounts(): Promise<Account[]>;
   /** The models one account offers */
