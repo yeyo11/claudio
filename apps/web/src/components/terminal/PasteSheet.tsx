@@ -27,12 +27,17 @@ export function PasteSheet({
   // Every terminal view can open its own sheet (the dock and a page side by side)
   const helpId = useId();
 
-  // The sheet gives its own panel the focus once it has slid in, after the field mounted: the field
-  // takes it back a frame later, so the keyboard is up where the person is about to paste
+  // The field ends up with the keyboard, whoever moved it after the mount: the `⋯` menu that chose
+  // Paste gives the focus back to its trigger a tick after it closes (a timeout of 0 runs after it),
+  // and the phone's sheet gives its own panel the focus once it has slid in (a frame later)
   useEffect(() => {
-    if (!compact) return;
-    const frame = requestAnimationFrame(() => field.current?.focus({ preventScroll: true }));
-    return () => cancelAnimationFrame(frame);
+    const take = () => field.current?.focus({ preventScroll: true });
+    const timer = window.setTimeout(take, 0);
+    const frame = compact ? requestAnimationFrame(take) : 0;
+    return () => {
+      window.clearTimeout(timer);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [compact]);
 
   const send = () => {
