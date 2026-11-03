@@ -702,6 +702,13 @@
 .menu-item {
   flex-shrink: 0;
 }
+/* The point a PointerMenu opens at: it is the Radix trigger, so it occupies nothing and takes no click */
+.menu-anchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
 .menu-sep {
   height: 1px;
   margin: 4px 2px;
