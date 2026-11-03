@@ -873,14 +873,34 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     const fields = route ? ROUTE_DOCS[route]?.workFields : undefined;
     const body: unknown = req.body;
     if (!fields || body === null || typeof body !== 'object' || Array.isArray(body)) return;
+    const refuse = (field: string, allowed: readonly string[], where: string) => {
+      void reply.status(403).send({
+        error: `a chat's token cannot set \`${where}${field}\` here: it is the person's. An agent may send ${allowed.map((name) => `\`${name}\``).join(', ')}`,
+        code: 'chat-forbidden-field',
+        field: `${where}${field}`,
+      });
+      return reply;
+    };
     const field = Object.keys(body).find((name) => !fields.includes(name));
-    if (field === undefined) return;
-    void reply.status(403).send({
-      error: `a chat's token cannot set \`${field}\` here: it is the person's. An agent may send ${fields.map((name) => `\`${name}\``).join(', ')}`,
-      code: 'chat-forbidden-field',
-      field,
-    });
-    return reply;
+    if (field !== undefined) return refuse(field, fields, '');
+    // A schedule's target is what a chat or an orchestration is started from later, so it is held to
+    // the fields the same agent could send to start one now: never a permission mode or a tool list
+    const target: unknown = route && ROUTE_DOCS[route]?.workTarget ? (body as { target?: unknown }).target : undefined;
+    if (target !== null && typeof target === 'object' && !Array.isArray(target)) {
+      const { chat, spec } = target as { chat?: unknown; spec?: unknown };
+      const checks: Array<[unknown, string, string]> = [
+        [chat, 'POST /chats', 'target.chat.'],
+        [spec, 'POST /orchestrations', 'target.spec.'],
+      ];
+      const stray = Object.keys(target).find((name) => !['kind', 'chat', 'spec'].includes(name));
+      if (stray !== undefined) return refuse(stray, ['kind', 'chat', 'spec'], 'target.');
+      for (const [part, source, where] of checks) {
+        const allowed = ROUTE_DOCS[source]?.workFields;
+        if (!allowed || part === null || typeof part !== 'object' || Array.isArray(part)) continue;
+        const bad = Object.keys(part).find((name) => !allowed.includes(name));
+        if (bad !== undefined) return refuse(bad, allowed, where);
+      }
+    }
   });
 
   app.addHook('onResponse', async (req, reply) => {

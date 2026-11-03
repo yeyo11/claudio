@@ -48,15 +48,13 @@ once per opening, so nothing hides it. Reported by the owner with a screenshot, 
 Claudio's own MCP server (`packages/mcp`, tool names in `src/names.ts`) has no schedule tool, although
 the REST API has the whole surface (`/schedules`, `docs/rest-api.md#schedules`).
 
-**Correction, found while building (2026-11-03).** The first version of this section said a chat's
-token is not refused on `/schedules`. That holds for the reads only. `security.ts` has no schedule
-rule because the class lives in `ROUTE_DOCS`: `POST /schedules`, `PATCH /schedules/:id` and
-`POST /schedules/:id/run` are `access: 'person'` (decision D1 of
-[regression-fixes-2026-10-29.md](regression-fixes-2026-10-29.md), `/schedules` listed under
-`person` in [../security-model.md](../security-model.md)), so a guarded install answers a chat's token
-`403 chat-forbidden`. And `write-tools.test.ts` ("a chat token may call it (work)") refuses a write tool
-that declares a `person` route. A schedule runs later with nobody watching, and its target is a whole
-`NewChatRequest` or `OrchestrationSpec`, which `workFields` (top-level names only) cannot narrow.
+**Correction, found while building (2026-11-03), then settled by the owner.** The first version of
+this section said a chat's token is not refused on `/schedules`. That held for the reads only: the
+writes were `access: 'person'`, so a guarded install answered a chat's token `403 chat-forbidden`.
+The owner decided the routes become `work` (an agent can already start a chat or a graph, so a
+timetable adds nothing the chat could not do), and wants create, edit **and delete** through the MCP.
+Because a schedule's `target` is a whole `NewChatRequest` or `OrchestrationSpec` that `workFields`
+(top-level names) cannot narrow, the guard checks it one level down (`workTarget`).
 
 ### 1.4 `/v1` client tools that share a name with Claude Code's
 
@@ -135,10 +133,11 @@ catalogued in `tools.ts` (the test that compares the two stays green):
 | `create_schedule` | write | `POST /schedules` |
 | `update_schedule` | write | `PATCH /schedules/:id` (`enabled` included, so no separate enable/disable) |
 | `run_schedule` | write | `POST /schedules/:id/run` |
+| `delete_schedule` | write | `DELETE /schedules/:id` (the one delete an agent may call, by the owner's decision) |
 
 - Writes follow the existing rule: never in `--allowedTools`, so each call reaches the person as a
-  permission prompt and nothing is created that nobody confirmed. **No delete tool**, like every other
-  write tool (`names.ts`: "no delete, no setting, no account, no security").
+  permission prompt and nothing is created that nobody confirmed. `delete_schedule` is the one delete tool, by the owner's decision, and
+  its prompt says it cannot be undone.
 - A schedule spends money while nobody watches, so `create_schedule` and `update_schedule` render
   the cron expression **in words** and the next fires from `preview` in the prompt, the target's
   kind (chat or orchestration) and the overlap policy, before the person answers.
@@ -146,21 +145,12 @@ catalogued in `tools.ts` (the test that compares the two stays green):
   tool, en/es.
 - Docs: `docs/plans/claudio-mcp-server.md` and the assistant's doc list the new tools.
 
-**Built (2026-11-03).** The three reads (`list_schedules`, `get_schedule_runs`, `preview_schedule`)
-are `work` routes. The three writes (`create_schedule`, `update_schedule`, `run_schedule`) are built
-as the table says, with the prompts below, **but on an install that guards its API a chat's token gets
-`403 chat-forbidden` from them** (see the correction in §1.3): the person approves the prompt and the
-tool then answers the 403 as its error. Nothing was widened to avoid it: the routes stay `person`, and
-`write-tools.test.ts` carries a three-route exception (`PERSON_UNTIL_APPROVAL`) that a test in
-`schedule-tools.test.ts` keeps honest. The owner decides how they become usable, outside this task:
-
-1. **Wait for the assistant's server-side approval** ([assistant-everything.md](assistant-everything.md)),
-   which lets the assistant's token call `person` routes after a single-use approval bound to the
-   call's body. The tools then work unchanged, and the exception is deleted.
-2. **Reclassify the three routes as `work`**, with a check of the target's own fields for a chat's
-   token (the same fields `POST /chats` and `POST /orchestrations` list in `workFields`, never a
-   permission mode, a tool list or a server), in `apps/api/src/security.ts` and `routes.ts`, with
-   `docs/security-model.md` and `route-access.test.ts` changed to match.
+**Built (2026-11-03).** The three reads are `work` routes. The writes (`create_schedule`,
+`update_schedule`, `run_schedule`, `delete_schedule`) call routes now classified `work` with
+`workFields` and `workTarget` (`apps/api/src/openapi/routes.ts`, `security.ts`), with
+`docs/security-model.md`, `route-access.test.ts` (whose "every DELETE is the person's" rule names
+`DELETE /schedules/:id` as its one exception) and a test in `security.test.ts` for each refused
+nested field.
 
 The tools build the target from named fields only, as `start_chat` and `launch_orchestration` do, so
 a confirmed call cannot schedule more than the defaults. The prompt (`write-prompts.ts`, en/es) shows

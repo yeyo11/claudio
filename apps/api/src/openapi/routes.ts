@@ -163,6 +163,12 @@ interface RouteDoc {
    * it is listed here.
    */
   workFields?: readonly string[];
+  /**
+   * On a schedule write: the `target` is checked one level down for a chat's token, a chat target
+   * against `POST /chats`' `workFields` and an orchestration target against `POST /orchestrations`',
+   * so a schedule cannot start what the agent could not start itself.
+   */
+  workTarget?: boolean;
   description?: string;
   params?: Json;
   querystring?: Json;
@@ -861,13 +867,13 @@ export const ROUTE_DOCS: Record<string, RouteDoc> = {
   // ---- Schedules
   'GET /schedules': d('Schedules', 'List schedules', { description: 'Oldest first, each with when it last fired and when it fires next (null while disabled).', ok: list('Schedule') }),
   'GET /schedules/preview': d('Schedules', 'Say what a cron expression will do', { description: 'Nothing is saved. An invalid expression answers `valid: false` with the field that is wrong, so a form can show it while it is typed.', querystring: obj({ cron: str('Five fields, or `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`'), timezone: str('IANA zone; the server\'s when omitted'), count: { type: 'integer', description: 'How many upcoming fires to list (default 5, at most 20)' } }, ['cron']), ok: ref('SchedulePreview') }),
-  'POST /schedules': d('Schedules', 'Create a schedule', { access: 'person', description: 'The target is a chat (a `NewChatRequest`) or an orchestration (an `OrchestrationSpec`). It starts enabled unless `enabled` is false. `overlap` says what a slot does while the last run is still going (its chat working or waiting on a person, its orchestration running): `parallel` (the default) starts it anyway, `skip` records it as `overlapped` and starts nothing, `queue` starts it when that run ends, one pending at most. The clock starts now: slots before creation are not missed windows.', body: ref('CreateScheduleRequest'), ok: ref('Schedule'), created: true }),
+  'POST /schedules': d('Schedules', 'Create a schedule', { access: 'work', workFields: ['name', 'cron', 'timezone', 'target', 'enabled', 'overlap'], workTarget: true, description: 'The target is a chat (a `NewChatRequest`) or an orchestration (an `OrchestrationSpec`). It starts enabled unless `enabled` is false. `overlap` says what a slot does while the last run is still going (its chat working or waiting on a person, its orchestration running): `parallel` (the default) starts it anyway, `skip` records it as `overlapped` and starts nothing, `queue` starts it when that run ends, one pending at most. The clock starts now: slots before creation are not missed windows.', body: ref('CreateScheduleRequest'), ok: ref('Schedule'), created: true }),
   'GET /schedules/:id': d('Schedules', 'One schedule', { ok: ref('Schedule') }),
-  'PATCH /schedules/:id': d('Schedules', 'Edit a schedule', { access: 'person', description: 'Changing the expression or the zone, or switching it on, starts its clock afresh: the time it was off is not counted as missed.', body: ref('UpdateScheduleRequest'), ok: ref('Schedule') }),
-  'DELETE /schedules/:id': d('Schedules', 'Delete a schedule and its history', { access: 'person', description: 'Chats and orchestrations it already started are not touched.', ok: OK }),
-  'POST /schedules/:id/enable': d('Schedules', 'Switch a schedule on', { access: 'person', ok: ref('Schedule') }),
-  'POST /schedules/:id/disable': d('Schedules', 'Switch a schedule off', { access: 'person', ok: ref('Schedule') }),
-  'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { access: 'person', description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next; the overlap policy does not apply to it. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
+  'PATCH /schedules/:id': d('Schedules', 'Edit a schedule', { access: 'work', workFields: ['name', 'cron', 'timezone', 'target', 'enabled', 'overlap'], workTarget: true, description: 'Changing the expression or the zone, or switching it on, starts its clock afresh: the time it was off is not counted as missed.', body: ref('UpdateScheduleRequest'), ok: ref('Schedule') }),
+  'DELETE /schedules/:id': d('Schedules', 'Delete a schedule and its history', { access: 'work', workFields: [], description: 'Chats and orchestrations it already started are not touched.', ok: OK }),
+  'POST /schedules/:id/enable': d('Schedules', 'Switch a schedule on', { access: 'work', workFields: [], ok: ref('Schedule') }),
+  'POST /schedules/:id/disable': d('Schedules', 'Switch a schedule off', { access: 'work', workFields: [], ok: ref('Schedule') }),
+  'POST /schedules/:id/run': d('Schedules', 'Run a schedule now', { access: 'work', workFields: [], description: 'Starts its target immediately, whatever the timetable says and even while it is disabled. The run is recorded without a slot and does not affect when it fires next; the overlap policy does not apply to it. A target that fails to start is a run with status `failed` and its error, not an HTTP error.', ok: ref('ScheduleRun'), created: true }),
   // ---- Collaborators
   'GET /collaborators': d('Collaborators', 'Collaborators: on or off, identity and connection', { description: "The settings (`collaborators/settings.json`), this install's endpoint id (null until it is first turned on), how the endpoint is connected (`off`, `starting`, `online`, `no-relay`, `offline`, or `error` when it did not bind, with `connectionError` giving the binding's words and when it is tried again) and its home relay. `unavailable` names why the module cannot run here (`platform`, `load`, `host`), with the rest of Claudio unaffected.", ok: ref('CollaboratorsStatus') }),
   'PUT /collaborators': d('Collaborators', 'Turn Collaborators on or off, or change its settings', { access: 'person', description: 'Only the fields sent change: `enabled`, `displayName`, `label`, `relayUrl`, `assistantReads` (the assistant reads what teammates share, on by default). Turning it on generates the install\'s key once (kept in the secret vault) and binds the endpoint; off lets it go and opens no socket. 503 when the module is unavailable. Emits `collaborators.changed` (`settings`).', body: ref('UpdateCollaboratorsRequest'), ok: ref('CollaboratorsStatus') }),

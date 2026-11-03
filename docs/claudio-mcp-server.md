@@ -13,8 +13,8 @@ tags:
 Claudio ships a small MCP server, named **`claudio`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
-`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 22 read tools (CW-6, and the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)), twenty-three
-write tools (CW-17, the regression fixes of 2026-10-29 and the three schedule writes, [below](#write-tools)) and seven reads of
+`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 22 read tools (CW-6, and the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)), twenty-four
+write tools (CW-17, the regression fixes of 2026-10-29 and the four schedule writes, [below](#write-tools)) and seven reads of
 teammates' shared copies (R13, [below](#teammates-shared-copies)). What they answer, how a large
 answer is cut and which routes they may call were set by
 [plans/regression-fixes-2026-10-29.md](plans/regression-fixes-2026-10-29.md) (D7, C5, C6). The spec is [plans/claudio-mcp-server.md](plans/claudio-mcp-server.md) (CW-6, epic
@@ -157,19 +157,22 @@ an account, guards or a verification, so a confirmed call starts work with the a
 | `create_schedule` | `POST /schedules` with `name`, `cron`, `timezone`, `overlap`, `enabled` and a `target` built from named fields only: `kind: chat` sends `{ prompt, cwd, model, name }` as `start_chat` does, `kind: orchestration` sends the spec `launch_orchestration` builds (tasks or `fromPlan`, a project). No permission mode, tool list, server or guard can be named |
 | `update_schedule` | `PATCH /schedules/:id` with the fields given (`enabled` switches it on or off, so there is no separate enable or disable); refuses a call with nothing to change |
 | `run_schedule` | `POST /schedules/:id/run` (no body): runs the target now, whatever the timetable says; spend-gated like any call that starts work |
+| `delete_schedule` | `DELETE /schedules/:id`: removes the schedule and its history; what it already started is not touched |
 
-**The schedule writes are the person's routes.** `POST /schedules`, `PATCH /schedules/:id` and
-`POST /schedules/:id/run` are `access: 'person'` (decision D1 of the regression fixes): on an install
-that guards its API a chat's token is answered `403 chat-forbidden`, and the tool says so as its error;
-they work where the token only labels the request (`mode: none`). The tests hold the three to an
-explicit list (`PERSON_UNTIL_APPROVAL` in `write-tools.test.ts`), which goes away when the routes become
-`work` or the assistant's server-side approval lets its token call them
-([plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md) §2.3). There
-is no delete tool. Their prompt shows the expression, the zone, what each fire starts, the overlap
-policy and whether it is on, and the person's app adds what the expression means in words and its next
-fires, from `GET /schedules/preview`, before the answer.
+**The schedule routes are `work`.** `POST /schedules`, `PATCH /schedules/:id`, `DELETE /schedules/:id`,
+`POST /schedules/:id/enable`, `/disable` and `/run` are open to a chat's own token (owner's decision,
+2026-11-03: an agent that can already start a chat or a graph can start one on a timetable, and the
+tool asks the person first like every write). The body is held to the fields the agent may send
+(`workFields`), and its `target` one level down (`workTarget`): a chat target to those of
+`POST /chats`, an orchestration target to those of `POST /orchestrations`, so a schedule never carries
+a permission mode, a tool list, a server or a guard the agent could not set when starting the work
+itself (`apps/api/src/security.ts`). `DELETE /schedules/:id` is the one delete an agent may call; it
+is not undone, so the prompt says so and `update_schedule` with `enabled: false` is the gentle way.
+Their prompt shows the expression, the zone, what each fire starts, the overlap policy and whether it
+is on, and the person's app adds what the expression means in words and its next fires, from
+`GET /schedules/preview`, before the answer.
 
-None deletes, restores, or touches a setting, an account, permissions or security: those wait for the
+None restores, or touches a setting, an account, permissions or security: those wait for the
 server-side approval of [plans/assistant-everything.md](plans/assistant-everything.md). The chat tools
 refuse, before any request, to message, hint, interrupt or stop the chat the server runs for
 (`CLAUDIO_CHAT_ID`). The write names are in `names.ts`

@@ -65,6 +65,7 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'create_schedule',
   'update_schedule',
   'run_schedule',
+  'delete_schedule',
 ] as const;
 
 export type ClaudioMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];

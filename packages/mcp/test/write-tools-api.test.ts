@@ -170,6 +170,11 @@ test('the schedule tools: create a chat schedule and an orchestration schedule, 
   assert.equal(history.length, 1);
   const started = (ran.json as { chatId?: string }).chatId;
   if (started) await s.core.runtime.waitForResult(started);
+
+  // Delete takes the schedule and its history; a second delete is the route's 404, said as the tool's error
+  assert.deepEqual((await write('delete_schedule', { scheduleId: created.id })).json, { deleted: true, scheduleId: created.id });
+  assert.throws(() => s.core.schedules.get(created.id));
+  assert.match((await write('delete_schedule', { scheduleId: created.id }, false)).text, /failed: 404/);
 });
 
 test('the check catches a tool that calls a route the API does not have', async () => {

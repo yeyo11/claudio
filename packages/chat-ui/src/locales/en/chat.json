@@ -591,6 +591,7 @@
       "createSchedule": "Create the schedule {{name}}",
       "updateSchedule": "Change a schedule",
       "runSchedule": "Run a schedule now, whatever its timetable says",
+      "deleteSchedule": "Delete a schedule and its run history",
       "fields": {
         "title": "Title: {{value}}",
         "status": "Column: {{value}}",

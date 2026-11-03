@@ -448,4 +448,15 @@ export const WRITE_TOOLS: readonly Tool[] = [
     routes: ['POST /schedules/:id/run'],
     run: async (args, api) => scheduleResult(await api.send('POST', `/schedules/${seg(need(args, 'scheduleId'))}/run`)),
   },
+  {
+    name: 'delete_schedule',
+    description: 'Deletes a schedule and its run history; what it already started is not touched. It cannot be undone: switch it off with update_schedule when it may be wanted again.',
+    inputSchema: schema({ scheduleId }, ['scheduleId']),
+    routes: ['DELETE /schedules/:id'],
+    run: async (args, api) => {
+      const id = need(args, 'scheduleId');
+      await api.send('DELETE', `/schedules/${seg(id)}`);
+      return { deleted: true, scheduleId: id };
+    },
+  },
 ];

@@ -265,10 +265,10 @@ may do is decided by construction, per route (decision D1 of
   it; a read is `work` unless it says `person`. A write nobody classified is `person`: deny by
   default. The guard reads the class of the matched route once the token is authenticated.
 - **`person`** is everything that administers Claudio or reaches past the chat's work: `/auth`,
-  `/security`, `/accounts`, `/settings`, `/config`, `/memory`, `/plugins`, `/push`, `/schedules`,
+  `/security`, `/accounts`, `/settings`, `/config`, `/memory`, `/plugins`, `/push`,
   `/tunnel` (closing it included), `/decisions` but rating a decision, the setup's sign-ins and the
   three reads that would hand over one (`GET /setup/logins/:id`, `GET /accounts/logins/:id`,
-  `GET /trackers/youtrack/credentials`), every `DELETE`, answering a permission prompt
+  `GET /trackers/youtrack/credentials`), every `DELETE` but a schedule's, answering a permission prompt
   (`POST /chats/:id/permissions/:requestId`, its own chat's or another's), a chat's MCP servers,
   the project journal, pull requests and integration, change requests' checks, reviews and merges,
   the Supervisor's send and dismiss, accepting a review gate, the spend pass, lessons, evals but
@@ -279,7 +279,8 @@ may do is decided by construction, per route (decision D1 of
   stopping, interrupting, hinting, compacting a chat and asking it for a note; creating, planning,
   stopping, resuming, retrying, skipping, hinting, verifying and re-reviewing an orchestration;
   creating, updating, moving, commenting on, relating and linking work items and checking their
-  criteria; accepting, discarding and restoring the assistant's proposals; retrying a flow run;
+  criteria; creating, editing, switching, running and deleting a schedule (owner's decision,
+  2026-11-03); accepting, discarding and restoring the assistant's proposals; retrying a flow run;
   previewing a memory proposal; rating a decision; uploading a file; the `/v1` completions.
 - **Fields a chat may send.** A `work` write whose body could widen the chat lists the fields a
   chat's token may send (`workFields`); any other answers `403 chat-forbidden-field` naming it.
@@ -287,7 +288,9 @@ may do is decided by construction, per route (decision D1 of
   permission mode, a tool list, a preset, MCP servers, an account or a system prompt;
   `POST /chats/:id/resume` and `/fork` take `prompt`, `attachments` and `model`; `PATCH /chats/:id`
   takes `model`, never `permissionMode`. So a chat cannot start a stronger sibling or raise its own
-  mode.
+  mode. A schedule's body is held the same way one level down (`workTarget`): `target.chat` to the
+  fields of `POST /chats` and `target.spec` to those of `POST /orchestrations`, so a timetable never
+  starts what the agent could not start itself.
 - **Sign-in codes stay off its event stream.** `login.updated` carries the device code and the URL a
   person opens (for Tailscale the URL is the sign-in), so `GET /events` sends them only on a stream
   opened with an owner credential (or on an open install, where every caller is the person's); any

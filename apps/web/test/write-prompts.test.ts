@@ -33,6 +33,7 @@ const WRITE_TOOLS = [
   'create_schedule',
   'update_schedule',
   'run_schedule',
+  'delete_schedule',
 ];
 
 test('every write tool has a title in the person’s words', async () => {
@@ -96,6 +97,7 @@ test('a schedule says its expression, what it starts, the overlap and whether it
   assert.equal(describeWrite(`${P}update_schedule`, { scheduleId: 's1', name: 'Weekly' })?.detail, 'Name: Weekly');
   assert.equal(previewLoading(), 'Checking the expression…');
   assert.equal(describeWrite(`${P}run_schedule`, { scheduleId: 's1' })?.title, 'Run a schedule now, whatever its timetable says');
+  assert.equal(describeWrite(`${P}delete_schedule`, { scheduleId: 's1' })?.title, 'Delete a schedule and its run history');
   await i18n.changeLanguage('es');
   try {
     const es = describeWrite(`${P}create_schedule`, input);

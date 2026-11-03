@@ -37,7 +37,7 @@ function stub(routes: Record<string, { status?: number; body: unknown }>, chatId
 const item = { id: 'item_one', key: 'AGN-7', title: 'Cart', status: 'todo', description: 'long text that is not echoed', history: [1, 2, 3] };
 
 test('the write tools are named and never pre-allowed', () => {
-  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 23);
+  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 24);
   for (const tool of CLAUDIO_MCP_WRITE_TOOLS) {
     assert.ok(isClaudioMcpWriteTool(tool));
     assert.ok(!CLAUDIO_MCP_READ_TOOLS.includes(tool));
@@ -81,6 +81,7 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     'POST /assistant/proposals/pr1/discard': { body: { id: 'pr1', status: 'discarded' } },
     'POST /schedules': { status: 201, body: { id: 'sch-1', name: 'nightly', cron: '0 3 * * *', enabled: true, overlap: 'skip', nextRunAt: 'n', createdAt: 'c', target: { kind: 'chat', chat: { prompt: 'secret brief' } } } },
     'PATCH /schedules/sch-1': { body: { id: 'sch-1', name: 'nightly', cron: '0 4 * * *', enabled: false, nextRunAt: null } },
+    'DELETE /schedules/sch-1': { body: { ok: true } },
     'POST /schedules/sch-1/run': { status: 201, body: { id: 'run-7', scheduleId: 'sch-1', at: 'a', status: 'started', chatId: 'chat-3' } },
   });
   const criteria = [{ id: 'cr-1', text: 'still holds' }, { text: 'new one' }];
@@ -120,6 +121,7 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     ],
     ['update_schedule', { scheduleId: 'sch-1', cron: '0 4 * * *', enabled: false }, 'PATCH', '/schedules/sch-1', { cron: '0 4 * * *', enabled: false }],
     ['run_schedule', { scheduleId: 'sch-1' }, 'POST', '/schedules/sch-1/run', {}],
+    ['delete_schedule', { scheduleId: 'sch-1' }, 'DELETE', '/schedules/sch-1', undefined],
   ];
   const covered: string[] = [];
   for (const [name, args, method, path, body] of calls) {
@@ -145,14 +147,6 @@ function matches(route: string, method: string, url: string): boolean {
   return m === method && want.length === got.length && want.every((w, i) => (w.startsWith(':') ? got[i] !== '' : w === got[i]));
 }
 
-/**
- * The schedule writes, which the plan (docs/plans/terminal-menu-schedules-v1-tools.md, §2.3) asked for
- * although their routes are `person`: under a guarded mode the API answers a chat's token 403, and
- * the answer reaches the model as the tool's error. Nothing widens: the exception is these three
- * routes, and it goes away when they become `work` or the assistant's approval lets it call them.
- */
-const PERSON_UNTIL_APPROVAL = new Set(['POST /schedules', 'PATCH /schedules/:id', 'POST /schedules/:id/run']);
-
 test('every route a tool declares is a route of the API, and a chat token may call it (work)', () => {
   const docs = ROUTE_DOCS as Record<string, { access?: string }>;
   for (const tool of [...TOOLS, ...WRITE_TOOLS, ...COLLAB_TOOLS]) {
@@ -160,7 +154,6 @@ test('every route a tool declares is a route of the API, and a chat token may ca
     for (const route of tool.routes) {
       assert.ok(route in docs, `${tool.name} calls ${route}, which the API does not have`);
       // A GET is `work` unless it says otherwise; a write must say (C1). `person` is never reachable with a chat's token
-      if (PERSON_UNTIL_APPROVAL.has(route)) continue;
       assert.equal(docs[route]?.access ?? 'work', 'work', `${tool.name} calls ${route}, which only a person may call`);
     }
   }

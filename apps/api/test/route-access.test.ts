@@ -105,7 +105,6 @@ test('the classes C1 names: what a chat may never do, and what is its work', () 
     'PUT /memory/:project/:name',
     'POST /plugins/install',
     'POST /push/subscriptions',
-    'POST /schedules',
     'POST /tunnel/stop',
     'PUT /decisions/settings',
     'POST /chats/:id/permissions/:requestId',
@@ -152,12 +151,18 @@ test('the classes C1 names: what a chat may never do, and what is its work', () 
     'POST /flow-runs/:runId/retry',
     'POST /decisions/:id/feedback',
     'POST /uploads',
+    'POST /schedules',
+    'PATCH /schedules/:id',
+    'DELETE /schedules/:id',
+    'POST /schedules/:id/enable',
+    'POST /schedules/:id/disable',
+    'POST /schedules/:id/run',
   ];
   for (const route of person) assert.equal(ROUTE_DOCS[route]?.access, 'person', route);
   for (const route of work) assert.equal(ROUTE_DOCS[route]?.access, 'work', route);
-  // Every DELETE is the person's
+  // Every DELETE is the person's, but a schedule, which the owner chose to let an agent delete (its tool asks first)
   const deletes = Object.entries(ROUTE_DOCS).filter(([route, doc]) => route.startsWith('DELETE ') && doc.access !== 'person' && doc.access !== 'open');
-  assert.deepEqual(deletes.map(([route]) => route), []);
+  assert.deepEqual(deletes.map(([route]) => route), ['DELETE /schedules/:id']);
 });
 
 test("a chat's token gets 403 on every person route and is let through to every work route", async (t) => {

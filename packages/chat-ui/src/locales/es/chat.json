@@ -591,6 +591,7 @@
       "createSchedule": "Crear la programación {{name}}",
       "updateSchedule": "Cambiar una programación",
       "runSchedule": "Ejecutar una programación ahora, diga lo que diga su calendario",
+      "deleteSchedule": "Eliminar una programación y su historial de ejecuciones",
       "fields": {
         "title": "Título: {{value}}",
         "status": "Columna: {{value}}",

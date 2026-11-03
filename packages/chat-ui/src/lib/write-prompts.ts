@@ -130,6 +130,8 @@ export function describeWrite(toolName: string, input: Record<string, unknown>):
       return done(t('updateSchedule'), fields(input, ['name', 'cron', 'timezone', 'target', 'overlap', 'enabled']));
     case 'run_schedule':
       return done(t('runSchedule'));
+    case 'delete_schedule':
+      return done(t('deleteSchedule'));
     default:
       return null;
   }
