@@ -153,7 +153,9 @@ export function PointerMenu({
   return (
     // Not modal: a second right click elsewhere on the surface must reach it and move the menu, where
     // a modal layer would block it and let the browser draw its own
-    <RadixMenu.Root modal={false} open={at !== null} onOpenChange={(next) => !next && onClose()}>
+    // Keyed by the point: Radix places the panel from the anchor once and does not follow an anchor that
+    // moves, so a second right click would otherwise open the menu where the first one was
+    <RadixMenu.Root key={at ? `${String(at.x)},${String(at.y)}` : 'closed'} modal={false} open={at !== null} onOpenChange={(next) => !next && onClose()}>
       <RadixMenu.Trigger asChild>
         <span className="menu-anchor" aria-hidden style={{ left: (at?.x ?? 0) + POINTER_NUDGE, top: (at?.y ?? 0) + POINTER_NUDGE }} />
       </RadixMenu.Trigger>
