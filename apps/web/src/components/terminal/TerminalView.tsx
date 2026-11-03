@@ -114,12 +114,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       return text ? copyText(text) : false;
     },
     paste: async () => {
-      // The sheet is drawn into the page, which a fullscreen frame hides: leave fullscreen to show it
-      if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
       // No `navigator.clipboard` outside a secure context (a LAN address over HTTP): the sheet is the way in
       const clipboard = window.isSecureContext ? navigator.clipboard : undefined;
       if (!clipboard?.readText) {
-        setPasting({ refused: false });
+        await openSheet(false);
         return;
       }
       let text = '';
@@ -127,7 +125,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
         text = await clipboard.readText();
       } catch {
         // Refused: the sheet says so itself, a toast would sit under its scrim
-        setPasting({ refused: true });
+        await openSheet(true);
         return;
       }
       sendPaste(text);
@@ -141,6 +139,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
     clearFind: () => search.current?.clearDecorations(),
     forget: () => connection.current?.forget(),
   }));
+
+  // The sheet is drawn into the page, which a fullscreen frame hides: leave fullscreen only when it opens
+  async function openSheet(refused: boolean): Promise<void> {
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+    setPasting({ refused });
+  }
 
   /** Whether the text was taken; `notify: false` leaves the refusal to the caller (the sheet shows it inline) */
   function sendPaste(text: string, notify = true): boolean {
@@ -434,7 +438,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
           onSend={(text) => sendPaste(text, false)}
           onClose={() => {
             setPasting(null);
-            xterm.current?.focus();
+            // A tick later: a dialog gives the focus back to what had it when it opened, as it unmounts
+            setTimeout(() => xterm.current?.focus(), 0);
           }}
           returnFocus={() => xterm.current?.textarea ?? null}
         />

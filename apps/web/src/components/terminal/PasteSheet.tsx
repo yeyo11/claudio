@@ -95,11 +95,11 @@ export function PasteSheet({
       />
       {/* The error takes the help line's place, so nothing below it moves */}
       {tooLarge ? (
-        <p id={helpId} className="small field-error" role="alert">
+        <p key="error" id={helpId} className="small field-error" role="alert">
           {t('notices.pasteTooLarge')}
         </p>
       ) : (
-        <p id={helpId} className="muted small">
+        <p key="help" id={helpId} className="muted small">
           {compact ? t('paste.helpTouch') : t('paste.help')}
         </p>
       )}
