@@ -140,6 +140,10 @@ export default async ({ page, api, check, dirs }) => {
     const again = await rightClick(false, { fx: 0.7, fy: 0.3 });
     check(again.taken, 'a second right click is taken over as well, not left to the browser');
     await page.waitFor(`const m = document.querySelector('[role=menu]'); return !!m && Math.abs(m.getBoundingClientRect().left - ${again.x}) <= 12`, { label: 'the menu at the second point' });
+    // Radix hands the focus back a tick after a menu unmounts: the moved menu must still be there, with the focus inside it
+    await page.sleep(300);
+    const kept = await page.eval(`const m = document.querySelector('[role=menu]'); return { open: !!m, focusInside: !!m && m.contains(document.activeElement) }`);
+    check(kept.open && kept.focusInside, `the moved menu stays open and keeps the focus (${JSON.stringify(kept)})`);
     await page.press('Escape');
     await closed();
 

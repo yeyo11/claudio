@@ -367,8 +367,10 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       // expect); a phone's long press is xterm's selection, and its `⋯` sheet is the menu there
       const onContext = (event: MouseEvent) => {
         const { compact, onContextMenu } = latest.current;
-        // A touch screen's long press fires `contextmenu` too, at any width
-        const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+        // A long press fires `contextmenu` too, at any width. Chromium says which pointer did it; where a
+        // browser does not, the screen's primary pointer is the best guess
+        const kind = (event as MouseEvent & { pointerType?: string }).pointerType;
+        const touch = kind ? kind === 'touch' : typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
         if (event.shiftKey || compact || touch || !onContextMenu) return;
         event.preventDefault();
         onContextMenu({ x: event.clientX, y: event.clientY, hasSelection: term.hasSelection() });

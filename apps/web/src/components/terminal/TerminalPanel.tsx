@@ -249,10 +249,13 @@ export function TerminalPanel({
         container={fullscreen.active ? frame.current : null}
         onClose={() => setPointer(null)}
         onCloseAutoFocus={(event) => {
-          // Back to the screen the click was on, unless Search just opened its own field
+          // Back to the screen the click was on, unless Search just opened its own field. Radix runs this
+          // a tick after the menu unmounted, so something else may already hold the focus: a second
+          // right click that opened the menu again, or a click on another field. Only an empty focus
+          // (the menu's own item went with the menu) is the terminal's to take back.
           event.preventDefault();
           if (searchTakesFocus.current) searchTakesFocus.current = false;
-          else view.current?.focus();
+          else if (!document.activeElement || document.activeElement === document.body) view.current?.focus();
         }}
       />
       {compact && running && <KeyBar mods={mods} onMods={setMods} onSend={(data) => view.current?.input(data)} />}
