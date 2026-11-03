@@ -5,13 +5,14 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal, TerminalServerFrame } from '@claudio/shared';
 import { useToast } from '@claudio/ui/components/Toast';
 import { copyText } from '@claudio/ui/lib/clipboard';
 import { api, BASE } from '../../api';
 import { defaultSocketUrl, TerminalConnection, type SocketLike } from './terminal-connection';
+import { PasteSheet } from './PasteSheet';
 import { chooseRenderer, cleanPaste, pasteChunks, pasteTooLarge, type LinkState } from './terminal-model';
 import { currentTerminalTheme, watchTheme } from './terminal-theme';
 
@@ -96,6 +97,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
   const search = useRef<SearchAddon | null>(null);
   const connection = useRef<TerminalConnection | null>(null);
   const refit = useRef<() => void>(() => undefined);
+  // The paste sheet, for a page that cannot read the clipboard itself
+  const [pasting, setPasting] = useState(false);
   // Held in a ref so the long-lived xterm handlers always call the latest of them
   const latest = useRef({ ...props, t, toast });
   latest.current = { ...props, t, toast };
@@ -111,11 +114,19 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       return text ? copyText(text) : false;
     },
     paste: async () => {
+      // No `navigator.clipboard` outside a secure context (a LAN address over HTTP): the sheet is the way in
+      const clipboard = window.isSecureContext ? navigator.clipboard : undefined;
+      if (!clipboard?.readText) {
+        setPasting(true);
+        return;
+      }
       let text = '';
       try {
-        text = (await navigator.clipboard?.readText()) ?? '';
+        text = await clipboard.readText();
       } catch {
+        // Refused: say so, and let the person paste where the browser always allows it
         latest.current.toast.info(latest.current.t('notices.pasteBlocked'));
+        setPasting(true);
         return;
       }
       sendPaste(text);
@@ -410,5 +421,20 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
     refit.current();
   }, [props.fontSize]);
 
-  return <div ref={host} className="term-screen" role="region" aria-label={props.label} />;
+  return (
+    <>
+      <div ref={host} className="term-screen" role="region" aria-label={props.label} />
+      {pasting && (
+        <PasteSheet
+          compact={props.compact}
+          onSend={sendPaste}
+          onClose={() => {
+            setPasting(false);
+            xterm.current?.focus();
+          }}
+          returnFocus={() => xterm.current?.textarea ?? null}
+        />
+      )}
+    </>
+  );
 });

@@ -121,6 +121,18 @@
   height: var(--control-h-sm);
 }
 
+/* ---- paste sheet: the field and its helper line, in a sheet or a dialog ---- */
+.term-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.term-paste textarea {
+  resize: none;
+}
+
 /* ---- tabs ---- */
 .term-space {
   display: flex;

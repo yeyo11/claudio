@@ -97,7 +97,8 @@ export function TerminalPanel({
 
   const copy = async () => {
     if (await view.current?.copySelection()) toast.success(t('notices.copied'));
-    else toast.info(t('notices.nothingSelected'));
+    // Says how to select: a phone has no drag, and a long press is what it knows
+    else toast.info(t(compact ? 'notices.nothingSelectedTouch' : 'notices.nothingSelected'));
   };
 
   // The socket goes before the request does, so it cannot reconnect to a terminal the server is forgetting
