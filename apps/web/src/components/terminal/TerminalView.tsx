@@ -114,6 +114,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       return text ? copyText(text) : false;
     },
     paste: async () => {
+      // The sheet is drawn into the page, which a fullscreen frame hides: leave fullscreen to show it
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
       // No `navigator.clipboard` outside a secure context (a LAN address over HTTP): the sheet is the way in
       const clipboard = window.isSecureContext ? navigator.clipboard : undefined;
       if (!clipboard?.readText) {

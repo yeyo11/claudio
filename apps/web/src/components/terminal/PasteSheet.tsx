@@ -32,6 +32,13 @@ export function PasteSheet({
   const [tooLarge, setTooLarge] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const helpId = useId();
+  const refusedId = useId();
+  // Once closing, the focus belongs to the terminal: the guard below must not take it back
+  const closing = useRef(false);
+  const close = () => {
+    closing.current = true;
+    onClose();
+  };
 
   // The panel that opened this (the `⋯` menu, the sheet of actions) hands the focus back to its own
   // button a tick after it closes, which is after the field took it: for a moment the field gets it
@@ -40,6 +47,7 @@ export function PasteSheet({
     const take = () => field.current?.focus({ preventScroll: true });
     const frame = requestAnimationFrame(take);
     const onFocusIn = (event: FocusEvent) => {
+      if (closing.current) return;
       const target = event.target;
       if (target instanceof Node && !target.parentElement?.closest('[role="dialog"]')) take();
     };
@@ -58,12 +66,16 @@ export function PasteSheet({
       setTooLarge(true);
       return;
     }
-    onClose();
+    close();
   };
 
   const body = (
     <div className="term-paste">
-      {refused && <p className="small">{t('notices.pasteBlocked')}</p>}
+      {refused && (
+        <p id={refusedId} className="small">
+          {t('notices.pasteBlocked')}
+        </p>
+      )}
       <textarea
         ref={field}
         // A phone's keyboard takes half the screen: fewer rows keep the sheet's actions in view
@@ -74,26 +86,28 @@ export function PasteSheet({
         autoCorrect="off"
         spellCheck={false}
         aria-label={t('paste.field')}
-        aria-describedby={helpId}
+        aria-describedby={refused ? `${refusedId} ${helpId}` : helpId}
         aria-invalid={tooLarge || undefined}
         onChange={(event) => {
           setText(event.target.value);
           setTooLarge(false);
         }}
       />
-      {tooLarge && (
-        <p className="small term-paste-error" role="alert">
+      {/* The error takes the help line's place, so nothing below it moves */}
+      {tooLarge ? (
+        <p id={helpId} className="small field-error" role="alert">
           {t('notices.pasteTooLarge')}
         </p>
+      ) : (
+        <p id={helpId} className="muted small">
+          {compact ? t('paste.helpTouch') : t('paste.help')}
+        </p>
       )}
-      <p id={helpId} className="muted small">
-        {compact ? t('paste.helpTouch') : t('paste.help')}
-      </p>
     </div>
   );
   const footer = (
     <>
-      <button type="button" className="btn" onClick={onClose}>
+      <button type="button" className="btn" onClick={close}>
         {t('paste.cancel')}
       </button>
       <button type="button" className="btn btn-primary" disabled={!text} onClick={send}>
@@ -104,12 +118,12 @@ export function PasteSheet({
 
   if (compact)
     return (
-      <Sheet open onOpenChange={(open) => !open && onClose()} side="bottom" title={t('paste.title')} footer={footer} returnFocus={returnFocus}>
+      <Sheet open onOpenChange={(open) => !open && close()} side="bottom" title={t('paste.title')} footer={footer} returnFocus={returnFocus}>
         {body}
       </Sheet>
     );
   return (
-    <Dialog title={t('paste.title')} onClose={onClose} width={480} footer={footer}>
+    <Dialog title={t('paste.title')} onClose={close} width={480} footer={footer}>
       {body}
     </Dialog>
   );

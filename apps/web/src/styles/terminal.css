@@ -138,10 +138,6 @@
   border-color: var(--bad);
 }
 
-.term-paste-error {
-  color: var(--bad);
-}
-
 /* ---- tabs ---- */
 .term-space {
   display: flex;
