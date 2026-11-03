@@ -111,6 +111,8 @@ export function TerminalPanel({
     terminalEntries({
       t,
       running,
+      // An ended shell's last screen stays to be read, copied and searched
+      readable: wasLive.current,
       compact,
       hasSelection,
       onCopy: () => void copy(),

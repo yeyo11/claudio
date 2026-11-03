@@ -166,6 +166,8 @@ export function PointerMenu({
           collisionPadding={layerCollisionPadding()}
           collisionBoundary={boundary ?? undefined}
           aria-label={label}
+          // Radix names the panel after its trigger, which here is an empty, hidden anchor: the label names it
+          aria-labelledby={undefined}
           onCloseAutoFocus={onCloseAutoFocus}
           onPointerDownOutside={onPointerDownOutside}
           {...LAYER_ATTR}

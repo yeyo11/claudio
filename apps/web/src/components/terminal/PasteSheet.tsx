@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
@@ -23,6 +23,8 @@ export function PasteSheet({
   const { t } = useTranslation('terminal');
   const [text, setText] = useState('');
   const field = useRef<HTMLTextAreaElement>(null);
+  // Every terminal view can open its own sheet (the dock and a page side by side)
+  const helpId = useId();
 
   // The sheet gives its own panel the focus once it has slid in, after the field mounted: the field
   // takes it back a frame later, so the keyboard is up where the person is about to paste
@@ -49,10 +51,10 @@ export function PasteSheet({
         autoCorrect="off"
         spellCheck={false}
         aria-label={t('paste.field')}
-        aria-describedby="term-paste-help"
+        aria-describedby={helpId}
         onChange={(event) => setText(event.target.value)}
       />
-      <p id="term-paste-help" className="muted small">
+      <p id={helpId} className="muted small">
         {compact ? t('paste.helpTouch') : t('paste.help')}
       </p>
     </div>

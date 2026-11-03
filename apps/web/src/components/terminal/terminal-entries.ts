@@ -7,8 +7,13 @@ export const TERMINAL_SHORTCUTS = { copy: 'Ctrl+Shift+C', paste: 'Ctrl+Shift+V',
 
 export interface TerminalEntryOptions {
   t: TFunction<'terminal'>;
-  /** The shell is live: an ended terminal has nothing to copy from, paste into or search */
+  /** The shell is live: an ended one takes no paste */
   running: boolean;
+  /**
+   * The screen still shows the shell's output: an ended terminal keeps its last screen, which can be
+   * copied from and searched (as its keys already do). Defaults to `running`.
+   */
+  readable?: boolean;
   /** A phone shows no shortcuts: it has no keyboard chords to press */
   compact: boolean;
   /**
@@ -25,8 +30,8 @@ export interface TerminalEntryOptions {
  * Copy, Paste and Search: the entries the right-click menu and the head of the panel's `⋯` menu
  * share, so the two cannot drift apart in names, order, shortcuts or when they are off.
  */
-export function terminalEntries({ t, running, compact, hasSelection, onCopy, onPaste, onSearch }: TerminalEntryOptions): MenuItem[] {
-  const nothingToCopy = running && hasSelection === false;
+export function terminalEntries({ t, running, readable = running, compact, hasSelection, onCopy, onPaste, onSearch }: TerminalEntryOptions): MenuItem[] {
+  const nothingToCopy = readable && hasSelection === false;
   return [
     {
       id: 'copy',
@@ -34,10 +39,18 @@ export function terminalEntries({ t, running, compact, hasSelection, onCopy, onP
       icon: Copy,
       onSelect: onCopy,
       shortcut: compact ? undefined : TERMINAL_SHORTCUTS.copy,
-      disabled: !running || nothingToCopy,
+      disabled: !readable || nothingToCopy,
       disabledReason: nothingToCopy ? t('menu.copyNone') : undefined,
     },
-    { id: 'paste', label: t('menu.paste'), icon: ClipboardPaste, onSelect: onPaste, shortcut: compact ? undefined : TERMINAL_SHORTCUTS.paste, disabled: !running },
-    { id: 'search', label: t('menu.search'), icon: Search, onSelect: onSearch, shortcut: compact ? undefined : TERMINAL_SHORTCUTS.search, disabled: !running },
+    {
+      id: 'paste',
+      label: t('menu.paste'),
+      icon: ClipboardPaste,
+      onSelect: onPaste,
+      shortcut: compact ? undefined : TERMINAL_SHORTCUTS.paste,
+      disabled: !running,
+      disabledReason: running ? undefined : t('menu.pasteEnded'),
+    },
+    { id: 'search', label: t('menu.search'), icon: Search, onSelect: onSearch, shortcut: compact ? undefined : TERMINAL_SHORTCUTS.search, disabled: !readable },
   ];
 }

@@ -130,6 +130,8 @@
 }
 
 .term-paste textarea {
+  /* literal: what is pasted is shell input; the size stays the field's (16 px on touch) */
+  font-family: var(--mono);
   resize: none;
 }
 

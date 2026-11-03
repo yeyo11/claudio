@@ -45,10 +45,23 @@ test('Copy stays on with a selection, and when the selection is not known (the â
   }
 });
 
-test('an ended terminal turns all three off, without blaming the selection', () => {
+test('an ended terminal that is gone from the screen turns all three off; Paste says why', () => {
   const entries = terminalEntries(base({ running: false, hasSelection: false }));
   assert.ok(entries.every((entry) => entry.disabled === true));
   assert.equal(entries[0]?.disabledReason, undefined);
+  assert.equal(entries[1]?.disabledReason, 'The shell has ended');
+});
+
+test('an ended terminal whose last screen is shown keeps Copy and Search, as its keys do', () => {
+  const [copy, paste, search] = terminalEntries(base({ running: false, readable: true, hasSelection: true }));
+  assert.equal(copy?.disabled, false);
+  assert.equal(search?.disabled, false);
+  assert.equal(paste?.disabled, true);
+  assert.equal(paste?.disabledReason, 'The shell has ended');
+  // Nothing selected on that screen: Copy blames the selection, not the shell
+  const [none] = terminalEntries(base({ running: false, readable: true, hasSelection: false }));
+  assert.equal(none?.disabled, true);
+  assert.equal(none?.disabledReason, 'Select some text first');
 });
 
 test('each entry runs its own action', () => {
@@ -58,11 +71,15 @@ test('each entry runs its own action', () => {
   assert.deepEqual(calls, ['copy', 'paste', 'search']);
 });
 
-test('the reason for a disabled Copy exists in both languages', async () => {
+test('the reasons for a disabled Copy and Paste exist in both languages', async () => {
   for (const lng of ['en', 'es']) {
     await i18n.changeLanguage(lng);
-    const text = i18n.t('terminal:menu.copyNone');
-    assert.notEqual(text, 'menu.copyNone');
-    assert.ok(text.length > 0);
+    for (const [key, text] of [
+      ['copyNone', i18n.t('terminal:menu.copyNone')],
+      ['pasteEnded', i18n.t('terminal:menu.pasteEnded')],
+    ] as const) {
+      assert.notEqual(text, `menu.${key}`);
+      assert.ok(text.length > 0);
+    }
   }
 });
