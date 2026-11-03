@@ -41,7 +41,7 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
     const value = input[name];
     if (name === 'description' || name === 'body' || name === 'prompt' || name === 'text' || name === 'objective') {
       if (typeof value === 'string' && value.trim()) lines.push(value.trim());
-    } else if (name === 'title' || name === 'model') {
+    } else if (name === 'title' || name === 'model' || name === 'name') {
       if (typeof value === 'string' && value.trim()) lines.push(t(`fields.${name}`, { value: value.trim() }));
     } else if (name === 'status' || name === 'priority' || name === 'type') {
       const shown = typeof value === 'string' ? word(name === 'status' ? 'statuses' : name === 'priority' ? 'priorities' : 'types', value) : '';
@@ -127,7 +127,7 @@ export function describeWrite(toolName: string, input: Record<string, unknown>):
     case 'create_schedule':
       return done(t('createSchedule', { name: str(input, 'name') }), fields(input, ['cron', 'timezone', 'target', 'overlap', 'enabled']));
     case 'update_schedule':
-      return done(t('updateSchedule'), fields(input, ['cron', 'timezone', 'target', 'overlap', 'enabled']));
+      return done(t('updateSchedule'), fields(input, ['name', 'cron', 'timezone', 'target', 'overlap', 'enabled']));
     case 'run_schedule':
       return done(t('runSchedule'));
     default:
@@ -146,7 +146,11 @@ export function scheduleToCheck(toolName: string, input: Record<string, unknown>
   return cron ? { cron, timezone: str(input, 'timezone') || undefined } : null;
 }
 
-/** The lines the server's preview adds to such a prompt: the expression in words, its next fires, or what is wrong with it */
+/**
+ * The lines the server's preview adds to such a prompt: the expression in words, its next fires, or
+ * what is wrong with it. They are said beside the prompt's input block, never in it: that block is
+ * monospace and holds literals, and a sentence and a time are not.
+ */
 export function previewLines(preview: SchedulePreview, formatTime: (iso: string) => string): string[] {
   if (!preview.valid) return [t('preview.invalid', { value: preview.error ?? '' })];
   const lines: string[] = [];
@@ -154,3 +158,6 @@ export function previewLines(preview: SchedulePreview, formatTime: (iso: string)
   if (preview.next.length) lines.push(t('preview.next', { value: preview.next.map(formatTime).join(' · ') }));
   return lines;
 }
+
+/** What the prompt says while the preview is being read */
+export const previewLoading = (): string => t('preview.loading');

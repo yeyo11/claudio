@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { upperFirst, useAgentName } from '../lib/agent';
-import { describeWrite, previewLines, scheduleToCheck } from '../lib/write-prompts';
+import { describeWrite, previewLines, previewLoading, scheduleToCheck } from '../lib/write-prompts';
 import { modeLabel, toolKindLabel } from '../lib/wire-words';
 import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
@@ -60,20 +60,22 @@ function useAnswer(request: PermissionRequest) {
 /**
  * What a schedule the assistant asks to create or change will do, from the server: its expression in
  * words and its next fires. A schedule runs later with nobody watching, so the person reads this
- * before answering. Empty while it loads, when the client has no preview, and when the read fails:
- * the expression itself is already in the prompt.
+ * before answering. A line says it is being read while it loads; the lines are empty when the client
+ * has no preview and when the read fails, since the expression itself is already in the prompt.
  */
 function useScheduleLines(request: PermissionRequest): string[] {
   const { client } = useChatUi();
   const check = scheduleToCheck(request.toolName, request.input);
+  const asks = check !== null && client.schedulePreview !== undefined;
   const preview = useQuery({
     queryKey: ['schedule-prompt-preview', check?.cron, check?.timezone ?? ''],
     queryFn: () => (client.schedulePreview && check ? client.schedulePreview(check.cron, check.timezone) : Promise.reject(new Error('no preview'))),
-    enabled: check !== null && client.schedulePreview !== undefined,
+    enabled: asks,
     retry: false,
     staleTime: 60_000,
   });
-  return preview.data ? previewLines(preview.data, formatDateTime) : [];
+  if (preview.data) return previewLines(preview.data, formatDateTime);
+  return asks && preview.isPending ? [previewLoading()] : [];
 }
 
 /** Deny with a reason the model can read: one it can learn from beats one it can only retry blindly. */
@@ -86,9 +88,9 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   const answer = useAnswer(request);
   const [reason, setReason] = useState('');
   // A write tool of the assistant is said in the person's words, and never offers to be remembered
-  const base = describeWrite(request.toolName, request.input);
+  const write = describeWrite(request.toolName, request.input);
+  // Said beside the input block, which is monospace and holds literals
   const scheduleLines = useScheduleLines(request);
-  const write = base && scheduleLines.length ? { ...base, detail: [...scheduleLines, base.detail].filter(Boolean).join('\n') } : base;
   const suggestions = write ? [] : (request.suggestions ?? []);
   const described = request.description ?? request.input.description;
   const description = !write && typeof described === 'string' ? described : '';
@@ -110,6 +112,11 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
         </pre>
       )}
       {description && <p className="muted small">{description}</p>}
+      {scheduleLines.map((line) => (
+        <p key={line} className="muted small">
+          {line}
+        </p>
+      ))}
       <div className="permission-actions">
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
           <Check {...ICON_SM} /> {t('permissions.allow')}

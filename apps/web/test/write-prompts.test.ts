@@ -5,7 +5,7 @@ Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }
 // The helper reads the global i18next, which the app's instance sets up
 const { default: i18n } = await import('i18next');
 await import('../src/i18n/index.ts');
-const { describeWrite, previewLines, scheduleToCheck } = await import('@claudio/chat-ui/lib/write-prompts');
+const { describeWrite, previewLines, previewLoading, scheduleToCheck } = await import('@claudio/chat-ui/lib/write-prompts');
 
 const P = 'mcp__claudio__';
 // packages/mcp/src/write-tools.ts
@@ -93,6 +93,8 @@ test('a schedule says its expression, what it starts, the overlap and whether it
   assert.equal(create?.title, 'Create the schedule Nightly tidy');
   assert.equal(create?.detail, 'Expression: 0 3 * * *\nZone: Europe/Madrid\nStarts: a chat\nTidy the repo\nModel: sonnet\nIf the last run is still going: start nothing\nSwitched off');
   assert.equal(describeWrite(`${P}update_schedule`, { scheduleId: 's1', target: { kind: 'orchestration', tasks: [{ id: 'a', name: 'Look', prompt: 'p' }] } })?.detail, 'Starts: an orchestration\nTasks: Look');
+  assert.equal(describeWrite(`${P}update_schedule`, { scheduleId: 's1', name: 'Weekly' })?.detail, 'Name: Weekly');
+  assert.equal(previewLoading(), 'Checking the expression…');
   assert.equal(describeWrite(`${P}run_schedule`, { scheduleId: 's1' })?.title, 'Run a schedule now, whatever its timetable says');
   await i18n.changeLanguage('es');
   try {

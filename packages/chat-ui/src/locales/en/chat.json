@@ -606,7 +606,8 @@
         "enabledOn": "Switched on",
         "enabledOff": "Switched off",
         "targetChat": "Starts: a chat",
-        "targetOrchestration": "Starts: an orchestration"
+        "targetOrchestration": "Starts: an orchestration",
+        "name": "Name: {{value}}"
       },
       "overlaps": {
         "parallel": "start anyway",
@@ -616,7 +617,8 @@
       "preview": {
         "words": "In words: {{value}}",
         "next": "Next fires: {{value}}",
-        "invalid": "This expression is not valid: {{value}}"
+        "invalid": "This expression is not valid: {{value}}",
+        "loading": "Checking the expression…"
       }
     }
   },

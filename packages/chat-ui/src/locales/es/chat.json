@@ -606,7 +606,8 @@
         "enabledOn": "Activada",
         "enabledOff": "Desactivada",
         "targetChat": "Inicia: un chat",
-        "targetOrchestration": "Inicia: una orquestación"
+        "targetOrchestration": "Inicia: una orquestación",
+        "name": "Nombre: {{value}}"
       },
       "overlaps": {
         "parallel": "iniciar igualmente",
@@ -616,7 +617,8 @@
       "preview": {
         "words": "En palabras: {{value}}",
         "next": "Próximas ejecuciones: {{value}}",
-        "invalid": "Esta expresión no es válida: {{value}}"
+        "invalid": "Esta expresión no es válida: {{value}}",
+        "loading": "Comprobando la expresión…"
       }
     }
   },
