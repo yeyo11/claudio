@@ -43,9 +43,13 @@ export function TerminalDock() {
     const onDock = !active || active === document.body || (active instanceof HTMLElement && active.closest('#terminal-bar') !== null);
     hide();
     if (!onDock) return;
-    const target = before.current;
-    if (target instanceof HTMLElement && target.isConnected && !target.closest('#terminal-bar')) target.focus();
-    else if (document.activeElement instanceof HTMLElement && document.activeElement.closest('#terminal-bar')) document.activeElement.blur();
+    // What had the keyboard when the dock opened, when that was something that can keep it; otherwise (a
+    // click that gave the button no focus, an element drawn again since) the status bar item that opens it
+    const was = before.current;
+    const target =
+      was instanceof HTMLElement && was !== document.body && was.isConnected && !was.closest('#terminal-bar') ? was : document.getElementById('terminal-bar-toggle');
+    if (target instanceof HTMLElement) target.focus();
+    if (document.activeElement instanceof HTMLElement && document.activeElement.closest('#terminal-bar')) document.activeElement.blur();
   };
 
   const move = (event: ReactPointerEvent<HTMLDivElement>) => {
