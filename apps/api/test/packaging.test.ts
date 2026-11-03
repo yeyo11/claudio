@@ -304,6 +304,16 @@ test('the compose file, the .env example and the chart all say how to turn the t
   assert.match(read('deploy/helm/claudio/templates/deployment.yaml'), /- name: CLAUDIO_TUNNEL\n\s+value: \{\{ ternary "on" "off" \.Values\.tunnel\.enabled \| quote \}\}/);
 });
 
+// A container's network is the bridge or the cluster's, not the person's: the second listener stays
+// off there unless someone writes CLAUDIO_LAN=on (docs/plans/lan-access.md, D2)
+test('the image and the chart leave the LAN listener off, and the chart writes the switch whatever its value', () => {
+  const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
+  const dockerfile = read('docker/Dockerfile');
+  assert.equal(dockerfile.match(/^\s+CLAUDIO_LAN=off \\$/gm)?.length, 2, 'both stages, runtime and headless');
+  assert.match(read('deploy/helm/claudio/values.yaml'), /^lan:\n {2}enabled: false$/m);
+  assert.match(read('deploy/helm/claudio/templates/deployment.yaml'), /- name: CLAUDIO_LAN\n\s+value: \{\{ ternary "on" "off" \.Values\.lan\.enabled \| quote \}\}/);
+});
+
 test('the chart\'s default image is the release this checkout is, so a plain helm install is not an old one', () => {
   const read = (path: string) => readFileSync(resolve(here, '../../..', path), 'utf8');
   const { version } = JSON.parse(read('package.json')) as { version: string };

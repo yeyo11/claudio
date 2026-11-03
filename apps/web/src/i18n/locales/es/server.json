@@ -103,6 +103,17 @@
     "portFromEnv": "El puerto del túnel lo fija CLAUDIO_TUNNEL_PORT donde se ejecuta Claudio, así que no se puede cambiar aquí.",
     "portWhileRunning": "Cierra el túnel antes de cambiar su puerto: primero se quita la regla del puerto actual."
   },
+  "lan": {
+    "disabled": "Este Claudio no escucha en la red local. Quien lo ejecuta puede activarlo con CLAUDIO_LAN=on.",
+    "authRequired": "Escuchar en la red local necesita un método de acceso: activa antes un token u OIDC en Seguridad.",
+    "notReady": "Claudio todavía no está sirviendo, así que no hay nada que escuchar.",
+    "portInUse": "Otro programa ocupa el puerto {{port}}. Elige otro puerto o libera este.",
+    "addressMissing": "Esta máquina ya no tiene la dirección {{address}}, así que Claudio no puede escuchar en ella. Elige de nuevo las interfaces.",
+    "listenFailed": "Claudio no ha podido escuchar en la red local: {{detail}}",
+    "enabledFromEnv": "Si Claudio escucha en la red local lo fija CLAUDIO_LAN donde se ejecuta, así que no se puede cambiar aquí.",
+    "portFromEnv": "El puerto lo fija CLAUDIO_LAN_PORT donde se ejecuta Claudio, así que no se puede cambiar aquí.",
+    "bindFromEnv": "Las interfaces las fija CLAUDIO_LAN_BIND donde se ejecuta Claudio, así que no se pueden cambiar aquí."
+  },
   "collaborators": {
     "sync": {
       "forbidden": "El propietario ya no comparte este proyecto con esta instalación: se dejó de compartir o se quitó esta instalación del grupo",

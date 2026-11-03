@@ -75,6 +75,10 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
     CLAUDIO_VERSION: opts.version,
     // The UI offers the install that fits: this app's own updater, or instructions
     ...(opts.distribution ? { CLAUDIO_DISTRIBUTION: opts.distribution } : {}),
+    // The main listener stays on loopback (HOST above); the server listens on the local network
+    // itself whenever a sign-in method is on, unless the person's environment says otherwise
+    // (docs/plans/lan-access.md, D2)
+    CLAUDIO_LAN: opts.base.CLAUDIO_LAN || 'auto',
     CLAUDIO_DESKTOP_TOKEN: opts.desktopSecret,
     // Never inherited from the person's environment: only the keyring's key, or none at all
     CLAUDIO_SECRET_KEY: opts.secretKey ?? undefined,

@@ -1,8 +1,10 @@
 import { existsSync } from 'node:fs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { acquireDataDirLock, Core, dataDirFrom, headlessStartProblems, installProcessGuards, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE } from '@claudio/core';
+import { acquireDataDirLock, Core, dataDirFrom, headlessStartProblems, installProcessGuards, loadConfig, MCP_ENTRY_ENV, RESTART_EXIT_CODE, type LanRequestHandler, type LanUpgradeHandler } from '@claudio/core';
 import { buildApp } from './app.ts';
 
 export interface StartServerOptions {
@@ -43,6 +45,21 @@ export async function listenOn(app: FastifyInstance, port: number, host: string,
     app.log.warn(`port ${String(port)} is taken; listening on one the operating system picks instead`);
     await app.listen({ port: 0, host });
   }
+}
+
+/**
+ * What the listener on the local network hands its traffic to: the app's own router, and the main
+ * server's `upgrade` event, since `@fastify/websocket` listens for upgrades on `app.server` only
+ * (the terminal's socket). Both run the guard, the host allowlist and the routes the main
+ * listener runs; the socket is the LAN one, so `req.ip` is the device's (docs/plans/lan-access.md, D1).
+ */
+export function lanForwarders(app: FastifyInstance): { request: LanRequestHandler; upgrade: LanUpgradeHandler } {
+  return {
+    request: (req: IncomingMessage, res: ServerResponse) => app.routing(req, res),
+    upgrade: (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+      app.server.emit('upgrade', req, socket, head);
+    },
+  };
 }
 
 /** Creates the core, builds the app and listens. Shared by the CLI entrypoint and the desktop bundle. */
@@ -145,6 +162,12 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   // The port it bound to, which is not always the one it asked for; this also opens the tunnel
   // when "start with Claudio" is on
   core.startSubsystem('tunnel', () => core.tunnel.attach(port, urlHost, lock.id));
+  // The second listener, on the local network: its servers are created here and closed by
+  // `core.shutdown()`, and one that cannot open is a state of its own, never the server's failure
+  core.startSubsystem('lan', () => {
+    const { request, upgrade } = lanForwarders(app);
+    core.lan.attach(request, upgrade);
+  });
   let closing: Promise<void> | undefined;
   const close = () => {
     closing ??= (async () => {

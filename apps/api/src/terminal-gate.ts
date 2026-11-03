@@ -69,10 +69,13 @@ export async function clientRefusal(core: Core, req: FastifyRequest, options: Pi
     if (remote === 'off') return refuse(403, 'remote-off', 'the terminal is set to open on this machine only');
     if (remote === 'tunnel') {
       // A tunnel forwards from loopback under a name only a running tunnel lends. Anything else
-      // that merely writes that name in `Host` arrived over the network and does not count
+      // that merely writes that name in `Host` arrived over the network and does not count. The LAN
+      // listener's addresses are runtime hosts too, but their peers are the devices, not a tunnel
+      // (docs/plans/lan-access.md, D7): a local process dialling one through loopback is not one
       const peer = req.socket.remoteAddress;
       const name = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
-      if (peer === undefined || !LOOPBACK.test(peer) || runtime.get(name) === undefined) {
+      const lent = runtime.get(name);
+      if (peer === undefined || !LOOPBACK.test(peer) || lent === undefined || lent.peerIsClient === true) {
         return refuse(403, 'needs-tunnel', 'the terminal opens from another device only through the tunnel: turn it on in Settings → Access & safety → Remote access');
       }
     }

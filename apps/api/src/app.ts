@@ -25,6 +25,7 @@ import { settingsStateRoutes } from './routes/settings-state.ts';
 import { spendRoutes } from './routes/spend.ts';
 import { dashboardLayoutRoutes } from './routes/dashboard-layout.ts';
 import { tunnelRoutes } from './routes/tunnel.ts';
+import { lanRoutes } from './routes/lan.ts';
 import { eventRoutes } from './routes/events.ts';
 import { flowRoutes } from './routes/flow.ts';
 import { journalRoutes } from './routes/journal.ts';
@@ -246,6 +247,7 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
       await api.register(spendRoutes, { core });
       await api.register(dashboardLayoutRoutes, { core });
       await api.register(tunnelRoutes, { core });
+      await api.register(lanRoutes, { core });
       await api.register(pluginRoutes, { core });
       await api.register(connectorRoutes, { core });
       await api.register(memoryRoutes, { core });

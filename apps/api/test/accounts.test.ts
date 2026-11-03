@@ -368,6 +368,11 @@ test('refreshing one account answers it, and an unknown one is a 404', async () 
 });
 
 test('an api-key account refreshes to a reading that says it has no subscription limits', async () => {
+  // A gateway or cloud backend in the environment the suite runs in (an agent's ANTHROPIC_BASE_URL)
+  // makes the key none of Anthropic's to judge, so the account would not be checked at all
+  const backends = ['ANTHROPIC_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'] as const;
+  const saved = backends.map((name) => [name, process.env[name]] as const);
+  for (const name of backends) delete process.env[name];
   const created = await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'api-key', alias: 'a-key', secret: 'sk-ant-api-r' }) });
   // The key itself is asked of Anthropic: a test never reaches the network
   const original = core.accounts.check.bind(core.accounts);
@@ -385,6 +390,7 @@ test('an api-key account refreshes to a reading that says it has no subscription
     assert.equal(res.json<Account>().signInState, 'expired', 'a refused key answers the account as expired');
   } finally {
     core.accounts.check = original;
+    for (const [name, value] of saved) if (value !== undefined) process.env[name] = value;
   }
 });
 

@@ -90,6 +90,15 @@ test("the server is told the shell supervises it, which payload it runs, and tha
   assert.equal(dev.CLAUDIO_LAUNCHER, 'desktop');
 });
 
+test('the desktop server listens on the local network with a sign-in method on, unless the person’s environment says otherwise', () => {
+  const base = { ...SHELL, PATH: '/usr/bin', rememberedPort: null, webDist: '/w', dataDir: '/d', workspaceDir: '/s', version: '1.0.0', distribution: undefined, desktopSecret: 's' };
+  const env = serverEnv({ ...base, base: {} });
+  assert.equal(env.CLAUDIO_LAN, 'auto');
+  // The main listener stays on loopback whatever the LAN does
+  assert.equal(env.HOST, '127.0.0.1');
+  assert.equal(serverEnv({ ...base, base: { CLAUDIO_LAN: 'off' } }).CLAUDIO_LAN, 'off');
+});
+
 async function standIn(body: string) {
   const dir = mkdtempSync(join(tmpdir(), 'claudio-desktop-server-'));
   const entry = join(dir, 'server.mjs');

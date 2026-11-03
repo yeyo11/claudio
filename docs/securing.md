@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-25T20:00:00Z
+updated_at: 2026-10-30T20:00:00Z
 tags:
     - security
     - authentication
@@ -52,7 +52,8 @@ directory it wins over the environment).
   domain at `127.0.0.1` and driving your install from your own browser. Put a proxy in front and you
   must name the public host there; `GET /api/health` is exempt, so probes are unaffected. Without
   the variable the list is editable in Settings → Access & safety, and a running tunnel adds its own exact
-  host, never a pattern, for as long as it answers.
+  host, never a pattern, for as long as it answers. The local-network listener does the same with its
+  addresses and `<hostname>.local` ([lan-access.md](lan-access.md)).
 - **Guessing is slowed down.** After ten failed authentications an address is answered `429` with a
   `Retry-After` that doubles from a second to a minute, and is forgotten after fifteen quiet minutes.
   Only a credential that was presented and failed counts (a wrong bearer token, a wrong `?token=`, an
@@ -116,6 +117,19 @@ directory it wins over the environment).
   simple headers on everything it proxies that did not already send them, `/docs` included, and
   deliberately sets no policy of its own.
 
+## On the local network
+
+The desktop app also listens on the local network, in plain HTTP, on port 8791, as soon as a token
+or OIDC is on ([lan-access.md](lan-access.md)). Before you turn authentication on, know that:
+
+- it never listens under mode `none`, and closes the moment you switch to it;
+- by default it listens on every IPv4 interface, so a café network, the Docker bridge and
+  `tailscale0` are included; choose the interfaces in Settings → Remote access, or set
+  `CLAUDIO_LAN=off` to keep the desktop on loopback;
+- the token travels unencrypted there. Use it at home or on a network you trust, and use Tailscale
+  ([tunnel.md](tunnel.md#a-phone-and-the-local-network)) for a phone or anywhere else;
+- the image, the headless image and Helm keep it off unless `CLAUDIO_LAN=on` (`lan.enabled`).
+
 ## A proxy, and TLS
 
 **TLS.** Claudio does not terminate TLS itself: a proxy does it better, renews certificates and is
@@ -133,4 +147,4 @@ what is and is not protected.
 
 ## Related
 
-[[security-model.md]] · [[guards.md]] · [[tunnel.md]] · [[deploy.md]] · [[configuration.md]] · [[rest-api.md]] · [[known-limitations.md]]
+[[security-model.md]] · [[guards.md]] · [[tunnel.md]] · [[lan-access.md]] · [[deploy.md]] · [[configuration.md]] · [[rest-api.md]] · [[known-limitations.md]]

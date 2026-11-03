@@ -12,6 +12,7 @@ import { DEFAULT_APP_SETTINGS } from './paths.ts';
 import { defaultRotationSettings, type ProvidersSettingsStore } from './providers/settings.ts';
 import { DEFAULT_COLLABORATORS_SETTINGS } from './collab/settings.ts';
 import type { TunnelManager } from './tunnel.ts';
+import type { LanListener } from './lan.ts';
 
 /*
  * One registry for every server-side setting a row can reset (docs/plans/settings-reset-and-polish.md,
@@ -72,6 +73,7 @@ export interface SettingsRegistryDeps {
     resetSettings(paths: readonly SettingPath[]): Promise<unknown>;
   };
   tunnel: Pick<TunnelManager, 'status' | 'startStored' | 'defaultSettings' | 'resetSettings'>;
+  lan: Pick<LanListener, 'status' | 'sources' | 'defaultSettings' | 'resetSettings'>;
   accounts: Pick<AccountStore, 'settings' | 'storedSettingKeys' | 'resetSettings'>;
   collaborators: Pick<CollaboratorsService, 'currentSettings' | 'storedSettings' | 'resetSettings'>;
   /** Every project with its settings document, for `overrides()` */
@@ -152,6 +154,12 @@ const TERMINAL_KEYS = {
   'terminal.shell': 'shell',
   'terminal.login-shell': 'loginShell',
 } as const satisfies Partial<Record<FixedServerSettingId, keyof TerminalSettings>>;
+
+const LAN_KEYS = {
+  'lan.enabled': 'enabled',
+  'lan.port': 'port',
+  'lan.bind': 'bind',
+} as const satisfies Partial<Record<FixedServerSettingId, 'enabled' | 'port' | 'bind'>>;
 
 const ACCOUNT_KEYS = {
   'accounts.rotate-on-limit': 'rotateOnLimit',
@@ -246,6 +254,18 @@ export function createSettingsRegistry(deps: SettingsRegistryDeps): SettingsRegi
       await deps.tunnel.resetSettings();
     },
   };
+
+  for (const [id, key] of Object.entries(LAN_KEYS) as Array<[keyof typeof LAN_KEYS, 'enabled' | 'port' | 'bind']>) {
+    fixed[id] = {
+      read: () => {
+        const source = deps.lan.sources()[key];
+        return { stored: source === 'file', value: asDefault(deps.lan.status().settings[key]), default: asDefault(deps.lan.defaultSettings()[key]), source: sourceOf(source === 'env', source === 'file') };
+      },
+      reset: async () => {
+        await deps.lan.resetSettings([key]);
+      },
+    };
+  }
 
   for (const [id, key] of Object.entries(ACCOUNT_KEYS) as Array<[keyof typeof ACCOUNT_KEYS, keyof AccountsSettings]>) {
     fixed[id] = {

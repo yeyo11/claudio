@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/yeyo11/claudio/compare/v0.12.0...v0.13.0) (2026-10-31)
+
+
+### Features
+
+* Claudio on the local network, one listener with the guard and a back-off per peer ([#77](https://github.com/yeyo11/claudio/issues/77)) ([d531e23](https://github.com/yeyo11/claudio/commit/d531e2359c597ca930f7869af8317363ce748717))
+
 ## [0.12.0](https://github.com/yeyo11/claudio/compare/v0.11.0...v0.12.0) (2026-10-30)
 
 

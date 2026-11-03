@@ -1,22 +1,22 @@
-import type { AuthMode, TailscaleReadiness, TunnelState, TunnelStatus } from '@claudio/shared';
+import type { AuthMode, LanState, LanStatus, SettingDefault, TailscaleReadiness, TunnelState, TunnelStatus, UpdateLanSettingsRequest } from '@claudio/shared';
 import { useIsFetching, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, ShieldAlert, TriangleAlert } from 'lucide-react';
-import { useState } from 'react';
+import { ExternalLink, QrCode as QrIcon, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { api, keys } from '../../api';
-import { NumberInput, Switch } from '@claudio/ui/components/controls';
+import { api, keys, useSettingsState } from '../../api';
+import { NumberInput, Sheet, Switch } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { QrCode } from '../../components/QrCode';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, CopyButton, Empty, ErrorBox, Field, Skeleton, Tag } from '@claudio/ui/components/ui';
+import { Card, CopyButton, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
 import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
 import { SignOutButton } from '../../components/setup/SignOutButton';
-import { ServerSettingChange } from './SettingChange';
+import { focusSettingControl, ServerSettingChange } from './SettingChange';
 import { settingsHref } from './settingsGroups';
 
 /** Where Tailscale is downloaded, and where a tailnet turns MagicDNS and HTTPS certificates on. */
@@ -57,19 +57,409 @@ export function reachedThrough(url: string | null, host: string): boolean {
  */
 export function RemoteAccessTab() {
   const tunnel = useQuery({ queryKey: keys.tunnel, queryFn: api.tunnel });
+  const lan = useQuery({ queryKey: keys.lan, queryFn: api.lan });
   const auth = useQuery({ queryKey: keys.securityAuth, queryFn: api.securityAuth });
   const status = tunnel.data;
 
   return (
     <>
-      <ErrorBox error={tunnel.error ?? auth.error} />
-      {(tunnel.isLoading || auth.isLoading) && (
-        <Card>
-          <Skeleton rows={5} />
-        </Card>
+      <ErrorBox error={tunnel.error ?? lan.error ?? auth.error} />
+      {/* The local network first: it needs nothing installed, and the tunnel below is what a phone should use. Its rows are marked `lan.*` inside */}
+      {lan.data && auth.data && (
+        <div className="settings-block">
+          <LanCard status={lan.data} authMode={auth.data.mode} />
+        </div>
       )}
-      {status && auth.data && <TunnelCard status={status} authMode={auth.data.mode} />}
+      {/* Marked while it loads too, so a search that takes the person here finds the row */}
+      <div className="settings-block" data-setting="remote.tunnel">
+        {(tunnel.isLoading || lan.isLoading || auth.isLoading) && (
+          <Card>
+            <Skeleton rows={5} />
+          </Card>
+        )}
+        {status && auth.data && <TunnelCard status={status} authMode={auth.data.mode} />}
+      </div>
     </>
+  );
+}
+
+/** The state as a colour, always beside its word: ok is open to the network, warn waits for a sign-in method, bad is what the person must fix, idle is off. */
+export const LAN_TONE: Record<LanState, 'ok' | 'warn' | 'bad' | 'idle'> = {
+  listening: 'ok',
+  off: 'idle',
+  refused: 'warn',
+  'port-in-use': 'bad',
+  failed: 'bad',
+};
+
+/** The ports the server's setting accepts (`MIN_LAN_PORT`, `MAX_LAN_PORT` in core's lan.ts) */
+export const LAN_PORT_RANGE = { min: 1024, max: 65535 } as const;
+
+/** What the environment fixes, so the card shows it and never sends it (`CLAUDIO_LAN`, `CLAUDIO_LAN_PORT`, `CLAUDIO_LAN_BIND`). */
+export interface LanFromEnv {
+  enabled?: boolean;
+  port?: boolean;
+  bind?: boolean;
+}
+
+/**
+ * Settings → Access & safety → Remote access, first card: Claudio on the person's own network, from a
+ * second listener of the server (docs/plans/lan-access.md). Like the tunnel's, the status comes whole
+ * with every `lan.changed`, so the card follows the listener without polling. The switch, the port
+ * and the interfaces are the three settings the registry resets.
+ */
+function LanCard({ status, authMode }: { status: LanStatus; authMode: AuthMode }) {
+  const { t } = useTranslation('config');
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const states = useSettingsState().data?.settings;
+  const onStatus = (next: LanStatus) => queryClient.setQueryData(keys.lan, next);
+  const save = useMutation({
+    mutationFn: (patch: UpdateLanSettingsRequest) => api.updateLanSettings(patch),
+    onSuccess: onStatus,
+    onError: (err) => toast.error(t('lan.saveFailed'), err),
+  });
+  const retry = useMutation({ mutationFn: api.startLan, onSuccess: onStatus, onError: (err) => toast.error(t('lan.startFailed'), err) });
+  const fromEnv: LanFromEnv = {
+    enabled: states?.['lan.enabled']?.source === 'env',
+    port: states?.['lan.port']?.source === 'env',
+    bind: states?.['lan.bind']?.source === 'env',
+  };
+  return (
+    <LanPanel
+      status={status}
+      authMode={authMode}
+      fromEnv={fromEnv}
+      pending={save.isPending || retry.isPending}
+      onSettings={(patch) => save.mutate(patch)}
+      onRetry={() => retry.mutate()}
+      onChanged={() => void queryClient.invalidateQueries({ queryKey: keys.lan })}
+    />
+  );
+}
+
+/**
+ * What the LAN card shows for a status, kept apart from the queries so a test can draw every state.
+ * The five states are Listening, Off, Needs a sign-in method (the switch is disabled and the card
+ * links to Security, as the tunnel's does), Port in use (the port field takes focus, and the next
+ * free port is one press away) and Failed (the error as the system wrote it, in mono). One QR is
+ * open at a time, in a sheet: a panel at the side on a desktop, from the bottom edge on a phone, so opening it moves nothing on the card. The notice about plain HTTP
+ * is never behind a click: it is on screen for as long as anything listens or is meant to.
+ */
+export function LanPanel({
+  status,
+  authMode,
+  fromEnv = {},
+  pending = false,
+  onSettings,
+  onRetry = () => {},
+  onChanged = () => {},
+}: {
+  status: LanStatus;
+  authMode: AuthMode;
+  fromEnv?: LanFromEnv;
+  pending?: boolean;
+  /** Sends the settings that changed, and only those */
+  onSettings: (patch: UpdateLanSettingsRequest) => void;
+  onRetry?: () => void;
+  /** A Reset ran: the status is read again */
+  onChanged?: () => void;
+}) {
+  const { t } = useTranslation('config');
+  const { state, settings } = status;
+  const [qrFor, setQrFor] = useState<string | null>(null);
+  const previous = useRef<LanState>(state);
+  const needsSignIn = state === 'refused' || authMode === 'none';
+  const nextFree = status.portTaken?.nextFree ?? null;
+
+  // A port that was free a moment ago and is not now: the field to change is the one that takes focus.
+  // Only on the move into the state, so a page that opens on it does not pull focus away
+  useEffect(() => {
+    if (state === 'port-in-use' && previous.current !== 'port-in-use') focusSettingControl('lan.port');
+    previous.current = state;
+  }, [state]);
+
+  // The address a QR belonged to can go (the machine changed network): its code goes with it
+  const openQr = status.addresses.some((address) => address.url === qrFor) ? qrFor : null;
+
+  if (!status.available) {
+    return (
+      <Card title={t('lan.title')} actions={<Tag tone="warn">{t('lan.disabled.tag')}</Tag>}>
+        <p className="small muted">{t('lan.intro.off')}</p>
+        <div className="alert alert-warn" role="status" data-testid="lan-disabled">
+          <ShieldAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('lan.disabled.title')}</strong>
+            <div className="small">{t('lan.disabled.body', { variable: 'CLAUDIO_LAN=on' })}</div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const wording = {
+    port: (value: SettingDefault) => String(value),
+    bind: (value: SettingDefault) => (value === 'all' ? t('lan.bind.all') : t('settings.changeSlot.composite')),
+  };
+
+  return (
+    <Card
+      title={t('lan.title')}
+      actions={
+        <div className="lan-head" data-setting="lan.enabled">
+          <Switch
+            checked={settings.enabled === true}
+            // Off needs a sign-in method before it can be turned on; what is already on can always be turned off
+            disabled={pending || fromEnv.enabled === true || (needsSignIn && settings.enabled !== true)}
+            aria-label={t('lan.switch')}
+            onChange={(enabled) => onSettings({ enabled })}
+          />
+          <Tag tone={LAN_TONE[state]}>{t(`lan.states.${state}`)}</Tag>
+          <ServerSettingChange id="lan.enabled" label={t('lan.switch')} invalidate={[keys.lan]} onReset={onChanged} />
+        </div>
+      }
+    >
+      {/* A port in use or a failure has an alert of its own: "turn this on" would contradict the switch */}
+      {(state === 'listening' || state === 'off') && <p className="small muted">{state === 'listening' ? t('lan.intro.listening') : t('lan.intro.off')}</p>}
+
+      {state === 'listening' && (
+        <>
+          {status.addresses.length === 0 ? (
+            <p className="small muted" data-testid="lan-no-address">
+              {t('lan.noAddress')}
+            </p>
+          ) : (
+            <ul className="lan-addresses" data-testid="lan-addresses">
+              {status.addresses.map((address) => (
+                <li key={address.url} className="lan-address">
+                  <a className="lan-address-url mono break" href={address.url} target="_blank" rel="noreferrer" data-testid="lan-url">
+                    {address.url}
+                  </a>
+                  <span className="lan-address-actions">
+                    <CopyButton text={address.url} label={t('lan.address.copy', { url: address.url })} />
+                    <button
+                      type="button"
+                      className="btn btn-small lan-qr-button"
+                      aria-pressed={openQr === address.url}
+                      aria-label={t('lan.address.showQr', { url: address.url })}
+                      data-testid="lan-qr-toggle"
+                      onClick={() => setQrFor(openQr === address.url ? null : address.url)}
+                    >
+                      <QrIcon {...ICON_SM} />
+                      {t('lan.address.qr')}
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Sheet open={openQr !== null} onOpenChange={(open) => !open && setQrFor(null)} title={t('lan.qr.title')}>
+            {openQr && (
+              <div className="lan-qr lan-qr-sheet" data-testid="lan-qr">
+                <QrCode text={openQr} label={t('lan.qr.label', { url: openQr })} />
+                <div className="lan-qr-text">
+                <code className="mono small break">{openQr}</code>
+                <p className="small muted">{t('lan.qr.scan')}</p>
+              </div>
+              </div>
+            )}
+          </Sheet>
+        </>
+      )}
+
+      {(state === 'refused' || (state === 'off' && authMode === 'none')) && (
+        <div className="alert alert-warn" role="status" data-testid="lan-auth-required">
+          <ShieldAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('lan.authRequired.title')}</strong>
+            <div className="small">{t('lan.authRequired.body')}</div>
+            <div className="form-actions">
+              <Link className="btn btn-small" to={settingsHref('access', { section: 'access' })}>
+                {t('lan.authRequired.action')}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state === 'port-in-use' && (
+        <div className="alert alert-bad" role="alert" data-testid="lan-port-in-use">
+          <TriangleAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('lan.portInUse.title', { port: String(status.port) })}</strong>
+            <div className="small">{t('lan.portInUse.body')}</div>
+            {status.portTaken && (
+              <div className="small" data-testid="lan-port-holder">
+                {t('lan.portInUse.holder')} <code className="mono break">{status.portTaken.holder}</code>
+              </div>
+            )}
+            {nextFree !== null && !fromEnv.port && (
+              <div className="form-actions">
+                <button type="button" className="btn btn-small" disabled={pending} onClick={() => onSettings({ port: nextFree })} data-testid="lan-use-next-port">
+                  {t('lan.portInUse.useNext', { port: String(nextFree) })}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {state === 'failed' && (
+        <div className="alert alert-bad" role="alert" data-testid="lan-failed">
+          <TriangleAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('lan.failedTitle')}</strong>
+            {status.reason?.code === 'lan.listenFailed' && typeof status.reason.params?.detail === 'string' ? (
+              <div className="small">
+                <code className="mono break">{status.reason.params.detail}</code>
+              </div>
+            ) : (
+              status.reason && <div className="small">{localized(status.reason)}</div>
+            )}
+            <div className="form-actions">
+              <button type="button" className="btn btn-small" disabled={pending} onClick={onRetry} data-testid="lan-retry">
+                {t('lan.retry')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyed by the port, so a port the server moved (the next free one, another page) replaces the draft */}
+      <LanPortSetting key={status.settings.port} status={status} fromEnv={fromEnv.port === true} pending={pending} wording={wording.port} onChanged={onChanged} onSave={(port) => onSettings({ port })} />
+      <LanBindSetting status={status} fromEnv={fromEnv.bind === true} pending={pending} wording={wording.bind} onChanged={onChanged} onSave={(bind) => onSettings({ bind })} />
+
+      {state !== 'off' && state !== 'refused' && (
+        <div className="alert alert-warn" data-testid="lan-http-notice">
+          <TriangleAlert {...ICON} className="alert-icon" />
+          <div className="alert-body">
+            <strong>{t('lan.http.title')}</strong>
+            <div className="small">{t('lan.http.body')}</div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * The port the listener opens on. Saved with its button, as the tunnel's is: a listener that moves
+ * port on every keystroke would close and open on each digit. Where `CLAUDIO_LAN_PORT` sets it, it is
+ * shown and never sent.
+ */
+function LanPortSetting({
+  status,
+  fromEnv,
+  pending,
+  wording,
+  onChanged,
+  onSave,
+}: {
+  status: LanStatus;
+  fromEnv: boolean;
+  pending: boolean;
+  wording: (value: SettingDefault) => string;
+  onChanged: () => void;
+  onSave: (port: number) => void;
+}) {
+  const { t } = useTranslation('config');
+  const [draft, setDraft] = useState<number | undefined>(status.settings.port);
+  const valid = draft !== undefined && Number.isInteger(draft) && draft >= LAN_PORT_RANGE.min && draft <= LAN_PORT_RANGE.max;
+  const hint = fromEnv ? t('lan.port.fromEnv', { variable: 'CLAUDIO_LAN_PORT' }) : status.state === 'listening' ? t('lan.port.restarts') : t('lan.port.hint');
+  return (
+    <form
+      className="setting-change-row lan-setting"
+      data-setting="lan.port"
+      data-testid="lan-port"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (valid) onSave(draft);
+      }}
+    >
+      <Field label={t('lan.port.label')} hint={hint}>
+        <NumberInput aria-label={t('lan.port.label')} value={draft} onChange={setDraft} min={LAN_PORT_RANGE.min} max={LAN_PORT_RANGE.max} disabled={fromEnv || pending} compact />
+      </Field>
+      <ServerSettingChange id="lan.port" label={t('lan.port.label')} wording={wording} invalidate={[keys.lan]} onReset={onChanged} />
+      {!fromEnv && (
+        <div className="form-actions">
+          <button type="submit" className="btn btn-small" disabled={!valid || draft === status.settings.port || pending}>
+            {t('lan.port.save')}
+          </button>
+        </div>
+      )}
+    </form>
+  );
+}
+
+/**
+ * Which of the machine's addresses the listener answers on: all of them, or the ones switched on. The
+ * last one switched on cannot be turned off, since a listener on no address is not a setting the server
+ * accepts. An address the settings keep that the machine no longer has stays in the list, switched on,
+ * so the person sees why the listener failed.
+ */
+function LanBindSetting({
+  status,
+  fromEnv,
+  pending,
+  wording,
+  onChanged,
+  onSave,
+}: {
+  status: LanStatus;
+  fromEnv: boolean;
+  pending: boolean;
+  wording: (value: SettingDefault) => string;
+  onChanged: () => void;
+  onSave: (bind: 'all' | string[]) => void;
+}) {
+  const { t } = useTranslation('config');
+  const { bind } = status.settings;
+  const chosen = bind === 'all' ? [] : bind;
+  const options = [...status.interfaces.map(({ name, ip }) => ({ name: name as string | null, ip })), ...chosen.filter((ip) => !status.interfaces.some((each) => each.ip === ip)).map((ip) => ({ name: null as string | null, ip }))];
+  const first = status.interfaces[0]?.ip;
+  return (
+    <div className="setting-change-row lan-setting" data-setting="lan.bind" data-testid="lan-bind">
+      <div className="lan-bind-head">
+        <span className="field-label">{t('lan.bind.label')}</span>
+        <Segmented
+          label={t('lan.bind.label')}
+          value={bind === 'all' ? 'all' : 'choose'}
+          disabled={pending || fromEnv}
+          options={[
+            { value: 'all', label: t('lan.bind.all') },
+            { value: 'choose', label: t('lan.bind.choose'), disabled: first === undefined && bind === 'all', title: first === undefined ? t('lan.bind.none') : undefined },
+          ]}
+          onChange={(next) => {
+            if (next === 'all') onSave('all');
+            else if (first !== undefined) onSave([first]);
+          }}
+        />
+      </div>
+      <ServerSettingChange id="lan.bind" label={t('lan.bind.label')} wording={wording} invalidate={[keys.lan]} onReset={onChanged} />
+      {bind !== 'all' && (
+        <ul className="lan-interfaces" data-testid="lan-interfaces">
+          {options.map((option) => {
+            const on = chosen.includes(option.ip);
+            return (
+              <li key={option.ip}>
+                <Switch
+                  className="check lan-interface"
+                  checked={on}
+                  // The last one on stays: the listener needs an address to open on
+                  disabled={pending || fromEnv || (on && chosen.length === 1)}
+                  aria-label={option.name ? `${option.ip} (${option.name})` : option.ip}
+                  onChange={(next) => onSave(next ? [...chosen, option.ip] : chosen.filter((ip) => ip !== option.ip))}
+                >
+                  <span className="mono">{option.ip}</span>
+                  {option.name && <span className="small muted lan-interface-name">{option.name}</span>}
+                </Switch>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <p className="small muted lan-bind-hint">{fromEnv ? t('lan.bind.fromEnv', { variable: 'CLAUDIO_LAN_BIND' }) : bind === 'all' ? t('lan.bind.hintAll') : t('lan.bind.hintChosen')}</p>
+    </div>
   );
 }
 

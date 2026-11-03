@@ -157,8 +157,10 @@ A change that breaks one of these rules is not done:
 ## Knowledge
 
 Write every feature and every decision as a document under `docs/` (plans in `docs/plans/`), in the
-pull request that builds it. [docs/knowledge-base.md](docs/knowledge-base.md) has the format, the
-tools and the re-sync.
+pull request that builds it, with the `write-knowledge-doc` skill (the owner's `base` plugin).
+[docs/knowledge-base.md](docs/knowledge-base.md) has the format, the tools and the re-sync. One
+rule of this repository overrides the skill: when you edit an existing document, change the file
+and bump `updated_at`; a new document enters through `kb_add_document` once.
 
 `docs/` is also a searchable knowledge base, and the source is indexed by symbol.
 

@@ -793,6 +793,11 @@
       },
       "machine": {
         "history": "Memory, pressure and chats over time"
+      },
+      "lan": {
+        "enabled": "Local network",
+        "port": "Local network port",
+        "bind": "Local network interfaces"
       }
     },
     "keywords": {
@@ -952,7 +957,7 @@
         "allowed": "host origin domain"
       },
       "remote": {
-        "section": "tunnel tailscale phone address qr",
+        "section": "tunnel tailscale phone address qr lan wifi network",
         "tunnel": "tailscale tailnet serve"
       },
       "secrets": {
@@ -993,6 +998,11 @@
       "machine": {
         "section": "memory pressure load cpu chats rss resources server",
         "history": "memory pressure load cpu chats history charts"
+      },
+      "lan": {
+        "enabled": "lan wifi network home listen phone",
+        "port": "lan wifi network 8791",
+        "bind": "lan wifi network interface address ip"
       }
     },
     "consequences": {
@@ -1881,6 +1891,72 @@
       "holder": "What holds it:",
       "useNext": "Use the next free port ({{port}})"
     }
+  },
+  "lan": {
+    "title": "On the local network",
+    "switch": "Listen on the local network",
+    "states": {
+      "listening": "Listening",
+      "off": "Off",
+      "refused": "Needs a sign-in method",
+      "port-in-use": "Port in use",
+      "failed": "Failed"
+    },
+    "intro": {
+      "listening": "Devices on your network open Claudio at:",
+      "off": "Turn this on and phones and computers on your network can open Claudio at this machine's address."
+    },
+    "noAddress": "This machine has no network address to show yet. Connect it to a network.",
+    "address": {
+      "copy": "Copy {{url}}",
+      "qr": "QR",
+      "showQr": "Show the QR code of {{url}}"
+    },
+    "qr": {
+      "title": "Open on a phone",
+      "label": "QR code of {{url}}",
+      "scan": "Scan the code with your phone's camera while it is on the same network."
+    },
+    "authRequired": {
+      "title": "Turn on a sign-in method first",
+      "body": "While Claudio asks for no credential, anyone on this network would control this machine, so it does not listen. Turn on a token or OIDC in Access, above.",
+      "action": "Go to Access"
+    },
+    "portInUse": {
+      "title": "Another program holds port {{port}}",
+      "body": "Claudio never stops it. Choose another port, or free this one.",
+      "holder": "What holds it:",
+      "useNext": "Use the next free port ({{port}})"
+    },
+    "failedTitle": "Claudio could not listen on the network",
+    "retry": "Try again",
+    "disabled": {
+      "tag": "turned off",
+      "title": "Listening on the network is turned off in this deploy",
+      "body": "Whoever runs this Claudio can turn it on with {{variable}} (lan.enabled in the Helm chart)."
+    },
+    "port": {
+      "label": "Port",
+      "hint": "Choose another if something else uses it.",
+      "restarts": "A new port makes Claudio listen again.",
+      "fromEnv": "Set by {{variable}} where Claudio runs.",
+      "save": "Save port"
+    },
+    "bind": {
+      "label": "Interfaces",
+      "all": "All",
+      "choose": "Choose…",
+      "none": "This machine has no network address to choose from.",
+      "hintAll": "Every address of this machine.",
+      "hintChosen": "Only the addresses switched on. At least one stays on.",
+      "fromEnv": "Set by {{variable}} where Claudio runs."
+    },
+    "http": {
+      "title": "Plain HTTP",
+      "body": "Your token travels unencrypted on this network, and a phone gets no app or notifications here. For the phone, use Tailscale below."
+    },
+    "saveFailed": "Could not save the local network setting",
+    "startFailed": "Could not start listening"
   },
   "appSettings": {
     "fromEnv": "Set by the environment",

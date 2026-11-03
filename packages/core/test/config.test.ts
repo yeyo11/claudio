@@ -163,6 +163,24 @@ test('the tunnel is offered by default, and in the Docker image only once its en
   }
 });
 
+test('the LAN listener is off unless the launcher says on or auto, and its port and addresses are checked at start', () => {
+  const base = { CLAUDE_CONFIG_DIR: join(scratch, 'lan', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'lan', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'lan', 'workspace') };
+
+  assert.deepEqual([loadConfig(base).lan, loadConfig(base).lanPort, loadConfig(base).lanBind], [null, null, null]);
+  assert.equal(loadConfig({ ...base, CLAUDIO_LAN: ' ' }).lan, null);
+  for (const [value, expected] of [['on', 'on'], ['1', 'on'], ['OFF', 'off'], ['false', 'off'], ['auto', 'auto'], [' Auto ', 'auto']] as const) {
+    assert.equal(loadConfig({ ...base, CLAUDIO_LAN: value }).lan, expected, value);
+  }
+  assert.equal(loadConfig({ ...base, CLAUDIO_LAN_PORT: '8791' }).lanPort, 8791);
+  assert.deepEqual(loadConfig({ ...base, CLAUDIO_LAN_BIND: '192.168.0.30, 10.0.0.4,192.168.0.30' }).lanBind, ['192.168.0.30', '10.0.0.4']);
+
+  // A way in is not guessed at: a typo stops the start
+  for (const value of ['yes', 'lan', 'of']) assert.throws(() => loadConfig({ ...base, CLAUDIO_LAN: value }), /CLAUDIO_LAN/, value);
+  for (const value of ['70000', '-1', 'http']) assert.throws(() => loadConfig({ ...base, CLAUDIO_LAN_PORT: value }), /CLAUDIO_LAN_PORT/, value);
+  // Only an exact IPv4 address can join the allowlist
+  for (const value of ['my-pc.local', 'fe80::1', '192.168.0.300']) assert.throws(() => loadConfig({ ...base, CLAUDIO_LAN_BIND: value }), /CLAUDIO_LAN_BIND/, value);
+});
+
 test('only the tailscaled the image started is Claudio\'s to sign in, and its node name is a host name', () => {
   const base = { CLAUDE_CONFIG_DIR: join(scratch, 'managed', 'claude'), CLAUDIO_DATA_DIR: join(scratch, 'managed', 'data'), CLAUDIO_WORKSPACE_DIR: join(scratch, 'managed', 'workspace') };
   const docker = { ...base, CLAUDIO_DISTRIBUTION: 'docker' };

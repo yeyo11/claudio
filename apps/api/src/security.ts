@@ -156,13 +156,19 @@ export function isSingleLabel(name: string): boolean {
  * A request on a runtime host is keyed by the header its owner said carries the client's address,
  * and only there: on any other host nobody vouches for that header, and anybody on the machine
  * could set it to spend someone else's budget. Without a header, or without a value in it, the
- * host's traffic still gets a bucket of its own, apart from loopback.
+ * host's traffic still gets a bucket of its own, apart from loopback. A host whose peers are the
+ * clients themselves (`peerIsClient`, the LAN listener's addresses) is keyed by the socket's address.
  */
 function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
   // No `Host` is no runtime host: the empty name is never one
   const name = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
   const host = runtime.get(name);
   if (!host) return `${req.ip}|${name}`;
+  // The listener on the local network: the socket's peer is the device itself (`req.ip`, since the
+  // app trusts no proxy header), so each device spends its own budget. A relay (the tunnel) runs on
+  // this machine and arrives from loopback, so a peer that is not loopback is its own client too,
+  // whatever name it wrote: a device on the network naming the tunnel must not spend the tunnel's
+  if (host.peerIsClient || !LOOPBACK.test(req.ip)) return `runtime:${name}:${req.ip}`;
   const header = host.clientIpHeader ? req.headers[host.clientIpHeader] : undefined;
   // The last hop is the one the provider added; whatever comes before it the client could write
   const client = (Array.isArray(header) ? header.at(-1) : header)?.split(',').at(-1)?.trim();

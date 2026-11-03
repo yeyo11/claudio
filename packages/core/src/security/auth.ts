@@ -101,10 +101,16 @@ export class AuthStore {
    */
   readonly environmentReset: { at: string } | null = null;
   /**
-   * Awaited before the mode turns to `none`, so whatever must not outlive the guard (the tunnel)
-   * is gone before the first unguarded request can arrive. Set by the owner of both, like the audit.
+   * Each awaited before the mode turns to `none`, so whatever must not outlive the guard (the tunnel,
+   * the listener on the local network) is gone before the first unguarded request can arrive. Each
+   * registers its own; added by the owner of both, like the audit.
    */
-  beforeUnguarded: (() => Promise<void>) | null = null;
+  readonly beforeUnguarded: Array<() => Promise<void>> = [];
+  /**
+   * Told once the mode has turned from `none` to one that asks for a credential, after it is saved:
+   * what waits for a guard (the listener on the local network) may open now.
+   */
+  readonly afterGuarded: Array<() => void> = [];
   /**
    * SHA-256 of the secret the desktop app handed the server it spawned (`CLAUDIO_DESKTOP_TOKEN`),
    * so its tray can read the state under whatever guard the owner turned on from the Security
@@ -273,10 +279,18 @@ export class AuthStore {
       // A person who chose it must not have it undone by a later start (the migration)
       if (mode === 'none') next.noneChosenAt = new Date().toISOString();
     }
-    if (next.mode === 'none' && this.stored.mode !== 'none') await this.beforeUnguarded?.();
+    const unguarding = next.mode === 'none' && this.stored.mode !== 'none';
+    const guarding = next.mode !== 'none' && this.stored.mode === 'none';
+    // All of them, even when one fails: one that throws must not leave the others open
+    if (unguarding) {
+      const closed = await Promise.allSettled(this.beforeUnguarded.map((hook) => hook()));
+      const failed = closed.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+      if (failed) throw failed.reason;
+    }
     this.stored = next;
     this.oidcVerifier.reset();
     await this.persist();
+    if (guarding) for (const hook of this.afterGuarded) hook();
     return this.config;
   }
 

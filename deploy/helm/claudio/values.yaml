@@ -6,7 +6,7 @@ image:
   # Change both together or neither: a moving tag (`latest`, `edge`) needs pullPolicy: Always, or a
   # node that already holds the image serves yesterday's build - and a security fix - forever, while
   # a node scheduled fresh pulls a different one under the same name.
-  tag: "0.12.0" # x-release-please-version
+  tag: "0.13.0" # x-release-please-version
   pullPolicy: IfNotPresent
 
 # The port the API listens on inside the pod and the one the Service exposes
@@ -94,6 +94,15 @@ tunnel:
   # The HTTPS port of Claudio's Serve rule on the node's tailnet name (1024-65535). Empty leaves it
   # to the app's setting (Settings > Remote access, 8444 by default); a number writes
   # CLAUDIO_TUNNEL_PORT, which fixes it and shows it read-only in the UI.
+  port: null
+
+# The second listener, on the local network (Settings > Remote access): plain HTTP on its own port,
+# only while auth is `token` or `oidc`. Off as in the image, since the pod's network is the cluster's
+# and the Service is the way in; `true` writes CLAUDIO_LAN=on and adds the port to the container.
+lan:
+  enabled: false
+  # The listener's port (1024-65535). Empty leaves it to the app's setting (8791 by default); a
+  # number writes CLAUDIO_LAN_PORT, which fixes it and shows it read-only in the UI.
   port: null
 
 # The person's own terminal (Settings > Terminal): a login shell in the pod, as user `node`, with the

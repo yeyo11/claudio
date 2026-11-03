@@ -123,6 +123,12 @@ export interface RuntimeHostOptions {
    * the owner wait too. Only read on this host: anywhere else anybody on the machine could forge it.
    */
   clientIpHeader?: string;
+  /**
+   * Whether each connection on this host comes straight from its client, so the socket's address is
+   * the client's (the listener on the local network). Its traffic is then counted per address, and
+   * one device guessing the token never makes another wait. A relay (the tunnel) leaves it out.
+   */
+  peerIsClient?: boolean;
 }
 
 /**
@@ -141,7 +147,7 @@ export class RuntimeHosts {
     const header = options.clientIpHeader?.trim().toLowerCase();
     if (header !== undefined && !HEADER_NAME.test(header)) throw new Error(`'${options.clientIpHeader}' is not a header name`);
     const added = !this.hosts.has(name);
-    this.hosts.set(name, header ? { clientIpHeader: header } : {});
+    this.hosts.set(name, { ...(header ? { clientIpHeader: header } : {}), ...(options.peerIsClient === true ? { peerIsClient: true } : {}) });
     if (added) this.onChange?.();
   }
 
