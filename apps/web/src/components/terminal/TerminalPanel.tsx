@@ -62,6 +62,8 @@ export function TerminalPanel({
   const [pointer, setPointer] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
   // The search field takes the keyboard itself: the menu must not hand it back to the screen
   const searchTakesFocus = useRef(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const pressedOutside = useRef(false);
   const [mods, setMods] = useState<Modifiers>({ ctrl: false, alt: false });
   const font = useTerminalFont(compact);
   const [screenReader] = useScreenReaderMode();
@@ -131,6 +133,7 @@ export function TerminalPanel({
       {searching ? (
         <div className="term-find">
           <input
+            ref={searchInput}
             className="term-search"
             type="search"
             autoFocus
@@ -228,6 +231,7 @@ export function TerminalPanel({
           onSearch={() => setSearching(true)}
           onContextMenu={(menu) => {
             searchTakesFocus.current = false;
+            pressedOutside.current = false;
             setPointer(menu);
           }}
           transformInput={(typed) => {
@@ -254,8 +258,16 @@ export function TerminalPanel({
           // right click that opened the menu again, or a click on another field. Only an empty focus
           // (the menu's own item went with the menu) is the terminal's to take back.
           event.preventDefault();
-          if (searchTakesFocus.current) searchTakesFocus.current = false;
+          if (searchTakesFocus.current) {
+            searchTakesFocus.current = false;
+            // A field that was already open does not autofocus again
+            searchInput.current?.focus();
+          } else if (pressedOutside.current) pressedOutside.current = false;
           else if (!document.activeElement || document.activeElement === document.body) view.current?.focus();
+        }}
+        // A press elsewhere closed the menu: that press chooses where the focus goes, not the menu
+        onPointerDownOutside={() => {
+          pressedOutside.current = true;
         }}
       />
       {compact && running && <KeyBar mods={mods} onMods={setMods} onSend={(data) => view.current?.input(data)} />}

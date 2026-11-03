@@ -134,6 +134,7 @@ export function PointerMenu({
   boundary,
   container,
   onCloseAutoFocus,
+  onPointerDownOutside,
 }: {
   entries: MenuEntry[];
   at: { x: number; y: number } | null;
@@ -146,6 +147,8 @@ export function PointerMenu({
   container?: HTMLElement | null;
   /** Runs when the menu has closed; call `preventDefault` to place the focus yourself */
   onCloseAutoFocus?: (event: Event) => void;
+  /** A press outside the menu is about to close it; it runs before `onCloseAutoFocus` */
+  onPointerDownOutside?: () => void;
 }) {
   return (
     // Not modal: a second right click elsewhere on the surface must reach it and move the menu, where
@@ -164,6 +167,7 @@ export function PointerMenu({
           collisionBoundary={boundary ?? undefined}
           aria-label={label}
           onCloseAutoFocus={onCloseAutoFocus}
+          onPointerDownOutside={onPointerDownOutside}
           {...LAYER_ATTR}
         >
           <Entries entries={entries} />

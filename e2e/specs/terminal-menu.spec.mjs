@@ -132,6 +132,14 @@ export default async ({ page, api, check, dirs }) => {
     await closed();
     await page.waitFor(`return document.activeElement?.classList.contains('term-search') === true`, { label: 'the search field with the keyboard' });
     check(true, 'Search in the menu opened the search field and it kept the keyboard');
+    // With the field already open, the menu's Search puts the keyboard back in it
+    await page.focus('.term .xterm-helper-textarea');
+    await rightClick(false);
+    await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the menu with the search field open' });
+    await page.click('[role=menu] [role=menuitem]', 'Search', 400);
+    await closed();
+    await page.waitFor(`return document.activeElement?.classList.contains('term-search') === true`, { label: 'the open search field takes the keyboard again' });
+    check(true, 'Search in the menu, with the field already open, gave it the keyboard');
     await page.press('Escape');
 
     // ---- 6b. a second right click while the menu is open moves it, and the browser draws nothing ----
