@@ -228,7 +228,11 @@ export function TerminalPanel({
           onTitle={setTitle}
           onEnded={onEnded}
           onToggle={onToggle}
-          onSearch={() => setSearching(true)}
+          // A field that is already open does not autofocus again, so the shortcut puts the keyboard in it
+          onSearch={() => {
+            setSearching(true);
+            searchInput.current?.focus();
+          }}
           onContextMenu={(menu) => {
             searchTakesFocus.current = false;
             pressedOutside.current = false;
@@ -255,8 +259,8 @@ export function TerminalPanel({
         onCloseAutoFocus={(event) => {
           // Back to the screen the click was on, unless Search just opened its own field. Radix runs this
           // a tick after the menu unmounted, so something else may already hold the focus: a second
-          // right click that opened the menu again, or a click on another field. Only an empty focus
-          // (the menu's own item went with the menu) is the terminal's to take back.
+          // right click that opened the menu again. Only an empty focus (the menu's own item went with
+          // the menu) is the terminal's to take back; a press elsewhere is `pressedOutside`'s.
           event.preventDefault();
           if (searchTakesFocus.current) {
             searchTakesFocus.current = false;
