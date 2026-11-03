@@ -37,7 +37,12 @@ export function TerminalDock() {
 
   // The last terminal is gone: the dock hides and the keyboard goes back to the page, not to a panel that no longer exists
   const emptied = () => {
+    // The server's `closed` can come while the person types elsewhere on the page: only a keyboard that
+    // was on the dock (or nowhere) is moved
+    const active = document.activeElement;
+    const onDock = !active || active === document.body || (active instanceof HTMLElement && active.closest('#terminal-bar') !== null);
     hide();
+    if (!onDock) return;
     const target = before.current;
     if (target instanceof HTMLElement && target.isConnected && !target.closest('#terminal-bar')) target.focus();
     else if (document.activeElement instanceof HTMLElement && document.activeElement.closest('#terminal-bar')) document.activeElement.blur();

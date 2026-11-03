@@ -154,10 +154,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
   }
 
   // The sheet is drawn on <body>, which element full screen hides behind the terminal's frame: it
-  // would hold the keyboard out of sight, so full screen ends first
+  // would hold the keyboard out of sight, so full screen ends first. It mounts a task later: a menu
+  // that chose Paste runs it before it closes, and its close queues the focus's return to its trigger;
+  // the field's own focus (PasteSheet) is then queued after that one, and wins
   function openSheet(): void {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-    setPasting(true);
+    window.setTimeout(() => setPasting(true), 0);
   }
 
   useEffect(() => {

@@ -2099,8 +2099,8 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   the text. A refusal still says so in a toast, which names no key. A terminal in full screen leaves
   it before the sheet opens, since the sheet is drawn outside the frame.
 - **Closing the last terminal.** The dock hides when its last terminal is closed (by the person, once
-  the server accepted, or the server's `closed`) and gives the keyboard back to what had it before the
-  dock opened. A terminal of any project keeps it open, a shell that ended by itself keeps its tab,
+  the server accepted, or the server's `closed`) and, when the keyboard was on the dock, gives it back to
+  what had it before the dock opened; a keyboard elsewhere on the page stays where it is. A terminal of any project keeps it open, a shell that ended by itself keeps its tab,
   and an empty first load still shows the empty state until its first shell opens.
 - **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
   chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
