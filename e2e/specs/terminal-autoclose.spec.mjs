@@ -70,7 +70,9 @@ export default async ({ page, api, check, dirs }) => {
     await ready();
     check((await hasDock()) && (await running()).length === 1, 'the item opened the dock again with a first shell');
   } finally {
-    for (const each of (await api.get('/terminals').catch(() => ({ body: [] }))).body) await api.del(`/terminals/${each.id}`).catch(() => {});
+    // A refused list answers an error object: nothing to close, and the spec's own failure stays the one reported
+    const left = (await api.get('/terminals').catch(() => ({ body: [] }))).body;
+    for (const each of Array.isArray(left) ? left : []) await api.del(`/terminals/${each.id}`).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(RENDERER)}); localStorage.removeItem('claudio-terminal-bar'); return true`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});

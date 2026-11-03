@@ -594,13 +594,25 @@ function nextStep() {
     // then a `can_use_tool` control request; the turn waits for the answer. Allowed, the call answers
     // `Allowed: <command>` without running it; denied, it fails. Either way the turn goes on as after
     // a command, reading what was said to it meanwhile
+    // `ask: mcp__<server>__<tool> {json}` asks for that MCP tool with that input instead (a write of
+    // Claudio's own server, whose prompt is said in the person's words); allowed, it answers
+    // `Allowed: <tool>` without calling the server
     const id = newToolId();
-    const input = { command: step.text, description: `Run ${step.text}` };
-    assistant([{ type: 'tool_use', id, name: 'Bash', input }]);
+    const mcp = /^(mcp__\S+)\s*(.*)$/.exec(step.text);
+    const toolName = mcp ? mcp[1] : 'Bash';
+    let input = { command: step.text, description: `Run ${step.text}` };
+    if (mcp) {
+      try {
+        input = JSON.parse(mcp[2] || '{}');
+      } catch {
+        input = {};
+      }
+    }
+    assistant([{ type: 'tool_use', id, name: toolName, input }]);
     const requestId = randomUUID();
-    own.current = { id, child: null, command: step.text, asking: requestId };
-    log('asked', { requestId, command: step.text });
-    emit({ type: 'control_request', request_id: requestId, request: { subtype: 'can_use_tool', tool_name: 'Bash', input, tool_use_id: id } });
+    own.current = { id, child: null, command: mcp ? toolName : step.text, asking: requestId };
+    log('asked', { requestId, command: mcp ? toolName : step.text });
+    emit({ type: 'control_request', request_id: requestId, request: { subtype: 'can_use_tool', tool_name: toolName, input, tool_use_id: id } });
     return;
   }
   if (step.kind === 'say') {

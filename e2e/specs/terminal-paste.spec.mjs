@@ -3,7 +3,8 @@
 // as the pointer: the `⋯` menu's Paste opens a bottom sheet whose 16 px field has the keyboard, with
 // Send to terminal as the primary action and Cancel beside it, both 44 px targets; the text goes to
 // the shell; Cancel sends nothing; and a copy with nothing selected says how to select. The browser's
-// clipboard is removed from the page, as on HTTP, and the sheet is shot in both themes.
+// clipboard is removed from the page, as on HTTP, and the sheet is shot in both themes. On a desktop
+// with a mouse, the ⋯ menu's Paste opens a dialog whose field keeps the keyboard.
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -96,6 +97,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.fill('.sheet textarea', 'echo nothere$((7*7))');
     await page.click('.sheet-foot .btn', 'Cancel', 500);
     await closed();
+    await page.sleep(300);
+    check(await page.eval(`return document.activeElement === document.querySelector('.term .xterm-helper-textarea')`), `Cancel gave the keyboard back to the terminal, not the ⋯ (${await page.eval(`return document.activeElement?.outerHTML.slice(0, 80) ?? null`)})`);
     await page.focus('.term .xterm-helper-textarea');
     await page.key('Enter');
     await page.sleep(600);
@@ -121,6 +124,21 @@ export default async ({ page, api, check, dirs }) => {
     await page.shot('terminal-paste-sheet-light');
     await page.click('.sheet-foot .btn', 'Cancel', 500);
     await closed();
+
+    // ---- 6. a desktop with a mouse: the ⋯ menu's Paste opens a dialog whose field keeps the keyboard ----
+    // The menu gives the focus back to its trigger a tick after it closes; the field takes it after that
+    await page.emulateTouch(false);
+    await page.viewport(1280, 900);
+    await page.goto(`/terminals/${opened.body.id}`, 1500);
+    await page.waitFor(`return !!document.querySelector('.term .xterm-helper-textarea') && (${SCREEN}).trim().length > 0`, { label: 'the terminal on a desktop', timeout: 30_000 });
+    await page.realClick('.term-head [aria-label="Terminal actions"]', 500);
+    await page.click('[role=menu] [role=menuitem]', 'Paste', 800);
+    await page.waitFor(`return !!document.querySelector('.dialog textarea')`, { label: 'the paste dialog' });
+    check(await page.eval(`return document.activeElement === document.querySelector('.dialog textarea')`), `the dialog's field has the keyboard, not the ⋯ behind it (${await page.eval(`return document.activeElement?.outerHTML.slice(0, 80) ?? null`)})`);
+    await page.click('.dialog .btn', 'Cancel', 500);
+    await page.waitFor(`return !document.querySelector('.dialog')`, { label: 'the dialog closed' });
+    await page.sleep(300);
+    check(await page.eval(`return document.activeElement === document.querySelector('.term .xterm-helper-textarea')`), `Cancel gave the keyboard back to the terminal, not the ⋯ (${await page.eval(`return document.activeElement?.outerHTML.slice(0, 80) ?? null`)})`);
   } finally {
     await dropClipboard?.().catch(() => {});
     await page.emulateTouch(false).catch(() => {});

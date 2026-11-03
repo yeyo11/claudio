@@ -73,6 +73,7 @@
     "label": "Acciones de la terminal",
     "copy": "Copiar selección",
     "copyNone": "Selecciona texto primero",
+    "ended": "El shell ha terminado",
     "paste": "Pegar",
     "search": "Buscar",
     "fontUp": "Texto más grande ({{size}} px)",

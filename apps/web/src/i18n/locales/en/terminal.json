@@ -73,6 +73,7 @@
     "label": "Terminal actions",
     "copy": "Copy selection",
     "copyNone": "Select some text first",
+    "ended": "The shell has ended",
     "paste": "Paste",
     "search": "Search",
     "fontUp": "Larger text ({{size}} px)",
