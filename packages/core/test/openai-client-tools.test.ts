@@ -298,7 +298,18 @@ test('tool names that are too long under the prefix, name a built-in, or differ 
   assert.equal(clientToolsProblem([tool('x'.repeat(MAX_CLIENT_TOOL_NAME))]), null);
   const builtin = clientToolsProblem([tool('bash')]);
   assert.match(builtin?.kind === 'invalid-request' ? builtin.message : '', /Claude Code's own tools/);
+  // The message says how to get past it
+  assert.match(builtin?.kind === 'invalid-request' ? builtin.message : '', /X-Claudio-Allowed-Tools: \[\]/);
   assert.equal(clientToolsProblem([tool('Lookup'), tool('lookup')])?.kind, 'invalid-request');
+});
+
+test("a chat without Claude Code's tools serves client tools named like them; the length and case checks still hold", () => {
+  const dropped = { builtinToolsDropped: true };
+  const paramOf = (i: number) => `tools[${String(i)}].function.name`;
+  assert.equal(clientToolsProblem(['bash', 'edit', 'glob', 'grep'].map((name) => tool(name)), paramOf, dropped), null);
+  assert.equal(clientToolsProblem([tool('x'.repeat(MAX_CLIENT_TOOL_NAME + 1))], paramOf, dropped)?.kind, 'invalid-request');
+  assert.equal(clientToolsProblem([tool('bash'), tool('Bash')], paramOf, dropped)?.kind, 'invalid-request');
+  assert.equal(clientToolsProblem([tool('bash')], paramOf, { builtinToolsDropped: false })?.kind, 'invalid-request');
 });
 
 test('the trailing results must answer every call of the last assistant message, and nothing else', () => {

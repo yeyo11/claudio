@@ -56,9 +56,11 @@ test("the chat's policy is in the seed: any field of it changed is another conve
   const base = keyed({});
   assert.equal(keyed({}), base);
   assert.notEqual(base, historyKey(seed, messages), 'a key with a policy is never one without');
-  for (const patch of [{ workspaceId: 'ws_a' }, { allowedTools: ['Read', 'Grep'] }, { allowedTools: [] }, { maxTurns: 3 }, { maxBudgetUsd: 0.5 }, { schema: true }]) {
+  for (const patch of [{ workspaceId: 'ws_a' }, { allowedTools: ['Read', 'Grep'] }, { allowedTools: [] }, { maxTurns: 3 }, { maxBudgetUsd: 0.5 }, { schema: true }, { builtinTools: [] }]) {
     assert.notEqual(keyed(patch), base, JSON.stringify(patch));
   }
+  // A policy without the built-in list keeps the key it had before the field existed
+  assert.equal(policyKey(policy), JSON.stringify([null, ['Read'], null, 1, false]));
 });
 
 test('what clients change without meaning anything does not change the key', () => {

@@ -80,15 +80,25 @@ export function clientToolName(cliName: string): string | null {
 /**
  * Why the request's tools cannot be served, or null. The parser already checked the name's
  * characters and duplicates; this is what the stub adds: the prefix's room and the built-ins.
+ * `builtinToolsDropped`: the chat's process lists none of Claude Code's tools (`--tools=`, from an
+ * explicit empty `X-Claudio-Allowed-Tools`), so a built-in's name is nobody else's and is served.
  */
-export function clientToolsProblem(tools: readonly ClientTool[], paramOf: (index: number) => string = (i) => `tools[${String(i)}].function.name`): OpenAiFailure | null {
+export function clientToolsProblem(
+  tools: readonly ClientTool[],
+  paramOf: (index: number) => string = (i) => `tools[${String(i)}].function.name`,
+  opts: { builtinToolsDropped?: boolean } = {},
+): OpenAiFailure | null {
   for (const [i, tool] of tools.entries()) {
     const param = paramOf(i);
     if (tool.name.length > MAX_CLIENT_TOOL_NAME) {
       return { kind: 'invalid-request', param, message: `The tool name \`${tool.name}\` is too long: the CLI lists it as \`${CLIENT_TOOL_PREFIX}${tool.name}\`, and a tool name is at most ${String(MAX_TOOL_NAME)} characters, so client tool names are at most ${String(MAX_CLIENT_TOOL_NAME)}.` };
     }
-    if (BUILT_IN.has(tool.name.toLowerCase())) {
-      return { kind: 'invalid-request', param, message: `The tool name \`${tool.name}\` is one of Claude Code's own tools; rename it.` };
+    if (!opts.builtinToolsDropped && BUILT_IN.has(tool.name.toLowerCase())) {
+      return {
+        kind: 'invalid-request',
+        param,
+        message: `The tool name \`${tool.name}\` is one of Claude Code's own tools. Send \`X-Claudio-Allowed-Tools: []\` to start the chat without Claude Code's tools, so the name is yours alone, or rename the tool.`,
+      };
     }
   }
   const lower = new Set<string>();

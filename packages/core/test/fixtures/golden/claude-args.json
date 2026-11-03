@@ -561,6 +561,97 @@
       "--no-session-persistence"
     ]
   ],
+  "no built-in tools": [
+    [
+      "-p",
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--replay-user-messages",
+      "--permission-mode",
+      "acceptEdits",
+      "--allow-dangerously-skip-permissions",
+      "--session-id",
+      "<chat-1>",
+      "--name",
+      "golden",
+      "--tools=",
+      "--add-dir",
+      "/uploads",
+      "--permission-prompts",
+      "none"
+    ]
+  ],
+  "no built-in tools, resumed": [
+    [
+      "-p",
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--replay-user-messages",
+      "--permission-mode",
+      "acceptEdits",
+      "--allow-dangerously-skip-permissions",
+      "--session-id",
+      "<chat-1>",
+      "--name",
+      "golden",
+      "--tools=",
+      "--add-dir",
+      "/uploads",
+      "--permission-prompts",
+      "none"
+    ],
+    [
+      "-p",
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--replay-user-messages",
+      "--permission-mode",
+      "acceptEdits",
+      "--allow-dangerously-skip-permissions",
+      "--resume",
+      "<chat-1>",
+      "--tools=",
+      "--add-dir",
+      "/uploads",
+      "--permission-prompts",
+      "none"
+    ]
+  ],
+  "confined beats no built-in tools": [
+    [
+      "-p",
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--replay-user-messages",
+      "--permission-mode",
+      "acceptEdits",
+      "--session-id",
+      "<chat-1>",
+      "--name",
+      "golden",
+      "--restricted",
+      "--tools=Read",
+      "--setting-sources=",
+      "--permission-prompts",
+      "none"
+    ]
+  ],
   "bypass mode": [
     [
       "-p",
