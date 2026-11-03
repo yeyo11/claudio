@@ -97,6 +97,8 @@ export default async ({ page, api, check, dirs }) => {
     await page.fill('.sheet textarea', 'echo nothere$((7*7))');
     await page.click('.sheet-foot .btn', 'Cancel', 500);
     await closed();
+    await page.sleep(300);
+    check(await page.eval(`return document.activeElement === document.querySelector('.term .xterm-helper-textarea')`), `Cancel gave the keyboard back to the terminal, not the ⋯ (${await page.eval(`return document.activeElement?.outerHTML.slice(0, 80) ?? null`)})`);
     await page.focus('.term .xterm-helper-textarea');
     await page.key('Enter');
     await page.sleep(600);
@@ -135,6 +137,8 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return document.activeElement === document.querySelector('.dialog textarea')`), `the dialog's field has the keyboard, not the ⋯ behind it (${await page.eval(`return document.activeElement?.outerHTML.slice(0, 80) ?? null`)})`);
     await page.click('.dialog .btn', 'Cancel', 500);
     await page.waitFor(`return !document.querySelector('.dialog')`, { label: 'the dialog closed' });
+    await page.sleep(300);
+    check(await page.eval(`return document.activeElement === document.querySelector('.term .xterm-helper-textarea')`), `Cancel gave the keyboard back to the terminal, not the ⋯ (${await page.eval(`return document.activeElement?.outerHTML.slice(0, 80) ?? null`)})`);
   } finally {
     await dropClipboard?.().catch(() => {});
     await page.emulateTouch(false).catch(() => {});

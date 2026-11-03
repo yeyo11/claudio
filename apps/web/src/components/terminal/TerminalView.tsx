@@ -154,12 +154,19 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
   }
 
   // The sheet is drawn on <body>, which element full screen hides behind the terminal's frame: it
-  // would hold the keyboard out of sight, so full screen ends first. It mounts a task later: a menu
-  // that chose Paste runs it before it closes, and its close queues the focus's return to its trigger;
-  // the field's own focus (PasteSheet) is then queued after that one, and wins
+  // would hold the keyboard out of sight, so full screen ends first.
+  // A menu that chose Paste runs this before it closes, and its close queues the focus's return to its
+  // trigger (Radix, a timeout of 0) before any timeout queued here has run. So the sheet mounts two
+  // timeouts later, after that return, with the keyboard first put back on the terminal: the dialog and
+  // the sheet remember what had the keyboard when they opened and give it back there when they close
   function openSheet(): void {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-    window.setTimeout(() => setPasting(true), 0);
+    window.setTimeout(() => {
+      window.setTimeout(() => {
+        xterm.current?.focus();
+        setPasting(true);
+      }, 0);
+    }, 0);
   }
 
   useEffect(() => {

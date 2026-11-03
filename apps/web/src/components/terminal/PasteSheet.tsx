@@ -29,7 +29,7 @@ export function PasteSheet({
 
   // The field ends up with the keyboard, whoever moved it after the mount: the dialog and the sheet
   // focus their own first control, and the phone's sheet its panel once it has slid in (a frame later).
-  // The `⋯` menu that chose Paste has already queued its focus's return before this mounted (openSheet)
+  // The `⋯` menu that chose Paste has already given the focus back to its trigger (openSheet)
   useEffect(() => {
     const take = () => field.current?.focus({ preventScroll: true });
     const timer = window.setTimeout(take, 0);
