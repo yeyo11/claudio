@@ -45,11 +45,14 @@ test('Copy stays on with a selection, and when the selection is not known (the â
   }
 });
 
-test('an ended terminal that is gone from the screen turns all three off; Paste says why', () => {
+test('an ended terminal that is gone from the screen turns all three off, each saying why', () => {
   const entries = terminalEntries(base({ running: false, hasSelection: false }));
   assert.ok(entries.every((entry) => entry.disabled === true));
-  assert.equal(entries[0]?.disabledReason, undefined);
-  assert.equal(entries[1]?.disabledReason, 'The shell has ended');
+  // The shell, not the selection: there is no screen to select on
+  assert.deepEqual(
+    entries.map((entry) => entry.disabledReason),
+    ['The shell has ended', 'The shell has ended', 'The shell has ended'],
+  );
 });
 
 test('an ended terminal whose last screen is shown keeps Copy and Search, as its keys do', () => {
@@ -76,7 +79,7 @@ test('the reasons for a disabled Copy and Paste exist in both languages', async 
     await i18n.changeLanguage(lng);
     for (const [key, text] of [
       ['copyNone', i18n.t('terminal:menu.copyNone')],
-      ['pasteEnded', i18n.t('terminal:menu.pasteEnded')],
+      ['ended', i18n.t('terminal:menu.ended')],
     ] as const) {
       assert.notEqual(text, `menu.${key}`);
       assert.ok(text.length > 0);

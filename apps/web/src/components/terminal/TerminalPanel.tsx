@@ -180,7 +180,8 @@ export function TerminalPanel({
           <RotateCcw {...ICON_SM} /> {t('actions.reopen')}
         </button>
       )}
-      {!searching && running && !compact && (
+      {/* An ended shell's last screen can still be searched, as its menus and Ctrl+Shift+F do */}
+      {!searching && wasLive.current && !compact && (
         <Tooltip content={t('search.label')}>
           <button type="button" className="icon-btn" aria-label={t('search.label')} onClick={() => setSearching(true)}>
             <Search {...ICON_SM} />

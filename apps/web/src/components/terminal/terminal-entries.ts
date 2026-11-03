@@ -40,7 +40,7 @@ export function terminalEntries({ t, running, readable = running, compact, hasSe
       onSelect: onCopy,
       shortcut: compact ? undefined : TERMINAL_SHORTCUTS.copy,
       disabled: !readable || nothingToCopy,
-      disabledReason: nothingToCopy ? t('menu.copyNone') : undefined,
+      disabledReason: !readable ? t('menu.ended') : nothingToCopy ? t('menu.copyNone') : undefined,
     },
     {
       id: 'paste',
@@ -49,8 +49,16 @@ export function terminalEntries({ t, running, readable = running, compact, hasSe
       onSelect: onPaste,
       shortcut: compact ? undefined : TERMINAL_SHORTCUTS.paste,
       disabled: !running,
-      disabledReason: running ? undefined : t('menu.pasteEnded'),
+      disabledReason: running ? undefined : t('menu.ended'),
     },
-    { id: 'search', label: t('menu.search'), icon: Search, onSelect: onSearch, shortcut: compact ? undefined : TERMINAL_SHORTCUTS.search, disabled: !readable },
+    {
+      id: 'search',
+      label: t('menu.search'),
+      icon: Search,
+      onSelect: onSearch,
+      shortcut: compact ? undefined : TERMINAL_SHORTCUTS.search,
+      disabled: !readable,
+      disabledReason: readable ? undefined : t('menu.ended'),
+    },
   ];
 }

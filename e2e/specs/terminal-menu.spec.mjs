@@ -38,6 +38,8 @@ export default async ({ page, api, check, dirs }) => {
       const frame = document.querySelector('.term').getBoundingClientRect();
       return {
         name: m.getAttribute('aria-label'),
+        // Radix would name it after its hidden, empty anchor, which wins over aria-label
+        labelledBy: m.getAttribute('aria-labelledby'),
         items: [...m.querySelectorAll('[role=menuitem]')].map((i) => ({ text: i.querySelector('.menu-item-text > span')?.textContent, key: i.querySelector('.menu-item-key')?.textContent ?? null, disabled: i.getAttribute('aria-disabled') === 'true', why: i.querySelector('.menu-item-why')?.textContent ?? null })),
         inside: box.left >= frame.left - 1 && box.right <= frame.right + 1 && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1,
         box: { left: Math.round(box.left), top: Math.round(box.top), bottom: Math.round(box.bottom) },
@@ -78,6 +80,7 @@ export default async ({ page, api, check, dirs }) => {
     );
     check(open?.items[0]?.disabled === true && open.items[0].why === 'Select some text first', `Copy is off and says why (${JSON.stringify(open?.items[0])})`);
     check(open?.items[1]?.disabled === false && open.items[2]?.disabled === false, 'Paste and Search are on');
+    check(open?.name === 'Terminal actions' && open.labelledBy === null, `the menu is named "Terminal actions", not after its anchor (${JSON.stringify([open?.name, open?.labelledBy])})`);
     check(open?.inside === true, `the menu opens inside the terminal's frame (${JSON.stringify(open?.box)})`);
     // Below the pointer, or above it when the panel is too short to hold the menu under it
     const nearY = open ? Math.min(Math.abs(open.box.top - first.y), Math.abs(open.box.bottom - first.y)) : Infinity;
