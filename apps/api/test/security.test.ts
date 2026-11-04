@@ -1084,6 +1084,13 @@ test("a chat's token may send a work route only the fields an agent chooses, and
     ['POST', '/api/orchestrations', { name: 'g', tasks: [], verification: { commands: [] } }, 'verification'],
     ['POST', '/api/orchestrations/nope/relaunch', { spec: { permissionMode: 'bypassPermissions' } }, 'spec'],
     ['POST', '/api/orchestrations/nope/verify', { verification: { commands: [] } }, 'verification'],
+    // A schedule starts work later, so its target is held to what the agent could start now
+    ['POST', '/api/schedules', { name: 's', cron: '@daily', target: { kind: 'chat', chat: { prompt: 'go' } }, permissionMode: 'bypassPermissions' }, 'permissionMode'],
+    ['POST', '/api/schedules', { name: 's', cron: '@daily', target: { kind: 'chat', chat: { prompt: 'go', permissionMode: 'bypassPermissions' } } }, 'target.chat.permissionMode'],
+    ['POST', '/api/schedules', { name: 's', cron: '@daily', target: { kind: 'chat', chat: { prompt: 'go', allowedTools: ['Bash'] } } }, 'target.chat.allowedTools'],
+    ['POST', '/api/schedules', { name: 's', cron: '@daily', target: { kind: 'orchestration', spec: { name: 'g', tasks: [], permissionMode: 'bypassPermissions' } } }, 'target.spec.permissionMode'],
+    ['PATCH', '/api/schedules/nope', { target: { kind: 'orchestration', spec: { name: 'g', tasks: [], verification: { commands: [] } } } }, 'target.spec.verification'],
+    ['PATCH', '/api/schedules/nope', { target: { kind: 'chat', chat: { prompt: 'go' }, extra: 1 } }, 'target.extra'],
   ] as const) {
     const answer = await app.inject({ method, url, ...fromChatWith(token, body) });
     assert.equal(answer.statusCode, 403, `${method} ${url} ${field}`);
@@ -1095,6 +1102,13 @@ test("a chat's token may send a work route only the fields an agent chooses, and
   assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/resume', ...fromChatWith(token, { prompt: 'go', model: 'sonnet', attachments: [] }) })).statusCode, 404);
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/nope', ...fromChatWith(token, { model: 'sonnet' }) })).statusCode, 404);
   assert.equal((await app.inject({ method: 'POST', url: '/api/work-items/nope/work', ...fromChatWith(token, { model: 'sonnet' }) })).statusCode, 404);
+  // A schedule of the agent's own fields is created, edited, run and deleted like any work write
+  const made = await app.inject({ method: 'POST', url: '/api/schedules', ...fromChatWith(token, { name: 'nightly', cron: '0 3 * * *', target: { kind: 'chat', chat: { prompt: 'tidy', model: 'sonnet' } }, enabled: false }) });
+  assert.equal(made.statusCode, 201, made.body);
+  const id = made.json().id as string;
+  const patched = await app.inject({ method: 'PATCH', url: `/api/schedules/${id}`, ...fromChatWith(token, { cron: '0 4 * * *' }) });
+  assert.equal(patched.statusCode, 200, patched.body);
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/schedules/${id}`, remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:34331', authorization: `Bearer ${token}` } })).statusCode, 200);
   // The owner sets anything
   assert.equal((await app.inject({ method: 'PATCH', url: '/api/chats/nope', ...authed(owner, { permissionMode: 'plan' }) })).statusCode, 404);
 

@@ -116,6 +116,73 @@ export function Menu({
   );
 }
 
+/**
+ * The menu a right click opens, at the pointer: the same panel as `Menu`, anchored to a point
+ * instead of a trigger. The caller owns when it is open (`at` is null while it is closed) and what
+ * gets the focus back, since nothing here was focused before: `onCloseAutoFocus` can send it to the
+ * surface the click was on.
+ *
+ * The point is nudged a couple of pixels so the pointer is not over the first item when the button
+ * is released (Radix would read that release as a choice). The panel flips and slides to stay inside
+ * the window, or inside `boundary` when it is given.
+ */
+export function PointerMenu({
+  entries,
+  at,
+  label,
+  onClose,
+  boundary,
+  container,
+  onCloseAutoFocus,
+  onPointerDownOutside,
+}: {
+  entries: MenuEntry[];
+  at: { x: number; y: number } | null;
+  /** Names the menu for assistive technology */
+  label: string;
+  onClose: () => void;
+  /** Keeps the panel inside this element where there is room, e.g. the terminal's frame */
+  boundary?: Element | null;
+  /** Where the panel is drawn instead of <body>: an element in full screen shows nothing outside itself */
+  container?: HTMLElement | null;
+  /** Runs when the menu has closed; call `preventDefault` to place the focus yourself */
+  onCloseAutoFocus?: (event: Event) => void;
+  /** A press outside the menu is about to close it; it runs before `onCloseAutoFocus` */
+  onPointerDownOutside?: () => void;
+}) {
+  return (
+    // Not modal: a second right click elsewhere on the surface must reach it and move the menu, where
+    // a modal layer would block it and let the browser draw its own
+    // Keyed by the point: Radix places the panel from the anchor once and does not follow an anchor that
+    // moves, so a second right click would otherwise open the menu where the first one was
+    <RadixMenu.Root key={at ? `${String(at.x)},${String(at.y)}` : 'closed'} modal={false} open={at !== null} onOpenChange={(next) => !next && onClose()}>
+      <RadixMenu.Trigger asChild>
+        <span className="menu-anchor" aria-hidden style={{ left: (at?.x ?? 0) + POINTER_NUDGE, top: (at?.y ?? 0) + POINTER_NUDGE }} />
+      </RadixMenu.Trigger>
+      <RadixMenu.Portal container={container ?? undefined}>
+        <RadixMenu.Content
+          className="menu menu-dropdown"
+          side="bottom"
+          align="start"
+          sideOffset={0}
+          collisionPadding={layerCollisionPadding()}
+          collisionBoundary={boundary ?? undefined}
+          aria-label={label}
+          // Radix names the panel after its trigger, which here is an empty, hidden anchor: the label names it
+          aria-labelledby={undefined}
+          onCloseAutoFocus={onCloseAutoFocus}
+          onPointerDownOutside={onPointerDownOutside}
+          {...LAYER_ATTR}
+        >
+          <Entries entries={entries} />
+        </RadixMenu.Content>
+      </RadixMenu.Portal>
+    </RadixMenu.Root>
+  );
+}
+
+const POINTER_NUDGE = 2;
+
 function Entries({ entries }: { entries: MenuEntry[] }) {
   return (
     <>

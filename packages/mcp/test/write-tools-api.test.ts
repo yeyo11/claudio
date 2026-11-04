@@ -134,6 +134,49 @@ test("the chat tools: start in a project's folder, message, hint, interrupt, sto
   await s.core.runtime.waitForResult(idOf(fork.json));
 });
 
+test('the schedule tools: create a chat schedule and an orchestration schedule, change one, switch it off, run it', async () => {
+  const chat = await write('create_schedule', {
+    name: 'nightly tidy',
+    cron: '0 3 * * *',
+    timezone: 'UTC',
+    overlap: 'skip',
+    target: { kind: 'chat', projectId: s.project.id, prompt: 'tidy up', name: 'Tidy' },
+  });
+  const created = chat.json as { id: string; enabled: boolean; overlap: string; nextRunAt: string; target: string };
+  assert.deepEqual([created.enabled, created.overlap, created.target, typeof created.nextRunAt], [true, 'skip', 'chat', 'string']);
+  const stored = s.core.schedules.get(created.id);
+  assert.deepEqual(stored.target, { kind: 'chat', chat: { prompt: 'tidy up', cwd: s.project.path, name: 'Tidy' } });
+
+  const graph = await write('create_schedule', {
+    name: 'weekly review',
+    cron: '0 9 * * 1',
+    timezone: 'UTC',
+    enabled: false,
+    target: { kind: 'orchestration', projectId: s.project.id, name: 'Review', tasks: [{ id: 'a', name: 'Look', prompt: 'look' }] },
+  });
+  assert.equal((graph.json as { enabled: boolean }).enabled, false);
+  assert.equal(s.core.schedules.get(idOf(graph.json)).target.kind, 'orchestration');
+
+  const changed = await write('update_schedule', { scheduleId: created.id, cron: '30 4 * * *', enabled: false });
+  assert.deepEqual([(changed.json as { cron: string }).cron, (changed.json as { enabled: boolean }).enabled], ['30 4 * * *', false]);
+  assert.equal(s.core.schedules.get(created.id).enabled, false);
+  // A wrong expression is the route's refusal, said as the tool's error
+  assert.match((await write('update_schedule', { scheduleId: created.id, cron: 'not a cron' }, false)).text, /failed: 400/);
+
+  // Run now works while it is switched off, and the run is on the history the read tool gives
+  const ran = await write('run_schedule', { scheduleId: created.id });
+  assert.equal((ran.json as { scheduleId: string }).scheduleId, created.id);
+  const history = (await s.call('get_schedule_runs', { scheduleId: created.id })).json as unknown[];
+  assert.equal(history.length, 1);
+  const started = (ran.json as { chatId?: string }).chatId;
+  if (started) await s.core.runtime.waitForResult(started);
+
+  // Delete takes the schedule and its history; a second delete is the route's 404, said as the tool's error
+  assert.deepEqual((await write('delete_schedule', { scheduleId: created.id })).json, { deleted: true, scheduleId: created.id });
+  assert.throws(() => s.core.schedules.get(created.id));
+  assert.match((await write('delete_schedule', { scheduleId: created.id }, false)).text, /failed: 404/);
+});
+
 test('the check catches a tool that calls a route the API does not have', async () => {
   // The route start_chat once called: projects have no detail route
   const seen: SeenRequest[] = [];

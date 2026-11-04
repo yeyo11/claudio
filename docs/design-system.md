@@ -240,7 +240,7 @@ reference's class next to it.** The e2e specs select several of the app's classe
 | `.kpi` | `.usage-tile`, `.usage-hero` (Usage on a phone), the widget headline figures | big-number tiles. A phone shows one figure, not a row of tiles |
 | `.bar`, `.segbar`, `.ring` | `.meter-*`, `.gauge*`, `.progress`, `.ring*`, `.ctx-bar`, `.slice-*`, `.board-task-fill` | see the thresholds below |
 | `.list-row`, `.sel` | `.crow`, `.list-row`, `.master-item`, `.now-row`, `.widget-row`, `.account-row`, `.rotation-cell`, `.settings-cell` | clickable rows. The selected row gets an accent inset. A cell that opens a screen of its own ends in a chevron |
-| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry. Its popup is the listbox (WAI-ARIA APG editable combobox): the wrapper Radix renders is `role="presentation"` with no tabindex, never an unnamed dialog (2026-10-20) |
+| `.menu`, `.menu-item`, `.danger` | `.menu`, `.menu-item` (controls.css) | desktop overflow menus. `PointerMenu` (components/controls/Menu) is the same panel opened at the pointer by a right click (`.menu-anchor` is its empty fixed anchor); a phone and a long press (touch) never get it: the `⋯` (a `Sheet` on a phone) stands in. On a phone, use `Sheet`: `MoreActions` (components/controls) is the `⋯` that is a menu on a desktop and a `.sheet-actions` column of buttons on a phone. A `Combobox` with no suggestions yet shows one `.combobox-status` row instead, never an option: the braille spinner and "Loading models…", or a `--bad` icon, the words and a `.link-btn` Retry. Its popup is the listbox (WAI-ARIA APG editable combobox): the wrapper Radix renders is `role="presentation"` with no tabindex, never an unnamed dialog (2026-10-20) |
 | `.tooltip` · `.toast` · `.callout` | `Tooltip`, `.toast*`, `.alert*` | the toast drains a gradient bar. A `Tooltip` opens on hover and on keyboard focus only: a focus that follows Tab, an arrow, Home/End or PageUp/PageDown within a second, on a `:focus-visible` trigger. Focus the app places (a dialog autofocusing its first control, or giving focus back to its opener after Escape, Enter or a click) never opens one, so none is left open with nobody looking (2026-10-20) |
 | `.spin-braille` · `.spin-ring` · `.spin-dots` · `.shimmer` · `.skeleton` · `.caret` | `Spinner`, `.ticker*`, `.skeleton`, `.caret` | see §3 |
 | `.empty-state` + `Illustration` | `Empty` (`packages/ui/src/components/ui.tsx`), and the new `packages/ui/src/components/illustrations/` | see §4 |
@@ -2079,6 +2079,29 @@ status bar's panel holds them) and `MobileTerminal.html` (the full-screen route 
   worded as in the audit log (`ActorName`: `local` "Local access", `desktop`, `env`, `claudio`, `anonymous`, in
   sans); any other actor is an id, in mono. The directory button's `aria-label` is the path it shows and "Show the
   full path" / "Hide the full path".
+- **Context menu.** A right click on a terminal screen opens a `PointerMenu` at the pointer with
+  Copy (disabled, with its reason "Select some text first", when nothing is selected), Paste and
+  Search, the shortcuts in mono (`Ctrl+Shift+C`, `Ctrl+Shift+V`, `Ctrl+Shift+F`). The three entries are
+  `terminalEntries()` (`components/terminal/terminal-entries.ts`), the same list that heads the `⋯`
+  menu, so the two cannot drift. Shift + right click leaves the browser's own menu. The panel stays
+  inside the terminal's frame, closes on `Escape` and gives the keyboard back to the terminal. A copy
+  from it shows the `notices.copied` toast, as the `⋯` does, and so does `Ctrl+Shift+C`. On a shell
+  that has ended, its last screen keeps Copy and Search, and Paste is off with "The shell has ended";
+  with no screen left (it ended before the page opened) all three are off with that reason. A
+  phone or touch screen has no context menu: a long press selects and the `⋯` sheet copies.
+- **Paste sheet.** Where the page cannot read the clipboard (no `navigator.clipboard` over plain HTTP,
+  or the browser refused), Paste opens `PasteSheet` (`components/terminal/PasteSheet.tsx`): a bottom
+  `Sheet` on a phone and a 480 px `Dialog` on a desktop, titled "Paste into the terminal", with one
+  `.term-paste` textarea (shell input, so in mono; 16 px on touch, autofocused), a `muted small`
+  helper line that describes it ("Press and hold the box, then choose Paste" on touch) and the footer
+  Cancel · **Send to terminal** (the zone's primary action, off while the field is empty). The text
+  goes through the same clean, chunk and 1 MiB cap as any paste; over the cap the sheet stays open with
+  the text. A refusal still says so in a toast, which names no key. A terminal in full screen leaves
+  it before the sheet opens, since the sheet is drawn outside the frame.
+- **Closing the last terminal.** The dock hides when its last terminal is closed (by the person, once
+  the server accepted, or the server's `closed`) and, when the keyboard was on the dock, gives it back to
+  what had it before the dock opened; a keyboard elsewhere on the page stays where it is. A terminal of any project keeps it open, a shell that ended by itself keeps its tab,
+  and an empty first load still shows the empty state until its first shell opens.
 - **Bounded height.** Every host of a terminal is bounded (`flex: 1 1 0; min-height: 0; overflow: hidden` down the
   chain) and `.term-screen > .xterm` is out of the host's flow, so the rows can never size their own host; the
   fit follows the host's box only.

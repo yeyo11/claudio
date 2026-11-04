@@ -524,6 +524,12 @@ export interface ApiChatPolicy {
   maxBudgetUsd: number;
   /** It answers a JSON schema (`StructuredOutput`) */
   schema: boolean;
+  /**
+   * The Claude Code tools its process lists (`--tools`), on a `/v1` chat that is not confined: `[]`
+   * when its request declared client tools with an explicit empty `X-Claudio-Allowed-Tools`, so a
+   * client tool may share a built-in's name. Absent, the CLI lists its own.
+   */
+  builtinTools?: string[];
 }
 
 /**

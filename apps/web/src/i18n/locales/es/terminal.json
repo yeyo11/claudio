@@ -40,12 +40,21 @@
     "any": "Cualquier dispositivo que llegue a esta dirección con un token puede abrir un shell en esta máquina."
   },
   "notices": {
-    "pasteBlocked": "El navegador no ha permitido leer el portapapeles. Pega con Ctrl+Shift+V.",
+    "pasteBlocked": "El navegador no ha permitido leer el portapapeles. Pega el texto en el cuadro que se ha abierto.",
     "pasteTooLarge": "Ese texto supera 1 MiB, así que no se ha pegado nada.",
     "openFailed": "No se ha podido abrir una terminal",
     "closeFailed": "No se ha podido cerrar la terminal",
     "copied": "Se ha copiado la selección",
-    "nothingSelected": "No hay nada seleccionado"
+    "nothingSelected": "No hay nada seleccionado. Arrastra sobre el texto para seleccionarlo.",
+    "nothingSelectedTouch": "No hay nada seleccionado. Mantén pulsado el texto para seleccionarlo."
+  },
+  "paste": {
+    "title": "Pegar en la terminal",
+    "field": "Texto que pegar",
+    "help": "Pega el texto en el cuadro y envíalo.",
+    "helpTouch": "Mantén pulsado el cuadro y elige Pegar.",
+    "send": "Enviar a la terminal",
+    "cancel": "Cancelar"
   },
   "keys": {
     "label": "Teclas de la terminal"
@@ -63,6 +72,8 @@
   "menu": {
     "label": "Acciones de la terminal",
     "copy": "Copiar selección",
+    "copyNone": "Selecciona texto primero",
+    "ended": "El shell ha terminado",
     "paste": "Pegar",
     "search": "Buscar",
     "fontUp": "Texto más grande ({{size}} px)",

@@ -1,3 +1,4 @@
+import type { SchedulePreview } from '@claudio/shared';
 import i18n, { type TOptions } from 'i18next';
 
 /*
@@ -40,7 +41,7 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
     const value = input[name];
     if (name === 'description' || name === 'body' || name === 'prompt' || name === 'text' || name === 'objective') {
       if (typeof value === 'string' && value.trim()) lines.push(value.trim());
-    } else if (name === 'title' || name === 'model') {
+    } else if (name === 'title' || name === 'model' || name === 'name') {
       if (typeof value === 'string' && value.trim()) lines.push(t(`fields.${name}`, { value: value.trim() }));
     } else if (name === 'status' || name === 'priority' || name === 'type') {
       const shown = typeof value === 'string' ? word(name === 'status' ? 'statuses' : name === 'priority' ? 'priorities' : 'types', value) : '';
@@ -51,6 +52,19 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
       if (Array.isArray(value)) {
         const names = value.map((task) => (task && typeof task === 'object' && 'name' in task && typeof task.name === 'string' ? task.name : '')).filter(Boolean);
         if (names.length) lines.push(t('fields.tasks', { value: names.join(' · ') }));
+      }
+    } else if (name === 'cron' || name === 'timezone') {
+      if (typeof value === 'string' && value.trim()) lines.push(t(`fields.${name}`, { value: value.trim() }));
+    } else if (name === 'overlap') {
+      if (typeof value === 'string' && i18n.exists(`chat:permissions.writes.overlaps.${value}`)) lines.push(t('fields.overlap', { value: t(`overlaps.${value}`) }));
+    } else if (name === 'enabled') {
+      if (typeof value === 'boolean') lines.push(t(value ? 'fields.enabledOn' : 'fields.enabledOff'));
+    } else if (name === 'target') {
+      // What each fire starts: its kind, then what it is told to do, as the tools that start the same would say it
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const target = value as Record<string, unknown>;
+        if (target.kind === 'chat' || target.kind === 'orchestration') lines.push(t(target.kind === 'chat' ? 'fields.targetChat' : 'fields.targetOrchestration'));
+        lines.push(...fields(target, ['prompt', 'objective', 'tasks', 'model']));
       }
     } else if (name === 'acceptanceCriteria') {
       if (Array.isArray(value)) {
@@ -110,7 +124,42 @@ export function describeWrite(toolName: string, input: Record<string, unknown>):
       return done(t('acceptProposal'));
     case 'discard_assistant_proposal':
       return done(t('discardProposal'));
+    case 'create_schedule':
+      return done(t('createSchedule', { name: str(input, 'name') }), fields(input, ['cron', 'timezone', 'target', 'overlap', 'enabled']));
+    case 'update_schedule':
+      return done(t('updateSchedule'), fields(input, ['name', 'cron', 'timezone', 'target', 'overlap', 'enabled']));
+    case 'run_schedule':
+      return done(t('runSchedule'));
+    case 'delete_schedule':
+      return done(t('deleteSchedule'));
     default:
       return null;
   }
 }
+
+/**
+ * The expression a schedule write asks for, which the prompt checks against the server before the
+ * person answers: what it means in words and when it fires next. Null for any other tool, and for
+ * an update that leaves the expression as it is.
+ */
+export function scheduleToCheck(toolName: string, input: Record<string, unknown>): { cron: string; timezone: string | undefined } | null {
+  if (toolName !== `${PREFIX}create_schedule` && toolName !== `${PREFIX}update_schedule`) return null;
+  const cron = str(input, 'cron');
+  return cron ? { cron, timezone: str(input, 'timezone') || undefined } : null;
+}
+
+/**
+ * The lines the server's preview adds to such a prompt: the expression in words, its next fires, or
+ * what is wrong with it. They are said beside the prompt's input block, never in it: that block is
+ * monospace and holds literals, and a sentence and a time are not.
+ */
+export function previewLines(preview: SchedulePreview, formatTime: (iso: string) => string): string[] {
+  if (!preview.valid) return [t('preview.invalid', { value: preview.error ?? '' })];
+  const lines: string[] = [];
+  if (preview.description) lines.push(t('preview.words', { value: preview.description }));
+  if (preview.next.length) lines.push(t('preview.next', { value: preview.next.map(formatTime).join(' · ') }));
+  return lines;
+}
+
+/** What the prompt says while the preview is being read */
+export const previewLoading = (): string => t('preview.loading');

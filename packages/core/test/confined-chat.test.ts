@@ -185,6 +185,11 @@ test('the confinement lists each declared tool once, StructuredOutput for a sche
   assert.ok(samePolicy(policy, { ...policy, allowedTools: [...policy.allowedTools] }));
   assert.ok(!samePolicy(policy, { ...policy, maxTurns: 2 }));
   assert.ok(!samePolicy(policy, { ...policy, allowedTools: ['Read'] }));
+  // No built-in tools (`--tools=`) and the CLI's own are two policies; the same list is one
+  assert.ok(!samePolicy(policy, { ...policy, builtinTools: [] }));
+  assert.ok(!samePolicy({ ...policy, builtinTools: [] }, policy));
+  assert.ok(samePolicy({ ...policy, builtinTools: [] }, { ...policy, builtinTools: [] }));
+  assert.ok(!samePolicy({ ...policy, builtinTools: [] }, { ...policy, builtinTools: ['Read'] }));
 });
 
 // ---------- a chat in a workspace ----------

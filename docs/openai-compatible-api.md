@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-10-29T09:00:00Z
+updated_at: 2026-11-03T00:00:00Z
 tags:
     - api
     - openai
@@ -310,7 +310,7 @@ of the full profile without a workspace is not confined, so it refuses no rule.
 | `X-Claudio-Workspace` | in | A workspace id from `POST /api/workspaces` ([workspaces.md](workspaces.md)): the chat runs in its copy of the source tree, read only. Unknown is `404 workspace_not_found`, expired `410 workspace_expired`; together with `X-Claudio-Cwd` a `400`. Part of the policy and the key |
 | `X-Claudio-Max-Turns` | in | `maxTurns`: a whole number from 1. Reaching it is `422 max_turns`. Part of the policy and the key |
 | `X-Claudio-Max-Budget-Usd` | in | `maxBudgetUsd`: a positive amount; absent, `CLAUDIO_CHAT_BUDGET_USD` (1 USD by default). Part of the policy and the key |
-| `X-Claudio-Allowed-Tools` | in | The declared tools, a JSON array of Claude Code permission rules (`["Read","Grep","Bash(ls *)"]`); `[]` is none. A bare `Bash` or `Bash(*)` is a `400`, and so is a write tool in a workspace; together with `X-Claudio-Tool-Preset` a `400`. Part of the policy and the key |
+| `X-Claudio-Allowed-Tools` | in | The declared tools, a JSON array of Claude Code permission rules (`["Read","Grep","Bash(ls *)"]`); `[]` is none. A bare `Bash` or `Bash(*)` is a `400`, and so is a write tool in a workspace; together with `X-Claudio-Tool-Preset` a `400`. With client tools, `[]` also starts the chat without Claude Code's own tools, so the client's may share their names ([Names](#the-stub-server)). Part of the policy and the key |
 | `X-Claudio-Cwd` | in | Where a new chat runs: an absolute, existing directory inside the workspace or an imported project, never a workspace folder. Stricter than `cwd` on `POST /chats`, which takes any existing directory. **It applies only when a chat is created**: on a chat that exists it is ignored, and named in `x-claudio-ignored` when it differs from the chat's directory. It is not part of the conversation key, so the same history from two directories continues one chat. UTF-8 bytes are read as UTF-8 |
 | `X-Claudio-Tool-Preset` | in | A stored tool preset id whose rules are the declared tools (read only in headless). Part of the policy and the key through those rules |
 | `X-Claudio-Spend-Override: 1` | in | Past the daily spend cap, as on `POST /chats` |
@@ -537,10 +537,30 @@ them apart by name and does not delete them. They are safe to delete by hand whe
 them.
 
 Names: the CLI shows the tools to the model as `mcp__client__<name>`, and the client gets its own
-names back. Names longer than 51 characters (the model's 64 minus the prefix), names of Claude
-Code's own tools (`Bash`, `Read`, `Task`…, compared without case) and names that differ only by case
-are `400 invalid_request_error`. The parser already refuses names outside `[A-Za-z0-9_-]` and exact
-duplicates.
+names back. Names longer than 51 characters (the model's 64 minus the prefix) and names that differ
+only by case are `400 invalid_request_error`. The parser already refuses names outside
+`[A-Za-z0-9_-]` and exact duplicates.
+
+**Names of Claude Code's own tools** (`Bash`, `Read`, `Task`…, compared without case). Beside the
+built-in `Bash`, a client's `bash` would be listed as `mcp__client__bash`, a prefix the model does
+not always repeat, and a `tool_choice` naming it or a call read back would be ambiguous. A coding
+agent sends exactly those names (`bash`, `edit`, `glob`, `grep`), so there are two cases:
+
+- The request declares client tools **and** an explicit empty `X-Claudio-Allowed-Tools: []`: the
+  chat starts with none of Claude Code's tools (`--tools=`). The model sees only the
+  `mcp__client__*` tools (and, in the full profile, the MCP servers the app gives its chats, all
+  prefixed), so nothing is ambiguous and the names are served; the client gets its calls back
+  under its own names. A confined chat already gets `--tools=` from its empty declared list; any
+  other chat stores the choice in its policy (`ApiChatPolicy.builtinTools: []`), which every process
+  of the chat starts with, a resume's too. The choice is part of the policy and the conversation
+  key: a continuation that names such a chat without the same header and tools (or a chat started
+  with Claude Code's tools with them) is `409 policy_mismatch`, as any other policy difference is.
+  `--tools=` only removes tools; the stub's calls still go through `can_use_tool`, and the surface
+  still never runs `bypassPermissions`.
+- Otherwise (no header, a preset, a non-empty list, or `[]` without client tools) the name is
+  `400 invalid_request_error` on `tools[i].function.name` (`tools[i].name` on `/v1/responses`), and
+  the message says how to get past it: send `X-Claudio-Allowed-Tools: []`, or rename the tool. Only
+  an explicit `[]` counts: a preset without rules or headless's default of none does not.
 
 ### Who answers the permission requests
 

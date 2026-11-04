@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   chooseRenderer,
+  emptiedByClose,
   escapeClosesPanel,
   requestFor,
   runningCount,
@@ -176,4 +177,24 @@ test('Esc hides the panel only when nobody else wanted it: not in xterm, a field
   assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: false, target: at(['[role="menu"]']) }), false);
   assert.equal(escapeClosesPanel({ key: 'Escape', defaultPrevented: true, target: at([]) }), false);
   assert.equal(escapeClosesPanel({ key: 'a', defaultPrevented: false, target: at([]) }), false);
+});
+
+test('closing the only terminal of the dock empties it, so the dock hides', () => {
+  assert.equal(emptiedByClose([{ id: 'a' }], 'a'), true);
+});
+
+test('closing one of two terminals does not empty the dock', () => {
+  assert.equal(emptiedByClose([{ id: 'a' }, { id: 'b' }], 'a'), false);
+});
+
+test('a first load that came back empty is not a close', () => {
+  assert.equal(emptiedByClose([], 'a'), false);
+});
+
+test('a terminal of another project keeps the dock open, as the dock lists every project', () => {
+  assert.equal(emptiedByClose([{ id: 'mine' }, { id: 'of-another-project' }], 'mine'), false);
+});
+
+test('a close of a terminal the list never held does not count', () => {
+  assert.equal(emptiedByClose([{ id: 'b' }], 'a'), false);
 });

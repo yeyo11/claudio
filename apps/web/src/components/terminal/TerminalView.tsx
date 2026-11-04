@@ -5,13 +5,14 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal, TerminalServerFrame } from '@claudio/shared';
 import { useToast } from '@claudio/ui/components/Toast';
 import { copyText } from '@claudio/ui/lib/clipboard';
 import { api, BASE } from '../../api';
 import { defaultSocketUrl, TerminalConnection, type SocketLike } from './terminal-connection';
+import { PasteSheet } from './PasteSheet';
 import { chooseRenderer, cleanPaste, pasteChunks, pasteTooLarge, type LinkState } from './terminal-model';
 import { currentTerminalTheme, watchTheme } from './terminal-theme';
 
@@ -58,6 +59,8 @@ interface Props {
   /** The app's own shortcuts, handed back before xterm sees the key */
   onToggle?: () => void;
   onSearch?: () => void;
+  /** A right click (without Shift) on a desktop screen: where, and whether text is selected */
+  onContextMenu?: (menu: { x: number; y: number; hasSelection: boolean }) => void;
   /** Lets the phone's sticky Ctrl and Alt apply to what its keyboard types */
   transformInput?: (typed: string) => string;
 }
@@ -94,6 +97,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
   const search = useRef<SearchAddon | null>(null);
   const connection = useRef<TerminalConnection | null>(null);
   const refit = useRef<() => void>(() => undefined);
+  // The paste sheet, for a page that cannot read the clipboard itself; `refused` when the browser said no
+  const [pasting, setPasting] = useState<{ refused: boolean } | null>(null);
   // Held in a ref so the long-lived xterm handlers always call the latest of them
   const latest = useRef({ ...props, t, toast });
   latest.current = { ...props, t, toast };
@@ -109,11 +114,18 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       return text ? copyText(text) : false;
     },
     paste: async () => {
+      // No `navigator.clipboard` outside a secure context (a LAN address over HTTP): the sheet is the way in
+      const clipboard = window.isSecureContext ? navigator.clipboard : undefined;
+      if (!clipboard?.readText) {
+        await openSheet(false);
+        return;
+      }
       let text = '';
       try {
-        text = (await navigator.clipboard?.readText()) ?? '';
+        text = await clipboard.readText();
       } catch {
-        latest.current.toast.info(latest.current.t('notices.pasteBlocked'));
+        // Refused: the sheet says so itself, a toast would sit under its scrim
+        await openSheet(true);
         return;
       }
       sendPaste(text);
@@ -128,14 +140,22 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
     forget: () => connection.current?.forget(),
   }));
 
-  function sendPaste(text: string): void {
-    if (!text) return;
+  // The sheet is drawn into the page, which a fullscreen frame hides: leave fullscreen only when it opens
+  async function openSheet(refused: boolean): Promise<void> {
+    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+    setPasting({ refused });
+  }
+
+  /** Whether the text was taken; `notify: false` leaves the refusal to the caller (the sheet shows it inline) */
+  function sendPaste(text: string, notify = true): boolean {
+    if (!text) return true;
     if (pasteTooLarge(text)) {
-      latest.current.toast.error(latest.current.t('notices.pasteTooLarge'));
-      return;
+      if (notify) latest.current.toast.error(latest.current.t('notices.pasteTooLarge'));
+      return false;
     }
     // Through xterm, so a shell that asked for bracketed paste gets one
     xterm.current?.paste(cleanPaste(text));
+    return true;
   }
 
   useEffect(() => {
@@ -342,7 +362,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
         }
         if (ctrl && event.shiftKey && event.key.toLowerCase() === 'c') {
           const text = term.getSelection();
-          if (text) void copyText(text);
+          // Says so, as the menu's Copy does
+          if (text) void copyText(text).then((done) => done && latest.current.toast.success(latest.current.t('notices.copied')));
           event.preventDefault();
           return false;
         }
@@ -360,11 +381,17 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
       element.addEventListener('paste', onPaste, true);
       cleanups.push(() => element.removeEventListener('paste', onPaste, true));
 
+      // The panel draws the menu. Shift keeps the browser's own (spell check, inspect, what xterm users
+      // expect); a phone's long press is xterm's selection, and its `⋯` sheet is the menu there
       const onContext = (event: MouseEvent) => {
-        const text = term.getSelection();
-        if (!text) return;
+        const { compact, onContextMenu } = latest.current;
+        // A long press fires `contextmenu` too, at any width. Chromium says which pointer did it; where a
+        // browser does not, the screen's primary pointer is the best guess
+        const kind = (event as MouseEvent & { pointerType?: string }).pointerType;
+        const touch = kind ? kind === 'touch' : typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+        if (event.shiftKey || compact || touch || !onContextMenu) return;
         event.preventDefault();
-        void copyText(text);
+        onContextMenu({ x: event.clientX, y: event.clientY, hasSelection: term.hasSelection() });
       };
       element.addEventListener('contextmenu', onContext);
       cleanups.push(() => element.removeEventListener('contextmenu', onContext));
@@ -401,5 +428,22 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
     refit.current();
   }, [props.fontSize]);
 
-  return <div ref={host} className="term-screen" role="region" aria-label={props.label} />;
+  return (
+    <>
+      <div ref={host} className="term-screen" role="region" aria-label={props.label} />
+      {pasting && (
+        <PasteSheet
+          compact={props.compact}
+          refused={pasting.refused}
+          onSend={(text) => sendPaste(text, false)}
+          onClose={() => {
+            setPasting(null);
+            // A tick later: a dialog gives the focus back to what had it when it opened, as it unmounts
+            setTimeout(() => xterm.current?.focus(), 0);
+          }}
+          returnFocus={() => xterm.current?.textarea ?? null}
+        />
+      )}
+    </>
+  );
 });

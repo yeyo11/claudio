@@ -91,6 +91,7 @@ function dataLines(text: string): string[] {
 }
 
 interface Logged {
+  args?: string[];
   sessionId: string;
   pid: number;
   prompt?: string;
@@ -697,6 +698,86 @@ test('tool names that collide with a built-in, are too long or repeat, and the l
   const said = (await legacy.json()) as ErrorBody;
   assert.equal(said.error.code, 'unsupported_parameter');
   assert.equal(said.error.param, 'functions');
+});
+
+// ---------- client tools named like Claude Code's ----------
+
+// The owner's report: a coding-agent client sends its own `bash`, `edit`, `glob` and `grep`
+const coding = ['bash', 'edit', 'glob', 'grep'].map((name) => ({ type: 'function', function: { name, description: `The client's ${name}`, parameters: { type: 'object', properties: { arg: { type: 'string' } } } } }));
+const noBuiltins = { 'x-claudio-allowed-tools': '[]' };
+
+test("client tools named like Claude Code's are served with an explicit empty allow list: the chat starts with --tools= and the calls come back under the client's names", async () => {
+  const messages = [user(directive('TOOLS', [{ name: 'bash', input: { arg: 'ls' } }, { name: 'grep', input: { arg: 'TODO' } }]))];
+  const first = await post({ model: 'sonnet', messages, tools: coding }, noBuiltins);
+  assert.equal(first.status, 200);
+  const chatId = chatOf(first);
+  const body = (await first.json()) as Completion;
+  assert.equal(body.choices[0]?.finish_reason, 'tool_calls');
+  assert.deepEqual(body.choices[0]?.message.tool_calls?.map((c) => c.function.name), ['bash', 'grep']);
+  // None of Claude Code's tools is listed, so `mcp__client__bash` has nothing to be confused with
+  const started = logged(chatId).find((l) => l.prompt !== undefined);
+  assert.ok(started?.args?.includes('--tools='));
+  // `--tools=` only removes tools: the surface still never runs a chat in bypassPermissions
+  assert.ok(!started?.args?.includes('bypassPermissions'));
+  assert.deepEqual(core.runtime.get(chatId)?.asked?.builtinTools, []);
+  await until(() => logged(chatId).some((l) => l.stub));
+  assert.deepEqual(logged(chatId).find((l) => l.stub)?.stub?.tools?.map((t) => t.name), ['bash', 'edit', 'glob', 'grep']);
+
+  const calls = body.choices[0]?.message.tool_calls ?? [];
+  const done = await post({ model: 'sonnet', messages: [...messages, echoed(body), ...calls.map((c, i) => toolMsg(c.id, `out ${String(i)}`))], tools: coding }, noBuiltins);
+  assert.equal(done.status, 200);
+  assert.equal(chatOf(done), chatId);
+  assert.equal(((await done.json()) as Completion).choices[0]?.message.content, 'results: out 0 | out 1');
+
+  // A continuation that names the chat with another choice of Claude Code's tools is refused, as any
+  // other policy difference: here the same empty list, but no client tools, so the CLI's tools would be back
+  const other = await post({ model: 'sonnet', messages: [user('next')] }, { ...noBuiltins, 'x-claudio-chat-id': chatId });
+  assert.equal(other.status, 409);
+  const said = (await other.json()) as ErrorBody;
+  assert.equal(said.error.code, 'policy_mismatch');
+  assert.match(said.error.message, new RegExp(chatId));
+  // And the reverse: a chat started with Claude Code's tools is not continued without them
+  const plain = await post({ model: 'sonnet', messages: [user('hello')] }, noBuiltins);
+  assert.equal(plain.status, 200);
+  const plainId = chatOf(plain);
+  assert.ok(!logged(plainId).find((l) => l.prompt !== undefined)?.args?.includes('--tools='));
+  const reverse = await post({ model: 'sonnet', messages: [user('x')], tools: coding }, { ...noBuiltins, 'x-claudio-chat-id': plainId });
+  assert.equal(reverse.status, 409);
+  assert.equal(((await reverse.json()) as ErrorBody).error.code, 'policy_mismatch');
+});
+
+test("without an explicit empty allow list a client tool named like Claude Code's is the 400, and the message says how to get past it", async () => {
+  const cases: Array<Record<string, string>> = [{}, { 'x-claudio-allowed-tools': '["Read"]' }, { 'x-claudio-tool-preset': 'read-only' }];
+  for (const headers of cases) {
+    const res = await post({ model: 'sonnet', messages: [user('x')], tools: coding }, headers);
+    assert.equal(res.status, 400);
+    const said = (await res.json()) as ErrorBody;
+    assert.equal(said.error.type, 'invalid_request_error');
+    assert.equal(said.error.param, 'tools[0].function.name');
+    assert.match(said.error.message, /X-Claudio-Allowed-Tools: \[\]/);
+    assert.match(said.error.message, /rename/);
+  }
+  // The other checks still hold with the empty list: case-blind duplicates, and the prefix's room
+  const named = (name: string) => ({ type: 'function', function: { name, parameters: { type: 'object' } } });
+  const twice = await post({ model: 'sonnet', messages: [user('x')], tools: [named('bash'), named('Bash')] }, noBuiltins);
+  assert.equal(twice.status, 400);
+  const long = await post({ model: 'sonnet', messages: [user('x')], tools: [named('a'.repeat(60))] }, noBuiltins);
+  assert.equal(long.status, 400);
+});
+
+test("/v1/responses serves flat tools named like Claude Code's with the empty allow list, and refuses them without it", async () => {
+  const flat = coding.map((t) => ({ type: 'function', name: t.function.name, parameters: t.function.parameters }));
+  const send = (headers: Record<string, string>): Promise<Response> =>
+    fetch(`${base}/api/v1/responses`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...headers }, body: JSON.stringify({ model: 'sonnet', input: 'hello', tools: flat, store: false }) });
+  const refused = await send({});
+  assert.equal(refused.status, 400);
+  const said = (await refused.json()) as ErrorBody;
+  assert.equal(said.error.param, 'tools[0].name');
+  assert.match(said.error.message, /X-Claudio-Allowed-Tools: \[\]/);
+  const served = await send(noBuiltins);
+  assert.equal(served.status, 200);
+  const chatId = chatOf(served);
+  assert.ok(logged(chatId).find((l) => l.prompt !== undefined)?.args?.includes('--tools='));
 });
 
 test('client tools together with response_format are refused as not supported yet', async () => {

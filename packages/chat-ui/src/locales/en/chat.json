@@ -588,6 +588,10 @@
       "stopChat": "Stop another chat",
       "resumeChat": "Resume a chat",
       "forkChat": "Create a fork of a chat",
+      "createSchedule": "Create the schedule {{name}}",
+      "updateSchedule": "Change a schedule",
+      "runSchedule": "Run a schedule now, whatever its timetable says",
+      "deleteSchedule": "Delete a schedule and its run history",
       "fields": {
         "title": "Title: {{value}}",
         "status": "Column: {{value}}",
@@ -596,7 +600,26 @@
         "labels": "Labels: {{value}}",
         "criteria": "Acceptance criteria: {{value}}",
         "model": "Model: {{value}}",
-        "tasks": "Tasks: {{value}}"
+        "tasks": "Tasks: {{value}}",
+        "cron": "Expression: {{value}}",
+        "timezone": "Zone: {{value}}",
+        "overlap": "If the last run is still going: {{value}}",
+        "enabledOn": "Switched on",
+        "enabledOff": "Switched off",
+        "targetChat": "Starts: a chat",
+        "targetOrchestration": "Starts: an orchestration",
+        "name": "Name: {{value}}"
+      },
+      "overlaps": {
+        "parallel": "start anyway",
+        "skip": "start nothing",
+        "queue": "start when it ends"
+      },
+      "preview": {
+        "words": "In words: {{value}}",
+        "next": "Next fires: {{value}}",
+        "invalid": "This expression is not valid: {{value}}",
+        "loading": "Checking the expression…"
       }
     }
   },

@@ -2075,6 +2075,8 @@ export class ChatManager extends EventEmitter {
       ...(opts.allowedTools || reads ? { allowedTools: [...(opts.allowedTools ?? []), ...(reads?.allowedTools ?? [])] } : {}),
       ...(opts.disallowedTools ? { disallowedTools: opts.disallowedTools } : {}),
       ...this.mcpLaunch(chat, reads),
+      // From the policy its `/v1` request declared, on every process of the chat, a resume's too
+      ...(!opts.confine && opts.apiAsked?.builtinTools ? { builtinTools: [...opts.apiAsked.builtinTools] } : {}),
       ...(opts.confine ? { confine: opts.confine } : {}),
       // Attached files live outside every project: a session that may read them is told where they are
       ...(this.uploads && opts.uploads !== false ? { uploadsDir: this.uploads.dir } : {}),

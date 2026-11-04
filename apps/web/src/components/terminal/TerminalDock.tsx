@@ -23,6 +23,8 @@ export function TerminalDock() {
   const bar = useTerminalBar();
   const { project, projects } = useProjectScope();
   const drag = useRef<{ y: number; height: number } | null>(null);
+  // The dock mounts when it is shown, so this is where the keyboard was before: the page
+  const before = useRef<Element | null>(document.activeElement);
 
   const { hide } = bar;
   useEffect(() => {
@@ -32,6 +34,23 @@ export function TerminalDock() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [hide]);
+
+  // The last terminal is gone: the dock hides and the keyboard goes back to the page, not to a panel that no longer exists
+  const emptied = () => {
+    // The server's `closed` can come while the person types elsewhere on the page: only a keyboard that
+    // was on the dock (or nowhere) is moved
+    const active = document.activeElement;
+    const onDock = !active || active === document.body || (active instanceof HTMLElement && active.closest('#terminal-bar') !== null);
+    hide();
+    if (!onDock) return;
+    // What had the keyboard when the dock opened, when that was something that can keep it; otherwise (a
+    // click that gave the button no focus, an element drawn again since) the status bar item that opens it
+    const was = before.current;
+    const target =
+      was instanceof HTMLElement && was !== document.body && was.isConnected && !was.closest('#terminal-bar') ? was : document.getElementById('terminal-bar-toggle');
+    if (target instanceof HTMLElement) target.focus();
+    if (document.activeElement instanceof HTMLElement && document.activeElement.closest('#terminal-bar')) document.activeElement.blur();
+  };
 
   const move = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (drag.current) bar.setHeight(drag.current.height + drag.current.y - event.clientY);
@@ -78,6 +97,7 @@ export function TerminalDock() {
         selectedId={bar.selectedId}
         onSelect={bar.select}
         onToggle={bar.toggle}
+        onEmptied={emptied}
         renderNew={({ open, pending }) => <NewTerminal icon project={project} projects={projects} pending={pending} onOpen={open} />}
         trailing={
           <Tooltip content={t('bar.hide')}>

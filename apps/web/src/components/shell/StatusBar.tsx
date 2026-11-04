@@ -317,7 +317,7 @@ function TerminalItem() {
   const mac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
   return (
     <Tooltip content={t('dock.hint', { shortcut: `${mac ? '⌘' : 'Ctrl+'}\`` })} side="top">
-      <button type="button" className={`statusbar-item statusbar-btn${bar.open ? ' is-open' : ''}`} aria-expanded={bar.open} aria-controls={bar.open ? 'terminal-bar' : undefined} aria-label={t('bar.item', { count })} onClick={bar.toggle}>
+      <button type="button" id="terminal-bar-toggle" className={`statusbar-item statusbar-btn${bar.open ? ' is-open' : ''}`} aria-expanded={bar.open} aria-controls={bar.open ? 'terminal-bar' : undefined} aria-label={t('bar.item', { count })} onClick={bar.toggle}>
         <SquareTerminal size={13} strokeWidth={1.75} aria-hidden />
         <span>{t('bar.label')}</span>
         {/* The space keeps the word and the count apart in the name; the flex item does not draw it */}

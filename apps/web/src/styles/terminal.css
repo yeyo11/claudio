@@ -121,6 +121,25 @@
   height: var(--control-h-sm);
 }
 
+/* ---- paste sheet: the field and its helper line, in a sheet or a dialog ---- */
+.term-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.term-paste textarea {
+  /* literal: what is pasted is shell input; the size stays the field's (16 px on touch) */
+  font-family: var(--mono);
+  resize: none;
+}
+
+/* The bad colour comes with its words (the alert under the field), never alone */
+.term-paste textarea[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
 /* ---- tabs ---- */
 .term-space {
   display: flex;

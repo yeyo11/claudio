@@ -37,8 +37,8 @@ export interface ApiClient {
   /** The chat this server runs for, from `CLAUDIO_CHAT_ID`; null when it was given none */
   readonly chatId: string | null;
   get(path: string, query?: Query, opts?: ReadOptions): Promise<unknown>;
-  /** The write tools' only way out: a POST or a PATCH with a JSON body, nothing else */
-  send(method: 'POST' | 'PATCH', path: string, body?: unknown): Promise<unknown>;
+  /** The write tools' only way out: a POST or a PATCH with a JSON body, or the DELETE of a schedule */
+  send(method: 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<unknown>;
 }
 
 /** The base URL from the environment, or null when it is not an http(s) URL */
@@ -53,7 +53,7 @@ export function apiUrlFrom(value: string | undefined): string | null {
   }
 }
 
-/** `get` only reads; `send` is the one way to write, and only POST and PATCH: nothing here deletes */
+/** `get` only reads; `send` is the one way to write: POST, PATCH, and the DELETE of a schedule (`delete_schedule`) */
 export function createClient(options: ClientOptions): ApiClient {
   const doFetch: FetchLike = options.fetch ?? ((url, init) => fetch(url, init));
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
@@ -95,7 +95,7 @@ export function createClient(options: ClientOptions): ApiClient {
   return {
     chatId: options.chatId || null,
     get: (path, query, opts) => perform('GET', path, query, undefined, opts?.tool ? { 'x-claudio-tool': opts.tool } : {}),
-    send: (method, path, body) => perform(method, path, {}, body ?? {}),
+    send: (method, path, body) => perform(method, path, {}, method === 'DELETE' ? undefined : (body ?? {})),
   };
 }
 

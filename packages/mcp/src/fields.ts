@@ -207,6 +207,33 @@ function entryRow(entry: Obj, index: number, full: boolean): Obj {
 
 const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
 
+/** How much of a schedule's prompt a list keeps: enough to tell two apart, never the whole brief */
+const PROMPT_CLIP_CHARS = 200;
+
+/** What a schedule starts: the kind, and what names it (the chat's prompt cut short, the orchestration's name and task count) */
+function scheduleTarget(target: unknown): Obj | undefined {
+  if (!isRecord(target)) return undefined;
+  if (target.kind === 'chat' && isRecord(target.chat)) {
+    const { prompt } = target.chat;
+    return { kind: 'chat', ...pick(target.chat, ['name', 'cwd', 'model']), ...(typeof prompt === 'string' ? { prompt: clip(prompt, PROMPT_CLIP_CHARS) } : {}) };
+  }
+  if (target.kind === 'orchestration' && isRecord(target.spec)) {
+    return { kind: 'orchestration', ...pick(target.spec, ['name', 'cwd', 'model']), tasks: count(target.spec.tasks) };
+  }
+  return pick(target, ['kind']);
+}
+
+export const scheduleRows = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? objs(value).map((s) => ({
+        ...pick(s, ['id', 'name', 'cron', 'timezone', 'enabled', 'overlap', 'lastRunAt', 'nextRunAt']),
+        ...(scheduleTarget(s.target) ? { target: scheduleTarget(s.target) } : {}),
+      }))
+    : value;
+
+export const scheduleRunRows = (value: unknown): unknown =>
+  Array.isArray(value) ? objs(value).map((r) => pick(r, ['id', 'at', 'slot', 'status', 'chatId', 'orchestrationId', 'error'])) : value;
+
 /**
  * A chat as a model reads it: what it is and where it stands, its children counted, its last three
  * executions, what it waits on, and one page of its transcript. The route's detail carries what the
