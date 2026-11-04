@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.0](https://github.com/yeyo11/claudio/compare/v0.13.0...v0.14.0) (2026-11-04)
+
+
+### Features
+
+* terminal menu, phone paste, dock close, schedule tools in the MCP, /v1 client tools ([#84](https://github.com/yeyo11/claudio/issues/84)) ([fc6efbc](https://github.com/yeyo11/claudio/commit/fc6efbc107c2772162dbe5dcdef201ab76412c6d))
+
+
+### Documentation
+
+* say who Claudio is for and how to try it at the top of the README ([#79](https://github.com/yeyo11/claudio/issues/79)) ([e223c6b](https://github.com/yeyo11/claudio/commit/e223c6bfe79e8f3cc104e034ee36e54bbcedc8be))
+
 ## [0.13.0](https://github.com/yeyo11/claudio/compare/v0.12.0...v0.13.0) (2026-10-31)
 
 
