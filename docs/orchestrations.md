@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-10-18T18:00:00Z
+updated_at: 2026-11-07T00:00:00Z
 tags:
     - orchestration
     - planner
@@ -141,7 +141,12 @@ that leaves it out. The full design is in [plans/review-gate.md](plans/review-ga
   integration branch's diff against the graph's base commit. A review taken before the checks would
   miss the check fixer's commits.
 - **A round.** Claudio collects the diff and runs its own scans (conflict markers, committed
-  secrets, text addressed to an agent). One reviewer per dimension then reads the diff as untrusted
+  secrets, text addressed to an agent). The secret scan matches credential-shaped values (known key
+  and token prefixes, private key blocks, JWTs, generated-looking literals assigned to a
+  secret-named key), never a bare name or a type annotation; a hit in a test or a fixture is
+  advisory. Each chunk is sized so its reviewer run's estimate fits under `maxRunCostUsd`: a larger
+  one is split at hunk boundaries, and a single change that alone would cost more is not
+  reviewable, with that reason, and is never sent. One reviewer per dimension then reads the diff as untrusted
   data, read-only and under a budget, and returns findings that match a schema. Claudio
   deduplicates them and anchors each to a line, the file, or "outside" the diff. Every critical or
   high finding goes to a separate verifier whose default answer is `refuted`.
@@ -158,7 +163,10 @@ that leaves it out. The full design is in [plans/review-gate.md](plans/review-ga
 - **Statuses.** `ReviewGateState.status` is `pending`, `running`, `passed`, `blocked`,
   `incomplete`, `accepted` or `skipped`. A reviewer that crashes, times out, overspends or answers
   outside the schema, or a file that could not be reviewed, makes the round `incomplete`; a run
-  that ends well without structured output counts as failed, never as "no findings".
+  that ends well without structured output counts as failed, never as "no findings", and its
+  failure names the CLI's stop reason. A round where reviewers ran and none gave a usable answer
+  ends `incomplete` with that reason even when a scan blocks: no verifier is asked and the fixer is
+  not called, since a fix of the scans' findings alone would pay for a round that fails the same way.
   `VerificationStatus` has no new member: a gate that is blocked or incomplete makes the
   verification `failed` with `gate: 'review'` (`'checks'` otherwise).
 - **It holds the pull request.** When the gate is on and is neither passed nor accepted, the
