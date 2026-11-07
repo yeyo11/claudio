@@ -565,7 +565,7 @@
   "signed-out [SignedOut]",
   "slash-commands [applyCommand, commandNames, matchCommands, slashQuery]",
   "smooth-text [SmoothReveal, useSmoothText]",
-  "source [LIVE_REFRESH_MS, ReviewSource]",
+  "source [LIVE_REFRESH_MS, ReviewSource, liveRefresh, useLiveRefresh]",
   "spend-cap [SPEND_OVERRIDE_HEADER, SpendCapAsk, SpendTone, SpendView, acknowledgeSpend, askSpendCap, localDay, setSpendCapAsk, spendAcknowledged, spendResetTime, spendScope, spendView, waitingForSpend]",
   "splash [SplashHandOff]",
   "steps-model [ScrubDot, conversationHref, currentStep, entryParam, intentParts, patchSpan, plainIntent, riskySteps, sameFileWindow, scrubDots, stepBeside, stepKey, stepPaths, swipeOf]",
