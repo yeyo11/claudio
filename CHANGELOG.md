@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.2](https://github.com/yeyo11/claudio/compare/v0.14.1...v0.14.2) (2026-11-07)
+
+
+### Bug fixes
+
+* **workspaces:** real repositories as workspaces: a lighter source archive, links left out, an idle timeout ([#93](https://github.com/yeyo11/claudio/issues/93)) ([aa2a821](https://github.com/yeyo11/claudio/commit/aa2a821d206561274b8eb5447d11736c92be9072))
+
+
+### Build and packaging
+
+* **deps-dev:** bump the dev-dependencies group across 1 directory with 7 updates ([#86](https://github.com/yeyo11/claudio/issues/86)) ([1496ccb](https://github.com/yeyo11/claudio/commit/1496ccbda67e5b1764fd19dd338acc21f66f21e7))
+* **deps:** bump actions/deploy-pages from 4 to 5 ([#81](https://github.com/yeyo11/claudio/issues/81)) ([185c92b](https://github.com/yeyo11/claudio/commit/185c92bd4898bbefa47e99bbe92d21d859fb441d))
+* **deps:** bump actions/download-artifact from 7 to 8 ([#82](https://github.com/yeyo11/claudio/issues/82)) ([742604b](https://github.com/yeyo11/claudio/commit/742604b3c8322121ab8e3fa738e8dae0d33a140e))
+* **deps:** bump actions/upload-pages-artifact from 4 to 5 ([#83](https://github.com/yeyo11/claudio/issues/83)) ([bcd5d82](https://github.com/yeyo11/claudio/commit/bcd5d82eb2ee9a95f24ccb6040a76962170a1ad6))
+* **deps:** production dependencies, with the SDK 1.x key header and one writer of the chat's scroll ([#90](https://github.com/yeyo11/claudio/issues/90)) ([3ce90d8](https://github.com/yeyo11/claudio/commit/3ce90d8d86ac5e0e99c04b003b0e498d7d3c2ee0))
+
 ## [0.14.1](https://github.com/yeyo11/claudio/compare/v0.14.0...v0.14.1) (2026-11-07)
 
 
