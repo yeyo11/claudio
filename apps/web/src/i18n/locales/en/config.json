@@ -288,7 +288,13 @@
       },
       "showPath": "Show the full path",
       "hidePath": "Hide the full path",
-      "noRoute": "No route matched this request"
+      "noRoute": "No route matched this request",
+      "refusals": {
+        "title": "Refused before identification",
+        "intro": "Writes refused before the caller was known: no credential or a wrong one, a name this wrapper does not answer to, a client made to wait, or a request from another site. They are kept apart, the newest {{kept}}, so whoever can reach the port cannot push what identified callers did out of the log.",
+        "none": "Nothing refused",
+        "noneHint": "A write refused before its caller was identified will appear here."
+      }
     }
   },
   "scope": {
