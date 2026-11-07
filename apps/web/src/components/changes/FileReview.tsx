@@ -18,7 +18,7 @@ import { Intent } from './Intent';
 import { FileFindingsFold, FindingsChip, findingLayer, mergeLayers, useFileFindings, useReviewFindings } from './ReviewFindings';
 import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
 import { reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
-import { LIVE_REFRESH_MS, type ReviewSource } from './source';
+import { useLiveRefresh, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
 import { copyText } from '@claudio/ui/lib/clipboard';
 
@@ -96,15 +96,15 @@ export function FileReview({
   review?: { changeRequestId: string; notes: boolean };
 }) {
   const { t } = useTranslation('changes');
-  const live = source.live;
   const scoped = scopeQuery(scope);
 
   // ---- the diff, and the whole file once a gap needs it ----
   const main = source.diff(file.path, scoped);
-  const q = useQuery({ ...main, refetchInterval: live ? LIVE_REFRESH_MS : false });
+  const refetchInterval = useLiveRefresh(source);
+  const q = useQuery({ ...main, refetchInterval });
   const [wantFull, setWantFull] = useState(false);
   const whole = source.diff(file.path, { ...scoped, context: 'full' });
-  const fullQ = useQuery({ ...whole, enabled: wantFull, refetchInterval: live && wantFull ? LIVE_REFRESH_MS : false });
+  const fullQ = useQuery({ ...whole, enabled: wantFull, refetchInterval: wantFull ? refetchInterval : false });
   const base = useMemo(() => (q.data ? parseUnified(q.data.diff) : null), [q.data]);
   const fullParsed = useMemo(() => (fullQ.data?.full ? foldFull(parseUnified(fullQ.data.diff, true)) : null), [fullQ.data]);
   const tooBig = base ? linesOf(base) > FULL_LIMIT || base.newLength > FULL_LIMIT || file.additions + file.deletions > FULL_LIMIT : false;

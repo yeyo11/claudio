@@ -152,6 +152,7 @@
     "chatStarted": "empezó el chat {{chat}}",
     "turnCompleted": "el turno del chat terminó bien",
     "message": "desde un mensaje del chat {{chat}}",
+    "apiWrite": "lo escribió el chat {{chat}} por la API de Claudio",
     "taskStarted": "empezó el nodo del grafo",
     "taskCompleted": "terminó el nodo del grafo",
     "flowPlateau": "sin mejora en dos rondas",

@@ -34,6 +34,7 @@ import { formatCost, formatDuration, formatNumber, formatPercent, timeAgo, timeU
 import { formatElapsed } from '@claudio/ui/lib/live';
 import { CLAUDE_CODE_ID, SIGN_IN_SETTINGS_PATH, stateLabelKey } from '../../../lib/provider-state';
 import { PROVIDERS_SETTINGS_PATH, providerSetup, reasonText, useEnabledProviders } from '../../../lib/provider-status';
+import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useClockTick } from '@claudio/ui/lib/motion';
 import { inProject } from '../../../lib/project-scope';
 import { configCount } from '../layout';
@@ -363,6 +364,10 @@ export function NowWidget({ project, title, id }: WidgetProps) {
   const running = working.length + liveOrchestrations.filter((o) => o.status === 'running').length;
   const unreachable = overview.isError && !overview.data;
   const newChat = project ? `/chats/new?cwd=${encodeURIComponent(project.path)}` : '/chats/new';
+  // On a desktop the page head's New chat is the zone's gradient action, so the welcome's own is
+  // plain: two gradient buttons for one action broke the screen's budget of two gradient surfaces.
+  // On a phone the head has no buttons and the welcome stands in for the FAB, so it keeps it.
+  const phone = useMediaQuery(NARROW);
   const onlySetup = setupKind !== null && rows.length === 1 && working.length === 0 && liveOrchestrations.length === 0;
   const empty = rows.length === 0 && working.length === 0 && liveOrchestrations.length === 0;
 
@@ -429,7 +434,7 @@ export function NowWidget({ project, title, id }: WidgetProps) {
           title={t('activity.nothing')}
           action={
             <>
-              <Link to={newChat} className="btn btn-primary">
+              <Link to={newChat} className={phone ? 'btn btn-primary' : 'btn'}>
                 {t('activity.startChat')}
               </Link>
               <Link to={NEW_ORCHESTRATION_PATH} className="btn">
@@ -683,8 +688,13 @@ export function ProjectsWidget({ title, id }: WidgetProps) {
           <FolderGit2 {...ICON_SM} className="alert-icon" />
           <div className="alert-body">
             <strong>{t('activity.noProjectYet')}</strong>
-            <div>
-              <Trans t={t} i18nKey="activity.noProjectYetHint" components={{ anchor: <Link to="/projects" /> }} />
+            <div>{t('activity.noProjectYetHint')}</div>
+            {/* A button and not a link inside the sentence: a finger needs a 44 px target, and a link told
+                apart from its sentence by colour alone fails contrast for those who cannot see it */}
+            <div className="form-actions">
+              <Link to="/projects" className="btn btn-small">
+                {t('activity.noProjectYetAction')}
+              </Link>
             </div>
           </div>
         </div>

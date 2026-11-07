@@ -111,6 +111,9 @@ export function offUntilConsent(
   return needsConsent(info, consent, provider);
 }
 
+/** Whether the draft has the Supervisor watching: its point is its only switch, and a point with no row is off. */
+export const supervisorOn = (draft: Pick<Draft, 'points'>): boolean => (draft.points[SUPERVISOR_POINT]?.mode ?? 'off') !== 'off';
+
 /** What the Supervisor does in each mode, on each provider: the line under its row. */
 export function supervisorMeaning(mode: DecisionMode, provider: DecisionProviderId): 'off' | 'shadow' | 'activeCli' | 'activeJev' {
   if (mode === 'active') return provider === 'jev' ? 'activeJev' : 'activeCli';

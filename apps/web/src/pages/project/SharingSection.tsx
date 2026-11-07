@@ -9,7 +9,7 @@ import { Select, Switch } from '@claudio/ui/components/controls';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
-import { collaboratorsApi, collaboratorsKeys, useCollaboratorsStatus } from './shared-data';
+import { collaboratorsApi, collaboratorsKeys, useCollaboratorGroups, useCollaboratorsStatus } from '../../lib/api/collaborators';
 
 /** What `PUT /projects/:id/sharing` accepts for an edited key (§3.4): lower case, no spaces. */
 export const SHARE_KEY_RE = /^[a-z0-9._/#-]{3,200}$/;
@@ -51,7 +51,7 @@ function SharingSettings({ project }: { project: Project }) {
   const { t } = useTranslation(['collaborators', 'common']);
   const qc = useQueryClient();
   const toast = useToast();
-  const groups = useQuery({ queryKey: collaboratorsKeys.groups, queryFn: ({ signal }) => collaboratorsApi.groups({ signal }) });
+  const groups = useCollaboratorGroups();
   const sharing = useQuery({ queryKey: collaboratorsKeys.sharing(project.id), queryFn: ({ signal }) => collaboratorsApi.sharing(project.id, { signal }) });
   const save = useMutation({
     mutationFn: (body: UpdateProjectSharingRequest) => collaboratorsApi.putSharing(project.id, body),

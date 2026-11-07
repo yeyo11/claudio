@@ -43,7 +43,7 @@
     "aria": "Acceso remoto",
     "name": "Tailscale",
     "meta": "Llega a Claudio desde el móvil, en tu tailnet",
-    "node": "En la tailnet como {{host}}",
+    "node": "En la tailnet como <mono>{{host}}</mono>",
     "reason": {
       "signedIn": "Con sesión iniciada. El túnel se abre en Ajustes → Acceso y seguridad → Acceso remoto, cuando el acceso de arriba pida un token.",
       "loggedOut": "Todavía sin sesión en ninguna tailnet. Inicia sesión con un enlace o con una clave de autenticación.",

@@ -18,7 +18,7 @@ import { ModelCombobox } from '../../../components/ui';
 import { Overridden, ServerSettingChange } from '../SettingChange';
 import { settingsHref } from '../settingsGroups';
 import { SettingsReveal } from '../groups/Block';
-import { capConsequence, type Draft } from './model';
+import { capConsequence, supervisorOn, type Draft } from './model';
 
 /** The server refuses a ceiling outside (0, 5] and a history outside 1..365 days. */
 export const MAX_COST = 5;
@@ -194,26 +194,32 @@ export function EngineSection({
             </Field>
           </>
         )}
-        {/* Always the CLI's, whoever answers the decisions: the Supervisor drafts its hint with a chat of its own */}
-        <Field
-          setting="engine.supervisor-cap"
-          label={t('engine.supervisorCap')}
-          line={t('engine.supervisorCapLine', { cost: formatCost(draft.cli.supervisorMaxCostUsd) })}
-          error={supervisorCostValid ? undefined : t('engine.maxCostInvalid', { max: MAX_COST })}
-          change={change('engine.supervisor-cap', t('engine.supervisorCap'), (value) => (typeof value === 'number' ? formatCost(value) : ''))}
-        >
-          <div className="dp-cost">
-            <NumberInput
-              aria-label={t('engine.supervisorCap')}
-              decimal
-              min={0.01}
-              max={MAX_COST}
-              step={0.01}
-              value={draft.cli.supervisorMaxCostUsd}
-              onChange={(supervisorMaxCostUsd) => patch({ cli: { ...draft.cli, supervisorMaxCostUsd: supervisorMaxCostUsd ?? 0 } })}
-            />
-          </div>
-        </Field>
+        {/*
+          The CLI's whoever answers the decisions, Jev included: the Supervisor drafts its hint with a
+          chat of its own, whose cost this bounds. With the Supervisor off it bounds nothing, so the row
+          shows while it is on, or while the value is invalid, because a hidden error would block Save.
+        */}
+        {(supervisorOn(draft) || !supervisorCostValid) && (
+          <Field
+            setting="engine.supervisor-cap"
+            label={t('engine.supervisorCap')}
+            line={t('engine.supervisorCapLine', { cost: formatCost(draft.cli.supervisorMaxCostUsd) })}
+            error={supervisorCostValid ? undefined : t('engine.maxCostInvalid', { max: MAX_COST })}
+            change={change('engine.supervisor-cap', t('engine.supervisorCap'), (value) => (typeof value === 'number' ? formatCost(value) : ''))}
+          >
+            <div className="dp-cost">
+              <NumberInput
+                aria-label={t('engine.supervisorCap')}
+                decimal
+                min={0.01}
+                max={MAX_COST}
+                step={0.01}
+                value={draft.cli.supervisorMaxCostUsd}
+                onChange={(supervisorMaxCostUsd) => patch({ cli: { ...draft.cli, supervisorMaxCostUsd: supervisorMaxCostUsd ?? 0 } })}
+              />
+            </div>
+          </Field>
+        )}
         <Field
           setting="engine.history-days"
           label={t('engine.historyDays')}
