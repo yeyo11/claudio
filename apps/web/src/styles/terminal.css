@@ -122,11 +122,20 @@
 }
 
 /* ---- paste sheet: the field and its helper line, in a sheet or a dialog ---- */
+/* The refusal reads in the text's colour in the dialog and in the sheet alike: only the help is muted */
 .term-paste {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  color: var(--text);
+}
+
+/* The gap spaces the lines, in the sheet as in the dialog; the error and the help it replaces share
+   one line height, so swapping them moves nothing below */
+.term-paste p {
+  margin: 0;
+  line-height: var(--lh-small);
 }
 
 .term-paste textarea {

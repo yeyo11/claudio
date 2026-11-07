@@ -78,6 +78,9 @@ export default async ({ page, api, check, dirs }) => {
     const [cancel, send] = first?.buttons ?? [];
     check(cancel?.text === 'Cancel' && send?.text === 'Send to terminal' && send.primary === true && cancel.primary === false, `Cancel and Send to terminal, the second the primary action (${JSON.stringify(first?.buttons)})`);
     check(send?.disabled === true, 'Send to terminal is off while the field is empty');
+    // The sheet's body kept the browser's paragraph margins once: the help sat 21 px under its field
+    const gap = await page.eval(`const s = document.querySelector('.sheet'); return Math.round(s.querySelector('.term-paste .muted').getBoundingClientRect().top - s.querySelector('textarea').getBoundingClientRect().bottom)`);
+    check(gap === 8, `the helper line sits the stack's 8 px under its field, as in the dialog (${gap})`);
     check(first?.buttons.every((b) => b.height >= 44 - 1), `both actions are 44 px targets (${JSON.stringify(first?.buttons.map((b) => b.height))})`);
     check(first?.bottom <= first?.viewport, `the sheet is inside the screen (${first?.bottom} of ${first?.viewport})`);
     await page.shot('terminal-paste-sheet-dark');
