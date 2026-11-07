@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { parseChangeScope, WorkItemError, type Core, type WorkItemCommentContext } from '@claudio/core';
-import { claudioLanguage, NotFoundError, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
+import { claudioLanguage, NotFoundError, WORK_ITEM_CHAT_WRITE_CAUSE, WORK_ITEM_PRIORITIES, WORK_ITEM_STATUSES, WORK_ITEM_TYPES } from '@claudio/shared';
 import type {
   CheckAcceptanceCriterionRequest,
   CreateMilestoneRequest,
@@ -57,7 +57,7 @@ export async function chatWriteContext(core: Core, actor: string | null): Promis
   const chatId = actor.slice('chat:'.length);
   const chat = await core.chats.get(chatId);
   const source = { kind: 'chat' as const, chatId, orchestrationId: null, taskId: null };
-  return { actor: { kind: 'agent', role: chat?.claudioAssistant ? 'assistant' : null }, cause: { ...source, event: 'chat.api-write' }, source };
+  return { actor: { kind: 'agent', role: chat?.claudioAssistant ? 'assistant' : null }, cause: { ...source, event: WORK_ITEM_CHAT_WRITE_CAUSE }, source };
 }
 
 const csv = (value: Param): string[] | undefined => {

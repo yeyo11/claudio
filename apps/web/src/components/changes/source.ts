@@ -1,5 +1,6 @@
 import type { ChangeSummary, EditStep, FileDiff } from '@claudio/shared';
 import type { ChangeScope, DiffOptions } from '../../api';
+import { useFeedState } from '../../lib/events';
 
 /**
  * Where a review reads from: a chat, a task, an orchestration's integration branch, or a work
@@ -17,8 +18,14 @@ export interface ReviewSource {
   steps: { queryKey: readonly unknown[]; queryFn: () => Promise<EditStep[]> } | null;
   /** The chat whose transcript the steps come from, for "See it in the conversation" */
   conversation: string | null;
-  /** Something is still working on it, so it is read again on the events and a slow timer */
+  /** Something is still working on it, so it is read again on the events, and on a timer where they miss a move */
   live: boolean;
+  /**
+   * Whether `changes.updated` announces every move of its files while it is live, so the event alone
+   * keeps it fresh and the timer runs only while the feed is down. True for a task and the
+   * integration branch (see {@link liveRefresh}).
+   */
+  announced: boolean;
   back: { to: string; label: string };
   /** The chat's first prompt, the task's name: what the work was about */
   subject: string | null;
@@ -35,3 +42,27 @@ export interface ReviewSource {
 
 /** How often a live source is read again besides the events */
 export const LIVE_REFRESH_MS = 8_000;
+
+/**
+ * The timer a live source is read again on, given whether the event feed is open.
+ *
+ * A task's and the integration branch's reads sit under the graph's key, and the server's change
+ * watcher (`packages/core/src/change-watcher.ts`) looks at a running task's worktree and at the
+ * integration branch while it merges or resolves every few seconds, sending `changes.updated` when
+ * anything moved, a commit or a file no tool announced: the very window these sources are live.
+ * So the event is enough, and the timer only stands in while the feed is down.
+ *
+ * A chat and a work item keep the timer. `changes.updated` never names either (a person's chat has
+ * no watched worktree, and a work item's branch is worked in by chats one after another), and the
+ * only event that does move a chat's changes is `chat.activity` for an edit tool: a file written by a
+ * shell command, a formatter or a commit announces nothing.
+ */
+export function liveRefresh(source: Pick<ReviewSource, 'live' | 'announced'>, feedOpen: boolean): number | false {
+  if (!source.live) return false;
+  return source.announced && feedOpen ? false : LIVE_REFRESH_MS;
+}
+
+/** {@link liveRefresh} for the page's feed */
+export function useLiveRefresh(source: Pick<ReviewSource, 'live' | 'announced'>): number | false {
+  return liveRefresh(source, useFeedState() === 'open');
+}

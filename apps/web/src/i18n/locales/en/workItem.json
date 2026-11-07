@@ -152,6 +152,7 @@
     "chatStarted": "chat {{chat}} started",
     "turnCompleted": "the chat's turn ended well",
     "message": "from a message of chat {{chat}}",
+    "apiWrite": "chat {{chat}} wrote it through Claudio's API",
     "taskStarted": "the graph's node started",
     "taskCompleted": "the graph's node completed",
     "flowPlateau": "no improvement in two rounds",

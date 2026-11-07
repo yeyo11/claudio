@@ -23,7 +23,7 @@ import {
   totalsOf,
   type ReviewScope,
 } from '../components/changes/review-model';
-import { LIVE_REFRESH_MS, type ReviewSource } from '../components/changes/source';
+import { LIVE_REFRESH_MS, useLiveRefresh, type ReviewSource } from '../components/changes/source';
 import { StepScrubber, StepsLens } from '../components/changes/steps/StepsLens';
 import { currentStep } from '../components/changes/steps/steps-model';
 import '../components/changes/changes.css';
@@ -83,6 +83,7 @@ export function ChatChangesReview() {
       steps: { queryKey: keys.chatSteps(id), queryFn: () => api.chatSteps(id) },
       conversation: id,
       live,
+      announced: false,
       back: { to: `/chats/${encodeURIComponent(id)}`, label: t('back.chat') },
       subject: chat ? (chat.firstPrompt ?? chat.title) : null,
       changeRequestId: null,
@@ -116,6 +117,7 @@ export function TaskChangesReview() {
       // The worker's own chat holds the transcript its steps come from
       conversation: task?.sessionId ?? task?.runId ?? null,
       live,
+      announced: true,
       back: { to: `/orchestration/${encodeURIComponent(id)}?task=${encodeURIComponent(taskId)}`, label: t('back.task') },
       subject: task ? task.name || task.id : null,
       changeRequestId: null,
@@ -145,6 +147,7 @@ export function IntegrationChangesReview() {
       steps: null,
       conversation: null,
       live,
+      announced: true,
       back: { to: `/orchestration/${encodeURIComponent(id)}`, label: t('back.orchestration') },
       subject: orch.data?.name ?? null,
       changeRequestId: openChangeRequestId(orch.data?.pullRequest),
@@ -177,6 +180,7 @@ export function WorkItemChangesReview() {
       steps: null,
       conversation: null,
       live,
+      announced: false,
       back: { to: taskPath(item?.key ?? key), label: t('back.workItem', { key: item?.key ?? key.toUpperCase() }) },
       subject: item?.title ?? null,
       changeRequestId: openChangeRequestId(item?.pullRequest),
@@ -202,7 +206,7 @@ function ReviewScreen({ source }: { source: ReviewSource }) {
   const navigate = useNavigate();
   const phone = useMediaQuery(NARROW);
   const scope = scopeOf(params.get('scope'));
-  const refetchInterval = source.live ? LIVE_REFRESH_MS : false;
+  const refetchInterval = useLiveRefresh(source);
   usePageTitle(source.subject ? t('pageTitle', { name: source.subject }) : t('title'));
 
   const allQ = useQuery({ ...source.summary({}), refetchInterval });
