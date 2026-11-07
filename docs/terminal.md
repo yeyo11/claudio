@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T20:00:00Z
-updated_at: 2026-10-20T18:00:00Z
+updated_at: 2026-11-07T12:00:00Z
 tags:
     - terminal
     - pty
@@ -146,17 +146,52 @@ terminal until then: those routes sit behind the same gate as the rest and would
 feature is off. The gate stays as it is rather than answering an empty list, so an API caller is told
 the feature is off instead of that there is nothing open. A `terminal.changed` event carries the
 server's status, not this client's, so the web writes an unavailable one at once and reads an
-available one again through `GET /terminal` (the gate may still refuse this device). Colours come from the `--term-*`
-tokens, in both themes; the cursor blinks only at motion level `full`.
+available one again through `GET /terminal` (the gate may still refuse this device). A page applies each
+event once, however many of its components read the status (`shareTerminalFeed` in `use-terminals.ts`).
+Colours come from the `--term-*` tokens, in both themes; the cursor blinks only at motion level `full`.
 
 ## Checks
 
 - Unit: `packages/core/test/terminals-*.test.ts`; API: `apps/api/test/terminals.test.ts`; web:
   `apps/web/test/terminal-*.test.tsx`.
-- Browser: `e2e/specs/terminal.spec.mjs` (renderer forced to the DOM), plus a terminal's screen and the phone's list in
+- Browser: `e2e/specs/terminal*.spec.mjs` (renderer forced to the DOM), plus a terminal's screen and the phone's list in
   `a11y-core.spec.mjs` (both themes, phone width) and the panel's cursor in `motion.spec.mjs`.
 - Performance: `node e2e/perf/terminal-perf.mjs` (see [reports/terminal-perf.md](reports/terminal-perf.md));
   budgets in `e2e/perf/budgets.json`.
+
+**A spec that turns the terminal on dismisses its terminals before it turns it off.** The specs of one
+shard share a server, the switch closes a terminal without dismissing it, and a closed terminal stays
+listed for an hour. The dock lists every terminal the server holds, so the next spec's dock shows the
+leftovers as tabs. Dismiss with `DELETE /terminals/:id` while the feature is still on (the routes answer
+409 once it is off), as `terminal-autoclose`, `a11y-core` and `motion` do.
+
+### Why `terminal.spec.mjs` failed on CI (2026-11-03 to 2026-11-07)
+
+Found from the CI logs of `main` (runs 41832685855, 42031652683, 42220246122), the runs of #84, #86 and
+#87, and the code. The terminal itself was not at fault.
+
+- **Step 5, "two tabs", on every run since #84.** `terminal-menu.spec.mjs` and `terminal-paste.spec.mjs`,
+  both added by #84, turned the feature off in their cleanup without dismissing their terminals. Their
+  shells stayed listed as closed, and `terminal-` sorts before `terminal.`, so on a shard that ran either
+  one first, `terminal.spec.mjs` found a third tab after the "+". The failure report never showed it: its
+  `shells` line lists only the spec's own project. The report's `clients: 0` on the first shell and `clients: 1`
+  on the second were the panel doing what it should (the new shell in front, attached; the old one
+  detached). Both specs now dismiss
+  their terminals, and `terminal.spec.mjs` first checks that the server holds none, naming any leftover.
+- **Step 4, "the earlier output after a reload", now and then since before #84.** The spec reads only
+  the rows in view (`.xterm-rows`), and it looked for the first command's answer after four more commands.
+  By then the shell has drawn nine or ten rows. The prompt and the longest command come to about 140
+  characters, near the dock's width in columns, so whether that line wraps depends on the runner's host
+  name in the prompt. At its default height the dock shows about eight or nine rows. On some runners the
+  answer had scrolled into the scrollback before the reload. The snapshot repaints the scrollback too, so
+  nothing was lost: the step now checks the output printed last before the reload, and its failure
+  report shows the screen before and after.
+- **About twenty aborted `GET /terminal` and `GET /terminals` pairs in every report.** They were not a
+  loop. Each component that read the status subscribed to `terminal.changed` on its own: five on the
+  desktop shell with the dock open. Each event was applied five times in one tick, and each invalidation
+  cancelled the fetch the one before it had just started. That made four aborted pairs per event, and the
+  "+" makes three events. Each one still reached the server and its peer check. The page now holds one
+  subscription per query client (`apps/web/test/terminal-feed.test.ts`).
 
 ## Related
 

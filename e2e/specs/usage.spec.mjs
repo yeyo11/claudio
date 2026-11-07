@@ -126,19 +126,23 @@ export default async ({ page, api, check, dirs }) => {
     );
     check(grid.label.length > 0 && grid.heads === 7, `the grid is named by its month and its columns by weekday (${grid.label}, ${grid.heads})`);
     check(grid.today && grid.tabbable === 1 && grid.named, 'today is marked, one day is in the tab order, every day is named in full');
-    // The start of the range is the earliest day the end can take
-    // Early in a month that day sits in the previous month's grid: look there, then reopen on the chosen day
-    const beforeStart = `return document.querySelector('.date-picker-panel button[data-day="${daysAgo(5)}"]')?.getAttribute('aria-disabled') ?? null`;
-    if ((await page.eval(beforeStart)) === null) {
-      await page.click('.date-picker-panel .date-picker-head .icon-btn', undefined, 300);
-      check((await page.eval(beforeStart)) === 'true', 'a day before the start cannot be picked as the end');
-      await page.key('Escape');
-      await page.waitFor(`return !document.querySelector('.date-picker-panel')`, { label: 'the calendar closed' });
-      await page.click('main .filter-bar .field:nth-child(2) .date-picker-button', undefined, 500);
-      await page.waitFor(`return document.activeElement?.dataset.day === '${day(today)}'`, { label: 'the calendar back on the chosen day' });
-    } else {
-      check((await page.eval(beforeStart)) === 'true', 'a day before the start cannot be picked as the end');
-    }
+    // The start of the range is the earliest day the end can take. The day before it is not always on
+    // screen: the calendar opens on today's month, and when the start is the 1st and the week begins on
+    // that weekday (a Sunday in en-US, as on 2026-11-05) the grid begins at the start; the month before
+    // cannot be shown either, because the calendar keeps its focused day inside the range. Looking for
+    // that day failed the spec on those dates. The keyboard says it on every date: Page Up goes back a
+    // month and stops at the start, the left arrow cannot leave it, and every earlier day shown is off.
+    const start = daysAgo(4);
+    await page.key('PageUp');
+    await page.waitFor(`return document.activeElement?.dataset.day === '${start}'`, { label: 'Page Up stopped at the start of the range' });
+    await page.key('ArrowLeft');
+    check((await page.eval(`return document.activeElement?.dataset.day ?? ''`)) === start, 'the left arrow cannot move the end before the start');
+    const earlier = await page.eval(`return [...document.querySelectorAll('.date-picker-panel button[data-day]')].filter((b) => b.dataset.day < '${start}').map((b) => b.getAttribute('aria-disabled'))`);
+    check(earlier.every((disabled) => disabled === 'true'), `a day before the start cannot be picked as the end (${JSON.stringify(earlier)})`);
+    await page.key('Escape');
+    await page.waitFor(`return !document.querySelector('.date-picker-panel')`, { label: 'the calendar closed' });
+    await page.click('main .filter-bar .field:nth-child(2) .date-picker-button', undefined, 500);
+    await page.waitFor(`return document.activeElement?.dataset.day === '${day(today)}'`, { label: 'the calendar back on the chosen day' });
     // The panel is portalled outside the landmarks, like every popover: `region` does not apply to it
     const calendarIssues = (await page.axe({ include: '.date-picker-panel', rules: { region: { enabled: false } } })).flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target} ${n.why}`));
     check(calendarIssues.length === 0, `the open calendar has accessibility violations:\n${calendarIssues.join('\n')}`);
