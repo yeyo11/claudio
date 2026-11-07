@@ -765,7 +765,8 @@
         "allowed": "Allowed hosts"
       },
       "remote": {
-        "tunnel": "Tunnel"
+        "tunnel": "Tunnel",
+        "tunnel-port": "Tunnel port"
       },
       "secrets": {
         "storage": "Where secrets are kept"
@@ -964,7 +965,8 @@
       },
       "remote": {
         "section": "tunnel tailscale phone address qr lan wifi network",
-        "tunnel": "tailscale tailnet serve"
+        "tunnel": "tailscale tailnet serve",
+        "tunnel-port": "tailscale serve https 8444 port"
       },
       "secrets": {
         "section": "encrypted keychain keys",

@@ -12,13 +12,12 @@ import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { teammateLabel } from '../src/components/TeammateName';
-import { chatsThatRead, startOfToday } from '../src/lib/api/collaborators';
+import { chatsThatRead, collaboratorsKeys, startOfToday } from '../src/lib/api/collaborators';
 import { AgentsCard } from '../src/pages/collaborators/AgentsCard';
 import { TeammateReadsTag } from '../src/pages/chat/TeammateReadsTag';
 import { AgentReadsView } from '../src/pages/config/security/AgentReadsCard';
 import { AgentReadsLineView } from '../src/pages/project/SharedView';
 import { SharingSection } from '../src/pages/project/SharingSection';
-import { collaboratorsKeys } from '../src/pages/project/shared-data';
 
 // docs/plans/collaborators-agent-access.md on the web: the assistant's switch, the project's switch
 // and the sharer's flag, the chat's chip, the copy's "read by" line and the audit in Security.

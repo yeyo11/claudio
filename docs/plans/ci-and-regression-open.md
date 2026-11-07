@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-07T00:00:00Z
-updated_at: 2026-11-07T00:00:00Z
+updated_at: 2026-11-07T12:00:00Z
 tags:
     - plan
     - ci
@@ -74,7 +74,7 @@ settles the owner's decisions.
 | R12 | `AccountStore.list()` per account, twice per `accountView` | Open. `provider_limits` stays (§2.4) | `packages/accounts/src/store.ts:297-333,750`, `packages/core/src/index.ts:3768` |
 | R13 | Tunnel port with no settings row | Open; `TunnelManager.resetSettings(['port'])` is ready | `settings-registry.ts:248`, `shared/src/setting-ids.ts:84`, `RemoteAccessTab.tsx` |
 | R14 | Two collaborators clients in the web | Open | `apps/web/src/lib/api/collaborators.ts`, `pages/project/shared-data.ts` |
-| R15 | Polling and events | Open: `LIVE_REFRESH_MS = 8_000` (`changes/source.ts:37`). There are no `decision.*`/`audit.*` events. `workitem.moved` invalidates every item page although it carries `itemId` (`lib/events.ts:452`) | web, shared, core |
+| R15 | Polling and events | Open: `LIVE_REFRESH_MS = 8_000` (`changes/source.ts:37`). There are no `decision.*`/`audit.*` events. `workitem.moved` invalidates every item page although it carries `itemId` (`lib/events.ts:452`). **Events half done (`core-hygiene`):** `workitem.moved` now reads its own page and, from the cache, only the pages that show it as a chip (its epic, its children, both ends of a relation; `itemsNaming` in `lib/events.ts`). **`decision.*`/`audit.*` not built, because they replace no poll:** while the stream is open the audit queries and `JevUnavailable` poll nothing (`useFallbackInterval` is `false`), and the decision history has no interval at all. The audit log is read again after any event at a 10 s pace (`ALWAYS`), and the decision lists on permission events. An event of their own would change freshness, not load. The gap that stays: a decision taken at a point that is not a permission (`orchestration.retry`, `flow.*`), or an audit row with no event (a refused request), shows on the next mount, focus or other event. **Polling half done (`web-hygiene`):** a task's and the integration branch's review (`ChangesReview.tsx`, `FileReview.tsx`) follow `changes.updated`, which the change watcher sends for exactly the window they are live, and poll only while the feed is down (`liveRefresh` in `changes/source.ts`). A chat's and a work item's keep the 8 s timer: no `changes.updated` names them, and a file written by a shell command announces nothing | web, shared, core |
 | R16 | Older web defects | Open: a 17 px link on Home, a clipped Tailscale row, and more than two gradient surfaces when signed out; 72 tap-target hits on the board's phone rows; column headings cut at 1280 px | web |
 | R17 | Load-sensitive tests | Open. Wall-clock bounds in `collab-join-answer.test.ts:417,429-432,470`, `collab-quiet.test.ts:140-145`, `setup-logins.test.ts:170` and `tunnel.test.ts`; fixed waits in `apps/api/test/flow.test.ts:28-34` and `openai-tools.test.ts:381,397`; real spawns in `accounts-rotation` | tests |
 | R18 | Unawaited `core.shutdown()` | Open: 94 calls in 65 API test files. `security.test.ts:719` reopens the same root, `security.test.ts:330-347` never shuts down, and `packaging.test.ts:257-291` keeps four Cores on one data dir. `teardown.test.ts:17` counts the calls but does not require `await` | `apps/api/test` |

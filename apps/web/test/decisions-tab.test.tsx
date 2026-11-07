@@ -12,7 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, capConsequence, draftOf, examplePoint, offUntilConsent, supervisorMeaning } from '../src/pages/config/decisions/model';
+import { activeBlocked, capConsequence, draftOf, examplePoint, offUntilConsent, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
@@ -83,7 +83,7 @@ const row = (point: DecisionPointInfo, saved: DecisionSettings, provider: 'cli' 
     />,
   );
 
-const engine = (saved: DecisionSettings, decisions: number | null = 0) =>
+const engine = (saved: DecisionSettings, decisions: number | null = 0, advancedOpen = false) =>
   html(
     <EngineSection
       saved={saved}
@@ -93,7 +93,7 @@ const engine = (saved: DecisionSettings, decisions: number | null = 0) =>
       supervisorCostValid
       daysValid
       decisions={decisions}
-      advancedOpen={false}
+      advancedOpen={advancedOpen}
       onAdvanced={() => undefined}
       onExample={() => undefined}
       onReset={() => undefined}
@@ -270,4 +270,40 @@ test('Who answers: the CLI keeps everything here; Jev reveals its key and model 
   assert.match(jev, /<span class="dp-mono">jev-1\.13\.0<\/span>, fijado/);
   assert.match(jev, /data-setting="engine\.jev-key"/);
   assert.match(jev, /data-setting="engine\.cap"/);
+});
+
+test("the Supervisor's cap shows only while its point is not off, under the CLI and under Jev", () => {
+  const point = (mode: 'off' | 'shadow' | 'active') => ({ 'supervisor.intervene': { mode, threshold: 0.85, consent: null } });
+  const cap = /data-setting="engine\.supervisor-cap"/;
+  // A settings document with no row for the point has it off too
+  assert.doesNotMatch(engine(settings(), 0, true), cap);
+  assert.doesNotMatch(engine(settings(point('off')), 0, true), cap);
+  assert.doesNotMatch(engine(settings(point('off'), { provider: 'jev' }), 0, true), cap);
+  assert.match(engine(settings(point('shadow')), 0, true), cap);
+  assert.match(engine(settings(point('active')), 0, true), cap);
+  // Under Jev the Supervisor still drafts its hint with a CLI chat, whose cost the cap bounds
+  assert.match(engine(settings(point('active'), { provider: 'jev' }), 0, true), cap);
+
+  assert.equal(supervisorOn({ points: {} }), false);
+  assert.equal(supervisorOn({ points: { 'supervisor.intervene': { mode: 'shadow', threshold: 0.85 } } }), true);
+});
+
+test('an invalid Supervisor cap stays visible with the Supervisor off, so no hidden error blocks Save', () => {
+  const saved = settings({ 'supervisor.intervene': { mode: 'off', threshold: 0.85, consent: null } });
+  const out = html(
+    <EngineSection
+      saved={saved}
+      draft={{ ...draftOf(saved), cli: { ...saved.cli, supervisorMaxCostUsd: 0 } }}
+      patch={() => undefined}
+      costValid
+      supervisorCostValid={false}
+      daysValid
+      decisions={0}
+      advancedOpen
+      onAdvanced={() => undefined}
+      onExample={() => undefined}
+      onReset={() => undefined}
+    />,
+  );
+  assert.match(out, /data-setting="engine\.supervisor-cap"/);
 });

@@ -1,5 +1,5 @@
 import type { SetupTailscaleSummary } from '@claudio/shared';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { ProgramMark } from '@claudio/ui/components/BrandMark';
 import { Tag } from '@claudio/ui/components/ui';
 import { tailscaleActions, tailscaleSignedIn, tailscaleTone } from '../../lib/setup';
@@ -28,12 +28,19 @@ export function TailscaleRow({ summary, phone, open, onToggle }: { summary: Setu
   const { signIn, signOut } = tailscaleActions(summary);
   const { state: now } = summary;
   const word = now === 'ready' ? t('providers:state.ready') : t(`config:remote.tailscale.tags.${now}`);
-  const meta = summary.host && tailscaleSignedIn(summary.state) ? t('setup:remote.node', { host: summary.host }) : t('setup:remote.meta');
+  // A sentence, not a literal: only the node's name is mono, and the line wraps, so a long tailnet
+  // name is never cut on a phone
+  const meta =
+    summary.host && tailscaleSignedIn(summary.state) ? (
+      <Trans t={t} i18nKey="setup:remote.node" values={{ host: summary.host }} components={{ mono: <span className="mono" /> }} />
+    ) : (
+      t('setup:remote.meta')
+    );
 
   const identity = (
     <div className="prov-id">
       <span className="prov-name">{t('setup:remote.name')}</span>
-      <span className="prov-meta ellipsis">{meta}</span>
+      <span className="prov-meta is-prose">{meta}</span>
     </div>
   );
   const state = (

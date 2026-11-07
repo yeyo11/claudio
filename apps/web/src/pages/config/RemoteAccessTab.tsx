@@ -705,7 +705,8 @@ export function TunnelPanel({
 /**
  * The port of Claudio's Serve rule. It changes only while the tunnel is closed or failed: the rule on
  * the old port is taken away by closing first. Where `CLAUDIO_TUNNEL_PORT` sets it, it is shown and
- * never sent.
+ * never sent. Its Reset (`remote.tunnel-port`) shows only where the field could be saved: the server
+ * refuses one while the tunnel is open (`tunnel.portWhileRunning`), and the hint already says why.
  */
 export function TunnelPortSetting({ status, onStatus }: { status: TunnelStatus; onStatus: (next: TunnelStatus) => void }) {
   const { t } = useTranslation('config');
@@ -726,6 +727,7 @@ export function TunnelPortSetting({ status, onStatus }: { status: TunnelStatus; 
   return (
     <form
       className="setting-change-row"
+      data-setting="remote.tunnel-port"
       data-testid="tunnel-port"
       onSubmit={(event) => {
         event.preventDefault();
@@ -735,6 +737,8 @@ export function TunnelPortSetting({ status, onStatus }: { status: TunnelStatus; 
       <Field label={t('remote.port.label')} hint={hint}>
         <NumberInput aria-label={t('remote.port.label')} value={draft} onChange={setDraft} min={TUNNEL_PORT_RANGE.min} max={TUNNEL_PORT_RANGE.max} disabled={fromEnv || open || save.isPending} compact />
       </Field>
+      {/* A port is a literal, never grouped as a number ("8.444" in Spanish) */}
+      {!open && <ServerSettingChange id="remote.tunnel-port" label={t('remote.port.label')} wording={(value) => String(value)} invalidate={[keys.tunnel]} />}
       {!fromEnv && !open && (
         <div className="form-actions">
           <button type="submit" className="btn btn-small" disabled={!valid || draft === status.port || save.isPending}>
