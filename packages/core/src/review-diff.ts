@@ -110,8 +110,10 @@ export interface ReviewDiffOptions<H extends { blocking: boolean }> {
   /** Globs added to the built-in exclusions */
   exclude?: string[];
   depth?: 'light' | 'full';
-  /** Replaces the depth's chunk size; tests use it to avoid megabyte fixtures */
+  /** Replaces the depth's chunk size: the per-run cost cap may need smaller chunks, and tests avoid megabyte fixtures */
   chunkBytes?: number;
+  /** Why a single change too large for a chunk is not reviewable, when the chunk size has a reason of its own */
+  unfitReason?: string;
   maxChunks?: number;
   /** The scans: given every file that has added lines, excluded ones included */
   scan?: (files: ReviewScanFile[]) => H[];
@@ -360,7 +362,7 @@ function splitFile(file: FileText, limit: number): ReviewChunkItem[] | null {
  * pair fits. Returns every chunk (the caller applies `MAX_CHUNKS`) and the files that cannot be put in
  * any chunk.
  */
-export function pack(files: FileText[], limit: number): { chunks: ReviewChunk[]; unfit: Map<string, string> } {
+export function pack(files: FileText[], limit: number, unfitReason = 'a single change is larger than a review chunk'): { chunks: ReviewChunk[]; unfit: Map<string, string> } {
   const unfit = new Map<string, string>();
   const sorted = [...files].sort((a, b) => {
     const pa = packageOf(a.path);
@@ -372,7 +374,7 @@ export function pack(files: FileText[], limit: number): { chunks: ReviewChunk[];
   for (const f of sorted) {
     const parts = splitFile(f, limit);
     if (parts) itemsOf.set(f.path, parts);
-    else unfit.set(f.path, 'a single change is larger than a review chunk');
+    else unfit.set(f.path, unfitReason);
   }
 
   // A test is packed with its source: one unit while both are whole and fit together, else one after the other
@@ -567,7 +569,7 @@ export function collectReviewDiff<H extends { blocking: boolean } = { blocking: 
   }
 
   // 7. Chunking
-  const { chunks, unfit } = pack([...bodies.values()], limit);
+  const { chunks, unfit } = pack([...bodies.values()], limit, opts.unfitReason);
   const kept = chunks.slice(0, maxChunks);
   const dropped = new Set(chunks.slice(maxChunks).flatMap((c) => c.items.map((i) => i.path)));
   for (const f of result.files) {
