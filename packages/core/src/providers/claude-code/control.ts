@@ -5,7 +5,8 @@ import type { SessionIO } from '../driver.ts';
 const CONTROL_TIMEOUT_MS = 15_000;
 
 // The requests below are typed as the Agent SDK declares them (`@anthropic-ai/claude-agent-sdk`
-// 0.3.156, `sdk.d.ts`), the vendor's documented surface of the control protocol.
+// 0.3.156, `sdk.d.ts`; the interrupt's answer as 0.3.319 types it), the vendor's documented surface of
+// the control protocol.
 
 /** `SDKControlInterruptRequest`: interrupts the turn under way. Nothing else on it is documented, so nothing else is sent. */
 export interface InterruptRequest {
@@ -34,12 +35,23 @@ export interface CancelAsyncMessageRequest {
 }
 
 /**
- * What the CLI answers an interrupt with. `ControlResponse.response` is an open record in the SDK;
- * the CLI's own protocol schema (2.1.312) describes `still_queued` as the uuids of the messages that
- * survive the interrupt, "commands still in the queue, plus any batch already dequeued for the imminent
- * turn", written before the interrupted turn's result. An older CLI leaves it out.
+ * The `system/init` capability that promises the interrupt receipt: the Agent SDK (0.3.319,
+ * `SDKSystemMessage.capabilities`) says to feature-detect on it rather than on the version, and to
+ * check each capability "for exactly the behavior you use".
  */
-export function stillQueuedOf(response: Record<string, unknown>): string[] | null {
+export const INTERRUPT_RECEIPT = 'interrupt_receipt_v1';
+
+/**
+ * What the CLI answers an interrupt with: `SDKControlInterruptResponse` in the Agent SDK (0.3.319),
+ * whose `still_queued` lists the uuids of the messages that survive the interrupt ("commands still in
+ * the queue, plus any batch already dequeued for the imminent turn"), written before the interrupted
+ * turn's result. The SDK types it as the answer of a CLI that advertises {@link INTERRUPT_RECEIPT} in
+ * its `system/init`, and an older CLI "send[s] an empty success response with no still_queued field".
+ * So it is read only from a process whose init advertised that capability: an answer that happens to
+ * carry the field without the promise says nothing Claudio may settle a message on.
+ */
+export function stillQueuedOf(response: Record<string, unknown>, capabilities: ReadonlySet<string>): string[] | null {
+  if (!capabilities.has(INTERRUPT_RECEIPT)) return null;
   const listed = response.still_queued;
   return Array.isArray(listed) && listed.every((id): id is string => typeof id === 'string') ? listed : null;
 }

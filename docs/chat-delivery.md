@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T18:00:00Z
-updated_at: 2026-10-30T09:00:00Z
+updated_at: 2026-11-07T00:00:00Z
 tags:
     - chats
     - providers
@@ -157,8 +157,12 @@ documented control protocol, and the requests are typed from them (`providers/cl
 `interrupt` (nothing else on it), `background_tasks { tool_use_id }` (the SDK reads `backgrounded`,
 true when missing) and `cancel_async_message { message_uuid }` (the SDK reads `cancelled`). The
 interrupt's `send_now` and `message_uuid` members are not in the typings and are not used. The
-interrupt's answer is an open record in the SDK; `still_queued` is read from it as the CLI's own
-protocol schema describes it (2.1.312), and only when present.
+interrupt's answer is `SDKControlInterruptResponse` in the Agent SDK 0.3.319: its `still_queued` lists
+the messages that survive the interrupt, and the SDK ties it to the `interrupt_receipt_v1` capability
+a CLI advertises in its `system/init` (`capabilities`, an open set to feature-detect on, which every
+CLI since 2.1.278 lists). The driver keeps what each process's init advertised, the chat keeps it too
+(`LiveChat.capabilities`), and `still_queued` is read only from a process that advertised the receipt:
+a list the CLI never promised settles no message, which then waits for its turn's result.
 
 ## Background work is never idle-ended
 
@@ -172,9 +176,14 @@ So while `runsInBackground(chat.branches)`:
 - a person's account switch waits: it is answered `pending`, the chat gets a notice saying why, and
   the move happens once the work is over.
 
-A one-turn chat (`keepAlive: false`, an orchestration's worker) still has its input ended at its
-result: its starter waits for the process to exit and continues the chat from there, and the CLI
-waits for the background work before it exits, up to that ceiling.
+A one-turn chat (`keepAlive: false`: an orchestration's worker, a flow member) has its input ended at
+its result only when nothing runs in the background. Otherwise the input stays open until the work
+settles (the `task` event after which `runsInBackground` is false, the one that emits
+`chat-background-settled`), and is ended then; a turn the agent takes on the work's notification ends
+it again at its own result. Its starter waits for the process to exit, as before, and so goes on later:
+the orchestrator continues a worker once its process has exited and follows any later result of its
+chat, so it accepts the later exit as it is. Before, the input ended at the result and the CLI killed
+work still running at its ceiling.
 
 ## Edge cases the server handles
 

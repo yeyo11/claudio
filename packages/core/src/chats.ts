@@ -2321,8 +2321,9 @@ export class ChatManager extends EventEmitter {
     chat.heartbeats.clear();
     chat.openCommands.clear();
     chat.cancelled.clear();
-    // Whether this process reports what it takes is its own to show
+    // Whether this process reports what it takes, and what its protocol promises, are its own to show
     chat.reportsDelivery = null;
+    chat.capabilities = [];
     chat.carrying = false;
     // Its turns, its calls and its counts start again; a message the last one dropped cannot be read back by this one
     chat.turnOpen = false;

@@ -128,10 +128,33 @@ test('an interrupt whose receipt no longer lists a written message settles it at
     await until(() => r.ops().some((o) => o.op === 'dropped'), 'the CLI to drop it');
     // The card still waits: "Send now" asks the CLI, whose receipt says it holds nothing
     assert.equal(r.chats.get(chat.id)?.pending?.[0]?.state, 'written');
+    // The receipt is the one its init promised (`interrupt_receipt_v1`), which the chat keeps
+    assert.deepEqual(r.live(chat.id)?.capabilities, ['interrupt_receipt_v1']);
     await r.chats.interrupt(chat.id, dropped.id);
     const lost = r.deliveries(chat.id).find((d) => d.id === dropped.id && d.state === 'undelivered');
     assert.equal(lost?.reason, 'not-read');
     assert.equal(r.live(chat.id)?.interruptRequested, false, 'no turn was under way, so no result will clear the mark');
+  } finally {
+    await r.close();
+  }
+});
+
+test('a receipt the CLI never promised in its init settles nothing: the message waits for the bound of its result', async () => {
+  // A CLI that answers `still_queued` without advertising it; the read-back window is long, as above
+  const r = rig({ CLAUDIO_READ_BACK_MS: '60000', FAKE_NO_CAPABILITIES: '1' });
+  try {
+    const chat = r.chats.start({ prompt: `HOLD ${r.file('f1')}` });
+    await until(() => r.ops().some((o) => o.op === 'turn'), 'the first turn');
+    const dropped = r.chats.sendMessage(chat.id, 'DROP me');
+    await until(() => r.ops().some((o) => o.op === 'enqueue'), 'the CLI to queue it');
+    r.release('f1');
+    await until(() => r.ops().some((o) => o.op === 'dropped'), 'the CLI to drop it');
+    assert.deepEqual(r.live(chat.id)?.capabilities, []);
+    await r.chats.interrupt(chat.id, dropped.id);
+    assert.ok(r.ops().some((o) => o.op === 'control' && o.subtype === 'interrupt'), 'the interrupt reached the CLI');
+    // Its `still_queued: []` would have called the message dropped; unpromised, it is not read
+    assert.equal(r.chats.get(chat.id)?.pending?.find((m) => m.id === dropped.id)?.state, 'written');
+    assert.ok(!r.deliveries(chat.id).some((d) => d.state === 'undelivered'));
   } finally {
     await r.close();
   }
@@ -351,6 +374,38 @@ test('the idle timeout does not end the input of a chat whose agent runs work in
     assert.notEqual(r.chats.get(chat.id)?.pid, null);
     r.release('f1');
     await until(() => r.ops().some((o) => o.op === 'eof'), 'the input to end once the work is over', 4000);
+  } finally {
+    await r.close();
+  }
+});
+
+test('a one-turn chat keeps its input open past its result while its agent runs work in the background, and ends it once the work settles', async () => {
+  const r = rig();
+  try {
+    const chat = r.chats.start({ prompt: `BG ${r.file('f1')}`, keepAlive: false });
+    const result = await r.chats.waitForResult(chat.id);
+    assert.equal(result.isError, false);
+    // Read right after the result folded: a CLI whose input ended now would kill that work at its ceiling
+    assert.equal(r.live(chat.id)?.proc?.stdin?.writableEnded, false, 'the input was ended under the background work');
+    assert.ok(!r.ops().some((o) => o.op === 'eof'));
+    r.release('f1');
+    await until(() => r.ops().some((o) => o.op === 'eof'), 'the input to end once the work settled');
+    await r.chats.exited(chat.id);
+    assert.equal(r.chats.get(chat.id)?.status, 'completed');
+    assert.equal(r.chats.get(chat.id)?.pid, null);
+  } finally {
+    await r.close();
+  }
+});
+
+test('a one-turn chat with nothing in the background ends its input at its result, as before', async () => {
+  const r = rig();
+  try {
+    const chat = r.chats.start({ prompt: 'first', keepAlive: false });
+    await r.chats.waitForResult(chat.id);
+    assert.equal(r.live(chat.id)?.proc?.stdin?.writableEnded, true);
+    await r.chats.exited(chat.id);
+    assert.equal(r.chats.get(chat.id)?.status, 'completed');
   } finally {
     await r.close();
   }
