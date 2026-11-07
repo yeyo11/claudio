@@ -63,7 +63,8 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
           return (
             <li key={message.id} className={`chat-queued-item ${message.state === 'lost' ? 'is-lost' : ''} ${notice ? 'is-notice' : ''}`.replace(/\s+/g, ' ').trim()}>
               {message.state === 'lost' ? <TriangleAlert {...ICON_SM} aria-hidden /> : notice ? <Info {...ICON_SM} aria-hidden /> : <Hourglass {...ICON_SM} aria-hidden />}
-              <span className="chat-queued-text">
+              {/* Two lines of it show; the whole text is a hover away, as for every clamped text */}
+              <span className="chat-queued-text" title={message.text || undefined}>
                 {notice && <span className="chat-queued-from">{message.source === 'supervisor' ? t('view.queued.fromSupervisor') : t('view.queued.fromClaudio')} </span>}
                 {message.text || t('view.queued.files', { count: message.attachments.length })}
               </span>

@@ -4,7 +4,7 @@ import test from 'node:test';
 // Formatting follows navigator.languages; pin it so the result does not depend on the machine.
 Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }, configurable: true });
 const { setLanguage } = await import('../src/i18n/index.ts');
-const { daysAgo, formatBytes, formatAmountShort, formatCost, formatDateTime, formatDuration, formatHour, formatNumber, timeAgo, timeUntil } = await import('@claudio/ui/lib/format');
+const { daysAgo, formatBytes, formatAmountShort, formatCost, formatDateTime, formatDateTimeIn, localTimeZone, formatDuration, formatHour, formatNumber, timeAgo, timeUntil } = await import('@claudio/ui/lib/format');
 
 const SEC = 1000;
 const MIN = 60 * SEC;
@@ -107,4 +107,15 @@ test('a moment in a list grouped by day reads as its bare hour, and the day head
   assert.equal(daysAgo(new Date(2026, 8, 27, 23, 50).getTime(), now), 1, 'ten minutes ago, but yesterday');
   assert.equal(daysAgo(new Date(2026, 8, 20, 12, 0).getTime(), now), 8);
   assert.equal(daysAgo('not a date', now), null);
+});
+
+test("a moment on another zone's clock, to the minute, whatever the browser's zone", () => {
+  // 02:00 UTC is 03:00 in Madrid (winter) and 21:00 the day before in New York
+  const at = '2026-11-08T02:00:00.000Z';
+  assert.equal(formatDateTimeIn(at, 'Europe/Madrid'), '11/8/2026, 3:00 AM');
+  assert.equal(formatDateTimeIn(at, 'America/New_York'), '11/7/2026, 9:00 PM');
+  // A zone Intl does not know is read on the browser's clock rather than failing the line
+  assert.equal(formatDateTimeIn(at, 'Mars/Olympus'), new Date(at).toLocaleString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }));
+  assert.equal(formatDateTimeIn(null, 'UTC'), '—');
+  assert.equal(localTimeZone(), Intl.DateTimeFormat().resolvedOptions().timeZone);
 });

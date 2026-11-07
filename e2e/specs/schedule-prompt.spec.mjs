@@ -2,7 +2,9 @@
 // §2.3). A schedule spends money while nobody watches, so before the person answers the prompt says, in
 // their words: what it is called, its expression and zone, what each fire starts, and then, read from
 // `GET /schedules/preview`, the expression in words and its next fires, beside the monospace input block
-// and never inside it. Allowing it answers the call. Shot in both themes and at phone width.
+// and never inside it. Allow and Deny are not shown until the preview is in, so they never move under a
+// pointer, and the fires are on the schedule's clock, named when the browser's zone is another. Allowing
+// it answers the call. Shot in both themes and at phone width.
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -34,11 +36,13 @@ const PROMPT = `
   if (!p) return null;
   const input = p.querySelector('.permission-input');
   const allow = p.querySelector('.permission-actions .btn-primary');
+  const actions = p.querySelector('.permission-actions');
   return {
     head: p.querySelector('.permission-head')?.innerText ?? '',
     input: input?.innerText ?? '',
     inputFont: input ? getComputedStyle(input).fontFamily : '',
-    beside: [...p.querySelectorAll(':scope > p.muted')].map((e) => ({ text: e.innerText, font: getComputedStyle(e).fontFamily })),
+    beside: [...p.querySelectorAll(':scope > .permission-preview > p')].map((e) => ({ text: e.innerText, font: getComputedStyle(e).fontFamily })),
+    shown: actions ? getComputedStyle(actions).visibility === 'visible' : false,
     allowTop: allow ? Math.round(allow.getBoundingClientRect().top) : null,
     allowHeight: allow ? Math.round(allow.getBoundingClientRect().height) : null,
     width: Math.round(p.getBoundingClientRect().right),
@@ -62,10 +66,12 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // ---- 1. the prompt says the schedule in the person's words, and the preview beside the input ----
     await page.goto(`/chats/${chatId}`, 1200);
     await page.waitFor(`return !!document.querySelector('.permission .permission-actions .btn-primary')`, { label: 'the permission prompt' });
-    const loading = await page.eval(PROMPT);
+    // Every place Allow was shown at while the preview was on its way
+    const seen = [];
     const ready = await until(async () => {
       const now = await page.eval(PROMPT);
-      return now?.beside.some((line) => line.text.startsWith('Next fires:')) ? now : null;
+      if (now?.shown) seen.push(now.allowTop);
+      return now?.beside.some((line) => line.text.startsWith('Next fires')) ? now : null;
     }, 'the preview of the expression');
     check(ready.head.includes('Create the schedule Nightly digest'), `the head names the schedule (${JSON.stringify(ready.head)})`);
     for (const line of ['Expression: 0 3 * * *', 'Zone: Europe/Madrid', 'Starts: a chat', 'Summarise what changed yesterday']) {
@@ -73,18 +79,21 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     }
     check(!ready.input.includes('Next fires') && !ready.input.includes('In words'), 'the preview is not inside the monospace input block');
     const words = ready.beside.find((line) => line.text.startsWith('In words:'));
-    const next = ready.beside.find((line) => line.text.startsWith('Next fires:'));
+    const next = ready.beside.find((line) => line.text.startsWith('Next fires'));
+    const zone = await page.eval(`return Intl.DateTimeFormat().resolvedOptions().timeZone`);
+    const label = zone === INPUT.timezone ? 'Next fires:' : `Next fires, ${INPUT.timezone} time:`;
+    check(!!next && next.text.startsWith(label), `the fires say whose clock they are on (browser in ${zone}: ${JSON.stringify(next?.text)})`);
+    check(!!next && /\b3:00\sAM/.test(next.text) && !next.text.includes(':00:00'), `the fires are 03:00 on the schedule's clock, to the minute (${JSON.stringify(next?.text)})`);
     check(!!words && /3/.test(words.text), `the expression is said in words (${JSON.stringify(words?.text)})`);
     check(!!next && next.text.split('·').length === 3, `the next three fires are listed (${JSON.stringify(next?.text)})`);
     check(ready.beside.every((line) => !/mono/i.test(line.font)), `the preview lines are not in mono (${JSON.stringify(ready.beside.map((l) => l.font))})`);
-    // Measured, not asserted: the preview arrives with a local read, before a person can aim at Allow
-    console.log(`  Allow moved ${String((ready.allowTop ?? 0) - (loading?.allowTop ?? ready.allowTop ?? 0))} px when the preview arrived`);
+    check(seen.every((top) => top === ready.allowTop), `Allow never moved once shown (${JSON.stringify(seen)} then ${ready.allowTop})`);
     await page.shot('schedule-prompt-dark');
 
     // ---- 2. the light theme ----
     await page.eval(`localStorage.setItem('claudio-theme', 'light'); return true`);
     await page.goto(`/chats/${chatId}`, 1200);
-    await page.waitFor(`return [...document.querySelectorAll('.permission > p.muted')].some((e) => e.innerText.startsWith('Next fires:'))`, { label: 'the prompt with its preview, light' });
+    await page.waitFor(`return [...document.querySelectorAll('.permission-preview > p')].some((e) => e.innerText.startsWith('Next fires'))`, { label: 'the prompt with its preview, light' });
     check(await page.eval(`return document.documentElement.dataset.theme === 'light'`), 'the page is in the light theme');
     await page.shot('schedule-prompt-light');
 
@@ -92,7 +101,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.viewport(390, 844);
     await page.emulateTouch(true);
     await page.goto(`/chats/${chatId}`, 1200);
-    await page.waitFor(`return [...document.querySelectorAll('.permission > p.muted')].some((e) => e.innerText.startsWith('Next fires:'))`, { label: 'the prompt with its preview, phone' });
+    await page.waitFor(`return [...document.querySelectorAll('.permission-preview > p')].some((e) => e.innerText.startsWith('Next fires'))`, { label: 'the prompt with its preview, phone' });
     const phone = await page.eval(PROMPT);
     check(phone.width <= phone.viewport, `the prompt fits the phone (${phone.width} of ${phone.viewport})`);
     check(phone.allowHeight >= 44 - 1, `Allow is a 44 px target on a phone (${phone.allowHeight})`);

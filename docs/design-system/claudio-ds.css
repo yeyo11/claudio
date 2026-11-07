@@ -2347,12 +2347,12 @@ a.cont-from:hover { color: var(--fg); }
 /* ---------- end of Editable Home ---------- */
 
 /* ---------- Queued messages over the composer (docs/chat-delivery.md) ----------
-   .chat-queued is the dashed, faded card of the messages the agent has not read yet, one .chat-queued-item each. A lost
+   .chat-queued is the dashed, quiet card (no opacity: it would take the muted text under 4.5:1 in light) of the messages the agent has not read yet, one .chat-queued-item each. A lost
    one (.is-lost) says so with the warn triangle, and the whole card turns warn when every one is lost. Nothing here moves. */
-.chat-queued { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: var(--r); opacity: 0.75; }
+.chat-queued { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: var(--r); }
 .chat-queued-item { display: flex; align-items: flex-start; gap: 8px; color: var(--fg-2); font-size: var(--fs-small); }
 .chat-queued-item.is-lost > svg, .chat-queued.is-lost .chat-queued-item > svg { color: var(--warn); }
-.chat-queued.is-lost { border-style: solid; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); opacity: 1; }
+.chat-queued.is-lost { border-style: solid; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 /* A message held behind a foreground call: the foot's sentence names it, and .chat-queued-actions holds "send to background" and
    "interrupt the turn", wrapping under it. A notice (.is-notice) leads with who wrote it, .chat-queued-from, and has only Dismiss. */
 .chat-queued-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

@@ -1,7 +1,7 @@
 import { RefreshCw, X } from 'lucide-react';
 import { lazy, useEffect, useState, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
-import { dismissReloadOffer, isChunkLoadError, noticeStaleChunk, reloadApp, useReloadOffer } from '../lib/reload';
+import { dismissReloadOffer, holdReloadBanner, isChunkLoadError, noticeStaleChunk, reloadApp, useReloadOffer } from '../lib/reload';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Empty } from '@claudio/ui/components/ui';
 
@@ -47,10 +47,18 @@ export function ReloadBanner() {
 }
 
 /** What a route whose code is gone shows instead of an error: the same way out as the banner. */
-function StalePage() {
+export function StalePage() {
   const { t } = useTranslation('shell');
+  const title = t('reload.stalePage');
+  // This page is the offer: the banner would put the same gradient Reload on the screen twice
+  useEffect(() => holdReloadBanner(), []);
+  // The page that failed left its own title behind, as on the render-error page
+  useEffect(() => {
+    document.title = `${title} · Claudio`;
+  }, [title]);
   return (
-    <Empty icon={RefreshCw} title={t('reload.stalePage')} action={<ReloadButton />}>
+    // The page whose code is gone drew no heading of its own: this state is the page's h1
+    <Empty icon={RefreshCw} heading title={title} action={<ReloadButton />}>
       {t('reload.stalePageHint')}
     </Empty>
   );
