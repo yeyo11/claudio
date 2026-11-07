@@ -4,9 +4,9 @@ import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, test } from 'node:test';
+import { after, before, mock, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
-import { ChatCompletionTranslator, ChatConflictError, ChatNotFoundError, Core, loadConfig, parseChatCompletionRequest, ResponsesTranslator, RunSlotRefusal, STREAM_DONE, translateOpenAiRequest, type ChatCompletionRequest, type OpenAiTurnTranslator } from '@claudio/core';
+import { ChatCompletionTranslator, ChatConflictError, ChatNotFoundError, Core, loadConfig, openAiError, parseChatCompletionRequest, ResponsesTranslator, RunSlotRefusal, STREAM_DONE, translateOpenAiRequest, type ChatCompletionRequest, type OpenAiTurnTranslator } from '@claudio/core';
 import type { ChatSummary, RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
@@ -724,6 +724,21 @@ test('a structured turn that ends without its output is a final 422 no_structure
 });
 
 // ---------- how failures are classified ----------
+
+test('a full set of run slots always says Retry-After 5, whatever millisecond it is refused at', () => {
+  // The last millisecond of a second, and the answer written a few later: whole epoch seconds lost
+  // the 999 ms and the header said 4
+  const at = Date.UTC(2026, 10, 7, 12, 0, 0, 999);
+  const now = mock.method(Date, 'now', () => at);
+  try {
+    const failure = failureOf(new RunSlotRefusal(3));
+    assert.equal(failure.kind, 'usage-limit');
+    assert.equal(openAiError(failure, at + 40).retryAfterSeconds, 5);
+  } finally {
+    now.mock.restore();
+  }
+});
+
 
 test('a failure is classified by its type, never by its wording', () => {
   assert.equal(failureOf(new ChatNotFoundError()).kind, 'not-found');
