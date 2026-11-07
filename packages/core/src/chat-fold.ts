@@ -70,6 +70,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         ...(event.permissionMode ? { permissionMode: event.permissionMode } : {}),
         ...(event.model ? { model: event.model } : {}),
       });
+      chat.capabilities = event.capabilities;
       const init: SessionInit = {
         version: event.environment.cliVersion ?? null,
         tools: event.environment.tools ?? [],
@@ -212,8 +213,12 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       // The driver has already folded it into the branches: a notification may have ended an agent
       dropEndedBranches(chat);
       chat.push(event.run);
-      // What waited for the background work to end (a person's account switch) can go ahead now
-      if (!runsInBackground(chat.branches)) host.emit('chat-background-settled', chat.id);
+      if (!runsInBackground(chat.branches)) {
+        // What waited for the background work to end can go ahead now: a person's account switch, and
+        // the end of a one-turn chat's input, which the work held open past its result
+        if (chat.opts.keepAlive === false) endOneTurn(chat);
+        host.emit('chat-background-settled', chat.id);
+      }
       return;
 
     case 'failed':
@@ -390,11 +395,14 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     chat.push({ kind: 'delivery', delivery: { id: message.id, state: 'delivered', source: message.source, at: now() } });
   }
   chat.turnOver = true;
+  if (event.modelRejected) {
+    // No turn of this process can run on a model the agent refuses: left to go idle, the chat would
+    // look healthy until the next message failed the same way. The execution fails with why
+    host.failProtocol(chat, `model-rejected: the agent refused the model ${chat.opts.model ?? chat.model ?? 'it was started with'}: ${event.failure}`);
+    return;
+  }
   if (chat.opts.keepAlive === false) {
-    // A driver that still holds a turn would write it after the end of the input. A one-turn chat's
-    // input ends here even with work in the background: its starter waits for the process to exit
-    // and goes on from there (the orchestrator's continuation), and the CLI waits for that work first
-    if (!chat.session?.holdsTurns?.()) chat.session?.endInput();
+    endOneTurn(chat);
   } else if (chat.written().length > 0) {
     // The agent has messages of ours still to read and goes on with them as its next turn, reading
     // each back as it starts: the chat is not waiting for anyone, for as long as that takes
@@ -407,6 +415,21 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   // Last, so the limit check above still knew this was housekeeping
   host.maybeLimit(chat);
   chat.purpose = null;
+}
+
+/**
+ * Ends a one-turn chat's input (`keepAlive: false`: an orchestration's worker, a flow member) once
+ * its turn is over: its starter goes on from the process's exit (the orchestrator continues a worker
+ * once it has exited, and follows any later result of its chat). Never while work runs in the
+ * background (D3): with its input closed the CLI waits for that work only up to its ceiling
+ * (`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`) and then kills it, so the input stays open until the work
+ * settles, and the agent's turn on the work's notification, if it takes one, ends it again at its
+ * result. Nor while the driver still holds a turn, which it would write after the end of the input.
+ */
+function endOneTurn(chat: LiveChat): void {
+  if (!chat.turnOver || chat.turnOpen) return;
+  if (chat.session?.holdsTurns?.() || runsInBackground(chat.branches)) return;
+  chat.session?.endInput();
 }
 
 /**

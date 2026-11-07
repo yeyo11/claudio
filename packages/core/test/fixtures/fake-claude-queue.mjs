@@ -31,12 +31,16 @@
 //   FAKE_INIT_VERSION=<v>   reports that CLI version in its init (`claude_code_version`), as the real
 //                           CLI does; without it the init names none
 //   FAKE_NO_RECEIPT=1       answers an interrupt with nothing, as a CLI older than `still_queued` did
+//   FAKE_NO_CAPABILITIES=1  leaves `capabilities` out of its init, as a CLI older than the field does,
+//                           while its interrupt still answers `still_queued`: a list it never promised
 //   FAKE_SKIP_FIRST_REPLAY=1  reads back nothing of its first turn, as a local command's turn does
 //
 // With `--replay-user-messages` it reads each message back as the CLI does (checked on CLI 2.1.288,
 // docs/reports/chat-audit/server.md): a `user` line with `isReplay: true` and the `uuid` it was sent
 // with, the moment a turn takes it. A merged prompt reads back every message in it. An interrupt is
-// answered with `still_queued`, the uuids still in its queue, before the interrupted turn's result.
+// answered with `still_queued`, the uuids still in its queue, before the interrupted turn's result,
+// and its init advertises that receipt (`interrupt_receipt_v1`) as every CLI since 2.1.278 does
+// (recordings/claude-hooks/2.1.278); the other capabilities those CLIs list it does not implement.
 import { appendFileSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -88,6 +92,7 @@ function startTurn(prompt, ids = []) {
     permissionMode: 'default',
     tools: [],
     ...(process.env.FAKE_INIT_VERSION ? { claude_code_version: process.env.FAKE_INIT_VERSION } : {}),
+    ...(process.env.FAKE_NO_CAPABILITIES === '1' ? {} : { capabilities: ['interrupt_receipt_v1'] }),
   });
   const hold = /^(HOLD|SILENT|AGENT|BG) (\S+)/m.exec(prompt);
   let timer = null;

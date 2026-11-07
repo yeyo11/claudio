@@ -985,6 +985,19 @@ export class ChatService {
   }
 
   /**
+   * {@link checkModel} for a turn that continues chat `id` (`POST /chats/:id/resume` and `/fork`): its
+   * provider is the chat's own when it has one, as `resume` and `fork` run it there, and the request's
+   * only for a chat Claudio has not run. Asked by the routes, like the start's: Claudio's own
+   * continuations (a flow member, the assistant, a compaction) run on models their starter chose.
+   */
+  async checkModelOf(id: string, asked: ProviderId | undefined, model: string): Promise<void> {
+    const live = this.deps.runtime.get(id);
+    // A chat nobody knows is a 404 whatever it names, as the resume or fork itself answers it
+    if (!live && !(await this.summaryOf(id))) throw new ChatNotFoundError();
+    await this.checkModel(live?.provider ?? asked, model);
+  }
+
+  /**
    * Starts a confined API chat (docs/plans/headless-image.md, D14): in its workspace or an existing
    * working directory, with the declared tools only, `dontAsk`, no MCP server but what core adds, no
    * credential for Claudio's API, and its `declared-tools` guard armed before the process starts. Its

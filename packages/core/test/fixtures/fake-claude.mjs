@@ -23,7 +23,9 @@
 //                                 later turn answers `continued: <the prompt it got>`: a worker that
 //                                 stops with a report while work is still owed
 //   FAKE-BG-AGENT                 with FAKE-TEXT-ONCE: that first turn also starts a background subagent
-//                                 and ends with it still running, as a lead that delegated and stopped
+//                                 and ends with it still running, as a lead that delegated and stopped;
+//                                 the subagent reports its end ($FAKE_CLAUDE_BG_AGENT_MS after the result,
+//                                 200 by default) with a `task_notification`, as the CLI does
 //   FAKE-MAX-TOKENS               before its result, streams the message_delta that says the turn
 //                                 stopped on max_tokens, as the CLI's stream-json does
 //
@@ -86,6 +88,8 @@
 //                                 `default` to the account's model (`claude-opus-…`)
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
 //                                 background work finishes
+//   FAKE_CLAUDE_TIMELINE=<file>   appends what happened, one word a line: `armed`, `message`, and
+//                                 `background-ended` and `eof` for a FAKE-BG-AGENT's end and its input's
 //
 // It reports the files it could see and its working directory, which is what the tests check.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
@@ -335,6 +339,10 @@ lines.on('line', async (line) => {
     if (/^FAKE-BG-AGENT$/m.test(prompt)) {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_bg', name: 'Agent', input: { description: 'survey the routes', subagent_type: 'general-purpose', run_in_background: true } }] } });
       out({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'agent-bg', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true, description: 'survey the routes' });
+      setTimeout(() => {
+        mark('background-ended');
+        out({ type: 'system', subtype: 'task_notification', session_id: sessionId, task_id: 'agent-bg', tool_use_id: 'toolu_bg', status: 'completed', summary: 'the survey is done' });
+      }, Number(process.env.FAKE_CLAUDE_BG_AGENT_MS ?? 200));
     }
     out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1].replaceAll('\\n', '\n') });
     return;
@@ -417,4 +425,7 @@ lines.on('line', async (line) => {
   const files = readdirSync(dir).filter((f) => !f.startsWith('.')).sort();
   out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `cwd=${dir} files=${files.join(',')}` });
 });
-lines.on('close', () => setTimeout(() => process.exit(0), Number(process.env.FAKE_CLAUDE_LINGER_MS ?? 0)));
+lines.on('close', () => {
+  mark('eof');
+  setTimeout(() => process.exit(0), Number(process.env.FAKE_CLAUDE_LINGER_MS ?? 0));
+});
