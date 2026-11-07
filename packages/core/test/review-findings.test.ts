@@ -142,6 +142,9 @@ test('round status precedence: blocked, incomplete, passed', () => {
   assert.equal(roundStatus({ ...clean, filesNotReviewable: 1 }), 'incomplete');
   assert.equal(roundStatus({ ...clean, overBudget: true }), 'incomplete');
   assert.equal(roundStatus({ ...clean, blocking: 1, runsNotOk: 2, overBudget: true }), 'blocked');
+  // No reviewer gave a usable answer: a blocking scan finding does not make it a round to fix
+  assert.equal(roundStatus({ ...clean, blocking: 3, runsNotOk: 4, unreviewed: true }), 'incomplete');
+  assert.equal(roundStatus({ ...clean, blocking: 3, runsNotOk: 4, unreviewed: false }), 'blocked');
 });
 
 test('worseAfterFix', () => {

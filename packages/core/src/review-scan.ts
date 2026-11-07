@@ -1,5 +1,5 @@
 import type { ReviewFinding } from '@claudio/shared';
-import { cutToBytes, maskSecrets } from './decisions/redact.ts';
+import { cutToBytes, maskKnown, maskSecrets, SECRET_MASK } from './decisions/redact.ts';
 
 /*
  * The review gate's deterministic scans (docs/plans/review-gate.md, "Diff collection" step 6 and
@@ -54,6 +54,100 @@ export const SECURITY_LINE_TRIGGER =
 export const INJECTION_TRIPWIRE =
   /(ignore (all |the )?(previous|prior|above) (instructions|rules)|disregard (the )?(instructions|rules)|you are (now )?(an? )?(ai|assistant|reviewer|language model)|as an ai\b|system prompt|<\/?pasted_content|\b(reviewers?|verifiers?|claude|the agent)\b.{0,40}\b(approve|pass|ignore|skip|report no|return no|zero findings)\b|structured_?output)/i;
 
+// ---------- credentials ----------
+
+/**
+ * Values that are credentials by their own shape, whatever they are called. The `random` ones have
+ * a prefix that ordinary text can carry too (`sk-`, `Bearer`), so their body must also look random.
+ */
+export const CREDENTIAL_SHAPES: ReadonlyArray<{ kind: string; pattern: RegExp; random?: true }> = [
+  { kind: 'private key', pattern: /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/g },
+  { kind: 'provider API key', pattern: /\bsk-(?:ant-[a-z0-9]{2,8}-|proj-|svcacct-|admin-)?([A-Za-z0-9_-]{24,})/g, random: true },
+  { kind: 'GitHub token', pattern: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}/g },
+  { kind: 'GitHub token', pattern: /\bgithub_pat_[A-Za-z0-9_]{50,}/g },
+  { kind: 'GitLab token', pattern: /\bglpat-[A-Za-z0-9_-]{20,}/g },
+  { kind: 'AWS access key', pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },
+  { kind: 'Slack token', pattern: /\bxox[abprs]-[0-9]{6,}-[A-Za-z0-9-]{6,}/g },
+  { kind: 'Google API key', pattern: /\bAIza[0-9A-Za-z_-]{35}/g },
+  { kind: 'Stripe key', pattern: /\b(?:sk|rk)_live_[0-9A-Za-z]{24,}/g },
+  { kind: 'npm token', pattern: /\bnpm_[A-Za-z0-9]{36}\b/g },
+  { kind: 'JWT', pattern: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{16,}/g },
+  { kind: 'bearer token', pattern: /\bBearer\s+([A-Za-z0-9._~+/=-]{20,})/g, random: true },
+  // A chat's API token: Claudio gives it the prefix so a leaked one is recognised
+  { kind: 'Claudio chat token', pattern: /\bagc_([A-Za-z0-9_-]{20,})/g, random: true },
+];
+
+/**
+ * A name that says its value is a secret. It only counts with a quoted literal after it, or alone
+ * on an environment or YAML line: a type annotation (`token: string`), a counter
+ * (`input_tokens: 12`) or a flag (`secrets: false`) has no value that looks random, so it never is one.
+ */
+const SECRET_NAME = '[A-Za-z0-9_.-]*(?:secret|token|passw(?:or)?d|pwd|api[_-]?key|apikey|access[_-]?key|private[_-]?key|credential|signing[_-]?key)[A-Za-z0-9_.-]*';
+/** `name: "value"`, `"name": "value"`, `name = 'value'`, `name := "value"`, `name => 'value'` */
+const NAMED_LITERAL = new RegExp(`(?:^|[^A-Za-z0-9_])(${SECRET_NAME})["']?\\s*(?::=|=>|[:=])\\s*(["'\`])([^"'\`\\s]{16,})\\2`, 'gi');
+/** `API_KEY=value` or `api_key: value` alone on its line: a `.env`, a shell script, YAML */
+const NAMED_LINE = new RegExp(`^\\s*(?:export\\s+)?(${SECRET_NAME})\\s*[:=]\\s*([^\\s"'\`#]{16,})\\s*(?:#.*)?$`, 'i');
+/** What a generated key or token is made of */
+const TOKEN_CHARS = /^[A-Za-z0-9+/=_.~-]+$/;
+/** Words a made-up value carries */
+const PLACEHOLDER = /x{4,}|\.{3}|example|placeholder|your[-_]|changeme|redacted|dummy|sample|fake|mock|test/i;
+
+/** Bits per character of a string's own distribution of characters */
+function entropy(value: string): number {
+  const counts = new Map<string, number>();
+  for (const c of value) counts.set(c, (counts.get(c) ?? 0) + 1);
+  let bits = 0;
+  for (const n of counts.values()) bits -= (n / value.length) * Math.log2(n / value.length);
+  return bits;
+}
+
+/**
+ * Whether a value looks generated rather than written: long, letters and digits, varied, no
+ * placeholder words, and not words joined by separators (`claudio-session-v2-refresh`).
+ */
+export function looksRandom(value: string): boolean {
+  if (value.length < 16 || !TOKEN_CHARS.test(value)) return false;
+  if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) return false;
+  if (PLACEHOLDER.test(value)) return false;
+  const segments = value.split(/[-_.]/).filter(Boolean);
+  if (segments.length > 1 && segments.every((s) => s.length <= 2 || /^[A-Za-z]+$/.test(s))) return false;
+  return entropy(value) >= 3;
+}
+
+/** The credential-shaped values of one line, each with what it looks like; a name alone is never one */
+export function credentialsIn(text: string): Array<{ kind: string; value: string }> {
+  const found: Array<{ kind: string; value: string }> = [];
+  for (const { kind, pattern, random } of CREDENTIAL_SHAPES) {
+    for (const m of text.matchAll(pattern)) {
+      if (random && !looksRandom(m[1] ?? '')) continue;
+      found.push({ kind, value: m[0] });
+    }
+  }
+  for (const m of text.matchAll(NAMED_LITERAL)) {
+    const value = m[3] ?? '';
+    if (looksRandom(value)) found.push({ kind: `value of ${m[1] ?? 'a secret'}`, value });
+  }
+  const line = NAMED_LINE.exec(text);
+  if (line && looksRandom(line[2] ?? '')) found.push({ kind: `value of ${line[1] ?? 'a secret'}`, value: line[2] ?? '' });
+  // A secret Claudio holds itself (its owner's token, a webhook secret), recognised by its value
+  if (maskKnown(text) !== text) found.push({ kind: 'a secret Claudio holds', value: '' });
+  return found;
+}
+
+/**
+ * Tests and fixtures hold made-up credentials on purpose, so a hit there is advisory: a directory of
+ * that name anywhere in the path, or a file named as a test.
+ */
+export const TEST_PATH =
+  /(^|\/)(tests?|__tests__|__mocks__|specs?|e2e|fixtures?|__fixtures__|testdata|recordings)\/|\.(test|spec)\.[A-Za-z0-9]+$|_test\.[A-Za-z0-9]+$|(^|\/)test_[^/]+\.py$/i;
+
+/** The line with every detected value replaced by the mask, then masked the usual way on top */
+function maskedLine(text: string, values: readonly string[]): string {
+  let out = text;
+  for (const value of values) if (value) out = out.split(value).join(SECRET_MASK);
+  return maskSecrets(out);
+}
+
 /** Where a conflict marker is expected text: documentation, and the fixtures that hold examples of one */
 const MARKER_EXEMPT_PATH = /\.md$|(^|\/)(fixtures?|__fixtures__)\//i;
 const REVIEWER_FILE = /(^|\/)\.claude\/agents\/claudio-review-[^/]+\.md$/;
@@ -107,19 +201,24 @@ export function scanDiff(files: readonly ScanFile[]): ScanFinding[] {
   const found: ScanFinding[] = [];
   for (const file of [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
     // Secrets are checked everywhere, generated and locked files included: a key does not become
-    // harmless because a tool wrote it
+    // harmless because a tool wrote it. In a test or a fixture it is most likely made up: advisory.
+    const advisory = TEST_PATH.test(file.path);
     for (const added of file.added) {
-      if (maskSecrets(added.text) === added.text) continue;
+      const hits = credentialsIn(added.text);
+      if (hits.length === 0) continue;
+      const kinds = [...new Set(hits.map((h) => h.kind))].join(', ');
       found.push(
         system('secret', {
-          severity: 'critical',
-          blocking: true,
+          severity: advisory ? 'medium' : 'critical',
+          blocking: !advisory,
           dimensions: ['security'],
-          title: 'A secret is committed in this change',
+          title: advisory ? 'A credential-shaped value is in a test or fixture' : 'A secret is committed in this change',
           path: file.path,
           line: added.line,
-          evidence: evidenceOf(added.text),
-          failureScenario: `An added line holds what looks like a credential (${EVIDENCE_NOTE}). Once merged it is in the history for everyone with read access.`,
+          evidence: cutToBytes(maskedLine(added.text.trim(), hits.map((h) => h.value)), EVIDENCE_BYTES),
+          failureScenario: advisory
+            ? `An added line of a test or fixture holds what looks like a credential (${kinds}; ${EVIDENCE_NOTE}). Tests usually hold made-up ones; if this one is real, it is in the history for everyone with read access once merged.`
+            : `An added line holds what looks like a credential (${kinds}; ${EVIDENCE_NOTE}). Once merged it is in the history for everyone with read access.`,
         }),
       );
     }

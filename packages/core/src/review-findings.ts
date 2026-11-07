@@ -164,7 +164,12 @@ export function isBlocking(f: BlockingInput): boolean {
   return (f.severity === 'critical' || f.severity === 'high') && (f.verdict === 'confirmed' || f.verdict === 'uncertain' || f.verdict === 'unverified');
 }
 
-/** The outcome of a round's findings and runs: blocked first, then incomplete, otherwise passed */
+/**
+ * The outcome of a round's findings and runs: blocked first, then incomplete, otherwise passed. A
+ * round where reviewers ran and none gave a usable answer is incomplete even with blocking findings:
+ * nothing was reviewed, so a fixer acting on the scan's findings alone would pay for another round
+ * that fails the same way (seen on 2026-10-30: four such rounds for 86 USD).
+ */
 export function roundStatus(input: {
   blocking: number;
   /** Runs that did not end well */
@@ -172,7 +177,10 @@ export function roundStatus(input: {
   /** Files that should be reviewed and could not be */
   filesNotReviewable: number;
   overBudget: boolean;
+  /** Reviewers ran and not one gave a usable answer */
+  unreviewed?: boolean;
 }): Extract<ReviewGateStatus, 'blocked' | 'incomplete' | 'passed'> {
+  if (input.unreviewed) return 'incomplete';
   if (input.blocking > 0) return 'blocked';
   if (input.runsNotOk > 0 || input.filesNotReviewable > 0 || input.overBudget) return 'incomplete';
   return 'passed';

@@ -52,7 +52,8 @@ const TOKEN_WORD = /[A-Za-z0-9_~+/=-][A-Za-z0-9._~+/=-]{22,}[A-Za-z0-9_~+/=-]/g;
 /** Shorter plain values would mask ordinary words */
 const MIN_KNOWN_VALUE = 12;
 
-function maskKnown(text: string): string {
+/** The text with only the secrets Claudio itself holds masked: no pattern, so no false match on a name */
+export function maskKnown(text: string): string {
   if (recognizers.size === 0) return text;
   let out = text;
   for (const recognizer of recognizers) {
