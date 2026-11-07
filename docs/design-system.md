@@ -704,9 +704,11 @@ only gradients are the ones a screen already had. The rules are under "Providers
 
 - **A row (`.prov-row`).** Handle (`.prov-grip`, desktop only), the provider's `.monogram` (a hue that
   is never red, green or cyan; brand logos are third-party art, so none is drawn), its identity
-  (`.prov-id`: name, account, then version and path in mono), the state (`.prov-state`: a badge and
-  the reason in plain words under it), the actions (`.prov-actions`) and an enable switch. First run
-  uses `.compact`: no handle, no switch, since the person is only reading.
+  (`.prov-id`: name, account, then version and path in mono; `.prov-meta.is-prose` where that line is
+  a sentence, such as Tailscale's node, with only the literal in `.mono`, wrapping and never cut),
+  the state (`.prov-state`: a badge and the reason in plain words under it), the actions
+  (`.prov-actions`) and an enable switch. First run uses `.compact`: no handle, no switch, since the
+  person is only reading.
 - **A state is a status colour with its word**, one each, and the same word everywhere:
 
   | State | Badge | Word | The one action | Also offered |

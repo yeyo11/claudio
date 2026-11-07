@@ -239,6 +239,12 @@
   padding: 0 2px 0 8px;
 }
 
+/* The spacer takes only what the name and the count leave: at its 200 px basis (base.css) it took
+   the room first and cut "Backlog" to "B…" in a 180 px column at 1280 px */
+.workitem-col-head > .grow {
+  flex-basis: 0;
+}
+
 .workitem-col-name {
   min-width: 0;
   font-size: var(--fs-small);

@@ -1586,6 +1586,7 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .prov-id .prov-name { display: flex; align-items: center; gap: 8px; font-weight: var(--fw-regular); }
 .prov-meta { font-size: var(--fs-small); color: var(--fg-3); }
+.prov-meta.is-prose { font-family: var(--sans); overflow-wrap: anywhere; }
 .prov-state { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
 .prov-reason { margin: 0; font-size: var(--fs-small); line-height: 1.45; color: var(--fg-2); }
 .prov-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
@@ -1598,7 +1599,7 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-cell { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
 .prov-cell:last-child { border-bottom: 0; }
 .prov-cell-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.prov-cell-head .prov-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prov-cell-head .prov-meta:not(.is-prose) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prov-cell-head .grow { display: flex; flex-direction: column; gap: 2px; }
 .prov-cell .prov-reason { font-size: var(--fs-body); }
 .prov-order-row { display: flex; align-items: center; gap: 10px; min-height: var(--touch); padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -2405,6 +2406,7 @@ a.cont-from:hover { color: var(--fg); }
 .setup-page .prov-row.compact .prov-account { display: none; }
 .setup-page .prov-row.compact .prov-reason { grid-column: 2 / span 2; grid-row: 2; }
 .setup-page .prov-row.compact .prov-meta { grid-column: 2 / span 2; grid-row: 3; font-family: var(--mono); overflow-wrap: anywhere; }
+.setup-page .prov-row.compact .prov-meta.is-prose { font-family: var(--sans); }
 .setup-page .prov-row.compact .prov-actions { grid-column: 4; grid-row: 1 / span 3; align-self: start; margin-left: 14px; }
 @container setup-list (max-width: 639px) {
   .setup-page .prov-row.compact { grid-template-columns: 50px max-content minmax(0, 1fr); }
