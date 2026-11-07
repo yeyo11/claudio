@@ -35,6 +35,7 @@ import type {
   LanStatus,
   TunnelStatus,
   WorkItemChange,
+  WorkItemDetail,
 } from '@claudio/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
@@ -450,8 +451,10 @@ export function targetsFor(event: ClaudioEvent): Target[] {
         event.changes.some((change) => REF_CHANGES.has(change)) ? [keys.workItemDetails, NOW] : [keys.workItem(event.itemId), NOW],
       ];
     case 'workitem.moved':
-      // The status is on every chip that names the item, and the milestones count it
-      return [...workItemViews(event.projectId), [keys.workItemDetails, NOW]];
+      // The boards, lists and milestones count it; of the item pages only its own reads again here.
+      // The others that show its status on a chip (its epic, its children, its relations) are found
+      // in the cache by `itemsNaming`, so a move no longer refetches every open item page
+      return [...workItemViews(event.projectId), [keys.workItem(event.itemId), NOW]];
     case 'workitem.removed':
       return [...workItemViews(event.projectId), [keys.workItemDetails, NOW], [keys.workItemKeys, NOW]];
     case 'milestone.changed':
@@ -733,6 +736,29 @@ class Invalidations {
  */
 const ALWAYS: readonly Target[] = [[keys.auditAll, AUDIT]];
 
+/**
+ * The cached item pages, other than the item's own, that show it as a chip with its status: its
+ * epic (`children`), its children (`epic`) and both ends of a relation. A move event carries only
+ * the item, so the pages that name it are read from what the cache holds.
+ */
+export function itemsNaming(client: QueryClient, itemId: string): Target[] {
+  const found: Target[] = [];
+  for (const query of client.getQueryCache().findAll({ queryKey: keys.workItemDetails })) {
+    const key = query.queryKey;
+    const id = key[1];
+    // An item's own page is `['work-item', id]`; its changes and diffs are keys below it
+    if (key.length !== 2 || typeof id !== 'string' || id === itemId) continue;
+    const detail = query.state.data as Partial<WorkItemDetail> | undefined;
+    if (!detail) continue;
+    const names =
+      detail.epic?.id === itemId ||
+      (detail.children ?? []).some((child) => child.id === itemId) ||
+      (detail.relations ?? []).some((relation) => relation.item.id === itemId);
+    if (names) found.push([keys.workItem(id), NOW]);
+  }
+  return found;
+}
+
 /** One cache write an event makes in place; returns what it found stale besides `targetsFor`. */
 type Patcher = (client: QueryClient, event: ClaudioEvent) => readonly Target[];
 
@@ -740,6 +766,7 @@ const PATCHERS: readonly Patcher[] = [
   (client, event) => (event.type === 'chat.activity' ? (patchActivity(client, event), []) : []),
   (client, event) => (event.type === 'subagent.activity' ? (patchSubagentActivity(client, event), []) : []),
   (client, event) => (event.type === 'orchestration.task' ? (patchOrchestrationTask(client, event), []) : []),
+  (client, event) => (event.type === 'workitem.moved' ? itemsNaming(client, event.itemId) : []),
   (client, event) => (event.type === 'settings.changed' || event.type === 'tunnel.changed' || event.type === 'lan.changed' ? (patchSettings(client, event), []) : []),
   (client, event) => {
     if (event.type === 'dashboard.layout') client.setQueryData<StoredDashboardLayout>(keys.dashboardLayout(event.project), { project: event.project, layout: event.layout });
