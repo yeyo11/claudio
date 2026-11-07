@@ -75,13 +75,30 @@ const RETIRE_SWEEP_MS = 5 * 60_000;
  * still running, which has no record of its end yet.
  */
 export function limitedTail(executions: readonly Execution[]): string[] {
-  const accounts: string[] = [];
+  return limitedTailAt(executions).map((f) => f.account);
+}
+
+/** `limitedTail` with when each execution died (epoch ms): its end, else its start for one never closed. */
+export function limitedTailAt(executions: readonly Execution[]): { account: string; at: number }[] {
+  const failures: { account: string; at: number }[] = [];
   for (let i = executions.length - 1; i >= 0; i--) {
     const e = executions[i];
     if (!e || e.cause !== 'rate-limit') break;
-    if (e.account) accounts.push(e.account);
+    if (e.account) failures.push({ account: e.account, at: Date.parse(e.endedAt ?? e.startedAt) });
   }
-  return accounts;
+  return failures;
+}
+
+/**
+ * Whether the account came back since a turn died on it at `failedAt`: its reading said it was out
+ * then, and says it is not now. A failure is no evidence past the reset that ended it. Before
+ * 2026-11-07 a failure counted until a turn went through, so once a wait for the reset replayed the
+ * turn and that turn died again, the rotation still passed over every account the earlier turns
+ * had died on, reset or not, and waited instead of moving (R11 of docs/plans/ci-and-regression-open.md).
+ * A failure the reading never showed as out (a bare 429, a reset already past) counts as before.
+ */
+function resetSince(accounts: Pick<ChatAccounts, 'find'>, account: string, failedAt: number, at: number): boolean {
+  return isOut(accounts.find(account, failedAt)?.limits, failedAt) && !isOut(accounts.find(account, at)?.limits, at);
 }
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
@@ -2154,7 +2171,9 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
-    if (event.kind !== 'rate-limit' || event.info.status === 'rejected') chat.limitedAccounts.add(id);
+    // One stamp for the failure and the reading it brings: the reading says the account was out then
+    const at = Date.now();
+    if (event.kind !== 'rate-limit' || event.info.status === 'rejected') chat.limitedAccounts.set(id, at);
     if (event.kind !== 'rate-limit') return;
     const { info } = event;
     const reading = readingFromEvent(
@@ -2167,7 +2186,7 @@ export class ChatManager extends EventEmitter {
         ...(info.isUsingOverage !== undefined ? { isUsingOverage: info.isUsingOverage } : {}),
         ...(info.overageStatus !== undefined ? { overageStatus: info.overageStatus } : {}),
       },
-      Date.now(),
+      at,
       { cooldownMs: store.settings().cooldownSeconds * 1000 },
     );
     if (!reading) return;
@@ -2237,8 +2256,20 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!chat || !store || !chat.account) return null;
     const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-    const failedOn = new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)]);
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: [...failedOn] });
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: this.stillFailed(chat, store, Date.now()) });
+  }
+
+  /**
+   * The accounts the chat's turn died on at their limit that still count against them: the chat's
+   * own (the turn running now) and its failed executions before it, which survive a restart, less
+   * every one whose reset has passed since its latest failure (`resetSince`).
+   */
+  private stillFailed(chat: LiveChat, store: ChatAccounts, at: number): string[] {
+    const latest = new Map<string, number>();
+    for (const f of [...limitedTailAt(chat.executions), ...[...chat.limitedAccounts].map(([account, failedAt]) => ({ account, at: failedAt }))]) {
+      latest.set(f.account, Math.max(latest.get(f.account) ?? 0, f.at));
+    }
+    return [...latest].filter(([account, failedAt]) => !resetSince(store, account, failedAt, at)).map(([account]) => account);
   }
 
   /**
@@ -2258,7 +2289,7 @@ export class ChatManager extends EventEmitter {
       const limit = store.find(account)?.limits;
       return !!limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > (since ?? 0);
     };
-    const failedOn = since === null ? [] : [...new Set([...chat.limitedAccounts, ...limitedTail(chat.executions)])].filter((a) => !newer(a));
+    const failedOn = since === null ? [] : this.stillFailed(chat, store, Date.now()).filter((a) => !newer(a));
     // Overriding the failures, staying on the account the turn died on last is no reason of its own:
     // the order (or the most room) decides
     return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn });
@@ -2783,8 +2814,10 @@ export class ChatManager extends EventEmitter {
       throw new AccountSwitchRefusal('sign-in-expired', `account ${accountId} needs a new sign-in (${account.signInState})`);
     }
     if (!account.signedIn) throw new AccountSwitchRefusal('signed-out', `account ${accountId} is signed out`);
-    const out = isOut(account.limits, Date.now());
-    if (out || chat.limitedAccounts.has(accountId)) {
+    const at = Date.now();
+    const out = isOut(account.limits, at);
+    const failedAt = chat.limitedAccounts.get(accountId);
+    if (out || (failedAt !== undefined && !resetSince(store, accountId, failedAt, at))) {
       throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out && account.limits?.resetsAt ? ` until ${account.limits.resetsAt}` : ''}`);
     }
     // The lists the check looks at may not have been read yet (no turn, no tokens)
@@ -2840,9 +2873,19 @@ export class ChatManager extends EventEmitter {
     }
   }
 
-  /** Sets the account the chat's next execution runs on and records the move (decision 6 of chat-account-switch). */
+  /**
+   * Sets the account the chat's next execution runs on and records the move (decision 6 of
+   * chat-account-switch). A chat at its limit is no longer at it: the limit was the account's, and
+   * the next turn runs on another one. Before 2026-11-07 the flags stayed until the next spawn, so
+   * `atLimit` kept saying so and the web compared accounts to hide the banner (R11). The execution
+   * keeps why it ended, which the rotation reads back after a restart (`limitedTail`).
+   */
   private moveTo(chat: LiveChat, to: string, actor: string): void {
     const from = chat.account;
+    this.keepLimitCause(chat);
+    chat.rateLimited = false;
+    chat.authFailed = false;
+    chat.limitRequested = false;
     chat.pendingAccount = null;
     chat.account = to;
     chat.forcedAccount = to;

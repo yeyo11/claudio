@@ -37,15 +37,13 @@ const ranOn = (chat: Chat): string | null => chat.executions.at(-1)?.account ?? 
  * Whether the chat sits at a limit. Two facts say so and nothing else: an open wait for this chat,
  * or the server's `atLimit` (its last turn died on its account's limit and nothing started since).
  * No provider-wide reading and no other account's is read, so a chat that never hit a limit never
- * shows the banner. A chat a person moved to another account since is not at that account's limit:
- * its next turn starts elsewhere, so its composer is open again.
+ * shows the banner. A chat a person moved to another account is not at its limit any more, and the
+ * server says so (`moveTo` clears it); the page no longer compares accounts to guess it (R11 of
+ * docs/plans/ci-and-regression-open.md).
  */
 export function limitPhase(chat: Chat, wait: ProviderMove | null): LimitPhase {
   if (wait) return 'waiting';
-  if (chat.state === 'working' || chat.atLimit !== true) return 'none';
-  const from = ranOn(chat);
-  if (from !== null && chat.account != null && chat.account !== from) return 'none';
-  return 'limit';
+  return chat.state === 'working' || chat.atLimit !== true ? 'none' : 'limit';
 }
 
 /** A chat's limit facts: its phase, and the reading of the account its turn died on. */

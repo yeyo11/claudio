@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AccountLimit, AccountsSettings } from '@claudio/shared';
 import { AccountInUseError, AccountStore, barTone, choose, DEFAULT_ID, fold, isOut, NEAR, parseUsage, readingFromEvent, Readings } from '../src/index.ts';
+import { cliLogin } from '../src/usage.ts';
 
 /*
  * The account behaviour the regression audit of 2026-10-29 (§2) found missing or wrong: the
@@ -221,5 +222,59 @@ describe('thresholds', () => {
     assert.equal(isOut(lim(1, { resetsAt: null }), NOW), true, 'a reset nobody gave is still out');
     assert.equal(isOut(lim(1, { resetsAt: new Date(NOW - 1).toISOString() }), NOW), false);
     assert.equal(isOut(lim(0.9), NOW), false);
+  });
+});
+
+/*
+ * R12 of docs/plans/ci-and-regression-open.md: a listing reads every account's files, and the
+ * screens read the accounts often. `pick` used to list once more for each candidate's model check,
+ * and `accountView` listed, then picked over a second listing; the CLI's own login parsed the whole
+ * `.claude.json` on every listing.
+ */
+describe('what a listing and a choice read', () => {
+  class CountingStore extends AccountStore {
+    listings = 0;
+    override list(now?: number) {
+      this.listings++;
+      return super.list(now);
+    }
+  }
+
+  it('pick chooses among the listing it is given and lists nothing more, model check included', async () => {
+    const defaultDir = mkdtempSync(join(root, 'count-default-'));
+    writeFileSync(join(defaultDir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { refreshToken: 'r' } }));
+    const s = new CountingStore({ dataDir: mkdtempSync(join(root, 'count-data-')), defaultDir, claude: FAKE, env: { ...env(), CLAUDE_CONFIG_DIR: defaultDir } });
+    const pro = await s.add({ kind: 'token', alias: 'pro', secret: 'sk-ant-oat-x' });
+    // Both model lists stored: the token account lacks Opus, which is what makes the check look at every account
+    await s.models(pro.id);
+    await s.models(DEFAULT_ID);
+    const accounts = s.list(NOW);
+    s.listings = 0;
+    const given = s.pick({ current: pro.id, model: 'opus', now: NOW, accounts });
+    assert.equal(given.account, DEFAULT_ID, 'the account that offers Opus');
+    assert.equal(s.listings, 0, 'the listing handed in is the only one');
+    const own = s.pick({ current: pro.id, model: 'opus', now: NOW });
+    assert.equal(own.account, DEFAULT_ID);
+    assert.equal(s.listings, 1, 'without one, pick lists once, not once more per candidate');
+  });
+
+  it('the login a config dir is signed in as is read again only when the file changes', () => {
+    const dir = mkdtempSync(join(root, 'login-'));
+    const file = join(dir, '.claude.json');
+    // A whole second, which every file system stores exactly: the stamp is set back to it below
+    const mtime = new Date(NOW);
+    writeFileSync(file, JSON.stringify({ oauthAccount: { emailAddress: 'a@example.com', organizationName: 'A' } }));
+    utimesSync(file, mtime, mtime);
+    assert.equal(cliLogin(dir, root)?.email, 'a@example.com');
+    // Same size and the same mtime: only a cached read gives the old login, which is how the test sees the cache
+    writeFileSync(file, JSON.stringify({ oauthAccount: { emailAddress: 'b@example.com', organizationName: 'B' } }));
+    utimesSync(file, mtime, mtime);
+    assert.equal(cliLogin(dir, root)?.email, 'a@example.com', 'an unchanged file is not parsed again');
+    // `claude auth login` rewrites the file, which moves its mtime
+    const later = new Date(mtime.getTime() + 2000);
+    utimesSync(file, later, later);
+    assert.equal(cliLogin(dir, root)?.email, 'b@example.com', 'a rewritten file is read again');
+    rmSync(file);
+    assert.equal(cliLogin(dir, root), null, 'a signed-out dir has no login');
   });
 });
