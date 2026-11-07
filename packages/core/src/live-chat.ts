@@ -612,6 +612,12 @@ export class LiveChat {
    * not, and what is written to it is tracked no further, as before.
    */
   reportsDelivery: boolean | null = null;
+  /**
+   * The protocol capabilities the live process's init advertised, verbatim (Claude Code's
+   * `capabilities`, such as `interrupt_receipt_v1`); empty until its init arrives, and again for each
+   * new process, whose CLI may be another version
+   */
+  capabilities: readonly string[] = [];
   /** The messages of the turn under way, or of the last one: what a limit replay sends again */
   turnMessages: SentMessage[] = [];
   /** A result arrived since the last message: the next one starts the list again */

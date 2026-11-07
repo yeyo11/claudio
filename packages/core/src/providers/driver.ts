@@ -195,7 +195,8 @@ export interface InterruptReceipt {
   /**
    * The ids of Claudio's messages still in the agent's queue after the interrupt, which it reads
    * next: any message written before the interrupt that is neither here nor read back already was
-   * dropped. Null when the agent does not say.
+   * dropped. Null when the agent does not say, or did not promise to (Claude Code's init advertises
+   * `interrupt_receipt_v1`), since only a promised list says what is missing from it.
    */
   stillQueued: string[] | null;
 }
@@ -335,6 +336,11 @@ export type DriverEvent =
       permissionMode: PermissionMode | null;
       cwd: string | null;
       environment: EnvironmentDetails;
+      /**
+       * The protocol capabilities the agent's init advertises, verbatim (Claude Code's `capabilities`):
+       * an open set the driver checks one behaviour at a time, empty when the init lists none
+       */
+      capabilities: string[];
       run: RunDraft;
     }
   | { kind: 'mode-changed'; mode: PermissionMode }
@@ -395,6 +401,11 @@ export type DriverEvent =
       rateLimited: boolean;
       /** The failure was the account's sign-in (Claude's 401), as the agent reports it in data; absent when it was not */
       authFailed?: boolean;
+      /**
+       * The agent refused the model the turn ran on (Claude's `model_not_found`), as it reports it in
+       * data: no turn of this process can run, so the execution fails. Absent when it did not
+       */
+      modelRejected?: boolean;
       run: RunDraft;
     }
   | { kind: 'stderr'; text: string }

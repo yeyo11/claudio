@@ -95,7 +95,8 @@ describe('guarded chats', () => {
     await until(() => chats.get(chat.id)?.guards?.state === 'armed', 'the guard to arm');
     await chats.exited(chat.id);
     const timeline = readFileSync(process.env.FAKE_CLAUDE_TIMELINE ?? '', 'utf8').trim().split('\n');
-    assert.deepEqual(timeline, ['armed', 'message']);
+    // The input ends once the one turn is over, after the message: the fake marks it too
+    assert.deepEqual(timeline, ['armed', 'message', 'eof']);
     assert.ok(chats.events(chat.id).some((e) => e.kind === 'message' && e.entry?.role === 'user'), 'the message is in the transcript');
   });
 

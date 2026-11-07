@@ -68,7 +68,7 @@ class ClaudeCodeSession implements DriverSession {
     this.stream.interrupting();
     try {
       const response = await this.control.request({ subtype: 'interrupt' } satisfies InterruptRequest);
-      return { stillQueued: stillQueuedOf(response) };
+      return { stillQueued: stillQueuedOf(response, this.stream.capabilities()) };
     } finally {
       this.stream.interruptAnswered();
     }

@@ -180,3 +180,86 @@ test('a can_use_tool request carries the blocked path, reason, title, display na
   );
   assert.deepEqual(questions[1], { id: 'r2', toolName: 'Edit', toolUseId: 't1', input: {} });
 });
+
+// ---------- the interrupt's receipt is read only where the init promised it (R1) ----------
+
+/** The first line of a real session's stdout: what Claude Code 2.1.278 advertised in its `system/init` */
+const recordedInit = (): string =>
+  readFileSync(fileURLToPath(new URL('./fixtures/recordings/claude-hooks/2.1.278/c-acceptEdits-none/stdout.jsonl', import.meta.url)), 'utf8').split('\n')[0] ?? '';
+
+/** Sends an interrupt and answers it as the CLI does */
+async function interruptAnswered(session: ReturnType<typeof attach>['session'], written: Array<Record<string, unknown>>, response: Record<string, unknown>) {
+  const receipt = session.interrupt();
+  const asked = written.at(-1) as { request_id: string; request: unknown };
+  assert.deepEqual(asked.request, { subtype: 'interrupt' });
+  session.readLine(JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: asked.request_id, response } }));
+  return await receipt;
+}
+
+test('the init says what the protocol promises, and the receipt of a CLI that advertised it is read', async () => {
+  const { session, written, events } = attach();
+  session.readLine(recordedInit());
+  const init = events.find((e) => e.kind === 'init');
+  assert.ok(init && init.kind === 'init');
+  assert.deepEqual(init.capabilities, ['interrupt_receipt_v1', 'interrupt_cancel_queued_v1', 'msg_lifecycle_v1']);
+  assert.deepEqual((await interruptAnswered(session, written, { still_queued: ['m-1', 'm-2'] })).stillQueued, ['m-1', 'm-2']);
+  // A promised receipt that lists nothing says every message written before it was dropped or read
+  assert.deepEqual((await interruptAnswered(session, written, { still_queued: [] })).stillQueued, []);
+  // The SDK's older CLIs answer an empty success: the promise without the list says nothing either
+  assert.equal((await interruptAnswered(session, written, {})).stillQueued, null);
+});
+
+test('a still_queued the init never promised is not read, before any init or with one that lists no such capability', async () => {
+  const before = attach();
+  assert.equal((await interruptAnswered(before.session, before.written, { still_queued: [] })).stillQueued, null, 'no init yet');
+
+  const { session, written, events } = attach();
+  const capabilities = () => events.flatMap((e) => (e.kind === 'init' ? [e.capabilities] : []));
+  const init = JSON.parse(recordedInit()) as Record<string, unknown>;
+  // A CLI older than the field, and one that lists other capabilities only
+  session.readLine(JSON.stringify({ ...init, capabilities: undefined }));
+  assert.deepEqual(capabilities().at(-1), []);
+  assert.equal((await interruptAnswered(session, written, { still_queued: ['m-1'] })).stillQueued, null);
+  session.readLine(JSON.stringify({ ...init, capabilities: ['msg_lifecycle_v1'] }));
+  assert.equal((await interruptAnswered(session, written, { still_queued: ['m-1'] })).stillQueued, null);
+  // Each init speaks for the process as it is now: the receipt is read once one promises it
+  session.readLine(recordedInit());
+  assert.deepEqual((await interruptAnswered(session, written, { still_queued: ['m-1'] })).stillQueued, ['m-1']);
+});
+
+// ---------- a model the CLI refuses fails the turn by its error, never by its words (R9) ----------
+
+const replayLines = (file: string): string[] => readFileSync(fileURLToPath(new URL(`./fixtures/replay/${file}`, import.meta.url)), 'utf8').trim().split('\n');
+
+test("a result after the lead's synthetic model_not_found answer says the model was refused", () => {
+  const { session, events } = attach();
+  for (const line of replayLines('model-not-found.jsonl')) session.readLine(line);
+  const result = events.find((e) => e.kind === 'result');
+  assert.ok(result && result.kind === 'result');
+  assert.equal(result.isError, true);
+  assert.equal(result.modelRejected, true);
+  assert.equal(result.rateLimited, false);
+  assert.equal(result.authFailed, undefined);
+  assert.match(result.failure, /There's an issue with the selected model \(claude-made-up-9\)/);
+});
+
+test("only the lead's refused model at the end of a failed turn is a refused model", () => {
+  const [answer = '', ended = ''] = replayLines('model-not-found.jsonl');
+  const raw = JSON.parse(answer) as Record<string, unknown>;
+  const rejected = (lines: string[]): Array<boolean | undefined> => {
+    const { session, events } = attach();
+    for (const line of lines) session.readLine(line);
+    return events.flatMap((e) => (e.kind === 'result' ? [e.modelRejected] : []));
+  };
+  // The same words without the error: a work failure that quotes them
+  assert.deepEqual(rejected([JSON.stringify({ ...raw, error: undefined }), ended]), [undefined]);
+  // A subagent whose model was refused fails its own call, and the lead's turn goes on
+  assert.deepEqual(rejected([JSON.stringify({ ...raw, parent_tool_use_id: 'toolu_agent' }), ended]), [undefined]);
+  // The lead got past it (a fallback model answered): the turn's last word is not the refusal
+  const answered = JSON.stringify({ type: 'assistant', parent_tool_use_id: null, message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [{ type: 'text', text: 'done' }] } });
+  assert.deepEqual(rejected([answer, answered, JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, result: 'done' })]), [undefined]);
+  // Another API error on the lead's answer, the sign-in's, is not a refused model
+  assert.deepEqual(rejected(replayLines('auth-expired.jsonl')), [undefined]);
+  // A refusal is its turn's own: the next failed turn of the same process is read on its own
+  assert.deepEqual(rejected([...replayLines('model-not-found.jsonl'), JSON.stringify({ type: 'result', subtype: 'success', is_error: true, num_turns: 1, result: 'the tests failed' })]), [true, undefined]);
+});
