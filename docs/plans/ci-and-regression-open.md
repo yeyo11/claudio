@@ -86,7 +86,7 @@ settles the owner's decisions.
 
 ## 2. Decisions
 
-### 2.1 R6, MCP writes under bypass: **waiting for the owner**
+### 2.1 R6, MCP writes under bypass: **documented and closed (owner, 2026-11-07)**
 
 The facts:
 
@@ -100,10 +100,11 @@ The facts:
   requires an approval only for a new `confirm` class (the grave writes) and for the assistant.
 - Under auth mode `none` none of it is enforced (its D6).
 
-**Proposed:** this PR records it as intended in a decision document: bypass delegates to the agent
-what its token may already do. The approval ledger is built as its own piece, with its design
-first. **The owner's answer is needed before launch.** The other choice was "an approval for every
-MCP write in every chat", which leaves `curl` open.
+**Decided:** this PR records it as intended in a decision document
+(`docs/decisions/mcp-writes-under-bypass.md`): bypass delegates to the agent what its token may
+already do. The approval ledger is built later as its own piece, with its design first. Rejected:
+"an approval for every MCP write in every chat", which leaves `curl` open, and building
+assistant-everything inside this PR.
 
 ### 2.2 Settled by the owner on 2026-11-07
 
@@ -161,7 +162,7 @@ per task as given. Concurrency 4.
 | `web-hygiene` | medium | R4, R14 (one collaborators client), R15's polling half (changes screens driven by `changes.updated`, if it carries what they need, otherwise say why the poll stays), R20, R16 (Home and board defects) | `pages/config/decisions/*`, `lib/api/collaborators.ts`, `pages/project/shared-data.ts` and its users, `components/changes/*`, `pages/tasks/item/model.ts`, `workItem.json`, Home and board CSS/TSX | `core-hygiene` (`events.ts`), `ci-terminal` (web fixtures) | web tests, token test, `e2e` gate on `home`, `tasks`, `changes` |
 | `tests` | medium | R17 (each listed test waits on an event or a fake clock), R18 (await every `shutdown()`; `teardown.test.ts` requires `await`; the reopening tests shut down first), R19 (headers say what practice is) | the listed test files, `apps/api/test/*` shutdown lines | `security` (`security.test.ts`) | `test` gate twice in a row |
 | `ui-review` | high | R10, and #84's terminal menu, paste sheet and schedule prompts (CLD-4): `/ui-review` in both themes and on a phone; fix what it finds, within design-system tokens | web files the review names | `ci-terminal`, `web-hygiene`, `security` | `/ui-review` SHIPPABLE, `e2e` gate on the touched specs |
-| `docs` | — (sonnet) | Tick the regression plan's Open checklist with the PR's commits; record R5 and R23 as closed by evidence; `docs/decisions/still-queued.md`; `docs/decisions/chat-token-compact.md`; R6's decision once the owner answers; `status.md` (the headless image and the LAN listener are released; #84; this plan); `ROADMAP.md` (Done: the OpenAI-compatible API, the headless image, the LAN listener, the terminal menu; the apt repository moves out of "Decided against"; no `pkexec`); CLD-4 and its criteria | `docs/**`, `ROADMAP.md` | every task above | `kb` front matter, links |
+| `docs` | — (sonnet) | Tick the regression plan's Open checklist with the PR's commits; record R5 and R23 as closed by evidence; `docs/decisions/still-queued.md`; `docs/decisions/chat-token-compact.md`; `docs/decisions/mcp-writes-under-bypass.md` (§2.1); `status.md` (the headless image and the LAN listener are released; #84; this plan); `ROADMAP.md` (Done: the OpenAI-compatible API, the headless image, the LAN listener, the terminal menu; the apt repository moves out of "Decided against"; no `pkexec`); CLD-4 and its criteria | `docs/**`, `ROADMAP.md` | every task above | `kb` front matter, links |
 | `review` | high | Check every task against this plan and §1.2, run the `review` gate on the integrated diff, and open the PR | — | all | `verify` with every gate, then `queue_enqueue` |
 
 `ci-terminal`, `delivery`, `security` and `core-hygiene` start in parallel: they share no file.
