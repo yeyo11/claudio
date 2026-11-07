@@ -1,6 +1,14 @@
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
+/**
+ * Takes the list's scroller to its end through the virtualizer, gliding when `smooth`. The owner of
+ * the pin calls this instead of writing `scrollTop`: the virtualizer tracks its own scroll commands,
+ * and a write it did not make, landing while it compensates a row measured above the viewport, had
+ * that compensation applied on top of it and left the view short of the end (virtual-core 3.19).
+ */
+export type ScrollToEnd = (smooth: boolean) => void;
+
 /** Row height assumed for a row that has never been on screen and whose caller offers no guess. */
 const FIRST_GUESS = 140;
 
@@ -25,6 +33,7 @@ export function VirtualList<T>({
   itemKey,
   className,
   pinToBottom = false,
+  endRef,
   onReachTop,
   focus,
   estimate,
@@ -40,6 +49,11 @@ export function VirtualList<T>({
    * does not read as the reader asking for what is above it.
    */
   pinToBottom?: boolean;
+  /**
+   * Filled with the way to the end while the list is mounted, for whoever keeps the scroller there:
+   * one writer of the scroll position (see `ScrollToEnd`)
+   */
+  endRef?: { current: ScrollToEnd | null };
   /** The window reached the first row held: whatever comes before it, if anything, is wanted now. */
   onReachTop?: () => void;
   /**
@@ -139,6 +153,14 @@ export function VirtualList<T>({
     scrollMargin: margin,
     anchorTo: 'end',
   });
+
+  useLayoutEffect(() => {
+    if (!endRef) return;
+    endRef.current = (smooth) => rows.scrollToEnd({ behavior: smooth ? 'smooth' : 'instant' });
+    return () => {
+      endRef.current = null;
+    };
+  }, [endRef, rows]);
 
   // The default only compensates a row measured for the first time when it starts above the scroll
   // offset. Loading earlier messages while the header above the list is in view breaks that: the

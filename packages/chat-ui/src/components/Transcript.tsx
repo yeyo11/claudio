@@ -28,7 +28,7 @@ import { BrandMark, ICON_SM, toolIcon } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { CopyButton } from '@claudio/ui/components/ui';
-import { VirtualList } from '@claudio/ui/components/VirtualList';
+import { VirtualList, type ScrollToEnd } from '@claudio/ui/components/VirtualList';
 import { copyText } from '@claudio/ui/lib/clipboard';
 
 const loadMarkdown = () => import('@claudio/ui/components/Markdown');
@@ -604,6 +604,7 @@ export function Transcript({
   rows,
   entries,
   pinToBottom = false,
+  endRef,
   onReachTop,
   focus,
   working = false,
@@ -618,6 +619,8 @@ export function Transcript({
   /** The rows of `entries`, when the caller has already worked them out */
   rows?: TranscriptRow[];
   pinToBottom?: boolean;
+  /** Handed to the list: how the pin's owner takes the view to the end (`useStickToBottom`) */
+  endRef?: { current: ScrollToEnd | null };
   onReachTop?: () => void;
   focus?: { item: TranscriptEntry } | null;
   /** The chat is working: its last step is the one being worked on */
@@ -668,7 +671,7 @@ export function Transcript({
     return byRow;
   }, [own, children, alive]);
   return (
-    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
+    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} endRef={endRef} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>
         row.kind === 'compaction' ? (
           <CompactionDivider
