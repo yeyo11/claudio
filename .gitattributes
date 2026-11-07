@@ -1,0 +1,14 @@
+# What a source archive of the repository leaves out: GitHub's tarballs and `git archive` honour
+# export-ignore, a clone does not. Claudio's workspaces and Shipcast's launches download the tarball
+# at a tag (docs/workspaces.md), and these three made it 81 MB of the 100 MB cap for what reading or
+# building the source never needs.
+#
+# The design system's reference screenshots: the agents that compare a screen with them work in a
+# checkout (docs/design-system.md).
+docs/design-system/reference/screenshots export-ignore
+# The README's media: GitHub shows them from the repository; Shipcast's launch.yml demo is read from
+# its own clone, not from the archive.
+docs/media export-ignore
+# The CLI recordings the code-host and tracker tests replay. Without them the tests of
+# packages/core do not run from an archive; they run from a checkout, as CI does.
+packages/core/test/fixtures/recordings export-ignore

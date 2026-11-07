@@ -1,8 +1,8 @@
 #!/bin/sh
 # One script behind the two names, gh and glab: the name it is called by picks its state file and its
 # dialect. They answer only what the Integrations page, a project's readiness and the change request
-# flow ask. See README.md.
-name=$(basename "$0")
+# flow ask. See README.md. The gh and glab files next to it call it with FAKE_HOST_NAME set.
+name=${FAKE_HOST_NAME:-$(basename "$0")}
 dir="${FAKE_STATE_DIR:-.}/fake-hosts"
 file="$dir/$name.json"
 

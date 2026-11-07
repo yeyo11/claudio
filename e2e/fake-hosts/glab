@@ -1,1 +1,4 @@
-host
+#!/bin/sh
+# The fake glab: the one script behind both names (host), told which it is. A file rather than a
+# symbolic link, so a source archive of the repository holds no link (docs/workspaces.md).
+FAKE_HOST_NAME=glab exec "$(dirname "$0")/host" "$@"
