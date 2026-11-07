@@ -230,13 +230,18 @@
   box-shadow: inset 0 2px 0 var(--warn);
 }
 
+/* The name is never cut: where a column is too narrow for the name, its count, the role and the "+"
+   on one line (a project's board at 1280 px, every board at 1024 px), what follows the name wraps
+   onto a second line instead of squeezing it into an ellipsis */
 .workitem-col-head {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 2px 0 8px;
+  /* The reference's 6 px: at 8 a project's "In progress 3/3 +" overflowed a 184 px column at 1280 */
+  gap: 2px 6px;
+  min-height: 34px;
+  padding: 4px 2px 4px 8px;
 }
 
 /* The spacer takes only what the name and the count leave: at its 200 px basis (base.css) it took
@@ -274,6 +279,8 @@
 }
 
 .workitem-col-add {
+  /* Wrapped onto the head's second line, it keeps to the column's right edge */
+  margin-left: auto;
   width: 26px;
   height: 26px;
   color: var(--fg-3);
@@ -1720,6 +1727,7 @@ button.workitem-mrow-more-link {
 
 /* The column jump: each column's glyph and count; the chosen one also says its name */
 .workitem-jump {
+  container: workitem-jump / inline-size;
   position: sticky;
   top: calc(var(--stick-top, 0px) + 0px);
   z-index: 4;
@@ -1758,6 +1766,20 @@ button.workitem-mrow-more-link {
 
 .segment-on .workitem-jump-count {
   color: var(--fg-3);
+}
+
+/* Four 44 px targets and the chosen one with its name do not fit in a 320 px phone: there the name is
+   said to a screen reader only, and the section heading right under the jump names the column. Shown,
+   it ran out of its segment and over the next one's glyph */
+@container workitem-jump (max-width: 329px) {
+  .workitem-jump-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .workitem-jump-option.is-over,

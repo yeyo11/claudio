@@ -57,6 +57,19 @@ test("a board column's name keeps its room: the spacer beside it starts at nothi
   // `.grow` asks for 200 px (base.css), which took a 180 px column's head and cut "Backlog" to "B…"
   assert.equal(rule(css('base.css'), '.grow').get('flex'), '1 1 200px');
   assert.equal(rule(css('board.css'), '.workitem-col-head > .grow').get('flex-basis'), '0');
+  // A column too narrow for the name and what follows it (a project's head, 1024 px) wraps instead of cutting the name
+  const head = rule(css('board.css'), '.workitem-col-head');
+  assert.equal(head.get('flex-wrap'), 'wrap');
+  assert.equal(head.get('height'), undefined, 'a fixed height would clip the second line');
+  assert.equal(rule(css('board.css'), '.workitem-col-add').get('margin-left'), 'auto');
+});
+
+test("the phone board's jump keeps the chosen column's name for screen readers where it does not fit", () => {
+  const board = readFileSync(fileURLToPath(new URL('../src/styles/board.css', import.meta.url)), 'utf8');
+  assert.match(board, /\.workitem-jump \{[^}]*container: workitem-jump \/ inline-size;/);
+  // Visually hidden, never display: none, so the chosen chip still says its name aloud
+  assert.match(board, /@container workitem-jump \(max-width: 329px\) \{\s*\.workitem-jump-name \{[^}]*clip-path: inset\(50%\);/);
+  assert.doesNotMatch(board, /\.workitem-jump-name \{[^}]*display: none/);
 });
 
 test("Tailscale's node line is a sentence that wraps, with only the node's name in mono", async () => {
