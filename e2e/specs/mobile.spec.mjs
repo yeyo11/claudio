@@ -7,6 +7,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const TOTAL = 400;
+/** How many times the chat is opened to check it lands at its end */
+const LANDINGS = 5;
 const SESSION = 'e2e-mobile-0000-0000-000000000000';
 const PROJECT = '-work-mobile';
 const mark = (i) => `p${String(i).padStart(4, '0')}`;
@@ -35,9 +37,13 @@ export default async ({ page, api, check, dirs }) => {
     await page.viewport(390, 844);
 
     // ---- A chat read from its transcript: the list follows its scroller wherever the reader goes ----
-    await page.goto(`/chats/${SESSION}`, 300);
-    await page.waitFor(`return document.querySelector('.transcript')?.innerText.includes('${mark(TOTAL - 1)}')`, { label: 'the newest message is rendered' });
-    await page.waitFor(`const m=document.querySelector('.run-scroll');return m.scrollHeight-m.scrollTop-m.clientHeight<4`, { label: 'the log sits at its bottom' });
+    // Opened again and again: the rows measured as it lands move the view, and a pin that a measured
+    // row's compensation could undo left it short of the end only some of the times (virtual-core 3.19)
+    for (let opening = 1; opening <= LANDINGS; opening++) {
+      await page.goto(`/chats/${SESSION}`, 300);
+      await page.waitFor(`return document.querySelector('.transcript')?.innerText.includes('${mark(TOTAL - 1)}')`, { label: 'the newest message is rendered' });
+      await page.waitFor(`const m=document.querySelector('.run-scroll');return m.scrollHeight-m.scrollTop-m.clientHeight<4`, { label: `the log sits at its bottom (opening ${opening})`, timeout: 5000 });
+    }
     check((await page.eval(onScreen('.run-scroll'))) > 0, 'the chat lands with rows on screen');
     await page.eval(`document.querySelector('.run-scroll').dispatchEvent(new WheelEvent('wheel',{bubbles:true}));return true`);
     for (const at of [0.6, 0.3]) {

@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import type { ScrollToEnd } from '@claudio/ui/components/VirtualList';
 
 /** Closer to the end than this is at the end: coming back there follows again. */
 const NEAR_END_PX = 80;
@@ -36,6 +37,25 @@ export function scrollVerdict({ following, movedUp, near, byReader }: { followin
   return 'none';
 }
 
+/** What `goToEnd` needs of a scroller */
+export interface EndScroller {
+  scrollHeight: number;
+  clientHeight: number;
+  scrollTop: number;
+  scrollTo(options: ScrollToOptions): void;
+}
+
+/**
+ * Takes the view to the end: through the windowed list when one is in the scroller, which then is
+ * the one writer of the scroll position, and by hand otherwise.
+ */
+export function goToEnd(el: EndScroller, smooth: boolean, list: ScrollToEnd | null): void {
+  if (list) return list(smooth);
+  const end = el.scrollHeight - el.clientHeight;
+  if (smooth) el.scrollTo({ top: end, behavior: 'smooth' });
+  else el.scrollTop = end;
+}
+
 /**
  * Keeps a scroller at its end while what is in it grows: rows being measured, stored messages, the
  * block being streamed and the prompts under it all change its height, and each of them scrolling
@@ -65,6 +85,14 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
   /** A smooth scroll to the end is in flight: what happens to the view meanwhile is its doing. */
   const gliding = useRef(false);
   const glideEnds = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /**
+   * The windowed list's own way to the end, while one is in the scroller (`Transcript`'s `endRef`).
+   * The list moves the view too, compensating rows as they are measured, and keeps track of the
+   * scrolls it commands: going to the end through it leaves one writer of the scroll position. A
+   * write of ours beside it was compensated over and left an opened chat short of its end.
+   */
+  const listEnd = useRef<ScrollToEnd | null>(null);
+  const writeEnd = useCallback((el: HTMLElement, smooth: boolean) => goToEnd(el, smooth, listEnd.current), []);
 
   /**
    * To the end in one movement: gliding there when it is within reach, at once when it is a page
@@ -77,7 +105,7 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || end - el.scrollTop > el.clientHeight * GLIDE_LIMIT_SCREENS) {
       gliding.current = false;
-      el.scrollTop = end;
+      writeEnd(el, false);
       return;
     }
     gliding.current = true;
@@ -85,8 +113,8 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
     glideEnds.current = setTimeout(() => {
       gliding.current = false;
     }, GLIDE_MS);
-    el.scrollTo({ top: end, behavior: 'smooth' });
-  }, []);
+    writeEnd(el, true);
+  }, [writeEnd]);
 
   const setFollow = useCallback(
     (on: boolean) => {
@@ -131,10 +159,10 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
           // end instead, so content arriving mid-flight does not turn one movement into two. Unless
           // the end ran away from it by more than a glide covers (a chat came back with thousands
           // of rows held): it would creep over estimated rows until its time ran out, then jump
-          if (gliding.current && end - el.scrollTop <= el.clientHeight * GLIDE_LIMIT_SCREENS) el.scrollTo({ top: end, behavior: 'smooth' });
+          if (gliding.current && end - el.scrollTop <= el.clientHeight * GLIDE_LIMIT_SCREENS) writeEnd(el, true);
           else {
             gliding.current = false;
-            el.scrollTop = end;
+            writeEnd(el, false);
           }
         }
       }
@@ -216,12 +244,12 @@ export function useStickToBottom(ref: RefObject<HTMLElement | null>, mounted: bo
       el.removeEventListener('touchstart', onTouchStart);
       el.removeEventListener('touchmove', onTouchMove);
     };
-  }, [ref, mounted]);
+  }, [ref, mounted, writeEnd]);
 
   /** While on, only the reader (or `setFollow`) goes back to following the end. */
   const hold = useCallback((on: boolean) => {
     held.current = on;
   }, []);
 
-  return { follow, setFollow, jumpToLatest, hold };
+  return { follow, setFollow, jumpToLatest, hold, listEnd };
 }

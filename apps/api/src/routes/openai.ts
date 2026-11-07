@@ -168,7 +168,9 @@ export function failureOf(err: unknown): OpenAiFailure {
   if (err instanceof V1Failure) return err.failure;
   // No run slot is free now: a client retries a 429 by itself, where a 400 would read as its own fault
   if (err instanceof RunSlotRefusal) {
-    return { kind: 'usage-limit', resetsAt: Math.floor(Date.now() / 1000) + RUN_SLOT_RETRY_SECONDS, message: `${err.message}: try again in a moment.` };
+    // To the millisecond: whole epoch seconds dropped up to 999 ms here, and the header, rounded up
+    // from the time left when the answer is written, then said 4 as often as 5
+    return { kind: 'usage-limit', resetsAt: new Date(Date.now() + RUN_SLOT_RETRY_SECONDS * 1000).toISOString(), message: `${err.message}: try again in a moment.` };
   }
   if (err instanceof Error && typeof (err as { statusCode?: unknown }).statusCode !== 'number' && deliberate(err)) {
     return { kind: 'invalid-request', message: err.message };

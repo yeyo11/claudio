@@ -107,7 +107,7 @@ export function ChatView() {
   const stream = useChatStream(id, Boolean(chat?.execution));
   const connected = useStreamSnapshot(stream, (snapshot) => snapshot.connected);
   const writing = useStreamSnapshot(stream, (snapshot) => snapshot.partial?.block === 'text');
-  const { follow, setFollow, jumpToLatest, hold } = useStickToBottom(scroller, Boolean(chat));
+  const { follow, setFollow, jumpToLatest, hold, listEnd } = useStickToBottom(scroller, Boolean(chat));
   const { queued, add: queueMessage, drop: dropQueued, pending: isPending, dated } = useQueuedMessages(chat, transcript.items, stream, transcript.query.dataUpdatedAt);
   // Words and files handed back to the composer: a message the agent never read. They belong to the
   // chat they were written in: the route keeps this component across chats, and the next chat's
@@ -453,6 +453,7 @@ export function ChatView() {
                 entries={items}
                 rows={rows}
                 pinToBottom={follow}
+                endRef={listEnd}
                 onReachTop={transcript.loadEarlier}
                 focus={focus}
                 working={stepCurrent}

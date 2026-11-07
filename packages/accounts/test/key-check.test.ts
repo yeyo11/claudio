@@ -23,7 +23,11 @@ const refused = (): Response => json(401, { type: 'error', error: { type: 'authe
 function transport(answer: () => Response | Error): { fetch: typeof fetch; seen: { url: string; key: string | null }[] } {
   const seen: { url: string; key: string | null }[] = [];
   const fake = (input: Parameters<typeof fetch>[0], init?: RequestInit): Promise<Response> => {
-    seen.push({ url: String(input), key: new Headers(init?.headers).get('x-api-key') });
+    // Which header carries the key is the SDK's choice: `x-api-key` before 1.0, `Authorization: Bearer`
+    // since (API version 2026-10-21, `apiKeyAuth()`). What this check needs is that the key reaches the request
+    const headers = new Headers(init?.headers);
+    const bearer = headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1] ?? null;
+    seen.push({ url: String(input), key: headers.get('x-api-key') ?? bearer });
     const r = answer();
     return r instanceof Error ? Promise.reject(r) : Promise.resolve(r);
   };
