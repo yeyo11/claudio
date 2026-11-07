@@ -13,7 +13,7 @@ import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n from '../src/i18n';
 import { projectViews, sharedWith } from '../src/pages/dashboard/views';
-import { collaboratorsKeys } from '../src/pages/project/shared-data';
+import { collaboratorsKeys } from '../src/lib/api/collaborators';
 import { ApiRequestError } from '../src/api';
 import { sharedProjectPath } from '../src/pages/collaborators/model';
 import { SharedProjectPage, SharedProjectView } from '../src/pages/collaborators/SharedProjectPage';
