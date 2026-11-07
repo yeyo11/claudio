@@ -25,7 +25,7 @@ pull request is in [CHANGELOG.md](../CHANGELOG.md), so a release never leaves th
 | Source | 1,769 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,306 lines of `packages/shared/src/types.ts` |
 | REST | 45 route files, documented as OpenAPI 3.1 and served at `/docs` |
 | Tests | 655 unit and integration test files, plus 99 browser specs under `e2e/specs/` |
-| CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards, also dispatched by `pnpm e2e:remote`), `desktop.yml`, `image.yml`, `release.yml` |
+| CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
 `packages/core` drives the agent CLIs and owns the store, `packages/mcp` is Claudio's own MCP
@@ -104,7 +104,7 @@ probes (#20). The tests that failed only on a loaded machine were fixed at their
 ones; each pull request records what its flake was).
 
 Since then, on 2026-10-17 and 18: the browser suite moved to GitHub and never runs on this machine
-again (#29, `pnpm e2e:remote`; [decisions/e2e-on-github.md](decisions/e2e-on-github.md)), on shards
+again (#29; [decisions/e2e-on-github.md](decisions/e2e-on-github.md)), on shards
 balanced by their timings (#30); since 2026-10-24 it runs here again, through Sluice's `e2e` gate
 ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)). The **Claudio designer** came in with #26
 ([plans/claudio-designer.md](plans/claudio-designer.md)). Refresh reads an account's real quota from
@@ -137,8 +137,8 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
   ([plans/ci-and-regression-open.md](plans/ci-and-regression-open.md#outcome)): the checklist of the
   [2026-10-29 regression](plans/regression-fixes-2026-10-29.md#open) is ticked item by item, and the
   cause of the red `terminal.spec` since #84 is fixed and written in [terminal.md](terminal.md). What
-  stays open: the branch is not pushed, so `pnpm e2e:remote terminal usage mobile` (green three times
-  in a row) has not run, and `mobile.spec` fails on Dependabot #87 for a dependency of its own.
+  stays open: the four `terminal*` specs are refused to agents on this machine
+  (`403 terminal.from-agent`), so they first run in the pull request's CI, and `mobile.spec` fails on Dependabot #87 for a dependency of its own.
 - **The terminal menu and paste sheet (#84),** released with the dock close, the schedule tools in
   the MCP and the `/v1` client tools; the owner's check of the paste sheet on a real iOS and Android
   keyboard is open ([plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)).
@@ -235,13 +235,11 @@ pnpm typecheck
 pnpm test
 pnpm build
 sluice run e2e -v -- [specs]   # the browser suite, through Sluice's queue
-pnpm e2e:remote                # the browser suite, on GitHub Actions
 ```
 
 From 2026-10-17 to 2026-10-24 the browser suite ran only on GitHub ([decisions/e2e-on-github.md](decisions/e2e-on-github.md));
 since then it runs here as Sluice's `e2e` gate ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)).
-Every pull request runs it on four shards, and `pnpm e2e:remote` runs it, or a few specs, on a pushed
-branch. The local runs below are from before 2026-10-17.
+Every pull request runs it on four shards (`pnpm e2e:remote` was removed on 2026-11-07). The local runs below are from before 2026-10-17.
 
 Last run on 2026-10-07 by the final verification of the two roadmap plans
 ([the checks](plans/roadmap-completion.md#the-checks-2026-10-07)), on `main` at `a0d6f2967`

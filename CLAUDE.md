@@ -36,15 +36,14 @@ pnpm typecheck
 pnpm test
 pnpm build
 sluice run e2e -v -- <spec prefixes>   # the browser suite, through Sluice's queue; agents use `verify`
-pnpm e2e:remote <spec prefixes>        # the same on GitHub, for the pushed branch
 ```
 
 **The e2e suite runs on this machine only through Sluice.** Call the `verify` tool with
 `gates: ["e2e"]` and the spec prefixes in `extra_args` (the `run-e2e` skill); it builds, runs two
 shards when the machine's budget has room and caches the pass per tree. `pnpm e2e` refuses outside a
 Sluice job or CI, because a few agents each booting servers and Chromes outside any queue froze the
-host ([docs/decisions/e2e-through-sluice.md](docs/decisions/e2e-through-sluice.md)). `pnpm e2e:remote`
-still runs it on GitHub. `E2E_ALLOW_LOCAL=1` is the owner's, to watch one spec in a browser; an agent
+host ([docs/decisions/e2e-through-sluice.md](docs/decisions/e2e-through-sluice.md)). CI runs the
+whole suite on every pull request. `E2E_ALLOW_LOCAL=1` is the owner's, to watch one spec in a browser; an agent
 never sets it, nor `SLUICE_JOB`.
 
 After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (CI fails if they

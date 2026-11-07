@@ -1,6 +1,6 @@
 ---
 name: run-e2e
-description: Run Claudio's browser (e2e) specs through Sluice's `e2e` gate on this machine, or on GitHub Actions with `pnpm e2e:remote`, and read a failure from its log and screenshots. Use whenever a change needs an e2e spec run, a spec was written or changed, or a check asks for `pnpm e2e`.
+description: Run Claudio's browser (e2e) specs through Sluice's `e2e` gate on this machine, and read a failure from its log and screenshots, here or in a pull request's CI. Use whenever a change needs an e2e spec run, a spec was written or changed, or a check asks for `pnpm e2e`.
 ---
 
 # Running the e2e specs
@@ -8,8 +8,8 @@ description: Run Claudio's browser (e2e) specs through Sluice's `e2e` gate on th
 On this machine the e2e suite runs only as a Sluice job: `pnpm e2e` refuses to start outside one
 (and outside CI). Every run boots a server and a headless Chrome per shard, and a few agents doing
 that at once, outside any queue, once froze the host. Sluice's queue admits the `e2e` gate only when
-the machine's budget has room for it, and caches a pass per git tree. GitHub stays available for the
-whole suite on four clean machines. The decision is in `docs/decisions/e2e-through-sluice.md`.
+the machine's budget has room for it, and caches a pass per git tree. CI runs the whole suite on
+every pull request, on four shards. The decision is in `docs/decisions/e2e-through-sluice.md`.
 
 ## Through Sluice (the default)
 
@@ -32,18 +32,12 @@ whole suite on four clean machines. The decision is in `docs/decisions/e2e-throu
    failed fails the same way.
 4. **Fix and verify the same prefixes again.**
 
-## On GitHub (the whole suite fast, or a second opinion)
+## In a pull request's CI
 
-1. Commit and push your branch: GitHub tests the pushed commit, not your working tree.
-2. `timeout 590 pnpm e2e:remote config palette` (no prefix for the whole suite, about 10 minutes on
-   4 shards). It waits up to 9 minutes (`E2E_REMOTE_WAIT`), then exits 3 and prints the line to go
-   on with: `timeout 590 pnpm e2e:remote --wait <run id>`. Never send it to the background to poll
-   with `sleep`.
-3. Exit codes: `0` passed; `1` failed or cancelled (the failed shards' `e2e.log` and screenshots are
-   downloaded to `$TMPDIR/claudio-e2e-remote-<run id>/`); `2` refused before starting (not pushed, on
-   `main`, an unknown spec prefix, `gh` not signed in); `3` still running.
-4. A newer dispatch on the same branch cancels the older one. `--shards N` (1–4) overrides the shard
-   count.
+CI runs the whole suite on four shards (`.github/workflows/e2e.yml`, called from `ci.yml`). When a
+shard fails, read it rather than guess: `gh run view <run id> --log-failed` for the end of the log,
+and `gh run download <run id> -n e2e-screenshots-<shard>` for its whole `e2e.log` and its
+screenshots. Then reproduce the failing spec through the `e2e` gate above.
 
 ## Rules
 
@@ -54,5 +48,4 @@ whole suite on four clean machines. The decision is in `docs/decisions/e2e-throu
   and the weight the queue needs.
 - A spec that fails, fails. Do not call it flaky without running it again alone and comparing with
   `main`; if it is flaky, find the cause (`docs/plans/e2e-harness-waits.md`).
-- Name the specs you ran and how each ended in your report (the Sluice job id, or the GitHub run's
-  URL).
+- Name the specs you ran and how each ended in your report (the Sluice job id, or the CI run's URL).

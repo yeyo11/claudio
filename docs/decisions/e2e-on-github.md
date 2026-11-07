@@ -12,7 +12,7 @@ tags:
 
 > **Superseded on 2026-10-24** by [the e2e suite runs here through Sluice](e2e-through-sluice.md):
 > Sluice's queue removed the load that froze the host, so the suite runs here as the `e2e` gate.
-> `pnpm e2e:remote` and the GitHub workflow described below stay.
+> The GitHub workflow described below stays for CI; `pnpm e2e:remote` was removed on 2026-11-07.
 
 Taken by the owner on 2026-10-17. The browser suite (`e2e/`) runs only on GitHub Actions. On a
 developer's machine `pnpm e2e` refuses to start, and agents run the specs they need with

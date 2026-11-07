@@ -33,7 +33,7 @@ node scripts/design-lint.mjs [files…]                     # I15, I16, I18, I19
 node scripts/ui-check.mjs --route '/settings?tab=decisions' # I1–I11 on a running dev server (pnpm dev)
 node scripts/ui-check.mjs --route / --fast                 # what the hook runs
 sluice run e2e -v -- ui-invariants                         # I1–I7, I9–I11, I17 over the main screens (agents: verify)
-sluice run e2e -v -- a11y-core a11y-shell motion           # I8, I12, I13, I14 (or pnpm e2e:remote on GitHub)
+sluice run e2e -v -- a11y-core a11y-shell motion           # I8, I12, I13, I14
 ```
 
 ## How to read a failure

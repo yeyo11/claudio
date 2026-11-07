@@ -74,11 +74,10 @@ const specsDir = process.env.E2E_SPECS_DIR ? resolve(process.env.E2E_SPECS_DIR) 
 if (process.env.CI !== 'true' && !process.env.SLUICE_JOB && process.env.E2E_ALLOW_LOCAL !== '1') {
   console.error(
     [
-      'The e2e suite runs through Sluice on this machine, or on GitHub Actions.',
+      'The e2e suite runs through Sluice on this machine, and on GitHub Actions in CI.',
       '  verify, gates ["e2e"]                         the whole suite, queued and cached (Sluice MCP tool)',
       '  verify, gates ["e2e"], extra_args ["config"]   only some specs (the same prefixes `pnpm e2e` takes)',
       '  sluice run e2e -v -- config palette           the same, from a terminal',
-      '  pnpm e2e:remote [specs]                       on GitHub, for the pushed branch',
       'See .claude/skills/run-e2e/SKILL.md.',
       'E2E_ALLOW_LOCAL=1 runs it here outside the queue; it is for a person debugging one spec, never for an agent.',
     ].join('\n'),

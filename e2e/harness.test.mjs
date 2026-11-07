@@ -455,7 +455,7 @@ test('outside CI the runner refuses to start unless inside a Sluice job or with 
     assert.equal(r.code, 2, r.output);
     assert.match(r.output, /runs through Sluice/);
     assert.match(r.output, /gates \["e2e"\]/);
-    assert.match(r.output, /pnpm e2e:remote/);
+    assert.doesNotMatch(r.output, /e2e:remote/);
     assert.deepEqual(ran(r.output), []);
     assert.deepEqual(r.survivors, { chrome: [], server: false });
   }

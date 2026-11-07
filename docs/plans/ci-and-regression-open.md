@@ -54,7 +54,7 @@ settles the owner's decisions.
   - Dependabot #86 and #87 are red: #87 on `terminal` and `mobile.spec.mjs`, #86 on `e2e (1/4)`.
   - The e2e suite cannot be reproduced from an agent on this machine: the terminal refuses anything
     that descends from a chat (`403 terminal.from-agent`), the Sluice daemon included (CLD-4). It
-    runs on GitHub through `pnpm e2e:remote <specs>`.
+    runs in the pull request's CI.
 
 ### 1.2 The regression's open checklist
 
@@ -147,7 +147,7 @@ per task as given. Concurrency 4.
   down and the wait is on an event.
 - Every fix carries the test that would have caught it.
 - Gates run only through Sluice's `verify` tool, never as raw commands. The browser suite runs only
-  through the `e2e` gate with spec prefixes, or `pnpm e2e:remote <specs>` on GitHub.
+  through the `e2e` gate with spec prefixes.
 - UI work loads the `claudio-ui` skill and follows the design system.
 - Every string goes through i18n with `en`/`es` parity.
 
@@ -173,9 +173,8 @@ Written by the `docs` task from the other tasks' results and their branches as m
 `worktree-bee431cc-docs`. Each task built on its own branch (`worktree-bee431cc-<task>`); the one
 merge conflict (`apps/api/src/openapi/routes.ts`, the descriptions of resume and fork, where
 `delivery` and `security` both wrote) was resolved by keeping both sentences. Lint and typecheck pass
-on the merged tree. The whole test suite, the `e2e` gate and `pnpm e2e:remote` run once after the
-review, and their results are not recorded here. **Nothing was pushed**, so the main CI is still
-red until the owner authorises the push and the remote e2e run below.
+on the merged tree. The whole test suite and the `e2e` gate ran once in the review. The `terminal*` specs run in
+the pull request's CI.
 
 ### What each task built
 
@@ -196,9 +195,9 @@ red until the owner authorises the push and the remote e2e run below.
 
 ### What stayed open, and why
 
-- **The push and the remote runs.** `ci-terminal` could not push (denied). `pnpm e2e:remote terminal
-  usage mobile` three times in a row on the pushed branch is the mark that "main is green" and has
-  not happened. On this machine the review's `e2e` gate passed `security`, `usage`, `schedule-prompt`,
+- **The terminal specs.** `ci-terminal` could not push (denied by the workers' guard), and
+  `pnpm e2e:remote` was removed on 2026-11-07 (the owner: a bridge from before Sluice). The four
+  `terminal*` specs therefore first run in the pull request's CI. On this machine the review's `e2e` gate passed `security`, `usage`, `schedule-prompt`,
   `home`, `tasks`, `changes` and `mobile`. The four `terminal*` specs are refused there with `403
   terminal.from-agent` (§1.1), so they only run on GitHub.
 - **`mobile.spec` fails only on Dependabot #87**, probably `@tanstack/react-virtual` 3.14.26 with

@@ -108,10 +108,9 @@ jobs:
       # specs (limits, signals, shards, no survivors). They sit here rather than in a shard because
       # this job has minutes to spare while the shards are the ones everybody waits for
       - name: The e2e runner and its shards
-        run: node --test e2e/shards.test.mjs e2e/remote.test.mjs e2e/harness.test.mjs
+        run: node --test e2e/shards.test.mjs e2e/harness.test.mjs
 
-  # The e2e suite, on 4 shards side by side. It lives in e2e.yml, which `pnpm e2e:remote` also
-  # dispatches on a branch, so a pull request and an agent's run use the same jobs.
+  # The e2e suite, on 4 shards side by side, from e2e.yml.
   e2e:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
