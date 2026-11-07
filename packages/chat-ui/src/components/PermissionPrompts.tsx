@@ -13,7 +13,7 @@ import { useChatPermissions } from '../lib/chats';
 import { PROMPT_PARAM } from '../lib/permission-param';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
-import { formatDateTime } from '@claudio/ui/lib/format';
+import { formatDateTimeIn, localTimeZone } from '@claudio/ui/lib/format';
 import { RichText } from './Transcript';
 import { RiskLine, useToolRisk } from './RiskTag';
 import { ErrorBox, TabPanel, Tabs, useTabGroup } from '@claudio/ui/components/ui';
@@ -62,8 +62,9 @@ function useAnswer(request: PermissionRequest) {
  * words and its next fires. A schedule runs later with nobody watching, so the person reads this
  * before answering. A line says it is being read while it loads; the lines are empty when the client
  * has no preview and when the read fails, since the expression itself is already in the prompt.
+ * `reading` holds the answers back until the read has settled, either way (the request times out).
  */
-function useScheduleLines(request: PermissionRequest): string[] {
+function useScheduleLines(request: PermissionRequest): { lines: string[]; reading: boolean } {
   const { client } = useChatUi();
   const check = scheduleToCheck(request.toolName, request.input);
   const asks = check !== null && client.schedulePreview !== undefined;
@@ -74,8 +75,9 @@ function useScheduleLines(request: PermissionRequest): string[] {
     retry: false,
     staleTime: 60_000,
   });
-  if (preview.data) return previewLines(preview.data, formatDateTime);
-  return asks && preview.isPending ? [previewLoading()] : [];
+  if (preview.data) return { lines: previewLines(preview.data, formatDateTimeIn, localTimeZone()), reading: false };
+  const reading = asks && preview.isPending;
+  return { lines: reading ? [previewLoading()] : [], reading };
 }
 
 /** Deny with a reason the model can read: one it can learn from beats one it can only retry blindly. */
@@ -90,7 +92,7 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   // A write tool of the assistant is said in the person's words, and never offers to be remembered
   const write = describeWrite(request.toolName, request.input);
   // Said beside the input block, which is monospace and holds literals
-  const scheduleLines = useScheduleLines(request);
+  const schedule = useScheduleLines(request);
   const suggestions = write ? [] : (request.suggestions ?? []);
   const described = request.description ?? request.input.description;
   const description = !write && typeof described === 'string' ? described : '';
@@ -112,12 +114,16 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
         </pre>
       )}
       {description && <p className="muted small">{description}</p>}
-      {scheduleLines.map((line) => (
-        <p key={line} className="muted small">
-          {line}
-        </p>
-      ))}
-      <div className="permission-actions">
+      {schedule.lines.length > 0 && (
+        <div className="permission-preview">
+          {schedule.lines.map((line) => (
+            <p key={line} className="muted small">
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
+      <div className={schedule.reading ? 'permission-actions is-waiting' : 'permission-actions'}>
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
           <Check {...ICON_SM} /> {t('permissions.allow')}
         </button>

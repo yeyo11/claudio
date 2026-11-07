@@ -198,3 +198,18 @@ test('a lost message of the person is handed back, with no button to hurry it', 
 test('nothing waiting draws no card', () => {
   assert.equal(draw([]), '');
 });
+
+test('a row shows two lines of its message and keeps the whole of it a hover away', () => {
+  const long = 'Read this while it builds: the changelog draft is in docs/notes and it needs the second section rewritten';
+  assert.ok(draw([card('m1', { text: long })]).includes(`<span class="chat-queued-text" title="${long}">`));
+  // Files only: the row says how many, and there is no text to repeat
+  const files = [{ id: 'u1', name: 'a.txt', mediaType: 'text/plain', kind: 'file' as const, sizeBytes: 1 }];
+  assert.ok(draw([card('m1', { text: '', attachments: files })]).includes('<span class="chat-queued-text">'));
+});
+
+test('the card is quiet without opacity, which took its muted text under 4.5:1 in the light theme', () => {
+  const css = readFileSync(new URL('../src/styles/chat.css', import.meta.url), 'utf8');
+  const rules = [...css.matchAll(/(?:^|\n)(\.chat-queued[^{]*)\{([^}]*)\}/g)].map((m) => ({ selector: (m[1] ?? '').trim(), body: m[2] ?? '' }));
+  assert.ok(rules.length > 5, 'the queued card rules were found');
+  for (const rule of rules) assert.doesNotMatch(rule.body, /(?:^|[\s;])opacity\s*:/, `${rule.selector} sets no opacity`);
+});

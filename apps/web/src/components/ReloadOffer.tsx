@@ -50,7 +50,8 @@ export function ReloadBanner() {
 function StalePage() {
   const { t } = useTranslation('shell');
   return (
-    <Empty icon={RefreshCw} title={t('reload.stalePage')} action={<ReloadButton />}>
+    // The page whose code is gone drew no heading of its own: this state is the page's h1
+    <Empty icon={RefreshCw} heading title={t('reload.stalePage')} action={<ReloadButton />}>
       {t('reload.stalePageHint')}
     </Empty>
   );

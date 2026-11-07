@@ -618,6 +618,7 @@
       "preview": {
         "words": "In words: {{value}}",
         "next": "Next fires: {{value}}",
+        "nextIn": "Next fires, {{zone}} time: {{value}}",
         "invalid": "This expression is not valid: {{value}}",
         "loading": "Checking the expression…"
       }

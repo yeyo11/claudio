@@ -1811,6 +1811,27 @@
   align-items: center;
 }
 
+/* A schedule's preview: its lines read as one note under the input block */
+.permission-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0;
+}
+
+.permission-preview > p {
+  margin: 0;
+}
+
+/*
+ * While the preview is read, the answers keep their room but are not shown: the lines arriving above
+ * would push Allow and Deny down under a pointer already on its way to them. They appear once, where
+ * they stay. Hidden, they are out of the tab order and the accessibility tree as well.
+ */
+.permission-actions.is-waiting {
+  visibility: hidden;
+}
+
 .permission-reason {
   flex: 1;
   min-width: 200px;
@@ -2084,8 +2105,10 @@ a.attachment-chip:hover {
 
 /*
  * Messages left for a turn that is still running. The CLI takes them the moment it is free, so
- * until then they hang over the box they were typed in — faded, in the order they will be read —
- * with the one thing that can make that sooner: ending the turn.
+ * until then they hang over the box they were typed in — quiet, in the order they will be read —
+ * with the one thing that can make that sooner: ending the turn. Quiet through the dashed border,
+ * the see-through ground and the muted text, never through opacity: a faded card took its muted
+ * text and its buttons under 4.5:1 in the light theme.
  */
 .chat-queued {
   display: flex;
@@ -2096,13 +2119,6 @@ a.attachment-chip:hover {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
-  opacity: 0.75;
-  transition: opacity var(--dur-fast);
-}
-
-.chat-queued:hover,
-.chat-queued:focus-within {
-  opacity: 1;
 }
 
 .chat-queued-list {
@@ -2179,7 +2195,6 @@ a.attachment-chip:hover {
 .chat-queued.is-lost {
   border-style: solid;
   border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
-  opacity: 1;
 }
 
 /* A lost row among waiting ones says so on its own */

@@ -152,12 +152,20 @@ export function scheduleToCheck(toolName: string, input: Record<string, unknown>
  * The lines the server's preview adds to such a prompt: the expression in words, its next fires, or
  * what is wrong with it. They are said beside the prompt's input block, never in it: that block is
  * monospace and holds literals, and a sentence and a time are not.
+ *
+ * The fires are told on the clock of the zone the expression is read in, the one the prompt's input
+ * block names: in the browser's own, `0 3 * * *` in Europe/Madrid would read as 21:00 the evening
+ * before on a device in New York, next to "In words: At 03:00". When that zone is not the browser's,
+ * the line names it, so nobody takes those hours for their own.
  */
-export function previewLines(preview: SchedulePreview, formatTime: (iso: string) => string): string[] {
+export function previewLines(preview: SchedulePreview, formatTime: (iso: string, timeZone: string) => string, localZone: string): string[] {
   if (!preview.valid) return [t('preview.invalid', { value: preview.error ?? '' })];
   const lines: string[] = [];
   if (preview.description) lines.push(t('preview.words', { value: preview.description }));
-  if (preview.next.length) lines.push(t('preview.next', { value: preview.next.map(formatTime).join(' · ') }));
+  if (preview.next.length) {
+    const value = preview.next.map((at) => formatTime(at, preview.timezone)).join(' · ');
+    lines.push(preview.timezone === localZone ? t('preview.next', { value }) : t('preview.nextIn', { value, zone: preview.timezone }));
+  }
   return lines;
 }
 
