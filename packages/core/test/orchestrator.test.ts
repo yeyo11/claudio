@@ -1907,6 +1907,24 @@ test('fixer: false blocks without a fix', async () => {
   g.db.close();
 });
 
+test('a round whose reviewers all answer nothing usable ends incomplete without the fixer, even when a scan blocks', async () => {
+  const g = reviewedGraph(['FAKE-REVIEW-INVALID', 'FAKE-REVIEW-FIX fixed.txt yes']);
+  // The task commits a conflict marker: a blocking finding of Claudio's own scan, with no model in it
+  const started = g.orchestrator.create({
+    ...graphOf(g.repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt =======' }]),
+    synthesize: false,
+    objective: ['Add the api', 'FAKE-REVIEW-INVALID', 'FAKE-REVIEW-FIX fixed.txt yes'].join('\n'),
+    verification: { commands: ['true'], e2eSpecs: false, review: { maxFixRounds: 2 } } as VerificationSpec,
+  });
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'incomplete', orch.verification?.review?.reason ?? '');
+  assert.match(orch.verification?.review?.reason ?? '', /^No reviewer run gave a usable answer \(\d+ of \d+ failed\), so nothing was reviewed; the fixer is not called for the 1 blocking finding/);
+  assert.equal(orch.verification?.fixes?.length ?? 0, 0, 'the fixer was not called');
+  assert.equal(rounds(g, started.id).length, 1, 'no second round');
+  assert.equal(existsSync(join(orch.integration?.worktree ?? '', 'fixed.txt')), false);
+  g.db.close();
+});
+
 test('stop() stops the reviewers and the round ends incomplete as stopped', async () => {
   const g = reviewedGraph(['FAKE-REVIEW-SLOW 20000']);
   const started = g.start();
