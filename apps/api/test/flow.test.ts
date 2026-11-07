@@ -25,13 +25,39 @@ let spawns: string;
 
 const json = (body: unknown) => ({ payload: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 
+/**
+ * How long a wait may take before the test calls it stuck. A failure deadline, not a pace: the
+ * state is read again on every event the core emits, so a loaded machine only makes the wait
+ * longer, never wrong (R17 of docs/plans/ci-and-regression-open.md). Before, it was 300 reads
+ * 50 ms apart, which a slow machine could spend before the fake CLI had answered.
+ */
+const WAIT_BUDGET_MS = 120_000;
+
 async function until<T>(read: () => Promise<T> | T, done: (value: T) => boolean, what: string): Promise<T> {
-  for (let i = 0; i < 300; i++) {
-    const value = await read();
-    if (done(value)) return value;
-    await sleep(50);
+  let wake = (): void => undefined;
+  let emitted = 0;
+  const stop = core.events.observe(() => {
+    emitted++;
+    wake();
+  });
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<'expired'>((resolve) => {
+    timer = setTimeout(() => resolve('expired'), WAIT_BUDGET_MS);
+  });
+  try {
+    for (;;) {
+      const seen = emitted;
+      const value = await read();
+      if (done(value)) return value;
+      // Something changed while it was being read: read again before waiting for the next event
+      if (emitted !== seen) continue;
+      const next = new Promise<'event'>((resolve) => (wake = () => resolve('event')));
+      if ((await Promise.race([next, expired])) === 'expired') throw new Error(`timed out waiting for ${what}`);
+    }
+  } finally {
+    stop();
+    clearTimeout(timer);
   }
-  throw new Error(`timed out waiting for ${what}`);
 }
 
 function repoWithCommit(): string {
@@ -97,7 +123,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
   delete process.env.FAKE_CLAUDE_SPAWNS;
 });
 

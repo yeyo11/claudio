@@ -42,7 +42,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('authorising a connector that needs it returns the CLI sign-in link', async () => {
@@ -70,6 +70,6 @@ test("a chat's token cannot authorise a connector", async () => {
     assert.equal(res.statusCode, 403);
   } finally {
     await a.close();
-    c.shutdown();
+    await c.shutdown();
   }
 });

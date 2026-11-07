@@ -77,7 +77,7 @@ before(async () => {
 
 after(async () => {
   await core.collaborators.dispose();
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   rmSync(root, { recursive: true, force: true });
 });

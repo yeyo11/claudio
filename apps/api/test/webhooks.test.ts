@@ -37,7 +37,7 @@ async function wrapper(t: { after: (fn: () => Promise<void> | void) => void }): 
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
     rmSync(root, { recursive: true, force: true });
   });
   return { app, core, nudged };

@@ -78,7 +78,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('a project lists its lessons by status, and a bad status or project is refused', async () => {

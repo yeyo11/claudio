@@ -28,7 +28,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('tool presets ship with defaults and can be created, edited and deleted', async () => {

@@ -31,7 +31,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('a schedule is created, listed, edited, switched off and deleted over the API', async () => {

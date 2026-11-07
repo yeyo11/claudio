@@ -33,7 +33,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('the templates are listed, and the route is not taken for a project id', async () => {
@@ -263,7 +263,7 @@ test('PATCH path re-points a project imported inside a worktree and answers each
     assert.deepEqual([ok.json<Project>().id, ok.json<Project>().path, ok.json<Project>().insideWorktreeOf], ['in-wt', main, null]);
   } finally {
     await server.close();
-    own.shutdown();
+    await own.shutdown();
   }
 });
 

@@ -14,8 +14,8 @@ const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const roots = new Set<string>();
 const cores = new Set<Core>();
-after(() => {
-  for (const core of cores) core.shutdown();
+after(async () => {
+  await Promise.all([...cores].map((core) => core.shutdown()));
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 

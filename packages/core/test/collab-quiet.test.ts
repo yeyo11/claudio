@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { SyncClient, type Transport } from '../src/collab/client.ts';
 import { GroupsStore } from '../src/collab/groups-store.ts';
 import type { HostReplyPart } from '../src/collab/host-client.ts';
@@ -122,36 +122,62 @@ test('idle waits for the run in flight and for the re-run a poke asked for durin
   client.stop();
 });
 
-test('a peer that refuses is asked ever more rarely, not on every tick', async () => {
+/**
+ * How long the mocked clock has to move, a millisecond at a time, before the peer is asked again.
+ * The waits are read off the client's own timers, so a loaded machine changes nothing: a run cannot
+ * be slower or faster than the clock the test moves (R17 of docs/plans/ci-and-regression-open.md).
+ */
+async function waitBeforeNextAsk(t: TestContext, client: SyncClient, asks: () => number, limit = 1_000): Promise<number | null> {
+  const before = asks();
+  for (let ms = 1; ms <= limit; ms++) {
+    t.mock.timers.tick(1);
+    await client.idle(owner);
+    if (asks() > before) return ms;
+  }
+  return null;
+}
+
+async function waitsBeforeAsks(t: TestContext, client: SyncClient, asks: () => number, count: number): Promise<Array<number | null>> {
+  const waits: Array<number | null> = [];
+  for (let i = 0; i < count; i++) waits.push(await waitBeforeNextAsk(t, client, asks));
+  return waits;
+}
+
+test('a peer that refuses is asked ever more rarely, not on every tick', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const mode = { now: 'forbidden' as Mode };
-  // Every 20 ms on a tick: a refusing peer waits 20, 40, 80, 160 ms
+  // A tick every 20 ms: a refusing peer waits 20, 40, 80, 160 ms
   const { client, asked, logs } = setup(mode, { reconcileMs: 20, refusedMaxMs: 10_000 });
+  const hellos = () => asked.filter((type) => type === 'hello').length;
   client.setPeers([owner]);
-  await new Promise((r) => setTimeout(r, 400));
+  await client.idle(owner);
+  assert.equal(hellos(), 1);
+  assert.deepEqual(await waitsBeforeAsks(t, client, hellos, 4), [20, 40, 80, 160]);
   client.stop();
-  const hellos = asked.filter((t) => t === 'hello').length;
-  assert.ok(hellos >= 2, `asked ${String(hellos)} times`);
-  assert.ok(hellos <= 7, `asked ${String(hellos)} times: it did not back off`);
   assert.equal(logs.length, 1);
 });
 
-test('the wait before a refusing peer is asked again stops growing at its cap', async () => {
+test('the wait before a refusing peer is asked again stops growing at its cap', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const mode = { now: 'forbidden' as Mode };
   const { client, asked } = setup(mode, { reconcileMs: 10, refusedMaxMs: 20 });
+  const hellos = () => asked.filter((type) => type === 'hello').length;
   client.setPeers([owner]);
-  await new Promise((r) => setTimeout(r, 400));
+  await client.idle(owner);
+  // Capped at 20 ms; uncapped it would go on 40, 80, 160
+  assert.deepEqual(await waitsBeforeAsks(t, client, hellos, 5), [10, 20, 20, 20, 20]);
   client.stop();
-  // Capped at 20 ms, about one ask in each 20 ms; uncapped it would be about five in 400 ms
-  assert.ok(asked.filter((t) => t === 'hello').length >= 8);
 });
 
-test('an unreachable peer that stays so is logged once, not on every retry', async () => {
+test('an unreachable peer that stays so is logged once, not on every retry', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const mode = { now: 'down' as Mode };
   const { client, logs, asked } = setup(mode, { reconcileMs: 20 });
   client.setPeers([owner]);
-  await new Promise((r) => setTimeout(r, 200));
+  await client.idle(owner);
+  // Retried from 5 ms, doubling up to the reconcile's 20
+  assert.deepEqual(await waitsBeforeAsks(t, client, () => asked.length, 4), [5, 10, 20, 20]);
   client.stop();
-  assert.ok(asked.length >= 3, `asked ${String(asked.length)} times`);
   assert.deepEqual(logs, ['collab: sync with Ana failed: no route to the peer']);
   assert.equal(client.isRefused(owner), false);
 });
@@ -176,9 +202,12 @@ test('a fresh read of a copy whose owner is offline answers at once from the cop
   await client.idle(owner);
   assert.equal(client.isOnline(owner), false);
   const before = asked.length;
-  const began = Date.now();
-  await assert.rejects(client.pull(owner, 'k1', 'chats'), /offline/);
-  assert.ok(Date.now() - began < 100);
+  // "At once" is "before any timer or I/O could run", not a guessed number of milliseconds: the
+  // answer must settle on the microtasks that follow the call, ahead of the next immediate
+  const pull = client.pull(owner, 'k1', 'chats');
+  const settled = await Promise.race([pull.then(() => 'resolved', () => 'rejected'), new Promise<string>((r) => setImmediate(() => r('waiting')))]);
+  assert.equal(settled, 'rejected', 'the read answered without waiting on anything');
+  await assert.rejects(pull, /offline/);
   assert.equal(asked.length, before, 'nothing was asked of the owner');
   client.stop();
 });

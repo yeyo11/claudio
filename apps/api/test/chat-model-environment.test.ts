@@ -44,7 +44,7 @@ after(async () => {
   delete process.env.CLAUDIO_ADMIT_MEMORY_PRESSURE;
   delete process.env.CLAUDIO_ADMIT_MEMORY_FLOOR_MB;
   core.runtime.stopAll();
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   rmSync(root, { recursive: true, force: true });
 });

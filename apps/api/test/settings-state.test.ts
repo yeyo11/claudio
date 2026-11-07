@@ -25,7 +25,7 @@ async function wrapper(t: TestContext, env: NodeJS.ProcessEnv = {}): Promise<{ a
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
     rmSync(root, { recursive: true, force: true });
   });
   return { app, core };

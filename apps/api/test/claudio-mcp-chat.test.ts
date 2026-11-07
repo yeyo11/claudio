@@ -44,7 +44,7 @@ before(async () => {
 });
 
 after(async () => {
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   rmSync(root, { recursive: true, force: true });
 });

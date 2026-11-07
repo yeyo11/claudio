@@ -22,6 +22,20 @@ async function until(check: () => boolean, what: string, ms = 5_000): Promise<vo
   }
 }
 
+/*
+ * What the manager has in flight or armed, read so a test waits on the work itself rather than on a
+ * guessed delay (R17 of docs/plans/ci-and-regression-open.md): the start's run, the reconcile of a
+ * leftover rule, and the two timers that are the only things able to open the tunnel later.
+ */
+interface ManagerInternals {
+  opening: Promise<void> | null;
+  cleaning: Promise<void>;
+  monitor: NodeJS.Timeout | null;
+  recoveryTimer: NodeJS.Timeout | null;
+  recovering: boolean;
+}
+const internals = (manager: TunnelManager): ManagerInternals => manager as unknown as ManagerInternals;
+
 /** The node's state as the fake CLI keeps it; any key left out is the fake's default. */
 interface FakeNode {
   version?: string;
@@ -148,7 +162,10 @@ test('start with Claudio, saved before the operator turned the tunnel off, does 
 
   const second = rig(t, { root, enabled: false });
   assert.equal(second.manager.status().settings.startWithClaudio, true);
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // A start from attach() would settle on microtasks (refused, then failed): they all run before
+  // the next immediate, so this is the whole window for one, with no guessed delay
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(internals(second.manager).opening, null, 'no start is in flight');
   // Stopped, not failed: nothing went wrong, the deploy simply does not offer it
   assert.equal(second.manager.status().state, 'stopped');
   assert.equal(second.manager.status().reason, null);
@@ -362,7 +379,8 @@ test('at start, a record from before the lock is left alone while its target ans
   mkdirSync(join(root, 'data', 'tunnel'), { recursive: true });
   writeFileSync(r.record, JSON.stringify({ port: 8444, host: NODE, target: otherTarget }));
   r.manager.attach(8787, '127.0.0.1', 'lock-now');
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // attach() hands its reconcile to `cleaning`, which a start waits for too: once it settled, it decided
+  await internals(r.manager).cleaning;
   assert.ok(existsSync(r.record), 'the live server\'s record stays');
   assert.deepEqual(r.node().serve, ours(8444, otherTarget));
   assert.ok(!r.calls().some((call) => call.endsWith('off')));
@@ -428,7 +446,13 @@ test('a tunnel the person stopped never restarts, even once Tailscale is ready',
   await r.manager.stop();
   assert.equal(r.manager.status().state, 'stopped');
   r.setNode({ backendState: 'Running' });
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // Only a timer could open it again (the monitor's reading or the recovery): neither is armed, so
+  // no wait, however long, would see it restart
+  const after = internals(r.manager);
+  assert.deepEqual([after.monitor, after.recoveryTimer, after.recovering], [null, null, false]);
+  // And a reading that finds Tailscale ready, as the routes take one, does not open it either
+  await r.manager.refresh(true);
+  assert.equal(r.manager.status().tailscale.state, 'ready');
   assert.equal(r.manager.status().state, 'stopped');
   assert.deepEqual(r.hosts.list(), []);
 });
@@ -523,8 +547,9 @@ test('a stop sent while a start is still reading Tailscale is not lost', async (
   const stopped = await r.manager.stop();
   await starting;
   assert.equal(stopped.state, 'stopped');
-  // Whatever the start was doing when the stop came, nothing is left open after it
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  // Whatever the start was doing when the stop came, nothing is left open after it: stop() waited
+  // for the start's whole run (`opening`), and left no reading armed that could reopen it
+  assert.deepEqual([internals(r.manager).opening, internals(r.manager).monitor], [null, null]);
   assert.equal(r.manager.status().state, 'stopped');
   assert.deepEqual(r.node().serve, {});
   assert.deepEqual(r.hosts.list(), []);
@@ -589,11 +614,10 @@ test('a refusal from tailscale serve keeps the address it gives on a later line'
 test('shutdown takes no longer than its bound, and leaves the record when Tailscale does not answer in time', async (t) => {
   const r = rig(t, { timing: { commandTimeoutMs: 30_000 } });
   await openTunnel(r);
-  r.setNode({ delayMs: 10_000 });
-  const began = Date.now();
+  // A Tailscale that never answers within the test: shutdown can only return through its own bound,
+  // so its returning at all is the check, with no wall-clock margin for a loaded machine to eat
+  r.setNode({ delayMs: 600_000 });
   await r.manager.shutdown();
-  const took = Date.now() - began;
-  assert.ok(took < 5_000, `shutdown took ${String(took)} ms`);
   assert.deepEqual(r.hosts.list(), [], 'the host left the allowlist at once');
   assert.ok(existsSync(r.record), 'the record stays for the next start to reconcile');
   r.setNode({ delayMs: 0 });

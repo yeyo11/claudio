@@ -62,7 +62,7 @@ after(async () => {
   delete process.env.CLAUDIO_FAKE_CLI_LOG;
   delete process.env.CLAUDIO_FAKE_CLI_MCP;
   core.runtime.stopAll();
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   rmSync(root, { recursive: true, force: true });
 });

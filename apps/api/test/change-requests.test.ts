@@ -42,7 +42,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -265,7 +265,7 @@ test("a chat's token reads the checks but cannot re-run, cancel, play or fix", a
     assert.equal(read.statusCode, 404);
   } finally {
     await guarded.close();
-    guardedCore.shutdown();
+    await guardedCore.shutdown();
     rmSync(secured, { recursive: true, force: true });
   }
 });

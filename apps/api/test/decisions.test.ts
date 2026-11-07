@@ -42,7 +42,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 const row = (id: string, over: Partial<DecisionRecord> = {}): DecisionRecord => ({
