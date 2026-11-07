@@ -528,7 +528,6 @@ const guardedPath = (path: string): boolean => path === '/openapi.json' || path 
  */
 const isGuarded = (routeUrl: string | undefined, path: string): boolean => (routeUrl !== undefined && guardedPath(routeUrl)) || guardedPath(path);
 
-/** The matched route keyed as `ROUTE_DOCS` keys it (`POST /chats/:id/stop`), or null for what is not an API route */
 /** The answer to a chat's token on what is the person's, naming the route's summary when it has one */
 function personRefusal(route: string | null): { error: string; code: 'chat-forbidden' } {
   const summary = route ? ROUTE_DOCS[route]?.summary : undefined;
@@ -551,6 +550,7 @@ const TYPED_COMMAND_FIELDS: Readonly<Record<string, string>> = {
   'POST /chats/:id/fork': 'prompt',
 };
 
+/** The matched route keyed as `ROUTE_DOCS` keys it (`POST /chats/:id/stop`), or null for what is not an API route */
 function apiRoute(req: FastifyRequest): string | null {
   const url = req.routeOptions.url;
   return url?.startsWith(`${API_PREFIX}/`) ? `${req.method} ${url.slice(API_PREFIX.length)}` : null;

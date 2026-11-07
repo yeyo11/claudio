@@ -332,7 +332,9 @@ test('a limit replay says each waiting message goes on, under the id the page kn
   const r = rig();
   try {
     const chat = r.chats.start({ prompt: `HOLD ${r.file('f1')}` });
-    await until(() => r.ops().some((o) => o.op === 'turn'), 'the first turn');
+    // Taken as Claudio reads it, not as the fake logs it: under load the fake's line comes first, the
+    // first prompt is still waiting when the replay runs, and it is carried as well
+    await until(() => r.deliveries(chat.id).some((d) => d.state === 'delivered'), 'the first turn');
     const later = r.chats.sendMessage(chat.id, 'written during it');
     await until(() => r.ops().some((o) => o.op === 'enqueue'), 'the CLI to queue it');
     assert.equal(await r.chats.replayLastTurn(chat.id), true);
@@ -348,7 +350,8 @@ test('a replay with a turn of the caller keeps what waited, after that turn and 
   const r = rig();
   try {
     const chat = r.chats.start({ prompt: `HOLD ${r.file('f1')}` });
-    await until(() => r.ops().some((o) => o.op === 'turn'), 'the first turn');
+    // Taken as Claudio reads it, as in the test above: a first prompt still waiting would go again
+    await until(() => r.deliveries(chat.id).some((d) => d.state === 'delivered'), 'the first turn');
     const waiting = r.chats.sendMessage(chat.id, 'still waiting');
     await until(() => r.ops().some((o) => o.op === 'enqueue'), 'the CLI to queue it');
     assert.equal(await r.chats.replayWith(chat.id, 'resume the workflow from its cache'), true);

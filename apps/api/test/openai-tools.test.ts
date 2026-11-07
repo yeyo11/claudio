@@ -125,7 +125,7 @@ const RECHECK_MS = 250;
  * change is seen when it happens rather than on the next poll; `check` may act (a removal that
  * succeeds once the chat is idle), which is why it runs again on each wake.
  */
-async function until(check: () => boolean): Promise<void> {
+async function until(check: () => boolean, state?: () => unknown): Promise<void> {
   if (check()) return;
   let wake = (): void => undefined;
   const stopEvents = core.events.observe(() => wake());
@@ -134,7 +134,7 @@ async function until(check: () => boolean): Promise<void> {
   const deadline = performance.now() + WAIT_BUDGET_MS;
   try {
     while (!check()) {
-      if (performance.now() > deadline) assert.fail('timed out waiting');
+      if (performance.now() > deadline) assert.fail(`timed out waiting${state ? `: ${JSON.stringify(state())}` : ''}`);
       await new Promise<void>((resolve) => (wake = resolve));
     }
   } finally {
@@ -452,8 +452,13 @@ test('a result for a chat whose process died resumes it cold with --resume, the 
   assert.equal(resumed?.resume, chatId);
   assert.match(resumed?.prompt ?? '', /restarted/);
   assert.match(resumed?.prompt ?? '', new RegExp(`<tool-result id="${id}">\\nthe value\\n</tool-result>`));
-  // The resumed process serves the stub again, for the next calls (the fake logs it after the turn's result)
-  await until(() => logged(chatId).filter((l) => l.stub).length === 2);
+  // The resumed process serves the stub again, for the next calls (the fake logs it after the turn's
+  // result). Its own line is the check: the killed process writes its line in the tick after it hands
+  // the calls over, so under load the SIGKILL can land first and a count of every line never reaches 2
+  await until(
+    () => logged(chatId).some((l) => l.stub !== undefined && l.pid === resumed?.pid),
+    () => logged(chatId).map((l) => ({ pid: l.pid, resume: l.resume, stub: l.stub !== undefined, prompt: l.prompt?.slice(0, 60) })),
+  );
   assert.equal(core.runtime.get(chatId)?.permissionPrompts, 'host');
 });
 
