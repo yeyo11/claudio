@@ -819,31 +819,58 @@ test("an open wrapper stays open and labels a chat's writes as the chat, and a t
   assert.deepEqual(entries.map((entry) => entry.actor), ['local', 'chat:chat-42', 'chat:chat-42']);
 });
 
-test("a chat's token reads the context routes, compacts and asks for a note, but cannot delete one", async (t) => {
+test("a chat's token reads the context routes, but compacting and notes are the person's, typed or not", async (t) => {
   const { app, core } = await wrapper();
   t.after(() => app.close());
   const owner = await withToken(app);
   const token = core.security.chatTokens.mint('chat-42');
-  // Through the guard: the chat does not exist, which is a 404 and not a 403. A compact or a note is
-  // a turn of the chat's work, like the messages a chat's token sends (C1), typed or not
+  // Through the guard: the chat does not exist, which is a 404 and not a 403
+  for (const [method, url] of [
+    ['GET', '/api/chats/nope/context'],
+    ['GET', '/api/chats/nope/compactions'],
+    ['GET', '/api/chats/nope/notes'],
+  ] as const) {
+    assert.equal((await app.inject({ method, url, ...fromChat(token) })).statusCode, 404, `${method} ${url}`);
+  }
+  // Compacting rewrites the person's conversation (owner's decision, 2026-11-07): the routes, and a
+  // `/compact` that starts the text of a turn on any route that carries one, are refused before the
+  // chat is even looked up
   for (const [method, url, body] of [
-    ['GET', '/api/chats/nope/context', undefined],
-    ['GET', '/api/chats/nope/compactions', undefined],
-    ['GET', '/api/chats/nope/notes', undefined],
+    ['POST', '/api/chats/nope/compact', {}],
+    ['POST', '/api/chats/nope/notes', { from: 'agent' }],
+    ['POST', '/api/chats/nope/notes', { from: 'summary', entryUuid: 'e1' }],
+    ['POST', '/api/chats/nope/messages', { text: '/compact' }],
+    ['POST', '/api/chats/nope/messages', { text: '  /compact keep the plan' }],
+    ['POST', '/api/chats/nope/messages', { text: '/compact', attachments: ['u1'] }],
+    ['POST', '/api/chats/nope/resume', { prompt: '/compact' }],
+    ['POST', '/api/chats/nope/fork', { prompt: '/compact the tests' }],
+    ['DELETE', '/api/chats/nope/notes/n1', undefined],
+  ] as const) {
+    const res = await app.inject({ method, url, ...(body === undefined ? fromChat(token) : fromChatWith(token, body)) });
+    assert.equal(res.statusCode, 403, `${method} ${url} ${JSON.stringify(body)}`);
+    assert.equal(res.json().code, 'chat-forbidden', `${method} ${url}`);
+  }
+  assert.match((await app.inject({ method: 'POST', url: '/api/chats/nope/messages', ...fromChatWith(token, { text: '/compact' }) })).json().error, /compact a chat now/);
+  // Only the command is refused: a message that mentions it, or another command, is the chat's work
+  for (const text of ['please /compact later', '/compacting', '/clear']) {
+    assert.equal((await app.inject({ method: 'POST', url: '/api/chats/nope/messages', ...fromChatWith(token, { text }) })).statusCode, 404, text);
+  }
+  // The person's own, typed or not, still reach the routes
+  for (const [method, url, body] of [
     ['POST', '/api/chats/nope/compact', {}],
     ['POST', '/api/chats/nope/notes', { from: 'agent' }],
     ['POST', '/api/chats/nope/messages', { text: '/compact' }],
+    ['POST', '/api/chats/nope/resume', { prompt: '/compact' }],
+    ['DELETE', '/api/chats/nope/notes/n1', undefined],
   ] as const) {
-    assert.equal((await app.inject({ method, url, ...(body === undefined ? fromChat(token) : fromChatWith(token, body)) })).statusCode, 404, `${method} ${url}`);
+    const res = await app.inject({ method, url, ...(body === undefined ? bearer(owner) : authed(owner, body)) });
+    assert.equal(res.statusCode, 404, `${method} ${url}`);
   }
-  // Every DELETE is the person's
-  const removed = await app.inject({ method: 'DELETE', url: '/api/chats/nope/notes/n1', ...fromChat(token) });
-  assert.equal(removed.statusCode, 403);
-  assert.equal(removed.json().code, 'chat-forbidden');
-  assert.equal((await app.inject({ method: 'DELETE', url: '/api/chats/nope/notes/n1', ...bearer(owner) })).statusCode, 404);
 });
 
 test("an open wrapper lets a chat's token compact, labelled as the chat", async (t) => {
+  // With authentication off no class is enforced (a `person` route included), so neither is the
+  // typed command: the refusal holds exactly where the compact route's does
   const { app, core } = await wrapper();
   t.after(() => app.close());
   const token = core.security.chatTokens.mint('chat-42');
