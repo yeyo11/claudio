@@ -77,6 +77,11 @@ test('a resume or a fork on a model the provider does not list is a 400 model-un
     assert.equal(body.code, 'model-unknown', action);
     assert.match(body.error, /claude-made-up-9 is not one this provider lists/);
   }
+  // A chat nobody knows is a 404 first, whatever model it names
+  for (const action of ['resume', 'fork']) {
+    const missing = await app.inject({ method: 'POST', url: `/api/chats/no-such-chat/${action}`, ...json({ prompt: 'again', model: 'claude-made-up-9' }) });
+    assert.equal(missing.statusCode, 404, `${action}: ${missing.body}`);
+  }
   assert.equal(core.runtime.list().length, chats, 'no fork was made');
   assert.equal(core.runtime.get(id)?.executions.length, executions, 'no execution was added');
   assert.equal(core.runtime.get(id)?.pid, null, 'no process was started');

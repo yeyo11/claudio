@@ -991,7 +991,10 @@ export class ChatService {
    * continuations (a flow member, the assistant, a compaction) run on models their starter chose.
    */
   async checkModelOf(id: string, asked: ProviderId | undefined, model: string): Promise<void> {
-    await this.checkModel(this.deps.runtime.get(id)?.provider ?? asked, model);
+    const live = this.deps.runtime.get(id);
+    // A chat nobody knows is a 404 whatever it names, as the resume or fork itself answers it
+    if (!live && !(await this.summaryOf(id))) throw new ChatNotFoundError();
+    await this.checkModel(live?.provider ?? asked, model);
   }
 
   /**

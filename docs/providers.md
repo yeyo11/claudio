@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-10-20T12:00:00Z
+updated_at: 2026-11-07T00:00:00Z
 tags:
     - providers
     - detection
@@ -138,6 +138,16 @@ The status also carries `permissionModes`: the modes the driver honours, in the 
 so a picker offers only those. The models the CLI offers are cached in `provider-catalogs.json` in
 the data directory (rewritten whole) and served by `GET /providers/:id/models`; the next run starts
 from that file, so the picker is not empty before the first read.
+
+A model a person names is checked against that list before anything starts (`ChatService.checkModel`):
+`POST /chats`, and `POST /chats/:id/resume` and `/fork` on the chat's own provider (`checkModelOf`),
+answer `400 model-unknown` for one the provider does not list; with no list read yet nothing is
+refused. Claudio's own continuations (a flow member, the assistant, a compaction) run on the models
+their starter chose and are not checked. A model the CLI refuses all the same (one the account lost,
+or a chat resumed on a model since retired) is read from the stream: Claude Code answers with a
+synthetic message whose `error` is `model_not_found` (`SDKAssistantMessageError` in the Agent SDK) and
+a failed result, and the execution fails with `model-rejected: …` and its process ends, where it used
+to go idle and look healthy.
 
 Claude Code's probes reuse `detectCli` and `getAuthStatus` in `packages/core/src/cli.ts`, and
 `/health` keeps its shape (`cli`, `loggedIn`), read from the Claude provider's status.
