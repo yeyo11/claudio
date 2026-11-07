@@ -198,8 +198,9 @@ red until the owner authorises the push and the remote e2e run below.
 
 - **The push and the remote runs.** `ci-terminal` could not push (denied). `pnpm e2e:remote terminal
   usage mobile` three times in a row on the pushed branch is the mark that "main is green" and has
-  not happened. No e2e spec changed by any task has been run: `terminal*`, `usage`,
-  `schedule-prompt`, `security`, and the `home`, `tasks` and `changes` gates of `web-hygiene`.
+  not happened. On this machine the review's `e2e` gate passed `security`, `usage`, `schedule-prompt`,
+  `home`, `tasks`, `changes` and `mobile`. The four `terminal*` specs are refused there with `403
+  terminal.from-agent` (§1.1), so they only run on GitHub.
 - **`mobile.spec` fails only on Dependabot #87**, probably `@tanstack/react-virtual` 3.14.26 with
   `VirtualList.tsx`. It is not touched: it depends on that lockfile.
 - **R22 does not prevent the incident at the default cap.** At 1 USD no chunk is split: the
