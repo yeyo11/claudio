@@ -31,7 +31,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('Claude Code is listed with a status, and one by id', async () => {

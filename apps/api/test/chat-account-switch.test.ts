@@ -63,7 +63,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('an idle chat moves at once, and the chat reads back its account', async () => {

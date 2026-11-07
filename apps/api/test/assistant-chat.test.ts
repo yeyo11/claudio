@@ -40,7 +40,7 @@ before(async () => {
 
 after(async () => {
   delete process.env.FAKE_CLAUDE_SPAWNS;
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   rmSync(root, { recursive: true, force: true });
 });

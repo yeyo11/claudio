@@ -37,7 +37,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test("GET /accounts/:id/models is the account's list from the CLI, and a token account lacks Opus", async () => {

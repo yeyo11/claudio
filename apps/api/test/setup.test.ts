@@ -38,7 +38,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -166,7 +166,7 @@ test('the Tailscale the image runs signs in with an auth key that no answer or e
   const api = await buildApp(managed, { logLevel: 'silent', webDist: join(dir, 'no-ui') });
   t.after(async () => {
     await api.close();
-    managed.shutdown();
+    await managed.shutdown();
     if (saved === undefined) delete process.env.FAKE_TAILSCALE_STATE;
     else process.env.FAKE_TAILSCALE_STATE = saved;
     rmSync(dir, { recursive: true, force: true });

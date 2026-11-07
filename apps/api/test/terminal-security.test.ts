@@ -52,7 +52,7 @@ async function wrapper(t: TestContext, options: { env?: NodeJS.ProcessEnv; verdi
   if (verdict !== 'real') core.terminals.peer.check = () => verdict;
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
     rmSync(root, { recursive: true, force: true });
   });

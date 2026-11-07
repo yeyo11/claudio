@@ -43,7 +43,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('an empty project is offered its template team, and each member is accepted or discarded on its own', async () => {

@@ -55,7 +55,7 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
   await app.listen({ port: 0, host: '127.0.0.1' });
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
     if (saved === undefined) delete process.env.FAKE_TAILSCALE_STATE;
     else process.env.FAKE_TAILSCALE_STATE = saved;

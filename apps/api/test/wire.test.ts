@@ -31,7 +31,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('an answer is compressed for a client that accepts it, and plain for one that does not', async () => {
