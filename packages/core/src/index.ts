@@ -3766,7 +3766,7 @@ export class Core {
    */
   accountView(now: number = Date.now()): AccountView {
     const accounts = this.accounts.list(now);
-    const choice = this.accounts.pick({ current: null, now });
+    const choice = this.accounts.pick({ current: null, now, accounts });
     const account = choice.account ? accounts.find((a) => a.id === choice.account) : undefined;
     const ready = accounts.filter((a) => a.enabled && a.signedIn);
     const out = ready.filter((a) => isOut(a.limits, now));

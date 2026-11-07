@@ -562,11 +562,20 @@ export class AccountStore {
    * read is given the benefit of the doubt: the first turn would tell, and `warmModels` reads them.
    */
   canRun(id: string, model: string): boolean {
+    return this.canRunAmong(id, model, this.list());
+  }
+
+  /**
+   * `canRun` against a listing already read. `pick` asks it of every candidate, and a fresh `list()`
+   * per candidate read every account's files once per account (R12 of
+   * docs/plans/ci-and-regression-open.md).
+   */
+  private canRunAmong(id: string, model: string, accounts: readonly Account[]): boolean {
     const listed = this.modelCache.cached(id);
     if (!listed || offers(listed, model)) return true;
     // A name no account lists (a model id a chat reported, a custom endpoint's model) is not one the
     // lists can speak for: refusing it everywhere would only stop the chat
-    return !this.list().some((a) => {
+    return !accounts.some((a) => {
       const other = a.id === id ? null : this.modelCache.cached(a.id);
       return !!other && offers(other, model);
     });
@@ -744,11 +753,16 @@ export class AccountStore {
 
   // ---------- choosing ----------
 
-  /** `choose` over this machine's accounts and their latest readings. */
-  pick(opts: Omit<ChooseOptions, 'now'> & { now?: number } = { current: null }): Choice {
-    const now = opts.now ?? Date.now();
-    const accounts = this.list(now);
+  /**
+   * `choose` over this machine's accounts and their latest readings. `accounts` is a `list(now)` the
+   * caller has already read, which is then the only listing: `accountView` shows the accounts and
+   * picks among the same ones, and it used to read every account's files twice per view (R12).
+   */
+  pick(opts: Omit<ChooseOptions, 'now'> & { now?: number; accounts?: readonly Account[] } = { current: null }): Choice {
+    const { accounts: given, ...rest } = opts;
+    const now = rest.now ?? Date.now();
+    const accounts = given ?? this.list(now);
     const limits = Object.fromEntries(accounts.map((a) => [a.id, a.limits]));
-    return choose(accounts, limits, this.stored.settings, { canRun: (id, model) => this.canRun(id, model), ...opts, now });
+    return choose(accounts, limits, this.stored.settings, { canRun: (id, model) => this.canRunAmong(id, model, accounts), ...rest, now });
   }
 }
