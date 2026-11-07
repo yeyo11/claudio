@@ -303,6 +303,19 @@ test('the port field is editable while the tunnel is closed, and read-only while
   assert.ok(text(fromEnv).includes('CLAUDIO_TUNNEL_PORT'));
 });
 
+test('the port row has its Changed · Reset slot, worded as a literal, and none while the tunnel is open', () => {
+  const client = new QueryClient();
+  client.setQueryData(keys.settingsState, { settings: { 'remote.tunnel-port': { changed: true, source: 'stored', default: 8444 } } });
+  const closed = wrap(<TunnelPortSetting status={status('stopped', { port: 9000, portSource: 'file' })} onStatus={() => {}} />, client);
+  const row = closed.split('data-setting="remote.tunnel-port"')[1] ?? '';
+  assert.match(row, /class="pref-row-change" data-shown="true"/);
+  // A port is never grouped as a number would be
+  assert.match(row, /aria-label="[^"]*8444[^"]*"/);
+  const open = wrap(<TunnelPortSetting status={status('active', { port: 9000, portSource: 'file' })} onStatus={() => {}} />, client);
+  assert.match(open, /data-setting="remote.tunnel-port"/, 'the row stays findable by settings search');
+  assert.doesNotMatch(open, /pref-row-change/, 'the server refuses a Reset while the tunnel is open');
+});
+
 test('every reason the tunnel can give has its sentence in both languages', () => {
   const source = readFileSync(new URL('../../../packages/core/src/tunnel.ts', import.meta.url), 'utf8');
   const codes = [...source.matchAll(/reason\('tunnel\.(\w+)'/g)].map((m) => m[1]);

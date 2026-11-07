@@ -11,7 +11,7 @@ import { DEFAULT_LESSON_SETTINGS, type LessonSettingsStore } from './lessons/set
 import { DEFAULT_APP_SETTINGS } from './paths.ts';
 import { defaultRotationSettings, type ProvidersSettingsStore } from './providers/settings.ts';
 import { DEFAULT_COLLABORATORS_SETTINGS } from './collab/settings.ts';
-import type { TunnelManager } from './tunnel.ts';
+import { TunnelRefusedError, type TunnelManager } from './tunnel.ts';
 import type { LanListener } from './lan.ts';
 
 /*
@@ -72,7 +72,7 @@ export interface SettingsRegistryDeps {
     settingDefaults(): TerminalSettings;
     resetSettings(paths: readonly SettingPath[]): Promise<unknown>;
   };
-  tunnel: Pick<TunnelManager, 'status' | 'startStored' | 'defaultSettings' | 'resetSettings'>;
+  tunnel: Pick<TunnelManager, 'status' | 'startStored' | 'settingsView' | 'defaultSettings' | 'resetSettings'>;
   lan: Pick<LanListener, 'status' | 'sources' | 'defaultSettings' | 'resetSettings'>;
   accounts: Pick<AccountStore, 'settings' | 'storedSettingKeys' | 'resetSettings'>;
   collaborators: Pick<CollaboratorsService, 'currentSettings' | 'storedSettings' | 'resetSettings'>;
@@ -252,6 +252,25 @@ export function createSettingsRegistry(deps: SettingsRegistryDeps): SettingsRegi
     },
     reset: async () => {
       await deps.tunnel.resetSettings();
+    },
+  };
+
+  fixed['remote.tunnel-port'] = {
+    read: () => {
+      // `startStored` reads the file again, so a value another page or a hand edit wrote is seen
+      deps.tunnel.startStored();
+      const view = deps.tunnel.settingsView();
+      const source = view.sources.port;
+      return { stored: source === 'file', value: view.settings.port, default: view.defaults.port, source: sourceOf(source === 'env', source === 'file') };
+    },
+    reset: async () => {
+      try {
+        await deps.tunnel.resetSettings(['port']);
+      } catch (error) {
+        // The tunnel's refusal carries its reason as a localized code; the row answers with that code
+        if (error instanceof TunnelRefusedError) throw new SettingsError(error.message, error.statusCode, error.reason.code);
+        throw error;
+      }
     },
   };
 
