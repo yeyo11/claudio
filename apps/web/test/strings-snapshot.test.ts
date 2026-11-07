@@ -1,5 +1,8 @@
-// Drift net for the web packages split: moving a key between namespaces keeps this multiset,
-// changing, dropping or duplicating a string breaks it. No task may update the fixture.
+// Drift net over every UI string: moving a key between namespaces keeps this multiset, while
+// changing, dropping or duplicating a string breaks it. It began as the guard of the web packages
+// split; today a commit that adds, changes or removes copy updates test/fixtures/strings.json in the
+// same commit (both languages, kept sorted), and the reviewer reads that diff as the list of copy the
+// change touched. What the net catches is a string lost or altered by a change that did not mean to.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
