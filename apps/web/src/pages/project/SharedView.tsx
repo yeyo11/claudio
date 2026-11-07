@@ -20,8 +20,8 @@ import { columnMeta, workItemLiveState } from '../../lib/work-items';
 import { DocumentView } from '../documents/Pane';
 import { dayGroups } from '../home/memory/model';
 import { useRoleName } from '../team/RoleAvatar';
-import { chatsThatRead, useCopyReadsToday } from '../../lib/api/collaborators';
-import { collaboratorsApi, collaboratorsKeys, useSharedWith, type SharedRef } from './shared-data';
+import { chatsThatRead, collaboratorsApi, collaboratorsKeys, useCopyReadsToday, type SharedRef } from '../../lib/api/collaborators';
+import { useSharedWith } from './shared-data';
 import { settingsHref } from '../config/settingsGroups';
 
 /**

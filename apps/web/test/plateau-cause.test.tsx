@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Project, ProjectFlowSettings, Team, TeamMember } from '@claudio/shared';
+import { WORK_ITEM_CHAT_WRITE_CAUSE } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -89,6 +90,18 @@ test("the item's history gives the plateau its own sentence and cause, in both l
   await i18n.changeLanguage('es');
   assert.equal(i18n.t('workItem:history.waitingPlateau'), 'Te espera: dos rondas sin mejora');
   assert.equal(i18n.t('workItem:cause.flowPlateau'), 'sin mejora en dos rondas');
+});
+
+test("a write made with a chat's token has its own cause in the item's history, in both languages", async () => {
+  const cause = { kind: 'chat' as const, chatId: '4c1d0e22', orchestrationId: null, taskId: null, event: WORK_ITEM_CHAT_WRITE_CAUSE };
+  // It fell back to cause.other ("a chat or an orchestration did it"), which hid the chat that wrote
+  const line = causeLine(cause);
+  assert.equal(line?.key, 'cause.apiWrite');
+  assert.equal(line?.values.chat, '4c1d0e');
+  await i18n.changeLanguage('en');
+  assert.equal(i18n.t('workItem:cause.apiWrite', { chat: '4c1d0e' }), "chat 4c1d0e wrote it through Claudio's API");
+  await i18n.changeLanguage('es');
+  assert.equal(i18n.t('workItem:cause.apiWrite', { chat: '4c1d0e' }), 'lo escribió el chat 4c1d0e por la API de Claudio');
 });
 
 test('the Flow screen has a three-value control for the plateau rule: observe by default, stop, off, in both languages', async () => {

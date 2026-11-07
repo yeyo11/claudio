@@ -65,6 +65,13 @@
   color: var(--fg-3);
 }
 
+/* The same place in plain words (Tailscale's "On the tailnet as …"): the literal inside it is a .mono
+   span, and the line wraps instead of being cut */
+.prov-meta.is-prose {
+  font-family: var(--sans);
+  overflow-wrap: anywhere;
+}
+
 .prov-state {
   display: flex;
   flex-direction: column;
@@ -139,7 +146,7 @@
   min-width: 0;
 }
 
-.prov-cell-head .prov-meta {
+.prov-cell-head .prov-meta:not(.is-prose) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

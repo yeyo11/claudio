@@ -24,7 +24,14 @@ export const ROUTES = [
     ],
   },
   { path: '/projects' },
-  { path: '/tasks' },
+  {
+    path: '/tasks',
+    interactions: [
+      // Selection mode: the head's Select is pressed and the selection bar comes up below; the board keeps its place
+      async (page) => page.click('.workitem-select'),
+      async (page) => page.click('.workitem-select'),
+    ],
+  },
   { path: '/orchestration' },
   { path: '/accounts' },
   { path: '/usage' },
