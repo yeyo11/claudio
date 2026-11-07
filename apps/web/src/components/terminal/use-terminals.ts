@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CreateTerminalRequest, Terminal, TerminalChangedEvent, TerminalStatus } from '@claudio/shared';
 import { useToast } from '@claudio/ui/components/Toast';
 import { useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
-import { useClaudioEvents, useFallbackInterval } from '../../lib/feed';
+import { subscribeEvents, useFallbackInterval } from '../../lib/feed';
 import { orderTerminals } from './terminal-model';
 
 /** Which terminals a list is of: a project's (any of its directories), one chat's, or all of them. */
@@ -37,12 +37,41 @@ export function applyTerminalEvent(queryClient: QueryClient, event: Pick<Termina
   }
 }
 
+const feeds = new WeakMap<QueryClient, { readers: number; stop: () => void }>();
+
+/**
+ * One subscription to `terminal.changed` per query client, held while any component reads the
+ * status; returns what lets go of it. Every reader used to subscribe on its own (five on the desktop
+ * shell with the dock open), so each event was applied five times in one tick, and each invalidation
+ * cancelled the fetch the one before it had just started: four aborted `GET /terminal` and
+ * `GET /terminals` pairs per event, each still a peer check on the server.
+ */
+export function shareTerminalFeed(queryClient: QueryClient): () => void {
+  let feed = feeds.get(queryClient);
+  if (!feed) {
+    const stop = subscribeEvents((event) => {
+      if (event.type === 'terminal.changed') applyTerminalEvent(queryClient, event);
+    });
+    feed = { readers: 0, stop };
+    feeds.set(queryClient, feed);
+  }
+  feed.readers += 1;
+  const held = feed;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    held.readers -= 1;
+    if (held.readers > 0) return;
+    held.stop();
+    if (feeds.get(queryClient) === held) feeds.delete(queryClient);
+  };
+}
+
 /** The feature's state and the lists, kept fresh by `terminal.changed` */
 function useTerminalFeed(): void {
   const queryClient = useQueryClient();
-  useClaudioEvents((event) => {
-    if (event.type === 'terminal.changed') applyTerminalEvent(queryClient, event);
-  });
+  useEffect(() => shareTerminalFeed(queryClient), [queryClient]);
 }
 
 export function useTerminalStatus() {

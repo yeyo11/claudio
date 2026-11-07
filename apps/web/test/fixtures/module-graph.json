@@ -597,7 +597,7 @@
   "usage-history [AccountSeries, Frame, GAP_MS, Reading, SeriesSummary, USAGE_RANGES, UsageRange, pathOf, seriesOf, sinceOf, summarise, xOf, yOf]",
   "usage-now [usageDay, useUsageNow]",
   "usage-view [RangePreset, UsageMetric, bucketFor, customRangeError, labelStride, metricValue, niceScale, presetRange, sumMetric, topSlices]",
-  "use-terminals [TerminalScopeKey, applyTerminalEvent, scopeKey, useCloseTerminal, useOpenTerminal, useTerminalAccess, useTerminalList, useTerminalOne, useTerminalStatus]",
+  "use-terminals [TerminalScopeKey, applyTerminalEvent, scopeKey, shareTerminalFeed, useCloseTerminal, useOpenTerminal, useTerminalAccess, useTerminalList, useTerminalOne, useTerminalStatus]",
   "use-width [useWidth]",
   "useEpicProgress [useEpicProgress]",
   "useHomeLayout [HomeLayout, useHomeLayout]",
