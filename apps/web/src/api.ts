@@ -962,6 +962,9 @@ export const api = {
   checkGuard: (body: GuardCheckRequest) => request<GuardCheckResult>('/guards/check', { method: 'POST', body }),
   audit: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
     request<AuditPage>(`/audit${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
+  /** The writes refused before their caller was identified, kept apart from the log in a ring of 1 000 */
+  auditRefusals: (page: AuditFilter & { limit?: number; from?: number } = {}) =>
+    request<AuditPage>(`/audit/refusals${qs({ limit: num(page.limit), from: num(page.from), path: page.path, method: page.method, status: page.status })}`),
   /** `refresh` asks the CLI again instead of reading the 60 seconds it keeps the answer for */
   connectors: (refresh = false) => request<ConnectorsOverview>(`/connectors${qs({ refresh: refresh ? 'true' : '' })}`, { timeoutMs: 100_000 }),
   /** Starts the CLI's sign-in for a connector; the id has spaces (`claude.ai Gmail`), so it is encoded */
@@ -1492,6 +1495,8 @@ export const keys = {
   auditAll: ['security', 'audit'] as const,
   audit: (page: AuditFilter & { from?: number }) =>
     ['security', 'audit', page.from ?? 0, page.path ?? '', page.method ?? '', page.status ?? ''] as const,
+  /** Under the audit's prefix, so what refreshes the log refreshes the refusals beside it */
+  auditRefusals: (page: { from?: number }) => ['security', 'audit', 'refusals', page.from ?? 0] as const,
   // ---- the project ecosystem. Every work item read sits under `workItems` or `workItemDetails`, and
   // milestones under `milestonesAll`, so the event feed (lib/events.ts) reaches exactly the ones an
   // event touches by prefix.

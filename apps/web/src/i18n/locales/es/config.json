@@ -288,7 +288,13 @@
       },
       "showPath": "Mostrar la ruta completa",
       "hidePath": "Ocultar la ruta completa",
-      "noRoute": "Ninguna ruta coincide con esta petición"
+      "noRoute": "Ninguna ruta coincide con esta petición",
+      "refusals": {
+        "title": "Rechazadas antes de identificar",
+        "intro": "Escrituras rechazadas antes de saber quién llamaba: sin credencial o con una incorrecta, un nombre al que este wrapper no responde, un cliente al que se hizo esperar o una petición desde otro sitio. Se guardan aparte, las {{kept}} más recientes, para que quien llegue al puerto no pueda sacar del registro lo que hicieron quienes sí se identificaron.",
+        "none": "Nada rechazado",
+        "noneHint": "Aquí aparecerá una escritura rechazada antes de identificar a quien la hizo."
+      }
     }
   },
   "scope": {
