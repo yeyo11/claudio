@@ -1,5 +1,6 @@
 import { mkdir, open, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep, isAbsolute } from 'node:path';
+import type { WorkspaceSkippedEntry } from '@claudio/shared';
 import { refuse } from './refusal.ts';
 
 /**
@@ -7,7 +8,9 @@ import { refuse } from './refusal.ts';
  * filters: the archive comes from outside, and every entry has to be judged on its final name (after
  * PAX and GNU long names) before a byte of it is written. Here that is one loop with nothing behind
  * it that writes on its own; it reads ustar, PAX (`x`, `g`) and GNU long names (`L`, `K`), which is
- * what GitHub and `git archive` produce, and refuses everything else.
+ * what GitHub and `git archive` produce, and refuses everything else. A link (symbolic or hard) is
+ * skipped rather than refused: real repositories hold them (a fake `gh` pointing at its script), and
+ * the workspace never needs one. It is never created, and its name is judged like any other.
  */
 
 export interface ExtractOptions {
@@ -17,9 +20,17 @@ export interface ExtractOptions {
   onBytes?: (bytes: number) => void;
 }
 
+export type SkippedEntry = WorkspaceSkippedEntry;
+
+/** At most this many skipped entries are listed; `skippedCount` says how many there were */
+export const MAX_SKIPPED_LISTED = 100;
+
 export interface ExtractResult {
   bytes: number;
   files: number;
+  /** The links left out, the first `MAX_SKIPPED_LISTED` of them */
+  skipped: SkippedEntry[];
+  skippedCount: number;
   /** The single top-level directory, when that is all the archive holds (GitHub's `owner-repo-sha/`) */
   topDir: string | null;
 }
@@ -141,9 +152,12 @@ function paxRecords(body: Buffer): Record<string, string> {
   return out;
 }
 
+const LINKS: Record<string, SkippedEntry['kind']> = {
+  '1': 'hard-link',
+  '2': 'symbolic-link',
+};
+
 const KINDS: Record<string, string> = {
-  '1': 'hard link',
-  '2': 'symbolic link',
   '3': 'character device',
   '4': 'block device',
   '6': 'FIFO',
@@ -177,6 +191,8 @@ export async function extractTar(source: AsyncIterable<Buffer>, dest: string, op
   let bytes = 0;
   let files = 0;
   let entries = 0;
+  const skipped: SkippedEntry[] = [];
+  let skippedCount = 0;
   let pax: Record<string, string> = {};
   let longName: string | null = null;
   let metas = 0;
@@ -213,7 +229,8 @@ export async function extractTar(source: AsyncIterable<Buffer>, dest: string, op
       if (type === 'x') pax = { ...pax, ...paxRecords(body) };
       else if (type === 'L') longName = text(body, 0, body.length);
       // `g` sets defaults for the archive (GitHub's carries the commit) and `K` a link's target: a
-      // link is refused when its entry comes, and no default changes what is extracted
+      // link is skipped when its entry comes, so its target is never read, and no default changes
+      // what is extracted
       continue;
     }
     metas = 0;
@@ -231,6 +248,19 @@ export async function extractTar(source: AsyncIterable<Buffer>, dest: string, op
 
     const kind = KINDS[type];
     if (kind) throw bad(`'${shown(name)}' is a ${kind}: only regular files and directories are extracted`);
+    const link = LINKS[type];
+    if (link) {
+      // Its name passes every check a file's does: a link named to climb out is a hostile archive
+      const rel = entryPath(name, dest);
+      if (++entries > opts.maxEntries) throw refuse('workspace-too-large', `the archive holds more than ${String(opts.maxEntries)} entries`);
+      // A link has no body: one that claims a size is not what any tar writes
+      if (size !== 0) throw bad(`'${shown(name)}' is a link that claims a body`);
+      if (rel) {
+        skippedCount++;
+        if (skipped.length < MAX_SKIPPED_LISTED) skipped.push({ path: rel, kind: link });
+      }
+      continue;
+    }
     if (type !== '0' && type !== '7' && type !== '5') throw bad(`'${shown(name)}' is an entry of a kind Claudio does not extract`);
     const rel = entryPath(name, dest);
     if (++entries > opts.maxEntries) throw refuse('workspace-too-large', `the archive holds more than ${String(opts.maxEntries)} entries`);
@@ -270,7 +300,7 @@ export async function extractTar(source: AsyncIterable<Buffer>, dest: string, op
 
   const top = await readdir(dest, { withFileTypes: true });
   const only = top.length === 1 ? top[0] : undefined;
-  return { bytes, files, topDir: only?.isDirectory() ? only.name : null };
+  return { bytes, files, skipped, skippedCount, topDir: only?.isDirectory() ? only.name : null };
 }
 
 /** Whether `path` is `root` or inside it, by name: the caller has resolved both */

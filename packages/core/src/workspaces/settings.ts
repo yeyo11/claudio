@@ -11,8 +11,16 @@ export interface WorkspaceSettings {
   maxExtractedBytes: number;
   /** Regular files and directories, together */
   maxEntries: number;
-  /** Download and extraction together */
+  /**
+   * How long the archive may go without a byte arriving (`CLAUDIO_WORKSPACE_TIMEOUT_SECONDS`): a
+   * stalled source is cut, a slow but steady one is not
+   */
   timeoutMs: number;
+  /**
+   * Download and extraction together, however steady the bytes (`CLAUDIO_WORKSPACE_MAX_SECONDS`).
+   * Never shorter than `timeoutMs`
+   */
+  maxDurationMs: number;
   /** Workspaces at once, the ones being created included */
   maxCount: number;
   /** Bytes under the root, every workspace together */
@@ -83,13 +91,15 @@ export function workspaceSettingsFromEnv(
     if (overlaps(root, resolve(dir))) throw new Error(`CLAUDIO_WORKSPACES_DIR: '${root}' overlaps ${name} ('${dir}'); point it at a folder of its own`);
   }
   if (root === dirname(root)) throw new Error('CLAUDIO_WORKSPACES_DIR: the file system root cannot hold workspaces');
+  const timeoutMs = positiveInteger(env, 'CLAUDIO_WORKSPACE_TIMEOUT_SECONDS', 60) * 1000;
   return {
     root,
     hosts: hostsFrom(env.CLAUDIO_WORKSPACE_HOSTS),
     maxCompressedBytes: positiveInteger(env, 'CLAUDIO_WORKSPACE_MAX_COMPRESSED_MB', 100) * MB,
     maxExtractedBytes: positiveInteger(env, 'CLAUDIO_WORKSPACE_MAX_EXTRACTED_MB', 500) * MB,
     maxEntries: positiveInteger(env, 'CLAUDIO_WORKSPACE_MAX_FILES', 50_000),
-    timeoutMs: positiveInteger(env, 'CLAUDIO_WORKSPACE_TIMEOUT_SECONDS', 60) * 1000,
+    timeoutMs,
+    maxDurationMs: Math.max(timeoutMs, positiveInteger(env, 'CLAUDIO_WORKSPACE_MAX_SECONDS', 300) * 1000),
     maxCount: positiveInteger(env, 'CLAUDIO_WORKSPACE_MAX_COUNT', 20),
     maxTotalBytes: positiveInteger(env, 'CLAUDIO_WORKSPACES_MAX_TOTAL_MB', 2048) * MB,
     ttlMs: positiveInteger(env, 'CLAUDIO_WORKSPACE_TTL_MINUTES', 120) * 60_000,

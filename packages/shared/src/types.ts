@@ -491,6 +491,21 @@ export interface Workspace {
   state: 'creating' | 'ready' | 'removing';
 }
 
+/** A link the archive held: workspaces take regular files and directories, and leave links out */
+export interface WorkspaceSkippedEntry {
+  /** Relative to the workspace, as the archive names it */
+  path: string;
+  kind: 'symbolic-link' | 'hard-link';
+}
+
+/** What `POST /api/workspaces` answers: the workspace, and what of the archive it left out */
+export interface CreatedWorkspace extends Workspace {
+  /** The links left out, the first 100 of them; never created, whatever they pointed at */
+  skipped: WorkspaceSkippedEntry[];
+  /** How many links the archive held, listed or not */
+  skippedCount: number;
+}
+
 /** `POST /api/workspaces` with a JSON body: Claudio downloads the archive itself */
 export interface CreateWorkspaceRequest {
   /** An `https` URL of a `tar.gz` on a host of `CLAUDIO_WORKSPACE_HOSTS` */

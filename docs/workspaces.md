@@ -62,10 +62,19 @@ reading; otherwise the bytes are counted as they come.
 Claudio reads the tar itself, over `node:zlib` (`packages/core/src/workspaces/tar.ts`), rather than
 the `tar` package or GNU `tar`, whose safety depends on filters, flags and version. It reads ustar,
 PAX and GNU headers, which is what GitHub and `git archive` produce. Each entry is judged by its final
-name, after PAX and GNU long names are resolved, before a byte of it is written. The archive is
-refused whole (`400 workspace-bad-archive`) for:
+name, after PAX and GNU long names are resolved, before a byte of it is written.
 
-- a symlink, a hard link, a device or a FIFO: only regular files and directories;
+Only regular files and directories are written. A **symbolic or hard link is left out**: it is never
+created, whatever it points at, and the rest of the archive is extracted. Real repositories hold
+links (Claudio's own did: a fake `gh` pointing at its script), and refusing the whole archive for one
+made such a repository unusable. Creating answers each link it left out in `skipped` (the first 100,
+with `path` and `kind`, `symbolic-link` or `hard-link`) and `skippedCount`, and the server logs a
+line naming the workspace. A link's name is judged like a file's, so one named to climb out, or
+inside `.git`, still refuses the archive, and so does a link that claims a body.
+
+The archive is refused whole (`400 workspace-bad-archive`) for:
+
+- a device or a FIFO;
 - an absolute path, a `..`, or a name that leaves the folder once normalised;
 - a path component named `.git`, in any letter case: no history is needed, and a hostile
   `.git/config` would make git run its programs;
@@ -87,8 +96,15 @@ is left on disk.
 | Extracted, counted as bytes are written | 500 MB | `413 workspace-too-large` |
 | Entries | 50 000 | `413 workspace-too-large` |
 | Every workspace together under the root | 2 GB | `413 workspace-too-large` |
-| Download and extraction | 60 s | `408 workspace-timeout` |
+| No byte of the archive arriving (`CLAUDIO_WORKSPACE_TIMEOUT_SECONDS`) | 60 s | `408 workspace-timeout` |
+| Download and extraction in all (`CLAUDIO_WORKSPACE_MAX_SECONDS`), never shorter than the idle time | 300 s | `408 workspace-timeout` |
 | Workspaces at once, the ones being created included, reserved before the download starts | 20 | `429 workspace-limit` |
+
+The time is two clocks since 2026-11-07. Until then one 60 s clock covered download and extraction
+together, and an 81 MB tarball that arrived steadily over a slower link was refused while still
+arriving. Now a source is cut when it stalls for the idle time, and a steady one may take up to the
+overall ceiling. `CLAUDIO_WORKSPACE_TIMEOUT_SECONDS` keeps its name and its default, as the idle
+time; the refusal says which clock ran out.
 
 Other refusals: `400 workspace-host-not-allowed`, `400 workspace-address-blocked`,
 `502 workspace-download-failed`, `404 workspace-not-found`, `410 workspace-expired`, and `409` for a
