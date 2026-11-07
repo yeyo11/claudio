@@ -299,6 +299,8 @@ function init() {
     agents: [],
     skills: [],
     plugins: [],
+    // The interrupt's receipt (`still_queued`) is read only from a CLI that promises it here
+    capabilities: ['interrupt_receipt_v1'],
   });
 }
 // ---------- the hooks of --settings (g0's contract): SessionStart arms, PreToolUse can block ----------

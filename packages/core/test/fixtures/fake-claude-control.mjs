@@ -114,8 +114,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       for (const line of compactionLines(file)) out(line);
       return;
     }
-    // The CLI lists `compact` in every session (recorded, F9)
-    out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: initModel, permissionMode: reported(mode), tools: [], slash_commands: ['compact'], argv: args });
+    // The CLI lists `compact` in every session (recorded, F9), and advertises the interrupt's receipt it answers with
+    out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: process.cwd(), model: initModel, permissionMode: reported(mode), tools: [], slash_commands: ['compact'], capabilities: ['interrupt_receipt_v1'], argv: args });
     const script = /scriptPath "([^"]+)"/.exec(prompt);
     if (script) {
       // As CLI 2.1 does in -p: the tool runs in the background, so the turn ends at once and a

@@ -171,15 +171,20 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     chats.search(req.params.id, req.query.q ?? '', { includeSidechains: req.query.sidechains === '1' }),
   );
 
-  app.post<{ Params: { id: string }; Body: ResumeChatRequest }>('/chats/:id/resume', { preHandler: spendGate(core) }, (req) => {
+  app.post<{ Params: { id: string }; Body: ResumeChatRequest }>('/chats/:id/resume', { preHandler: spendGate(core) }, async (req) => {
     // A confined API chat is continued with messages while it lives, and by `/v1`; its policy is not reopened here (D14)
     if (core.runtime.get(req.params.id)?.policy) throw Object.assign(new Error('a confined API chat cannot be resumed here: start a new chat'), { statusCode: 409 });
-    return chats.resume(req.params.id, req.body ?? ({} as ResumeChatRequest));
+    const body = req.body ?? ({} as ResumeChatRequest);
+    // As for a start: a model the chat's provider does not list is refused before a process starts on it
+    if (typeof body.model === 'string') await chats.checkModelOf(req.params.id, body.provider, body.model);
+    return chats.resume(req.params.id, body);
   });
 
-  app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', { preHandler: spendGate(core) }, async (req, reply) =>
-    reply.status(201).send(await chats.fork(req.params.id, req.body ?? ({} as ForkChatRequest))),
-  );
+  app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', { preHandler: spendGate(core) }, async (req, reply) => {
+    const body = req.body ?? ({} as ForkChatRequest);
+    if (typeof body.model === 'string') await chats.checkModelOf(req.params.id, body.provider, body.model);
+    return reply.status(201).send(await chats.fork(req.params.id, body));
+  });
 
   // A person moves a chat to another account: at once when idle, after the turn when working
   app.post<{ Params: { id: string }; Body: SwitchChatAccountRequest }>('/chats/:id/account', async (req): Promise<SwitchChatAccountResponse> => {

@@ -143,6 +143,27 @@ for (const [name, drive] of Object.entries(SCENARIOS)) {
   });
 }
 
+test('a chat whose model the CLI refuses fails its execution with why, instead of going idle and looking healthy', async () => {
+  const r = rig();
+  try {
+    // A person's chat: the one that used to sit idle after the CLI's synthetic answer
+    const chat = r.chats.start({ prompt: replay('replay/model-not-found.jsonl', true), name: 'refused', model: 'claude-made-up-9' });
+    const result = await r.chats.waitForResult(chat.id);
+    assert.equal(result.isError, true);
+    await r.chats.exited(chat.id);
+    const summary = r.chats.get(chat.id);
+    assert.equal(summary?.status, 'failed');
+    assert.equal(summary?.pid, null, 'no turn of that process could run, so it is gone');
+    assert.match(summary?.error ?? '', /^model-rejected: the agent refused the model claude-made-up-9: There's an issue with the selected model \(claude-made-up-9\)/);
+    const execution = summary?.executions.at(-1);
+    assert.equal(execution?.outcome, 'failed');
+    assert.equal(execution?.error, summary?.error);
+    assert.equal(execution?.cause, undefined, 'neither a limit nor a sign-in: the rotation has nothing to do with it');
+  } finally {
+    r.close();
+  }
+});
+
 function readChat(r: Rig, id: string) {
   const summary = r.chats.get(id);
   assert.ok(summary, 'the chat is known');

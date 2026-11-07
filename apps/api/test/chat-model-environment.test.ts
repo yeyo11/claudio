@@ -61,6 +61,35 @@ test('a model the provider does not list is a 400 model-unknown, and no chat is 
   assert.equal(core.runtime.list().length, before, 'nothing was started');
 });
 
+test('a resume or a fork on a model the provider does not list is a 400 model-unknown, and nothing is started', async () => {
+  const started = await start({ model: 'sonnet' });
+  assert.equal(started.statusCode, 201, started.body);
+  const { id } = started.json<ChatSummary>();
+  await core.runtime.waitForResult(id);
+  await core.runtime.endBetweenTurns(id);
+  const chats = core.runtime.list().length;
+  const executions = core.runtime.get(id)?.executions.length;
+
+  for (const action of ['resume', 'fork']) {
+    const refused = await app.inject({ method: 'POST', url: `/api/chats/${id}/${action}`, ...json({ prompt: 'again', model: 'claude-made-up-9' }) });
+    assert.equal(refused.statusCode, 400, `${action}: ${refused.body}`);
+    const body = refused.json<{ error: string; code: string }>();
+    assert.equal(body.code, 'model-unknown', action);
+    assert.match(body.error, /claude-made-up-9 is not one this provider lists/);
+  }
+  assert.equal(core.runtime.list().length, chats, 'no fork was made');
+  assert.equal(core.runtime.get(id)?.executions.length, executions, 'no execution was added');
+  assert.equal(core.runtime.get(id)?.pid, null, 'no process was started');
+
+  // A model the provider lists goes through, both ways
+  const resumed = await app.inject({ method: 'POST', url: `/api/chats/${id}/resume`, ...json({ prompt: 'again', model: 'haiku' }) });
+  assert.equal(resumed.statusCode, 200, resumed.body);
+  await core.runtime.waitForResult(id);
+  const forked = await app.inject({ method: 'POST', url: `/api/chats/${id}/fork`, ...json({ prompt: 'in a copy', model: 'opus' }) });
+  assert.equal(forked.statusCode, 201, forked.body);
+  await core.runtime.waitForResult(forked.json<ChatSummary>().id);
+});
+
 test('an alias, the id it resolves to, the 1M context form and default are all known', async () => {
   for (const model of ['sonnet', 'claude-opus-5', 'opus[1m]', 'default']) {
     const started = await start({ model });

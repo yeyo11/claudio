@@ -13,6 +13,15 @@ export const reportedMode = (mode: string): PermissionMode => (mode === 'default
 /** The CLI's result subtype for a ceiling set with `--max-budget-usd`. */
 const BUDGET_SUBTYPE = 'error_max_budget_usd';
 
+/**
+ * The error the CLI puts on the synthetic answer it writes when the API refuses the model the session
+ * runs on (`SDKAssistantMessageError` in the Agent SDK 0.3.319, `SDKAssistantMessage.error`): a model
+ * that does not exist, or one the account has no access to. Claude Code 2.1.319 writes it for a 404
+ * from the API, and the turn's result follows as an error with that status
+ * (test/fixtures/replay/model-not-found.jsonl).
+ */
+const MODEL_NOT_FOUND = 'model_not_found';
+
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 const named = (v: unknown): Array<Record<string, unknown>> =>
   Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? { name: x } : ((x ?? {}) as Record<string, unknown>))) : [];
@@ -93,6 +102,10 @@ export class ClaudeStream {
   /** A `compacting` status is open: the one that closes it says `compacting` is over, and no other status does */
   private compacting = false;
   private readonly taskKinds = new Map<string, RunTaskChange['taskKind']>();
+  /** What this process's `system/init` advertised (`capabilities`): each one a behaviour of the protocol it promises */
+  private advertised: ReadonlySet<string> = new Set();
+  /** The error the CLI put on the main agent's last message of the turn under way, null when it was a plain one */
+  private mainError: string | null = null;
   /** Reads the guard's markers; absent for a process launched without one, whose hook events are all the person's own */
   private readonly guard: GuardWatch | null;
 
@@ -122,6 +135,11 @@ export class ClaudeStream {
   /** The interrupt was answered: no call shown after this is excused */
   interruptAnswered(): void {
     this.guard?.interruptAnswered();
+  }
+
+  /** The protocol capabilities this process's init advertised; none before its init arrived. */
+  capabilities(): ReadonlySet<string> {
+    return this.advertised;
   }
 
   /** One line of stdout. */
@@ -215,12 +233,17 @@ export class ClaudeStream {
         }
       }
       const mainAgent = entry.role === 'assistant' && !entry.isSidechain;
+      // Only the lead's: a subagent refused its model fails its own call, and the turn goes on
+      if (mainAgent && raw.parent_tool_use_id == null) this.mainError = typeof raw.error === 'string' ? raw.error : null;
       const reason = mainAgent && raw.parent_tool_use_id == null ? ((raw.message ?? {}) as Record<string, unknown>).stop_reason : undefined;
       sink({ kind: 'message', entry, mainAgent, ...(typeof reason === 'string' ? { stopReason: reason } : {}), run: { kind: 'message', entry } });
       return;
     }
 
     if (type === 'system' && subtype === 'init') {
+      // Every turn opens with one, from the same process: the last says what the process promises
+      const capabilities = strings(raw.capabilities);
+      this.advertised = new Set(capabilities);
       sink({
         kind: 'init',
         sessionId: typeof raw.session_id === 'string' ? raw.session_id : null,
@@ -228,6 +251,7 @@ export class ClaudeStream {
         permissionMode: typeof raw.permissionMode === 'string' ? reportedMode(raw.permissionMode) : null,
         cwd: typeof raw.cwd === 'string' ? raw.cwd : null,
         environment: toEnvironment(raw),
+        capabilities,
         run: {
           kind: 'init',
           init: {
@@ -275,6 +299,10 @@ export class ClaudeStream {
     if (type === 'result') {
       const isError = raw.is_error === true;
       const text = typeof raw.result === 'string' ? raw.result : '';
+      // The turn failed on the synthetic answer the CLI writes for a refused model: read from the error
+      // it put on that answer, never from the words, which change with the CLI's version and provider
+      const modelRejected = isError && this.mainError === MODEL_NOT_FOUND;
+      this.mainError = null;
       sink({
         kind: 'result',
         isError,
@@ -290,6 +318,7 @@ export class ClaudeStream {
         rateLimited: isError && raw.api_error_status === 429,
         // Likewise the 401 of an expired or unrefreshable OAuth session: never the wording of the result
         ...(isError && raw.api_error_status === 401 ? { authFailed: true } : {}),
+        ...(modelRejected ? { modelRejected: true } : {}),
         run: {
           kind: 'result',
           text,
