@@ -19,11 +19,8 @@ import type {
   TeamMember,
   WorkItemStatus,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, isEffort, isTeamToolName, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, teamCommandProblem, WORK_ITEM_STATUSES } from '@claudio/shared';
+import { EFFORT_LEVELS, isEffort, isTeamToolName, MAX_TEAM_COMMANDS, MAX_TEAM_TOOLS, roleTitleEs, teamCommandProblem, WORK_ITEM_STATUSES } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
-// The roles' names in Spanish are the web's own (apps/web/src/i18n/GLOSSARY.md): one copy, which the
-// first line of a run's chat reads too
-import esTeam from '../../../apps/web/src/i18n/locales/es/team.json' with { type: 'json' };
 import type { ClaudioEventInput } from './events.ts';
 import { projectTemplate } from './project-templates.ts';
 
@@ -137,7 +134,8 @@ const sha = (content: string) => createHash('sha256').update(content).digest('he
 
 export function roleTitle(role: string): string {
   return (
-    ROLE_TITLES[role] ??
+    // `hasOwn`: a role named `constructor` would otherwise read a function off the prototype
+    (Object.hasOwn(ROLE_TITLES, role) ? ROLE_TITLES[role] : undefined) ??
     role
       .split(/[-_\s]+/)
       .filter(Boolean)
@@ -151,13 +149,7 @@ export function roleTitle(role: string): string {
  * built-in role in their language, a role of their own as they wrote it.
  */
 export function roleTitleIn(role: string, language: ClaudioLanguage): string {
-  return (language === 'es' ? stringField(esTeam.roles, role) : null) ?? roleTitle(role);
-}
-
-/** A role's name in a locale's `roles`, read as data: the file is the web's, and any key may be absent */
-function stringField(roles: Readonly<Record<string, unknown>>, role: string): string | null {
-  const name = roles[role];
-  return typeof name === 'string' && name ? name : null;
+  return (language === 'es' ? roleTitleEs(role) : null) ?? roleTitle(role);
 }
 
 /** A YAML scalar that reads back as `value`: plain where that is safe, JSON-quoted (valid YAML) otherwise. */

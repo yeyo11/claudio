@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { QueryKey } from '@tanstack/react-query';
+import { QueryClient, type QueryKey } from '@tanstack/react-query';
 import type {
   ClaudioEvent,
   MilestoneChangedEvent,
@@ -10,7 +10,7 @@ import type {
   WorkItemUpdatedEvent,
 } from '@claudio/shared';
 import { keys } from '../src/api';
-import { targetMatches, targetsFor } from '../src/lib/events';
+import { applyEvent, itemsNaming, targetMatches, targetsFor, type Target } from '../src/lib/events';
 
 // An open board shows what an agent moved without a reload, and nothing else is read for it: each
 // work item event reaches exactly the cached queries that show what it changed, by key prefix.
@@ -55,8 +55,29 @@ const P1_VIEWS = ['boardAll', 'boardP1', 'boardP1Filtered', 'chatItems', 'listAl
 
 test('a card moved by an agent refreshes every board and list of its project and of All projects, not the other project', () => {
   const moved: WorkItemMovedEvent = { ...base, type: 'workitem.moved', status: 'in_review', previousStatus: 'in_progress', overLimit: false, actor, cause: null };
-  // The status shows on every chip naming the item, so open item pages read again too
-  assert.deepEqual(refetched(moved), [...P1_VIEWS, 'item1', 'item1Changes', 'item2'].sort());
+  // Of the item pages only its own: another page reads again only when it names the item (below)
+  assert.deepEqual(refetched(moved), [...P1_VIEWS, 'item1', 'item1Changes'].sort());
+});
+
+test('a move reads again the item pages that show it as a chip, and no other', () => {
+  const client = new QueryClient();
+  const ref = (id: string) => ({ id, key: id.toUpperCase(), title: id, type: 'task' as const, status: 'todo' as const });
+  client.setQueryData(keys.workItem('i1'), { id: 'i1', epic: ref('e1'), children: [], relations: [] });
+  client.setQueryData(keys.workItem('e1'), { id: 'e1', epic: null, children: [ref('i1')], relations: [] });
+  client.setQueryData(keys.workItem('i2'), { id: 'i2', epic: null, children: [], relations: [{ type: 'blocks', item: ref('i1') }] });
+  client.setQueryData(keys.workItem('i3'), { id: 'i3', epic: ref('i1'), children: [], relations: [] });
+  client.setQueryData(keys.workItem('i4'), { id: 'i4', epic: ref('e1'), children: [], relations: [{ type: 'blocked_by', item: ref('i2') }] });
+  // A key below an item page is not a page: its data has no chips to read
+  client.setQueryData(keys.workItemHistory('i5'), [{ itemId: 'i1' }]);
+  const named = itemsNaming(client, 'i1').map(([key]) => key[1]).sort();
+  assert.deepEqual(named, ['e1', 'i2', 'i3']);
+
+  // Through the feed: the move schedules those pages besides its own targets
+  const scheduled: Target[] = [];
+  const moved: WorkItemMovedEvent = { ...base, type: 'workitem.moved', status: 'done', previousStatus: 'in_review', overLimit: false, actor, cause: null };
+  applyEvent(client, (targets) => scheduled.push(...targets), moved);
+  const pages = scheduled.filter(([key]) => key[0] === 'work-item').map(([key]) => key[1]).sort();
+  assert.deepEqual(pages, ['e1', 'i1', 'i2', 'i3']);
 });
 
 test('a comment refreshes the item and the cards that count it, and no other item', () => {

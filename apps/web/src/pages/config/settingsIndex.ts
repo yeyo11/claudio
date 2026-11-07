@@ -157,7 +157,7 @@ add('runs', 'machine', { history: { detail: 'machine' } });
 
 add('access', 'access', { mode: {}, token: {}, 'read-only': { consequence: true } });
 add('access', 'hosts', { allowed: { consequence: true } });
-add('access', 'remote', { tunnel: { consequence: true } });
+add('access', 'remote', { tunnel: { consequence: true }, 'tunnel-port': {} });
 // The local network card's three settings live in the Remote access section, but their ids are the
 // registry's own (`lan.*`), which is also what each row's `data-setting` says
 for (const row of ['enabled', 'port', 'bind']) {
