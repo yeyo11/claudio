@@ -51,7 +51,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('the journal is read with the Memory module off and changed only with it on', async () => {
@@ -198,6 +198,6 @@ test("a chat's token cannot approve or reject a memory proposal, and the person'
     assert.equal((await guarded.inject({ url: `/api/memory-proposals/${rejecting.id}/reject`, ...as(owner) })).statusCode, 200);
   } finally {
     await guarded.close();
-    secured.shutdown();
+    await secured.shutdown();
   }
 });

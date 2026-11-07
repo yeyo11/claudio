@@ -220,13 +220,21 @@ function repoWithCommit(): string {
   return repo;
 }
 
+/**
+ * Waits for the orchestration to leave `running`. The budget is a failure deadline on the clock, not
+ * a count of reads: 300 reads 50 ms apart (15 s) ran out in the full test gate, where a graph of 33
+ * fake CLIs shares the machine with every package's suite (R17 of docs/plans/ci-and-regression-open.md).
+ */
+const SETTLE_BUDGET_MS = 120_000;
+
 async function settle(orchestrator: Orchestrator, id: string): Promise<Orchestration> {
-  for (let i = 0; i < 300; i++) {
+  const deadline = performance.now() + SETTLE_BUDGET_MS;
+  for (;;) {
     const orch = orchestrator.get(id);
     if (orch && orch.status !== 'running') return orch;
+    if (performance.now() > deadline) throw new Error('the orchestration never finished');
     await new Promise((r) => setTimeout(r, 50));
   }
-  throw new Error('the orchestration never finished');
 }
 
 const show = (repo: string, ref: string) => execFileSync('git', ['-C', repo, 'show', ref], { encoding: 'utf8' }).trim();

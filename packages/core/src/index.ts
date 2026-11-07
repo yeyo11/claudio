@@ -296,7 +296,7 @@ export { chatState } from './chat-model.ts';
 export { usageReport, type ChatSpend } from './usage-report.ts';
 export { orchestrationTimings } from './orchestration-timings.ts';
 export { ContextControl } from './context-control.ts';
-export { ChatNotes, compactText, ContextRefusal, SESSION_NOTE_INSTRUCTIONS } from './context-notes.ts';
+export { ChatNotes, compactText, ContextRefusal, SESSION_NOTE_INSTRUCTIONS, TYPED_COMPACT } from './context-notes.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { parseChangeScope, parseDiffContext, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';

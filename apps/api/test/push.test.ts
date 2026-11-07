@@ -33,7 +33,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('the key route makes the keypair on first use and returns only its public half', async () => {

@@ -1,7 +1,8 @@
 // Settings → Access & safety: the token is shown once, read-only refuses writes, the access mode guards the API
 // and a 401 is a sign-in screen. The suite shares one wrapper, so whatever this turns on it turns
 // back off, even when an assertion fails half way. The audit log's filters live on its detail,
-// /settings/access/audit; the group's screen shows its latest rows only.
+// /settings/access/audit, with the writes refused before identification in a card under it; the
+// group's screen shows its latest rows only.
 import { request as httpRequest } from 'node:http';
 
 const TOKEN_KEY = 'claudio.token';
@@ -78,6 +79,10 @@ export default async ({ page, api, check }) => {
     await page.waitFor(`return !!document.querySelector('[role=dialog],[role=alertdialog]')`, { label: 'the lock-out confirmation' });
     await page.click('[role=dialog] button, [role=alertdialog] button', 'Turn it on', 1500);
     check((await api.get('/overview')).status === 401, 'a request without the credential is refused');
+    // A write with no credential is refused before its caller is known, so it goes to the refusals'
+    // own ring, not the log; with nothing presented it is not counted towards the back-off either
+    const anonymous = await api.post('/projects', { name: 'e2e-anonymous' });
+    check(anonymous.status === 401, `a write without the credential is refused (got ${anonymous.status})`);
     check((await authed(token)('GET', '/overview')).status === 200, 'the token is accepted');
     // Everything the tab did so far ran while the wrapper was open, so the log has no row made by a
     // credential yet: this is the write whose actor is the token
@@ -88,6 +93,19 @@ export default async ({ page, api, check }) => {
     // The group's screen shows the latest rows and a row to the whole log, which owns the filters
     await page.click('[role=tabpanel] .settings-detail-row', 'See the whole log', 800);
     await page.waitFor(`return location.pathname === '/settings/access/audit' && !!document.querySelector('[role=tabpanel] .filter-bar')`, { label: 'the audit log detail' });
+
+    // Under the log, a card of its own lists the writes refused before identification (GET
+    // /audit/refusals): the anonymous one above is there, and never in the log's table
+    const refusalsTable = `[role=tabpanel] .table-wrap[aria-label="Refused before identification"] table`;
+    await page.waitFor(
+      `const t=document.querySelector('${refusalsTable}');return !!t&&[...t.querySelectorAll('tbody tr')].some(tr=>tr.textContent.includes('/api/projects')&&/^401/.test(tr.querySelector('.badge')?.textContent??''))`,
+      { label: 'the anonymous refusal in its own card', timeout: 30_000 },
+    );
+    check(!(await page.eval(`return !!document.querySelector('${refusalsTable} .audit-who')`)), 'the refusals carry no Who column: every row is anonymous');
+    check(
+      !(await page.eval(`return [...document.querySelectorAll('[role=tabpanel] .table-wrap[aria-label="Audit log"] tbody tr')].some(tr=>tr.textContent.includes('Anonymous'))`)),
+      'no anonymous refusal reaches the log of identified writes',
+    );
 
     // The audit log lists the writes, filterable by path, and records who made them. Its table is
     // named: the screen may have others once a spec has run a terminal (Terminal history). The
@@ -149,6 +167,12 @@ export default async ({ page, api, check }) => {
         `const el=document.scrollingElement;const rows=[...document.querySelectorAll('.audit-row')];return el.scrollWidth>el.clientWidth+1||rows.some(r=>r.scrollWidth>r.clientWidth+1)`,
       );
       check(!sideways, 'the audit rows at 390 never scroll sideways');
+      // The refusals' card folds to rows too, under its Spanish title
+      check(
+        await page.eval(`const lists=[...document.querySelectorAll('ul.audit-rows')];return lists.length===2&&lists.every(ul=>ul.offsetParent!==null)&&!!lists[1].querySelector('.audit-row')`),
+        'at 390 the refusals are rows as well, never a table',
+      );
+      check((await page.text('body')).includes('Rechazadas antes de identificar'), 'the refusals card is titled in Spanish');
       check((await page.text('.audit-rows')).includes('Cambiar el modo de autenticación'), 'the rows say what each write did, in Spanish');
       const fold = '.audit-row-path';
       if (await page.eval(`return !!document.querySelector('${fold}')`)) {

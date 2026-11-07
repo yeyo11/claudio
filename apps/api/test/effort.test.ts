@@ -31,7 +31,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('a new chat, a plan, a workflow run and an assistant run refuse an unknown effort with a 400', async () => {

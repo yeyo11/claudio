@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-10-30T20:00:00Z
+updated_at: 2026-11-07T12:00:00Z
 tags:
     - security
     - secrets
@@ -277,7 +277,7 @@ may do is decided by construction, per route (decision D1 of
   documents, and what spends or widens on the person's say (the assistant's runs, a flow's waiting
   cards, saving a workflow).
 - **`work`** is what an agent does as part of its work: starting, messaging, resuming, forking,
-  stopping, interrupting, hinting, compacting a chat and asking it for a note; creating, planning,
+  stopping, interrupting and hinting a chat; creating, planning,
   stopping, resuming, retrying, skipping, hinting, verifying and re-reviewing an orchestration;
   creating, updating, moving, commenting on, relating and linking work items and checking their
   criteria; creating, editing, switching, running and deleting a schedule (owner's decision,
@@ -338,10 +338,13 @@ mining to the delivery ([lessons.md](lessons.md)).
 
 ## Compacting and session notes
 
-Compacting is a turn of the chat's work like any message, and a chat's token may already send any
-turn to any chat, so `POST /chats/:id/compact` and `POST /chats/:id/notes` are `work` routes (C1),
-and so is a `/compact` sent as a message, a resume or a fork. Deleting a note is a `DELETE`, the
-person's. The served notes pass through `maskSecrets`, which covers Claudio's own secrets too. No
+Compacting rewrites the person's conversation, so `POST /chats/:id/compact` and
+`POST /chats/:id/notes` are `person` routes (owner's decision, 2026-11-07). A chat's token that
+sends a text starting with `/compact` as a message, a resume or a fork is refused the same way
+(`403 chat-forbidden`): the CLI reads that text as its command whichever route carried it, so the
+guard refuses the text, not only the route. With authentication off nothing is enforced, as for
+every `person` route. Deleting a note is a `DELETE`, the person's. The served notes pass through
+`maskSecrets`, which covers Claudio's own secrets too. No
 note ever reaches a prompt on its own. See [context-control.md](context-control.md).
 
 ## The terminal

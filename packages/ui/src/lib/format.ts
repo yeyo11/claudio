@@ -98,6 +98,27 @@ export function formatDateTime(value: string | number | null | undefined): strin
   return ms == null ? '—' : dateTime('datetime', { ...DATE, ...TIME }).format(ms);
 }
 
+/** The zone this browser reads clocks in, `Europe/Madrid`; `UTC` where Intl cannot say */
+export function localTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+/**
+ * A moment to the minute, on the clock of `timeZone` rather than the browser's: a schedule's next
+ * fires read in the zone its expression is written for, so `0 3 * * *` in Europe/Madrid says 3:00
+ * whatever zone the person's device is in. A zone Intl does not know falls back to the browser's.
+ */
+export function formatDateTimeIn(value: string | number | null | undefined, timeZone: string): string {
+  const ms = toMs(value);
+  if (ms == null) return '—';
+  const options: Intl.DateTimeFormatOptions = { ...DATE, hour: 'numeric', minute: 'numeric' };
+  try {
+    return cached(`dt:minute:${timeZone}`, (l) => new Intl.DateTimeFormat(l, { ...options, timeZone })).format(ms);
+  } catch {
+    return dateTime('minute', options).format(ms);
+  }
+}
+
 /**
  * The bare hour of a moment, `17:44`: only inside a list grouped by day (the team's activity), where
  * the day's heading says which day it is. Anywhere else a past moment is `timeAgo`.

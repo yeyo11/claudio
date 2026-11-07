@@ -779,9 +779,11 @@ the "continued in another provider" divider of Claudio are gone
 
 A message sent while the agent works is a card over the composer (`.chat-queued`) from the moment
 the server takes it until the stream says the agent read it ([chat-delivery.md](chat-delivery.md)):
-dashed and faded, one row per message (`.chat-queued-item`, an hourglass and two lines of its text,
-or "2 archivos"), in the order they will be read. Nothing here is live: the card waits, and the
-energy border stays with the working composer under it.
+dashed and quiet, one row per message (`.chat-queued-item`, an hourglass and two lines of its text,
+the whole of it in a tooltip, or "2 archivos"), in the order they will be read. Quiet comes from the
+dashed border, the see-through ground and the muted text, never from `opacity`: a faded card takes
+its text under 4.5:1 in the light theme. Nothing here is live: the card waits, and the energy border
+stays with the working composer under it.
 
 - **Waiting.** The foot says how many wait ("1 mensaje espera al turno en curso") and offers
   **Enviar ahora**, a neutral `.btn-small`, for the oldest message still in the agent's queue. It goes

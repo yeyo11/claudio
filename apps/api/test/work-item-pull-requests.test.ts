@@ -96,7 +96,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('approving an item in review answers 202, opens one PR, and a second call answers 200 with the same PR', async () => {
