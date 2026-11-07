@@ -9,6 +9,9 @@ import { useFallbackInterval } from './feed';
 import { useProviderLabel } from './provider-status';
 import { settingsHref } from '../pages/config/settingsGroups';
 
+/** How long a schedule prompt waits for its preview before it shows the answers without it */
+const SCHEDULE_PROMPT_PREVIEW_MS = 5_000;
+
 /** `api`'s chat methods, plus the two URLs the chat package cannot build without knowing the base. */
 export const chatClient: ChatClient = {
   chat: api.chat,
@@ -28,7 +31,9 @@ export const chatClient: ChatClient = {
   setChatClaudioMcp: api.setChatClaudioMcp,
   // The words in the UI language, as the schedules page says them: the API describes an expression only in English
   schedulePreview: async (cron, timezone) => {
-    const preview = await api.schedulePreview(cron, timezone, 3);
+    // Allow and Deny wait for this read, so it gives up long before a request's usual two minutes:
+    // a pure computation on the server answers at once, and without it the prompt still has the expression
+    const preview = await api.schedulePreview(cron, timezone, 3, SCHEDULE_PROMPT_PREVIEW_MS);
     const words = describeCron(cron);
     return words ? { ...preview, description: words } : preview;
   },

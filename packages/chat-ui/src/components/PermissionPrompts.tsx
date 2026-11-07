@@ -107,10 +107,16 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
         {!write && <span className="muted small">{t('permissions.wantsToRun')}</span>}
       </div>
       <RiskLine risk={risk} />
-      {/* Focusable so a long command can be scrolled sideways from the keyboard */}
-      {(!write || write.detail) && (
+      {/* A write is said in sentences, which wrap; a tool's raw input is a literal in mono, focusable so a long command can be scrolled sideways from the keyboard */}
+      {write ? (
+        write.detail && (
+          <div className="permission-input is-prose" role="group" aria-label={t('permissions.whatItWantsToRun')}>
+            {write.detail}
+          </div>
+        )
+      ) : (
         <pre className="permission-input" role="group" aria-label={t('permissions.whatItWantsToRun')} tabIndex={0}>
-          {write ? write.detail : summarize(request)}
+          {summarize(request)}
         </pre>
       )}
       {description && <p className="muted small">{description}</p>}

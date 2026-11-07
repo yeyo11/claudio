@@ -2286,6 +2286,11 @@ a.cont-from:hover { color: var(--fg); }
 .permission-head .badge { margin-left: auto; }
 .permission-input { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: var(--mono); font-size: var(--fs-small); line-height: 1.6; background: var(--bg-1); border-radius: var(--r-sm); white-space: pre; color: var(--fg); }
 .permission-input .k { color: var(--fg-3); }
+/* A write said in sentences: the UI's face, wrapped; a schedule's preview under it; the answers hidden until it is in */
+.permission-input.is-prose { overflow-x: visible; font-family: var(--sans); line-height: var(--lh-small); white-space: pre-line; overflow-wrap: anywhere; }
+.permission-preview { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.permission-preview > p { margin: 0; font-size: var(--fs-small); color: var(--fg-2); }
+.permission-actions.is-waiting { visibility: hidden; }
 .permission-note { margin: 0; font-size: var(--fs-small); line-height: 1.5; color: var(--fg-2); }
 .permission-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .permission-reason { flex: 1 1 200px; min-width: 0; }

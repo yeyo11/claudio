@@ -1804,6 +1804,20 @@
   border-radius: var(--radius-sm);
 }
 
+/*
+ * A write of the assistant, said in the person's words: "Starts: a chat", "If the last run is still
+ * going: start nothing". Sentences, so in the UI's face and wrapped at any width; mono stays for the
+ * raw input of every other tool, which is a literal. In mono and unwrapped, a phone cut what the
+ * write starts off at the block's edge.
+ */
+.permission-input.is-prose {
+  overflow-x: visible;
+  font-family: var(--sans);
+  line-height: var(--lh-small);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .permission-actions {
   display: flex;
   flex-wrap: wrap;

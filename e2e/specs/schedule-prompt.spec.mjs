@@ -77,7 +77,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     for (const line of ['Expression: 0 3 * * *', 'Zone: Europe/Madrid', 'Starts: a chat', 'Summarise what changed yesterday']) {
       check(ready.input.includes(line), `the input block says "${line}" (${JSON.stringify(ready.input)})`);
     }
-    check(!ready.input.includes('Next fires') && !ready.input.includes('In words'), 'the preview is not inside the monospace input block');
+    check(!ready.input.includes('Next fires') && !ready.input.includes('In words'), 'the preview is not inside the input block');
+    check(!/mono/i.test(ready.inputFont), `what the write carries is said in sentences, not in mono (${ready.inputFont})`);
     const words = ready.beside.find((line) => line.text.startsWith('In words:'));
     const next = ready.beside.find((line) => line.text.startsWith('Next fires'));
     const zone = await page.eval(`return Intl.DateTimeFormat().resolvedOptions().timeZone`);
