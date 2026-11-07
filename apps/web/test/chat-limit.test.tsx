@@ -110,12 +110,15 @@ test('an open wait is the waiting phase', () => {
   assert.equal(limitPhase(chat({ state: 'working' }), wait()), 'waiting');
 });
 
-test('a chat a person moved off the account its turn died on is not at that limit: its composer opens again', () => {
+test('the banner follows the server alone, before and after a person moves the chat to another account', () => {
+  // R11 of docs/plans/ci-and-regression-open.md: the server clears `atLimit` when a person moves the
+  // chat, so the page no longer compares the chat's account with the one its turn died on
   const died = { executions: [execution({ account: 'acc-a' })] };
-  assert.equal(limitPhase(chat({ ...died, atLimit: true, account: 'acc-a' }), null), 'limit');
-  assert.equal(limitPhase(chat({ ...died, atLimit: true, account: 'acc-b' }), null), 'none');
-  // No accounts: nothing to compare, the server's fact stands
-  assert.equal(limitPhase(chat({ atLimit: true }), null), 'limit');
+  const banner = (c: Chat): string => render(<LimitBanner chat={c} state={limitStateOf(c, claude, null, [])} />, seeded());
+  assert.match(banner(chat({ ...died, atLimit: true, account: 'acc-a' })), /class="lim"/, 'at its limit');
+  assert.doesNotMatch(banner(chat({ ...died, account: 'acc-b' })), /class="lim"/, 'moved: the server says it is not at a limit any more');
+  // While the server still says so the banner stays, whatever account the chat names: the page does not second-guess it
+  assert.equal(limitPhase(chat({ ...died, atLimit: true, account: 'acc-b' }), null), 'limit');
 });
 
 test("the reset and the window are the limited account's, never another account's or the provider's", () => {

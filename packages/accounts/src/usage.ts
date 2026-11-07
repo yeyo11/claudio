@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AccountCliUsage, AccountLimit, ProviderLimitState, RateLimitWindow, ScopedRateLimit } from '@claudio/shared';
@@ -127,9 +127,40 @@ export function cliConfigFile(dir: string, home: string = homedir()): string {
  * (`emailAddress`, `organizationName`). Read from the file, with no process started; null when the
  * dir has no login (a token or key account, a signed-out dir, a file that does not parse).
  */
-export function cliLogin(dir: string, home: string = homedir()): { email: string; organization: string | null } | null {
+export function cliLogin(dir: string, home: string = homedir()): CliLogin | null {
+  const file = cliConfigFile(dir, home);
+  let stamp: string;
   try {
-    const doc = JSON.parse(readFileSync(cliConfigFile(dir, home), 'utf8')) as { oauthAccount?: { emailAddress?: unknown; organizationName?: unknown } };
+    const stat = statSync(file);
+    stamp = `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    loginCache.delete(file);
+    return null;
+  }
+  const hit = loginCache.get(file);
+  if (hit?.stamp === stamp) return hit.login;
+  const login = parseLogin(file);
+  loginCache.set(file, { stamp, login });
+  return login;
+}
+
+export interface CliLogin {
+  email: string;
+  organization: string | null;
+}
+
+/**
+ * The last login read per config file, with the file's mtime and size when it was read. Every
+ * `AccountStore.list()` asks for the login of each login account, and the stock `~/.claude.json`
+ * can run to megabytes of per-project state the CLI keeps adding to: parsing it on every listing
+ * made each screen's read cost a full parse per account (R12 of
+ * docs/plans/ci-and-regression-open.md). A new login rewrites the file, which moves its mtime.
+ */
+const loginCache = new Map<string, { stamp: string; login: CliLogin | null }>();
+
+function parseLogin(file: string): CliLogin | null {
+  try {
+    const doc = JSON.parse(readFileSync(file, 'utf8')) as { oauthAccount?: { emailAddress?: unknown; organizationName?: unknown } };
     const email = doc.oauthAccount?.emailAddress;
     if (typeof email !== 'string' || !email) return null;
     const org = doc.oauthAccount?.organizationName;

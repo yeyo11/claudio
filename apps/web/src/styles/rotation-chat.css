@@ -104,7 +104,10 @@
   background: transparent;
   color: var(--fg);
   font: inherit;
-  font-size: var(--fs-input);
+  font-size: var(--fs-body);
+  /* Nothing is ever typed here, and on a phone its sentence takes two lines: one row cut the second
+     (I9 at 320 and 390), so the box takes the height of its text */
+  field-sizing: content;
 }
 
 .lim-zone {
@@ -140,7 +143,21 @@
     font-size: var(--fs-small);
   }
 
+  /* Phone fields are 16 px and a touch target tall, whether the sentence takes one line or two (I9);
+     on a desktop the box reads at body size */
   .lim-composer textarea {
     font-size: var(--fs-input);
+    padding-block: calc((var(--touch) - 1lh) / 2);
+    min-height: var(--touch);
+  }
+}
+
+/* A browser that cannot size the box to its text gets the two lines the sentence takes on a phone */
+@supports not (field-sizing: content) {
+  @media (max-width: 900px) {
+    .lim-composer textarea {
+      /* Two lines inside the padding that centres one */
+      min-height: calc(var(--touch) + 1lh);
+    }
   }
 }
