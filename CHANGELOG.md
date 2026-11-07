@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/yeyo11/claudio/compare/v0.14.0...v0.14.1) (2026-11-07)
+
+
+### Bug fixes
+
+* main's CI back to green, and the 2026-10-29 regression's open checklist closed ([#88](https://github.com/yeyo11/claudio/issues/88)) ([55848a8](https://github.com/yeyo11/claudio/commit/55848a85c07230d47d17a0b2ec337e4e7135cfde))
+
 ## [0.14.0](https://github.com/yeyo11/claudio/compare/v0.13.0...v0.14.0) (2026-11-04)
 
 
