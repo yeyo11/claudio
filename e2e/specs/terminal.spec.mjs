@@ -246,9 +246,13 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     for (const each of await terminalsOf()) await api.del(`/terminals/${each.id}`).catch(() => {});
 
     // ---- 5d. no project chosen: a shell opens in the workspace, where a chat outside any project runs ----
-    // The panel stays open across the reload; with All projects and a project imported, "+" is a menu that lists the workspace first
+    // The panel is shown as remembered, so the "+" menu is what opens this shell. The deletes above closed
+    // the dock with its last terminal (#84), and opening it from the item would open a workspace shell
+    // on its own (wantsShell), a second one once the menu chose the workspace. With All projects and a
+    // project imported, "+" is a menu that lists the workspace first
+    await page.eval(`localStorage.setItem('claudio-terminal-bar', '1'); return true`);
     await page.goto('/?project=all', 1500);
-    if (!(await hasPanel())) await page.click(ITEM, undefined, 800);
+    await page.waitFor(`return !!document.querySelector('.term-dock')`, { label: 'the panel shown as remembered' });
     // With the projects loaded "+" is a menu's trigger; the menu opens on a real pointer press, which a synthetic click() is not
     await page.waitFor(`return !!document.querySelector('.term-plus[aria-haspopup]')`, { label: 'the panel\'s "+" as a menu' });
     await page.realClick('.term-plus[aria-haspopup]', 600);
