@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-11-07T13:00:00Z
 tags:
     - design-system
     - web
@@ -1732,8 +1732,12 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
   gradient surface is **Permitir**; the send button is disabled.
 - **The host prompt of a write** (`.permission`) is the app's existing `.permission`, `-head`, `-input` and `-actions`, drawn here
   for the first time. A write tool is titled in the person's words ("Crear tarea en AGN", not the tool's name), with the plug icon
-  that `icons.tsx` gives to `mcp__` tools; under it the input in mono (`.permission-input`, keys dimmed with `.k`), one line saying
-  what happens on each answer (`.permission-note`), **Permitir** (primary) and **Denegar** (`btn-danger`) and the reason field.
+  that `icons.tsx` gives to `mcp__` tools; under it what the write carries, said in sentences ("Inicia: un chat"), so in the UI's
+  face and wrapped (`.permission-input.is-prose`; the raw input of any other tool stays a mono `.permission-input`, keys dimmed
+  with `.k`), one line saying what happens on each answer (`.permission-note`), **Permitir** (primary) and **Denegar**
+  (`btn-danger`) and the reason field. A schedule's write adds the server's preview under it (`.permission-preview`: the
+  expression in words and the next fires, on the schedule's clock and naming its zone when it is not the browser's); while that
+  is read, the answers keep their room but are hidden (`.permission-actions.is-waiting`), so they appear once, where they stay.
   There is no "allow and always": a write has no suggestions to offer. On a phone the buttons are 44 px, side by side, and the
   reason field takes the next row with the short placeholder "¿Por qué no? (opcional)" because the app's sentence does not fit a
   phone's input; the build can keep the app's string if it truncates acceptably.
@@ -1750,6 +1754,7 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 | `.as-greeting` | the first message of an assistant chat | `ClaudioMascot` at 24 px and one dimmed line; the same at the top of a reopened assistant chat |
 | `.cell > .ai-mark` | the Más row | `ClaudioGlyph` on the tile at the size of the other rows' `.proj` |
 | `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |
+| `.permission-input.is-prose`, `.permission-preview`, `.permission-actions.is-waiting` | the same, for a write of the assistant | a write's detail in sans, wrapped (`pre-line`); a schedule's preview lines as one block; the answers hidden, not removed, until the preview settled (at most 5 s) |
 
 ### The editable Home: edit mode, the add-widget picker and the Documents and Flow widgets
 

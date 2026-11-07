@@ -61,6 +61,9 @@ test('once the preview is in, the answers show and the next fires are on the sch
   // 02:00 UTC is 03:00 in Madrid in winter, whatever zone the machine running this is in
   const html = render({ valid: true, description: 'At 03:00', timezone: 'Europe/Madrid', next: ['2026-11-08T02:00:00.000Z'] });
   assert.equal(actionsClass(html), 'permission-actions');
+  // What the write carries is sentences, wrapped in the UI's face: never the mono block of a raw input
+  assert.match(html, /<div class="permission-input is-prose" role="group"[^>]*>Expression: 0 3 \* \* \*\nZone: Europe\/Madrid\nStarts: a chat/);
+  assert.doesNotMatch(html, /<pre class="permission-input"/);
   const label = zone === 'Europe/Madrid' ? 'Next fires' : 'Next fires, Europe/Madrid time';
   assert.deepEqual(previewText(html), ['In words: At 03:00', `${label}: 11/8/2026, 3:00 AM`]);
 });

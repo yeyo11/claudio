@@ -716,8 +716,8 @@ export const api = {
   chatExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/chats/${enc(id)}/export?format=${format}`),
   projectExportUrl: (id: string, format: ExportFormat) => withToken(`${BASE}/projects/${enc(id)}/export?format=${format}`),
   schedules: (o: ReadOptions = {}) => request<Schedule[]>('/schedules', o),
-  schedulePreview: (cron: string, timezone: string | undefined, count = 5) =>
-    request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`),
+  schedulePreview: (cron: string, timezone: string | undefined, count = 5, timeoutMs?: number) =>
+    request<SchedulePreview>(`/schedules/preview${qs({ cron, timezone, count: String(count) })}`, timeoutMs === undefined ? {} : { timeoutMs }),
   createSchedule: (req: CreateScheduleRequest) => request<Schedule>('/schedules', { method: 'POST', body: req }),
   updateSchedule: (id: string, req: UpdateScheduleRequest) => request<Schedule>(`/schedules/${enc(id)}`, { method: 'PATCH', body: req }),
   deleteSchedule: (id: string) => request<{ ok: true }>(`/schedules/${enc(id)}`, { method: 'DELETE' }),
