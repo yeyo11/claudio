@@ -144,6 +144,11 @@ export default async ({ page, api, check, dirs }) => {
     await page.emulateTouch(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(RENDERER)}); localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
+    // Dismissed before the switch goes off: the switch closes a terminal without dismissing it, a closed
+    // terminal stays listed for an hour, and the dock of the next spec on this server lists it as a tab
+    // (terminal.spec's "two tabs" found three after this spec)
+    const left = (await api.get('/terminals').catch(() => ({ body: [] }))).body;
+    for (const each of Array.isArray(left) ? left : []) await api.del(`/terminals/${each.id}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }

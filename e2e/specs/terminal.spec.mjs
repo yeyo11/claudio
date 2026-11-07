@@ -93,6 +93,12 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     const on = await api.put('/terminal/settings', { enabled: true });
     check(on.status === 200, `the feature was turned on (${on.status} ${JSON.stringify(on.body)})`);
     check((await api.get('/terminal')).body.available === true, 'the terminal is available from loopback with authentication off');
+    // The dock lists every terminal the server holds, and the tab counts below take this spec's own to be
+    // all of them. A spec before this one on the same server that turned the feature off without
+    // dismissing its terminals left them listed (closed, for an hour): named here, where it is the cause,
+    // rather than as a tab too many in step 5
+    const leftover = (await api.get('/terminals')).body;
+    check(Array.isArray(leftover) && leftover.length === 0, `no terminal is left on the server by an earlier spec (${JSON.stringify(Array.isArray(leftover) ? leftover.map(({ cwd, state, endReason }) => ({ cwd, state, endReason })) : leftover)})`);
     await page.goto(home, 1500);
     await page.waitFor(`return !!document.querySelector('${ITEM}')`, { label: 'the status bar Terminal item' });
     const idle = await item();
@@ -127,9 +133,23 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     check(true, "Claude's own credentials do not reach the shell");
 
     // ---- 4. a reload brings the screen back from the server's snapshot (the panel remembers it is open) ----
+    // Only the rows in view are read, so the check is on what was printed last. The first answer (m42) is
+    // not: after the commands above the shell has drawn nine or ten rows (the prompt and the `key` command
+    // come to about 140 characters, about the dock's width in columns, so whether it wraps follows the
+    // runner's host name in the prompt), and the dock at its default height shows about eight or nine.
+    // On some runners m42 had scrolled into the scrollback before the reload, and this step failed there
+    const marker = 'r58';
+    await run('echo r$((50+8))');
+    await onScreen(marker);
+    const shown = (await screen()).trim();
     await page.goto(home, 1500);
     await ready('4, after a reload');
-    await onScreen('m42', 'the earlier output after a reload');
+    try {
+      await onScreen(marker, 'the output printed last, after a reload');
+    } catch (error) {
+      error.message += `\nscreen before the reload: ${JSON.stringify(shown)}\nscreen now: ${JSON.stringify(await screen().catch((e) => e.message))}`;
+      throw error;
+    }
     const afterReload = await terminalsOf();
     check(afterReload.length === 1, `the reload attached to the same shell, it did not open another (${JSON.stringify(afterReload.map(({ id, state, startedAt, endedAt, endReason, clients }) => ({ id, state, startedAt, endedAt, endReason, clients })))}; this page asked ${JSON.stringify(await page.eval('return window.__opens'))})`);
 
@@ -342,6 +362,12 @@ export default async ({ page, api, check, dirs, serverLog }) => {
     await removeOpens().catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(RENDERER)}); localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
+    // Dismissed, not only closed: a terminal the switch closes stays listed for an hour, where the next
+    // spec on this server would find it, and step 8 closes this spec's last one that way. The list is
+    // behind the switch, so it goes on (a no-op when it already is) for as long as that takes
+    await api.put('/terminal/settings', { enabled: true }).catch(() => {});
+    const left = (await api.get('/terminals').catch(() => ({ body: [] }))).body;
+    for (const each of Array.isArray(left) ? left : []) await api.del(`/terminals/${each.id}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }
