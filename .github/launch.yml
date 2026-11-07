@@ -3,6 +3,11 @@ enabled: true
 brand: personal
 language: en
 
+# Launched by hand only: a release no longer creates a launch on its own (2026-11-07)
+triggers:
+  release: false
+  manual: true
+
 assets:
   # Every launch needs a demo; Instagram gets it as a Reel
   demo: docs/media/tour.gif
