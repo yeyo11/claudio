@@ -33,6 +33,7 @@ const SOURCE: ReviewSource = {
   steps: null,
   conversation: null,
   live: false,
+  announced: false,
   back: { to: '/', label: 'back' },
   subject: null,
   changeRequestId: 'cr-1',

@@ -15,7 +15,11 @@ Taken by the owner on 2026-10-24. It replaces
 [the e2e suite runs on GitHub, never on this machine](e2e-on-github.md). On a developer's machine the
 browser suite (`e2e/`) runs as Sluice's `e2e` gate: an agent calls Sluice's `verify` tool with
 `gates: ["e2e"]` and the spec prefixes in `extra_args`, a person runs `sluice run e2e -v -- <prefixes>`.
-`pnpm e2e:remote` still runs it on GitHub, and every pull request still runs the whole suite there.
+Every pull request still runs the whole suite on GitHub.
+
+> **2026-11-07:** `pnpm e2e:remote` (`e2e/remote.mjs`), the bridge of the GitHub-only period, was
+> removed by the owner: Sluice's gate is how a spec runs here, and CI is how the whole suite runs on
+> a pull request. The workflow lost its `workflow_dispatch` trigger and keeps `workflow_call`.
 
 ## Why
 
@@ -60,16 +64,15 @@ browser suite (`e2e/`) runs as Sluice's `e2e` gate: an agent calls Sluice's `ver
 
 - **A whole-suite run is slower here than on GitHub.** Two shards on one machine take about 20
   minutes plus the build, against about 10 on four GitHub runners, and longer when the queue is busy.
-  For a broad change `pnpm e2e:remote` is still the faster choice.
+  A broad change gets the whole suite from its pull request's CI.
 - **The queue is shared.** A whole-suite run holds a large part of the budget for its duration, so
   other agents' gates wait behind it. Running only the specs a change touches keeps that short.
-- **Without Sluice, no local e2e.** A machine without `sluice` on the `PATH` falls back to
-  `pnpm e2e:remote`, or to `E2E_ALLOW_LOCAL=1` for a person.
+- **Without Sluice, no local e2e.** A machine without `sluice` on the `PATH` relies on the pull
+  request's CI, or on `E2E_ALLOW_LOCAL=1` for a person.
 
 ## What it does not change
 
 - GitHub decides: no pull request merges without the four e2e shards of `e2e.yml`.
-- `pnpm e2e:remote`, its exit codes and its downloaded logs stay as they were.
 - The live specs (`E2E_LIVE=1`) still need a logged-in CLI and a person.
 
 ## Related

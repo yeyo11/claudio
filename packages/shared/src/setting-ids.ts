@@ -82,6 +82,7 @@ export const FIXED_SERVER_SETTING_IDS = [
   'spend-cap.daily',
   'evals.phase-2',
   'remote.tunnel',
+  'remote.tunnel-port',
   'lan.enabled',
   'lan.port',
   'lan.bind',

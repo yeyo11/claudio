@@ -220,13 +220,21 @@ function repoWithCommit(): string {
   return repo;
 }
 
+/**
+ * Waits for the orchestration to leave `running`. The budget is a failure deadline on the clock, not
+ * a count of reads: 300 reads 50 ms apart (15 s) ran out in the full test gate, where a graph of 33
+ * fake CLIs shares the machine with every package's suite (R17 of docs/plans/ci-and-regression-open.md).
+ */
+const SETTLE_BUDGET_MS = 120_000;
+
 async function settle(orchestrator: Orchestrator, id: string): Promise<Orchestration> {
-  for (let i = 0; i < 300; i++) {
+  const deadline = performance.now() + SETTLE_BUDGET_MS;
+  for (;;) {
     const orch = orchestrator.get(id);
     if (orch && orch.status !== 'running') return orch;
+    if (performance.now() > deadline) throw new Error('the orchestration never finished');
     await new Promise((r) => setTimeout(r, 50));
   }
-  throw new Error('the orchestration never finished');
 }
 
 const show = (repo: string, ref: string) => execFileSync('git', ['-C', repo, 'show', ref], { encoding: 'utf8' }).trim();
@@ -1584,15 +1592,26 @@ test('the other tasks are capped at 30 lines of 80 characters, then "and N more"
 
 test('a worker whose result arrives with a background subagent still running goes on in its chat, once, and it is not an attempt', async () => {
   const { db, repo, runs, orchestrator } = retryGraph();
-  const started = orchestrator.create(graphOf(repo, [{ id: 'lead', prompt: 'FAKE-BG-AGENT\nFAKE-TEXT-ONCE The survey is running.' }]));
-  const orch = await settle(orchestrator, started.id);
-  const lead = orch.tasks[0] as OrchestrationTaskState;
-  assert.equal(lead.status, 'completed');
-  assert.equal(lead.continuations, 1);
-  assert.equal(lead.attempts, 1);
-  assert.match(lead.result ?? '', /You ended your turn while work you delegated is still running: survey the routes\./);
-  assert.equal(runs.get(lead.runId ?? '')?.executions.length, 2);
-  db.close();
+  const timeline = join(mkdtempSync(join(tmpdir(), 'claudio-bg-worker-')), 'timeline');
+  process.env.FAKE_CLAUDE_TIMELINE = timeline;
+  try {
+    const started = orchestrator.create(graphOf(repo, [{ id: 'lead', prompt: 'FAKE-BG-AGENT\nFAKE-TEXT-ONCE The survey is running.' }]));
+    const orch = await settle(orchestrator, started.id);
+    const lead = orch.tasks[0] as OrchestrationTaskState;
+    assert.equal(lead.status, 'completed');
+    assert.equal(lead.continuations, 1);
+    assert.equal(lead.attempts, 1);
+    assert.match(lead.result ?? '', /You ended your turn while work you delegated is still running: survey the routes\./);
+    assert.equal(runs.get(lead.runId ?? '')?.executions.length, 2);
+    // D3 for workers: the first process's input stayed open until its subagent ended, which a CLI whose
+    // input closed would have killed at its ceiling; the continuation waited for that later exit
+    const marks = readFileSync(timeline, 'utf8').trim().split('\n');
+    assert.ok(marks.includes('background-ended'), marks.join(','));
+    assert.ok(marks.indexOf('background-ended') < marks.indexOf('eof'), `the input ended before the background work: ${marks.join(',')}`);
+  } finally {
+    delete process.env.FAKE_CLAUDE_TIMELINE;
+    db.close();
+  }
 });
 
 test('the workflow lead is told not to wait for the workflow itself, and each task of the script its own head', () => {
@@ -1893,6 +1912,24 @@ test('fixer: false blocks without a fix', async () => {
   assert.equal(orch.verification?.review?.status, 'blocked');
   assert.equal(orch.verification?.fixes?.length ?? 0, 0);
   assert.equal(rounds(g, started.id).length, 1);
+  g.db.close();
+});
+
+test('a round whose reviewers all answer nothing usable ends incomplete without the fixer, even when a scan blocks', async () => {
+  const g = reviewedGraph(['FAKE-REVIEW-INVALID', 'FAKE-REVIEW-FIX fixed.txt yes']);
+  // The task commits a conflict marker: a blocking finding of Claudio's own scan, with no model in it
+  const started = g.orchestrator.create({
+    ...graphOf(g.repo, [{ id: 'api', prompt: 'FAKE-WRITE api.txt =======' }]),
+    synthesize: false,
+    objective: ['Add the api', 'FAKE-REVIEW-INVALID', 'FAKE-REVIEW-FIX fixed.txt yes'].join('\n'),
+    verification: { commands: ['true'], e2eSpecs: false, review: { maxFixRounds: 2 } } as VerificationSpec,
+  });
+  const orch = await gateSettled(g, started.id);
+  assert.equal(orch.verification?.review?.status, 'incomplete', orch.verification?.review?.reason ?? '');
+  assert.match(orch.verification?.review?.reason ?? '', /^No reviewer run gave a usable answer \(\d+ of \d+ failed\), so nothing was reviewed; the fixer is not called for the 1 blocking finding/);
+  assert.equal(orch.verification?.fixes?.length ?? 0, 0, 'the fixer was not called');
+  assert.equal(rounds(g, started.id).length, 1, 'no second round');
+  assert.equal(existsSync(join(orch.integration?.worktree ?? '', 'fixed.txt')), false);
   g.db.close();
 });
 

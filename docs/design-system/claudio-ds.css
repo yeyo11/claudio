@@ -658,7 +658,7 @@ a.part-of { color: inherit; text-decoration: none; }
    move is never blocked. */
 .wi-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; min-height: 0; }
 .wi-col { display: flex; flex-direction: column; gap: 8px; min-height: 0; padding: 6px 6px 8px; border-radius: var(--r-xl); border: 1px solid var(--line); background: var(--bg-1); }
-.wi-col-head { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 2px 0 8px; white-space: nowrap; }
+.wi-col-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-height: 34px; padding: 4px 2px 4px 8px; white-space: nowrap; }
 .wi-col-head .t-label { color: var(--fg-2); }
 .wi-col-count { font-size: var(--fs-small); color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .wi-col-count b { font-weight: var(--fw-regular); color: var(--fg-2); }
@@ -785,10 +785,11 @@ a.part-of { color: inherit; text-decoration: none; }
 .wi-row-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wi-row.done .wi-row-title { color: var(--fg-2); }
 /* Phone: a column jump control (glyph and count; the chosen one says its name) and two-line rows. */
-.wi-jump { display: flex; width: 100%; }
+.wi-jump { display: flex; width: 100%; container: wi-jump / inline-size; }
 .wi-jump > * { flex: 1 1 auto; justify-content: center; height: var(--touch); padding: 0 6px; font-size: var(--fs-small); }
 .wi-jump > .on { flex: 2.4 1 auto; font-family: var(--sans); font-size: var(--fs-small); }
 .wi-jump > .over, .wi-jump > .over .wi-status { color: var(--warn); stroke: var(--warn); }
+@container wi-jump (max-width: 329px) { .wi-jump > .on .wi-jump-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } }
 .wi-mrow { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 64px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .wi-mrow:last-child { border-bottom: 0; }
 .wi-mrow.rail-live { padding-left: 16px; }
@@ -1586,6 +1587,7 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .prov-id .prov-name { display: flex; align-items: center; gap: 8px; font-weight: var(--fw-regular); }
 .prov-meta { font-size: var(--fs-small); color: var(--fg-3); }
+.prov-meta.is-prose { font-family: var(--sans); overflow-wrap: anywhere; }
 .prov-state { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
 .prov-reason { margin: 0; font-size: var(--fs-small); line-height: 1.45; color: var(--fg-2); }
 .prov-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
@@ -1598,7 +1600,7 @@ a.doc-origin-phone { flex-wrap: nowrap; min-height: var(--touch); color: var(--f
 .prov-cell { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
 .prov-cell:last-child { border-bottom: 0; }
 .prov-cell-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.prov-cell-head .prov-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prov-cell-head .prov-meta:not(.is-prose) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prov-cell-head .grow { display: flex; flex-direction: column; gap: 2px; }
 .prov-cell .prov-reason { font-size: var(--fs-body); }
 .prov-order-row { display: flex; align-items: center; gap: 10px; min-height: var(--touch); padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -2284,6 +2286,11 @@ a.cont-from:hover { color: var(--fg); }
 .permission-head .badge { margin-left: auto; }
 .permission-input { margin: 0; padding: 8px 10px; overflow-x: auto; font-family: var(--mono); font-size: var(--fs-small); line-height: 1.6; background: var(--bg-1); border-radius: var(--r-sm); white-space: pre; color: var(--fg); }
 .permission-input .k { color: var(--fg-3); }
+/* A write said in sentences: the UI's face, wrapped; a schedule's preview under it; the answers hidden until it is in */
+.permission-input.is-prose { overflow-x: visible; font-family: var(--sans); line-height: var(--lh-small); white-space: pre-line; overflow-wrap: anywhere; }
+.permission-preview { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.permission-preview > p { margin: 0; font-size: var(--fs-small); color: var(--fg-2); }
+.permission-actions.is-waiting { visibility: hidden; }
 .permission-note { margin: 0; font-size: var(--fs-small); line-height: 1.5; color: var(--fg-2); }
 .permission-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .permission-reason { flex: 1 1 200px; min-width: 0; }
@@ -2345,12 +2352,12 @@ a.cont-from:hover { color: var(--fg); }
 /* ---------- end of Editable Home ---------- */
 
 /* ---------- Queued messages over the composer (docs/chat-delivery.md) ----------
-   .chat-queued is the dashed, faded card of the messages the agent has not read yet, one .chat-queued-item each. A lost
+   .chat-queued is the dashed, quiet card (no opacity: it would take the muted text under 4.5:1 in light) of the messages the agent has not read yet, one .chat-queued-item each. A lost
    one (.is-lost) says so with the warn triangle, and the whole card turns warn when every one is lost. Nothing here moves. */
-.chat-queued { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: var(--r); opacity: 0.75; }
+.chat-queued { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed var(--line-2); border-radius: var(--r); }
 .chat-queued-item { display: flex; align-items: flex-start; gap: 8px; color: var(--fg-2); font-size: var(--fs-small); }
 .chat-queued-item.is-lost > svg, .chat-queued.is-lost .chat-queued-item > svg { color: var(--warn); }
-.chat-queued.is-lost { border-style: solid; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); opacity: 1; }
+.chat-queued.is-lost { border-style: solid; border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
 /* A message held behind a foreground call: the foot's sentence names it, and .chat-queued-actions holds "send to background" and
    "interrupt the turn", wrapping under it. A notice (.is-notice) leads with who wrote it, .chat-queued-from, and has only Dismiss. */
 .chat-queued-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -2405,6 +2412,7 @@ a.cont-from:hover { color: var(--fg); }
 .setup-page .prov-row.compact .prov-account { display: none; }
 .setup-page .prov-row.compact .prov-reason { grid-column: 2 / span 2; grid-row: 2; }
 .setup-page .prov-row.compact .prov-meta { grid-column: 2 / span 2; grid-row: 3; font-family: var(--mono); overflow-wrap: anywhere; }
+.setup-page .prov-row.compact .prov-meta.is-prose { font-family: var(--sans); }
 .setup-page .prov-row.compact .prov-actions { grid-column: 4; grid-row: 1 / span 3; align-self: start; margin-left: 14px; }
 @container setup-list (max-width: 639px) {
   .setup-page .prov-row.compact { grid-template-columns: 50px max-content minmax(0, 1fr); }

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-11-07T13:00:00Z
 tags:
     - design-system
     - web
@@ -350,7 +350,7 @@ already belong to the orchestration board.
 | `DesktopProyectosSugerencias`, `MobileProyectosSugerencias` (`.candidate-row`, `.candidate-actions`, `.candidate-clone`, `.candidate-others`) | `Candidates` on the Projects page | **a project is a git repository** ([plans/projects-as-repositories.md](plans/projects-as-repositories.md)). Suggestions are one row per repository: the name, its remote in mono (scheme, `user@` and `.git` dropped; the path when there is none), a tabular line "312 chats en 14 worktrees · última vez hace 2 h", "Importar" and a ghost `EyeOff` "Ocultar sugerencia". Another clone of the same remote is one neutral line with the `Copy` icon, no status colour. The directories that are not repositories fold under "Otros directorios · 3". Hiding removes the row and the toast offers "Deshacer". On a phone the rows stack, "Importar" is full width at 44 px and "Ocultar" sits in a "⋯" sheet |
 | `DesktopProyectoWorktrees`, `MobileProyectoWorktrees` (`.worktree-row`, `.is-main`, `.worktree-chats`, `.worktree-removed`) | `ProjectWorktrees` | the repository's checkouts: the main one first with a neutral "Principal" badge and no "Nuevo chat aquí" (the header has New chat), then the linked worktrees by last activity. Branch in mono, or a neutral "HEAD separado" badge; the path in mono; who made it as one link (orchestration task, work item, chat; none for one made by hand); "5 chats · hace 2 h" leading to that worktree's chats; a neutral `Lock` "Bloqueado" badge. "Locked", "detached" and "removed" are facts, not problems: none takes a status colour. A footer line links to the chats of removed worktrees |
 | `DesktopProyectoApuntar`, `MobileProyectoApuntar` (`.repoint-callout`, `.callout`, `.callout-warn`) | `ProjectRepoint` on Resumen and Ajustes | a project whose path lies inside a linked worktree: a neutral `.callout` with the `GitBranch` icon and one `.btn-small` action, "Apuntar al repositorio principal", never the gradient (the header's primary keeps it). A confirm dialog names both paths in mono; a refusal stays in the dialog as a `.callout-warn` with what to do. On a phone the callout spans the width and its button is 44 px, and the confirm is a bottom `Sheet` (`.repoint-sheet-foot`) with full-width 44 px buttons |
-| `.wi-board`, `.wi-col` (`.over`), `.wi-col-head`, `.wi-col-count`, `.wi-col-limit`, `.wi-col-slot` | new `.workitem-board`, `.workitem-col*` | five fixed columns. The count leaves epics out. Over its limit a column takes a 2 px warn hairline on top and one line of warn text, "Sobre el límite: 4 de 3", with no box around it; the move is never blocked. The head carries the role that answers for the column (`.role-av.sm`, the person's monogram on Hecho). The board fills the page and a long column scrolls on its own, so no card sits under the status bar or the selection bar (`.page.selecting` keeps room for the bar) |
+| `.wi-board`, `.wi-col` (`.over`), `.wi-col-head`, `.wi-col-count`, `.wi-col-limit`, `.wi-col-slot` | new `.workitem-board`, `.workitem-col*` | five fixed columns. A column's name is never cut: in a narrow column what follows it in the head wraps onto a second line. The count leaves epics out. Over its limit a column takes a 2 px warn hairline on top and one line of warn text, "Sobre el límite: 4 de 3", with no box around it; the move is never blocked. The head carries the role that answers for the column (`.role-av.sm`, the person's monogram on Hecho). The board fills the page and a long column scrolls on its own, so no card sits under the status bar or the selection bar (`.page.selecting` keeps room for the bar) |
 | `.wi-col-more`, `.wi-card.skeleton-card` | new `.workitem-col-more` | Hecho shows its newest cards and "Mostrar 9 más" at its foot; the button loads the next page in place, and two skeleton cards hold the page's place while it arrives. The same for any column that pages |
 | `.list-more` | new `.list-more` | the foot of a paged list (the task list, the Team activity): "Mostrar 50 más" and, beside it, "quedan 112". No infinite scroll: the person asks for the next page |
 | `.wi-status` (`.s-done`) | new `WorkItemStatusIcon` | a column is told by shape; only done is coloured (ok) and it is always named |
@@ -368,7 +368,7 @@ already belong to the orchestration board.
 | `.wi-epic`, `.wi-label`, `.wi-assignee` (`.none`) | new `.workitem-epic`, `.workitem-label`, `.monogram` | the epic is neutral, with its own `--hue` only on the diamond, so a board of one epic does not turn the brand's colour |
 | `.select-bar` | new `.selection-bar` | floats over the board while cards are chosen; holds "Orquestar" |
 | `.wi-group`, `.wi-row`, `.wi-row-title` | `.list-row` variants | the list view, grouped by column. On a phone the title wraps instead of being cut |
-| `.wi-jump`, `.wi-mrow` | `.seg` variant, `.list-row` variant | the phone board: columns are sections of one list, and the jump control shows each column's glyph and count, the chosen one with its name |
+| `.wi-jump`, `.wi-mrow` | `.seg` variant, `.list-row` variant | the phone board: columns are sections of one list, and the jump control shows each column's glyph and count, the chosen one with its name (below a 330 px jump, its name goes to screen readers only: the section heading under it says it) |
 | `button.wi-mrow[aria-pressed]` (`.sel`) | `.list-row` variant | selection on a phone: the whole row is a pressed button with the selected-row look and says "Elegida" in words. An epic cannot be chosen and says why ("las épicas no se orquestan"). No checkbox |
 | `.ms-bar` (`.done`, `.doing`), `.ms-name`, `.ms-legend` | `ProgressBar` variant | done in ok, the ones in flight in a neutral tone, the rest as track. No dates anywhere |
 | `.prop-row` | the chat inspector's rows | the work item's properties |
@@ -704,9 +704,11 @@ only gradients are the ones a screen already had. The rules are under "Providers
 
 - **A row (`.prov-row`).** Handle (`.prov-grip`, desktop only), the provider's `.monogram` (a hue that
   is never red, green or cyan; brand logos are third-party art, so none is drawn), its identity
-  (`.prov-id`: name, account, then version and path in mono), the state (`.prov-state`: a badge and
-  the reason in plain words under it), the actions (`.prov-actions`) and an enable switch. First run
-  uses `.compact`: no handle, no switch, since the person is only reading.
+  (`.prov-id`: name, account, then version and path in mono; `.prov-meta.is-prose` where that line is
+  a sentence, such as Tailscale's node, with only the literal in `.mono`, wrapping and never cut),
+  the state (`.prov-state`: a badge and the reason in plain words under it), the actions
+  (`.prov-actions`) and an enable switch. First run uses `.compact`: no handle, no switch, since the
+  person is only reading.
 - **A state is a status colour with its word**, one each, and the same word everywhere:
 
   | State | Badge | Word | The one action | Also offered |
@@ -777,9 +779,11 @@ the "continued in another provider" divider of Claudio are gone
 
 A message sent while the agent works is a card over the composer (`.chat-queued`) from the moment
 the server takes it until the stream says the agent read it ([chat-delivery.md](chat-delivery.md)):
-dashed and faded, one row per message (`.chat-queued-item`, an hourglass and two lines of its text,
-or "2 archivos"), in the order they will be read. Nothing here is live: the card waits, and the
-energy border stays with the working composer under it.
+dashed and quiet, one row per message (`.chat-queued-item`, an hourglass and two lines of its text,
+the whole of it in a tooltip, or "2 archivos"), in the order they will be read. Quiet comes from the
+dashed border, the see-through ground and the muted text, never from `opacity`: a faded card takes
+its text under 4.5:1 in the light theme. Nothing here is live: the card waits, and the energy border
+stays with the working composer under it.
 
 - **Waiting.** The foot says how many wait ("1 mensaje espera al turno en curso") and offers
   **Enviar ahora**, a neutral `.btn-small`, for the oldest message still in the agent's queue. It goes
@@ -1728,8 +1732,12 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
   gradient surface is **Permitir**; the send button is disabled.
 - **The host prompt of a write** (`.permission`) is the app's existing `.permission`, `-head`, `-input` and `-actions`, drawn here
   for the first time. A write tool is titled in the person's words ("Crear tarea en AGN", not the tool's name), with the plug icon
-  that `icons.tsx` gives to `mcp__` tools; under it the input in mono (`.permission-input`, keys dimmed with `.k`), one line saying
-  what happens on each answer (`.permission-note`), **Permitir** (primary) and **Denegar** (`btn-danger`) and the reason field.
+  that `icons.tsx` gives to `mcp__` tools; under it what the write carries, said in sentences ("Inicia: un chat"), so in the UI's
+  face and wrapped (`.permission-input.is-prose`; the raw input of any other tool stays a mono `.permission-input`, keys dimmed
+  with `.k`), one line saying what happens on each answer (`.permission-note`), **Permitir** (primary) and **Denegar**
+  (`btn-danger`) and the reason field. A schedule's write adds the server's preview under it (`.permission-preview`: the
+  expression in words and the next fires, on the schedule's clock and naming its zone when it is not the browser's); while that
+  is read, the answers keep their room but are hidden (`.permission-actions.is-waiting`), so they appear once, where they stay.
   There is no "allow and always": a write has no suggestions to offer. On a phone the buttons are 44 px, side by side, and the
   reason field takes the next row with the short placeholder "¿Por qué no? (opcional)" because the app's sentence does not fit a
   phone's input; the build can keep the app's string if it truncates acceptably.
@@ -1746,6 +1754,7 @@ decisions the drawing takes (criterion 1 of CW-18, candidate 1 of the spec):
 | `.as-greeting` | the first message of an assistant chat | `ClaudioMascot` at 24 px and one dimmed line; the same at the top of a reopened assistant chat |
 | `.cell > .ai-mark` | the Más row | `ClaudioGlyph` on the tile at the size of the other rows' `.proj` |
 | `.permission` (`-head`, `-input` with `.k`, `-note`, `-actions`, `-reason`) | `.permission`, `.permission-head`, `.permission-input`, `.permission-actions`, `.permission-reason` of `PermissionPrompts` | warn-tinted card, never gradient; the title is the readable name of the tool, the mono block is the input, Permitir is the screen's primary |
+| `.permission-input.is-prose`, `.permission-preview`, `.permission-actions.is-waiting` | the same, for a write of the assistant | a write's detail in sans, wrapped (`pre-line`); a schedule's preview lines as one block; the answers hidden, not removed, until the preview settled (at most 5 s) |
 
 ### The editable Home: edit mode, the add-widget picker and the Documents and Flow widgets
 

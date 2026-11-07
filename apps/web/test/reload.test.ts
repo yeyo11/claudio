@@ -102,6 +102,23 @@ test('a missing chunk offers the same reload, even after a dismissal, without hi
   assert.deepEqual(offers.current(), { reason: 'updated', version: '0.18.0' });
 });
 
+test('a page that is itself the offer holds the banner back while it shows, and the offer stays', () => {
+  const offers = new ReloadOffers('0.17.1');
+  let told = 0;
+  offers.subscribe(() => told++);
+  offers.staleChunk();
+  // The stale page and the banner would put the same gradient Reload on one screen
+  const release = offers.holdBanner();
+  assert.equal(offers.current(), null);
+  const second = offers.holdBanner();
+  release();
+  release();
+  assert.equal(offers.current(), null, 'a second page still holds it, and a release counts once');
+  second();
+  assert.deepEqual(offers.current(), { reason: 'stale' }, 'leaving the page brings the banner back');
+  assert.equal(told, 5);
+});
+
 // ---------- the reload ----------
 
 class FakeWorkers implements WorkerContainer {

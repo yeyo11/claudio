@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, watch } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,7 +53,7 @@ before(async () => {
 });
 
 after(async () => {
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   delete process.env.FAKE_OPENAI_PROMPTS;
   rmSync(root, { recursive: true, force: true });
@@ -110,11 +110,37 @@ function logged(chatId: string): Logged[] {
     .filter((l) => l.sessionId === chatId);
 }
 
-async function until(check: () => boolean, ms = 5000): Promise<void> {
-  const end = Date.now() + ms;
-  while (!check()) {
-    if (Date.now() > end) assert.fail('timed out waiting');
-    await new Promise((r) => setTimeout(r, 20));
+/**
+ * How long a wait may take before the test calls it stuck: a failure deadline, not a pace. The 5 and
+ * 10 s budgets this file had ran out in the full test gate, where every package's suite shares the
+ * machine and a fake CLI takes many times longer to answer (R17 of
+ * docs/plans/ci-and-regression-open.md).
+ */
+const WAIT_BUDGET_MS = 120_000;
+/** For what has no event of its own here (the stub session's held count): read again this often */
+const RECHECK_MS = 250;
+
+/**
+ * Waits for `check`, reading it again on every core event and every write to the fake's log, so a
+ * change is seen when it happens rather than on the next poll; `check` may act (a removal that
+ * succeeds once the chat is idle), which is why it runs again on each wake.
+ */
+async function until(check: () => boolean, state?: () => unknown): Promise<void> {
+  if (check()) return;
+  let wake = (): void => undefined;
+  const stopEvents = core.events.observe(() => wake());
+  const watcher = watch(root, () => wake());
+  const recheck = setInterval(() => wake(), RECHECK_MS);
+  const deadline = performance.now() + WAIT_BUDGET_MS;
+  try {
+    while (!check()) {
+      if (performance.now() > deadline) assert.fail(`timed out waiting${state ? `: ${JSON.stringify(state())}` : ''}`);
+      await new Promise<void>((resolve) => (wake = resolve));
+    }
+  } finally {
+    stopEvents();
+    watcher.close();
+    clearInterval(recheck);
   }
 }
 
@@ -370,15 +396,23 @@ test('a client that disconnects while a call is held interrupts the chat, which 
   assert.deepEqual(core.permissions.list(), []);
 });
 
-test('the idle watchdog does not end a turn that handed its calls over and waits for the client', async () => {
+test('the idle watchdog does not end a turn that handed its calls over and waits for the client', async (t) => {
   process.env.CLAUDIO_OPENAI_TURN_IDLE_MS = '1500';
+  // The watchdog is a timer that reads the clock: both are mocked, so "twice the idle limit" is a
+  // tick the test makes rather than three seconds a loaded machine stretches (R17 of
+  // docs/plans/ci-and-regression-open.md). What it would do on firing is interrupt the chat, at once
+  const interrupt = t.mock.method(core.chats, 'interrupt');
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() });
   try {
     const messages = [user(directive('TOOLS', [{ name: 'lookup', input: {} }]))];
     const first = await post({ model: 'sonnet', messages, tools: [lookup] });
     const body = (await first.json()) as Completion;
     assert.equal(body.choices[0]?.finish_reason, 'tool_calls', JSON.stringify(body));
     // Twice the idle limit, waiting for the client
-    await new Promise((r) => setTimeout(r, 3000));
+    t.mock.timers.tick(1500);
+    t.mock.timers.tick(1500);
+    assert.equal(interrupt.mock.callCount(), 0, 'the watchdog did not interrupt the chat');
+    t.mock.timers.reset();
     assert.ok(core.runtime.get(chatOf(first))?.pid);
     const done = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(body.choices[0]?.message.tool_calls?.[0]?.id ?? '', 'still here')], tools: [lookup] });
     assert.equal(done.status, 200);
@@ -389,13 +423,15 @@ test('the idle watchdog does not end a turn that handed its calls over and waits
 });
 
 test('the result request does not wait behind the turn that returned the calls: both finish well within the timeout', async () => {
+  // Waiting behind the first turn is a deadlock that only the held call's own timeout (minutes, the
+  // setting's default) can break, and it breaks it with an error result. So the result request
+  // answering with the client's result is the check, not how many seconds it took (R17)
   const messages = [user(directive('TOOLS', [{ name: 'lookup', input: {} }]))];
-  const started = Date.now();
   const body = (await (await post({ model: 'sonnet', messages, tools: [lookup] })).json()) as Completion;
   const id = body.choices[0]?.message.tool_calls?.[0]?.id ?? '';
-  const done = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(id, 'ok')], tools: [lookup] }, {}, AbortSignal.timeout(10_000));
+  const done = await post({ model: 'sonnet', messages: [...messages, echoed(body), toolMsg(id, 'ok')], tools: [lookup] });
   assert.equal(done.status, 200);
-  assert.ok(Date.now() - started < 10_000);
+  assert.equal(((await done.json()) as Completion).choices[0]?.message.content, 'results: ok');
 });
 
 test('a result for a chat whose process died resumes it cold with --resume, the results as a message, and x-claudio-resume: cold', async () => {
@@ -416,8 +452,13 @@ test('a result for a chat whose process died resumes it cold with --resume, the 
   assert.equal(resumed?.resume, chatId);
   assert.match(resumed?.prompt ?? '', /restarted/);
   assert.match(resumed?.prompt ?? '', new RegExp(`<tool-result id="${id}">\\nthe value\\n</tool-result>`));
-  // The resumed process serves the stub again, for the next calls (the fake logs it after the turn's result)
-  await until(() => logged(chatId).filter((l) => l.stub).length === 2, 10_000);
+  // The resumed process serves the stub again, for the next calls (the fake logs it after the turn's
+  // result). Its own line is the check: the killed process writes its line in the tick after it hands
+  // the calls over, so under load the SIGKILL can land first and a count of every line never reaches 2
+  await until(
+    () => logged(chatId).some((l) => l.stub !== undefined && l.pid === resumed?.pid),
+    () => logged(chatId).map((l) => ({ pid: l.pid, resume: l.resume, stub: l.stub !== undefined, prompt: l.prompt?.slice(0, 60) })),
+  );
   assert.equal(core.runtime.get(chatId)?.permissionPrompts, 'host');
 });
 
@@ -678,7 +719,7 @@ test("a chat's stub answers only its session's secret, and goes with the chat: o
   core.security.chatTokens.revoke(own);
   core.runtime.stop(chatId);
   await until(() => core.runtime.get(chatId)?.pid === null || core.runtime.get(chatId)?.pid === undefined);
-  await until(() => core.runtime.remove(chatId), 5000);
+  await until(() => core.runtime.remove(chatId));
   assert.equal((await list(secret)).status, 401);
   assert.deepEqual(files(), []);
 });

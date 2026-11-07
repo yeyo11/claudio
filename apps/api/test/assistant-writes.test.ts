@@ -56,7 +56,7 @@ before(async () => {
 
 after(async () => {
   delete process.env.FAKE_CLAUDE_LOGGED_IN;
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   rmSync(root, { recursive: true, force: true });
 });

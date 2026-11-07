@@ -70,12 +70,15 @@ export async function unstableButtons(page) {
   );
 }
 
-/** I6: a vertical scroller reserves its scrollbar's room, so content does not jump when it appears */
+/**
+ * I6: a vertical scroller reserves its scrollbar's room, so content does not jump when it appears. A
+ * scroller that draws no bar (`scrollbar-width: none`, as a board column's body) has no room to reserve.
+ */
 export async function scrollbarGutter(page) {
   return page.eval(
     DESCRIBE +
       `return [...document.querySelectorAll('body *')].filter((el)=>{if(!shown(el))return false;const s=getComputedStyle(el);` +
-      `return /auto|scroll/.test(s.overflowY)&&el.scrollHeight>el.clientHeight+1&&el.clientHeight>120&&!/stable/.test(s.scrollbarGutter)&&!el.closest('.xterm,.cm-editor,[role=listbox],[role=menu]')})` +
+      `return /auto|scroll/.test(s.overflowY)&&el.scrollHeight>el.clientHeight+1&&el.clientHeight>120&&!/stable/.test(s.scrollbarGutter)&&s.scrollbarWidth!=='none'&&!el.closest('.xterm,.cm-editor,[role=listbox],[role=menu]')})` +
       `.map(describe).slice(0,20)`,
   );
 }
@@ -88,14 +91,20 @@ export async function proportionalNumbers(page) {
   );
 }
 
-/** I9: targets of at least `min` px (44 on a phone, 24 above): the box a finger or a pointer gets */
+/**
+ * I9: targets of at least `min` px (44 on a phone, 24 above): the box a finger or a pointer gets. A
+ * stretched link, whose `::after` is absolute at inset 0 (the phone board's row title), is pressed
+ * anywhere in the box of its nearest positioned ancestor, so that box is what is measured.
+ */
 export async function smallTargets(page, min) {
   return page.eval(
     DESCRIBE +
       `const sel='button, a[href], input:not([type=hidden]), select, textarea, [role=button], [role=radio], [role=checkbox], [role=switch], [role=tab], [role=menuitem], [role=option]';` +
+      `const stretched=(el)=>{const a=getComputedStyle(el,'::after');if(a.content==='none'||a.content==='normal'||a.position!=='absolute'||a.pointerEvents==='none'||[a.top,a.right,a.bottom,a.left].some((v)=>v!=='0px'))return null;` +
+      `let p=el;while(p&&getComputedStyle(p).position==='static')p=p.parentElement;return p};` +
       `const out=[];for(const el of document.querySelectorAll(sel)){if(!shown(el)||el.closest('[aria-hidden=true],[inert]'))continue;` +
       `const s=getComputedStyle(el);if(el.tagName==='A'&&s.display==='inline'&&el.closest('p,li,td,.md,.markdown'))continue;` +
-      `const r=el.getBoundingClientRect();if(r.width<${min}-0.5||r.height<${min}-0.5)out.push(describe(el)+' '+Math.round(r.width)+'×'+Math.round(r.height))}return out.slice(0,25)`,
+      `const r=(stretched(el)??el).getBoundingClientRect();if(r.width<${min}-0.5||r.height<${min}-0.5)out.push(describe(el)+' '+Math.round(r.width)+'×'+Math.round(r.height))}return out.slice(0,25)`,
   );
 }
 

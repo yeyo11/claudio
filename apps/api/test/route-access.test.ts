@@ -14,8 +14,8 @@ const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const roots = new Set<string>();
 const cores = new Set<Core>();
-after(() => {
-  for (const core of cores) core.shutdown();
+after(async () => {
+  await Promise.all([...cores].map((core) => core.shutdown()));
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
@@ -110,6 +110,8 @@ test('the classes C1 names: what a chat may never do, and what is its work', () 
     'POST /chats/:id/permissions/:requestId',
     'PUT /chats/:id/mcp/:name',
     'PUT /chats/:id/claudio-mcp',
+    'POST /chats/:id/compact',
+    'POST /chats/:id/notes',
     'POST /projects/:id/journal',
     'POST /orchestrations/:id/pull-request',
     'POST /orchestrations/:id/integrate',
@@ -128,8 +130,6 @@ test('the classes C1 names: what a chat may never do, and what is its work', () 
     'POST /chats/:id/stop',
     'POST /chats/:id/interrupt',
     'POST /chats/:id/hint',
-    'POST /chats/:id/compact',
-    'POST /chats/:id/notes',
     'PATCH /chats/:id',
     'POST /orchestrations',
     'POST /orchestrations/plan',

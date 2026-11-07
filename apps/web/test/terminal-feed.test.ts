@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
-import type { Terminal, TerminalStatus } from '@claudio/shared';
+import type { Terminal, TerminalChangedEvent, TerminalStatus } from '@claudio/shared';
 import { keys } from '../src/api';
-import { applyTerminalEvent } from '../src/components/terminal/use-terminals';
+import { applyTerminalEvent, shareTerminalFeed } from '../src/components/terminal/use-terminals';
+import { dispatchEvent } from '../src/lib/feed';
 
 const status = (available: boolean): TerminalStatus =>
   ({ enabled: available, available, reason: available ? null : 'off', settings: {}, sources: {}, peerCheck: 'on', running: 0 }) as unknown as TerminalStatus;
@@ -57,5 +58,47 @@ test('a terminal the server no longer lists is forgotten from the event, never a
   assert.deepEqual(w.asked, { status: 2, kept: 1, closed: 1 });
   assert.equal(w.client.getQueryData(keys.terminalOne('term_closed')), null);
   assert.equal(w.client.getQueryData<Terminal>(keys.terminalOne('term_kept'))?.clients, 2);
+  for (const stop of stops) stop();
+});
+
+const changed = (id: number): TerminalChangedEvent => ({ id, at: '2026-11-07T10:00:00Z', title: 'Terminals changed', type: 'terminal.changed', terminals: [], status: status(true) });
+
+test('a terminal.changed is applied once however many components read the status', async () => {
+  // The desktop shell with the dock open reads the status in five places (the bar, the More sheet's
+  // count and its list, the status bar item, the dock). Each applied the event on its own, and each
+  // invalidation cancelled the fetch the one before it had just started: on CI every event cost four
+  // aborted GET /terminal and GET /terminals pairs, each of them a peer check on the server.
+  const w = watched();
+  const stops = [w.watch('status', keys.terminalStatus, status(true)), w.watch('list', keys.terminalList('all'), [] as Terminal[])];
+  await w.settle();
+  const readers = Array.from({ length: 5 }, () => shareTerminalFeed(w.client));
+  dispatchEvent(changed(1));
+  await w.settle();
+  assert.deepEqual(w.asked, { status: 2, list: 2 });
+
+  // Still once while some of them remain, and not at all once the last one is gone
+  for (const release of readers.slice(1)) release();
+  // A second release of the same reader is no release of another one
+  readers[1]?.();
+  dispatchEvent(changed(2));
+  await w.settle();
+  assert.deepEqual(w.asked, { status: 3, list: 3 });
+  readers[0]?.();
+  dispatchEvent(changed(3));
+  await w.settle();
+  assert.deepEqual(w.asked, { status: 3, list: 3 });
+  for (const stop of stops) stop();
+});
+
+test('a reader that mounts again after every other one left listens again', async () => {
+  const w = watched();
+  const stops = [w.watch('status', keys.terminalStatus, status(true))];
+  await w.settle();
+  shareTerminalFeed(w.client)();
+  const again = shareTerminalFeed(w.client);
+  dispatchEvent(changed(4));
+  await w.settle();
+  assert.deepEqual(w.asked, { status: 2 });
+  again();
   for (const stop of stops) stop();
 });

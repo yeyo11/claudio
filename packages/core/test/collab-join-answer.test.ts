@@ -6,7 +6,7 @@ import { decodeInvite, encodeInvite } from '../src/collab/invite.ts';
 import type { ReaderSources } from '../src/collab/readers.ts';
 import { endpointIdFromSeed } from '../src/collab/roster.ts';
 import type { ReplySink } from '../src/collab/serve.ts';
-import { CollaboratorsService, type HostHandle } from '../src/collab/service.ts';
+import { CollaboratorsService, type CollaboratorsDeps, type HostHandle } from '../src/collab/service.ts';
 import type { WireReply } from '../src/collab/wire.ts';
 import { CollabStore, Db } from '../src/db.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
@@ -37,8 +37,28 @@ class Net {
   readonly sent: string[] = [];
   /** How a peer from another release reads what it is sent */
   readonly rewrites = new Map<string, Rewrite>();
-  /** How long a frame to a peer takes to arrive: a dial to an owner whose network is slow */
-  readonly delays = new Map<string, number>();
+  /**
+   * Frames tried, as `from>to:type`, whether they arrived or not: a frame held at a gate is in here
+   * from the moment it is sent, and a frame to a peer that is gone is counted before it fails
+   */
+  readonly attempts: string[] = [];
+  /**
+   * A peer whose frames wait until the test opens its gate: a dial to an owner whose network is slow,
+   * for as long as the test says rather than for a guessed number of milliseconds (R17 of
+   * docs/plans/ci-and-regression-open.md), so a loaded machine cannot reorder what the test checks
+   */
+  private readonly gates = new Map<string, Promise<void>>();
+
+  /** Holds every frame to `to` until the returned function is called */
+  hold(to: string): () => void {
+    let open = (): void => undefined;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    this.gates.set(to, gate);
+    return () => {
+      if (this.gates.get(to) === gate) this.gates.delete(to);
+      open();
+    };
+  }
   /** Tells an install's service that its endpoint's connection changed, as the host's poll does */
   readonly connections = new Map<string, (connection: 'online' | 'no-relay') => void>();
 
@@ -86,8 +106,9 @@ class Net {
 
   private async *request(from: string | null, to: string, frame: unknown): AsyncGenerator<HostReplyPart> {
     await Promise.resolve();
-    const delay = this.delays.get(to);
-    if (delay) await sleep(delay);
+    this.attempts.push(`${String(from)}>${to}:${String((frame as { type?: unknown }).type)}`);
+    const gate = this.gates.get(to);
+    if (gate) await gate;
     const target = this.bound.get(to);
     if (!from || !this.bound.has(from) || !target) throw new Error('no route to the peer');
     let sent = JSON.parse(JSON.stringify(frame)) as Record<string, unknown>;
@@ -165,7 +186,12 @@ after(async () => {
 
 const sources = { events: { subscribe: () => () => undefined } } as unknown as ReaderSources;
 
-async function install(net: Net, name: string, extra: { joinWaitMs?: number } = {}): Promise<Install> {
+type Timing = Pick<CollaboratorsDeps, 'joinWaitMs' | 'reconcileMs' | 'pendingMs'>;
+
+/** Longer than any test: a timer set to it never fires, so what happens is what the test caused */
+const HOUR = 3_600_000;
+
+async function install(net: Net, name: string, extra: Timing = {}): Promise<Install> {
   const config = tempConfig();
   const db = new Db(config);
   dbs.push(db);
@@ -220,12 +246,33 @@ async function off(i: Install): Promise<void> {
   await i.service.update({ enabled: false });
 }
 
+/*
+ * The service keeps its sync client and its pass over the waiting joins to itself; the two waits
+ * below reach them only to know when what a step started has ended, instead of sleeping for a
+ * guessed while (R17 of docs/plans/ci-and-regression-open.md).
+ */
+interface Internals {
+  client: { idle(id: string): Promise<void> };
+  pendingRun: Promise<void> | null;
+  updatePending(change: (all: unknown[]) => unknown[]): Promise<void>;
+  retryPending(): Promise<void>;
+}
+const internals = (i: Install): Internals => i.service as unknown as Internals;
+
+/** Resolves once no run of `i` with `peer` is in flight, the re-run a poke asked for included */
+const syncedWith = (i: Install, peer: Install): Promise<void> => internals(i).client.idle(peer.id);
+
+/** Resolves once no pass over `i`'s waiting joins and leaves is in flight, the one more asked for included */
+async function passesSettled(i: Install): Promise<void> {
+  for (let run = internals(i).pendingRun; run; run = internals(i).pendingRun) await run;
+}
+
 const pendingOf = (i: Install, groupId: string) => i.service.groupList().pendingJoins.find((p) => p.groupId === groupId);
 
 /** Ana owns a group Ben is in, and Ana has seen Ben online, so her invites name him as a relay */
-async function team(net: Net) {
+async function team(net: Net, benTiming: Timing = {}) {
   const ana = await install(net, 'Ana');
-  const ben = await install(net, 'Ben');
+  const ben = await install(net, 'Ben', benTiming);
   const group = await ana.service.createGroup('UDD');
   const joined = await ben.service.join(ana.service.createInvite(group.id).text);
   assert.equal(joined.state, 'joined');
@@ -261,12 +308,15 @@ test('a denial the owner makes while the joiner is away reaches the joiner throu
   await off(ana);
 
   await on(cleo);
-  const denied = await until('Cleo learns she was denied', () => (pendingOf(cleo, groupId)?.state === 'denied' ? pendingOf(cleo, groupId) : null));
+  // `endJoin` writes the entry, then announces it: the file can say "denied" a moment before the
+  // event exists, so the wait is on the event, which is only sent once both are there
+  const ended = await until('Cleo learns she was denied', () => cleo.events.find((e) => e.type === 'collaborators.join-ended') ?? null);
+  const denied = pendingOf(cleo, groupId);
+  assert.ok(denied?.state === 'denied');
   assert.equal(denied.owner.name, 'Ana');
   assert.equal(denied.groupName, 'UDD');
   assert.ok(denied.endedAt);
-  const ended = cleo.events.find((e) => e.type === 'collaborators.join-ended');
-  assert.ok(ended?.type === 'collaborators.join-ended');
+  assert.ok(ended.type === 'collaborators.join-ended');
   assert.equal(ended.title, 'Ana denied the request to join UDD');
   assert.equal(ended.pending.state, 'denied');
 
@@ -410,12 +460,14 @@ test('a join the owner does not answer in time is answered pending at once, and 
   const group = await ana.service.createGroup('UDD');
   const invite = ana.service.createInvite(group.id).text;
   // Every frame to Ana takes longer than the join waits: a dial to an owner on a bad network
-  net.delays.set(ana.id, 800);
-  const began = Date.now();
+  const release = net.hold(ana.id);
   const answer = await cleo.service.join(invite);
+  // The join returned while its frame was still held: nothing from Ana could have answered it
   assert.equal(answer.state, 'pending', 'the route answers 202 with the pending join');
-  assert.ok(Date.now() - began < 700, `answered after ${String(Date.now() - began)} ms`);
+  assert.ok(net.attempts.includes(`${cleo.id}>${ana.id}:join`), 'the join is on its way to Ana');
+  assert.ok(!net.sent.includes(`${cleo.id}>${ana.id}:join`), 'and has not reached her');
   assert.equal(pendingOf(cleo, group.id)?.state, 'waiting', 'the page shows the join waiting');
+  release();
   // The attempt goes on after the answer, and only once: no pass sends the join beside it
   const joined = await until('Cleo joined in the background', () => cleo.service.groupList().groups.find((g) => g.id === group.id));
   assert.equal(joined.name, 'UDD');
@@ -423,19 +475,51 @@ test('a join the owner does not answer in time is answered pending at once, and 
   assert.equal(net.sent.filter((x) => x === `${cleo.id}>${ana.id}:join`).length, 1, 'the join was sent once');
 });
 
+test('a pass over the waiting joins that runs while the join is being written does not send it beside the first attempt', async () => {
+  const net = new Net();
+  const ana = await install(net, 'Ana');
+  const cleo = await install(net, 'Cleo', { joinWaitMs: 150, pendingMs: HOUR });
+  const group = await ana.service.createGroup('UDD');
+  const release = net.hold(ana.id);
+  // The window a loaded machine opens: the entry is on disk and the request has not resumed yet,
+  // and the pass timer fires in it. The pass is run there, every time, instead of by chance
+  const inner = internals(cleo);
+  const write = inner.updatePending.bind(cleo.service);
+  let passed = false;
+  const toAna = (): string[] => net.attempts.filter((x) => x.startsWith(`${cleo.id}>${ana.id}:`));
+  inner.updatePending = async (change) => {
+    await write(change);
+    if (passed) return;
+    passed = true;
+    // The request resumes once the pass is over or has dialled Ana: either way it read the entry
+    await Promise.race([inner.retryPending(), until('the pass dialled Ana', () => toAna().length > 0)]);
+  };
+  const answer = await cleo.service.join(ana.service.createInvite(group.id).text);
+  assert.equal(answer.state, 'pending');
+  assert.ok(passed, 'the pass ran while the join was being written');
+  // While every frame to Ana is held, the only one on its way is the first attempt's join
+  assert.deepEqual(toAna(), [`${cleo.id}>${ana.id}:join`]);
+  release();
+  await until('Cleo joined', () => cleo.service.groupList().groups.find((g) => g.id === group.id));
+  await passesSettled(cleo);
+  assert.equal(net.attempts.filter((x) => x === `${cleo.id}>${ana.id}:join`).length, 1, 'the join was sent once');
+});
+
 test('leaving with the owner away answers at once, and the leave reaches the owner once she is back', async () => {
   const net = new Net();
   const { ana, ben, groupId } = await team(net);
-  net.delays.set(ana.id, 1_500);
-  const began = Date.now();
+  const release = net.hold(ana.id);
+  // Resolves while every frame to Ana is held: the leave did not wait for her
   await ben.service.leaveGroup(groupId);
-  assert.ok(Date.now() - began < 1_000, `the leave waited ${String(Date.now() - began)} ms for the owner`);
   assert.ok(!ben.service.groupList().groups.some((g) => g.id === groupId), 'the group is gone here at once');
   assert.deepEqual(ben.service.pendingLeaves(), [{ groupId, endpointId: ana.id }]);
   // Away for good, then back: the leave is sent again until she takes it, and she removes Ben
   await off(ana);
-  net.delays.delete(ana.id);
-  await sleep(200);
+  const leaves = () => net.attempts.filter((x) => x === `${ben.id}>${ana.id}:leave`).length;
+  const held = leaves();
+  release();
+  // Two more tries with Ana gone: the first of them failed and was handled before the second began
+  await until('Ben sent the leave again while Ana was away', () => leaves() >= held + 2);
   assert.deepEqual(ben.service.pendingLeaves(), [{ groupId, endpointId: ana.id }], 'kept while nobody acknowledged it');
   await on(ana);
   await until('Ana removed Ben', () => !ana.service.getGroup(groupId).members.some((m) => m.endpointId === ben.id));
@@ -444,31 +528,44 @@ test('leaving with the owner away answers at once, and the leave reaches the own
 
 test('the endpoint coming back online pokes every peer at once', async () => {
   const net = new Net();
-  const { ana, ben, groupId } = await team(net);
+  // Ben's reconcile timer never fires within the test, so any hello after the status change is the poke
+  const { ana, ben, groupId } = await team(net, { reconcileMs: HOUR });
   const hellos = () => net.sent.filter((x) => x === `${ben.id}>${ana.id}:hello`).length;
-  await sleep(100);
+  // A status change starts a run synchronously when it pokes, so waiting for the run with Ana to be
+  // idle is waiting for whatever the change caused, the hello included
+  await syncedWith(ben, ana);
   const before = hellos();
-  // No relay for a while, then back: before, every peer waited its own timer (reconcile is a minute here)
   net.connections.get(ben.id)?.('no-relay');
-  await sleep(100);
+  await syncedWith(ben, ana);
   assert.equal(hellos(), before, 'losing the relay does not dial anyone');
   net.connections.get(ben.id)?.('online');
-  await until('Ben says hello to Ana again', () => hellos() > before, 2_000);
+  await syncedWith(ben, ana);
+  assert.ok(hellos() > before, 'Ben said hello to Ana again');
   assert.ok(ben.service.getGroup(groupId));
 });
 
 test('a pass over the waiting joins runs one at a time, however long the owner takes', async () => {
   const net = new Net();
   const { ana, ben, groupId } = await team(net);
-  const cleo = await install(net, 'Cleo');
+  // Passes start only when the test asks for one, never on the clock
+  const cleo = await install(net, 'Cleo', { pendingMs: HOUR });
   await relayedRequest(ana, ben, cleo, groupId);
-  // Each ask to Ana and Ben now takes far longer than the 60 ms between passes
-  net.delays.set(ana.id, 400);
-  net.delays.set(ben.id, 400);
-  const asks = () => net.sent.filter((x) => x === `${cleo.id}>${ana.id}:roster`).length;
+  await passesSettled(cleo);
+  const release = [net.hold(ana.id), net.hold(ben.id)];
+  const asks = () => net.attempts.filter((x) => x === `${cleo.id}>${ana.id}:roster`).length;
   const before = asks();
-  await sleep(1_300);
-  // One pass asks Ana once and takes ~800 ms; overlapping passes every 60 ms would ask her ~20 times
-  assert.ok(asks() - before <= 3, `Ana was asked ${String(asks() - before)} times`);
+  // The endpoint coming back online starts a pass, whose ask to Ana stays held
+  const back = () => {
+    net.connections.get(cleo.id)?.('no-relay');
+    net.connections.get(cleo.id)?.('online');
+  };
+  back();
+  await until('a pass is asking Ana', () => asks() > before);
+  // Ten more passes asked for while that one waits on Ana: each joins it and asks for one more after it
+  for (let i = 0; i < 10; i++) back();
+  for (const open of release) open();
+  await passesSettled(cleo);
+  // Overlapping passes would have asked her eleven times
+  assert.equal(asks() - before, 2, 'the held pass, then the one more the others asked for');
   assert.equal(pendingOf(cleo, groupId)?.state, 'waiting');
 });

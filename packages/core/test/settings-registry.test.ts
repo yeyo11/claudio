@@ -7,6 +7,7 @@ import { SERVER_SETTING_IDS, type ClaudioEvent } from '@claudio/shared';
 import { Core } from '../src/index.ts';
 import { loadConfig } from '../src/paths.ts';
 import { SettingsError } from '../src/settings-registry.ts';
+import { TunnelRefusedError } from '../src/tunnel.ts';
 
 /** A wrapper in a scratch directory, with whatever the environment says on top; gone after the test */
 function wrapper(t: TestContext, env: NodeJS.ProcessEnv = {}): Core {
@@ -180,6 +181,38 @@ test('a tunnel reset removes its one key', async (t) => {
   await core.settings.reset('remote.tunnel');
   assert.deepEqual(fileOf(core, 'tunnel-settings.json'), {});
   assert.equal(core.tunnel.status().settings.startWithClaudio, false);
+});
+
+test('the tunnel port has a row: changed when stored, reset to the default, and the start switch is left alone', async (t) => {
+  const core = wrapper(t);
+  const before = (await core.settings.state()).settings['remote.tunnel-port'];
+  assert.deepEqual(before, { changed: false, source: 'default', default: 8444 });
+  await core.tunnel.updateSettings({ port: 8450, startWithClaudio: true });
+  const changed = (await core.settings.state()).settings['remote.tunnel-port'];
+  assert.equal(changed?.changed, true);
+  assert.equal(changed?.source, 'stored');
+  const after = await core.settings.reset('remote.tunnel-port');
+  assert.deepEqual(after, { changed: false, source: 'default', default: 8444 });
+  assert.deepEqual(fileOf(core, 'tunnel-settings.json'), { startWithClaudio: true });
+  assert.equal(core.tunnel.status().port, 8444);
+});
+
+test('a tunnel port CLAUDIO_TUNNEL_PORT sets shows as the environment and has no Reset', async (t) => {
+  const core = wrapper(t, { CLAUDIO_TUNNEL_PORT: '10443' });
+  const row = (await core.settings.state()).settings['remote.tunnel-port'];
+  assert.equal(row?.source, 'env');
+  assert.equal(row?.changed, false);
+  assert.equal(core.tunnel.status().port, 10443);
+  await assert.rejects(core.settings.reset('remote.tunnel-port'), (error: unknown) => error instanceof SettingsError && error.statusCode === 409 && error.reason === 'setting-from-env');
+});
+
+test('a tunnel port reset while the tunnel runs is refused with the tunnel own reason', async (t) => {
+  const core = wrapper(t);
+  await core.tunnel.updateSettings({ port: 8450 });
+  // The manager refuses on its own while a rule stands (tunnel.test.ts); here the row must carry its code
+  t.mock.method(core.tunnel, 'resetSettings', () => Promise.reject(new TunnelRefusedError({ code: 'tunnel.portWhileRunning', text: 'Close the tunnel before changing its port' })));
+  await assert.rejects(core.settings.reset('remote.tunnel-port'), (error: unknown) => error instanceof SettingsError && error.statusCode === 409 && error.reason === 'tunnel.portWhileRunning');
+  assert.deepEqual(fileOf(core, 'tunnel-settings.json'), { port: 8450 });
 });
 
 test('an accounts reset removes its key from the file and keeps the other settings and the accounts', async (t) => {

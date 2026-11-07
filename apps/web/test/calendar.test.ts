@@ -54,3 +54,19 @@ test('days outside the bounds cannot be picked, and focus never leaves them', ()
   assert.equal(toDay(clampDay(day(2026, 1, 1), '2026-09-02')), '2026-09-02');
   assert.equal(toDay(clampDay(day(2027, 1, 1), undefined, '2026-09-30')), '2026-09-30');
 });
+
+test('on some dates the day before a range that starts on the 1st is in no grid the end calendar can show', () => {
+  // usage.spec on 2026-11-05: the range starts four days back, on Sunday 2026-11-01, and the end's
+  // calendar opens on today in en-US. The grid begins at the start itself, and the month before
+  // cannot be shown, since every way there keeps the focused day inside the range; the spec looked
+  // for 2026-10-31 there and failed. What holds on every date is what the keyboard does.
+  const today = day(2026, 11, 5);
+  const start = '2026-11-01';
+  const sunday = firstDayOfWeek('en-US');
+  assert.equal(toDay(monthGrid(today, sunday)[0]?.[0] ?? new Date(0)), start);
+  assert.equal(toDay(clampDay(addMonths(today, -1), start)), start);
+  const back = clampDay(moveFocus(today, 'PageUp', false, sunday) ?? today, start);
+  assert.equal(toDay(back), start);
+  assert.equal(toDay(clampDay(moveFocus(back, 'ArrowLeft', false, sunday) ?? back, start)), start);
+  assert.ok(outOfRange(day(2026, 10, 31), start));
+});

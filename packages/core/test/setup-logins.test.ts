@@ -57,13 +57,22 @@ function rig(options: { fake?: Record<string, string>; ready?: boolean | null; b
   return { logins: new LoginService(deps), events, record, vault, readinessCalls };
 }
 
+/** A pause on `setInterval`, which a test that mocks `setTimeout` for the service's timers leaves real */
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    const handle = setInterval(() => {
+      clearInterval(handle);
+      resolve();
+    }, ms);
+  });
+
 async function until<T>(read: () => T | null | undefined, what: string, ms = 8_000): Promise<T> {
   const deadline = Date.now() + ms;
   for (;;) {
     const value = read();
     if (value !== null && value !== undefined) return value;
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await pause(20);
   }
 }
 
@@ -166,13 +175,22 @@ test('a device sign-in fails with a code, never the CLI\'s text: refused, no cod
   assert.deepEqual([d.state, d.error], ['failed', 'cli-missing']);
 });
 
-test('a device sign-in nobody approves expires, and its process is killed', async () => {
+test('a device sign-in nobody approves expires, and its process is killed', async (t) => {
+  // The lifetime and the kill's grace run on a mocked clock the test moves once the fake is up: with
+  // a real 600 ms, a loaded machine could expire the sign-in before the fake had even started
+  // (R17 of docs/plans/ci-and-regression-open.md)
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const r = rig({ fake: { FAKE_LOGIN_FIXTURE: fixture('gh-web.stderr'), FAKE_LOGIN_STDERR: '1', FAKE_LOGIN_EXIT: 'hang' }, lifetimeMs: 600 });
   const started = await r.logins.start({ tool: 'gh', method: 'device' });
   await until(() => (existsSync(r.record) ? true : null), 'the fake to start');
   const { pid } = readRecord(r);
-  const done = await until(() => ended(r, started.id), 'expiry');
-  assert.equal(done.state, 'expired');
+  t.mock.timers.tick(599);
+  assert.equal(ended(r, started.id), null, 'alive until its lifetime is over');
+  t.mock.timers.tick(1);
+  const done = ended(r, started.id);
+  assert.equal(done?.state, 'expired');
+  // The SIGTERM went at once; the SIGKILL after the grace, for a CLI that ignores it
+  t.mock.timers.tick(200);
   await until(() => (alive(pid) ? null : true), 'the process to die');
   assert.equal(r.readinessCalls.length, 0);
 });

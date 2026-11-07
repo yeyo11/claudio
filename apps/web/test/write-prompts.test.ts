@@ -6,6 +6,7 @@ Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }
 const { default: i18n } = await import('i18next');
 await import('../src/i18n/index.ts');
 const { describeWrite, previewLines, previewLoading, scheduleToCheck } = await import('@claudio/chat-ui/lib/write-prompts');
+const { formatDateTimeIn } = await import('@claudio/ui/lib/format');
 
 const P = 'mcp__claudio__';
 // packages/mcp/src/write-tools.ts
@@ -115,11 +116,12 @@ test('the server preview adds the expression in words and its next fires, or say
   assert.equal(scheduleToCheck(`${P}update_schedule`, { scheduleId: 's1', enabled: false }), null, 'an update that keeps the expression has nothing to check');
   assert.equal(scheduleToCheck(`${P}run_schedule`, { cron: '@daily' }), null);
   await i18n.changeLanguage('en');
-  assert.deepEqual(previewLines({ valid: true, description: 'At 03:00', timezone: 'UTC', next: ['a', 'b'] }, (iso) => iso.toUpperCase()), ['In words: At 03:00', 'Next fires: A · B']);
-  assert.deepEqual(previewLines({ valid: false, error: 'minute is out of range', timezone: 'UTC', next: [] }, String), ['This expression is not valid: minute is out of range']);
+  assert.deepEqual(previewLines({ valid: true, description: 'At 03:00', timezone: 'UTC', next: ['a', 'b'] }, (iso) => iso.toUpperCase(), 'UTC'), ['In words: At 03:00', 'Next fires: A · B']);
+  assert.deepEqual(previewLines({ valid: false, error: 'minute is out of range', timezone: 'UTC', next: [] }, String, 'UTC'), ['This expression is not valid: minute is out of range']);
   await i18n.changeLanguage('es');
   try {
-    assert.deepEqual(previewLines({ valid: true, description: 'A las 03:00', timezone: 'UTC', next: ['a'] }, String), ['En palabras: A las 03:00', 'Próximas ejecuciones: a']);
+    assert.deepEqual(previewLines({ valid: true, description: 'A las 03:00', timezone: 'UTC', next: ['a'] }, String, 'UTC'), ['En palabras: A las 03:00', 'Próximas ejecuciones: a']);
+    assert.deepEqual(previewLines({ valid: true, timezone: 'Europe/Madrid', next: ['a'] }, String, 'America/New_York'), ['Próximas ejecuciones, hora de Europe/Madrid: a']);
   } finally {
     await i18n.changeLanguage('en');
   }
@@ -128,4 +130,19 @@ test('the server preview adds the expression in words and its next fires, or say
 test('other tools keep their prompt', () => {
   assert.equal(describeWrite('Bash', { command: 'ls' }), null);
   assert.equal(describeWrite(`${P}list_projects`, {}), null);
+});
+
+test("the next fires are read on the schedule's own clock, and the zone is named when it is not the browser's", async () => {
+  await i18n.changeLanguage('en');
+  // 0 3 * * * in Europe/Madrid, in winter: 02:00 UTC, 21:00 the evening before in New York
+  const preview = { valid: true, description: 'At 03:00', timezone: 'Europe/Madrid', next: ['2026-11-08T02:00:00.000Z'] };
+  const seen: Array<[string, string]> = [];
+  const lines = previewLines(preview, (iso, zone) => {
+    seen.push([iso, zone]);
+    return formatDateTimeIn(iso, zone);
+  }, 'America/New_York');
+  assert.deepEqual(seen, [['2026-11-08T02:00:00.000Z', 'Europe/Madrid']], 'each fire is formatted in the zone the preview was read in');
+  assert.deepEqual(lines, ['In words: At 03:00', 'Next fires, Europe/Madrid time: 11/8/2026, 3:00 AM']);
+  // The same zone as the browser's says nothing more
+  assert.deepEqual(previewLines(preview, formatDateTimeIn, 'Europe/Madrid'), ['In words: At 03:00', 'Next fires: 11/8/2026, 3:00 AM']);
 });

@@ -44,7 +44,7 @@ test('an install that sets nothing answers exactly as before the settings had la
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
 
   const settings = await app.inject('/api/settings/app');
@@ -80,7 +80,7 @@ test('a host added in the settings is answered at once, and refused again once i
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
 
   assert.equal(await status(app, 'claudio.example.com'), 421);
@@ -99,7 +99,7 @@ test('a change to the settings goes out on the event feed with the whole documen
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
   const seen: ClaudioEvent[] = [];
   core.events.subscribe((event) => seen.push(event));
@@ -115,7 +115,7 @@ test('a setting the environment holds is shown, and a PUT for it is refused', as
   const { app, core } = await wrapper({ CLAUDIO_DEFAULT_PERMISSION_MODE: 'bypassPermissions' });
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
 
   const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
@@ -134,7 +134,7 @@ test("a host added in the UI is answered beside the environment's, which cannot 
   const { app, core } = await wrapper({ CLAUDIO_ALLOWED_HOSTS: '*.devtunnels.ms,192.168.1.184' });
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
   assert.equal(await status(app, 'claudio.example.com'), 421);
 
@@ -158,7 +158,7 @@ test('the settings are guarded like every other settings route', async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
   const token = await withToken(app);
 
@@ -175,7 +175,7 @@ test('a runtime host is answered while it is registered, and forgotten when it i
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
 
   assert.equal(await status(app, 'abc123.lhr.life'), 421);
@@ -196,7 +196,7 @@ test('ten failures through a runtime host do not make a loopback client wait', a
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
   const token = await withToken(app);
   core.appSettings.runtimeHosts.add('abc123.lhr.life');
@@ -211,7 +211,7 @@ test('with a client header registered, each client through the tunnel waits on i
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
   const token = await withToken(app);
   core.appSettings.runtimeHosts.add('abc123.lhr.life', { clientIpHeader: 'X-Forwarded-For' });
@@ -232,7 +232,7 @@ test('the daily spend cap is read and written like the other settings, rounded t
   const { app, core } = await wrapper();
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
 
   const put = await app.inject({ method: 'PUT', url: '/api/settings/app', ...json({ dailySpendCapUsd: 12.345 }) });
@@ -247,7 +247,7 @@ test('a cap the environment holds cannot be changed here', async (t) => {
   const { app, core } = await wrapper({ CLAUDIO_DAILY_SPEND_CAP_USD: '40' });
   t.after(async () => {
     await app.close();
-    core.shutdown();
+    await core.shutdown();
   });
   const settings = (await app.inject('/api/settings/app')).json<AppSettings>();
   assert.equal(settings.dailySpendCapUsd, 40);

@@ -37,7 +37,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('a team is built from the template, edited member by member and read back', async () => {

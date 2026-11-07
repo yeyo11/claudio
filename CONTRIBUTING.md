@@ -79,10 +79,8 @@ The browser suite (headless Chrome over CDP, against an isolated instance) **run
 through [Sluice](docs/development.md#checks-through-sluice)**: `pnpm e2e` refuses to start outside a
 Sluice job or CI. The `e2e` gate builds the web, runs the specs you name (all of them with none) on two
 shards once the machine's budget has room, and caches the pass per git tree; an agent calls Sluice's
-`verify` tool with `gates: ["e2e"]` and the prefixes in `extra_args`. `pnpm e2e:remote [spec prefixes]`
-runs the same on GitHub: it dispatches `.github/workflows/e2e.yml` on your pushed branch, waits for it
-(up to 9 minutes a call; `--wait <run id>` goes on) and, on a failure, downloads every failed shard's
-log and screenshots. The `run-e2e` skill has the steps, and
+`verify` tool with `gates: ["e2e"]` and the prefixes in `extra_args`. CI runs the whole suite on every
+pull request (`.github/workflows/e2e.yml`, four shards). The `run-e2e` skill has the steps, and
 [docs/decisions/e2e-through-sluice.md](docs/decisions/e2e-through-sluice.md) the reasons.
 `E2E_ALLOW_LOCAL=1` runs it here outside the queue, for a person watching one spec; agents never set it.
 
@@ -151,7 +149,7 @@ searches are documents nobody wrote.
 - **A UI change is reviewed before it is done.** Claude Code's Stop hook asks for `/ui-review <route>`
   once when a session edited UI files and no review ran; `node scripts/ui-check.mjs --route <route>`
   takes the screenshots and runs the invariants against `pnpm dev`, and Sluice's `e2e` gate with `ui-invariants`
-  (or `pnpm e2e:remote ui-invariants` on GitHub) runs them over the main screens with long content.
+  runs them over the main screens with long content.
 - **UI controls come from `packages/ui/src/components/controls`** (Select, Combobox, Checkbox,
   Switch, Slider, NumberInput, Tooltip, Collapsible, Menu, Sheet), not from native `<select>`, `<datalist>`,
   checkbox/range/number inputs, `<details>` or `title=` on interactive elements: the native ones

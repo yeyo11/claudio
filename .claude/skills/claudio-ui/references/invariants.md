@@ -33,7 +33,7 @@ node scripts/design-lint.mjs [files…]                     # I15, I16, I18, I19
 node scripts/ui-check.mjs --route '/settings?tab=decisions' # I1–I11 on a running dev server (pnpm dev)
 node scripts/ui-check.mjs --route / --fast                 # what the hook runs
 sluice run e2e -v -- ui-invariants                         # I1–I7, I9–I11, I17 over the main screens (agents: verify)
-sluice run e2e -v -- a11y-core a11y-shell motion           # I8, I12, I13, I14 (or pnpm e2e:remote on GitHub)
+sluice run e2e -v -- a11y-core a11y-shell motion           # I8, I12, I13, I14
 ```
 
 ## How to read a failure
@@ -45,6 +45,9 @@ sluice run e2e -v -- a11y-core a11y-shell motion           # I8, I12, I13, I14 (
 - **I8 contrast**: do not fix it on the screen. Fix the token, or use the right text level.
 - **I9 on steppers and icon buttons**: the clickable area is the glyph. Give it 44 × 44 with padding
   (`--touch`), do not change the icon.
+- **I9 on a stretched link** (a title whose `::after` covers its row, as on the phone board): the
+  target is the row, and I9 measures the box of the link's nearest positioned ancestor. Keep the
+  `::after` at inset 0 and the row `position: relative`, or the row is measured as the title.
 - **design-lint `mono-voice`**: the rule puts mono on something that reads like a label, a count or
   a time. If it really is a literal (an id, a path), say `/* literal */` in its block.
 - **design-lint `type-scale`**: a `font-size` that is not `--fs-title`, `--fs-section`, `--fs-body`,

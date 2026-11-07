@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-29T19:30:00Z
-updated_at: 2026-10-30T12:00:00Z
+updated_at: 2026-11-07T21:00:00Z
 tags:
     - plan
     - regression
@@ -515,11 +515,12 @@ what stands.
     `%20` or an encoded accent. The guard answers `400 request-target` for what changes which route
     matches (absolute form, dot segments, malformed escapes, percent-encoded unreserved characters).
   - `RouteAccess` is exported, with `workFields` and `accessOf()`. Totals: 7 `open`, 224 `person`,
-    49 `work` writes; three reads are `person`.
+    49 `work` writes (47 after the compact and notes routes became `person`); three reads are `person`.
   - `attachments` is a `POST /chats` field, since `POST /uploads` stays `work`. Resume and fork
     share the allowlist (`prompt`, `attachments`, `model`); `PATCH /chats/:id` allows only `model`.
-  - `compact`, `notes` and a typed `/compact` are `work`, as C1 says, which loosens the old rule.
-    `/tunnel/stop` is `person` (the old rule let a chat close the tunnel) and `DELETE /v1/responses/:id`
+  - `compact`, `notes` and a typed `/compact` were `work`, as C1 says, which loosened the old rule;
+    the owner reversed that on 2026-11-07 and they are `person`
+    ([decisions/chat-token-compact.md](../decisions/chat-token-compact.md)). `/tunnel/stop` is `person` (the old rule let a chat close the tunnel) and `DELETE /v1/responses/:id`
     is `person` under "every `DELETE`".
   - The refusal ring is readable at the new `GET /audit/refusals` (`person`). A cross-site write
     under `none` answers `403 cross-site`; `POST /terminals/:id/ticket` is exempt because the route
@@ -532,15 +533,16 @@ what stands.
     `ChatPendingMessage.text` is the words without Claudio's hint prefix.
   - New types: `ChatPendingBlocker` (`blockedBy`), `DeliveryRefusal` (a 409 with a `code`), an
     interrupt receipt returned by `DriverSession.interrupt()` and `ProviderDriver.readsBack`.
-  - `still_queued` on the interrupt response is read from the CLI's own protocol description
-    (2.1.312), not from `sdk.d.ts`, and only when present. It is the one input not in the SDK's
-    typings (see "Open" below).
+  - `still_queued` on the interrupt response was read from the CLI's own protocol description
+    (2.1.312) and only when present. The Agent SDK 0.3.319 types it, and it is now read only when
+    `system/init` advertises `interrupt_receipt_v1`
+    ([decisions/still-queued.md](../decisions/still-queued.md)).
   - A Supervisor hint sent on its own starts "An automatic hint from Claudio…"; a person pressing
     Send on a proposal makes it the person's. Withdrawing a message is `person` only, as C1 classes
     every `DELETE`.
-  - One-turn chats (orchestration workers) still end their input when their turn ends, even with
-    background work running: the orchestrator continues a worker from its result, and keeping the
-    input open changed that. D3 holds for every other chat.
+  - One-turn chats (orchestration workers) ended their input when their turn ended, even with
+    background work running. Since `7ed0c0c05` they keep it open until the background work settles,
+    so D3 holds for every chat.
 - **C3 (guards-supervisor).** `integrity` is a rule like the others and the status line says that
   with no rule on no run is guarded; the switch "Orchestration workers and flow" and "Observe only"
   are disabled then. The Supervisor's cap is `decisions.cli.supervisorMaxCostUsd` and a `cli`
@@ -600,93 +602,120 @@ is on `main`; each item names where it lives.
 
 **Decisions for the owner**
 
-- [ ] **`still_queued` (C2).** `interrupt`'s receipt is read for the ids the CLI still queues; it is
+- [x] **`still_queued` (C2).** `interrupt`'s receipt is read for the ids the CLI still queues; it is
   not in the Agent SDK's `sdk.d.ts`. Confirm it as an exception to the one rule or drop it (then
   `written` is bounded by the next result alone). `packages/core/src/providers/claude-code/driver.ts`.
-- [ ] **Core reads a web file.** `packages/core/src/team.ts` imports
+  Closed by `7ed0c0c05` (R1): kept, and read only when `system/init` advertises `interrupt_receipt_v1`, which the Agent SDK 0.3.319 types as `SDKControlInterruptResponse`. [decisions/still-queued.md](../decisions/still-queued.md).
+- [x] **Core reads a web file.** `packages/core/src/team.ts` imports
   `apps/web/src/i18n/locales/es/team.json` for the Spanish role titles: one copy, but the
   dependency now points the wrong way. Move the titles to `@claudio/shared` or hand core only ids.
-- [ ] **Chat tokens may compact and add notes** (`POST /chats/:id/compact`, `/notes` are `work`),
+  Closed by `a9f0d1811` (R2): the titles live in `packages/shared/src/team.ts`; a test fails if core imports from `apps/`.
+- [x] **Chat tokens may compact and add notes** (`POST /chats/:id/compact`, `/notes` are `work`),
   while the whole tunnel, `/tunnel/stop` included, became `person`. Confirm both.
-- [ ] **The Supervisor's cap** (`decisions.cli.supervisorMaxCostUsd`) shows while the Supervisor is
+  Closed (R3) by `faa996adf`: compact and notes are `person`, and a typed `/compact` from a chat's token is refused. [decisions/chat-token-compact.md](../decisions/chat-token-compact.md). The tunnel stays `person`.
+- [x] **The Supervisor's cap** (`decisions.cli.supervisorMaxCostUsd`) shows while the Supervisor is
   off, and under Jev while its CLI model is hidden. `apps/web/src/pages/config/decisions/`.
-- [ ] **Migrations on an older database.** Every task appended its migration to `db.ts` and the
+  Closed by `19ca63ea9` (R4): the cap shows only while `supervisor.intervene` is not off.
+- [x] **Migrations on an older database.** Every task appended its migration to `db.ts` and the
   tests pass from an empty database; the list has not been run over a `wrapper.db` written before
   this branch. Run it once on a copy of the owner's before the release.
+  Closed by evidence (R5, 2026-11-07): the owner's own `wrapper.db` (137 MB, written before this branch) runs 0.14.0 at `user_version` 71 with `audit_refusals`, `transcript_folds` and `usage_history`.
 
 **Security**
 
-- [ ] **MCP writes under bypass.** With permission checks off, Claudio's write tools run without
+- [x] **MCP writes under bypass.** With permission checks off, Claudio's write tools run without
   asking once the server is switched on from "+". The server-side approval of
   [assistant-everything](assistant-everything.md) (a plan, not built) closes it.
-- [ ] **The audit page** does not show the new `audit_refusals` ring (`GET /audit/refusals`).
+  Decided (R6, owner, 2026-11-07): intended, since bypass hands the agent what its token may already do. [decisions/mcp-writes-under-bypass.md](../decisions/mcp-writes-under-bypass.md). The approval ledger is a later piece, designed first.
+- [x] **The audit page** does not show the new `audit_refusals` ring (`GET /audit/refusals`).
+  Closed by `1d443b547` (R7): a second card on the audit page, "Refused before identification".
 
 **Delivery and orchestration**
 
-- [ ] **D3 for workers.** An orchestration worker still closes its input when its turn ends with
+- [x] **D3 for workers.** An orchestration worker still closes its input when its turn ends with
   background work running; chats of a person no longer do. `packages/core/src/orchestrator.ts`.
-- [ ] A resumed or forked chat whose model the CLI rejects ends idle and looks healthy
+  Closed by `7ed0c0c05` (R8): a one-turn chat keeps its input open while background work runs and closes it on `chat-background-settled`; the orchestrator already waited for the process to exit.
+- [x] A resumed or forked chat whose model the CLI rejects ends idle and looks healthy
   (`chat-fold.ts`, the synthetic "model not found" answer).
-- [ ] The delivery cards, the board's "⋯" menu on coarse pointers and the render-error page have
+  Closed by `7ed0c0c05` and `e3a8bad43` (R9): resume and fork answer `400 model-unknown`, and the stream detects `model_not_found` and fails the execution. The fixture is rebuilt from the CLI 2.1.319 code, not recorded; a real recording should replace it.
+- [x] The delivery cards, the board's "⋯" menu on coarse pointers and the render-error page have
   had no `/ui-review`.
+  Closed (R10) by `c4dc5401c` and `e7ded6b8f` for the delivery cards and #84's schedule prompt, `31eb5d8b1` and `f89ea3206` for the render-error and stale pages, and `f89ea3206` for the board's "⋯" on coarse pointers (a tap on its lower edge opened the task; it now stands over the title, pinned in `home-board-hygiene.test.tsx`). The `ui-review` task's own verdict is recorded only in those commits' bodies.
 
 **Accounts**
 
-- [ ] `switchAccount`/`moveTo` do not clear `rateLimited`; the web works around it by comparing
+- [x] `switchAccount`/`moveTo` do not clear `rateLimited`; the web works around it by comparing
   accounts. After a wait-replay the rotation still passes over the accounts the turn died on until
   a turn goes through.
-- [ ] `AccountStore.list()` reads the disk per account and `accountView()` calls it twice; the
+  Closed by `9f192d04a` (R11): a moved chat is off its limit, and a failure stops counting at its reset, after a wait-replay too; the web banner follows the server's `atLimit`.
+- [x] `AccountStore.list()` reads the disk per account and `accountView()` calls it twice; the
   `provider_limits` table stays, unwritten, for an older Claudio on the same data directory.
+  Closed by `5dd2c8393` (R12): one listing per `pick` and per `accountView`; `cliLogin` is cached by mtime and size. `provider_limits` stays.
 
 **Collaborators and tunnel**
 
-- [ ] The tunnel port has no row in the settings registry, so no reset control;
+- [x] The tunnel port has no row in the settings registry, so no reset control;
   `TunnelManager.resetSettings(['port'])` is ready.
-- [ ] Two collaborators clients run in parallel in the web, each with its own cache keys.
+  Closed by `a9f0d1811` (R13): the setting `remote.tunnel-port`, with Changed and Reset.
+- [x] Two collaborators clients run in parallel in the web, each with its own cache keys.
+  Closed by `dbf99ea64` (R14): `lib/api/collaborators.ts` is the only client, and a test fails on any other.
 
 **Web**
 
-- [ ] `ChangesReview.tsx` and `FileReview.tsx` poll every 8 s while live; the decision engine and
+- [x] `ChangesReview.tsx` and `FileReview.tsx` poll every 8 s while live; the decision engine and
   the audit log have no events of their own; `workitem.moved` refreshes every item page.
-- [ ] Older defects the reviews noted and no task touched: on Home a 17 px link, a clipped
+  Closed (R15) by `a9f0d1811` (`workitem.moved` refreshes only the pages that show the item) and `1a4b3803d` (a task's and the integration's review follow `changes.updated`). Not built, on purpose: `decision.*` and `audit.*` events replace no poll, and a chat's and a work item's review keep the 8 s timer because no event names them. Details in the R15 row of [ci-and-regression-open.md](ci-and-regression-open.md).
+- [x] Older defects the reviews noted and no task touched: on Home a 17 px link, a clipped
   Tailscale row and more than two gradient surfaces signed out; on the board 72 tap-target hits on
   phone rows and column headings cut at 1280 px.
+  Closed by `52106dfd3` and `f3471e311` (R16): each defect measured before and after with `ui-check`; the Tailscale row adds the variant `.prov-meta.is-prose`.
 
 **Tests and tooling**
 
-- [ ] Tests that follow the machine's load rather than the code: `accounts-rotation` (R10, 8 s
+- [x] Tests that follow the machine's load rather than the code: `accounts-rotation` (R10, 8 s
   waits), `collab-sync` (37 s), `collab-join-answer`'s leave timing, `collab-quiet`'s refusal cap,
   `setup-logins`' fake start, the API's developer-and-QA flow case. Three were made deterministic
   on 2026-10-30; the rest pass alone and fail in a full parallel run on a busy machine.
-- [ ] The API tests call `core.shutdown()` without awaiting it; a test that reopens the same data
+  Closed by `d79790a9d` (R17): each listed test waits on an event or a mocked clock. Not-happened checks with fixed sleeps stay; see the plan's Outcome.
+- [x] The API tests call `core.shutdown()` without awaiting it; a test that reopens the same data
   directory should.
-- [ ] `strings-snapshot.test.ts` and `class-inventory.test.ts` say no task may update their
+  Closed by `0e63d441c` (R18): every `shutdown()` is awaited and `teardown.test.ts` fails on one that is not.
+- [x] `strings-snapshot.test.ts` and `class-inventory.test.ts` say no task may update their
   fixtures while feature commits do; align the headers with practice.
-- [ ] The `chat.api-write` cause text is missing from a work item's history.
+  Closed by `50b6ba07b` (R19): the headers say that a commit that changes copy or classes updates the fixture.
+- [x] The `chat.api-write` cause text is missing from a work item's history.
+  Closed by `ae36b9f31` (R20): a write through a chat's token has its own line in the history.
 
 **The review gate** (seen when this branch was verified, 2026-10-30)
 
-- [ ] The deterministic `secret` rule of `packages/core/src/review-scan.ts` fires on identifiers,
+- [x] The deterministic `secret` rule of `packages/core/src/review-scan.ts` fires on identifiers,
   not on credentials: type annotations (`token: string`), parameter names (`credential:`),
   `secrets: false` in guard fixtures, `input_tokens`, `authMode="…"` in tests and route
   descriptions that mention a token. It reported 48 blocking findings on this branch, every one a
   false positive, and the gate was accepted over them. The rule should match credential-shaped
   values, never names, and a fixture or a test file should count as advisory.
-- [ ] Every model run of the gate (8 chunks × 4 dimensions, and the verifier) ended "without
+  Fixed by `34890c245` (R21 of [ci-and-regression-open.md](ci-and-regression-open.md)): a
+  credential detector of its own; tests and fixtures are advisory.
+- [x] Every model run of the gate (8 chunks × 4 dimensions, and the verifier) ended "without
   structured output" on this diff (569 files), four rounds in a row, for 86 USD. A chunk that
   cannot be answered within `maxRunCostUsd` should be split or declared `not-reviewable` before
   it is sent, and a round whose runs are all invalid should stop instead of trying the fixer.
+  Fixed by `7201b0759` (R22): chunks are sized under the per-run cap, an oversized single change is
+  `not-reviewable`, and an `unreviewed` round ends incomplete without the verifier or the fixer.
+  Why the runs gave no structured output is not proven; their failure now names the stop reason.
 
 **The owner's install**
 
-- [ ] The desktop updater fails on the owner's machine with `pkexec must be setuid root`
+- [x] The desktop updater fails on the owner's machine with `pkexec must be setuid root`
   (report §0), so the app stays on 0.8.1; the 0.11.x `.deb` has to be installed by hand until the
   updater copes with a non-setuid `pkexec`.
+  Closed in the code (R23, by evidence, 2026-11-07): there is no `pkexec` in `apps/desktop/src` and a test forbids it (`updater.test.ts`); an apt install updates through apt, and a `.deb` without it offers one checked command ([decisions/apt-repository.md](../decisions/apt-repository.md)).
 
 ## Related
 
 [[reports/regression-audit-2026-10-29.md]] · [[plans/assistant-everything.md]] · [[accounts.md]] ·
 [[chat-delivery.md]] · [[guards.md]] · [[decision-engine.md]] · [[claudio-mcp-server.md]] ·
 [[collaborators.md]] · [[tunnel.md]] · [[work-items.md]] · [[security-model.md]] ·
-[[orchestrations.md]] · [[status.md]] · [[decisions/route-access-classes.md]] · [[transcript-listing.md]] ·
+[[orchestrations.md]] · [[status.md]] · [[plans/ci-and-regression-open.md]] · [[decisions/still-queued.md]] ·
+[[decisions/chat-token-compact.md]] · [[decisions/mcp-writes-under-bypass.md]] · [[decisions/route-access-classes.md]] · [[transcript-listing.md]] ·
 [[api-wire.md]] · [[resource-control.md]] · [[slash-commands.md]]

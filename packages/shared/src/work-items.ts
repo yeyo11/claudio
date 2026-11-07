@@ -320,5 +320,11 @@ export const WORK_ITEM_PR_CAUSE = {
   closed: 'pr.closed',
 } as const;
 
+/**
+ * The cause of a write an agent made with its chat's token through the REST API (`chat:<id>`): the
+ * API records it and the web says it in the item's history, so both read this one value.
+ */
+export const WORK_ITEM_CHAT_WRITE_CAUSE = 'chat.api-write';
+
 /** The Conventional Commits types a label can give a pull request's title. */
 export const CONVENTIONAL_TYPES = ['feat', 'fix', 'docs', 'chore', 'refactor', 'perf', 'test', 'build', 'ci'] as const;

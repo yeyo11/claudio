@@ -24,7 +24,7 @@ import type {
   WorkItemRelation,
   WorkItemStatus,
 } from '@claudio/shared';
-import { WORK_ITEM_PR_CAUSE } from '@claudio/shared';
+import { WORK_ITEM_CHAT_WRITE_CAUSE, WORK_ITEM_PR_CAUSE } from '@claudio/shared';
 import { changeRequestRef, changeRequestWords } from '../../../lib/code-hosts';
 import type en from '../../../i18n/locales/en/workItem.json';
 
@@ -190,6 +190,7 @@ const CAUSE_KEY: Record<string, CauseKey> = {
   'chat.started': 'cause.chatStarted',
   'chat.turn-completed': 'cause.turnCompleted',
   'chat.message': 'cause.message',
+  [WORK_ITEM_CHAT_WRITE_CAUSE]: 'cause.apiWrite',
   'orchestration.task.started': 'cause.taskStarted',
   'orchestration.task.completed': 'cause.taskCompleted',
   'flow.plateau': 'cause.flowPlateau',

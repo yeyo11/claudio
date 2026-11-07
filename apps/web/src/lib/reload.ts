@@ -49,10 +49,29 @@ export class ReloadOffers {
   /** The version the person already waved away: the next hello with it does not bring it back. */
   private dismissed: string | null = null;
   private readonly listeners = new Set<() => void>();
+  /** Pages on screen that say the same thing with their own Reload: the banner steps aside for them */
+  private pages = 0;
 
   constructor(private readonly build: string) {}
 
-  current = (): ReloadOffer | null => this.offer;
+  current = (): ReloadOffer | null => (this.pages > 0 ? null : this.offer);
+
+  /**
+   * A page that is itself the offer (a route whose code is gone) holds the banner back while it
+   * shows, so the screen has one Reload, the page's, and not the same gradient button twice. The
+   * offer stays: the next page brings the banner back. Returns what lets go.
+   */
+  holdBanner(): () => void {
+    this.pages += 1;
+    this.emit();
+    let held = true;
+    return () => {
+      if (!held) return;
+      held = false;
+      this.pages -= 1;
+      this.emit();
+    };
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -85,6 +104,10 @@ export class ReloadOffers {
 
   private set(next: ReloadOffer | null): void {
     this.offer = next;
+    this.emit();
+  }
+
+  private emit(): void {
     this.listeners.forEach((listener) => listener());
   }
 }
@@ -94,6 +117,7 @@ const offers = new ReloadOffers(BUILD_VERSION);
 export const noticeServerVersion = (server: unknown): void => offers.serverVersion(server);
 export const noticeStaleChunk = (): void => offers.staleChunk();
 export const dismissReloadOffer = (): void => offers.dismiss();
+export const holdReloadBanner = (): (() => void) => offers.holdBanner();
 
 export function useReloadOffer(): ReloadOffer | null {
   return useSyncExternalStore(offers.subscribe, offers.current, offers.current);

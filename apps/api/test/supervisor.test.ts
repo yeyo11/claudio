@@ -35,7 +35,7 @@ before(async () => {
 after(async () => {
   core.runtime.stopAll();
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 async function until<T>(read: () => T | undefined | null | false | Promise<T | undefined | null | false>, what: string, ms = 8000): Promise<T> {

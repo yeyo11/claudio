@@ -1,10 +1,8 @@
 name: e2e
 
-# The browser suite runs here and only here: e2e/run.mjs refuses to start outside CI
-# (docs/decisions/e2e-on-github.md). Two ways in:
-# - CI calls it for every pull request that needs it, with the whole suite on 4 shards.
-# - `pnpm e2e:remote [spec prefixes]` dispatches it on a pushed branch, for the whole suite or for the
-#   few specs a change touches, and waits for it. That is how an agent runs a spec.
+# The browser suite in CI: ci.yml calls it for every pull request that needs it, with the whole
+# suite on 4 shards. On a developer's machine it runs as Sluice's `e2e` gate
+# (docs/decisions/e2e-through-sluice.md).
 on:
   workflow_call:
     inputs:
@@ -16,22 +14,6 @@ on:
         description: How many shards, 1 to 4
         type: number
         default: 4
-  workflow_dispatch:
-    inputs:
-      specs:
-        description: Spec prefixes, as `pnpm e2e` takes them (space or comma separated); empty runs the whole suite
-        type: string
-        default: ''
-      shards:
-        description: How many shards, 1 to 4
-        type: number
-        default: 4
-
-# A newer dispatch on the same branch makes the older one pointless. CI's own call runs inside CI's
-# concurrency group, which already cancels a superseded run.
-concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && format('e2e-dispatch-{0}', github.ref) || format('e2e-{0}', github.run_id) }}
-  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
 
 jobs:
   plan:
@@ -99,8 +81,8 @@ jobs:
           bash /tmp/claude-install.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # The output also goes to a file, so `pnpm e2e:remote` can hand an agent the whole log of a
-      # failed shard rather than the tail GitHub's log view keeps
+      # The output also goes to a file, uploaded with the screenshots, so a failed shard's whole log
+      # can be read rather than the tail GitHub's log view keeps
       - name: End-to-end (headless Chrome), shard ${{ matrix.shard }} of ${{ needs.plan.outputs.count }}
         env:
           E2E_SHARD: ${{ matrix.shard }}/${{ needs.plan.outputs.count }}

@@ -37,6 +37,9 @@ export default async ({ page, api, check, dirs }) => {
   const imported = await api.post('/projects/import', { path: workspace, name: 'A project whose name is long enough to need its ellipsis everywhere', template: 'software' });
   check(imported.status === 201, `the project was imported (${imported.status})`);
   const projectId = imported.body.id;
+  // The board offers Select only with a task on it, and the /tasks interactions (routes.mjs) press it
+  const task = await api.post(`/projects/${projectId}/work-items`, { title: 'A task whose title is long enough to wrap on a narrow card' });
+  check(task.status === 201, `a task was created for the board (${task.status})`);
 
   const problems = [];
   try {

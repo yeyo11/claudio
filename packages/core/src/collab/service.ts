@@ -826,9 +826,16 @@ export class CollaboratorsService {
     // Kept before anything is dialled: the attempt may outlive this request, and a restart in the
     // meantime still finds the join to send again
     const pending: OwnPendingJoin = { invite, sentAt: now(), relayedBy: null, heldVersion: held?.version ?? 0 };
-    await this.updatePending((all) => [...all.filter((p) => p.invite.groupId !== invite.groupId), pending]);
-    this.changed('roster', invite.groupId);
+    // Marked before the entry is written: a pass over the waiting joins that reads the entry while
+    // this request still waits for the write would otherwise send the join again beside this one
     this.joining.add(invite.groupId);
+    try {
+      await this.updatePending((all) => [...all.filter((p) => p.invite.groupId !== invite.groupId), pending]);
+    } catch (error) {
+      this.joining.delete(invite.groupId);
+      throw error;
+    }
+    this.changed('roster', invite.groupId);
     const attempt = this.firstJoin(invite, sealed, me, heldAsMember).finally(() => this.joining.delete(invite.groupId));
     const wait = new Promise<null>((resolve) => setTimeout(() => resolve(null), this.deps.joinWaitMs ?? JOIN_WAIT_MS).unref());
     const answer = await Promise.race([attempt, wait]);

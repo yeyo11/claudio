@@ -1,5 +1,9 @@
-// Drift net for the web packages split: no class is lost, renamed or invented, and the stylesheets
-// keep their cascade order. No task may update the fixture.
+// Drift net over the stylesheets: no class is lost, renamed or invented unnoticed, and they keep
+// their cascade order. It began as the guard of the web packages split; today a commit that adds,
+// renames or removes a class regenerates test/fixtures/class-names.json in the same commit
+// (`tsx scripts/class-inventory.ts --write`), and the reviewer reads that diff as the list of classes
+// the change touched. What the net catches is a class lost by a change that did not mean to, often
+// one an e2e spec selects.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';

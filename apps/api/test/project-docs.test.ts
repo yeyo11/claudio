@@ -36,7 +36,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('an unknown project is 404 on every route', async () => {
@@ -98,6 +98,6 @@ test("a chat's token can read the registry but not change it or ask", async () =
     assert.notEqual((await a.inject({ method: 'GET', url: '/api/projects/p/docs', ...fromChat })).statusCode, 403);
   } finally {
     await a.close();
-    c.shutdown();
+    await c.shutdown();
   }
 });

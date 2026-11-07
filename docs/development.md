@@ -23,7 +23,6 @@ pnpm dev          # API on :8797, UI on :5181 (proxies /api)
 pnpm typecheck
 pnpm test         # unit tests (shared, core, mcp, web, ui, chat-ui, desktop) + API integration (node:test)
 sluice run e2e -v -- [specs]  # browser suite here, through Sluice's queue (see below); agents use `verify`
-pnpm e2e:remote [specs] # browser suite on GitHub Actions, for the pushed branch (see below)
 pnpm build && E2E_ALLOW_LOCAL=1 pnpm e2e <spec>  # outside the queue, only for a person watching one spec
                          # E2E_SPEC_TIMEOUT (180000 ms) and E2E_TIMEOUT (1500000 ms) bound a spec and the run
                          # E2E_SERVER_START_TIMEOUT (120000 ms) bounds the wait for the API's /api/health
@@ -66,11 +65,9 @@ outside any queue, froze the host ([decisions/e2e-through-sluice.md](decisions/e
 The `e2e` gate (`pnpm run e2e:gate`: `pnpm build`, then the runner on two shards, with failure
 screenshots in `e2e-shots/`) waits for the machine's budget like any other job, and a pass is cached
 per tree; spec prefixes go after `--` (`sluice run e2e -v -- config palette`) or in `verify`'s
-`extra_args`. It has no hook: run it when a change needs it. `pnpm e2e:remote [spec prefixes]`
-dispatches `.github/workflows/e2e.yml` on the pushed branch (4 shards for the whole suite, one per two
-spec files otherwise, `--shards N` to choose), waits up to `E2E_REMOTE_WAIT` seconds (540) and exits
-3 with a `--wait <run id>` line to go on with; a failure downloads each failed shard's `e2e.log` and
-screenshots to `$TMPDIR/claudio-e2e-remote-<run id>/`. The live specs (`E2E_LIVE=1`) need a logged-in
+`extra_args`. It has no hook: run it when a change needs it. CI runs the whole suite on every pull request
+(`.github/workflows/e2e.yml`, four shards, with each failed shard's `e2e.log` and screenshots as an
+artifact). The live specs (`E2E_LIVE=1`) need a logged-in
 CLI, so they are the one part that can only run here, by a person.
 
 The browser suite boots its own wrapper with temporary config, workspace and data directories (on

@@ -50,7 +50,7 @@ async function wrapper(t: TestContext): Promise<Wrapper> {
   const app = await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') });
   t.after(async () => {
     await core.collaborators.dispose();
-    core.shutdown();
+    await core.shutdown();
     await app.close();
     rmSync(root, { recursive: true, force: true });
   });

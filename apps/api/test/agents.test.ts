@@ -60,7 +60,7 @@ before(async () => {
 after(async () => {
   rmSync(tasksRoot, { recursive: true, force: true });
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('a subagent comes back with its prompt, usage, result and the tasks it launched', async () => {

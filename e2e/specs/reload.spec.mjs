@@ -73,8 +73,9 @@ export default async ({ page, api, check }) => {
 
   // ---- A lazy page whose file the deploy removed ----
   // Blocking the Usage chunk is what a page built before a deploy meets: its import points at a
-  // file the new build no longer has. The route stands in with a page that says so, and the same
-  // banner offers the reload, instead of the app breaking.
+  // file the new build no longer has. The route stands in with a page that says so and offers the
+  // reload itself, instead of the app breaking; the banner steps aside while that page shows (one
+  // Reload on the screen), and comes back on the next page, since the offer stands.
   await page.goto('/', 1500);
   // The block makes the console report the failed load; what came before it is checked here instead
   const earlier = page.takeErrors();
@@ -84,10 +85,14 @@ export default async ({ page, api, check }) => {
     await page.goto('/usage', 1500);
     const stale = await page.waitFor(`return (document.querySelector('main')?.innerText ?? '').includes('This page belongs to an older version of Claudio')`, { label: 'the stale page' });
     check(stale, 'a missing chunk renders the stale page instead of breaking');
-    const banner = await page.waitFor(`return document.querySelector(${JSON.stringify(BANNER)})?.innerText ?? ''`, { label: 'the reload banner for a missing chunk' });
-    check(banner.includes('Claudio was updated.'), `a missing chunk raises the banner: ${banner}`);
+    const reloads = await page.eval(`return { page: !!document.querySelector('main .btn-primary'), banner: !!document.querySelector(${JSON.stringify(BANNER)}) }`);
+    check(reloads.page && !reloads.banner, `the stale page offers the one Reload and the banner steps aside (${JSON.stringify(reloads)})`);
     const shell = await page.eval(`return !!document.querySelector('.sidebar')`);
     check(shell, 'the rest of the app keeps working around the missing page');
+    // Inside the app, not a new document: the offer the missing chunk raised is still in memory
+    await page.click('.sidebar a.brand', undefined, 800);
+    const banner = await page.waitFor(`return document.querySelector(${JSON.stringify(BANNER)})?.innerText ?? ''`, { label: 'the reload banner on the next page' });
+    check(banner.includes('Claudio was updated.'), `the missing chunk's offer comes back as the banner on the next page: ${banner}`);
   } finally {
     await unblock();
   }

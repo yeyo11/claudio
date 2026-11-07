@@ -43,7 +43,7 @@
     "aria": "Remote access",
     "name": "Tailscale",
     "meta": "Reach Claudio from your phone, on your tailnet",
-    "node": "On the tailnet as {{host}}",
+    "node": "On the tailnet as <mono>{{host}}</mono>",
     "reason": {
       "signedIn": "Signed in. You open the tunnel in Settings → Access & safety → Remote access, once the access above asks for a token.",
       "loggedOut": "Not signed in to a tailnet yet. Sign in with a link or an auth key.",

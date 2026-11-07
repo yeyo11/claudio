@@ -612,6 +612,12 @@ export class LiveChat {
    * not, and what is written to it is tracked no further, as before.
    */
   reportsDelivery: boolean | null = null;
+  /**
+   * The protocol capabilities the live process's init advertised, verbatim (Claude Code's
+   * `capabilities`, such as `interrupt_receipt_v1`); empty until its init arrives, and again for each
+   * new process, whose CLI may be another version
+   */
+  capabilities: readonly string[] = [];
   /** The messages of the turn under way, or of the last one: what a limit replay sends again */
   turnMessages: SentMessage[] = [];
   /** A result arrived since the last message: the next one starts the list again */
@@ -645,9 +651,11 @@ export class LiveChat {
   /**
    * The accounts the turn died on at their limit since the chat last ended a turn without one: what
    * the rotation passes over. Kept on the chat, not in the accounts' readings, because a failure
-   * says the account is out but not how full it is or until when
+   * says the account is out but not how full it is or until when. Each with when it died there (epoch
+   * ms): a failure stops counting once the account's reading says its reset passed since
+   * (`stillFailed` in chats.ts)
    */
-  limitedAccounts = new Set<string>();
+  limitedAccounts = new Map<string, number>();
   /**
    * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
    * can still end with JSON that parses, and a reader of the result has to know it was cut

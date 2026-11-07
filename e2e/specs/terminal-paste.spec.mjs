@@ -78,6 +78,9 @@ export default async ({ page, api, check, dirs }) => {
     const [cancel, send] = first?.buttons ?? [];
     check(cancel?.text === 'Cancel' && send?.text === 'Send to terminal' && send.primary === true && cancel.primary === false, `Cancel and Send to terminal, the second the primary action (${JSON.stringify(first?.buttons)})`);
     check(send?.disabled === true, 'Send to terminal is off while the field is empty');
+    // The sheet's body kept the browser's paragraph margins once: the help sat 21 px under its field
+    const gap = await page.eval(`const s = document.querySelector('.sheet'); return Math.round(s.querySelector('.term-paste .muted').getBoundingClientRect().top - s.querySelector('textarea').getBoundingClientRect().bottom)`);
+    check(gap === 8, `the helper line sits the stack's 8 px under its field, as in the dialog (${gap})`);
     check(first?.buttons.every((b) => b.height >= 44 - 1), `both actions are 44 px targets (${JSON.stringify(first?.buttons.map((b) => b.height))})`);
     check(first?.bottom <= first?.viewport, `the sheet is inside the screen (${first?.bottom} of ${first?.viewport})`);
     await page.shot('terminal-paste-sheet-dark');
@@ -144,6 +147,11 @@ export default async ({ page, api, check, dirs }) => {
     await page.emulateTouch(false).catch(() => {});
     await page.viewport(1440, 900).catch(() => {});
     await page.eval(`localStorage.removeItem(${JSON.stringify(RENDERER)}); localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
+    // Dismissed before the switch goes off: the switch closes a terminal without dismissing it, a closed
+    // terminal stays listed for an hour, and the dock of the next spec on this server lists it as a tab
+    // (terminal.spec's "two tabs" found three after this spec)
+    const left = (await api.get('/terminals').catch(() => ({ body: [] }))).body;
+    for (const each of Array.isArray(left) ? left : []) await api.del(`/terminals/${each.id}`).catch(() => {});
     await api.put('/terminal/settings', { enabled: false }).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
   }

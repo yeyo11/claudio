@@ -57,7 +57,7 @@ afterEach(async () => {
 });
 
 after(async () => {
-  core.shutdown();
+  await core.shutdown();
   await app.close();
   delete process.env.FAKE_OPENAI_PROMPTS;
   rmSync(root, { recursive: true, force: true });

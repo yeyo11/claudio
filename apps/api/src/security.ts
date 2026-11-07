@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, MAX_AUDIT_PATH, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
+import { DESKTOP_ACTOR, MAX_AUDIT_PATH, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
 import type { HostRefusal } from '@claudio/shared';
 import { allowedOrigin } from './origins.ts';
 import { ROUTE_DOCS, accessOf } from './openapi/routes.ts';
@@ -528,6 +528,28 @@ const guardedPath = (path: string): boolean => path === '/openapi.json' || path 
  */
 const isGuarded = (routeUrl: string | undefined, path: string): boolean => (routeUrl !== undefined && guardedPath(routeUrl)) || guardedPath(path);
 
+/** The answer to a chat's token on what is the person's, naming the route's summary when it has one */
+function personRefusal(route: string | null): { error: string; code: 'chat-forbidden' } {
+  const summary = route ? ROUTE_DOCS[route]?.summary : undefined;
+  return {
+    error: `a chat's token cannot do this${summary ? ` (${summary.charAt(0).toLowerCase()}${summary.slice(1)})` : ''}: it is the person's`,
+    code: 'chat-forbidden',
+  };
+}
+
+const COMPACT_ROUTE = 'POST /chats/:id/compact';
+
+/**
+ * The `work` routes whose field becomes the text of a turn of a chat that has a history: a
+ * `/compact` there is refused to a chat's token as the compact route is. `POST /chats` is not
+ * listed: a new chat has nothing to compact, and a hint reaches the agent framed, never as a command
+ */
+const TYPED_COMMAND_FIELDS: Readonly<Record<string, string>> = {
+  'POST /chats/:id/messages': 'text',
+  'POST /chats/:id/resume': 'prompt',
+  'POST /chats/:id/fork': 'prompt',
+};
+
 /** The matched route keyed as `ROUTE_DOCS` keys it (`POST /chats/:id/stop`), or null for what is not an API route */
 function apiRoute(req: FastifyRequest): string | null {
   const url = req.routeOptions.url;
@@ -851,11 +873,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
 
     // The class of the matched route, for a chat's token a guarded mode authenticated
     if (chatCredentials.has(req) && access === 'person') {
-      const summary = route ? ROUTE_DOCS[route]?.summary : undefined;
-      void reply.status(403).send({
-        error: `a chat's token cannot do this${summary ? ` (${summary.charAt(0).toLowerCase()}${summary.slice(1)})` : ''}: it is the person's`,
-        code: 'chat-forbidden',
-      });
+      void reply.status(403).send(personRefusal(route));
       return reply;
     }
 
@@ -876,8 +894,20 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   app.addHook('preHandler', async (req, reply) => {
     if (!chatCredentials.has(req)) return;
     const route = apiRoute(req);
-    const fields = route ? ROUTE_DOCS[route]?.workFields : undefined;
     const body: unknown = req.body;
+    // Compacting is the person's (`POST /chats/:id/compact` is `person`). The text of a turn that
+    // starts with `/compact` is the CLI's command whichever route carried it, and whether Claudio
+    // took it as typed (an idle chat) or passed it on as a message (a busy chat, a resume, a fork),
+    // so the text is refused here rather than where Claudio would have recorded a compaction
+    const textField = route ? TYPED_COMMAND_FIELDS[route] : undefined;
+    if (textField !== undefined && body !== null && typeof body === 'object' && !Array.isArray(body)) {
+      const text: unknown = (body as Record<string, unknown>)[textField];
+      if (typeof text === 'string' && TYPED_COMPACT.test(text.trim())) {
+        void reply.status(403).send(personRefusal(COMPACT_ROUTE));
+        return reply;
+      }
+    }
+    const fields = route ? ROUTE_DOCS[route]?.workFields : undefined;
     if (!fields || body === null || typeof body !== 'object' || Array.isArray(body)) return;
     const refuse = (field: string, allowed: readonly string[], where: string) => {
       void reply.status(403).send({

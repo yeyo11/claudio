@@ -17,7 +17,9 @@ const SUMMARY = ['This session is being continued from a previous conversation.'
 
 // `app.close()` does not shut a Core down (teardown.test.ts): every one built here is, after the last test
 const cores: Core[] = [];
-after(() => cores.forEach((core) => core.shutdown()));
+after(async () => {
+  await Promise.all(cores.map((core) => core.shutdown()));
+});
 
 async function wrapper(): Promise<{ app: FastifyInstance; core: Core }> {
   const root = mkdtempSync(join(tmpdir(), 'claudio-context-'));

@@ -37,8 +37,20 @@ function outcome(status: number): { tone: 'ok' | 'warn' | 'bad'; key: 'ok' | 'un
 /** What the audit's filters keep until they are cleared, as typed */
 const AUDIT_PARAMS = ['path', 'method', 'status'] as const;
 
-/** Settings → Access & safety → Audit log: every write, newest first, with its filters and its pages. */
+/**
+ * Settings → Access & safety → Audit log: every write, newest first, with its filters and its pages,
+ * and below it the writes refused before their caller was identified.
+ */
 export function AuditCard() {
+  return (
+    <>
+      <AuditLog />
+      <AuditRefusals />
+    </>
+  );
+}
+
+function AuditLog() {
   const { t } = useTranslation(['config', 'common']);
   const { params, patch, reset } = useListParams('audit', AUDIT_PARAMS, GLOBAL_SCOPE);
   const filter = params.get('path') ?? '';
@@ -77,7 +89,6 @@ export function AuditCard() {
   });
   const entries: AuditEntry[] = data?.entries ?? [];
   const total = data?.total ?? 0;
-  const last = from + entries.length;
 
   return (
     <Card
@@ -141,19 +152,67 @@ export function AuditCard() {
       ) : (
         <>
           <AuditTable entries={entries} />
-          <div className="form-actions">
-            <button type="button" className="btn btn-small" disabled={from === 0} onClick={() => setFrom(Math.max(0, from - AUDIT_PAGE))}>
-              <ChevronLeft {...ICON_SM} aria-hidden />
-              {t('config:security.audit.newer')}
-            </button>
-            <span className="small muted" role="status">
-              {t('config:security.audit.range', { first: formatNumber(from + 1), last: formatNumber(last), total: formatNumber(total) })}
-            </span>
-            <button type="button" className="btn btn-small" disabled={last >= total} onClick={() => setFrom(from + AUDIT_PAGE)}>
-              {t('config:security.audit.older')}
-              <ChevronRight {...ICON_SM} aria-hidden />
-            </button>
-          </div>
+          <AuditPager from={from} shown={entries.length} total={total} onFrom={setFrom} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** Newer and older pages of a list, with where the page sits in it */
+function AuditPager({ from, shown, total, onFrom }: { from: number; shown: number; total: number; onFrom: (from: number) => void }) {
+  const { t } = useTranslation('config');
+  const last = from + shown;
+  return (
+    <div className="form-actions">
+      <button type="button" className="btn btn-small" disabled={from === 0} onClick={() => onFrom(Math.max(0, from - AUDIT_PAGE))}>
+        <ChevronLeft {...ICON_SM} aria-hidden />
+        {t('security.audit.newer')}
+      </button>
+      <span className="small muted" role="status">
+        {t('security.audit.range', { first: formatNumber(from + 1), last: formatNumber(last), total: formatNumber(total) })}
+      </span>
+      <button type="button" className="btn btn-small" disabled={last >= total} onClick={() => onFrom(from + AUDIT_PAGE)}>
+        {t('security.audit.older')}
+        <ChevronRight {...ICON_SM} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/** How many rows the server keeps of the refusals: the newest, the rest dropped (`audit_refusals`) */
+const REFUSALS_KEPT = 1_000;
+
+/**
+ * The writes refused to `anonymous` (no or a wrong credential, a name this wrapper does not answer
+ * to, a client made to wait, a target that is not a plain path, a page of another site). Whoever can
+ * reach the port writes these, so they are a card of their own rather than rows mixed into the log,
+ * and with no filters: the ring is small, and the log's filters are about what identified callers did.
+ */
+export function AuditRefusals() {
+  const { t } = useTranslation('config');
+  const [from, setFrom] = useState(0);
+  const fallback = useFallbackInterval();
+  const { data, error, isLoading } = useQuery({
+    queryKey: keys.auditRefusals({ from }),
+    queryFn: () => api.auditRefusals({ limit: AUDIT_PAGE, from }),
+    // No event says a refusal was written; every event and the slow fallback read the ring again
+    refetchInterval: fallback,
+    placeholderData: (previous) => previous,
+  });
+  const entries = data?.entries ?? [];
+  return (
+    <Card title={t('security.audit.refusals.title')}>
+      <p className="small muted">{t('security.audit.refusals.intro', { kept: formatNumber(REFUSALS_KEPT) })}</p>
+      <ErrorBox error={error} />
+      {isLoading ? (
+        <Skeleton rows={3} />
+      ) : entries.length === 0 ? (
+        !error && <Empty title={t('security.audit.refusals.none')}>{t('security.audit.refusals.noneHint')}</Empty>
+      ) : (
+        <>
+          <AuditTable entries={entries} label={t('security.audit.refusals.title')} anonymous />
+          <AuditPager from={from} shown={entries.length} total={data?.total ?? 0} onFrom={setFrom} />
         </>
       )}
     </Card>
@@ -242,22 +301,35 @@ function RequestLine({ entry }: { entry: AuditEntry }) {
  * A table where the card is wide enough and, below 560 px of it, the same entries as rows that wrap.
  * The stylesheet shows one of the two, so only one is ever in the accessibility tree.
  */
-export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
+export function AuditTable({
+  entries,
+  label,
+  anonymous = false,
+}: {
+  entries: readonly AuditEntry[];
+  /** The list's accessible name, the log's by default */
+  label?: string;
+  /** Every row is `anonymous` (the refusals' ring), so a Who column would say one word on each row */
+  anonymous?: boolean;
+}) {
   const { t } = useTranslation(['config', 'common']);
   const what = useWhat();
+  const name = label ?? t('config:security.audit.title');
   return (
     <div className="audit-log">
       {/* Paged, so it needs no cap on its height; a keyboard can still scroll it */}
-      <div className="table-wrap is-paged" role="group" aria-label={t('config:security.audit.title')} tabIndex={0}>
-        <table className="table audit-table" aria-label={t('config:security.audit.title')}>
+      <div className="table-wrap is-paged" role="group" aria-label={name} tabIndex={0}>
+        <table className="table audit-table" aria-label={name}>
           <thead>
             <tr>
               <th scope="col" className="audit-col-when">
                 {t('config:security.audit.when')}
               </th>
-              <th scope="col" className="audit-col-actor">
-                {t('config:security.audit.actor')}
-              </th>
+              {!anonymous && (
+                <th scope="col" className="audit-col-actor">
+                  {t('config:security.audit.actor')}
+                </th>
+              )}
               <th scope="col" className="audit-col-request">
                 {t('config:security.audit.request')}
               </th>
@@ -271,9 +343,11 @@ export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
             {entries.map((entry) => (
               <tr key={entry.id}>
                 <td className="small muted tnum audit-when">{formatDateTime(entry.at)}</td>
-                <td className="small audit-who">
-                  <Actor actor={entry.actor} />
-                </td>
+                {!anonymous && (
+                  <td className="small audit-who">
+                    <Actor actor={entry.actor} />
+                  </td>
+                )}
                 <td className="small audit-request">
                   <span className="mono audit-method">{entry.method}</span>{' '}
                   <TablePath path={entry.path} />
@@ -287,18 +361,20 @@ export function AuditTable({ entries }: { entries: readonly AuditEntry[] }) {
           </tbody>
         </table>
       </div>
-      <ul className="audit-rows" aria-label={t('config:security.audit.title')}>
+      <ul className="audit-rows" aria-label={name}>
         {entries.map((entry) => (
           <li key={entry.id} className="audit-row">
             <div className="audit-row-head">
               <span className="small muted tnum">{formatDateTime(entry.at)}</span>
               {/* The separator travels with the actor, so a wrap never leaves it alone at a line's end */}
-              <span className="small audit-row-actor">
-                <span className="muted" aria-hidden>
-                  ·{' '}
+              {!anonymous && (
+                <span className="small audit-row-actor">
+                  <span className="muted" aria-hidden>
+                    ·{' '}
+                  </span>
+                  <Actor actor={entry.actor} />
                 </span>
-                <Actor actor={entry.actor} />
-              </span>
+              )}
               <Result status={entry.status} />
             </div>
             <p className="audit-row-what">{what(entry)}</p>

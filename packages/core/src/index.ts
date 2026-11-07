@@ -296,7 +296,7 @@ export { chatState } from './chat-model.ts';
 export { usageReport, type ChatSpend } from './usage-report.ts';
 export { orchestrationTimings } from './orchestration-timings.ts';
 export { ContextControl } from './context-control.ts';
-export { ChatNotes, compactText, ContextRefusal, SESSION_NOTE_INSTRUCTIONS } from './context-notes.ts';
+export { ChatNotes, compactText, ContextRefusal, SESSION_NOTE_INSTRUCTIONS, TYPED_COMPACT } from './context-notes.ts';
 export { usageBreakdown, usageSeries } from './usage-series.ts';
 export { parseChangeScope, parseDiffContext, type DiffOptions } from './changes.ts';
 export { chatToMarkdown, exportFilename } from './chat-export.ts';
@@ -3766,7 +3766,7 @@ export class Core {
    */
   accountView(now: number = Date.now()): AccountView {
     const accounts = this.accounts.list(now);
-    const choice = this.accounts.pick({ current: null, now });
+    const choice = this.accounts.pick({ current: null, now, accounts });
     const account = choice.account ? accounts.find((a) => a.id === choice.account) : undefined;
     const ready = accounts.filter((a) => a.enabled && a.signedIn);
     const out = ready.filter((a) => isOut(a.limits, now));
