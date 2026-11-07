@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-29T19:30:00Z
-updated_at: 2026-10-30T12:00:00Z
+updated_at: 2026-11-07T00:00:00Z
 tags:
     - plan
     - regression
@@ -666,16 +666,21 @@ is on `main`; each item names where it lives.
 
 **The review gate** (seen when this branch was verified, 2026-10-30)
 
-- [ ] The deterministic `secret` rule of `packages/core/src/review-scan.ts` fires on identifiers,
+- [x] The deterministic `secret` rule of `packages/core/src/review-scan.ts` fires on identifiers,
   not on credentials: type annotations (`token: string`), parameter names (`credential:`),
   `secrets: false` in guard fixtures, `input_tokens`, `authMode="…"` in tests and route
   descriptions that mention a token. It reported 48 blocking findings on this branch, every one a
   false positive, and the gate was accepted over them. The rule should match credential-shaped
   values, never names, and a fixture or a test file should count as advisory.
-- [ ] Every model run of the gate (8 chunks × 4 dimensions, and the verifier) ended "without
+  Fixed by `34890c245` (R21 of [ci-and-regression-open.md](ci-and-regression-open.md)): a
+  credential detector of its own; tests and fixtures are advisory.
+- [x] Every model run of the gate (8 chunks × 4 dimensions, and the verifier) ended "without
   structured output" on this diff (569 files), four rounds in a row, for 86 USD. A chunk that
   cannot be answered within `maxRunCostUsd` should be split or declared `not-reviewable` before
   it is sent, and a round whose runs are all invalid should stop instead of trying the fixer.
+  Fixed by `7201b0759` (R22): chunks are sized under the per-run cap, an oversized single change is
+  `not-reviewable`, and an `unreviewed` round ends incomplete without the verifier or the fixer.
+  Why the runs gave no structured output is not proven; their failure now names the stop reason.
 
 **The owner's install**
 
