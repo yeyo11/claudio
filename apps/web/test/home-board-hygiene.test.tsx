@@ -91,3 +91,13 @@ test('with no project yet, Home offers a button to import one, not a link inside
   assert.match(out, /<div class="form-actions"><a class="btn btn-small"[^>]*href="\/projects"[^>]*>Import your first project<\/a><\/div>/);
   assert.doesNotMatch(out, /lives on its page\. <a/);
 });
+
+test("a finger on the lower edge of a card's ⋯ opens its menu, never the task under it", () => {
+  // The target sticks out of the card's 16 px top row, and the title link, later in the card,
+  // painted over its lower edge: the "⋯" stands above it, as the phone row's does
+  for (const selector of ['.workitem-card-more', '.workitem-mrow-more']) {
+    const declared = rule(css('board.css'), selector);
+    assert.equal(declared.get('position'), 'relative', `${selector} is positioned`);
+    assert.equal(declared.get('z-index'), '1', `${selector} stands over the title`);
+  }
+});

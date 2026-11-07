@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-07T00:00:00Z
-updated_at: 2026-11-07T18:00:00Z
+updated_at: 2026-11-07T21:00:00Z
 tags:
     - plan
     - ci
@@ -189,7 +189,7 @@ red until the owner authorises the push and the remote e2e run below.
 | `core-hygiene` | R2, R13 and R15's event half (`workitem.moved` by item) | `a9f0d1811` |
 | `web-hygiene` | R4, R14, R15's polling half, R16, R20 | `19ca63ea9`, `ae36b9f31`, `dbf99ea64`, `1a4b3803d`, `52106dfd3`, `f3471e311` |
 | `tests` | R17, R18, R19 | `0e63d441c`, `d79790a9d`, `50b6ba07b` |
-| `ui-review` | #84's schedule prompt and the delivery cards (answers stay put, the next fires on the schedule's clock, the queued card's contrast) and the reload offer | `c4dc5401c`, `31eb5d8b1` |
+| `ui-review` | #84's schedule prompt and the delivery cards (answers stay put, the next fires on the schedule's clock, the queued card's contrast, a write's detail in prose), the reload offer and the stale page, the board's "⋯" on coarse pointers, and the paste sheet's spacing | `c4dc5401c`, `31eb5d8b1`, `f89ea3206`, `e7ded6b8f` |
 | `docs` | Ticks the regression checklist; the three decision documents; status and roadmap | this branch |
 | R6 | Decided, not built: [decisions/mcp-writes-under-bypass.md](../decisions/mcp-writes-under-bypass.md) | `12383a4ec`, `docs` |
 | R5, R23 | Closed by evidence (§1.2) | none |
@@ -198,8 +198,9 @@ red until the owner authorises the push and the remote e2e run below.
 
 - **The push and the remote runs.** `ci-terminal` could not push (denied). `pnpm e2e:remote terminal
   usage mobile` three times in a row on the pushed branch is the mark that "main is green" and has
-  not happened. No e2e spec changed by any task has been run: `terminal*`, `usage`,
-  `schedule-prompt`, `security`, and the `home`, `tasks` and `changes` gates of `web-hygiene`.
+  not happened. On this machine the review's `e2e` gate passed `security`, `usage`, `schedule-prompt`,
+  `home`, `tasks`, `changes` and `mobile`. The four `terminal*` specs are refused there with `403
+  terminal.from-agent` (§1.1), so they only run on GitHub.
 - **`mobile.spec` fails only on Dependabot #87**, probably `@tanstack/react-virtual` 3.14.26 with
   `VirtualList.tsx`. It is not touched: it depends on that lockfile.
 - **R22 does not prevent the incident at the default cap.** At 1 USD no chunk is split: the
@@ -208,7 +209,8 @@ red until the owner authorises the push and the remote e2e run below.
   proven; the stop reason now says.
 - **The fixture of a rejected model is rebuilt from the CLI's code** (2.1.319), not recorded, because a
   recording costs a paid turn.
-- **R10's board "⋯" menu on coarse pointers** has no written result from `ui-review`.
+- **R10 has no written verdict from `ui-review`** beyond its commits' bodies; the board's "⋯" on
+  coarse pointers was fixed in `f89ea3206`, which the `docs` task had not seen.
 - **R15's gap:** decisions taken outside a permission (`orchestration.retry`, `flow.*`) and audit
   rows with no event (a refused request) show on the next mount, focus or event.
 - **Fixed sleeps left on purpose** in `flow.test.ts`, `setup-logins.test.ts`,
@@ -217,6 +219,48 @@ red until the owner authorises the push and the remote e2e run below.
 - **`provider_limits`, the approval ledger of assistant-everything, and a real phone's keyboard on
   the paste sheet** (§2.4), as planned.
 - **CLD-4** is named by this plan but no document defines it; its criteria could not be written.
+
+### Review (task `review`, on the integrated branch)
+
+Each item of §1.2 checked against the code and tests of the merged tree:
+
+- **Done:** R1, R2, R3, R4, R7, R8, R9, R12, R13, R14, R15 (both halves as its row says), R18,
+  R19, R20, R21, R22; R5 and R23 by evidence; R6 by decision.
+- **Partly:**
+  - **R10:** fixed in code (`c4dc5401c`, `31eb5d8b1`, `f89ea3206`, `e7ded6b8f`). No written
+    SHIPPABLE verdict, and the specs it touched have not run.
+  - **R11:** `moveTo` clears the limit. `limitedAccounts` is not cleared on a wait-replay as the
+    row says: a failure stops counting once a reading shows its reset passed, which covers the
+    wait-replay and the saved runs (`accounts`' choice, in [accounts.md](../accounts.md)).
+  - **R16:** the 72 tap-target hits were cleared in the checker (I9 measures a stretched link by
+    its row), not the UI, because the rows already were 64 px targets. The gradient fix covers
+    Home with nothing running; the agents-setup Home still has the head's gradient.
+  - **R17:** `accounts-rotation` waits on the rotation's own calls now, but still spawns the fake
+    CLI.
+- **Fixed by the review:**
+  - `collab-join-answer`'s denial test read the pending file and then looked for the event that
+    `endJoin` sends only after writing it. That race failed the `test` gate on the integrated tree.
+    The test now waits on the event; a 200 ms pause between the write and the event fails the old
+    test and passes the new one.
+  - `teardown.test.ts` took an `await` anywhere earlier on the line as the call's own.
+  - A doc comment in `apps/api/src/security.ts` had slid onto the wrong function in the merge.
+  - `openai-tools.test.ts`'s cold resume test timed out in two of the review's four full gates, never alone. It
+    waited for two stub lines in the fake's log. The killed process writes its line in the tick
+    after it hands its calls over, so under load the SIGKILL landed first, which the failure's own
+    dump showed. The test now waits for the resumed process's line, which is what it means to check.
+  - **A product race behind a test.** `collab-join-answer`'s "answered pending at once" test saw
+    the join sent twice under load. `join()` wrote the waiting entry and marked the join as in
+    flight only after that write's `await`, so a pass over the waiting joins that ran in between
+    sent the join again beside the first attempt. The join is now marked before the write. A new
+    test runs the pass in that window every time; it fails on the old code (the pass dials Ana)
+    and passes on the new.
+  - `chat-delivery-bounds`' two replay tests took the fake's `turn` line as "the first turn was
+    taken". Under load Claudio had not read it yet, so the replay carried the first prompt as
+    well, which is right for what Claudio knew. They now wait for its `delivered`.
+- **Left as built:**
+  - `roundStatus` reports a round whose reviewers all failed as `incomplete` even when the
+    deterministic scan blocked. The fixer does not run either way, and the findings are listed.
+  - `31eb5d8b1` is titled "ui-review", not a Conventional Commit; the squash merge replaces it.
 
 ### Defects seen outside the plan
 
@@ -230,6 +274,9 @@ red until the owner authorises the push and the remote e2e run below.
 - Searching settings for "Supervisor cap" opens Advanced with no row when the Supervisor is off.
 - Home in the agents-setup state keeps the head's gradient "New chat", unlike the reference.
 - The Access & safety summary does not mention refused requests.
+- A `/compact` sent through `/v1/chat/completions` or `/v1/responses` is not refused to a chat's
+  token. It can only reach chats the API caller started there, never a person's chat, so this is
+  probably intended, but no document says so.
 - `orchestrator.ts` says "work you delegated is still running" when it already finished.
 - Many core tests leave directories in the temp dir, and the "saving the chats failed: statement has
   been finalized" warning shows in core tests.

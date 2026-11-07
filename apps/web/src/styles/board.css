@@ -473,8 +473,12 @@ button.workitem-mrow-more-link {
   cursor: inherit;
 }
 
-/* A finger's "⋯" on a card: a full touch target that does not make the card's first row taller */
+/* A finger's "⋯" on a card: a full touch target that does not make the card's first row taller.
+   Stacked over the title, which comes later in the card and painted over the target's lower edge: a
+   tap there opened the task instead of the menu. The phone row's "⋯" stands the same way */
 .workitem-card-more {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   margin: calc((16px - var(--touch)) / 2) -10px calc((16px - var(--touch)) / 2) -4px;
 }

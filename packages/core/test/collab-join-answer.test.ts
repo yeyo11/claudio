@@ -254,6 +254,8 @@ async function off(i: Install): Promise<void> {
 interface Internals {
   client: { idle(id: string): Promise<void> };
   pendingRun: Promise<void> | null;
+  updatePending(change: (all: unknown[]) => unknown[]): Promise<void>;
+  retryPending(): Promise<void>;
 }
 const internals = (i: Install): Internals => i.service as unknown as Internals;
 
@@ -306,12 +308,15 @@ test('a denial the owner makes while the joiner is away reaches the joiner throu
   await off(ana);
 
   await on(cleo);
-  const denied = await until('Cleo learns she was denied', () => (pendingOf(cleo, groupId)?.state === 'denied' ? pendingOf(cleo, groupId) : null));
+  // `endJoin` writes the entry, then announces it: the file can say "denied" a moment before the
+  // event exists, so the wait is on the event, which is only sent once both are there
+  const ended = await until('Cleo learns she was denied', () => cleo.events.find((e) => e.type === 'collaborators.join-ended') ?? null);
+  const denied = pendingOf(cleo, groupId);
+  assert.ok(denied?.state === 'denied');
   assert.equal(denied.owner.name, 'Ana');
   assert.equal(denied.groupName, 'UDD');
   assert.ok(denied.endedAt);
-  const ended = cleo.events.find((e) => e.type === 'collaborators.join-ended');
-  assert.ok(ended?.type === 'collaborators.join-ended');
+  assert.ok(ended.type === 'collaborators.join-ended');
   assert.equal(ended.title, 'Ana denied the request to join UDD');
   assert.equal(ended.pending.state, 'denied');
 
@@ -468,6 +473,36 @@ test('a join the owner does not answer in time is answered pending at once, and 
   assert.equal(joined.name, 'UDD');
   await until('the pending join cleared', () => !pendingOf(cleo, group.id));
   assert.equal(net.sent.filter((x) => x === `${cleo.id}>${ana.id}:join`).length, 1, 'the join was sent once');
+});
+
+test('a pass over the waiting joins that runs while the join is being written does not send it beside the first attempt', async () => {
+  const net = new Net();
+  const ana = await install(net, 'Ana');
+  const cleo = await install(net, 'Cleo', { joinWaitMs: 150, pendingMs: HOUR });
+  const group = await ana.service.createGroup('UDD');
+  const release = net.hold(ana.id);
+  // The window a loaded machine opens: the entry is on disk and the request has not resumed yet,
+  // and the pass timer fires in it. The pass is run there, every time, instead of by chance
+  const inner = internals(cleo);
+  const write = inner.updatePending.bind(cleo.service);
+  let passed = false;
+  const toAna = (): string[] => net.attempts.filter((x) => x.startsWith(`${cleo.id}>${ana.id}:`));
+  inner.updatePending = async (change) => {
+    await write(change);
+    if (passed) return;
+    passed = true;
+    // The request resumes once the pass is over or has dialled Ana: either way it read the entry
+    await Promise.race([inner.retryPending(), until('the pass dialled Ana', () => toAna().length > 0)]);
+  };
+  const answer = await cleo.service.join(ana.service.createInvite(group.id).text);
+  assert.equal(answer.state, 'pending');
+  assert.ok(passed, 'the pass ran while the join was being written');
+  // While every frame to Ana is held, the only one on its way is the first attempt's join
+  assert.deepEqual(toAna(), [`${cleo.id}>${ana.id}:join`]);
+  release();
+  await until('Cleo joined', () => cleo.service.groupList().groups.find((g) => g.id === group.id));
+  await passesSettled(cleo);
+  assert.equal(net.attempts.filter((x) => x === `${cleo.id}>${ana.id}:join`).length, 1, 'the join was sent once');
 });
 
 test('leaving with the owner away answers at once, and the leave reaches the owner once she is back', async () => {

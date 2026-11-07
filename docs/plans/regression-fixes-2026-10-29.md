@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-29T19:30:00Z
-updated_at: 2026-11-07T18:00:00Z
+updated_at: 2026-11-07T21:00:00Z
 tags:
     - plan
     - regression
@@ -640,7 +640,7 @@ is on `main`; each item names where it lives.
   Closed by `7ed0c0c05` and `e3a8bad43` (R9): resume and fork answer `400 model-unknown`, and the stream detects `model_not_found` and fails the execution. The fixture is rebuilt from the CLI 2.1.319 code, not recorded; a real recording should replace it.
 - [x] The delivery cards, the board's "⋯" menu on coarse pointers and the render-error page have
   had no `/ui-review`.
-  Closed (R10) by `c4dc5401c` for the delivery cards and #84's schedule prompt, and `31eb5d8b1` for the render-error page. The `ui-review` task left no written result for the board's "⋯" menu on coarse pointers: check it again if that matters.
+  Closed (R10) by `c4dc5401c` and `e7ded6b8f` for the delivery cards and #84's schedule prompt, `31eb5d8b1` and `f89ea3206` for the render-error and stale pages, and `f89ea3206` for the board's "⋯" on coarse pointers (a tap on its lower edge opened the task; it now stands over the title, pinned in `home-board-hygiene.test.tsx`). The `ui-review` task's own verdict is recorded only in those commits' bodies.
 
 **Accounts**
 

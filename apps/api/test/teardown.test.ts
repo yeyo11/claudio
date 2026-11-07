@@ -27,15 +27,30 @@ test('every test file that builds a Core shuts one down', () => {
 // or the next Core on the same data dir, runs against a database still being closed, and the runner
 // can finish the file while rows are still being written. So every call is awaited, on its own line
 // or through the `await Promise.all(...)` that holds it.
+// The `await` has to be the call's own: one earlier on the line (`await app.close(); core.shutdown();`)
+// awaits something else.
+function unawaitedShutdown(line: string): boolean {
+  const call = line.indexOf('.shutdown()');
+  if (call < 0) return false;
+  const before = line.slice(0, call);
+  return !/\bawait\s+[\w$.?]+$/.test(before) && !/\bawait\s+Promise\.all\(/.test(before);
+}
+
+test('the shutdown check tells an awaited call from one that only follows an await', () => {
+  assert.equal(unawaitedShutdown('await core.shutdown();'), false);
+  assert.equal(unawaitedShutdown('t.after(async () => { await app.close(); await core.shutdown(); });'), false);
+  assert.equal(unawaitedShutdown('await Promise.all(cores.map((core) => core.shutdown()));'), false);
+  assert.equal(unawaitedShutdown('core.shutdown();'), true);
+  assert.equal(unawaitedShutdown('t.after(async () => { await app.close(); core.shutdown(); });'), true);
+  assert.equal(unawaitedShutdown('void core.shutdown();'), true);
+});
+
 test('every shutdown() in a test file is awaited', () => {
   const unawaited = files.flatMap(({ name, text }) =>
     text
       .split('\n')
       .map((line, index) => ({ line, at: `${name}:${index + 1}` }))
-      .filter(({ line }) => {
-        const call = line.indexOf('.shutdown()');
-        return call >= 0 && !line.slice(0, call).includes('await ');
-      })
+      .filter(({ line }) => unawaitedShutdown(line))
       .map(({ at }) => at),
   );
   assert.deepEqual(unawaited, []);
