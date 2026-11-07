@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import type { FastifyInstance } from 'fastify';
-import type { Workspace } from '@claudio/shared';
+import type { CreatedWorkspace, Workspace } from '@claudio/shared';
 import { Core, loadConfig } from '@claudio/core';
 import { buildApp } from '../src/app.ts';
 
@@ -69,7 +69,8 @@ test('an archive sent as the body becomes a workspace that GET reads and DELETE 
   assert.equal(core.workspaces.root, join(root, 'workspaces'));
   const created = await app.inject(gzip(tgz(entry('repo-abc/', '', '5'), entry('repo-abc/README.md', '# hi\n'))));
   assert.equal(created.statusCode, 201, created.body);
-  const ws = created.json<Workspace>();
+  const { skipped, skippedCount, ...ws } = created.json<CreatedWorkspace>();
+  assert.deepEqual([skipped, skippedCount], [[], 0]);
   assert.equal(ws.source, 'upload');
   assert.equal(ws.files, 1);
   assert.equal(ws.state, 'ready');
@@ -87,10 +88,17 @@ test('an archive sent as the body becomes a workspace that GET reads and DELETE 
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/workspaces/${ws.id}` })).statusCode, 204);
 });
 
-test('a hostile archive is a 400 with its code, and an unknown id a 404', async () => {
-  const link = await app.inject(gzip(tgz(entry('repo/link', '', '2'))));
-  assert.equal(link.statusCode, 400);
-  assert.equal(link.json<{ code: string }>().code, 'workspace-bad-archive');
+test('a link is left out and said in the answer, a hostile archive is a 400 with its code, and an unknown id a 404', async () => {
+  const linked = await app.inject(gzip(tgz(entry('repo/', '', '5'), entry('repo/a.txt', 'a'), entry('repo/link', '', '2'))));
+  assert.equal(linked.statusCode, 201, linked.body);
+  const withLink = linked.json<CreatedWorkspace>();
+  assert.deepEqual([withLink.files, withLink.skippedCount, withLink.skipped], [1, 1, [{ path: 'repo/link', kind: 'symbolic-link' }]]);
+  assert.deepEqual(readdirSync(join(root, 'workspaces', withLink.id, 'repo')), ['a.txt']);
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/workspaces/${withLink.id}` })).statusCode, 204);
+
+  const device = await app.inject(gzip(tgz(entry('repo/dev', '', '3'))));
+  assert.equal(device.statusCode, 400);
+  assert.equal(device.json<{ code: string }>().code, 'workspace-bad-archive');
   const git = await app.inject(gzip(tgz(entry('repo/.git/config', '[core]\n'))));
   assert.equal(git.json<{ code: string }>().code, 'workspace-bad-archive');
   assert.deepEqual(readdirSync(join(root, 'workspaces')), []);

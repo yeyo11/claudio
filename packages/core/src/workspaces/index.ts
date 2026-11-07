@@ -6,7 +6,7 @@ import { Transform, type Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { DatabaseSync } from 'node:sqlite';
 import { createGunzip } from 'node:zlib';
-import type { Workspace } from '@claudio/shared';
+import type { CreatedWorkspace, Workspace } from '@claudio/shared';
 import { openDownload, type DownloadOptions } from './download.ts';
 import { refuse, WorkspaceRefusal } from './refusal.ts';
 import { inside, overlaps, type WorkspaceSettings } from './settings.ts';
@@ -34,6 +34,8 @@ export interface WorkspacesDeps {
   now?: () => number;
   /** Tests reach their own loopback server over http */
   download?: Pick<DownloadOptions, 'allowAddress' | 'protocols'>;
+  /** Where what is worth an operator's eye goes (links an archive held and the workspace left out) */
+  log?: (line: string) => void;
 }
 
 /** `ws_` and 16 characters of base64url: the only names the sweeper ever removes under the root */
@@ -141,7 +143,7 @@ export class Workspaces {
     return inside(given, this.root) || inside(real(given), real(this.root));
   }
 
-  async create(source: WorkspaceSource): Promise<Workspace> {
+  async create(source: WorkspaceSource): Promise<CreatedWorkspace> {
     const { settings } = this.deps;
     let host: string | null = null;
     if (source.kind === 'url') {
@@ -160,34 +162,52 @@ export class Workspaces {
     this.inflight.set(id, 0);
     const folder = this.folderOf(id);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), settings.timeoutMs);
+    // Two clocks: one restarted by every chunk that arrives, which cuts a source that stalled, and one
+    // over the whole of it, which bounds a source that trickles. Which one cut is what the refusal says
+    let cut: 'idle' | 'total' | null = null;
+    const stop = (why: 'idle' | 'total') => () => {
+      cut ??= why;
+      controller.abort();
+    };
+    let idle = setTimeout(stop('idle'), settings.timeoutMs);
+    const arrived = (): void => {
+      clearTimeout(idle);
+      idle = setTimeout(stop('idle'), settings.timeoutMs);
+    };
+    const total = setTimeout(stop('total'), settings.maxDurationMs);
     try {
       await mkdir(this.root, { recursive: true, mode: 0o755 });
       await mkdir(folder, { mode: 0o755 });
       const input = source.kind === 'url' ? (await openDownload(source.url, { hosts: settings.hosts, maxBytes: settings.maxCompressedBytes, signal: controller.signal, ...this.deps.download })).body : source.body;
-      const result = await this.extract(id, input, folder, controller.signal);
+      const result = await this.extract(id, input, folder, controller.signal, arrived);
       for (const dir of await directories(folder)) await chmod(dir, 0o555);
       const done = this.now();
       this.store.ready(id, { bytes: result.bytes, files: result.files, topDir: result.topDir, at: this.iso(done), expiresAt: this.iso(done + settings.ttlMs) });
       const row = this.store.get(id);
       if (!row) throw new Error('the workspace row went missing');
-      return publicOf(row);
+      if (result.skippedCount > 0) {
+        const shown = result.skipped.slice(0, 5).map((entry) => entry.path).join(', ');
+        this.deps.log?.(`workspace ${id}: left out ${String(result.skippedCount)} link(s) the archive held (${shown}${result.skippedCount > 5 ? ', …' : ''})`);
+      }
+      return { ...publicOf(row), skipped: result.skipped, skippedCount: result.skippedCount };
     } catch (err) {
       // Over a cap or refused, nothing is left: neither the folder nor the row
       await this.removeFolder(folder).catch(() => undefined);
       this.store.forget(id);
-      throw this.reworded(err, controller.signal);
+      throw this.reworded(err, controller.signal, cut);
     } finally {
-      clearTimeout(timer);
+      clearTimeout(idle);
+      clearTimeout(total);
       this.inflight.delete(id);
     }
   }
 
-  private async extract(id: string, input: Readable, folder: string, signal: AbortSignal): Promise<ExtractResult> {
+  private async extract(id: string, input: Readable, folder: string, signal: AbortSignal, arrived: () => void): Promise<ExtractResult> {
     const { settings } = this.deps;
     let compressed = 0;
     const counter = new Transform({
       transform(chunk: Buffer, _encoding, callback) {
+        arrived();
         compressed += chunk.length;
         if (compressed > settings.maxCompressedBytes) callback(refuse('workspace-too-large', `the archive is larger than ${mb(settings.maxCompressedBytes)} MB compressed`));
         else callback(null, chunk);
@@ -222,9 +242,15 @@ export class Workspaces {
    * What a failure says to the client. A refusal passes as it is; anything from the network is
    * reworded, since an error of the HTTP stack may carry what the request carried.
    */
-  private reworded(err: unknown, signal: AbortSignal): Error {
+  private reworded(err: unknown, signal: AbortSignal, cut: 'idle' | 'total' | null): Error {
     if (err instanceof WorkspaceRefusal) return err;
-    if (signal.aborted) return refuse('workspace-timeout', `the archive was not downloaded and extracted within ${String(this.deps.settings.timeoutMs / 1000)} s`);
+    if (signal.aborted) {
+      const { timeoutMs, maxDurationMs } = this.deps.settings;
+      return refuse(
+        'workspace-timeout',
+        cut === 'total' ? `the archive was not downloaded and extracted within ${String(maxDurationMs / 1000)} s` : `no data of the archive arrived for ${String(timeoutMs / 1000)} s`,
+      );
+    }
     const e = err as NodeJS.ErrnoException & { statusCode?: unknown };
     if (typeof e.statusCode === 'number' && err instanceof Error) return err;
     if (typeof e.code === 'string' && e.code.startsWith('Z_')) return refuse('workspace-bad-archive', 'the archive is not gzip-compressed, or it is damaged');

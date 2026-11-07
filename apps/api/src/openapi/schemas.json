@@ -7557,6 +7557,101 @@
     ],
     "description": "An ephemeral copy of a source tree made from a `tar.gz` (docs/plans/headless-image.md, D7). A chat names it by id; its folder is never returned, so nothing else can name it."
   },
+  "CreatedWorkspace": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "`ws_` + random"
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "url",
+          "upload"
+        ]
+      },
+      "host": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The URL's host; never the URL, which carries the code host's short-lived token"
+      },
+      "bytes": {
+        "type": "number",
+        "description": "Bytes extracted"
+      },
+      "files": {
+        "type": "number",
+        "description": "Regular files extracted"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastUsedAt": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "description": "`lastUsedAt` plus the TTL: past it, and once its chats have ended, the workspace is removed"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "creating",
+          "ready",
+          "removing"
+        ]
+      },
+      "skipped": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/WorkspaceSkippedEntry"
+        },
+        "description": "The links left out, the first 100 of them; never created, whatever they pointed at"
+      },
+      "skippedCount": {
+        "type": "number",
+        "description": "How many links the archive held, listed or not"
+      }
+    },
+    "required": [
+      "bytes",
+      "createdAt",
+      "expiresAt",
+      "files",
+      "host",
+      "id",
+      "lastUsedAt",
+      "skipped",
+      "skippedCount",
+      "source",
+      "state"
+    ],
+    "description": "What `POST /api/workspaces` answers: the workspace, and what of the archive it left out"
+  },
+  "WorkspaceSkippedEntry": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Relative to the workspace, as the archive names it"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "symbolic-link",
+          "hard-link"
+        ]
+      }
+    },
+    "required": [
+      "path",
+      "kind"
+    ],
+    "description": "A link the archive held: workspaces take regular files and directories, and leave links out"
+  },
   "CreateWorkspaceRequest": {
     "type": "object",
     "properties": {

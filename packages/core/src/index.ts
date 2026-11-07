@@ -787,6 +787,7 @@ export class Core {
         },
         exited: (id) => this.runtime.exited(id),
       },
+      log: (line) => console.warn(line),
     });
     this.workspaces.start();
     this.runtime.workspacesRoot = this.workspaces.root;

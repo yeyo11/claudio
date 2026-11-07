@@ -104,7 +104,8 @@ a cap nobody chose.
 | `CLAUDIO_WORKSPACE_MAX_COMPRESSED_MB` | `100` | The archive as sent or downloaded (`413 workspace-too-large`) |
 | `CLAUDIO_WORKSPACE_MAX_EXTRACTED_MB` | `500` | What the extraction writes, counted as bytes are written (`413`) |
 | `CLAUDIO_WORKSPACE_MAX_FILES` | `50000` | Files and directories of one archive (`413`) |
-| `CLAUDIO_WORKSPACE_TIMEOUT_SECONDS` | `60` | Download and extraction together (`408 workspace-timeout`) |
+| `CLAUDIO_WORKSPACE_TIMEOUT_SECONDS` | `60` | How long the archive may go without a byte arriving (`408 workspace-timeout`). Until 2026-11-07 it bounded download and extraction together; that is now `CLAUDIO_WORKSPACE_MAX_SECONDS` |
+| `CLAUDIO_WORKSPACE_MAX_SECONDS` | `300` | Download and extraction together, however steady the bytes (`408 workspace-timeout`); never shorter than `CLAUDIO_WORKSPACE_TIMEOUT_SECONDS` |
 | `CLAUDIO_WORKSPACE_MAX_COUNT` | `20` | Workspaces at once, the ones being created included (`429 workspace-limit`) |
 | `CLAUDIO_WORKSPACES_MAX_TOTAL_MB` | `2048` | Every workspace together under the root (`413`) |
 | `CLAUDIO_WORKSPACE_TTL_MINUTES` | `120` | Lifetime from the last use; a chat started in it moves it |

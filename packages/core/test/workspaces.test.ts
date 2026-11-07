@@ -78,7 +78,7 @@ interface Rig {
   clock: { now: number };
 }
 
-function rig(settings: Partial<WorkspaceSettings> = {}, download?: ConstructorParameters<typeof Workspaces>[0]['download']): Rig {
+function rig(settings: Partial<WorkspaceSettings> = {}, download?: ConstructorParameters<typeof Workspaces>[0]['download'], log?: (line: string) => void): Rig {
   const base = mkdtempSync(join(tmpdir(), 'claudio-ws-'));
   bases.push(base);
   const root = join(base, 'workspaces');
@@ -107,12 +107,14 @@ function rig(settings: Partial<WorkspaceSettings> = {}, download?: ConstructorPa
       maxExtractedBytes: 500 * MB,
       maxEntries: 50_000,
       timeoutMs: 60_000,
+      maxDurationMs: 300_000,
       maxCount: 20,
       maxTotalBytes: 2048 * MB,
       ttlMs: 2 * 60 * 60_000,
       ...settings,
     },
     ...(download ? { download } : {}),
+    ...(log ? { log } : {}),
   });
   return { ws, root, sql, running, stopped, clock };
 }
@@ -171,7 +173,40 @@ test('an archive with one top-level directory becomes a read-only workspace whos
   assert.equal(readFileSync(join(cwd, 'src/a.ts'), 'utf8'), 'export {};\n');
   assert.equal(statSync(join(cwd, 'README.md')).mode & 0o777, 0o444);
   assert.equal(statSync(join(cwd, 'src')).mode & 0o777, 0o555);
-  assert.deepEqual(r.ws.get(created.id), created);
+  // What creating answers is the workspace and what the archive held that it left out
+  const { skipped, skippedCount, ...workspace } = created;
+  assert.deepEqual([skipped, skippedCount], [[], 0]);
+  assert.deepEqual(r.ws.get(created.id), workspace);
+});
+
+test('links are left out, never created, and said in the answer: the rest of the archive is the workspace', async () => {
+  // What a real repository holds: a fake gh pointing at its script, a link out to the system, a hard link
+  const lines: string[] = [];
+  const r = rig({}, undefined, (line) => lines.push(line));
+  const created = await upload(
+    r.ws,
+    tgz(
+      dir('top'),
+      file('top/host', '#!/bin/sh\n'),
+      file('top/gh', '', { type: '2', linkname: 'host' }),
+      file('top/auth', '', { type: '2', linkname: '/data/auth.json' }),
+      file('top/hard', '', { type: '1', linkname: 'top/host' }),
+      file('top/after.txt', 'still read'),
+    ),
+  );
+  assert.equal(created.state, 'ready');
+  assert.equal(created.files, 2);
+  assert.equal(created.skippedCount, 3);
+  assert.deepEqual(created.skipped, [
+    { path: 'top/gh', kind: 'symbolic-link' },
+    { path: 'top/auth', kind: 'symbolic-link' },
+    { path: 'top/hard', kind: 'hard-link' },
+  ]);
+  const cwd = r.ws.resolve(created.id);
+  assert.deepEqual(readdirSync(cwd).sort(), ['after.txt', 'host']);
+  assert.equal(readFileSync(join(cwd, 'after.txt'), 'utf8'), 'still read');
+  assert.equal(lines.length, 1);
+  assert.match(lines[0] ?? '', new RegExp(`workspace ${created.id}: left out 3 link\\(s\\) .*top/gh`));
 });
 
 test('an archive with several top-level entries runs in the workspace folder itself', async () => {
@@ -192,8 +227,11 @@ test('PAX and GNU long names are what the entry is written under', async () => {
 });
 
 for (const [what, archive] of [
-  ['a symbolic link', () => tgz(file('top/a.txt', 'a'), file('top/link', '', { type: '2', linkname: '/data/auth.json' }))],
-  ['a hard link', () => tgz(file('top/a.txt', 'a'), file('top/hard', '', { type: '1', linkname: 'top/a.txt' }))],
+  // A link is left out, but its name is judged like a file's
+  ['a link whose name climbs out', () => tgz(file('top/a.txt', 'a'), file('top/../../link', '', { type: '2', linkname: 'a.txt' }))],
+  ['a link with an absolute name', () => tgz(file('/etc/link', '', { type: '2', linkname: '/data/auth.json' }))],
+  ['a link inside a .git folder', () => tgz(file('top/.git/hooks/pre-commit', '', { type: '2', linkname: '/bin/sh' }))],
+  ['a link that claims a body', () => tgz(file('top/link', 'x'.repeat(600), { type: '2', linkname: 'a.txt' }))],
   ['a character device', () => tgz(file('top/dev', '', { type: '3' }))],
   ['a FIFO', () => tgz(file('top/fifo', '', { type: '6' }))],
   ['a path with ..', () => tgz(file('top/../../escape.txt', 'x'))],
@@ -260,11 +298,47 @@ test('two creations at the count cap: the reservation lets one through and refus
   assert.deepEqual(readdirSync(r.root), [first.id]);
 });
 
-test('an archive that takes longer than the timeout is refused and leaves nothing', async () => {
+test('an archive that stops arriving is refused after the idle time and leaves nothing', async () => {
   const r = rig({ timeoutMs: 150 });
   const never = new PassThrough();
   never.write(gzipSync(file('top/a', 'a')).subarray(0, 10));
-  await refused(r.ws.create({ kind: 'upload', body: never }), 'workspace-timeout');
+  const err = await refused(r.ws.create({ kind: 'upload', body: never }), 'workspace-timeout');
+  assert.equal(err.statusCode, 408);
+  assert.match(err.message, /no data of the archive arrived for 0\.15 s/);
+  empty(r);
+});
+
+/** The archive in small pieces, one every `everyMs`, for `pieces` of them or until it ends */
+function trickle(archive: Buffer, everyMs: number, pieces: number): PassThrough {
+  const out = new PassThrough();
+  const size = Math.ceil(archive.length / pieces);
+  let at = 0;
+  const next = (): void => {
+    if (at >= archive.length) return void out.end();
+    out.write(archive.subarray(at, at + size));
+    at += size;
+    setTimeout(next, everyMs);
+  };
+  next();
+  return out;
+}
+
+test('a slow but steady archive is taken, however much longer than the idle time it takes in all', async () => {
+  // About 1.2 s in all, with no gap near the 400 ms idle time: the old single 60 s clock, scaled, refused this
+  const r = rig({ timeoutMs: 400, maxDurationMs: 10_000 });
+  const archive = tgz(dir('top'), file('top/a.bin', randomBytes(64 * 1024)));
+  const started = Date.now();
+  const created = await r.ws.create({ kind: 'upload', body: trickle(archive, 50, 24) });
+  assert.equal(created.state, 'ready');
+  assert.ok(Date.now() - started > 400 * 2, `it took ${String(Date.now() - started)} ms, longer than the idle time twice over`);
+});
+
+test('a steady archive that goes on past the overall ceiling is refused and leaves nothing', async () => {
+  const r = rig({ timeoutMs: 400, maxDurationMs: 600 });
+  const archive = tgz(dir('top'), file('top/a.bin', randomBytes(256 * 1024)));
+  const err = await refused(r.ws.create({ kind: 'upload', body: trickle(archive, 50, 200) }), 'workspace-timeout');
+  assert.equal(err.statusCode, 408);
+  assert.match(err.message, /not downloaded and extracted within 0\.6 s/);
   empty(r);
 });
 
@@ -438,7 +512,12 @@ test('settings default to codeload.github.com and the plan caps, and refuse a ro
   const s = workspaceSettingsFromEnv({}, places);
   assert.equal(s.root, '/srv/claudio/workspaces');
   assert.deepEqual(s.hosts, ['codeload.github.com']);
-  assert.deepEqual([s.maxCompressedBytes, s.maxExtractedBytes, s.maxEntries, s.timeoutMs, s.maxCount, s.maxTotalBytes, s.ttlMs], [100 * MB, 500 * MB, 50_000, 60_000, 20, 2048 * MB, 2 * 60 * 60_000]);
+  assert.deepEqual([s.maxCompressedBytes, s.maxExtractedBytes, s.maxEntries, s.timeoutMs, s.maxDurationMs, s.maxCount, s.maxTotalBytes, s.ttlMs], [100 * MB, 500 * MB, 50_000, 60_000, 300_000, 20, 2048 * MB, 2 * 60 * 60_000]);
+  // The idle time keeps its variable and its 60 s; the ceiling is its own, and never shorter than the idle time
+  const timed = workspaceSettingsFromEnv({ CLAUDIO_WORKSPACE_TIMEOUT_SECONDS: '90', CLAUDIO_WORKSPACE_MAX_SECONDS: '600' }, places);
+  assert.deepEqual([timed.timeoutMs, timed.maxDurationMs], [90_000, 600_000]);
+  const floored = workspaceSettingsFromEnv({ CLAUDIO_WORKSPACE_TIMEOUT_SECONDS: '400', CLAUDIO_WORKSPACE_MAX_SECONDS: '120' }, places);
+  assert.deepEqual([floored.timeoutMs, floored.maxDurationMs], [400_000, 400_000]);
   assert.equal(workspaceSettingsFromEnv({}, { ...places, distribution: 'docker' }).root, '/workspaces');
   assert.deepEqual(workspaceSettingsFromEnv({ CLAUDIO_WORKSPACE_HOSTS: 'codeload.github.com, Example.org' }, places).hosts, ['codeload.github.com', 'example.org']);
 
