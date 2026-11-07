@@ -143,9 +143,12 @@
     font-size: var(--fs-small);
   }
 
-  /* Phone fields are 16 px; on a desktop the box reads at body size */
+  /* Phone fields are 16 px and a touch target tall, whether the sentence takes one line or two (I9);
+     on a desktop the box reads at body size */
   .lim-composer textarea {
     font-size: var(--fs-input);
+    padding-block: calc((var(--touch) - 1lh) / 2);
+    min-height: var(--touch);
   }
 }
 
@@ -153,7 +156,8 @@
 @supports not (field-sizing: content) {
   @media (max-width: 900px) {
     .lim-composer textarea {
-      min-height: 2lh;
+      /* Two lines inside the padding that centres one */
+      min-height: calc(var(--touch) + 1lh);
     }
   }
 }
