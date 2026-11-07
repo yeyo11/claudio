@@ -149,7 +149,8 @@
   through `system.release`; Settings → Account has an Updates card with the steps for this install
   (Docker, a source checkout, the desktop app), and a dot on Settings — never the bell — says a newer
   release is known. The desktop app downloads and installs it itself through electron-updater,
-  AppImage in place and `.deb` through `pkexec`, and never restarts over live work without asking
+  AppImage in place and a `.deb` through the system's updater (a signed apt repository, no
+  `pkexec`), and never restarts over live work without asking
   (restart now, or update when you quit). A page that outlived a deploy notices from the version in
   `stream.hello`, or from a lazy chunk that is gone, and offers a reload that goes through the service
   worker. See [docs/plans/app-updates.md](docs/plans/app-updates.md).
@@ -250,6 +251,17 @@
 - **Collaborators** — a project shared read only with a group of teammates' Claudios, peer to peer
   over iroh with no server of ours, and readable by agents when the project opts in. See
   [docs/collaborators.md](docs/collaborators.md).
+- **The OpenAI-compatible API** — `/v1` serves chat completions, responses and models over Claudio's
+  chats, with the client's own tools, spend headers and typed errors. See
+  [docs/openai-compatible-api.md](docs/openai-compatible-api.md).
+- **The headless image** — a container target and `CLAUDIO_PROFILE=headless` that serve only chats,
+  `/v1`, models, workspaces and the sign-in, as confined API chats. See
+  [docs/plans/headless-image.md](docs/plans/headless-image.md).
+- **Claudio on the local network** — a second listener with the guard, the host allowlist and a
+  back-off per device, refused under auth mode `none`. See [docs/lan-access.md](docs/lan-access.md).
+- **The terminal menu and paste sheet** — a menu on the terminal, a sheet to paste on a phone, dock
+  close, and schedule tools in the MCP server. See [docs/terminal.md](docs/terminal.md) and
+  [the plan](docs/plans/terminal-menu-schedules-v1-tools.md).
 
 ## Next
 
@@ -287,10 +299,6 @@ The rest of what is still open was decided against rather than left undone. The 
   release-please, and running the image build, the Caddy profile and the chart through a real
   cluster in CI. All of it is release plumbing rather than product, and it wants its own change.
   (The e2e harness's own test, once on this list, runs in CI's `checks` job since #128.)
-- **An apt repository of our own** — updates would arrive through the system's updater like any
-  other package, but it costs a GPG key, signing in CI and a hosted repository to keep alive, and the
-  desktop app's own updater already installs a new `.deb` through `pkexec`. Revisit if people ask for
-  unattended updates.
 - **Flatpak and Snap** — their sandbox is the opposite of what the desktop app does: run the user's
   own `claude`, with their `PATH`, on their real files. Making that work means escaping the sandbox
   (`flatpak-spawn --host`, classic confinement), and then all that is left is a second packaging

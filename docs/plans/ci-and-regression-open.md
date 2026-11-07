@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-07T00:00:00Z
-updated_at: 2026-11-07T12:00:00Z
+updated_at: 2026-11-07T18:00:00Z
 tags:
     - plan
     - ci
@@ -13,7 +13,7 @@ tags:
 ---
 # CI back to green, and the regression's open checklist closed
 
-Status: **proposed, waiting for the owner's approval** before the orchestration is launched. One
+Status: **built, not pushed** (orchestration `bee431cc`, 2026-11-07); see the [Outcome](#outcome). One
 branch (`fix/ci-and-regression-open`, from `main` at `db94f2d97`, 0.14.0), one pull request.
 
 This plan closes two things: the `main` CI that has been red since #84 (2026-11-04), and every item
@@ -166,6 +166,73 @@ per task as given. Concurrency 4.
 | `review` | high | Check every task against this plan and §1.2, run the `review` gate on the integrated diff, and open the PR | — | all | `verify` with every gate, then `queue_enqueue` |
 
 `ci-terminal`, `delivery`, `security` and `core-hygiene` start in parallel: they share no file.
+
+## Outcome
+
+Written by the `docs` task from the other tasks' results and their branches as merged into
+`worktree-bee431cc-docs`. Each task built on its own branch (`worktree-bee431cc-<task>`); the one
+merge conflict (`apps/api/src/openapi/routes.ts`, the descriptions of resume and fork, where
+`delivery` and `security` both wrote) was resolved by keeping both sentences. Lint and typecheck pass
+on the merged tree. The whole test suite, the `e2e` gate and `pnpm e2e:remote` run once after the
+review, and their results are not recorded here. **Nothing was pushed**, so the main CI is still
+red until the owner authorises the push and the remote e2e run below.
+
+### What each task built
+
+| Task | Built | Commits |
+|---|---|---|
+| `ci-terminal` | The cause of `terminal.spec` step 5: `terminal-menu` and `terminal-paste` turned the feature off without dismissing their terminals, which stay listed for an hour, so a third tab appeared; the three specs now dismiss theirs and `terminal.spec` checks that none is left. Step 4 looked for the first output among rows that a taller prompt pushed out of view; it checks the last output and reports the screen before and after. `shareTerminalFeed` leaves one `terminal.changed` subscription per page (five components had one each; this is the only product change). `usage.spec` no longer depends on the date. Causes are in [terminal.md](../terminal.md) | `366486fd0`, `cccb2bf4a`, `0a113e39b`, `6661f0702` |
+| `delivery` | R1, R8, R9: [decisions/still-queued.md](../decisions/still-queued.md); a one-turn chat keeps its input open while background work runs; resume and fork refuse an unknown model with `400 model-unknown`, and a model the CLI rejects fails the execution | `7ed0c0c05`, `e3a8bad43` |
+| `accounts` | R11, R12, and a blocked composer that grows to its text and is 44 px tall on a phone | `5dd2c8393`, `9f192d04a`, `f647fe3f1`, `15d0242cd`, `f4430b6d9` |
+| `security` | R3 ([decisions/chat-token-compact.md](../decisions/chat-token-compact.md)) and R7 | `faa996adf`, `1d443b547` |
+| `review-gate` | R21 (a credential detector of its own) and R22 (per-run chunk sizing, `not-reviewable`, an `unreviewed` round without fixer) | `34890c245`, `7201b0759`, `858072b6a`, `94885ee26` |
+| `core-hygiene` | R2, R13 and R15's event half (`workitem.moved` by item) | `a9f0d1811` |
+| `web-hygiene` | R4, R14, R15's polling half, R16, R20 | `19ca63ea9`, `ae36b9f31`, `dbf99ea64`, `1a4b3803d`, `52106dfd3`, `f3471e311` |
+| `tests` | R17, R18, R19 | `0e63d441c`, `d79790a9d`, `50b6ba07b` |
+| `ui-review` | #84's schedule prompt and the delivery cards (answers stay put, the next fires on the schedule's clock, the queued card's contrast) and the reload offer | `c4dc5401c`, `31eb5d8b1` |
+| `docs` | Ticks the regression checklist; the three decision documents; status and roadmap | this branch |
+| R6 | Decided, not built: [decisions/mcp-writes-under-bypass.md](../decisions/mcp-writes-under-bypass.md) | `12383a4ec`, `docs` |
+| R5, R23 | Closed by evidence (§1.2) | none |
+
+### What stayed open, and why
+
+- **The push and the remote runs.** `ci-terminal` could not push (denied). `pnpm e2e:remote terminal
+  usage mobile` three times in a row on the pushed branch is the mark that "main is green" and has
+  not happened. No e2e spec changed by any task has been run: `terminal*`, `usage`,
+  `schedule-prompt`, `security`, and the `home`, `tasks` and `changes` gates of `web-hygiene`.
+- **`mobile.spec` fails only on Dependabot #87**, probably `@tanstack/react-virtual` 3.14.26 with
+  `VirtualList.tsx`. It is not touched: it depends on that lockfile.
+- **R22 does not prevent the incident at the default cap.** At 1 USD no chunk is split: the
+  estimate is about 0.29 USD for a 120 KB chunk, the real cost was about 0.6 USD per run.
+  Recalibrating the estimate is a separate decision. Why a run gives "no structured output" is not
+  proven; the stop reason now says.
+- **The fixture of a rejected model is rebuilt from the CLI's code** (2.1.319), not recorded, because a
+  recording costs a paid turn.
+- **R10's board "⋯" menu on coarse pointers** has no written result from `ui-review`.
+- **R15's gap:** decisions taken outside a permission (`orchestration.retry`, `flow.*`) and audit
+  rows with no event (a refused request) show on the next mount, focus or event.
+- **Fixed sleeps left on purpose** in `flow.test.ts`, `setup-logins.test.ts`,
+  `collab-join-answer.test.ts` and `collab-quiet.test.ts` ("nothing happened" checks), and
+  count-based waits in other core tests.
+- **`provider_limits`, the approval ledger of assistant-everything, and a real phone's keyboard on
+  the paste sheet** (§2.4), as planned.
+- **CLD-4** is named by this plan but no document defines it; its criteria could not be written.
+
+### Defects seen outside the plan
+
+- Switching off the terminal leaves its terminals listed as "Closed" on the next start, even those of
+  deleted projects, and deleting a project does not close its terminals.
+- The `DatePicker`'s previous-month button does nothing when that whole month is out of range.
+- "Wait for the reset" shifts the layout 0.004 to 0.016, above I4's 0.001; it did on main.
+- A pending account switch overrides the account the rotation chose at start (`chooseAccount`), and
+  moving an exhausted chat with a wait open makes that wait resend the turn when it ends.
+- `modelCache.read` reads the disk on every `cached()`.
+- Searching settings for "Supervisor cap" opens Advanced with no row when the Supervisor is off.
+- Home in the agents-setup state keeps the head's gradient "New chat", unlike the reference.
+- The Access & safety summary does not mention refused requests.
+- `orchestrator.ts` says "work you delegated is still running" when it already finished.
+- Many core tests leave directories in the temp dir, and the "saving the chats failed: statement has
+  been finalized" warning shows in core tests.
 
 ## Related
 

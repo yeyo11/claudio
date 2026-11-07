@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-20T12:00:00Z
-updated_at: 2026-10-20T18:00:00Z
+updated_at: 2026-11-07T18:00:00Z
 tags:
     - plan
     - settings
@@ -451,6 +451,7 @@ fit.
 | `hosts.allowed` | — | no: a list, with a per-host remove |
 | `access.mode`, `access.token`, `access.read-only`, `secrets.storage` | — | no: who can reach the server |
 | `remote.tunnel` | `tunnel-settings.json` → `startWithClaudio` | yes |
+| `remote.tunnel-port` (added by [ci-and-regression-open.md](ci-and-regression-open.md), R13) | `tunnel-settings.json` → `port` | yes, refused with 409 `tunnel.portWhileRunning` while the tunnel runs; read-only when `CLAUDIO_TUNNEL_PORT` sets it |
 | `guards.mode` (new id) | `guards.json` → `mode` | yes |
 | `guards.automated` (new id) | `automated` | yes |
 | `guards.rule.<ruleId>` (new ids: `no-verify`, `push`, `destructive`, `secrets`, `protect-configs`) | `rules[ruleId]` | yes |

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T18:00:00Z
-updated_at: 2026-10-30T20:00:00Z
+updated_at: 2026-11-07T18:00:00Z
 tags:
     - tunnel
     - remote-access
@@ -102,7 +102,9 @@ Two more things are only learned when the rule is added, and fail the start with
 `tunnel-settings.json` in the data directory. **Port on the tailnet name** sits under it: `8444` by
 default, any port from 1024 to 65535, saved in the same file. It changes only while the tunnel is
 closed or failed (closing takes the rule on the old port away first), and where
-`CLAUDIO_TUNNEL_PORT` is set (Helm's `tunnel.port`) it is shown read-only, naming the variable.
+`CLAUDIO_TUNNEL_PORT` is set (Helm's `tunnel.port`) it is shown read-only, naming the variable. The row is the setting `remote.tunnel-port` and has Changed and Reset like the
+others: Reset removes the stored port and, while the tunnel runs, is refused with 409
+`tunnel.portWhileRunning`; a port set by the environment cannot be reset.
 
 A start that finds its port taken says what holds it, from `tailscale serve status`
 (`https://<node>:8444/ → http://127.0.0.1:41985` for another Claudio on the same machine, a TCP
