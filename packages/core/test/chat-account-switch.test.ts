@@ -301,3 +301,54 @@ test('a turn that succeeds confirms an account that was never checked, such as a
     r.close();
   }
 });
+
+// R11 of docs/plans/ci-and-regression-open.md: what a limit leaves on the chat once the chat moves on.
+
+test('a chat a person moves off the account its turn died on is no longer at its limit, and its execution keeps why it ended', async () => {
+  const r = await rig();
+  try {
+    const chat = r.chats.start({ prompt: 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false });
+    await r.chats.waitForResult(chat.id).catch(() => undefined);
+    await waitFor(() => !r.chats.get(chat.id)?.pid);
+    assert.equal(r.chats.atLimit(chat.id), true, "the turn died on the limit of the CLI's own login");
+
+    const done = await r.chats.switchAccount(chat.id, r.ids.a, 'person');
+    assert.equal(done.pending, false);
+    assert.equal(r.chats.atLimit(chat.id), false, "the limit was the old account's: the chat's next turn runs on another one");
+    assert.equal(r.chats.limitComing(chat.id), false);
+    assert.equal(r.chats.signInFailed(chat.id), false);
+    const last = r.chats.get(chat.id)?.executions.at(-1);
+    assert.deepEqual([last?.account, last?.cause], [DEFAULT_ID, 'rate-limit'], 'what the rotation reads back after a restart is kept');
+  } finally {
+    r.close();
+  }
+});
+
+test('an account the turn died on is passed over until its reading says its reset passed, then it is a candidate again', async () => {
+  const r = await rig();
+  process.env.FAKE_CLAUDE_LIMITED_DIRS = r.dirs[r.ids.a] ?? '';
+  process.env.FAKE_CLAUDE_LIMIT_RESETS_IN = '3600';
+  try {
+    const chat = await idleChat(r, { keepAlive: false });
+    await r.chats.switchAccount(chat.id, r.ids.a, 'person');
+    r.chats.sendMessage(chat.id, 'again');
+    await waitFor(() => r.chats.atLimit(chat.id) && !r.chats.get(chat.id)?.pid && r.store.get(r.ids.a).limits?.state === 'exhausted');
+    assert.notEqual(r.chats.chooseNext(chat.id)?.account, r.ids.a, 'out until its reset');
+
+    // A later reading says the account is back sooner (what a wait's look, or the reset itself, brings):
+    // out for another 100 ms only
+    const at = Date.now();
+    const sooner = readingFromEvent({ status: 'rejected' }, at, { cooldownMs: 100 });
+    assert.ok(sooner);
+    await r.chats.noteAccountReading(r.ids.a, sooner);
+    assert.notEqual(r.chats.chooseNext(chat.id)?.account, r.ids.a, 'still out');
+    await waitFor(() => Date.now() > at + 100);
+    // Before 2026-11-07 the failure counted until a turn went through: after a wait replayed the turn
+    // and it died again, the rotation still passed over this account and waited
+    assert.equal(r.chats.chooseNext(chat.id)?.account, r.ids.a, 'its reset ended the failure');
+  } finally {
+    delete process.env.FAKE_CLAUDE_LIMITED_DIRS;
+    delete process.env.FAKE_CLAUDE_LIMIT_RESETS_IN;
+    r.close();
+  }
+});

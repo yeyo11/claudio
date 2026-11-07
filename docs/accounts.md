@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-10-30T12:00:00Z
+updated_at: 2026-11-07T00:00:00Z
 tags:
     - accounts
     - rotation
@@ -72,7 +72,11 @@ that to one fact, the account's own reading, and one place that derives everythi
   signed-in account is out), `nextReset` (the earliest reset among those) and the `settings`.
   `overview.accounts` is that view, and `GET /auth` names its `inUse`; the status bar, the account
   chip, the provider dot, the phone cards, the chat's limit banner and the Accounts page read it and
-  nothing else.
+  nothing else. It lists the accounts once and picks among that same list (`pick({ accounts })`,
+  whose model check reads it too); the login a config dir is signed in as is read from its
+  `.claude.json` again only when that file's mtime or size moves (`cliLogin`). Before 2026-11-07 a
+  view listed twice and a pick once more per candidate, each listing parsing every account's files
+  (R12 of [ci-and-regression-open](plans/ci-and-regression-open.md)).
 - **Claude's provider limit is derived from it.** The limit the dashboard shows for Claude is the
   in-use account's reading, or the reading of the account back first when every one is out. The
   provider-wide reading is gone (`ProviderLimits`, the probe that fed it, the handshake reading, the
@@ -246,9 +250,15 @@ tell a refused credential from an unreachable network. The four raw answers are 
   account, between two turns that went through. A turn that completes without error resets it, and a
   move to another account is never counted nor held back by it: `chooseNext` passes over every
   account the turn died on, so a chain of moves ends by itself. Before this, a second limit after a
-  wait-replay left the chat stuck. One slow recovery remains: after a wait-replay the rotation skips
-  the accounts the turn died on before the wait until a turn goes through, so a chain of waits gets
-  there slowly.
+  wait-replay left the chat stuck.
+- **A failure ends at its reset.** Each failure keeps when it happened (the chat's
+  `limitedAccounts`, and the end of each failed execution in `limitedTailAt`). It stops counting
+  once the account's reading said it was out then and says it is not now (`resetSince` in
+  `chats.ts`); `chooseNext`, `roomFor` and a person's switch read the same set (`stillFailed`). A
+  failure no reading showed as out (a bare 429, a reset already past) counts until a turn goes
+  through, as before. Until 2026-11-07 every failure counted until then, so once a wait replayed a
+  turn that died again the rotation still skipped accounts whose reset had passed, and waited
+  instead of moving (R11 of [ci-and-regression-open](plans/ci-and-regression-open.md)).
 - **A fork keeps its account** and its pin; a fork of a chat that ran on account B does not start
   on whichever the strategy prefers.
 - **A wait looks again whenever an account changes** (R10). On 2026-10-16 every account was out at
@@ -358,7 +368,9 @@ has a credential, `signed-out` otherwise. "Not signed in" is shown only for the 
     reset and window of the account the turn died on. At a limit it offers **Wait for the reset**
     (primary) and **Switch account** (the composer's own picker, shown once two or more accounts are
     loaded); while waiting, **Stop waiting** and **Run now**. A chat moved to another account is no
-    longer at that limit and its composer is usable again.
+    longer at that limit and its composer is usable again: the move clears the chat's limit flags on
+    the server (`moveTo`), and the banner compares no accounts of its own. The box under the banner
+    takes the height of its sentence, at least a touch target on a phone.
   - The Accounts page: **Use this account** sets the preferred account and the card shows a
     **Preferred** tag; holding out the preferred account, or the last usable one, asks first. A card
     says how old its reading is only when it is older than 10 minutes. The Rotation card lists the

@@ -651,9 +651,11 @@ export class LiveChat {
   /**
    * The accounts the turn died on at their limit since the chat last ended a turn without one: what
    * the rotation passes over. Kept on the chat, not in the accounts' readings, because a failure
-   * says the account is out but not how full it is or until when
+   * says the account is out but not how full it is or until when. Each with when it died there (epoch
+   * ms): a failure stops counting once the account's reading says its reset passed since
+   * (`stillFailed` in chats.ts)
    */
-  limitedAccounts = new Set<string>();
+  limitedAccounts = new Map<string, number>();
   /**
    * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
    * can still end with JSON that parses, and a reader of the result has to know it was cut
