@@ -70,7 +70,7 @@ before(async () => {
 after(async () => {
   for (const name of ['f1', 'f2', 'f3']) writeFileSync(join(root, name), '');
   await app.close();
-  core.shutdown();
+  await core.shutdown();
   await sleep(150);
   if (savedLog === undefined) delete process.env.FAKE_QUEUE_LOG;
   else process.env.FAKE_QUEUE_LOG = savedLog;

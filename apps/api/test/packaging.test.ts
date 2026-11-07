@@ -269,27 +269,35 @@ test('the image offers the tunnel only with a tailscaled of its own, and CLAUDIO
     );
   const headers = { authorization: 'Bearer packaging-test-token' };
 
-  const closed = build({});
-  const app = await buildApp(closed, { logLevel: 'silent', webDist: join(root, 'no-ui') });
-  t.after(async () => {
-    closed.shutdown();
-    await app.close();
+  // One data dir, so each Core is shut down before the next opens it: two live Cores on one
+  // database race on its migrations and its rows, and an unawaited shutdown closes it under the next
+  const read = async <T>(extra: Record<string, string>, check: (core: Core) => T | Promise<T>): Promise<T> => {
+    const core = build(extra);
+    try {
+      return await check(core);
+    } finally {
+      await core.shutdown();
+    }
+  };
+
+  await read({}, async (closed) => {
+    const app = await buildApp(closed, { logLevel: 'silent', webDist: join(root, 'no-ui') });
+    try {
+      assert.equal((await app.inject({ url: '/api/tunnel', headers })).json().enabled, false);
+      const refused = await app.inject({ method: 'POST', url: '/api/tunnel/start', headers });
+      assert.equal(refused.statusCode, 409);
+      assert.match(refused.body, /CLAUDIO_TUNNEL/);
+    } finally {
+      await app.close();
+    }
   });
-  assert.equal((await app.inject({ url: '/api/tunnel', headers })).json().enabled, false);
-  const refused = await app.inject({ method: 'POST', url: '/api/tunnel/start', headers });
-  assert.equal(refused.statusCode, 409);
-  assert.match(refused.body, /CLAUDIO_TUNNEL/);
 
-  const opened = build({ CLAUDIO_TUNNEL: 'on' });
-  t.after(() => opened.shutdown());
-  assert.equal(opened.tunnel.status().enabled, true);
-
-  const managed = build({ CLAUDIO_TAILSCALE_MANAGED: '1' });
-  t.after(() => managed.shutdown());
-  assert.deepEqual([managed.tunnel.status().enabled, managed.tunnel.status().managed], [true, true]);
-  const off = build({ CLAUDIO_TAILSCALE_MANAGED: '1', CLAUDIO_TUNNEL: 'off' });
-  t.after(() => off.shutdown());
-  assert.equal(off.tunnel.status().enabled, false);
+  assert.equal(await read({ CLAUDIO_TUNNEL: 'on' }, (opened) => opened.tunnel.status().enabled), true);
+  assert.deepEqual(
+    await read({ CLAUDIO_TAILSCALE_MANAGED: '1' }, (managed) => [managed.tunnel.status().enabled, managed.tunnel.status().managed]),
+    [true, true],
+  );
+  assert.equal(await read({ CLAUDIO_TAILSCALE_MANAGED: '1', CLAUDIO_TUNNEL: 'off' }, (off) => off.tunnel.status().enabled), false);
 });
 
 test('the compose file, the .env example and the chart all say how to turn the tunnel off', () => {

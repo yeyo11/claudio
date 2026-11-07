@@ -39,7 +39,7 @@ after(async () => {
   for (const o of core.orchestrator.list()) core.orchestrator.stop(o.id);
   core.runtime.stopAll();
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 const post = (url: string, body?: unknown) =>

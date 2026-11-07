@@ -67,7 +67,7 @@ async function wrapper(): Promise<Wrapper> {
 }
 
 const finish = (w: Wrapper) => async () => {
-  w.core.shutdown();
+  await w.core.shutdown();
   await w.app.close();
   rmSync(w.root, { recursive: true, force: true });
 };

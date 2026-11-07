@@ -70,7 +70,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('a project with its Board module off refuses changes with a clear error, and keeps showing what it holds', async () => {

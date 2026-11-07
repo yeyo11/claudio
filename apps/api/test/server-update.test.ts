@@ -52,7 +52,7 @@ const CHANGES = [
 test('the status is read without any network, and says why this server cannot update itself', async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   const status = (await app.inject('/api/system/server-update')).json() as ServerUpdateStatus;
@@ -68,7 +68,7 @@ test('the status is read without any network, and says why this server cannot up
 test('with no authentication every change is refused with a code that says a token is needed', async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   for (const [method, url] of CHANGES) {
@@ -81,7 +81,7 @@ test('with no authentication every change is refused with a code that says a tok
 test("the owner's token gets past the owner check; no credential is a 401", async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   const token = await withToken(app);
@@ -100,7 +100,7 @@ test("the owner's token gets past the owner check; no credential is a 401", asyn
 test('a restart over live work answers 409 with the counts, for the busy dialog', async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   const token = await withToken(app);
@@ -115,7 +115,7 @@ test('a restart over live work answers 409 with the counts, for the busy dialog'
 test('read-only refuses every change before the route runs', async (t) => {
   const { app, core } = await wrapper({ CLAUDIO_AUTH_TOKEN: 'a-token-from-a-secret', CLAUDIO_READ_ONLY: '1' });
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   for (const [method, url] of CHANGES) {
@@ -146,7 +146,7 @@ test("under auth none the desktop shell's own credential makes the four update w
   launcher(t, 'desktop');
   const { app, core } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET, CLAUDIO_DISTRIBUTION: 'deb' });
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   assert.equal(core.security.mode, 'none');
@@ -178,7 +178,7 @@ test('without CLAUDIO_LAUNCHER=desktop the desktop credential opens no update wr
   launcher(t, undefined);
   const { app, core } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET, CLAUDIO_DISTRIBUTION: 'deb' });
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   for (const [method, url] of UPDATE_WRITES) {
@@ -196,7 +196,7 @@ test('under a token the shell makes the update writes too, still nothing else, a
   launcher(t, 'desktop');
   const { app, core } = await wrapper({ CLAUDIO_DESKTOP_TOKEN: DESKTOP_SECRET, CLAUDIO_DISTRIBUTION: 'deb' });
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   await withToken(app);
@@ -216,7 +216,7 @@ test('under a token the shell makes the update writes too, still nothing else, a
 test('the status answers the desktop facts: base, shell, needsShell and the offer', async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
-    core.shutdown();
+    await core.shutdown();
     await app.close();
   });
   const status = (await app.inject('/api/system/server-update')).json() as ServerUpdateStatus;

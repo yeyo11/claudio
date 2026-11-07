@@ -38,7 +38,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('every API route is documented in the OpenAPI document', async () => {
@@ -747,7 +747,7 @@ test('a burst of readers costs one detection, and the open health route spawns n
     assert.deepEqual([...new Set(probes.map((res) => res.body))], [JSON.stringify({ ok: true, cli: true, loggedIn: true })]);
     assert.equal(ran('--version'), 1); // the probe reports the last reading, it never takes one
   } finally {
-    probe.shutdown();
+    await probe.shutdown();
     if (probeApp) await probeApp.close();
   }
 });

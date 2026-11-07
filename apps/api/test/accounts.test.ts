@@ -33,7 +33,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 const accounts = async (): Promise<Account[]> => (await app.inject('/api/accounts')).json<Account[]>();
@@ -342,7 +342,7 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
     assert.ok(secured.accounts.list().some((a) => a.id === id), 'nothing the chat tried changed the accounts');
   } finally {
     await guarded.close();
-    secured.shutdown();
+    await secured.shutdown();
   }
 });
 

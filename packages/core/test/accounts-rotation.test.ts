@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { AccountInUseError, AccountStore, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
 import type { ChatWork } from '../src/chat-service.ts';
 import { ChatManager } from '../src/chats.ts';
@@ -108,13 +108,28 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
 // A limit path spawns the fake CLI once per account plus a model read each: well under a second
 // alone, but the full test gate runs every package's suite at once and slows it 10–20×. Each check
 // waits for something to happen, so the budget only bounds how long a real failure takes to report.
+// The budget is read off `performance.now()`, which a test that freezes `Date` leaves running.
 const waitFor = async (check: () => boolean, ms = 30_000): Promise<void> => {
-  const end = Date.now() + ms;
+  const end = performance.now() + ms;
   while (!check()) {
-    if (Date.now() > end) throw new Error('timed out waiting');
+    if (performance.now() > end) throw new Error('timed out waiting');
     await new Promise((r) => setTimeout(r, 15));
   }
 };
+
+/**
+ * Resolves once the rotation has decided what a limit means for the chat: moved, waiting, or left
+ * with its banner. A "nothing was replayed" check reads the outcome after this, instead of after a
+ * guessed 100 ms that a loaded machine can spend before the decision has even begun (R17 of
+ * docs/plans/ci-and-regression-open.md). Spied before the chat starts, so no limit can slip past.
+ */
+function limitDecisions(t: TestContext, rotation: ProviderRotation): () => Promise<void> {
+  const decided = t.mock.method(rotation, 'onLimitHit');
+  return async () => {
+    await waitFor(() => decided.mock.callCount() > 0);
+    await Promise.all(decided.mock.calls.map((call) => call.result));
+  };
+}
 
 const work: ChatWork = { subjectKind: 'flow_run', subjectId: 'run-1' };
 
@@ -186,13 +201,14 @@ test('a limit moves to an account that offers the chat\'s model, and waits when 
   }
 });
 
-test("a person's chat follows rotateOnLimit: off leaves it with its banner", async () => {
+test("a person's chat follows rotateOnLimit: off leaves it with its banner", async (t) => {
   const r = await rig({ limited: (d) => [d[DEFAULT_ID] ?? ''] });
   try {
     await r.store.setSettings({ rotateOnLimit: false });
+    const decided = limitDecisions(t, r.rotation);
     const chat = r.chats.start({ prompt: 'hello', name: 'asks', keepAlive: false });
     await r.chats.exited(chat.id);
-    await new Promise((res) => setTimeout(res, 100));
+    await decided();
     assert.equal(r.spawns().length, 1);
     assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID);
     assert.equal(r.events.filter((e) => e.type === 'run.rateLimited').length, 1);
@@ -327,7 +343,7 @@ test('an automated run whose account sign-in expired moves to the next account, 
   }
 });
 
-test("a person's chat whose account sign-in expired moves with rotateOnLimit, and stays put without it", async () => {
+test("a person's chat whose account sign-in expired moves with rotateOnLimit, and stays put without it", async (t) => {
   const r = await rig({ expired: (d) => [d[DEFAULT_ID] ?? ''] });
   try {
     const chat = r.chats.start({ prompt: 'hello', name: 'person', keepAlive: false });
@@ -341,9 +357,10 @@ test("a person's chat whose account sign-in expired moves with rotateOnLimit, an
   const off = await rig({ expired: (d) => [d[DEFAULT_ID] ?? ''] });
   try {
     await off.store.setSettings({ rotateOnLimit: false });
+    const decided = limitDecisions(t, off.rotation);
     const chat = off.chats.start({ prompt: 'hello', name: 'person off', keepAlive: false });
     await off.chats.exited(chat.id);
-    await new Promise((res) => setTimeout(res, 100));
+    await decided();
     assert.equal(off.spawns().length, 1);
     assert.equal(off.chats.accountOf(chat.id), DEFAULT_ID);
     assert.equal(off.db.rotationEvents().length, 0);
@@ -427,21 +444,29 @@ test('a wait for a reset goes on with an account signed in again while the other
   }
 });
 
-test('a reading that leaves every account out moves the wait to the earliest reset it now knows (R10)', async () => {
+test('a reading that leaves every account out moves the wait to the earliest reset it now knows (R10)', async (t) => {
   const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
   try {
     const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
     await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
     const [move] = r.db.providerMoves({ chatId: chat.id });
     process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    // The clock stands still until the test moves it: "still out now" cannot turn into "back" while a
+    // loaded machine takes its time over the reading (R17 of docs/plans/ci-and-regression-open.md).
+    // Timers stay real, so the wait's timer still fires and reads the clock the test set.
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
     // Beta's window is reported to reset in a moment: still out now, back soon
     const soon = Date.now() + 400;
     const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
     assert.ok(reading);
     await r.chats.noteAccountReading(r.ids.b, reading);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The reading changes the accounts, which has every wait look again: once that look is over, it decided
+    await waitFor(() => rechecks.mock.callCount() > 0);
+    await Promise.all(rechecks.mock.calls.map((call) => call.result));
     assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', 'beta is still out');
     const before = r.spawns().length;
+    t.mock.timers.tick(400);
     await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
     assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.b], 'its reset passing is a way back');
   } finally {

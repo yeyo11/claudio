@@ -21,7 +21,11 @@ interface Wrapper {
 }
 
 const roots = new Set<string>();
-after(() => {
+const cores = new Set<Core>();
+// Every Core is shut down, and awaited, before its data dir goes: one still closing writes rows
+// into a directory being removed. A second shutdown gets the first one's promise.
+after(async () => {
+  await Promise.all([...cores].map((core) => core.shutdown()));
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
@@ -36,6 +40,7 @@ async function wrapper(env: NodeJS.ProcessEnv = {}, root = mkdtempSync(join(tmpd
       ...env,
     }),
   );
+  cores.add(core);
   return { app: await buildApp(core, { logLevel: 'silent', webDist: join(root, 'no-ui') }), core };
 }
 
@@ -331,7 +336,9 @@ test('CLAUDIO_AUTH_TOKEN_RESET lets someone who lost the token back in, once, an
   const root = mkdtempSync(join(tmpdir(), 'claudio-security-'));
   const first = await wrapper({}, root);
   const lost = await withToken(first.app);
+  // The next wrapper opens the same data dir: this Core lets go of it first
   await first.app.close();
+  await first.core.shutdown();
 
   const reset = { CLAUDIO_AUTH_TOKEN: 'a-recovered-token-from-env', CLAUDIO_AUTH_TOKEN_RESET: '1' };
   const second = await wrapper(reset, root);
@@ -344,6 +351,7 @@ test('CLAUDIO_AUTH_TOKEN_RESET lets someone who lost the token back in, once, an
   // Someone rotates it from the UI; a restart with the variable still set must not undo that
   const rotated = (await second.app.inject({ method: 'POST', url: '/api/security/token', ...authed(reset.CLAUDIO_AUTH_TOKEN, {}) })).json() as { token: string };
   await second.app.close();
+  await second.core.shutdown();
 
   const third = await wrapper(reset, root);
   t.after(() => third.app.close());
@@ -716,7 +724,7 @@ test("a chat's token is refused once revoked, and by a wrapper started afresh", 
   first.core.security.chatTokens.revoke(token);
   assert.equal((await first.app.inject({ url: '/api/overview', ...fromChat(token) })).statusCode, 401);
   await first.app.close();
-  first.core.shutdown();
+  await first.core.shutdown();
 
   // Same data dir, same owner token on disk: only the chat tokens are gone
   const second = await wrapper({}, root);

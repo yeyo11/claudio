@@ -82,7 +82,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 const get = async <T>(url: string): Promise<{ status: number; body: T }> => {

@@ -58,7 +58,7 @@ before(async () => {
 
 after(async () => {
   await app.close();
-  core.shutdown();
+  await core.shutdown();
 });
 
 test('write, read, list and delete a document, each announced on the feed', async () => {
