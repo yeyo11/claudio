@@ -3028,6 +3028,7 @@ ${quoted}
         skippedFiles: [],
         incompleteReasons: [],
         runs: rs.runs,
+        unreviewed: true,
       }));
       rs.costUsd = costBefore + outcome.costUsd;
       orch.costUsd += outcome.costUsd;
@@ -3059,6 +3060,8 @@ ${quoted}
       if (control.cancelled) return finish('incomplete', 'stopped');
       if (outcome.status === 'passed') return finish('passed', outcome.reason);
       if (outcome.status === 'incomplete' && outcome.blocking.length === 0) return finish('incomplete', outcome.reason);
+      // No reviewer answered: a fix of the scans' findings alone would pay for a round that fails the same way
+      if (outcome.unreviewed) return finish('incomplete', outcome.reason);
       // Blocked, or incomplete with blocking findings: the fixer takes the blocking ones
       if (previousBlocking && worseAfterFix(previousBlocking, outcome.blocking, changedByFixer)) {
         return finish('blocked', "the review fixer's change added blocking findings");

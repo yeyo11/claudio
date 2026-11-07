@@ -3,7 +3,7 @@ import type { LimitWait, ReviewDimension, ReviewFinding, ReviewGateSpec, ReviewR
 import { SLOT_RETRY_MS, startWhenAdmitted } from './admission-queue.ts';
 import { isTransientRefusal } from './chat-errors.ts';
 import type { RunResult } from './chats.ts';
-import { collectReviewDiff, type ReviewChunk, type ReviewDiff, type ReviewDiffFile } from './review-diff.ts';
+import { CHUNK_BYTES, collectReviewDiff, LIGHT_CHUNK_BYTES, type ReviewChunk, type ReviewDiff, type ReviewDiffFile } from './review-diff.ts';
 import { anchor, dedupe, fingerprint, isBlocking, roundStatus, type AnchorIndex, type LineRange } from './review-findings.ts';
 import { conventionsContext, reviewerPrompt, verifierPrompt, type ReviewTaskResult, type VerifierClaim } from './review-prompts.ts';
 import { deliverRole, readRole, type ReviewRole } from './review-roles.ts';
@@ -121,6 +121,11 @@ export interface RoundOutcome {
   skippedFiles: ReviewRound['skippedFiles'];
   incompleteReasons: string[];
   runs: { total: number; done: number; running: number; failed: number };
+  /**
+   * Reviewers ran and not one gave a usable answer: the round is incomplete whatever the scans
+   * found, and the caller must not send its blocking findings to a fixer.
+   */
+  unreviewed: boolean;
 }
 
 // ---------- waiting for a run ----------
@@ -232,13 +237,27 @@ function skippedOf(diff: ReviewDiff): ReviewRound['skippedFiles'] {
 
 const isDoc = (path: string) => /\.md$/i.test(path) || path.startsWith('docs/');
 
+/** USD per byte of diff a reviewer reads, context included */
+const USD_PER_BYTE = (INPUT_USD_PER_MTOK * CONTEXT_FACTOR) / BYTES_PER_TOKEN / 1_000_000;
+
+/** What one reviewer run over a chunk of this many bytes would cost: an estimate, never billed */
+export function estimateRunUsd(bytes: number): number {
+  return FIXED_PROMPT_USD + bytes * USD_PER_BYTE + OUTPUT_ALLOWANCE_USD;
+}
+
+/**
+ * The largest chunk, in bytes, whose reviewer run fits under the per-run cap (`maxRunCostUsd`); zero
+ * when the cap does not even cover a run's fixed prompt and its answer. A chunk sent over the cap is
+ * cut off by the CLI before it answers, which spends the cap and reviews nothing.
+ */
+export function chunkBytesWithin(runCapUsd: number): number {
+  return Math.max(0, Math.floor((runCapUsd - FIXED_PROMPT_USD - OUTPUT_ALLOWANCE_USD) / USD_PER_BYTE));
+}
+
 /** What a round of these chunks would cost, before anything starts: gates the spending, never billed */
 export function estimateRoundUsd(chunks: readonly ReviewChunk[], dimensions: number): number {
   let total = 0;
-  for (const chunk of chunks) {
-    const perRun = FIXED_PROMPT_USD + ((chunk.bytes / BYTES_PER_TOKEN) * INPUT_USD_PER_MTOK * CONTEXT_FACTOR) / 1_000_000 + OUTPUT_ALLOWANCE_USD;
-    total += perRun * dimensions;
-  }
+  for (const chunk of chunks) total += estimateRunUsd(chunk.bytes) * dimensions;
   return total > 0 ? total + VERIFIER_ALLOWANCE_USD : 0;
 }
 
@@ -313,10 +332,22 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
     skippedFiles: [],
     incompleteReasons: [],
     runs: { ...tally },
+    unreviewed: false,
     ...partial,
   });
 
   progress({ phase: 'preparing' });
+  // Every chunk is sized so its run fits under the per-run cap: a larger one is split at hunk
+  // boundaries, and a single change that alone would cost more is not reviewable, with the reason
+  const depthBytes = ctx.chunkBytes ?? (ctx.depth === 'light' ? LIGHT_CHUNK_BYTES : CHUNK_BYTES);
+  const capBytes = chunkBytesWithin(runCap);
+  const chunkBytes = Math.min(depthBytes, capBytes);
+  const unfitReason =
+    capBytes === 0
+      ? `the per-run cost limit of ${usd(runCap)} is below what a reviewer run costs before it reads any diff (${usd(estimateRunUsd(0))})`
+      : capBytes < depthBytes
+        ? `a single change would cost more than the per-run cost limit of ${usd(runCap)} to review`
+        : undefined;
   let hits: ScanFinding[] = [];
   let diff: ReviewDiff<ScanFinding>;
   try {
@@ -327,7 +358,8 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
       ...(spec.exclude ? { exclude: spec.exclude } : {}),
       depth: ctx.depth,
       ...(ctx.maxChunks !== undefined ? { maxChunks: ctx.maxChunks } : {}),
-      ...(ctx.chunkBytes !== undefined ? { chunkBytes: ctx.chunkBytes } : {}),
+      chunkBytes,
+      ...(unfitReason ? { unfitReason } : {}),
       scan: (files) => scanDiff(files.map((f): ScanFile => ({ path: f.path, excluded: f.class === 'excluded', added: f.added }))),
     });
   } catch (err) {
@@ -455,7 +487,10 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
     if (result.cause === 'stopped') return fail('cancelled', 'stopped', chatId, result.costUsd);
     if (result.isError) return fail('failed', `the run ended with an error: ${result.result.slice(0, 300)}`, chatId, result.costUsd);
     // A success with no structured output is a failed review, never "no findings" (F2)
-    if (result.structuredOutput === undefined || result.structuredOutput === null) return fail('invalid', 'the run ended without structured output', chatId, result.costUsd);
+    if (result.structuredOutput === undefined || result.structuredOutput === null) {
+      // The stop reason tells a run cut at its output limit (`max_tokens`) from one that answered in prose
+      return fail('invalid', `the run ended without structured output${result.stopReason ? ` (stop reason: ${result.stopReason})` : ''}`, chatId, result.costUsd);
+    }
     return { state: 'done', result, chatId, failure: null, runId };
   };
 
@@ -469,6 +504,8 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
     announce();
   };
 
+  /** Reviewer runs whose output parsed, complete coverage or not */
+  let answered = 0;
   const jobs: Array<() => Promise<void>> = [];
   for (const dimension of dims) {
     for (const chunk of diff.chunks) {
@@ -507,6 +544,7 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
           return;
         }
         for (const f of parsed.findings) drafts.push(toDraft(f, dimension));
+        answered += 1;
         if (!parsed.coverage.complete) {
           finishRun(run.runId, 'incomplete-coverage', run.result.costUsd, { dropped: parsed.dropped, failure: `${label}: coverage incomplete${parsed.coverage.notReviewed ? ` (${parsed.coverage.notReviewed})` : ''}` });
         } else finishRun(run.runId, 'done', run.result.costUsd, { dropped: parsed.dropped });
@@ -514,6 +552,8 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
     }
   }
   await pool(jobs, spec.concurrency ?? 3);
+  // Nothing was reviewed: the verifier is not asked either, since its claims would only be the scans'
+  const unreviewed = jobs.length > 0 && answered === 0 && !signal.aborted;
 
   // ---- dedupe, anchor, fingerprint ----
   const index = anchorIndex(diff);
@@ -560,7 +600,12 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
   const claims: Array<{ finding: ReviewFinding | ReviewFinding; carried: boolean }> = [...needs.map((f) => ({ finding: f, carried: false })), ...rechecks.map((f) => ({ finding: f, carried: true }))];
   const resolved: string[] = [];
   const keptCarried: ReviewFinding[] = [];
-  if (claims.length > 0 && !signal.aborted) {
+  if (unreviewed) {
+    // The last round's blocking findings stay on record, unasked, rather than vanish with this round
+    for (const c of claims) {
+      if (c.carried) keptCarried.push({ ...c.finding, id: randomUUID(), roundId: ctx.roundId, verdict: 'unverified', verdictReason: 'no reviewer of this round gave a usable answer', resolvedInRound: null });
+    }
+  } else if (claims.length > 0 && !signal.aborted) {
     progress({ phase: 'verifying' });
     // Grouped by file so one verifier reads one file's diff once
     claims.sort((a, b) => (a.finding.path ?? '').localeCompare(b.finding.path ?? ''));
@@ -653,7 +698,7 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
   store.putFindings(ctx.roundId, findings.map((f) => ({ ...f, createdAt: new Date().toISOString() })));
   const blocking = findings.filter((f) => f.blocking);
   const stopped = signal.aborted;
-  const status = stopped ? 'incomplete' : roundStatus({ blocking: blocking.length, runsNotOk: tally.failed, filesNotReviewable: notReviewable.length, overBudget });
+  const status = stopped ? 'incomplete' : roundStatus({ blocking: blocking.length, runsNotOk: tally.failed, filesNotReviewable: notReviewable.length, overBudget, unreviewed });
   // The incomplete reasons stay listed next to a blocked round
   const why =
     status === 'passed'
@@ -664,7 +709,9 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
         ? `${String(blocking.length)} blocking finding${blocking.length === 1 ? '' : 's'}.`
         : stopped
           ? 'stopped'
-          : 'The review did not finish.';
+          : unreviewed
+            ? `No reviewer run gave a usable answer (${String(jobs.length)} of ${String(jobs.length)} failed), so nothing was reviewed${blocking.length ? `; the fixer is not called for the ${String(blocking.length)} blocking finding${blocking.length === 1 ? '' : 's'} of Claudio's own scans` : ''}.`
+            : 'The review did not finish.';
   const reason = [why, ...(status === 'passed' ? [] : [...new Set(reasons)].slice(0, 6))].join(' ');
   return {
     status,
@@ -676,6 +723,7 @@ export async function runReviewRound(ctx: ReviewRoundContext): Promise<RoundOutc
     estimateUsd,
     incompleteReasons: [...new Set(reasons)],
     runs: { ...tally },
+    unreviewed,
     ...base,
   };
 }
