@@ -5,12 +5,35 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Electron and node-pty are the packages whose bumps force an app reinstall (a new Electron moves
+    # minShell: the shell cannot update itself in-app), so they get a group of their own, listed first,
+    # and are kept out of the two broad groups below so one PR never mixes them with routine updates.
+    # One PR per ecosystem keeps the noise down on a monorepo this size
     groups:
-      # One PR per ecosystem keeps the noise down on a monorepo this size
+      electron-and-native:
+        patterns:
+          - electron
+          - electron-*
+          - "@electron/*"
+          - node-pty
       dev-dependencies:
         dependency-type: development
+        exclude-patterns:
+          - electron
+          - electron-*
+          - "@electron/*"
+          - node-pty
       production-dependencies:
         dependency-type: production
+        exclude-patterns:
+          - electron
+          - electron-*
+          - "@electron/*"
+          - node-pty
+    ignore:
+      # Electron majors move the runtime the shell is built on and raise minShell: they are proposed by hand
+      - dependency-name: electron
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
