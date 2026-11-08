@@ -38,6 +38,7 @@ const status = (state: LanState, extra: Partial<LanStatus> = {}): LanStatus => (
   settings: { enabled: state !== 'off', port: 8791, bind: 'all' },
   available: true,
   portTaken: null,
+  fingerprint: null,
   ...extra,
 });
 
