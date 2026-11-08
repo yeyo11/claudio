@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T18:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-08T20:00:00Z
 tags:
     - servers
     - remote-access
@@ -249,9 +249,7 @@ security rules are in [security-model.md](security-model.md#servers).
 - An e2e spec for the visible flow with two isolated wrappers, which comes with the UI.
 - Notifications and views across servers, the MCP server or the assistant acting on another server,
   chaining, a list of incoming connections on the remote, and a remote that dials out to the hub.
-- Known limits: the relay of a terminal socket reads the bytes sent before the `101` from a private
-  field of `@fastify/websocket` (nearly always empty); the hub sets no size limit on request bodies it
-  relays; a server whose identity changed can only be removed (`?force=true`) and added again.
+- Known limits: a server whose identity changed can only be removed (`?force=true`) and added again.
 
 ## Related
 
