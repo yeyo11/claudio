@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, type Core } from '@claudio/core';
+import { DESKTOP_ACTOR, isServerActor, type Core } from '@claudio/core';
 import type { TerminalUnavailableReason } from '@claudio/shared';
 import { LOOPBACK, fromLocalMachineStrict, hostNameOf } from './security.ts';
 
@@ -71,11 +71,13 @@ export async function clientRefusal(core: Core, req: FastifyRequest, options: Pi
       // A tunnel forwards from loopback under a name only a running tunnel lends. Anything else
       // that merely writes that name in `Host` arrived over the network and does not count. The LAN
       // listener's addresses are runtime hosts too, but their peers are the devices, not a tunnel
-      // (docs/plans/lan-access.md, D7): a local process dialling one through loopback is not one
+      // (docs/plans/lan-access.md, D7): a local process dialling one through loopback is not one.
+      // A paired hub is a remote peer even when its gateway came in through the tunnel's name: what
+      // reached the hub's page is not what the tunnel vouches for (docs/plans/claudio-servers.md, D10)
       const peer = req.socket.remoteAddress;
       const name = req.headers.host === undefined ? '' : hostNameOf(req.headers.host);
       const lent = runtime.get(name);
-      if (peer === undefined || !LOOPBACK.test(peer) || lent === undefined || lent.peerIsClient === true) {
+      if (isServerActor(req.actor) || peer === undefined || !LOOPBACK.test(peer) || lent === undefined || lent.peerIsClient === true) {
         return refuse(403, 'needs-tunnel', 'the terminal opens from another device only through the tunnel: turn it on in Settings → Access & safety → Remote access');
       }
     }

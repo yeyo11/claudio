@@ -6,6 +6,7 @@ import { writeAtomic } from '../config/files.ts';
 import type { AuthEnv, CoreConfig } from '../paths.ts';
 import { ChatTokenStore, chatActor } from './chat-tokens.ts';
 import { OidcVerifier } from './oidc.ts';
+import { ServerLinkCodes, ServerLinkError } from './server-links.ts';
 import { errorMessage } from '@claudio/shared';
 
 /**
@@ -33,7 +34,37 @@ interface StoredAuth {
   firstRun?: { generatedAt: string; pending: boolean };
   /** When a person chose `none` in Settings: a later start must not generate a first-run token over it */
   noneChosenAt?: string;
+  /** The tokens paired hubs hold (docs/plans/claudio-servers.md, D4), one per hub, each hashed like the owner's */
+  serverTokens?: StoredServerToken[];
 }
+
+/** A paired hub's credential as it is kept: its hash, never the token */
+interface StoredServerToken {
+  id: string;
+  /** The hub's name, as it gave it when pairing */
+  name: string;
+  hubInstanceId: string;
+  tokenHash: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** A paired hub's credential as it may be shown: everything but the hash */
+export type ServerTokenInfo = Omit<StoredServerToken, 'tokenHash'>;
+
+/**
+ * Who a request made with a hub's token is, in an audit row and to the guard. An owner for
+ * authorisation, never this machine, never a chat (docs/plans/claudio-servers.md, §9.2).
+ */
+export const SERVER_ACTOR_PREFIX = 'server:';
+export const serverActor = (tokenId: string): string => `${SERVER_ACTOR_PREFIX}${tokenId}`;
+export const isServerActor = (actor: string | null | undefined): boolean => actor?.startsWith(SERVER_ACTOR_PREFIX) === true;
+
+/** How often a hub's steady use is written down: `lastUsedAt` says "recently", and a write per request would be a write per poll */
+const SERVER_USE_WRITE_MS = 60_000;
+/** What a hub may call itself or its id: enough for any name a person gives, and bounded because the caller is not the person */
+const MAX_HUB_NAME = 100;
+const MAX_HUB_INSTANCE_ID = 128;
 
 /** Names the token a container generated, in an audit row and as `tokenId` */
 export const FIRST_RUN_TOKEN_ID = 'first-run';
@@ -129,6 +160,12 @@ export class AuthStore {
   onFirstRunUsed: ((at: string) => void) | null = null;
   private readonly tokenFile: string;
   private readonly announce: (text: string) => void;
+  /** The pairing code a person shows a hub, in memory only (`server-links.ts`) */
+  readonly serverLinkCodes = new ServerLinkCodes();
+  /** When each hub token's use was last written to disk, so steady use writes once a minute */
+  private readonly serverUseWritten = new Map<string, number>();
+  /** Writes in order, each with the state as it is when its turn comes: two at once share one temporary file name */
+  private writes: Promise<void> = Promise.resolve();
 
   constructor(
     config: CoreConfig,
@@ -215,8 +252,10 @@ export class AuthStore {
     if (this.stored.firstRun?.pending) this.stored = { ...this.stored, firstRun: { ...this.stored.firstRun, pending: false } };
   }
 
-  private async persist(): Promise<void> {
-    await writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, 0o600);
+  private persist(): Promise<void> {
+    const write = this.writes.then(() => writeAtomic(this.file, `${JSON.stringify(this.stored, null, 2)}\n`, 0o600));
+    this.writes = write.catch(() => undefined);
+    return write;
   }
 
   /** The constructor cannot await, and a guard the environment asked for must be on disk before the first request. */
@@ -236,6 +275,7 @@ export class AuthStore {
   isOwnSecret(word: string): boolean {
     if (this.stored.tokenHash && sameSecret(word, this.stored.tokenHash)) return true;
     if (this.desktopHash && sameSecret(word, this.desktopHash)) return true;
+    if (this.serverTokenOf(word)) return true;
     return this.chatTokens.holds(word);
   }
 
@@ -350,6 +390,12 @@ export class AuthStore {
     if (this.stored.mode === 'none') return 'local';
     if (!credential) return null;
     if (fromLocalMachine && this.desktopHash && sameSecret(credential, this.desktopHash)) return DESKTOP_ACTOR;
+    // A hub's token before the owner's and before OIDC: a hub polling must never reach the issuer
+    const server = this.serverTokenOf(credential);
+    if (server) {
+      await this.noteServerUse(server);
+      return serverActor(server.id);
+    }
     if (this.stored.mode === 'token') {
       if (!this.stored.tokenHash || !sameSecret(credential, this.stored.tokenHash)) return null;
       const id = this.stored.tokenId ?? 'default';
@@ -387,6 +433,76 @@ export class AuthStore {
     return chatId === null ? null : chatActor(chatId);
   }
 
+  /** The paired hubs' tokens, oldest first, without their hashes */
+  get serverTokens(): ServerTokenInfo[] {
+    return (this.stored.serverTokens ?? []).map(({ tokenHash: _hash, ...info }) => ({ ...info }));
+  }
+
+  /**
+   * Whether a credential is a paired hub's token, under a mode that has credentials: the host check
+   * lets such a request through on any name the listener serves, the token being the proof (R10).
+   * It reads, and marks nothing used; `actorFor` is what authenticates.
+   */
+  isServerCredential(credential: string | undefined): boolean {
+    return this.stored.mode !== 'none' && credential !== undefined && this.serverTokenOf(credential) !== undefined;
+  }
+
+  /**
+   * Mints a hub's token and returns it once (D4). Refused under `none`, where every request is
+   * `local` and a token would prove nothing: this server cannot be a remote then. A hub that pairs
+   * again replaces its own earlier token, so pairing twice leaves no orphan behind (R8).
+   */
+  async mintServerToken(hub: ServerLinkHub): Promise<{ token: string; tokenId: string }> {
+    if (this.stored.mode === 'none') throw serverLinksNeedAuth();
+    const { name, hubInstanceId } = parseServerLinkHub(hub);
+    const token = randomBytes(32).toString('base64url');
+    const entry: StoredServerToken = {
+      id: randomBytes(8).toString('hex'),
+      name,
+      hubInstanceId,
+      tokenHash: sha256(token).toString('hex'),
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+    };
+    const kept = (this.stored.serverTokens ?? []).filter((each) => each.hubInstanceId !== hubInstanceId);
+    for (const gone of this.stored.serverTokens ?? []) if (gone.hubInstanceId === hubInstanceId) this.serverUseWritten.delete(gone.id);
+    this.stored = { ...this.stored, serverTokens: [...kept, entry] };
+    await this.persist();
+    return { token, tokenId: entry.id };
+  }
+
+  /**
+   * Revokes the hub token a credential is, and answers its id, or null when it is none. By the
+   * credential rather than by the actor's name: an OIDC subject could be spelled `server:<id>` too.
+   */
+  async revokeServerCredential(credential: string): Promise<string | null> {
+    const found = this.serverTokenOf(credential);
+    if (!found) return null;
+    this.stored = { ...this.stored, serverTokens: (this.stored.serverTokens ?? []).filter((each) => each.id !== found.id) };
+    this.serverUseWritten.delete(found.id);
+    await this.persist();
+    return found.id;
+  }
+
+  /** Each stored hash is compared in full, so how many tokens there are is all the timing says */
+  private serverTokenOf(credential: string): StoredServerToken | undefined {
+    let found: StoredServerToken | undefined;
+    for (const each of this.stored.serverTokens ?? []) if (sameSecret(credential, each.tokenHash)) found = each;
+    return found;
+  }
+
+  private async noteServerUse(token: StoredServerToken): Promise<void> {
+    const now = Date.now();
+    token.lastUsedAt = new Date(now).toISOString();
+    if (now - (this.serverUseWritten.get(token.id) ?? 0) < SERVER_USE_WRITE_MS) return;
+    this.serverUseWritten.set(token.id, now);
+    try {
+      await this.persist();
+    } catch {
+      // The request is already authenticated; the time is written with the next write
+    }
+  }
+
   /**
    * The actor behind a chat token, or null. Only under a guard: under `mode: 'none'` every request
    * is `local` and nothing is looked up. `fromLocalChat` is the caller's word that the request came
@@ -398,6 +514,33 @@ export class AuthStore {
     const chatId = this.chatTokens.verify(credential);
     return chatId === null ? null : chatActor(chatId);
   }
+}
+
+/** The hub a pairing names, as the routes pass it on */
+export interface ServerLinkHub {
+  name: string;
+  hubInstanceId: string;
+}
+
+/**
+ * The hub's name and id from a pairing request (`hubName`, `hubInstanceId`), checked before a code
+ * is spent on it: a request the hub got wrong must not cost the person their code.
+ */
+export function parseServerLinkHub(body: unknown): ServerLinkHub {
+  const fields = typeof body === 'object' && body !== null ? (body as { hubName?: unknown; name?: unknown; hubInstanceId?: unknown }) : {};
+  const rawName = fields.hubName ?? fields.name;
+  const name = typeof rawName === 'string' ? rawName.trim() : '';
+  const hubInstanceId = typeof fields.hubInstanceId === 'string' ? fields.hubInstanceId.trim() : '';
+  if (!name || name.length > MAX_HUB_NAME) throw new Error(`hubName must be a name of 1 to ${String(MAX_HUB_NAME)} characters`);
+  if (!/^[\w.:-]+$/.test(hubInstanceId) || hubInstanceId.length > MAX_HUB_INSTANCE_ID) {
+    throw new Error(`hubInstanceId must be 1 to ${String(MAX_HUB_INSTANCE_ID)} letters, digits, '.', ':', '_' or '-'`);
+  }
+  return { name, hubInstanceId };
+}
+
+/** Pairing under `none`: the 409 the LAN listener answers for the same reason */
+export function serverLinksNeedAuth(): ServerLinkError {
+  return new ServerLinkError(409, 'server-links.auth-required', 'This Claudio cannot be reached as a server while access is open: turn on a token or OIDC in Security first.');
 }
 
 /**

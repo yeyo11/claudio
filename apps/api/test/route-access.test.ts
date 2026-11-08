@@ -83,9 +83,11 @@ test('a class is one of the three, `workFields` only narrows a work write, and o
   assert.deepEqual(open.sort(), [
     'DELETE /openai/client-tools/:id/mcp',
     'GET /health',
+    'GET /meta',
     'GET /openai/client-tools/:id/mcp',
     'GET /ready',
     'POST /openai/client-tools/:id/mcp',
+    'POST /server-links/redeem',
     'POST /webhooks/github/:registrationId',
     'POST /webhooks/gitlab/:registrationId',
   ]);
