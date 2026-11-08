@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T14:36:12.21521472Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-08T22:00:00Z
 tags:
     - plan
     - servers
@@ -438,7 +438,7 @@ pushed; the branches merge into one. The engine as it exists is [servers.md](../
 | `orchestration-access` | D12: a chat with `tools.claudioMcp === true`, read on every request, acts as the owner on every `/orchestrations*` route and field (the audit still says `chat:<id>`); two template reads, eight writes on routes a chat could already call and twelve on the person's routes (`OWNER_TOOLS`) in the MCP server; permission prompts in `en`/`es` for the 20 new writes; `docs/security-model.md` § Chat tokens and `docs/claudio-mcp-server.md` |
 | `hub-gateway` | `packages/core/src/servers/`: registry (`servers.json`, the switch in `servers-settings.json`, tokens only in the vault), pairing client with the certificate checked against the grant, SSRF-safe transport (own resolution, pinned IP, TLS judged by the pin), address choice with two-failure hysteresis, health, test, use; the routes of §9.2 and the gateway for REST, SSE and the terminal WebSocket; 18 API tests and 14 core tests, including a 2 MiB upload through the gateway |
 | `docs` | `docs/servers.md`, and `lan-access.md`, `security-model.md` (§ Servers, the LAN section), `configuration.md` (the files Servers adds; no variable) and this plan. Also resolved the merge of `hub-gateway` in `apps/api/src/security.ts` (both import sets kept) |
-| `security-review` | Not reported when this section was written; its findings go here when it is. |
+| `security-review` | Read the whole diff against R1-R14 and D2-D11 and fixed four things: a fork of a chat with Claudio's MCP on carried the server to a chat that could not switch it on (an escalation to owner, D12); push leaked to the remote; the evals page's `sessionStorage` bled between servers; and `/servers*` writes left no audit row. The decisions it could not take went to the owner (§11) |
 
 ### Decisions the tasks took where the plan was silent
 
@@ -465,8 +465,7 @@ pushed; the branches merge into one. The engine as it exists is [servers.md](../
 - Stage 4, the UI (orchestration B): selector, status bar, Servers page, Settings switch, phone
   layout, and the LAN card's fingerprint and its copy, which still says the connection is unencrypted.
   The e2e for the visible flow comes with it; no e2e spec was written or run in orchestration A.
-- `apps/web/src/lib/server-meta.ts` mirrors `ServerMeta` and `WEB_API_VERSION`; swap them for the
-  shared `ServerMeta` and `API_VERSION`.
+- ~~`server-meta.ts` mirrors `ServerMeta`~~: done in §11.
 - `mapRoute` sends any page that names a record to Home.
 - For the security review: the CA-valid fallback on pinned connections; the terminal relay reads the
   bytes sent before the `101` from a private field of `@fastify/websocket`; the hub sets no size
@@ -499,6 +498,28 @@ The security review left five decisions to the owner; he took them the same day.
 - **D17. Accepted risk:** any chat can message or resume the owner's chat that has Claudio's MCP on,
   and that chat acts as the owner on orchestrations. In `bypassPermissions` it already has a shell;
   in other modes the person sees a permission prompt.
+
+### Outcome of §11
+
+Orchestration `9bb7cfdd`, 2026-11-08, three tasks on branches merged into one; nothing pushed.
+
+- **D13 done.** `POST /servers` with an owner token over `https://` reads the certificate first and
+  answers `409 servers.confirm-fingerprint`; the token goes only over that certificate
+  (`ServerPairing.expectedFingerprint`, `ServerFingerprintConfirmation`). Single-label names count as LAN.
+  The confirmation is asked on the first address that answers TLS, tailnet ones included, where the
+  fingerprint is not the LAN card's, which the future UI has to explain.
+- **D14 done.** `GET /server-links` and `DELETE /server-links/:tokenId`, owner-only, allowed in
+  read-only mode (one line in `apps/api/src/security.ts`); the audit rows are in en/es.
+- **D15 done.** `transport.ts` accepts a CA-signed certificate only for a DNS name that is not an IP,
+  not `.local` and not a single label. A real-handshake test covers the refusals; the `*.ts.net`
+  acceptance has a unit test only.
+- **D16 done.** The gateway counts a request body as it streams and answers `413 servers.body-too-large`
+  above the larger of the upload limit (51 MiB) and the workspace file cap (100 MiB by default),
+  so a workspace upload still passes; `refusedIp` refuses the new IPv6 forms; the terminal relay takes
+  the bytes after the upgrade head from its own `upgrade` listener instead of the private `ws-head`.
+- **D17** is recorded as an accepted risk in [security-model.md](../security-model.md#servers).
+- The `server-meta.ts` mirror is gone: the web uses the shared `ServerMeta`, `API_VERSION` and
+  `API_VERSION_MIN`. The e2e suite was not run in this orchestration.
 
 ## Related
 

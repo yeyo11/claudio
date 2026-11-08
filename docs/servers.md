@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T18:00:00Z
-updated_at: 2026-11-08T20:00:00Z
+updated_at: 2026-11-08T22:00:00Z
 tags:
     - servers
     - remote-access
@@ -51,7 +51,13 @@ answers `/api/meta` as a Claudio**; the code or token is never tried on a second
    `POST /server-links/redeem`, which is open (the code is the credential): a wrong code counts in
    the peer's sign-in back-off (`429 server-links.too-many` with `Retry-After`), and 20 wrong
    guesses from anyone void the live code.
-2. **A pasted owner token.** The hub sends `{ hubInstanceId, hubName }` once to `POST /server-links`
+2. **A pasted owner token.** With an `https://` address the hub first opens TLS and reads the
+   certificate without sending anything; with no `expectedFingerprint` in the request,
+   `POST /servers` answers `409 servers.confirm-fingerprint` with `{ fingerprint, address }` for the
+   person to compare with the remote's LAN card, and only a second call carrying that fingerprint sends
+   the token, over a connection that shows the same certificate (a different one is
+   `409 servers.fingerprint-unexpected`, a malformed one `400 servers.pairing-invalid`). Over `http://`
+   on loopback there is nothing to confirm. The hub sends `{ hubInstanceId, hubName }` once to `POST /server-links`
    with the remote owner's token, receives its own named token and forgets the owner's. It works for
    a headless server or one behind OIDC.
 
@@ -69,6 +75,11 @@ that does not answer yet is kept, and proves itself at its first probe). If anyt
 remote handed its token over, the hub revokes it before answering, so a failed add leaves nothing
 behind. The token goes into the secret vault, under the tool name `claudio-servers`, one entry per
 server id, never in `servers.json`, a log or an API answer.
+
+**Revoking from the remote.** The remote's owner lists the hubs with `GET /server-links` (no secrets)
+and revokes one with `DELETE /server-links/:tokenId`; a hub's own token cannot
+(`403 server-links.not-owner`). Its terminal sockets close, it works in read-only mode, and the hub's
+next call through the gateway is `409 servers.needs-pairing`. There is no UI for it yet.
 
 **Removing** a server calls `DELETE /server-links/self` on the remote with the hub's own token (allowed
 in read-only mode: it only takes access away), then forgets the entry, the secret
@@ -153,8 +164,9 @@ certificate it shows has the **pinned fingerprint**, or the **pinned public key*
 remakes its certificate on the same key, as `lan-tls` does when it gains an address, is still
 recognised, and the stored fingerprint is updated), or a **CA-valid certificate for the name
 dialled**. The last is how Tailscale `*.ts.net` names and a tunnel's proxy present themselves: TLS
-ends before the remote, so no pin could know their certificate; no CA signs a certificate for a LAN
-address or a `.local` name, so this fallback cannot stand in for a LAN server. In every case the
+ends before the remote, so no pin could know their certificate. It counts only for a DNS name that
+is not an IP, not `.local` and not a single label (D15), so it can never stand in for a LAN server,
+whatever a public authority has signed. In every case the
 `instanceId` from `/api/meta` must be the one paired, and a mismatch is a hard block
 (`identity-changed`) until the server is removed and added again, which gives it a new id. While
 pairing, nothing is pinned yet: the first certificate is taken as it is and every later connection
