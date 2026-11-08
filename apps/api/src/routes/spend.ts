@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Core } from '@claudio/core';
+import { actsAsOwner } from '../security.ts';
 
 /** The header that lets a person's request through the daily spend cap (docs/plans/agent-run-improvements.md). */
 export const SPEND_OVERRIDE_HEADER = 'x-claudio-spend-override';
@@ -7,8 +8,12 @@ export const SPEND_OVERRIDE_HEADER = 'x-claudio-spend-override';
 /** Requests that went past a closed gate on the person's say-so, so a launch can grant its graph the pass afterwards. */
 const overridden = new WeakSet<FastifyRequest>();
 
-/** Whether a chat's own token made the request: an agent never spends past the person's cap, nor raises it. */
-export const fromChat = (req: FastifyRequest): boolean => typeof req.actor === 'string' && req.actor.startsWith('chat:');
+/**
+ * Whether a chat's own token made the request: an agent never spends past the person's cap, nor raises
+ * it. A chat that acts as the owner on an orchestration route (D12, `actsAsOwner` in security.ts) is
+ * the person there, so the handlers' own checks of a chat let it through on those routes alone.
+ */
+export const fromChat = (req: FastifyRequest): boolean => typeof req.actor === 'string' && req.actor.startsWith('chat:') && !actsAsOwner(req);
 
 /** The person asked to go on past the cap. A chat's token is ignored here: the header is the person's alone. */
 const overrides = (req: FastifyRequest): boolean => req.headers[SPEND_OVERRIDE_HEADER] === '1' && !fromChat(req);

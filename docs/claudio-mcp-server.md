@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T12:00:00Z
-updated_at: 2026-10-30T12:00:00Z
+updated_at: 2026-11-08T16:00:00Z
 tags:
     - mcp
     - assistant
@@ -13,8 +13,8 @@ tags:
 Claudio ships a small MCP server, named **`claudio`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
-`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 22 read tools (CW-6, and the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)), twenty-four
-write tools (CW-17, the regression fixes of 2026-10-29 and the four schedule writes, [below](#write-tools)) and seven reads of
+`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 24 read tools (CW-6, the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md) and the two template reads of D12), thirty-two
+write tools (CW-17, the regression fixes of 2026-10-29, the four schedule writes and the orchestration writes of D12 of [plans/claudio-servers.md](plans/claudio-servers.md), [below](#write-tools)), twelve owner's orchestration writes ([below](#the-owners-orchestration-writes)) and seven reads of
 teammates' shared copies (R13, [below](#teammates-shared-copies)). What they answer, how a large
 answer is cut and which routes they may call were set by
 [plans/regression-fixes-2026-10-29.md](plans/regression-fixes-2026-10-29.md) (D7, C5, C6). The spec is [plans/claudio-mcp-server.md](plans/claudio-mcp-server.md) (CW-6, epic
@@ -47,6 +47,8 @@ other method; the write tools below go through `send`, the only way to write.
 | `list_orchestrations` | the orchestrations, newest first, 25 unless `limit` says otherwise |
 | `get_orchestration` | one orchestration with its tasks, verification and final report |
 | `get_orchestration_plan` | the draft a planner chat of `plan_orchestration` produced (`GET /orchestrations/plans/:runId`) |
+| `list_orchestration_templates` | the saved templates: `id`, `name`, `description`, how many tasks and `updatedAt`, never their prompts (`GET /orchestrations/templates`) |
+| `get_orchestration_template` | one template with its whole spec, every task's prompt included (`GET /orchestrations/templates/:templateId`) |
 | `list_assistant_proposals` | a project's assistant proposals, `pending` unless `status` says otherwise, by `kind`: the id the accept and discard tools take. Read from `GET /projects/:id/assistant/runs` and the detail of each run whose counts hold some, ten runs at most |
 | `get_team` | a project's team |
 | `list_flow_runs` | a project's flow runs, filtered by agent, role, status, item |
@@ -67,7 +69,9 @@ keeps the catalogue in `tools.ts` equal to that list, and the allow list is buil
 
 **Every tool declares its routes** (`routes`, as `METHOD /pattern` the way `ROUTE_DOCS` keys them). A
 test holds each declared route to `ROUTE_DOCS` and to its access class (`work`: one a chat's own token
-may call, [plans/regression-fixes-2026-10-29.md](plans/regression-fixes-2026-10-29.md), C1), and
+may call, [plans/regression-fixes-2026-10-29.md](plans/regression-fixes-2026-10-29.md), C1), but
+for the owner's orchestration writes, whose `person` routes must all be under `/orchestrations`
+([below](#the-owners-orchestration-writes)), and
 another drives every write tool against the real API through the fake CLI, failing when a request
 reaches no route or one the tool does not declare. That is how `start_chat` once called a
 `GET /projects/:id` that does not exist and passed against a stub.
@@ -130,12 +134,16 @@ Rules for every tool:
 
 ## Write tools
 
-`packages/mcp/src/write-tools.ts`, listed after the read tools (39 in all). Each calls routes that
-already exist and that a chat's own token may call (`work`), with that token, resolves a key such as
-`AGN-12` through `GET /work-items/by-key/:key`, and returns only the key, id, status and run or chat
+`packages/mcp/src/write-tools.ts`, listed after the read tools. `WRITE_TOOLS` call routes that
+already exist and that a chat's own token may call (`work`), with that token, resolve a key such as
+`AGN-12` through `GET /work-items/by-key/:key`, and return only the key, id, status and run or chat
 id. The input schema stays strict, with lists, nested objects and numbers (labels, criteria, tasks,
-limits). A body carries only the fields named here: never a permission mode, a tool list, a server,
-an account, guards or a verification, so a confirmed call starts work with the app's defaults.
+limits). A body carries only the fields named here: never a tool preset, a server, an account or a
+confinement. The person's own fields of a graph (`permissionMode`, `permissionPrompts`,
+`allowedTools`, `guards`, `verification`) are sent only when the call names them, never taken from a
+planner's draft, and the API takes them only from a chat with Claudio's server switched on
+([below](#the-owners-orchestration-writes)); without them a confirmed call starts work with the app's
+defaults.
 
 | Tool | Route |
 |---|---|
@@ -146,9 +154,15 @@ an account, guards or a verification, so a confirmed call starts work with the a
 | `comment_work_item` | `POST /work-items/:id/comments` |
 | `retry_flow_run` | `POST /flow-runs/:id/retry` |
 | `plan_orchestration` | `POST /orchestrations/plan/start` with `objective`, the project's path, `model`, `maxTasks`; answers the planner chat, whose draft `get_orchestration_plan` reads once it is idle |
-| `launch_orchestration` | `POST /orchestrations` with the graph's own fields (`name`, `objective`, `engine`, `model`, `effort`, `concurrency`, `synthesize`, `worktree`, `maxAttempts`, `limits`) and tasks (`id`, `name`, `prompt`, `dependsOn`, `model`, `effort`), given or taken from a draft (`fromPlan`, which also sets `plannerRunId`); `cwd` is the project's path |
+| `launch_orchestration` | `POST /orchestrations` with the graph's own fields (`name`, `objective`, `engine`, `model`, `effort`, `concurrency`, `synthesize`, `worktree`, `maxAttempts`, `limits`) and tasks (`id`, `name`, `prompt`, `dependsOn`, `model`, `effort`), given or taken from a draft (`fromPlan`, which also sets `plannerRunId`); `cwd` is the project's path. `permissionMode`, `permissionPrompts`, `allowedTools`, `guards` (`enabled`, `rules` by id) and `verification` (sequential `commands`, `fixer`, `maxAttempts`, `model`, `effort`, `timeoutMinutes`, `maxCostUsd`, `install`, `failGraph`, `e2eSpecs`) only as given |
 | `stop_orchestration`, `resume_orchestration` | `POST /orchestrations/:id/stop` and `/resume` (no body: a resume keeps the graph's settings) |
 | `retry_orchestration_task` | `POST /orchestrations/:id/tasks/:taskId/retry` |
+| `retry_orchestration_task_clean`, `rerun_orchestration_task`, `skip_orchestration_task` | `POST /orchestrations/:id/tasks/:taskId/retry-clean`, `/rerun` and `/skip` (no body) |
+| `message_orchestration_task` | `POST /orchestrations/:id/tasks/:taskId/hint` with `{ text }`: the task's hint route rather than the message route of its chat, because it is the one that reaches the worker mid-run (delivered as its next message), checks that the task still runs and frames the text for the worker; a finished task refuses it |
+| `verify_orchestration` | `POST /orchestrations/:id/verify`, with `verification` only when given |
+| `retry_orchestration_review` | `POST /orchestrations/:id/review/retry` (no body) |
+| `relaunch_orchestration` | `POST /orchestrations/:id/relaunch` with `tasks` (the whole new list) and a `spec` of the settings given, the person's fields included; a `spec` is a person's field of the route |
+| `launch_orchestration_template` | `POST /orchestrations/templates/:templateId/launch` with `objective`, `name`, `model`, `effort` and `cwd` from `projectId` |
 | `start_chat` | `POST /chats` with only `prompt`, `cwd` (the project's path, from `GET /projects`), `model` and `name` |
 | `send_chat_message`, `hint_chat` | `POST /chats/:id/messages` with `{ text }` and `POST /chats/:id/hint` with `{ text }` |
 | `interrupt_chat`, `stop_chat` | `POST /chats/:id/interrupt` and `/stop` |
@@ -171,6 +185,33 @@ is not undone, so the prompt says so and `update_schedule` with `enabled: false`
 Their prompt shows the expression, the zone, what each fire starts, the overlap policy and whether it
 is on, and the person's app adds what the expression means in words and its next fires, from
 `GET /schedules/preview`, before the answer.
+
+### The owner's orchestration writes
+
+`OWNER_TOOLS` in the same file, named in `CLAUDIO_MCP_OWNER_TOOL_NAMES` (D12 of
+[plans/claudio-servers.md](plans/claudio-servers.md)). They call the person's own orchestration routes
+(`person`), which the API answers for a chat's token only while the person has Claudio's server
+switched on for that chat; the assistant, a worker and every other chat get `403`
+([security-model.md](security-model.md#chat-tokens)). The server offers them with the `claudio`
+toolset, since it cannot tell the assistant from such a chat and the API decides at every call; the
+assistant's guide (`CAPABILITIES` in `catalogue.ts`) leaves them out, so it promises nothing its token
+cannot do. A test holds every `person` route they declare to `/orchestrations`, where the widening
+ends. They are writes like the others: in `CLAUDIO_MCP_WRITE_TOOLS`, never pre-allowed, never
+"always allowed", each confirmed by the person.
+
+| Tool | Route |
+|---|---|
+| `delete_orchestration` | `DELETE /orchestrations/:id`; answers `{ deleted, orchestrationId }` |
+| `integrate_orchestration` | `POST /orchestrations/:id/integrate` |
+| `open_orchestration_pull_request` | `POST /orchestrations/:id/pull-request`; answers the pull request's `id`, `phase`, `host`, `ref`, `number`, `url` |
+| `accept_orchestration_review` | `POST /orchestrations/:id/review/accept` with `{ reason }` |
+| `grant_orchestration_spend_pass` | `POST /orchestrations/:id/spend-pass` |
+| `send_supervisor_proposal`, `dismiss_supervisor_proposal` | `POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send` and `/dismiss` |
+| `prune_orchestration_worktrees` | `POST /orchestrations/:id/worktrees/prune`, `{ force: true }` only when asked |
+| `save_orchestration_workflow` | `POST /orchestrations/:id/workflow/save` with `name` and `overwrite`; answers `name`, `path`, `scope` |
+| `create_orchestration_template` | `POST /orchestrations/templates` with `name`, `description` and either `fromOrchestration` or a `spec` built from the tasks and settings given (the person's fields included, `cwd` from `projectId`) |
+| `update_orchestration_template` | `GET` then `PATCH /orchestrations/templates/:templateId`: the route replaces the spec whole, so the settings and tasks given go over the stored spec; refuses a call with nothing to change |
+| `delete_orchestration_template` | `DELETE /orchestrations/templates/:templateId` |
 
 None restores, or touches a setting, an account, permissions or security: those wait for the
 server-side approval of [plans/assistant-everything.md](plans/assistant-everything.md). The chat tools
@@ -322,9 +363,11 @@ the work links take no such choice; it can be switched on from the chat once it 
 
 ## Not here
 
-Skip, rerun and delete tools, settings, accounts and security, moving a card to Done, and listing
+Deletes outside orchestrations and schedules, settings, accounts and security, moving a card to Done, and listing
 `claudio` in the person's MCP settings: it is internal, given to the chats Claudio confines and to the
-chats a person switches it on for. The chat-ui words the prompt of every write tool in the person's
-language (`packages/chat-ui/src/lib/write-prompts.ts`).
+chats a person switches it on for. The chat-ui words the prompt of the write tools in the person's
+language (`packages/chat-ui/src/lib/write-prompts.ts`); the orchestration and template writes added
+for D12 have no wording there yet, so their prompt is the generic one (the tool's name and its input),
+still without "always allow", which the core keeps off every name in `CLAUDIO_MCP_WRITE_TOOLS`.
 
 Related: [[plans/regression-fixes-2026-10-29.md]], [[reports/regression-audit-2026-10-29.md]], [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]], [[collaborators.md]], [[plans/collaborators-agent-access.md]]
