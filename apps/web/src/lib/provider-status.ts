@@ -2,6 +2,7 @@ import type { ProviderId, ProviderStatus, ProvidersSettings } from '@claudio/sha
 import { useQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { TFunction } from 'i18next';
+import { formatList } from '@claudio/ui/lib/format';
 import { api, keys } from '../api';
 import { useProviders } from './providers';
 import { isUsable } from './provider-state';
@@ -47,6 +48,9 @@ export function providerSetup(enabled: ProviderStatus[]): ProviderSetup {
 /** A status's reason in plain words, for a place that cannot call the `useProviderReason` hook (a loop). */
 export function reasonText(t: TFunction<'providers'>, status: ProviderStatus): string {
   if (status.reason === null) return t(`state.${status.state}`);
+  // Saying what is missing is what lets the person act on it; an old server does not send the list
+  const missing = status.reason === 'capability-missing' ? (status.confirmed?.missing ?? []) : [];
+  if (missing.length > 0) return t('reason.capability-missing-named', { missing: formatList(missing.map((capability) => t(`capability.${capability}`))) });
   return t(`reason.${status.reason}`, {
     version: status.version ? `v${status.version}` : '',
     range: status.compatibleRange,

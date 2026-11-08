@@ -10266,6 +10266,13 @@
                 "items": {
                   "$ref": "#/components/schemas/ProviderCapability"
                 }
+              },
+              "missing": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProviderCapability"
+                },
+                "description": "Declared capabilities the session contradicted, which make a ready provider `degraded` (`capability-missing`); absent on an old server"
               }
             },
             "required": [

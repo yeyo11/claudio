@@ -417,7 +417,7 @@
   "first-run [SetupGate, nothingFound, setupGateState, shouldShowSetup, useSetupGate]",
   "flows [FlowsWidget]",
   "follow [useChangeRequestThreads, useDismissedThreads, useFollowUp]",
-  "format [daysAgo, durationBetween, errorMessage, formatAmountShort, formatBytes, formatClock, formatCost, formatDate, formatDateTime, formatDateTimeIn, formatDuration, formatHour, formatNumber, formatPercent, localTimeZone, middleEllipsis, shortPath, timeAgo, timeUntil, toMs, truncate]",
+  "format [daysAgo, durationBetween, errorMessage, formatAmountShort, formatBytes, formatClock, formatCost, formatDate, formatDateTime, formatDateTimeIn, formatDuration, formatHour, formatList, formatNumber, formatPercent, localTimeZone, middleEllipsis, shortPath, timeAgo, timeUntil, toMs, truncate]",
   "frontmatter [FrontmatterProblem, frontmatterProblem]",
   "full-text [isCut, useFullTextTitle]",
   "guards [DEFAULT_GUARD_SETTINGS, DEFAULT_PROTECTED_CONFIGS, GUARD_RULES, GUARD_RULE_IDS, MAX_PROTECTED_CONFIGS]",

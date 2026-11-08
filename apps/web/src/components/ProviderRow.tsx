@@ -16,6 +16,7 @@ import { ProgramMark } from '@claudio/ui/components/BrandMark';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Tag } from '@claudio/ui/components/ui';
+import { reasonText } from '../lib/provider-status';
 
 export interface ProviderRowProps {
   status: ProviderStatus;
@@ -58,12 +59,7 @@ export function useProviderReason(status: ProviderStatus, enabled = true, named 
   if (status.state === 'ready') return named && status.account ? t('readyAs', { account: status.account }) : t('readyReason');
   // A detector that gave no code still leaves the state's own word to say
   if (status.reason === null) return t(stateLabelKey(status.state));
-  return t(`reason.${status.reason}`, {
-    version: status.version ? `v${status.version}` : '',
-    range: status.compatibleRange,
-    label: status.label,
-    home: status.configHome ?? '',
-  });
+  return reasonText(t, status);
 }
 
 function versionLine(status: ProviderStatus): string {

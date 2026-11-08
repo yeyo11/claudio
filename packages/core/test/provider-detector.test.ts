@@ -254,6 +254,7 @@ describe('capabilities confirmed by a session', () => {
     tools: ['Read', 'Task', 'Workflow'],
     mcpServers: [{ name: 'pando', status: 'connected' }],
     structuredOutput: false,
+    toolsNarrowed: false,
     ...over,
   });
 
@@ -268,6 +269,16 @@ describe('capabilities confirmed by a session', () => {
     assert.ok(confirmClaudeInit(init({ tools: ['Agent'] })).confirmed.includes('subagents'));
     assert.deepEqual(confirmClaudeInit(init({ tools: ['Read'] })).missing, ['subagents']);
     assert.deepEqual(confirmClaudeInit(init({ tools: [] })).missing, []);
+  });
+
+  it('takes no tool missing from a session whose launch narrowed its tools as missing from the CLI', () => {
+    // A confined chat, a `/v1` chat or an agent with its own tools lists only what it was given:
+    // the CLI still has the subagent tool, and the provider must not flip to degraded on it
+    const narrowed = confirmClaudeInit(init({ tools: ['Read', 'Grep'], toolsNarrowed: true }));
+    assert.deepEqual(narrowed.missing, []);
+    assert.ok(!narrowed.confirmed.includes('subagents'));
+    // What a narrowed session does show is still evidence
+    assert.ok(confirmClaudeInit(init({ tools: ['Agent'], toolsNarrowed: true })).confirmed.includes('subagents'));
   });
 
   it('never degrades on a missing Workflow tool, which 2.1.287 leaves out of the init', () => {
