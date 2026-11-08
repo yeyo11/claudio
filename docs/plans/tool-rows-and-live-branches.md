@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T05:30:00Z
-updated_at: 2026-10-16T05:30:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - chat
@@ -19,7 +19,7 @@ work Claude delegates — subagents, background commands, workflows — is invis
 conversation: a background agent's row turns green the moment it is launched, the inspector's
 "Branches" card is off screen, and nothing says what a subagent is doing right now.
 
-Status: **launched** on 2026-10-16 (orchestration `claudio-live-branches`, second launch), with the design
+Status: **built** (2026-10-16); see [Outcome](#outcome) and [chat-tool-rows-and-branches.md](../chat-tool-rows-and-branches.md). Was: **launched** on 2026-10-16 (orchestration `claudio-live-branches`, second launch), with the design
 settled in this document and drawn before any code. Base: `feat/claude-only` at `cb38b5cfb`, the staging
 branch that already holds `claudio-context-control` and `claudio-agent-run-improvements` (both completed
 that morning; `main` was 69 commits behind it). A first launch from `main` (`bdab32b6`, 03:22) was stopped

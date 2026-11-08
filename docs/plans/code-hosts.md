@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:05:47Z
-updated_at: 2026-10-07T18:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - git
@@ -15,7 +15,7 @@ tags:
 ---
 # Code hosts and issue trackers
 
-Status: **planned** (2026-09-30). Nothing here is built yet. Every phase is designed as a task
+Status: **phases 1–4 built, and the first steps of phases 5 and 6** (2026-10-01 → 2026-10-07); each phase's Outcome says what landed, and the feature is [code-hosts.md](../code-hosts.md). Was: **planned** (2026-09-30). Nothing here is built yet. Every phase is designed as a task
 graph that orchestrations of Claude Code workers can build ([Phase 1](#phase-1-orchestrations-and-task-graph),
 [2](#phase-2-checks), [3](#phase-3-reviews), [4](#phase-4-merging), [5](#phase-5-trackers),
 [6](#phase-6-webhooks-and-paced-polling)). Every GitHub and GitLab action Claudio takes is in

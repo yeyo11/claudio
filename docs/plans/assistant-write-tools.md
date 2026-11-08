@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T22:00:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - spec
@@ -12,7 +12,7 @@ tags:
 ---
 # Spec: write tools for the Claudio assistant, each confirmed by the person (CW-17)
 
-Status: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome). Story CW-17 of epic CW-12, "The Claudio assistant". It builds on
+Status: **landed** with the assistant in #216 (2026-10-07, before the Claudio fork). Was: **built** on `feat/assistant-entry` (2026-10-07), not merged to `main` yet; see [Outcome](#outcome). Story CW-17 of epic CW-12, "The Claudio assistant". It builds on
 [claudio-assistant.md](claudio-assistant.md) and depends on two earlier stories:
 
 - **CW-6**: Claudio's own MCP server, with its read tools.
