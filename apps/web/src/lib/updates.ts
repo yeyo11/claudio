@@ -282,7 +282,7 @@ export function desktopUnitRefetchMs(status: Pick<DesktopUnitStatus, 'state' | '
   return restart === 'when-idle' && status?.restartNeeded ? 5000 : false;
 }
 
-const UNIT_ERROR_CODES = ['needs-login', 'unit-missing', 'busy', 'apt-locked', 'apt-failed'] as const;
+const UNIT_ERROR_CODES = ['needs-login', 'unit-missing', 'busy', 'apt-locked', 'apt-failed', 'source-missing', 'start-limited', 'unit-failed'] as const;
 export type DesktopUnitErrorCode = (typeof UNIT_ERROR_CODES)[number];
 
 /** A refusal of the desktop-update routes or a `reason.code` of the status, with or without its `update.` prefix; null when this build does not know it */

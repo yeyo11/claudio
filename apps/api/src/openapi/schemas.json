@@ -10267,9 +10267,12 @@
       "update.needs-login",
       "update.apt-locked",
       "update.apt-failed",
+      "update.source-missing",
+      "update.start-limited",
+      "update.unit-failed",
       "update.start-failed"
     ],
-    "description": "Why the desktop update is in its state, as an i18n code: `update.unit-missing`, `update.needs-login`, `update.apt-locked` (the package manager stayed busy), `update.apt-failed`, `update.start-failed` (systemd did not start the unit for another reason)."
+    "description": "Why the desktop update is in its state, as an i18n code: `update.unit-missing`, `update.needs-login`, `update.apt-locked` (the package manager stayed busy), `update.apt-failed`, `update.source-missing` (Claudio's apt source was removed, so there is no repository to update from), `update.start-limited` (systemd refused the start: too many starts in ten minutes), `update.unit-failed` (systemd ended the run before it could say why: a timeout, a signal, out of memory), `update.start-failed` (systemd did not start the unit for another reason)."
   },
   "ProvidersChangedEvent": {
     "type": "object",

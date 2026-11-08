@@ -26,6 +26,8 @@ const DEB_ENV: NodeJS.ProcessEnv = {
 interface Unit {
   load: 'loaded' | 'not-found';
   active: string;
+  /** systemd's `Result`; left out of the answer when unset, the way an older systemd might */
+  result?: string;
   startedAt?: number;
 }
 
@@ -50,7 +52,12 @@ function machine(env: NodeJS.ProcessEnv = DEB_ENV) {
     systemctl: async (args) => {
       calls.push([...args]);
       if (args[0] === 'show') {
-        const lines = [`LoadState=${unit.load}`, `ActiveState=${unit.active}`, `ExecMainStartTimestamp=${unit.startedAt ? `@${String(Math.floor(unit.startedAt / 1000))}` : 'n/a'}`];
+        const lines = [
+          `LoadState=${unit.load}`,
+          `ActiveState=${unit.active}`,
+          ...(unit.result === undefined ? [] : [`Result=${unit.result}`]),
+          `ExecMainStartTimestamp=${unit.startedAt ? `@${String(Math.floor(unit.startedAt / 1000))}` : 'n/a'}`,
+        ];
         return { code: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
       }
       return startAnswer;
@@ -136,7 +143,7 @@ test('a unit that never ran is idle, with the versions on disk and running', asy
   const m = machine();
   const status = await m.updates.status();
   assert.deepEqual(status, { state: 'idle', installed: '0.14.2', running: '0.14.2', restartNeeded: false, from: null, to: null, startedAt: null, endedAt: null });
-  assert.deepEqual(m.calls[0], ['show', 'claudio-update.service', '--property=LoadState,ActiveState,ExecMainStartTimestamp', '--timestamp=unix']);
+  assert.deepEqual(m.calls[0], ['show', 'claudio-update.service', '--property=LoadState,ActiveState,Result,ExecMainStartTimestamp', '--timestamp=unix']);
 });
 
 test('the start is exactly the one unit, no-block and never a password prompt; the feed follows it to installed', async () => {
@@ -216,13 +223,65 @@ test('the last run decides the rest: failed with its reason, up-to-date, or inst
   assert.deepEqual([status.state, status.restartNeeded], ['up-to-date', false]);
 });
 
-test('a unit that failed after its status file was written failed without saying why: apt-failed', async () => {
+test('a unit that failed after its status file was written failed without saying why: unit-failed', async () => {
   const m = machine();
   m.files.set(UPDATE_STATUS_FILE, JSON.stringify({ from: '0.14.1', to: '0.14.2', result: 'installed', endedAt: '2026-11-07T10:00:00.000Z' }));
   m.unit.active = 'failed';
   m.unit.startedAt = Date.parse('2026-11-08T10:00:00.000Z');
+  for (const result of [undefined, 'exit-code', 'timeout', 'signal', 'oom-kill']) {
+    m.unit.result = result;
+    const status = await m.updates.status();
+    assert.deepEqual([status.state, status.reason?.code], ['failed', 'update.unit-failed'], String(result));
+  }
+});
+
+test("a start StartLimitBurst refused is failed start-limited, never the previous run's outcome", async () => {
+  const m = machine();
+  // The run before: up to date, an hour ago. The refused start runs nothing, so neither the status file
+  // nor ExecMainStartTimestamp moves, and both still describe that run
+  const before = Date.parse('2026-11-08T11:00:00.000Z');
+  m.files.set(UPDATE_STATUS_FILE, JSON.stringify({ from: '0.14.2', to: '0.14.2', result: 'up-to-date', startedAt: new Date(before - 30_000).toISOString(), endedAt: new Date(before).toISOString() }));
+  m.unit.startedAt = before - 30_000;
+  m.unit.result = 'success';
+  assert.equal((await m.updates.status()).state, 'up-to-date');
+  m.unit.active = 'failed';
+  m.unit.result = 'start-limit-hit';
   const status = await m.updates.status();
-  assert.deepEqual([status.state, status.reason?.code], ['failed', 'update.apt-failed']);
+  assert.deepEqual([status.state, status.reason?.code], ['failed', 'update.start-limited']);
+  // The last run's versions stay what they were: the refused start installed nothing
+  assert.deepEqual([status.from, status.to], ['0.14.2', '0.14.2']);
+});
+
+test('a start refused for coming too often reaches the feed as start-limited once the grace is over', async () => {
+  const m = machine();
+  m.files.set(UPDATE_STATUS_FILE, JSON.stringify({ from: '0.14.2', to: '0.14.2', result: 'up-to-date', endedAt: '2026-11-08T11:00:00.000Z' }));
+  // `--no-block` queues the job and answers 0; systemd refuses it when it comes to run it
+  assert.equal((await m.updates.start()).state, 'installing');
+  m.unit.active = 'failed';
+  m.unit.result = 'start-limit-hit';
+  m.tick(20_000);
+  await until('start-limited on the feed', () => m.seen.at(-1)?.reason?.code === 'update.start-limited');
+  assert.equal(m.seen.at(-1)?.state, 'failed');
+  m.updates.close();
+});
+
+test('a later run that succeeds replaces start-limited with its own outcome', async () => {
+  const m = machine();
+  m.unit.active = 'inactive';
+  m.unit.result = 'success';
+  m.unit.startedAt = Date.parse('2026-11-08T11:50:00.000Z');
+  m.files.set(UPDATE_STATUS_FILE, JSON.stringify({ from: '0.14.2', to: '0.14.2', result: 'up-to-date', endedAt: '2026-11-08T11:51:00.000Z' }));
+  assert.equal((await m.updates.status()).state, 'up-to-date');
+});
+
+test("a run whose script said why keeps the script's reason, whatever systemd's Result", async () => {
+  const m = machine();
+  m.unit.active = 'failed';
+  m.unit.result = 'exit-code';
+  m.unit.startedAt = Date.parse('2026-11-08T11:00:00.000Z');
+  m.files.set(UPDATE_STATUS_FILE, JSON.stringify({ from: '0.14.2', to: '0.14.2', result: 'failed', code: 'update.source-missing', error: '/etc/apt/sources.list.d/claudio.sources is missing', endedAt: '2026-11-08T11:00:05.000Z' }));
+  const status = await m.updates.status();
+  assert.deepEqual([status.state, status.reason?.code], ['failed', 'update.source-missing']);
 });
 
 test('the version on disk falls back to shell.json beside the keys (an older shell), then to the running one', async () => {
@@ -239,6 +298,11 @@ test('the status file is read defensively', () => {
   assert.equal(parseUnitStatus('not json'), null);
   assert.equal(parseUnitStatus('[]'), null);
   assert.equal(parseUnitStatus(JSON.stringify({ result: 'rm -rf' })), null);
+  // Only declared codes come out: the helper's own source-missing, and apt-failed for anything unknown
+  const failed = (code: string) => parseUnitStatus(JSON.stringify({ result: 'failed', code, error: 'x' }))?.code;
+  assert.equal(failed('update.source-missing'), 'update.source-missing');
+  assert.equal(failed('source-missing'), 'update.source-missing');
+  assert.equal(failed('update.made-up'), 'update.apt-failed');
   assert.deepEqual(parseUnitStatus(JSON.stringify({ from: '../etc', to: '0.15.0', result: 'installed', endedAt: 'yesterday' })), { from: null, to: '0.15.0', result: 'installed', startedAt: null, endedAt: null, code: null });
 });
 

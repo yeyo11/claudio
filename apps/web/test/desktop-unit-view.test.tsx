@@ -2,12 +2,14 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { DesktopUpdateReasonCode } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
 import {
   desktopUnitErrorCode,
   desktopUnitRefetchMs,
   refusalStatus,
+  type DesktopUnitErrorCode,
   type DesktopUnitStatus,
 } from '../src/lib/updates';
 import { DesktopUnitView, UnitDialogBody, UnitDialogFooter, type DesktopUnitViewProps } from '../src/pages/config/UpdatesCard';
@@ -93,6 +95,9 @@ test('failed says why from the reason code and offers to try again', async () =>
   const expected = {
     'update.apt-locked': /Another package manager is running/,
     'update.apt-failed': /could not install the update/,
+    'update.source-missing': /no longer has Claudio's package repository/,
+    'update.start-limited': /Too many updates were started/,
+    'update.unit-failed': /update service stopped before it could finish/,
   } as const;
   for (const [code, pattern] of Object.entries(expected)) {
     const html = await render({ status: status({ state: 'failed', reason: { code } }) });
@@ -208,6 +213,8 @@ test('the Spanish card says the same things', async () => {
   const failed = await render({ status: status({ state: 'failed', reason: { code: 'update.apt-locked' } }) }, 'es');
   assert.match(words(failed), /Otro gestor de paquetes/);
   assert.match(words(failed), /Reintentar/);
+  const limited = await render({ status: status({ state: 'failed', reason: { code: 'update.start-limited' } }) }, 'es');
+  assert.match(words(limited), /demasiadas actualizaciones/);
 });
 
 test('the card reads the status again soon only while something is under way', () => {
@@ -219,6 +226,21 @@ test('the card reads the status again soon only while something is under way', (
   assert.equal(desktopUnitRefetchMs({ state: 'installed', restartNeeded: true }, 'when-idle'), 5000);
   // Once the new process answers, a scheduled restart needs no more polling
   assert.equal(desktopUnitRefetchMs(idle, 'when-idle'), false);
+});
+
+test('every reason code the contract declares has its own words, except start-failed, which is the generic one', () => {
+  // A Record over the shared union: a code added to the contract fails to compile here until it is listed
+  const declared: Record<DesktopUpdateReasonCode, DesktopUnitErrorCode | null> = {
+    'update.unit-missing': 'unit-missing',
+    'update.needs-login': 'needs-login',
+    'update.apt-locked': 'apt-locked',
+    'update.apt-failed': 'apt-failed',
+    'update.source-missing': 'source-missing',
+    'update.start-limited': 'start-limited',
+    'update.unit-failed': 'unit-failed',
+    'update.start-failed': null,
+  };
+  for (const [code, known] of Object.entries(declared)) assert.equal(desktopUnitErrorCode(code), known, code);
 });
 
 test('codes are read with or without their prefix, and an unknown one is null', () => {
