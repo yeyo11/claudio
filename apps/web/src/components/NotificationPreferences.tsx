@@ -10,6 +10,7 @@ import { Select } from '@claudio/ui/components/controls/Select';
 import { Switch } from '@claudio/ui/components/controls/Toggle';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
+import { activeServerId, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
 
 /**
  * What a person is told when push cannot work here. Each of these is a state in which the browser's
@@ -83,21 +84,24 @@ export function NotificationPreferences() {
         </Switch>
         <div className="field-hint">{t(`notificationPanel.browserHint.${permission}`)}</div>
       </div>
-      <div data-testid="push-switch">
-        {push.blocker && Blocked ? (
-          <p className="alert alert-warn small" role="status" data-testid={`push-blocked-${push.blocker}`}>
-            <Blocked className="alert-icon" {...ICON_SM} />
-            <span className="alert-body">{t(`push.blocked.${push.blocker}`, { origin: push.origin })}</span>
-          </p>
-        ) : (
-          <>
-            <Switch checked={push.enabled} disabled={push.busy || !push.ready} onChange={togglePush}>
-              {t('push.label')}
-            </Switch>
-            <div className="field-hint">{t(push.enabled ? 'push.hintOn' : 'push.hintOff')}</div>
-          </>
-        )}
-      </div>
+      {/* The subscription is the origin's, so the hub's: a remote scope has no switch for it (lib/push.ts) */}
+      {activeServerId() === LOCAL_SERVER_ID && (
+        <div data-testid="push-switch">
+          {push.blocker && Blocked ? (
+            <p className="alert alert-warn small" role="status" data-testid={`push-blocked-${push.blocker}`}>
+              <Blocked className="alert-icon" {...ICON_SM} />
+              <span className="alert-body">{t(`push.blocked.${push.blocker}`, { origin: push.origin })}</span>
+            </p>
+          ) : (
+            <>
+              <Switch checked={push.enabled} disabled={push.busy || !push.ready} onChange={togglePush}>
+                {t('push.label')}
+              </Switch>
+              <div className="field-hint">{t(push.enabled ? 'push.hintOn' : 'push.hintOff')}</div>
+            </>
+          )}
+        </div>
+      )}
       <div className="notif-prefs-group">{t('notificationPanel.notifyMeWhen')}</div>
       {KINDS.map((kind) => (
         <Switch

@@ -520,7 +520,7 @@
   "providers [useProviders, useRefreshProviders]",
   "pulse [HomePulse, NEW_ORCHESTRATION_PATH, WAITING_ORIGINS, localDay, useHomePulse]",
   "pulse [KpisWidget, LimitsWidget]",
-  "push [PushDeviceState, disablePush, enablePush, ensurePushConfigured, pushIsActive, syncPush, usePushState]",
+  "push [PushDeviceState, disablePush, enablePush, ensurePushConfigured, openPushedPath, pushIsActive, syncPush, usePushState]",
   "push-model [PUSH_STATE_CACHE, PUSH_STATE_KEY, PushBlocker, PushEnvironment, PushFallbackText, PushPermission, PushState, applicationServerKey, deviceLabel, isIosDevice, pushBlocker, subscriptionId]",
   "pwa [InstallState, InstallStatus, isStandalone, registerServiceWorker, useInstallState]",
   "python [paintPython]",
