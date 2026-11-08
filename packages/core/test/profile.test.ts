@@ -162,9 +162,13 @@ test('a headless Claudio deletes a chat idle past its retention, its row and the
   const core = new Core(config);
   t.after(() => core.shutdown());
   await core.restored;
-  // The sweep runs right after the restore; bounded, so a sweeper that never runs fails here
+  // The sweep runs right after the restore; bounded, so a sweeper that never runs fails here. The
+  // remove deletes the transcript first and the sidecar and the row after it, so wait for all three:
+  // on a loaded machine the row outlives the transcript by more than one tick
+  const gone = (): boolean =>
+    !existsSync(join(projectDir, 'old-chat.jsonl')) && !existsSync(join(projectDir, 'old-chat')) && !core.db.loadChats().some((c) => c.record.id === 'old-chat');
   const until = Date.now() + 10_000;
-  while (existsSync(join(projectDir, 'old-chat.jsonl')) && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 50));
+  while (!gone() && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 50));
 
   assert.equal(existsSync(join(projectDir, 'old-chat.jsonl')), false, 'the transcript is gone');
   assert.equal(existsSync(join(projectDir, 'old-chat')), false, 'and its sidecar folder');
