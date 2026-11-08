@@ -383,7 +383,8 @@ a.badge:hover {
   padding: 40px 24px;
 }
 
-.state-illustrated strong {
+.state-illustrated strong,
+.state-illustrated .state-title {
   font-size: var(--fs-title);
 }
 

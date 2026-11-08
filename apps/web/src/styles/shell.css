@@ -746,7 +746,8 @@ a.statusbar-item:focus-visible {
 
 /* The unreachable-server screen takes the page's place (D9 of docs/plans/remote-updates.md); the
    page stays mounted behind it, so a draft in a composer outlives the outage */
-.page-held {
+/* Two classes, to outweigh `.page { display: flex }` further down */
+.page.page-held {
   display: none;
 }
 
@@ -774,6 +775,7 @@ a.statusbar-item:focus-visible {
 }
 
 .unreachable-wait {
+  line-height: var(--lh-small);
   margin-top: 6px;
   color: var(--fg-3);
 }

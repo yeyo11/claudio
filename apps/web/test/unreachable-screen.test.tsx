@@ -49,6 +49,16 @@ test('a call that fails as the network does is confirmed with a probe before the
   assert.equal(reachability.snapshot().unreachable, true);
 });
 
+test('a call that fails right after the server answered still brings the screen: the answer just had is not a verdict on the next call', async () => {
+  network(() => new Response('{}', { status: 200 }));
+  await api.stopTunnel();
+  network(down);
+  await assert.rejects(api.stopTunnel(), { status: 0 });
+  await settle();
+  await settle();
+  assert.equal(reachability.snapshot().unreachable, true);
+});
+
 test('a server that answers badly is reachable: an error status never brings the screen', async () => {
   network(() => new Response(JSON.stringify({ error: 'boom' }), { status: 500 }));
   await assert.rejects(api.stopTunnel(), { status: 500 });

@@ -26,6 +26,14 @@ export function Unreachable({ address = window.location.host, standalone = false
   }, [nextAttemptAt]);
 
   const title = offline ? t('unreachable.offlineTitle') : t('unreachable.title');
+  // The page that was hidden behind this screen sets its own title only when it mounts, so the
+  // title it had is put back when the screen goes
+  useEffect(() => {
+    const before = document.title;
+    return () => {
+      document.title = before;
+    };
+  }, []);
   usePageTitle(title);
 
   const wait = probing || nextAttemptAt === null ? t('unreachable.retrying') : t('unreachable.retryIn', { seconds: formatNumber(secondsUntil(nextAttemptAt, now)) });
