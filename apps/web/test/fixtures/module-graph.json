@@ -339,6 +339,7 @@
   "WaitLine [WaitLine]",
   "Waiting [BounceMark, WaitingBadge, WaitingState, verifierOf]",
   "WebhooksSection [WebhooksSection]",
+  "WidgetBoundary [WidgetBoundary, WidgetFailure]",
   "WidgetCard [WidgetCard]",
   "Work [IntegrationChanges, TaskWork]",
   "WorkItem [WorkItemPage]",

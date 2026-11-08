@@ -22,17 +22,25 @@ export function serverVersionChange(build: string, server: unknown): string | nu
   return server;
 }
 
-// Each engine words it its own way (Chrome, Safari, Firefox), and Vite has one for a stylesheet
-const CHUNK_ERROR = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS/i;
+// Each engine words it its own way (Chrome, Safari, Firefox), and Vite has one for a stylesheet.
+// WebKit also says "'text/html' is not a valid JavaScript MIME type" when a script URL answered
+// with the shell, and a bare "Load failed" when an import cannot be fetched.
+const CHUNK_ERROR =
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS|is not a valid JavaScript MIME type/i;
+// "Load failed" is also what WebKit says about any fetch that fails (the API, an image), so it only
+// counts when the same message names the import or the build's `/assets/` file it was after
+const IMPORT_LOAD_FAILED = /\bLoad failed\b[^]*(?:\bimport|\/assets\/)|(?:\bimport|\/assets\/)[^]*\bLoad failed\b/i;
+
+const isChunkMessage = (message: string): boolean => CHUNK_ERROR.test(message) || IMPORT_LOAD_FAILED.test(message);
 
 /**
  * Whether an error is a lazy chunk that is no longer there. After a deploy the old build's hashed
  * files are gone from the server, so the first route this page has not visited yet fails to load.
  */
 export function isChunkLoadError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return typeof error === 'string' && CHUNK_ERROR.test(error);
+  if (!error || typeof error !== 'object') return typeof error === 'string' && isChunkMessage(error);
   const { name, message } = error as { name?: unknown; message?: unknown };
-  return name === 'ChunkLoadError' || (typeof message === 'string' && CHUNK_ERROR.test(message));
+  return name === 'ChunkLoadError' || (typeof message === 'string' && isChunkMessage(message));
 }
 
 // ---------- the offer ----------
