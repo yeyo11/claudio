@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T12:30:00Z
-updated_at: 2026-10-15T15:30:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - chat
@@ -15,7 +15,7 @@ Make Claudio's chat feel as fast and smooth as ChatGPT's web chat: the first tok
 flows instead of jumping, no flicker when a block ends, a question that stays in view while it is
 answered, and a composer that never loses what was typed.
 
-Status: **proposed** on 2026-10-15. Nothing here is built yet. Branch: `docs/chat-experience-plan`.
+Status: **built** (2026-10-15); CHAT-19 (reading typography) was closed by the owner on 2026-10-16, kept at 14px / 1.65. Was: **proposed** on 2026-10-15. Nothing here is built yet. Branch: `docs/chat-experience-plan`.
 
 This document is written to be implemented **without any other context**. Every work item says
 what is wrong (with file and line, verified on 2026-10-15 against commit `1174f6b98`), what to

@@ -17,7 +17,7 @@ the same day. One pull request from `main` at 0.12.0, orchestrated on `claude-op
 
 This plan is the source of truth for the orchestration, with `CLAUDE.md` and `CONTRIBUTING.md`. Where
 a task prompt and this plan disagree, the plan wins. It narrows the 2026-10-25 plan
-`assistant-everything` (D10–D13, never built; its only commit is on branch `feat/assistant-everything`)
+[assistant-everything](assistant-everything.md) (D10–D13, then not built)
 to the LAN alone: its approvals, MCP catalogue, accounts and handoff
 parts were built by other work or dropped, and its design of the LAN is re-derived below on the code
 of 0.12.0.

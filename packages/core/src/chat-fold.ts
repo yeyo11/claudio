@@ -76,6 +76,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         tools: event.environment.tools ?? [],
         mcpServers: (event.environment.mcpServers ?? []).map((s) => ({ name: s.name, status: s.status })),
         structuredOutput: chat.opts.jsonSchema !== undefined,
+        toolsNarrowed: Boolean(chat.opts.confine || chat.opts.apiAsked?.builtinTools || chat.opts.disallowedTools?.length || chat.opts.agent),
       };
       // Known from the version the process runs, so a first turn that ends before anything is read
       // back (a local command) does not stop every later message from being followed

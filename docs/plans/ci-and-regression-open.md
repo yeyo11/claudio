@@ -95,7 +95,7 @@ The facts:
   agents to.
 - Under `bypassPermissions` the CLI asks nothing, so the tool runs unasked. That is the same thing
   the agent could do with its token.
-- The server-side approval of [assistant-everything](https://github.com/yeyo11/claudio/blob/feat/assistant-everything/docs/plans/assistant-everything.md)
+- The server-side approval of [assistant-everything](assistant-everything.md)
   (D2/D4, never built) would not change this for ordinary chats: its D4 keeps `work` free and
   requires an approval only for a new `confirm` class (the grave writes) and for the assistant.
 - Under auth mode `none` none of it is enforced (its D6).

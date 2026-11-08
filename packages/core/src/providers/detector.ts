@@ -439,7 +439,7 @@ export class ProviderDetector {
     const next: ProviderStatus = {
       ...status,
       capabilities,
-      confirmed: { at: found.at, version: found.version, capabilities: found.confirmed },
+      confirmed: { at: found.at, version: found.version, capabilities: found.confirmed, missing: found.missing },
     };
     return found.missing.length > 0 && status.state === 'ready' ? { ...next, state: 'degraded', reason: 'capability-missing' } : next;
   }

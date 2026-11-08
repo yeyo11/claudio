@@ -118,7 +118,10 @@ working directory ([permissions](https://code.claude.com/docs/en/permissions)). 
   files**, after `~`, `..` and symlinks. Option values count (`grep -f FILE`, `--file=FILE`,
   `find -newer FILE`, `git -C DIR`, `--output=FILE`), and a glob is checked through its expansions.
   The file tools (`Read`, `Grep`, `Glob` and the others) are confined the same way, an absolute or
-  `..` Glob pattern included.
+  `..` Glob pattern included. A file tool declared only with a specifier (`Read(./src/**)`) reaches
+  only the fixed folder of its patterns (`src`), and a `Grep` or `Glob` without a path is judged
+  from where it searches; the CLI, which gets the same rule, matches the rest of the pattern. A bare
+  `Read` beside it lifts the scope.
 
 Whatever the declared rules say, these are blocked, since what they read or run cannot be known in
 advance:

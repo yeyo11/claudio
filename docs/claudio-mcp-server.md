@@ -13,7 +13,7 @@ tags:
 Claudio ships a small MCP server, named **`claudio`**, so a chat can look things up in the wrapper that
 runs it: "how is AGN-12 going?", "why did the verification of orchestration 7 fail?". The CLI starts it
 from a config file Claudio hands over with `--mcp-config`, and it calls the REST API at
-`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 22 read tools (CW-6, and the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)), twenty-four
+`CLAUDIO_API_URL`. Its tools reach the CLI as `mcp__claudio__<tool>`: 23 read tools (CW-6, `list_agents` of [plans/start-chat-agent.md](plans/start-chat-agent.md), and the three schedule reads of [plans/terminal-menu-schedules-v1-tools.md](plans/terminal-menu-schedules-v1-tools.md)), twenty-four
 write tools (CW-17, the regression fixes of 2026-10-29 and the four schedule writes, [below](#write-tools)) and seven reads of
 teammates' shared copies (R13, [below](#teammates-shared-copies)). What they answer, how a large
 answer is cut and which routes they may call were set by
@@ -49,6 +49,7 @@ other method; the write tools below go through `send`, the only way to write.
 | `get_orchestration_plan` | the draft a planner chat of `plan_orchestration` produced (`GET /orchestrations/plans/:runId`) |
 | `list_assistant_proposals` | a project's assistant proposals, `pending` unless `status` says otherwise, by `kind`: the id the accept and discard tools take. Read from `GET /projects/:id/assistant/runs` and the detail of each run whose counts hold some, ten runs at most |
 | `get_team` | a project's team |
+| `list_agents` | the agents a new chat in a project can start as (`GET /projects/:id/agents`): `name`, `description`, `source` (`project`, `user`, `plugin`), `plugin`, `tools`; the `agent` that `start_chat` takes |
 | `list_flow_runs` | a project's flow runs, filtered by agent, role, status, item |
 | `get_journal` | a project's journal |
 | `list_documents` | a project's documents tree, two folder levels deep unless `depth` (1–16) says otherwise; a folder below it says `more: true` |
@@ -149,7 +150,7 @@ an account, guards or a verification, so a confirmed call starts work with the a
 | `launch_orchestration` | `POST /orchestrations` with the graph's own fields (`name`, `objective`, `engine`, `model`, `effort`, `concurrency`, `synthesize`, `worktree`, `maxAttempts`, `limits`) and tasks (`id`, `name`, `prompt`, `dependsOn`, `model`, `effort`), given or taken from a draft (`fromPlan`, which also sets `plannerRunId`); `cwd` is the project's path |
 | `stop_orchestration`, `resume_orchestration` | `POST /orchestrations/:id/stop` and `/resume` (no body: a resume keeps the graph's settings) |
 | `retry_orchestration_task` | `POST /orchestrations/:id/tasks/:taskId/retry` |
-| `start_chat` | `POST /chats` with only `prompt`, `cwd` (the project's path, from `GET /projects`), `model` and `name` |
+| `start_chat` | `POST /chats` with only `prompt`, `cwd` (the project's path, from `GET /projects`), `model`, `name` and `agent` (a name from `list_agents`, never a definition): the chat starts as `claude --agent`, and the agent cannot widen it ([plans/start-chat-agent.md](plans/start-chat-agent.md)) |
 | `send_chat_message`, `hint_chat` | `POST /chats/:id/messages` with `{ text }` and `POST /chats/:id/hint` with `{ text }` |
 | `interrupt_chat`, `stop_chat` | `POST /chats/:id/interrupt` and `/stop` |
 | `resume_chat`, `fork_chat` | `POST /chats/:id/resume` and `/fork` with only `{ prompt }` |

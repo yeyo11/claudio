@@ -621,6 +621,15 @@ declaredTool('Glob climbing out in a brace', 'Glob', () => ({ pattern: '{..,.}/.
 declaredTool('Glob absolute in a brace', 'Glob', () => ({ pattern: '{/,.}data/**' }), SHIPCAST, 'declared-tools', 'declared-tools.path');
 declaredTool('Glob with a brace inside', 'Glob', () => ({ pattern: 'src/**/*.{ts,tsx}' }), SHIPCAST, 'pass');
 
+// A file tool declared with a specifier reaches only that pattern's folder
+declaredTool('Read under its scoped rule', 'Read', () => ({ file_path: 'src/a.ts' }), ['Read(./src/**)'], 'pass');
+declaredTool('Read beside its scoped rule', 'Read', () => ({ file_path: 'README.md' }), ['Read(./src/**)'], 'declared-tools', 'declared-tools.path');
+declaredTool('Read climbing out of its scoped rule', 'Read', () => ({ file_path: 'src/../README.md' }), ['Read(src/**)'], 'declared-tools', 'declared-tools.path');
+declaredTool('Read scoped, the bare rule wins', 'Read', () => ({ file_path: 'README.md' }), ['Read(./src/**)', 'Read'], 'pass');
+declaredTool('Read scoped to an absolute folder outside', 'Read', () => ({ file_path: '/data/auth.json' }), ['Read(//data/**)'], 'declared-tools', 'declared-tools.path');
+declaredTool('Grep scoped, without a path', 'Grep', () => ({ pattern: 'x' }), ['Grep(./src/**)'], 'declared-tools', 'declared-tools.path');
+declaredTool('Glob scoped, its pattern inside', 'Glob', () => ({ pattern: 'src/**/*.ts' }), ['Glob(./src/**)'], 'pass');
+
 // Trading-bot's exact request: no tools and a schema; the answer passes, nothing else
 declaredTool('trading-bot: StructuredOutput', 'StructuredOutput', () => ({ action: 'hold', confidence: 0.4 }), TRADING_BOT, 'pass');
 declaredTool('trading-bot: Bash', 'Bash', () => ({ command: 'ls' }), TRADING_BOT, 'declared-tools', 'declared-tools.tool');

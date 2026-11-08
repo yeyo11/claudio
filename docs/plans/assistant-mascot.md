@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-19T13:30:00Z
-updated_at: 2026-10-19T17:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - assistant
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: Claudio, the assistant's mascot, and its recent conversations
 
-Status: **built, awaiting CI and the owner** (2026-10-19; see [Outcome](#outcome)). It was designed and launched the same day. The owner chose the three decisions below on
+Status: **landed** in #51 on 2026-10-19, released in 0.8.0. Was: **built, awaiting CI and the owner** (2026-10-19; see [Outcome](#outcome)). It was designed and launched the same day. The owner chose the three decisions below on
 2026-10-19 and answered the plan's open questions the same day ([The owner's answers](#the-owners-answers-2026-10-19)).
 This plan settles the design: the drawing and its two marks, the page, the copy, the amendments to
 the design system, the contract and the place of the mark across the app. The work is one pull

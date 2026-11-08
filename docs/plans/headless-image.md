@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T12:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - docker
@@ -12,7 +12,7 @@ tags:
 ---
 # Plan: a headless image, one Claudio per project
 
-Status: **built** on 2026-10-29 by orchestration `f354f179`, every decision D1–D16 in code, not yet
+Status: **released** in #71 (0.12.0), and run by the owner's two headless Claudios since 2026-10-30; the review's minor findings, left out of #71, are in #94. Was: **built** on 2026-10-29 by orchestration `f354f179`, every decision D1–D16 in code, not yet
 released; the checks with the real CLI are the owner's ([Outcome](#outcome)). Decisions taken by the
 owner on 2026-10-28. The design is the
 definitive one: no interim path (shared volumes, fallbacks to another surface) is planned or kept,
@@ -305,7 +305,8 @@ Size goal: under 500 MB, measured; the Outcome records the real number.
   `DELETE` stops running chats first.
 - **Refusals** carry codes: `workspace-host-not-allowed`, `workspace-address-blocked`,
   `workspace-too-large`, `workspace-bad-archive`, `workspace-limit`, `workspace-not-found`,
-  `workspace-expired`.
+  `workspace-expired`, and, as built, `workspace-timeout` (`408`) and `workspace-download-failed`
+  (`502`).
 
 ### `/v1` parity (D8)
 
@@ -648,6 +649,11 @@ no task ran the image's server or a real turn.
   tags, `edge` and `sha` a `-headless` copy. `cli.mjs` also lands in the signed server bundle, which
   is harmless. `claudio status` reads `GET /api/accounts` too, for the last usage reading.
 - **D9**: the orchestrator now creates its task's folder itself, which `begin` used to.
+- **Closed after the review** (2026-10-29): the guard honours a file tool's specifier
+  (`Read(./src/**)` keeps the call in `src`) instead of reading it as a bare `Read`; a workspace
+  being removed still counts against the total cap while its folder is on disk; one workspace the
+  sweep cannot remove no longer stops the rest of that pass; and the headless start takes every
+  loopback form (`127.0.0.0/8`, `[::1]`, `::ffff:127.0.0.1`) as loopback.
 
 ### Verification
 

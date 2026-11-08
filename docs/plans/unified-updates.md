@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - updates
@@ -13,7 +13,7 @@ tags:
 ---
 # Plan: one update mechanism for the desktop, the container and Helm
 
-Status: **built on its branches, awaiting the integrator's checks and CI** (2026-10-19; see [Outcome](#outcome)). Was: ready to launch (2026-10-18). This is **phase 2 of the container-polish pull request**
+Status: **landed** with container polish in #46 on 2026-10-19, released in 0.7.0. Was: **built on its branches, awaiting the integrator's checks and CI** (2026-10-19; see [Outcome](#outcome)). Was: ready to launch (2026-10-18). This is **phase 2 of the container-polish pull request**
 ([plans/container-polish.md](container-polish.md), PR #46): it starts on top of phase 1's merged
 result on PR #46's branch `fix/container-polish-review` (the launcher, the signed server bundle, the
 `/system/server-update` routes), checked against that code in

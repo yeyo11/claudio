@@ -83,9 +83,12 @@ export class WorkspaceStore {
     return (this.sql.prepare('SELECT * FROM workspaces WHERE removed_at IS NULL ORDER BY created_at').all() as unknown as Row[]).map(recordOf);
   }
 
-  /** Bytes of the finished workspaces; the ones being created are counted by whoever creates them */
-  readyBytes(): number {
-    const { total } = this.sql.prepare(`SELECT COALESCE(SUM(bytes), 0) AS total FROM workspaces WHERE removed_at IS NULL AND state = 'ready'`).get() as { total: number };
+  /**
+   * Bytes on disk of the finished workspaces and of the ones being removed, whose folders are still
+   * there; the ones being created are counted by whoever creates them
+   */
+  heldBytes(): number {
+    const { total } = this.sql.prepare(`SELECT COALESCE(SUM(bytes), 0) AS total FROM workspaces WHERE removed_at IS NULL AND state IN ('ready', 'removing')`).get() as { total: number };
     return total;
   }
 
