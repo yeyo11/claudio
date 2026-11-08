@@ -39,6 +39,7 @@ import type {
 } from '@claudio/shared';
 import { keys } from '../api';
 import { withToken } from './auth';
+import { reachability } from './reachability';
 import { dispatchEvent, dispatchResync, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
@@ -837,6 +838,7 @@ function startEventFeed(client: QueryClient): () => void {
     es.onopen = () => {
       attempts = 0;
       setFeedState('open');
+      reachability.answered();
     };
     es.addEventListener('stream.hello', (raw) => {
       let hello: StreamHelloEvent;
@@ -866,6 +868,9 @@ function startEventFeed(client: QueryClient): () => void {
     });
     for (const type of Object.keys(EVENT_TYPES)) es.addEventListener(type, (raw) => onEvent(raw as MessageEvent));
     es.onerror = () => {
+      // An EventSource error carries no cause, so a dropped stream is only a suspicion: a probe of
+      // the server decides whether it is the network (and the unreachable screen) or the stream
+      void reachability.suspect();
       // While the browser is retrying by itself it says CONNECTING; CLOSED means it gave up (the
       // server answered with an error), and only a new EventSource can recover
       if (es.readyState !== EventSource.CLOSED) return setFeedState('connecting');
@@ -882,6 +887,16 @@ function startEventFeed(client: QueryClient): () => void {
     source = null;
   };
   connect();
+
+  // The server came back after the screen for an unreachable one: the browser's own retry of a
+  // stream may be minutes away, so a new connection is opened now, from the last id it saw
+  const stopRecovery = reachability.onRecovered(() => {
+    // The stream opening is itself what ended the screen when it did: leave that connection alone
+    if (stopped || source?.readyState === EventSource.OPEN) return;
+    disconnect();
+    attempts = 0;
+    connect();
+  });
 
   // Let go while the page sits in the back/forward cache, and pick up from the last id when it comes back
   const leaveCache = onBackForwardCache(
@@ -923,6 +938,7 @@ function startEventFeed(client: QueryClient): () => void {
   return () => {
     stopped = true;
     clearTimeout(park);
+    stopRecovery();
     leaveCache();
     document.removeEventListener('visibilitychange', onVisibility);
     disconnect();

@@ -12,7 +12,8 @@ export interface BootCopy {
   action: string;
 }
 
-export type BootStrings = Record<'en' | 'es', BootCopy>;
+/** `offline` and `unreachable` are what the guard says when the network failed instead of the bundle: the unreachable screen's own words. */
+export type BootStrings = Record<'en' | 'es', BootCopy & { offline: BootCopy; unreachable: BootCopy }>;
 
 /** The marker in index.html the guard replaces. */
 export const BOOT_GUARD_MARKER = '<!-- boot-guard -->';
@@ -20,15 +21,28 @@ export const BOOT_GUARD_MARKER = '<!-- boot-guard -->';
 interface ShellLocale {
   boot?: { title?: unknown; hint?: unknown };
   reload?: { action?: unknown };
+  unreachable?: { offlineTitle?: unknown; offlineBody?: unknown; title?: unknown; body?: unknown; retryNow?: unknown };
 }
 
-function copyOf(locale: ShellLocale, language: string): BootCopy {
+function copyOf(locale: ShellLocale, language: string): BootStrings['en'] {
   const { title, hint } = locale.boot ?? {};
   const action = locale.reload?.action;
   if (typeof title !== 'string' || typeof hint !== 'string' || typeof action !== 'string') {
     throw new Error(`shell.json (${language}) is missing boot.title, boot.hint or reload.action`);
   }
-  return { title, hint, action };
+  const net = locale.unreachable ?? {};
+  const { offlineTitle, offlineBody, title: netTitle, body, retryNow } = net;
+  if (typeof offlineTitle !== 'string' || typeof offlineBody !== 'string' || typeof netTitle !== 'string' || typeof body !== 'string' || typeof retryNow !== 'string') {
+    throw new Error(`shell.json (${language}) is missing unreachable.offlineTitle, offlineBody, title, body or retryNow`);
+  }
+  return {
+    title,
+    hint,
+    action,
+    // The unreachable screen's words, so a bundle that failed to load because the network did says what the app would
+    offline: { title: offlineTitle, hint: offlineBody, action: retryNow },
+    unreachable: { title: netTitle, hint: body, action: retryNow },
+  };
 }
 
 /** The guard's words in both languages, from `src/i18n/locales/<lang>/shell.json`. */

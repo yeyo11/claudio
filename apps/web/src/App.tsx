@@ -37,6 +37,7 @@ import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { HostRefused } from './components/HostRefused';
 import { SignIn } from './components/SignIn';
+import { Unreachable } from './components/Unreachable';
 import { useSetupGate } from './lib/first-run';
 import { Empty, Skeleton } from '@claudio/ui/components/ui';
 import { useUsageNow } from './lib/usage-now';
@@ -45,6 +46,7 @@ import { listRequest } from '@claudio/chat-ui/lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
+import { reachability, useUnreachable } from './lib/reachability';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { terminalWindowId } from './components/terminal/terminal-window';
 import { TerminalBarProvider, useTerminalBar } from './components/terminal/terminal-bar';
@@ -102,8 +104,21 @@ const PREFETCH_FRESH_MS = 10_000;
 const transitionKey = (pathname: string) => (pathname === '/settings' || pathname.startsWith('/settings/') ? '/settings' : pathname);
 
 
+/**
+ * Keeps the app's end of the unreachable-server screen: the events that say the network may be back
+ * (online, focus, a tab shown again) retry the server at once, and when it answers the queries are
+ * read again where they stand, with no reload. The events feed reopens itself (lib/events.ts), and a
+ * version that changed meanwhile arrives with its hello and raises the reload banner as it always did.
+ */
+function useReachabilityWatch(): void {
+  const client = useQueryClient();
+  useEffect(() => reachability.watch(window), []);
+  useEffect(() => reachability.onRecovered(() => void client.invalidateQueries()), [client]);
+}
+
 export function App() {
   const { pathname } = useLocation();
+  useReachabilityWatch();
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
   // mounted at all: one screen that asks, instead of every page failing on its own
   const challenge = useAuthChallenge();
@@ -128,8 +143,10 @@ export function App() {
 /** The setup assistant in place of the app, until it is finished or skipped */
 function FirstRunGate() {
   const gate = useSetupGate();
-  // Held back for the read, as the sign-in is, so the shell does not flash and then vanish
-  if (gate.state === 'pending') return null;
+  const unreachable = useUnreachable();
+  // Held back for the read, as the sign-in is, so the shell does not flash and then vanish. When the
+  // read cannot be made because the server cannot be reached, that is the screen: not a blank page
+  if (gate.state === 'pending') return unreachable ? <Unreachable standalone /> : null;
   if (gate.state === 'shown') {
     return (
       <Suspense fallback={null}>
@@ -182,6 +199,7 @@ function Shell() {
   const [collapsed, setCollapsed] = useRailCollapsed();
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const queryClient = useQueryClient();
+  const unreachable = useUnreachable();
 
   // Pointing at Chats is a good sign of a click: its code and the list it opens on (no filters, the
   // top bar's project) start loading then, so the page opens with its rows instead of a skeleton.
@@ -400,8 +418,11 @@ function Shell() {
         <ReloadBanner />
 
         <main id="main" ref={mainRef} tabIndex={-1} className="main">
+          {unreachable && <Unreachable />}
+          {/* Kept mounted but out of sight while the server cannot be reached: a half-written message
+              survives the outage, and no widget or route shows a network error of its own */}
           {/* Keyed by pathname only (Settings by its root): tab and scope switches must not replay the transition */}
-          <PageTransition key={transitionKey(pathname)} className="page">
+          <PageTransition key={transitionKey(pathname)} className={unreachable ? 'page page-held' : 'page'}>
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
             <Routes>
               <Route path="/" element={<Home />} />
