@@ -79,6 +79,28 @@ jobs:
             --previous "$PREVIOUS" --commit "$(git rev-parse HEAD)"
           ls apps/desktop/release/claudio-desktop-*-linux-x64.json
 
+      # A release that raises minShell strands every installed app below it: the server answers them
+      # 412 update.needs-shell, so they need a fresh install. Say so on the run, where the owner reads the
+      # release. Never fails the job: a failed publish would leave a draft with no packages on it.
+      - name: Notice when minShell rises
+        env:
+          PREVIOUS: ${{ steps.previous.outputs.url }}
+        run: |
+          new=$(node -p "require('./$(ls apps/desktop/release/claudio-desktop-*-linux-x64.json)').minShell")
+          if [ -z "$PREVIOUS" ]; then
+            echo "No previous release with a server manifest: nothing to compare minShell with"
+            exit 0
+          fi
+          old=$(curl -fsSL "$PREVIOUS" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).minShell" || true)
+          if [ -z "$old" ]; then
+            echo "::warning::Could not read minShell from $PREVIOUS; not comparing it"
+            exit 0
+          fi
+          # sort -V, not a string comparison: 0.9.0 is below 0.14.0
+          if [ "$new" != "$old" ] && [ "$(printf '%s\n%s\n' "$old" "$new" | sort -V | tail -n1)" = "$new" ]; then
+            echo "::notice title=minShell raised::This release raises minShell from $old to $new. Installed apps below $new cannot update in-app (412 update.needs-shell) and need a fresh install."
+          fi
+
       # For people and auditors: nothing in the app reads them
       - uses: actions/attest-build-provenance@v4
         if: inputs.tag != ''
