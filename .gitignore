@@ -17,3 +17,6 @@ e2e-shots
 .claude/skills/claudio-ui/references/components.md
 .pando
 __pycache__/
+
+# Playwright MCP session output (screenshots, console logs)
+.playwright-mcp/

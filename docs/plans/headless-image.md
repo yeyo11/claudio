@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-10-29T12:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - docker
@@ -12,7 +12,7 @@ tags:
 ---
 # Plan: a headless image, one Claudio per project
 
-Status: **built** on 2026-10-29 by orchestration `f354f179`, every decision D1–D16 in code, not yet
+Status: **released** in #71 (0.12.0), and run by the owner's two headless Claudios since 2026-10-30; the review's minor findings, left out of #71, are in #94. Was: **built** on 2026-10-29 by orchestration `f354f179`, every decision D1–D16 in code, not yet
 released; the checks with the real CLI are the owner's ([Outcome](#outcome)). Decisions taken by the
 owner on 2026-10-28. The design is the
 definitive one: no interim path (shared volumes, fallbacks to another surface) is planned or kept,

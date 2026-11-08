@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T18:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - docker
@@ -14,7 +14,7 @@ tags:
 ---
 # Plan: Claudio in a container, polished
 
-Status: **built, awaiting verification** (2026-10-18; see [Outcome](#outcome)). The owner's decisions are settled; the work is one pull request on
+Status: **landed** in #46 on 2026-10-19 and released in 0.7.0. Was: **built, awaiting verification** (2026-10-18; see [Outcome](#outcome)). The owner's decisions are settled; the work is one pull request on
 `fix/container-polish`, built by the orchestration in [Tasks](#tasks). Workers run code tasks on
 `claude-opus-5-5` and the prose task on `claude-sonnet-5-5`, never fable. One owner action is needed
 before the merge: [the bundle signing key](#owner-actions-before-the-merge).

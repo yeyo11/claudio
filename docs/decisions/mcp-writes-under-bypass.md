@@ -23,7 +23,7 @@ It is intended, and recorded here: bypass delegates to the agent what its token 
 - A chat's token can already call those routes with `curl`, and the project's `CLAUDE.md` asks agents to. The MCP tool adds no reach.
 - The grave writes (compact, notes, tunnel, settings, deletions) are `person` routes and no MCP tool calls them ([chat-token-compact.md](chat-token-compact.md)).
 - Under auth mode `none` none of it is enforced.
-- The server-side approval of [assistant-everything](https://github.com/yeyo11/claudio/blob/feat/assistant-everything/docs/plans/assistant-everything.md) (D2/D4, never built) would not change this for ordinary chats: D4 keeps `work` free and asks approval only for a new `confirm` class and for the assistant.
+- The server-side approval of [assistant-everything](../plans/assistant-everything.md) (D2/D4, never built) would not change this for ordinary chats: D4 keeps `work` free and asks approval only for a new `confirm` class and for the assistant.
 
 ## Rejected
 

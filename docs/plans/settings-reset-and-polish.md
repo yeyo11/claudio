@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-20T12:00:00Z
-updated_at: 2026-11-07T18:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - settings
@@ -12,7 +12,7 @@ tags:
 ---
 # Plan: settings reset and overrides, terminal and audit on a phone, and the polish follow-ups
 
-Status: **settled, ready to build** (2026-10-20). The owner took every decision on 2026-10-20. One
+Status: **landed** in #55 on 2026-10-24, released in 0.9.0. Was: **settled, ready to build** (2026-10-20). The owner took every decision on 2026-10-20. One
 orchestration on `feat/settings-reset-and-polish` builds it, and everything ships as **one pull
 request** (the owner's choice). Tasks run on `claude-sonnet-5-5`. `audit`, `settings-core` and
 `review` run on `claude-opus-5-5`. Never fable.
