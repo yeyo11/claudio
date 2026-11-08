@@ -30,8 +30,11 @@ LOCK_PAUSE=5
 # apt-get update reads this one source and keeps every other list, the way install.sh does: another
 # repository that fails to update must not stop this one, and no list of the system is thrown away
 UPDATE_ARGS=(-q -o Dir::Etc::sourcelist=sources.list.d/claudio.sources -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 update)
-# No conffile question can block a run with no terminal: keep the admin's file where one changed
-INSTALL_ARGS=(-q -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install --only-upgrade "$PACKAGE")
+# No conffile question can block a run with no terminal: keep the admin's file where one changed.
+# --no-remove: a run anyone in the group starts from a phone may upgrade claudio and pull in what it
+# depends on, but never take another package off the machine to make room for it; such an upgrade
+# fails with apt's reason and is left to an admin
+INSTALL_ARGS=(-q -y --no-remove -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install --only-upgrade "$PACKAGE")
 
 LOG="$(mktemp)" || exit 1
 trap 'rm -f "$LOG"' EXIT

@@ -138,7 +138,8 @@ test('the unit is a root oneshot, started on demand only, that runs the helper w
 // --- The helper, against a fake root ---
 
 const UPDATE_LINE = '-q -o Dir::Etc::sourcelist=sources.list.d/claudio.sources -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 update';
-const INSTALL_LINE = '-q -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install --only-upgrade claudio';
+// --only-upgrade: never a downgrade nor a first install; --no-remove: never another package taken off
+const INSTALL_LINE = '-q -y --no-remove -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install --only-upgrade claudio';
 
 interface Fake {
   root: string;

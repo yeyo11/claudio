@@ -240,9 +240,14 @@ export async function run(o: RunOptions): Promise<number> {
     if (o.stopping()) return exit.code;
     // Another server holds the data directory: the payload is not at fault, and starting it again changes nothing
     if (exit.code === DATA_DIR_LOCKED_EXIT_CODE) return exit.code;
-    // The person asked for the whole app to start again (D4): the host relaunches, and a trial cut
-    // short by it is tried again by the relaunched app rather than counted as a failed boot
-    if (exit.code === RELAUNCH_EXIT_CODE) return exit.code;
+    // The person asked for the whole app to start again (D4): the host relaunches, and the relaunched
+    // app boots the trial again. One that had not proved itself yet still spends an attempt: a
+    // bundle that exits 76 before it is healthy would otherwise relaunch the app forever and never
+    // be rolled back, which is the one guarantee a trial gives
+    if (exit.code === RELAUNCH_EXIT_CODE) {
+      if (boot.trial && !exit.healthy) failTrial(o, boot.version, facts?.base.version ?? 'unknown');
+      return exit.code;
+    }
     if (boot.trial && !exit.healthy) {
       failTrial(o, boot.version, facts?.base.version ?? 'unknown');
       continue;

@@ -744,10 +744,10 @@ a.statusbar-item:focus-visible {
   flex: 1;
 }
 
-/* The unreachable-server screen takes the page's place (D9 of docs/plans/remote-updates.md); the
-   page stays mounted behind it, so a draft in a composer outlives the outage */
-/* Two classes, to outweigh `.page { display: flex }` further down */
-.page.page-held {
+/* The unreachable-server screen stands in for the whole shell (D9 of docs/plans/remote-updates.md);
+   the shell stays mounted out of sight, so a draft in a composer outlives the outage, and nothing
+   of it (live rows, spinners, New chat) moves or answers meanwhile */
+.shell.shell-held {
   display: none;
 }
 
@@ -766,6 +766,34 @@ a.statusbar-item:focus-visible {
   justify-content: center;
   padding: 24px;
   background: var(--glow-top) no-repeat, var(--bg);
+}
+
+/* The standalone screen sits in the top layer (a modal <dialog>, Unreachable.tsx), above any menu,
+   sheet or dialog left open: the whole window, none of the user agent's dialog frame */
+.unreachable-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  overflow: auto;
+  /* A menu open when the server went leaves `pointer-events: none` on <body>, which this would inherit */
+  pointer-events: auto;
+}
+
+.unreachable-layer::backdrop {
+  background: none;
+}
+
+/* Focused on arrival so a screen reader hears its title; the Retry button carries the visible ring */
+.unreachable-layer:focus {
+  outline: none;
 }
 
 .unreachable-text,

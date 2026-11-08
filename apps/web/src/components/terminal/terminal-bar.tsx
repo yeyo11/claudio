@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { COMPACT, useMediaQuery } from '@claudio/ui/lib/media';
+import { reachability } from '../../lib/reachability';
 import { BAR_OPEN_KEY, DOCK_KEY, readPref, writePref } from './terminal-prefs';
 import { useTerminalAccess } from './use-terminals';
 
@@ -89,6 +90,8 @@ export function TerminalBarProvider({ children }: { children: ReactNode }) {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
       if (event.key !== '`' && event.code !== 'Backquote') return;
       event.preventDefault();
+      // The panel is part of the shell the unreachable screen holds out of sight
+      if (reachability.snapshot().unreachable) return;
       toggle();
     };
     window.addEventListener('keydown', onKey);

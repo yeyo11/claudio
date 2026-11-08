@@ -212,6 +212,7 @@ async function secondFailure(setup: (tab: Tab) => void) {
 test('a bundle that failed to load with no network says there is no connection, in the screen’s words', async () => {
   const { root } = await secondFailure((tab) => {
     tab.onLine = false;
+    tab.fetcher = () => Promise.reject(new TypeError('Failed to fetch'));
   });
   const fallback = fallbackOf(root);
   assert.ok(fallback);
@@ -219,6 +220,17 @@ test('a bundle that failed to load with no network says there is no connection, 
   assert.ok(texts.includes(STRINGS.en.offline.title) && texts.includes(STRINGS.en.offline.hint));
   assert.equal(STRINGS.es.offline.title, 'Sin conexión');
   assert.equal(fallback.all().find((el) => el.tag === 'button')?.textContent, STRINGS.en.offline.action);
+});
+
+test("with no network, a server that still answers (the desktop app's own, on 127.0.0.1) means the bundle is broken", async () => {
+  const { tab, root } = await secondFailure((t) => {
+    t.onLine = false;
+    t.fetcher = () => Promise.resolve({ ok: true });
+  });
+  assert.deepEqual(tab.probes, ['/api/health'], 'offline is no reason to skip the probe');
+  const fallback = fallbackOf(root);
+  assert.ok(fallback);
+  assert.ok(fallback.all().some((el) => el.textContent === STRINGS.en.title), 'the bundle’s own words, not "no connection"');
 });
 
 test('a bundle that failed because the server does not answer names the address in mono', async () => {
