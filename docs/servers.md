@@ -124,8 +124,10 @@ attachment`, and every answer carries `nosniff`.
 
 **Streams.** Event streams are piped as written: no compression on the hop, no body timeout, the
 remote's request is aborted when the browser leaves (or the server is removed or the switch turned
-off), and `Last-Event-ID` and `?since=` pass through. Request bodies stream through unbuffered; only
-the remote's own size limit applies, and the hub sets none (a 2 MiB upload goes through whole).
+off), and `Last-Event-ID` and `?since=` pass through. Request bodies stream through unbuffered and
+counted, up to the largest upload the API takes of its own (51 MiB for a file, the workspace archive
+cap when that is larger): a declared `Content-Length` over it is `413 servers.body-too-large` before
+anything is dialled, and a streamed body is cut where it passes it, with the same `413` (D16).
 
 **The terminal WebSocket.** Only `/api/terminals/:id/socket` is relayed as a WebSocket. A browser's
 socket carries no token, so the hub opens it only for a ticket it saw the remote mint through the
@@ -139,7 +141,8 @@ Other upgrades answer `404 servers.not-a-socket`.
 
 **What the hub dials.** It resolves each name itself and connects to the IP it checked, so a second
 lookup cannot be answered differently (a rebinding). It never dials link-local, multicast, reserved
-or cloud-metadata addresses (including the IPv6 and NAT64 spellings), whoever recorded them.
+or cloud-metadata addresses (including the IPv6, IPv4-mapped and NAT64 spellings), IPv4-compatible
+addresses (`::a.b.c.d`), 6to4 (`2002::/16`) or Teredo (`2001::/32`), whoever recorded them.
 Private ranges stay open: the LAN is where servers live. Plain `http://` and loopback are allowed
 only for an address entered as loopback (`localhost` or a loopback literal); anything else on plain
 HTTP is `400 servers.address-insecure`. An address is a bare origin: no path, query, credentials or

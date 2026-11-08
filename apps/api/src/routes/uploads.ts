@@ -2,18 +2,18 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 
 /** The largest file accepted, plus room; the store enforces the per-kind limits. */
-const BODY_LIMIT = 51 * 1024 * 1024;
+export const UPLOAD_BODY_LIMIT = 51 * 1024 * 1024;
 
 /** Types that are safe to show inline in the browser. Anything else is downloaded, never rendered. */
 const INLINE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf']);
 
 export const uploadRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core }) => {
   // The file is the body, as is. Multipart would mean another dependency for one field.
-  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: BODY_LIMIT }, (_req, body, done) =>
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: UPLOAD_BODY_LIMIT }, (_req, body, done) =>
     done(null, body),
   );
 
-  app.post<{ Querystring: { name?: string }; Body: Buffer }>('/uploads', { bodyLimit: BODY_LIMIT }, async (req, reply) => {
+  app.post<{ Querystring: { name?: string }; Body: Buffer }>('/uploads', { bodyLimit: UPLOAD_BODY_LIMIT }, async (req, reply) => {
     if (!Buffer.isBuffer(req.body)) throw new Error('send the file as the request body with Content-Type: application/octet-stream');
     return reply.status(201).send(core.uploads.save(req.query.name ?? 'file', req.body));
   });

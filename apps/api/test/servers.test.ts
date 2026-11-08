@@ -3,16 +3,18 @@ import { promises as dns } from 'node:dns';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { request as httpRequest, type ClientRequest, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable, type Duplex } from 'node:stream';
 import { test, type TestContext } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { WebSocket } from 'ws';
 import { Core, SERVERS_FILE, SERVERS_VAULT_TOOL, ensureLanCertificate, loadConfig, type ServersLookup } from '@claudio/core';
 import type { AuditPage, ClaudioServer, Project, RemoveServerResult, ServerLinkCode, ServerMeta, ServerTestResult, Terminal, TerminalServerFrame, TerminalTicket } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
-import { gatewayPath, withoutToken } from '../src/routes/servers-gateway.ts';
+import { gatewayBodyLimit, gatewayPath, withoutToken } from '../src/routes/servers-gateway.ts';
+import { UPLOAD_BODY_LIMIT } from '../src/routes/uploads.ts';
 import { lanForwarders } from '../src/server.ts';
 
 // The hub (docs/plans/claudio-servers.md, §4.2, §9.2, R1-R10): two whole Claudios in one process,
@@ -167,7 +169,7 @@ const send = (res: ServerResponse, status: number, body: unknown, headers: Recor
  * pasted-token pairing, the revoke, and whatever `route` a test gives it. Its certificate is made in
  * `dir` as the LAN listener makes its own, so two fakes on one `dir` show the same one.
  */
-async function fake(t: TestContext, options: { dir?: string; port?: number; ips?: string[]; instanceId?: string } = {}): Promise<Fake> {
+async function fake(t: TestContext, options: { dir?: string; port?: number; ips?: string[]; instanceId?: string; upgrade?: (req: IncomingMessage, socket: Duplex, head: Buffer) => void } = {}): Promise<Fake> {
   const dir = options.dir ?? scratch(t, 'claudio-fake-');
   const { certificate } = await ensureLanCertificate(dir, { ips: options.ips ?? ['127.0.0.1'], dns: [] });
   const seen: Seen[] = [];
@@ -185,6 +187,8 @@ async function fake(t: TestContext, options: { dir?: string; port?: number; ips?
     if (state.route?.(req, res)) return;
     send(res, 200, { ok: true });
   });
+  // Only when asked: with no listener, Node answers an upgrade as a plain request, which the others rely on
+  if (options.upgrade) server.on('upgrade', options.upgrade);
   await new Promise<void>((resolve) => server.listen(options.port ?? 0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   let closed = false;
@@ -467,6 +471,117 @@ test("a write through the gateway lands on the remote, as the hub's server actor
   assert.ok(remoteAudit.entries.some((row) => row.method === 'POST' && row.actor.startsWith('server:')), JSON.stringify(remoteAudit));
   const hubAudit = (await h.app.inject({ url: '/api/audit?path=/api/projects', ...bearer(h.token) })).json<AuditPage>();
   assert.ok(hubAudit.entries.some((row) => row.route === 'POST /servers/:id/api/*'), JSON.stringify(hubAudit));
+});
+
+test('a body larger than the API takes as an upload of its own is refused with 413, streamed and never held (D16)', async (t) => {
+  // The cap is the larger of the file and workspace-archive limits; the archive one lowered here, so 52 MiB is streamed, not 101
+  const h = await hub(t);
+  assert.equal(gatewayBodyLimit(h.core), Math.max(UPLOAD_BODY_LIMIT, h.core.workspaces.settings.maxCompressedBytes));
+  Object.assign(h.core.workspaces.settings, { maxCompressedBytes: 1024 * 1024 });
+  assert.equal(gatewayBodyLimit(h.core), UPLOAD_BODY_LIMIT);
+  const f = await fake(t);
+  // What the remote got of each upload, and whether that body ended or was cut
+  const uploads: Array<{ received: number; ended: boolean; closed: boolean }> = [];
+  f.state.route = (req, res) => {
+    if (!req.url?.startsWith('/api/uploads')) return false;
+    const upload = { received: 0, ended: false, closed: false };
+    uploads.push(upload);
+    req.on('data', (chunk: Buffer) => (upload.received += chunk.length));
+    req.on('end', () => {
+      upload.ended = true;
+      send(res, 201, { id: 'up-1' });
+    });
+    req.on('close', () => (upload.closed = true));
+    return true;
+  };
+  const server = await pairWithFake(h, [{ url: f.base, kind: 'lan' }]);
+  const url = `/api/servers/${server.id}/api/uploads?name=big.bin`;
+  const headers = { authorization: `Bearer ${h.token}`, 'content-type': 'application/octet-stream' };
+
+  // A declared length over the cap: refused before the remote is dialled
+  const before = f.seen.length;
+  const declared = await h.app.inject({ method: 'POST', url, payload: 'x', headers: { ...headers, 'content-length': String(UPLOAD_BODY_LIMIT + 1) } });
+  assert.equal(declared.statusCode, 413, declared.body);
+  assert.equal(codeOf(declared), 'servers.body-too-large');
+  assert.equal(f.seen.length, before, 'the remote was not asked');
+
+  // No declared length: the body streams to the remote and is cut where it passes the cap
+  const MiB = 1024 * 1024;
+  // Well past the cap, so a hub that read the whole body would be seen pulling all of it
+  const chunks = UPLOAD_BODY_LIMIT / MiB + 32;
+  let pulled = 0;
+  const body = Readable.from(
+    (function* () {
+      for (; pulled < chunks; pulled += 1) yield Buffer.alloc(MiB, 1);
+    })(),
+  );
+  const streamed = await h.app.inject({ method: 'POST', url, payload: body, headers: { ...headers, 'transfer-encoding': 'chunked' } });
+  assert.equal(streamed.statusCode, 413, streamed.body);
+  assert.equal(codeOf(streamed), 'servers.body-too-large');
+  await until(() => uploads[0]?.closed === true, "the remote's request ending");
+  const cut = uploads[0];
+  assert.ok(cut && cut.received <= UPLOAD_BODY_LIMIT, `the remote got ${String(cut?.received)} bytes, more than the cap`);
+  assert.equal(cut.ended, false, 'the remote never saw a whole body');
+  assert.ok(pulled < chunks, 'the hub stopped reading the body once it passed the cap');
+  const listed = (await h.app.inject({ url: '/api/servers', ...bearer(h.token) })).json<ClaudioServer[]>();
+  assert.equal(listed.find((each) => each.id === server.id)?.health?.reason, undefined, "the remote's health is not blamed for the browser's body");
+
+  // A body under the cap goes through whole
+  const whole = await h.app.inject({ method: 'POST', url, payload: Buffer.alloc(2 * MiB, 2), headers });
+  assert.equal(whole.statusCode, 201, whole.body);
+  assert.deepEqual(uploads.slice(1).map((each) => [each.received, each.ended]), [[2 * MiB, true]]);
+});
+
+test('a WebSocket upgrade through the gateway passes on what the browser sent with its head, read from the server’s own upgrade event (D16)', async (t) => {
+  const h = await hub(t);
+  const fromBrowser: Buffer[] = [];
+  const f = await fake(t, {
+    upgrade: (req, socket, head) => {
+      if (!req.url?.startsWith('/api/terminals/t1/socket')) {
+        socket.destroy();
+        return;
+      }
+      if (head.length) fromBrowser.push(head);
+      socket.on('data', (chunk: Buffer) => fromBrowser.push(chunk));
+      socket.on('error', () => undefined);
+      socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: fake-accept\r\n\r\nFROM-REMOTE');
+    },
+  });
+  f.state.route = (req, res) => {
+    if (req.method !== 'POST' || req.url !== '/api/terminals/t1/ticket') return false;
+    send(res, 200, { ticket: 'tkt-1', expiresAt: new Date(Date.now() + 30_000).toISOString() });
+    return true;
+  };
+  const server = await pairWithFake(h, [{ url: f.base, kind: 'lan' }]);
+  const minted = await through(h, server.id, 'POST', '/api/terminals/t1/ticket', {}, { origin: h.url });
+  assert.equal(minted.statusCode, 200, minted.body);
+
+  // The head and the first frame in one write, as a client that does not wait for the 101 sends them
+  const socket = connect(h.port, '127.0.0.1');
+  t.after(() => socket.destroy());
+  let toBrowser = '';
+  socket.on('data', (chunk: Buffer) => (toBrowser += chunk.toString('latin1')));
+  socket.on('error', () => undefined);
+  await new Promise<void>((resolve) => socket.once('connect', resolve));
+  socket.write(
+    [
+      `GET /api/servers/${server.id}/api/terminals/t1/socket?ticket=tkt-1 HTTP/1.1`,
+      `Host: 127.0.0.1:${String(h.port)}`,
+      `Origin: ${h.url}`,
+      'Connection: Upgrade',
+      'Upgrade: websocket',
+      'Sec-WebSocket-Version: 13',
+      'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+      '',
+      'EARLY-BYTES',
+    ].join('\r\n'),
+  );
+  await until(() => toBrowser.includes('FROM-REMOTE'), 'the remote’s 101 and its first bytes');
+  assert.match(toBrowser, /^HTTP\/1\.1 101 /);
+  assert.match(toBrowser, /sec-websocket-accept: fake-accept/i);
+  await until(() => Buffer.concat(fromBrowser).toString('latin1').includes('EARLY-BYTES'), 'the bytes sent with the head reaching the remote');
+  socket.write('LATER-BYTES');
+  await until(() => Buffer.concat(fromBrowser).toString('latin1') === 'EARLY-BYTESLATER-BYTES', 'the later bytes, after the early ones and once');
 });
 
 test('a token the remote revoked shows as needs-pairing, never as the hub’s own sign-in lapsing', async (t) => {
