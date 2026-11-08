@@ -45,6 +45,8 @@ export interface ServerEnvOptions {
   guardEntry: string;
   /** The shell's public keys, which a downloaded payload must verify against */
   keysDir: string;
+  /** `<resources>/shell.json`: apt replaces it with the package, so the server reads the version on disk there */
+  shellJson: string;
   /** The shell as the server reports it (`ShellInfo`); `inputs` is '' when the package has no `shell.json` */
   shell: { inputs: string; aptManaged: boolean };
 }
@@ -70,6 +72,10 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
     CLAUDIO_SHELL_INPUTS: opts.shell.inputs,
     ...(opts.distribution ? { CLAUDIO_SHELL_PACKAGE: opts.distribution } : {}),
     CLAUDIO_SHELL_APT: opts.shell.aptManaged ? '1' : '0',
+    CLAUDIO_SHELL_JSON: opts.shellJson,
+    // This shell relaunches the whole app when the server exits 76 (docs/plans/remote-updates.md, D4);
+    // under an older one the server asks with 75 instead
+    CLAUDIO_SHELL_RELAUNCH: '1',
     CLAUDIO_DATA_DIR: opts.dataDir,
     CLAUDIO_WORKSPACE_DIR: opts.workspaceDir,
     CLAUDIO_VERSION: opts.version,

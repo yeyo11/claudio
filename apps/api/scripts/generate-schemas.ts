@@ -57,6 +57,7 @@ const ROOT_TYPES = [
   'PushKeyInfo', 'RegisterPushSubscriptionRequest', 'PushSubscriptionSummary', 'RemovePushSubscriptionRequest', 'SendTestPushRequest', 'PushSendResult', 'PushPayload',
   // Packaging
   'CliVersionInfo', 'ClaudioReleaseInfo', 'StorageReport', 'ServerUpdateStatus', 'ServerUpdateApplyRequest', 'LiveWork',
+  'DesktopUpdateStatus', 'RestartRequest', 'RestartResult',
   // Project ecosystem: modules and templates, work items, milestones and the board
   'ProjectSettings', 'ProjectTemplate', 'WorkItem', 'WorkItemDetail', 'WorkItemComment', 'WorkItemHistoryEntry', 'WorkItemLink', 'WorkItemFilter',
   'CreateWorkItemRequest', 'UpdateWorkItemRequest', 'MoveWorkItemRequest', 'MoveWorkItemResult', 'CheckAcceptanceCriterionRequest',

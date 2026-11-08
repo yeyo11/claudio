@@ -9,7 +9,9 @@ import { errorMessage } from '@claudio/shared';
  * only the payload, which the server downloads and the shell boots (payload.ts); this is for the
  * rest, and it never escalates:
  * - an AppImage replaces itself through electron-updater's `AppImageUpdater`, then restarts;
- * - a `.deb` with Claudio's apt source is the system updater's to update (`apt-managed`);
+ * - a `.deb` with Claudio's apt source is apt's to update (`apt-managed`): nothing upgrades it
+ *   unattended on a stock Ubuntu, so it is Claudio's root unit, which the server starts from the
+ *   Updates card on any device (docs/plans/remote-updates.md, D1, D3), or the person's own apt;
  * - a `.deb` without it downloads the package through `DebUpdater.downloadUpdate()`, never its
  *   `install()`, and shows the command that installs it from a terminal (`copy-command`).
  * Every download is checked against the signed desktop manifest before anything else happens to it.
@@ -33,12 +35,16 @@ export type UpdateState =
   | { status: 'verifying'; version: string }
   /** AppImage only: downloaded and verified, installed by a restart */
   | { status: 'ready'; version: string }
-  /** The system's updater installs the shell; `latest` is a newer release it has not installed yet */
-  | { status: 'apt-managed'; latest: string | null }
+  /**
+   * apt installs the shell; `latest` is a newer release it has not installed yet. `installed` is the
+   * version on disk and `restartNeeded` whether it differs from this process's, in the words of the
+   * server's `DesktopUpdateStatus`, so the card says the same from the window and from a phone.
+   */
+  | { status: 'apt-managed'; latest: string | null; installed: string; restartNeeded: boolean }
   /** A verified `.deb`, and the command that installs it */
   | { status: 'copy-command'; version: string; command: string }
   /** apt installed this version under the running app: a restart starts it */
-  | { status: 'shell-replaced'; version: string }
+  | { status: 'shell-replaced'; version: string; installed: string; restartNeeded: true }
   | { status: 'unsupported'; reason: UnsupportedReason; message: string }
   | { status: 'error'; code: ShellUpdateError; message: string };
 
@@ -138,6 +144,10 @@ export interface DesktopUpdaterOptions {
   engine: () => UpdaterEngine;
   /** Asked at every check on a `.deb`: whether the apt source is registered */
   aptManaged?: () => boolean;
+  /** This process's version, `app.getVersion()`; what the facts of the apt states compare against */
+  running?: string;
+  /** The desktop app's version on disk now (`<resources>/shell.json`), read again each time; undefined when unreadable */
+  installed?: () => string | undefined;
   /** Checks a downloaded package against the release's signed desktop manifest */
   verify: (version: string, file: string, kind: Distribution) => Promise<Verified>;
   log: (line: string) => void;
@@ -223,7 +233,14 @@ export class DesktopUpdater {
 
   /** What a supported copy shows when nothing is under way */
   private restingState(): UpdateState {
-    return this.aptManaged ? { status: 'apt-managed', latest: this.latestFound ?? null } : { status: 'idle' };
+    return this.aptManaged ? this.aptState(this.latestFound ?? null) : { status: 'idle' };
+  }
+
+  /** `apt-managed` with the version on disk now and whether a restart would start another one */
+  private aptState(latest: string | null): UpdateState {
+    const running = this.opts.running ?? '';
+    const installed = this.opts.installed?.() ?? running;
+    return { status: 'apt-managed', latest, installed, restartNeeded: installed !== running };
   }
 
   private get busy(): boolean {
@@ -273,10 +290,10 @@ export class DesktopUpdater {
     try {
       const result = await engine.checkForUpdates();
       this.latestFound = result?.isUpdateAvailable ? versionOf(result.updateInfo) : undefined;
-      if (apt) this.set({ status: 'apt-managed', latest: this.latestFound ?? null });
+      if (apt) this.set(this.aptState(this.latestFound ?? null));
       else this.set(this.latestFound ? { status: 'available', version: this.latestFound } : { status: 'idle' });
     } catch (err) {
-      this.set(apt ? { status: 'apt-managed', latest: null } : { status: 'error', code: codeOf(err), message: errorMessage(err) });
+      this.set(apt ? this.aptState(null) : { status: 'error', code: codeOf(err), message: errorMessage(err) });
     }
     return this.current;
   }
@@ -336,7 +353,7 @@ export class DesktopUpdater {
     if (this.replaced) return;
     this.replaced = true;
     this.installOnQuitRequested = false;
-    this.set({ status: 'shell-replaced', version });
+    this.set({ status: 'shell-replaced', version, installed: version, restartNeeded: true });
   }
 
   /**

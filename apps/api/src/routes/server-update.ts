@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { CliInstallRefusal, DESKTOP_ACTOR, ServerUpdateRefusal, type Core } from '@claudio/core';
-import type { ServerUpdateApplyRequest, ServerUpdateRefusalCode } from '@claudio/shared';
+import { CliInstallRefusal, DESKTOP_ACTOR, DesktopUpdateRefusal, ServerUpdateRefusal, type Core } from '@claudio/core';
+import type { DesktopUpdateRefusalCode, RestartRequest, ServerUpdateApplyRequest, ServerUpdateRefusalCode } from '@claudio/shared';
 import { isOwnerActor } from '../security.ts';
 
 /**
@@ -10,10 +10,14 @@ import { isOwnerActor } from '../security.ts';
  */
 const fromShell = (core: Core, req: FastifyRequest): boolean => req.actor === DESKTOP_ACTOR && core.serverUpdates.desktopHost;
 
-/** The owner check every route here makes, in the shape `ApiRequestError` reads; true when it answered */
-export function refuseNonOwner(core: Core, req: FastifyRequest, reply: FastifyReply, scope: 'update' | 'cli'): boolean {
+/**
+ * The owner check every route here makes, in the shape `ApiRequestError` reads; true when it answered.
+ * `shell: false` is for the routes the desktop shell's credential does not open (the package update
+ * and the restart, docs/plans/remote-updates.md, D8): only the owner's actors, whoever they are.
+ */
+export function refuseNonOwner(core: Core, req: FastifyRequest, reply: FastifyReply, scope: 'update' | 'cli', { shell = true }: { shell?: boolean } = {}): boolean {
   // The shell first: under auth `none` it is the only caller an update write accepts
-  if (scope === 'update' && fromShell(core, req)) return false;
+  if (scope === 'update' && shell && fromShell(core, req)) return false;
   if (core.security.mode === 'none') {
     void reply.status(403).send({ error: `${scope === 'update' ? 'updating Claudio' : 'installing Claude Code'} from here needs access protected by a token`, code: `${scope}.needs-auth` });
     return true;
@@ -29,6 +33,10 @@ export function sendRefusal(reply: FastifyReply, err: unknown): FastifyReply {
     const code: ServerUpdateRefusalCode = err.reason;
     return reply.status(err.statusCode).send({ error: err.message, code, ...(err.live ? { live: err.live } : {}) });
   }
+  if (err instanceof DesktopUpdateRefusal) {
+    const code: DesktopUpdateRefusalCode = err.reason;
+    return reply.status(err.statusCode).send({ error: err.message, code, ...(err.live ? { live: err.live } : {}) });
+  }
   if (err instanceof CliInstallRefusal) return reply.status(err.statusCode).send({ error: err.message, code: err.reason });
   throw err;
 }
@@ -36,6 +44,11 @@ export function sendRefusal(reply: FastifyReply, err: unknown): FastifyReply {
 const applyBody = (body: unknown): ServerUpdateApplyRequest => {
   const { force, whenIdle } = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
   return { force: force === true, whenIdle: whenIdle === true };
+};
+
+const restartBody = (body: unknown): RestartRequest => {
+  const { whenIdle } = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  return { whenIdle: whenIdle === true };
 };
 
 const versionOf = (body: unknown): string | undefined => {
@@ -83,6 +96,28 @@ export const serverUpdateRoutes: FastifyPluginAsync<{ core: Core }> = async (app
     if (refuseNonOwner(core, req, reply, 'update')) return reply;
     try {
       return await reply.status(202).send(await updates.revert(applyBody(req.body), fromShell(core, req)));
+    } catch (err) {
+      return sendRefusal(reply, err);
+    }
+  });
+
+  // The desktop app's package (docs/plans/remote-updates.md, D3, D4, D8): the owner's actors from any
+  // device, a hub's `server:*` among them, and never the shell's credential, which keeps its four writes
+  app.get('/system/desktop-update', () => core.desktopUpdates.status());
+
+  app.post('/system/desktop-update', async (req, reply) => {
+    if (refuseNonOwner(core, req, reply, 'update', { shell: false })) return reply;
+    try {
+      return await reply.status(202).send(await core.desktopUpdates.start());
+    } catch (err) {
+      return sendRefusal(reply, err);
+    }
+  });
+
+  app.post<{ Body: RestartRequest }>('/system/restart', async (req, reply) => {
+    if (refuseNonOwner(core, req, reply, 'update', { shell: false })) return reply;
+    try {
+      return await reply.status(202).send(await core.desktopUpdates.restart(restartBody(req.body)));
     } catch (err) {
       return sendRefusal(reply, err);
     }
