@@ -8293,7 +8293,13 @@ export interface ProviderStatus {
   /** The permission modes the provider offers, in the order to list them; absent on a provider that has none */
   permissionModes?: PermissionMode[];
   /** What the first event of a real session confirmed for the installed version; null until one has */
-  confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
+  confirmed?: {
+    at: string;
+    version: string;
+    capabilities: ProviderCapability[];
+    /** Declared capabilities the session contradicted, which make a ready provider `degraded` (`capability-missing`); absent on an old server */
+    missing?: ProviderCapability[];
+  } | null;
   /** The provider's usage limit as last read; null when nothing was read yet, absent on an old server */
   limit?: ProviderLimit | null;
   /** ISO timestamp of the detection this status came from */

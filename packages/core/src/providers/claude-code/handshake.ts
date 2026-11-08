@@ -8,8 +8,8 @@ import { claudeCodeManifest } from './manifest.ts';
  * handshake of its own would spend tokens, so this is the only one. The capabilities nobody can
  * read off the init (interrupt, fork, effort...) stay declared until a run exercises them.
  *
- * An empty tool list is an init we could not read, not a CLI that has no tools, so it contradicts
- * nothing.
+ * An empty tool list is an init we could not read, not a CLI that has no tools, and a narrowed
+ * launch's list is what Claudio gave it: neither contradicts anything.
  */
 export function confirmClaudeInit(init: SessionInit): CapabilityConfirmation {
   const declared = claudeCodeManifest.capabilities;
@@ -27,8 +27,11 @@ export function confirmClaudeInit(init: SessionInit): CapabilityConfirmation {
     else if (contradicts) missing.push(capability);
   };
 
-  const hasTools = init.tools.length > 0;
-  check('subagents', init.tools.includes('Task') || init.tools.includes('Agent'), hasTools);
+  // Only a session that got every tool the CLI has can show one is missing: a narrowed launch (a
+  // confined or `/v1` chat, an agent) lists what it was given, and taking that for the CLI's own list
+  // flipped the provider to degraded and back with every such chat
+  const showsEveryTool = init.tools.length > 0 && !init.toolsNarrowed;
+  check('subagents', init.tools.includes('Task') || init.tools.includes('Agent'), showsEveryTool);
   // 2.1.287 leaves `Workflow` out of the init of sessions that do have every other tool, so its
   // absence is not evidence the CLI lacks it: like a server, it only confirms
   check('workflowTool', init.tools.includes('Workflow'), false);

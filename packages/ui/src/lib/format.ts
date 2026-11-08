@@ -7,7 +7,7 @@ import { errorMessage as baseErrorMessage } from '@claudio/shared';
 // the tests in test/format.test.ts pin down.
 
 // Lists call these once per row: building an Intl formatter is far dearer than using one.
-type Formatter = Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.DateTimeFormat;
+type Formatter = Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.DateTimeFormat | Intl.ListFormat;
 const formatters = new Map<string, Formatter>();
 function cached<T extends Formatter>(key: string, make: (locale: string) => T): T {
   const locale = intlLocale();
@@ -230,4 +230,9 @@ export function errorMessage(error: unknown): string {
  */
 export function formatPercent(points: number, digits = 0): string {
   return cached(`percent:${digits}`, (l) => new Intl.NumberFormat(l, { style: 'percent', maximumFractionDigits: digits })).format(points / 100);
+}
+
+/** Words joined the way the UI language joins them ("a, b and c", "a, b y c") */
+export function formatList(items: readonly string[]): string {
+  return cached('list', (l) => new Intl.ListFormat(l, { style: 'long', type: 'conjunction' })).format(items);
 }

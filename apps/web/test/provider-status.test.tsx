@@ -9,9 +9,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { keys } from '../src/api';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ProviderDots } from '../src/components/shell/ProviderDots';
-import i18n from '../src/i18n';
+import i18n, { setLanguage } from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
-import { enabledProviders, providerSetup } from '../src/lib/provider-status';
+import { enabledProviders, providerSetup, reasonText } from '../src/lib/provider-status';
 
 const status = (id: string, over: Partial<ProviderStatus> = {}): ProviderStatus => ({
   id,
@@ -91,4 +91,15 @@ test('Home copy has en/es parity for the agents rows', () => {
   const keysOf = (o: object) => Object.keys(o).sort();
   assert.deepEqual(keysOf(en.home.activity), keysOf(es.home.activity));
   assert.deepEqual(keysOf(en.providers.statusbar), keysOf(es.providers.statusbar));
+});
+
+test('a degraded provider names the capability it lacks, in both languages, and an old server keeps the general words', () => {
+  const degraded = status('claude-code', { state: 'degraded', reason: 'capability-missing', confirmed: { at: '2026-11-08T10:00:00Z', version: '2.1.282', capabilities: [], missing: ['subagents', 'mcp'] } });
+  setLanguage('es');
+  assert.equal(reasonText(i18n.getFixedT('es', 'providers'), degraded), 'Esta versión no tiene los subagentes (la herramienta Agent) y los servidores MCP, que Claudio necesita.');
+  setLanguage('en');
+  assert.equal(reasonText(i18n.getFixedT('en', 'providers'), degraded), 'This version lacks subagents (the Agent tool) and MCP servers, which Claudio needs.');
+  const old = status('claude-code', { state: 'degraded', reason: 'capability-missing', confirmed: { at: '2026-11-08T10:00:00Z', version: '2.1.282', capabilities: [] } });
+  assert.equal(reasonText(i18n.getFixedT('en', 'providers'), old), en.providers.reason['capability-missing']);
+  assert.deepEqual(Object.keys(en.providers.capability).sort(), Object.keys(es.providers.capability).sort());
 });
