@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
+import { createServer, type AddressInfo } from 'node:net';
+import { createServer as createTlsServer, getCACertificates, setDefaultCACertificates } from 'node:tls';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
+import { ensureLanCertificate } from '../src/lan-tls.ts';
 import { SecretVault } from '../src/secret-vault.ts';
 import { isLoopbackName, parseAddress, parseAddresses, refusedIp } from '../src/servers/addresses.ts';
 import { ServersError } from '../src/servers/errors.ts';
 import { SERVERS_FILE, SERVERS_VAULT_TOOL, ServerRegistry, type StoredServer } from '../src/servers/registry.ts';
 import { apiCompatibility } from '../src/servers/service.ts';
-import { dial, type Lookup } from '../src/servers/transport.ts';
+import { accepts, caMayVouchFor, dial, peek, type Lookup, type PeerSeen, type Trust } from '../src/servers/transport.ts';
 
 // The hub's own rules, below the API (docs/plans/claudio-servers.md, §4.2, R2): which addresses it
 // dials, how it keeps the list and the tokens, and when a remote's API is one its web can drive.
@@ -104,6 +106,50 @@ test('a name is dialled on an IP it resolved to only after that IP is checked: n
   assert.equal(await refusedFor('nowhere.test'), 'servers.unreachable');
   assert.equal(await refusedFor('sneaky.test', 'http:'), 'servers.address-insecure', 'plain TCP only to an address recorded as loopback');
   assert.equal(await refusedFor('127.0.0.1', 'http:'), null, 'loopback recorded as such connects');
+});
+
+test("a CA's word stands in for the pin only on a DNS name off the LAN, never on an IP or a .local name (D15)", () => {
+  for (const host of ['studio.tail1234.ts.net', 'STUDIO.tail1234.TS.NET.', 'claudio.example.com', 'local.example.com']) assert.equal(caMayVouchFor(host), true, host);
+  for (const host of ['192.168.1.20', '100.101.102.103', '[fd7a:115c:a1e0::1]', 'fd7a:115c:a1e0::1', 'studio.local', 'Studio.Local.', 'local', 'nas', 'localhost', '']) {
+    assert.equal(caMayVouchFor(host), false, host);
+  }
+
+  const pinned: Trust = { kind: 'pinned', pins: () => ({ fingerprint: 'AA:BB', publicKey: 'pinned-key' }) };
+  const caSigned: PeerSeen = { fingerprint: 'CC:DD', publicKey: 'another-key', caValid: true };
+  const refusal = (host: string, seen: PeerSeen = caSigned): string | null => accepts(pinned, seen, host)?.reason ?? null;
+  assert.equal(refusal('studio.tail1234.ts.net'), null, 'a tailnet name may show the certificate Tailscale got for it');
+  assert.equal(refusal('192.168.1.20'), 'servers.identity-changed', 'an IP must show the pinned certificate, whoever signed another');
+  assert.equal(refusal('fd7a:115c:a1e0::1'), 'servers.identity-changed');
+  assert.equal(refusal('studio.local'), 'servers.identity-changed', 'a .local name must show the pinned certificate');
+  assert.equal(refusal('studio.tail1234.ts.net', { ...caSigned, caValid: false }), 'servers.identity-changed', 'off the LAN a certificate still needs a CA or the pin');
+  // The pin holds anywhere, a renewal on the same key included
+  assert.equal(refusal('192.168.1.20', { fingerprint: 'aa:bb', publicKey: 'x', caValid: false }), null);
+  assert.equal(refusal('studio.local', { fingerprint: 'EE:FF', publicKey: 'pinned-key', caValid: false }), null);
+});
+
+test('a certificate the trust store vouches for is still refused on an IP and on a LAN name, over a real handshake (D15)', async (t) => {
+  // The remote's certificate made a trusted root for this process only: Node then calls it CA-valid
+  // for the names it carries, which is what a CA's certificate for a LAN address would look like
+  const { certificate } = await ensureLanCertificate(scratch(t), { ips: ['127.0.0.1'], dns: ['localhost'] });
+  const trusted = getCACertificates('default');
+  setDefaultCACertificates([...trusted, certificate.cert]);
+  t.after(() => setDefaultCACertificates(trusted));
+  const server = createTlsServer({ key: certificate.key, cert: certificate.cert }, (socket) => socket.end());
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const port = (server.address() as AddressInfo).port;
+  const options = { lookup: (): Promise<Array<{ address: string; family: number }>> => Promise.resolve([{ address: '127.0.0.1', family: 4 }]), timeoutMs: 2_000 };
+  const pinnedElsewhere: Trust = { kind: 'pinned', pins: () => ({ fingerprint: 'AA:BB', publicKey: 'another-key' }) };
+
+  for (const hostname of ['127.0.0.1', 'localhost']) {
+    const seen = await peek({ protocol: 'https:', hostname, port }, options);
+    assert.equal(seen?.caValid, true, `${hostname}: the trust store vouches for it`);
+    await assert.rejects(dial({ protocol: 'https:', hostname, port }, pinnedElsewhere, options), (error: unknown) => error instanceof ServersError && error.reason === 'servers.identity-changed', hostname);
+  }
+  // The pin is what lets it in
+  const pinned: Trust = { kind: 'pinned', pins: () => ({ fingerprint: certificate.fingerprint, publicKey: null }) };
+  const socket = await dial({ protocol: 'https:', hostname: '127.0.0.1', port }, pinned, options);
+  socket.destroy();
 });
 
 test('the API range decides whether the hub can drive a remote', () => {

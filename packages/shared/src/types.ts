@@ -5293,6 +5293,15 @@ export interface CreateServerLinkRequest {
   hubInstanceId: string;
   hubName: string;
 }
+/** A paired hub's token as the remote's owner sees it (`GET /server-links`, D14): never the secret */
+export interface ServerLink {
+  tokenId: string;
+  /** The hub's name, as it gave it when pairing */
+  hubName: string;
+  hubInstanceId: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
 export interface ServerLinkGrant {
   /** Shown once, never readable again */
   token: string;
@@ -5338,7 +5347,22 @@ export interface ClaudioServer {
 export interface ServersSettings {
   enabled: boolean;
 }
-export type ServerPairing = { kind: 'code'; code: string } | { kind: 'token'; token: string };
+/**
+ * How a hub pairs. With an owner token, the hub first reads the certificate the address shows
+ * without sending anything (D13): `expectedFingerprint` is the one the person read off the remote's
+ * LAN card, and without it the answer is `409 servers.confirm-fingerprint` with the seen one
+ * (`ServerFingerprintConfirmation`), which a second call carries. Ignored over plain loopback HTTP.
+ */
+export type ServerPairing = { kind: 'code'; code: string } | { kind: 'token'; token: string; expectedFingerprint?: string };
+/** `POST /servers`' 409 before a pasted token is sent: the certificate the address showed, for the person to confirm */
+export interface ServerFingerprintConfirmation {
+  error: string;
+  code: 'servers.confirm-fingerprint';
+  /** SHA-256 of the certificate's DER, upper-case hex with colons */
+  fingerprint: string;
+  /** The address that showed it, where the pairing goes once confirmed */
+  address: string;
+}
 export interface AddServerRequest {
   name: string;
   color?: string | null;

@@ -564,6 +564,8 @@ const READ_ONLY_ALLOWED = new Set([
   'PUT /security/auth',
   // A hub giving up its own token only takes access away, like turning the terminal off
   'DELETE /server-links/self',
+  // And so does the owner cutting a hub off (D14)
+  'DELETE /server-links/:tokenId',
 ]);
 
 /** The OpenAI-compatible surface, which needs a credential in every mode */

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import type { FastifyInstance, FastifyRequest, InjectOptions } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import { API_VERSION, API_VERSION_MIN, type ServerLinkCode, type ServerLinkGrant, type ServerMeta } from '@claudio/shared';
+import { API_VERSION, API_VERSION_MIN, type ServerLink, type ServerLinkCode, type ServerLinkGrant, type ServerMeta } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { fromLocalMachineStrict } from '../src/security.ts';
 import { clientRefusal } from '../src/terminal-gate.ts';
@@ -241,6 +241,55 @@ test('a hub revokes its own token, which is 401 from then on; nothing else can c
   assert.equal(revoked.statusCode, 401);
   // Only the caller's own token goes
   assert.equal((await app.inject({ url: '/api/overview', ...bearer(other.token) })).statusCode, 200);
+});
+
+test("the owner lists the hubs without their secrets and cuts one off; a hub can do neither (D14)", async (t) => {
+  const { app, core, root } = await wrapper();
+  t.after(() => app.close());
+  const owner = await withToken(app);
+  const desk = await paired(app, owner);
+  const laptop = await paired(app, owner, { hubInstanceId: 'hub-2', hubName: 'Laptop' });
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(desk.token) })).statusCode, 200);
+
+  const listed = await app.inject({ url: '/api/server-links', ...bearer(owner) });
+  assert.equal(listed.statusCode, 200, listed.body);
+  const links = listed.json<ServerLink[]>();
+  assert.deepEqual(
+    links.map(({ tokenId, hubName, hubInstanceId }) => ({ tokenId, hubName, hubInstanceId })),
+    [
+      { tokenId: desk.tokenId, hubName: 'Desk', hubInstanceId: 'hub-instance-1' },
+      { tokenId: laptop.tokenId, hubName: 'Laptop', hubInstanceId: 'hub-2' },
+    ],
+  );
+  assert.ok(links.every((each) => typeof each.createdAt === 'string' && Object.keys(each).sort().join() === 'createdAt,hubInstanceId,hubName,lastUsedAt,tokenId'));
+  assert.ok(links.find((each) => each.tokenId === desk.tokenId)?.lastUsedAt, 'the request above is its last use');
+  for (const secret of [desk.token, laptop.token]) assert.equal(listed.body.includes(secret), false);
+  assert.equal(/tokenHash/.test(listed.body), false);
+
+  // One hub neither sees the others nor cuts them off
+  const peek = await app.inject({ url: '/api/server-links', ...bearer(laptop.token) });
+  assert.equal(peek.statusCode, 403);
+  assert.equal(codeOf(peek), 'server-links.not-owner');
+  const cut = await app.inject({ method: 'DELETE', url: `/api/server-links/${desk.tokenId}`, ...bearer(laptop.token) });
+  assert.equal(cut.statusCode, 403);
+  assert.equal(codeOf(cut), 'server-links.not-owner');
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(desk.token) })).statusCode, 200);
+
+  const unknown = await app.inject({ method: 'DELETE', url: '/api/server-links/0000000000000000', ...bearer(owner) });
+  assert.equal(unknown.statusCode, 404);
+  assert.equal(codeOf(unknown), 'server-links.not-found');
+
+  // Read-only does not stop it: it only takes access away
+  assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...authed(owner, { readOnly: true }) })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'DELETE', url: `/api/server-links/${desk.tokenId}`, ...bearer(owner) })).statusCode, 204);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(desk.token) })).statusCode, 401);
+  assert.equal((await app.inject({ url: '/api/overview', ...bearer(laptop.token) })).statusCode, 200, 'only that hub goes');
+  assert.deepEqual(
+    core.security.serverTokens.map((each) => each.id),
+    [laptop.tokenId],
+  );
+  const onDisk = readFileSync(join(root, 'data', 'auth.json'), 'utf8');
+  assert.ok(onDisk.includes(laptop.tokenId) && !onDisk.includes(desk.tokenId), 'the revoke is written down');
 });
 
 test('a hub that pairs again replaces its earlier token', async (t) => {

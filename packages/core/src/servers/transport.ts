@@ -40,11 +40,11 @@ export interface PeerSeen {
  * Which certificates a connection accepts.
  *
  * `pinned`: the pinned fingerprint, or the pinned public key (the remote remakes its certificate when
- * it gains an address, but keeps its key: `lan-tls.ts`), or a certificate a CA vouches for under the
- * name dialled. The last is how Tailscale's `*.ts.net` names and a tunnel's proxy present
- * themselves: TLS ends there with a certificate of their own, which no pin could know in advance,
- * and no CA signs a certificate for a LAN address or a `.local` name, so it cannot stand in for one.
- * The `instanceId` of `/api/meta` binds whatever answers to the server paired.
+ * it gains an address, but keeps its key: `lan-tls.ts`), or, for a name off the LAN only
+ * (`caMayVouchFor`, D15), a certificate a CA vouches for under the name dialled. The last is how
+ * Tailscale's `*.ts.net` names and a tunnel's proxy present themselves: TLS ends there with a
+ * certificate of their own, which no pin could know in advance. The `instanceId` of `/api/meta`
+ * binds whatever answers to the server paired.
  *
  * `first-use`: pairing, when nothing is pinned yet. The first certificate is taken as it is and every
  * later connection of the same agent must show that one, so the code goes where the meta came from.
@@ -67,11 +67,26 @@ export const sameFingerprint = (a: string, b: string): boolean => a.replace(/:/g
 
 const identityChanged = (message: string): ServersError => new ServersError(409, 'servers.identity-changed', message);
 
+/**
+ * Whether a CA's word may stand in for the pin on this host (D15): a DNS name off the LAN, such as a
+ * tailnet's `*.ts.net` or a tunnel's. Never an IP literal, a `.local` name or a single-label one:
+ * those are the LAN's, where the remote's own certificate is the only one that may answer. A CA
+ * that signed for them (one an administrator added to the trust store, or a public CA's certificate
+ * for a public IP) would otherwise let whoever holds it stand in for the remote.
+ */
+export function caMayVouchFor(hostname: string): boolean {
+  const host = bareHost(hostname).toLowerCase().replace(/\.$/, '');
+  if (!host || isIP(host) !== 0) return false;
+  if (!host.includes('.')) return false;
+  return host !== 'local' && !host.endsWith('.local');
+}
+
 /** What the handshake of an open socket showed, for pairing's check against the grant */
 const seenOn = new WeakMap<Socket, PeerSeen>();
 export const peerOf = (socket: Socket): PeerSeen | null => seenOn.get(socket) ?? null;
 
-function accepts(trust: Trust, seen: PeerSeen): ServersError | null {
+/** Whether a connection to `host` that showed `seen` goes on under `trust`; exported for the tests of the rule */
+export function accepts(trust: Trust, seen: PeerSeen, host: string): ServersError | null {
   if (trust.kind === 'first-use') {
     if (trust.seen === null) {
       trust.seen = seen;
@@ -87,11 +102,11 @@ function accepts(trust: Trust, seen: PeerSeen): ServersError | null {
     trust.matched?.(seen);
     return null;
   }
-  if (seen.caValid) return null;
+  if (seen.caValid && caMayVouchFor(host)) return null;
   return identityChanged(`the server's certificate (${seen.fingerprint}) is not the one pinned when it was paired`);
 }
 
-function judge(socket: TLSSocket, trust: Trust): ServersError | null {
+function judge(socket: TLSSocket, trust: Trust, host: string): ServersError | null {
   const cert = socket.getPeerX509Certificate();
   if (!cert) return identityChanged('the server showed no certificate');
   const seen: PeerSeen = {
@@ -101,7 +116,7 @@ function judge(socket: TLSSocket, trust: Trust): ServersError | null {
     caValid: socket.authorized,
   };
   seenOn.set(socket, seen);
-  return accepts(trust, seen);
+  return accepts(trust, seen, host);
 }
 
 /** The first IP of a name the hub may dial, which is then the one it connects to: no second lookup a rebinding could answer */
@@ -150,7 +165,7 @@ export async function dial(target: DialTarget, trust: Trust, options: DialOption
     socket.once(tls ? 'secureConnect' : 'connect', () => {
       clearTimeout(timer);
       socket.removeListener('error', failed);
-      const refused = tls ? judge(socket as TLSSocket, trust) : null;
+      const refused = tls ? judge(socket as TLSSocket, trust, host) : null;
       if (refused) {
         socket.destroy();
         reject(refused);
@@ -159,6 +174,20 @@ export async function dial(target: DialTarget, trust: Trust, options: DialOption
       resolve(socket);
     });
   });
+}
+
+/**
+ * The certificate an address shows, read from a TLS handshake after which the socket is closed with
+ * nothing written on it (D13): what a person confirms before their owner token is sent there. Null
+ * over plain HTTP, which `dial` allows on loopback only, where no certificate exists to check.
+ */
+export async function peek(target: DialTarget, options: DialOptions): Promise<PeerSeen | null> {
+  const socket = await dial(target, { kind: 'first-use', seen: null }, options);
+  try {
+    return peerOf(socket);
+  } finally {
+    socket.destroy();
+  }
 }
 
 const portOf = (protocol: string, port: string): number => Number(port) || (protocol === 'https:' ? 443 : 80);

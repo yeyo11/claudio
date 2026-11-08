@@ -484,6 +484,19 @@ export class AuthStore {
     return found.id;
   }
 
+  /**
+   * The remote's owner lets go of a hub (D14): its token by id, answered true when there was one.
+   * The hub learns of it on its next request, a 401 it shows as "needs pairing again".
+   */
+  async revokeServerToken(tokenId: string): Promise<boolean> {
+    const kept = (this.stored.serverTokens ?? []).filter((each) => each.id !== tokenId);
+    if (kept.length === (this.stored.serverTokens ?? []).length) return false;
+    this.stored = { ...this.stored, serverTokens: kept };
+    this.serverUseWritten.delete(tokenId);
+    await this.persist();
+    return true;
+  }
+
   /** Each stored hash is compared in full, so how many tokens there are is all the timing says */
   private serverTokenOf(credential: string): StoredServerToken | undefined {
     let found: StoredServerToken | undefined;

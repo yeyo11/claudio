@@ -19916,6 +19916,38 @@
       "tlsFingerprint"
     ]
   },
+  "ServerLink": {
+    "type": "object",
+    "properties": {
+      "tokenId": {
+        "type": "string"
+      },
+      "hubName": {
+        "type": "string",
+        "description": "The hub's name, as it gave it when pairing"
+      },
+      "hubInstanceId": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastUsedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "tokenId",
+      "hubName",
+      "hubInstanceId",
+      "createdAt",
+      "lastUsedAt"
+    ],
+    "description": "A paired hub's token as the remote's owner sees it (`GET /server-links`, D14): never the secret"
+  },
   "ClaudioServer": {
     "type": "object",
     "properties": {
@@ -20160,6 +20192,9 @@
           },
           "token": {
             "type": "string"
+          },
+          "expectedFingerprint": {
+            "type": "string"
           }
         },
         "required": [
@@ -20167,7 +20202,35 @@
           "token"
         ]
       }
-    ]
+    ],
+    "description": "How a hub pairs. With an owner token, the hub first reads the certificate the address shows without sending anything (D13): `expectedFingerprint` is the one the person read off the remote's LAN card, and without it the answer is `409 servers.confirm-fingerprint` with the seen one (`ServerFingerprintConfirmation`), which a second call carries. Ignored over plain loopback HTTP."
+  },
+  "ServerFingerprintConfirmation": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "servers.confirm-fingerprint"
+      },
+      "fingerprint": {
+        "type": "string",
+        "description": "SHA-256 of the certificate's DER, upper-case hex with colons"
+      },
+      "address": {
+        "type": "string",
+        "description": "The address that showed it, where the pairing goes once confirmed"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "fingerprint",
+      "address"
+    ],
+    "description": "`POST /servers`' 409 before a pasted token is sent: the certificate the address showed, for the person to confirm"
   },
   "UpdateServerRequest": {
     "type": "object",
