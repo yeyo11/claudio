@@ -323,12 +323,14 @@ import type {
   SettingState,
   SettingsState,
   StoredDashboardLayout,
+  DesktopUpdateStatus,
+  RestartRequest,
+  RestartResult,
 } from '@claudio/shared';
 import i18n from './i18n';
 import { authHeaders, challengeOf, hostRefusalOf, setChallenge, setHostRefusal, withToken } from './lib/auth';
 import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
-import type { DesktopRestartRequest, DesktopRestartResult, DesktopUnitStatus } from './lib/updates';
 import { mergeRefetchMs } from './lib/merge';
 import { reachability } from './lib/reachability';
 import { askSpendCap, acknowledgeSpend, SPEND_OVERRIDE_HEADER, spendAcknowledged, spendScope } from './lib/spend-cap';
@@ -614,9 +616,9 @@ export const api = {
   applyServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/apply', { method: 'POST', body }),
   cancelServerUpdate: () => request<ServerUpdateStatus>('/system/server-update/scheduled', { method: 'DELETE' }),
   revertServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/revert', { method: 'POST', body }),
-  desktopUpdate: (o: ReadOptions = {}) => request<DesktopUnitStatus>('/system/desktop-update', o),
-  startDesktopUpdate: () => request<DesktopUnitStatus>('/system/desktop-update', { method: 'POST' }),
-  restartDesktop: (body: DesktopRestartRequest = {}) => request<DesktopRestartResult>('/system/restart', { method: 'POST', body }),
+  desktopUpdate: (o: ReadOptions = {}) => request<DesktopUpdateStatus>('/system/desktop-update', o),
+  startDesktopUpdate: () => request<DesktopUpdateStatus>('/system/desktop-update', { method: 'POST' }),
+  restartDesktop: (body: RestartRequest = {}) => request<RestartResult>('/system/restart', { method: 'POST', body }),
   installCli: (body: { version?: string } = {}) => request<CliVersionInfo>('/system/cli-version/install', { method: 'POST', body }),
   useImageCli: () => request<CliVersionInfo>('/system/cli-version/install', { method: 'DELETE' }),
   storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),

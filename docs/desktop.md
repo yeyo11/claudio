@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-11-09T00:45:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - desktop
     - electron
@@ -317,7 +317,10 @@ Claudio's repository (`release o=Claudio`) priority 990 and `claudio` from any o
 so neither the update unit nor the system's updater ever installs a package named `claudio` from
 another source. 990 is below 1000, so apt never downgrades to it; a version installed by hand from a
 `.deb` file is left alone and still upgrades from Claudio's repository
-([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart)).
+([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart)). The pin cannot be tied
+to a signing key, only to the `Origin` field, so a second source that also declares `Origin: Claudio`
+would match it too. The helper installs with `--no-remove`, so an upgrade that would need another
+package taken off fails instead.
 
 **`needs-login`.** When polkit refuses the start the card says the group is not in effect for this
 session yet and asks for one log-out and log-in. The plan assumed membership only counts after a new

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatNumber } from '@claudio/ui/lib/format';
+import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty } from '@claudio/ui/components/ui';
 import { reachability, useReachability } from '../lib/reachability';
 
@@ -89,7 +90,7 @@ function TopLayer({ label, describedBy, children }: { label: string; describedBy
  */
 export function Unreachable({ address = window.location.host, standalone = false }: { address?: string; standalone?: boolean }) {
   const { t } = useTranslation('shell');
-  const { offline, nextAttemptAt, probing } = useReachability();
+  const { offline, nextAttemptAt, probing, restarting } = useReachability();
   const [now, setNow] = useState(() => Date.now());
   const textId = useId();
   useEffect(() => {
@@ -99,7 +100,8 @@ export function Unreachable({ address = window.location.host, standalone = false
     return () => clearInterval(tick);
   }, [nextAttemptAt]);
 
-  const title = offline ? t('unreachable.offlineTitle') : t('unreachable.title');
+  // A restart the person asked for is a live verb, not a failure: the same screen, in the words of what is happening
+  const title = restarting ? t('unreachable.restartingTitle') : offline ? t('unreachable.offlineTitle') : t('unreachable.title');
   // The tab says what the screen says while it shows. The page behind it (one opened during the
   // outage mounts after this screen) still writes its own title, so each write is remembered and
   // answered with the screen's, and the last one written is what comes back when the screen goes.
@@ -128,17 +130,25 @@ export function Unreachable({ address = window.location.host, standalone = false
       heading
       title={title}
       action={
-        // Neutral, as in the reference's error state: trying again fixes nothing by itself
-        <button type="button" className="btn" onClick={() => reachability.retryNow()}>
-          {t('unreachable.retryNow')}
-        </button>
+        restarting ? undefined : (
+          // Neutral, as in the reference's error state: trying again fixes nothing by itself
+          <button type="button" className="btn" onClick={() => reachability.retryNow()}>
+            {t('unreachable.retryNow')}
+          </button>
+        )
       }
     >
       <p className="unreachable-text" id={textId} data-testid="unreachable-text">
-        {offline ? t('unreachable.offlineBody') : <Trans t={t} i18nKey="unreachable.body" values={{ address }} components={{ mono: <span className="mono" /> }} />}
+        {restarting ? t('unreachable.restartingBody') : offline ? t('unreachable.offlineBody') : <Trans t={t} i18nKey="unreachable.body" values={{ address }} components={{ mono: <span className="mono" /> }} />}
       </p>
       {/* Not a live region: a count that changes every second would be read out every second */}
-      <p className="unreachable-wait tnum">{wait}</p>
+      {restarting ? (
+        <p className="unreachable-wait" role="status" data-testid="unreachable-restarting">
+          <Spinner /> {t('unreachable.restartingWait')}
+        </p>
+      ) : (
+        <p className="unreachable-wait tnum">{wait}</p>
+      )}
     </Empty>
   );
   return standalone ? (
