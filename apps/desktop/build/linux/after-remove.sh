@@ -48,6 +48,10 @@ case "$1" in
 esac
 if [ "$1" = "purge" ]; then
   rm -f /etc/default/claudio
+  # The pin is a conffile, which dpkg deletes on purge itself; this keeps it from outliving the
+  # package should it ever have been installed as a plain file. Kept on remove, like any conffile:
+  # it names only claudio, so it changes nothing while the package is gone
+  rm -f /etc/apt/preferences.d/claudio.pref
 fi
 
 # --- Claudio's update unit ---------------------------------------------------------------------

@@ -7,7 +7,7 @@
 # rule beside it). So nothing a caller controls reaches this script: it reads no argument, no
 # environment variable and no file a user can write, and it sets PATH and the locale itself. The worst
 # a caller can do is install the newest claudio the signed source offers, which apt never resolves to
-# a downgrade (--only-upgrade, and no pin of ours).
+# a downgrade (--only-upgrade, and the package's pin, claudio.pref, stays below priority 1000).
 #
 # Not an electron-builder template (it ships through fpm as a plain file), so braces are fine here.
 
