@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-08T20:00:00Z
+updated_at: 2026-11-08T22:00:00Z
 tags:
     - security
     - secrets
@@ -314,6 +314,12 @@ may do is decided by construction, per route (decision D1 of
   the server's: a chat that runs commands without asking (`bypassPermissions`, a pre-allowed `curl`)
   reaches these routes with its own token directly. Switching the server on in such a chat hands it
   the person's control of orchestrations, and of what a prompt injection in what it reads asks for.
+- **A fork of a chat with Claudio's MCP server on starts without it** unless the chat forking is the
+  person's own such chat (`POST /chats/:id/fork` in `apps/api/src/routes/chats.ts`). A fork keeps its
+  source's tool record, which would make the fork an owner on `/orchestrations*` (D12 above); so a
+  chat token that does not itself qualify (a worker of a graph, a chat without the server) gets
+  `claudioMcp: false` forced on the fork it asks for. Otherwise it could forward the person's chat
+  with a prompt of its own and mint an owner. Only the person switches the server on.
 - **Sign-in codes stay off its event stream.** `login.updated` carries the device code and the URL a
   person opens (for Tailscale the URL is the sign-in), so `GET /events` sends them only on a stream
   opened with an owner credential (or on an open install, where every caller is the person's); any
@@ -646,6 +652,19 @@ nothing a remote sends can act in the hub's origin. What holds:
   (`403 server-links.not-owner`), so a hub never chains a third; and it cannot drive a gateway
   (`403 servers.one-hop`). Its one extra power is to revoke its own token (`DELETE /server-links/self`,
   allowed in read-only mode because it only removes access).
+- **A pasted owner token waits for the fingerprint** (D13). With an `https://` address the hub first
+  opens TLS and reads the certificate without sending a request. With no `expectedFingerprint` the
+  answer is `409 servers.confirm-fingerprint` carrying the fingerprint seen, for the person to compare
+  with the remote's LAN card; the second call carries it, a different one is
+  `409 servers.fingerprint-unexpected` and a malformed one `400 servers.pairing-invalid`. The token
+  then goes only over a connection showing that same certificate, so a machine that answers between the
+  two calls receives nothing. Over `http://` on loopback nothing changes. A code needs no such step:
+  it is single-use and short-lived.
+- **The remote's owner can revoke a hub** (D14). `GET /server-links` lists the tokens (id, hub name and
+  `instanceId`, created, last used; never the secret) and `DELETE /server-links/:tokenId` revokes one
+  (`204`, or `404 server-links.not-found`). Both are the owner's alone: a hub's token is refused with
+  `403 server-links.not-owner`. Revoking also closes that token's terminal sockets, is allowed in
+  read-only mode, and the hub then sees `409 servers.needs-pairing`.
 - **Tokens on the remote.** 32 random bytes, shown once, stored as SHA-256 beside the owner's hash
   in `auth.json` (mode 0600) with the hub's name and `instanceId`; compared in full against every
   stored hash. One per hub: pairing again replaces the earlier token. Revoking takes the terminal
@@ -660,8 +679,9 @@ nothing a remote sends can act in the hub's origin. What holds:
   on the remote; a failed revoke is reported, not hidden (`?force=true` says the token may still work).
 - **Identity.** A server is its `instanceId` and its pinned certificate (fingerprint and public
   key). The hub judges a certificate by the pin, not a CA, with one exception: a CA-valid certificate
-  for the name dialled is accepted so that Tailscale names and tunnel proxies work (a CA never signs a
-  LAN address or a `.local` name). Either way `instanceId` must match, and a change is a hard block
+  for the name dialled is accepted so that Tailscale names and tunnel proxies work, and only for a DNS
+  name that is not an IP, not `.local` and not a single label (D15): on a LAN address, `localhost` or
+  `nas` the pin decides always. Either way `instanceId` must match, and a change is a hard block
   until the server is removed and paired again.
 - **The gateway's rules** (`apps/api/src/routes/servers-gateway.ts`). Only the person calls it, and it
   is `404` while the feature is off (`servers-settings.json`, off by default; turning it off closes
@@ -691,6 +711,11 @@ What does not: the sign-in screens and the LAN, tunnel and desktop surfaces are 
 which is a convenience and not a boundary (the boundary is the gateway and the token); a hub's token
 has the owner's full power on the remote, so removing a server matters; and the CA-valid fallback means a name dialled through a tunnel is trusted
 as far as that tunnel's certificate and the `instanceId` check go.
+
+Accepted risk (D17, owner's decision of 2026-11-08): any chat can message or resume the person's chat
+that has Claudio's MCP server on, and that chat acts as the owner on orchestrations. In
+`bypassPermissions` such a chat already has a shell; in other modes the person sees a permission
+prompt before the call.
 
 ## Known limits
 
