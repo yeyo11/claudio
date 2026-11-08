@@ -456,6 +456,13 @@ test("a write through the gateway lands on the remote, as the hub's server actor
   // Read back through the gateway too
   const listed = (await through(h, server.id, 'GET', '/api/projects')).json<Project[]>();
   assert.ok(listed.some((each) => each.name === 'remote-only'));
+  // A body is streamed through as it arrives: twice the hub's own 1 MiB limit, and the remote's limit applies
+  const file = Buffer.alloc(2 * 1024 * 1024, 7);
+  const uploaded = await h.app.inject({ method: 'POST', url: `/api/servers/${server.id}/api/uploads?name=big.bin`, payload: file, headers: { authorization: `Bearer ${h.token}`, 'content-type': 'application/octet-stream' } });
+  assert.equal(uploaded.statusCode, 201, uploaded.body);
+  const { id: uploadId } = uploaded.json<{ id: string }>();
+  const content = await r.app.inject({ url: `/api/uploads/${uploadId}/content`, ...bearer(r.token) });
+  assert.equal(content.rawPayload.length, file.length, 'the whole file landed on the remote');
   const remoteAudit = (await r.app.inject({ url: '/api/audit?path=/api/projects', ...bearer(r.token) })).json<AuditPage>();
   assert.ok(remoteAudit.entries.some((row) => row.method === 'POST' && row.actor.startsWith('server:')), JSON.stringify(remoteAudit));
   const hubAudit = (await h.app.inject({ url: '/api/audit?path=/api/projects', ...bearer(h.token) })).json<AuditPage>();
