@@ -55,12 +55,16 @@ interface Policy {
   names: Set<string>;
   prefixes: string[];
   bash: string[];
+  /** A file tool declared only with specifiers (`Read(./src/**)`): their patterns; a bare one is absent */
+  scoped: Map<string, string[]>;
 }
 
 function policyOf(declared: DeclaredTools): Policy {
   const names = new Set(declared.alwaysAllow);
   const prefixes = [...declared.allowPrefixes];
   const bash: string[] = [];
+  const scoped = new Map<string, string[]>();
+  const bare = new Set<string>();
   for (const rule of declared.tools) {
     const parsed = parsePermissionRule(rule);
     if (!parsed) continue;
@@ -73,14 +77,22 @@ function policyOf(declared: DeclaredTools): Policy {
     else if (tool.startsWith('mcp__') && tool.split('__').length === 2) {
       names.add(tool);
       prefixes.push(`${tool}__`);
-    } else names.add(tool);
+    } else {
+      names.add(tool);
+      if (spec === null || !FILE_TOOLS.has(tool)) bare.add(tool);
+      else scoped.set(tool, [...(scoped.get(tool) ?? []), spec]);
+    }
   }
-  return { names, prefixes, bash };
+  for (const tool of bare) scoped.delete(tool);
+  return { names, prefixes, bash, scoped };
 }
 
 function toolDeclared(name: string, policy: Policy): boolean {
   return policy.names.has(name) || policy.prefixes.some((prefix) => name.startsWith(prefix));
 }
+
+/** The tools whose specifier is a path pattern */
+const FILE_TOOLS = new Set(['Read', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'NotebookRead', 'Grep', 'Glob', 'LS']);
 
 // ── Paths ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -528,14 +540,47 @@ function checkCommand(cmd: Cmd, ctx: RuleContext, declared: DeclaredTools, polic
 
 const FILE_KEYS = ['file_path', 'notebook_path', 'path'];
 
-function checkFileTool(ctx: RuleContext, declared: DeclaredTools): Block | null {
+/**
+ * The folder a file tool's specifier reaches, by Claude Code's rules for `Read`/`Edit` paths
+ * (https://code.claude.com/docs/en/permissions): `//x` is absolute, `~/x` the home, which a confined
+ * chat never reaches, and `/x`, `./x` or `x` sit under the working directory, since a confined chat
+ * reads no settings file to be relative to. The guard keeps the call inside the pattern's fixed
+ * folder; the CLI, which gets the same rule, matches the rest of the pattern.
+ */
+function specScope(spec: string, root: string): string | null {
+  const text = spec.trim();
+  if (text.startsWith('~')) return null;
+  const abs = text.startsWith('//') ? resolveLexical(text.slice(1), null) : resolveLexical(text.replace(/^\/+/, ''), root);
+  if (abs === null) return null;
+  const fixed = staticPrefix(abs);
+  return fixed.length > 1 && fixed.endsWith('/') ? fixed.slice(0, -1) : fixed || '/';
+}
+
+function checkScope(text: string, cwd: string, ctx: RuleContext, declared: DeclaredTools, specs: readonly string[], where: string): Block | null {
+  const scopes = specs.map((spec) => specScope(spec, declared.root)).filter((dir): dir is string => dir !== null);
+  const abs = resolveLexical(staticPrefix(text) || '.', cwd);
+  if (abs === null) return block('path', `${where}: the directory ${snippet(text)} is read from is not known`);
+  const real = realResolve(abs, true, ctx.links);
+  if (declared.attachments.includes(real)) return null;
+  if (scopes.some((dir) => isInside(real, realResolve(dir, true, ctx.links)))) return null;
+  return block('path', `${where}: ${snippet(text)} is outside what its rules declare (${specs.map((spec) => snippet(spec)).join(', ')})`);
+}
+
+function checkFileTool(ctx: RuleContext, declared: DeclaredTools, policy: Policy): Block | null {
   const input = ctx.input.tool_input;
   const where = ctx.input.tool_name;
   const cwd = ctx.cwd ?? declared.root;
+  const specs = policy.scoped.get(where);
   for (const key of FILE_KEYS) {
     const value = input[key];
     if (typeof value !== 'string') continue;
-    const found = checkPath(value, false, cwd, ctx, declared, where);
+    const found = checkPath(value, false, cwd, ctx, declared, where) ?? (specs ? checkScope(value, cwd, ctx, declared, specs, where) : null);
+    if (found) return found;
+  }
+  // Grep and Glob without a path search the working directory, which a scoped rule may not cover
+  if (specs && (where === 'Grep' || where === 'Glob') && typeof input.path !== 'string') {
+    const from = where === 'Glob' && typeof input.pattern === 'string' ? input.pattern : '.';
+    const found = checkScope(from, cwd, ctx, declared, specs, where);
     if (found) return found;
   }
   const pattern = input.pattern;
@@ -580,5 +625,5 @@ export function declaredTools(ctx: RuleContext): Block | null {
       if (found) return found;
     }
   }
-  return checkFileTool(ctx, declared);
+  return checkFileTool(ctx, declared, policy);
 }

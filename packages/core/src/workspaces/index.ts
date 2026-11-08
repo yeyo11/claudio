@@ -225,7 +225,7 @@ export class Workspaces {
           onBytes: (n) => {
             let others = 0;
             for (const bytes of this.inflight.values()) others += bytes;
-            if (this.store.readyBytes() + others + n > settings.maxTotalBytes) {
+            if (this.store.heldBytes() + others + n > settings.maxTotalBytes) {
               throw refuse('workspace-too-large', `the workspaces would hold more than ${mb(settings.maxTotalBytes)} MB together`);
             }
             this.inflight.set(id, (this.inflight.get(id) ?? 0) + n);
@@ -346,32 +346,44 @@ export class Workspaces {
   async sweep(opts: { orphans?: boolean } = {}): Promise<number> {
     const now = this.now();
     let removed = 0;
+    // One workspace that cannot go now (a busy file, a permission) is retried on the next pass; it
+    // never keeps the others on disk
+    let failure: unknown = null;
+    const attempt = async (work: () => Promise<void>): Promise<void> => {
+      try {
+        await work();
+        removed++;
+      } catch (err) {
+        failure ??= err;
+      }
+    };
     for (const row of this.store.current()) {
       if (this.closed) return removed;
       if (this.inflight.has(row.id)) continue;
       if (row.state === 'ready' && Date.parse(row.expiresAt) <= now && this.chatsIn(row.id).length === 0) {
-        await this.remove(row.id);
-        removed++;
+        await attempt(() => this.remove(row.id));
       } else if (row.state === 'creating' && Date.parse(row.createdAt) + 2 * this.deps.settings.timeoutMs < now) {
-        await this.removeFolder(this.folderOf(row.id));
-        this.store.forget(row.id);
-        removed++;
+        await attempt(async () => {
+          await this.removeFolder(this.folderOf(row.id));
+          this.store.forget(row.id);
+        });
       } else if (row.state === 'removing' && Date.parse(row.lastUsedAt) + STALE_REMOVING_MS < now && this.chatsIn(row.id).length === 0) {
-        await this.removeFolder(this.folderOf(row.id));
-        this.store.removed(row.id, this.iso(now));
-        removed++;
+        await attempt(async () => {
+          await this.removeFolder(this.folderOf(row.id));
+          this.store.removed(row.id, this.iso(now));
+        });
       }
     }
     if (opts.orphans && existsSync(this.root)) {
       const known = new Set(this.store.current().map((row) => row.id));
       for (const entry of await readdir(this.root, { withFileTypes: true })) {
         if (entry.isDirectory() && ID_RE.test(entry.name) && !known.has(entry.name)) {
-          await this.removeFolder(this.folderOf(entry.name));
-          removed++;
+          await attempt(() => this.removeFolder(this.folderOf(entry.name)));
         }
       }
     }
     this.store.pruneRemoved(this.iso(now - KEEP_REMOVED_MS));
+    if (failure) throw failure;
     return removed;
   }
 

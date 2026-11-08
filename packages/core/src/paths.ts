@@ -291,7 +291,13 @@ export interface HeadlessStart {
   envSpendCapUsd: number | null;
 }
 
-const LOOPBACK_BIND = new Set(['127.0.0.1', '::1', 'localhost']);
+/** `localhost`, `127.0.0.0/8`, `::1` and their IPv4-mapped and bracketed forms: only the machine reaches them */
+function loopbackBind(host: string): boolean {
+  const name = host.trim().toLowerCase().replace(/^\[(.*)\]$/, '$1');
+  if (name === 'localhost' || name === '::1' || name === '0:0:0:0:0:0:0:1') return true;
+  const v4 = name.replace(/^(?:::ffff:|0:0:0:0:0:ffff:)/, '');
+  return /^127(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(v4);
+}
 
 /**
  * Why a headless server must not start, one sentence each; empty when it may (D4). A headless
@@ -301,7 +307,7 @@ const LOOPBACK_BIND = new Set(['127.0.0.1', '::1', 'localhost']);
  */
 export function headlessStartProblems(start: HeadlessStart): string[] {
   const problems: string[] = [];
-  if (start.authMode === 'none' && !LOOPBACK_BIND.has(start.host.trim().toLowerCase())) {
+  if (start.authMode === 'none' && !loopbackBind(start.host)) {
     problems.push(`CLAUDIO_AUTH_MODE=none on ${start.host}: a headless Claudio needs a token (CLAUDIO_AUTH_MODE=token with CLAUDIO_AUTH_TOKEN) unless it listens on loopback only`);
   }
   if (start.envSpendCapUsd === null) problems.push('CLAUDIO_DAILY_SPEND_CAP_USD is not set: a headless Claudio needs a daily spend cap');
