@@ -4,13 +4,15 @@ import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { QueryClient } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { setActiveServer } from '@claudio/ui/lib/server-scope';
+import { LOCAL_SERVER_ID, setActiveServer } from '@claudio/ui/lib/server-scope';
 import { api, createApi } from '../src/api';
 import { setChallenge, setToken, useAuthChallenge, confirmHubSession, probeAuth } from '../src/lib/auth';
 import { storageKey } from '../src/lib/list-params';
 import { readSeen, writeSeen, type KeyValueStore } from '../src/lib/review-state';
 import { serverKeyHash } from '../src/lib/server-keys';
 import { terminalWindowName } from '../src/components/terminal/terminal-window';
+import { disablePush, enablePush, ensurePushConfigured, openPushedPath, pushIsActive, syncPush } from '../src/lib/push';
+import { proposedKey, saveKey } from '../src/pages/team/evals/run-model';
 
 const realFetch = globalThis.fetch;
 
@@ -152,4 +154,67 @@ test('the cache tells two servers’ reads of the same key apart, and an invalid
   await hub.invalidateQueries({ queryKey: ['chats'] });
   assert.equal(hub.getQueryState(key)?.isInvalidated, true);
   assert.deepEqual(hub.getQueryData(['chats', 'all']), ['hub chat']);
+});
+
+test('evals hand-overs are kept per server: a hub’s stashed text never fills a remote’s dialog', () => {
+  assert.equal(proposedKey('p1', 'reviewer'), 'claudio.evals.proposed.p1.reviewer');
+  assert.equal(saveKey('p1', 'reviewer'), 'claudio.evals.save.p1.reviewer');
+  setActiveServer('srv_1');
+  assert.equal(proposedKey('p1', 'reviewer'), 'claudio.evals.proposed.p1.reviewer:srv_1');
+  assert.equal(saveKey('p1', 'reviewer'), 'claudio.evals.save.p1.reviewer:srv_1');
+});
+
+test('a pushed notification is the hub’s: tapped in a remote scope it opens the hub’s address, not the remote’s', () => {
+  const routed: string[] = [];
+  const left: string[] = [];
+  openPushedPath('/chats/c1?notification=k', (href) => routed.push(href), (href) => left.push(href));
+  assert.deepEqual([routed, left], [['/chats/c1?notification=k'], []]);
+  setActiveServer('srv_1');
+  openPushedPath('/chats/c1?notification=k', (href) => routed.push(href), (href) => left.push(href));
+  assert.deepEqual([routed, left], [['/chats/c1?notification=k'], ['/chats/c1?notification=k']]);
+});
+
+test('Web Push is the origin’s, so the hub’s: a remote scope never sends the subscription to the remote or subscribes to its key', async (t) => {
+  // A browser that can be pushed to and already holds a subscription, which is what every load syncs
+  const g = globalThis as Record<string, unknown>;
+  const navigatorWas = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const was = { window: g.window, PushManager: g.PushManager, Notification: g.Notification, matchMedia: g.matchMedia, isSecureContext: g.isSecureContext };
+  let subscribed = 0;
+  const subscription = {
+    endpoint: 'https://push.example/hub-device',
+    toJSON: () => ({ endpoint: 'https://push.example/hub-device', keys: { p256dh: 'p256dh-secret', auth: 'auth-secret' } }),
+    unsubscribe: () => Promise.resolve(true),
+  };
+  const subscribe = () => {
+    subscribed += 1;
+    return Promise.resolve(subscription);
+  };
+  const registration = { pushManager: { getSubscription: () => Promise.resolve(subscription), subscribe } };
+  Object.assign(g, { window: globalThis, PushManager: class {}, Notification: { permission: 'granted' }, matchMedia: () => ({ matches: false }), isSecureContext: true });
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: { serviceWorker: { getRegistration: () => Promise.resolve(registration), ready: Promise.resolve(registration) }, userAgent: 'test', maxTouchPoints: 0 },
+  });
+  t.after(() => {
+    for (const [name, value] of Object.entries(was)) {
+      if (value === undefined) delete g[name];
+      else g[name] = value;
+    }
+    if (navigatorWas) Object.defineProperty(globalThis, 'navigator', navigatorWas);
+  });
+  const calls = record((url) => json(url.endsWith('/push/key') ? { configured: true, publicKey: 'BHubKey' } : { id: 'x' }));
+
+  setActiveServer('srv_1');
+  await syncPush();
+  await enablePush();
+  await disablePush();
+  await ensurePushConfigured();
+  assert.equal(calls.length, 0, `nothing about push went through the gateway: ${JSON.stringify(calls.map((call) => call.url))}`);
+  assert.equal(subscribed, 0, 'the origin was never subscribed to a remote’s key');
+  assert.equal(pushIsActive(), false, 'the page’s own notifications stay on for the remote’s news');
+
+  // The same browser on the hub's own pages reaches the hub's routes: the stub above is what a sync gets to
+  setActiveServer(LOCAL_SERVER_ID);
+  await syncPush();
+  assert.ok(calls.length > 0 && calls.every((call) => call.url.startsWith('/api/push/')), JSON.stringify(calls.map((call) => call.url)));
 });

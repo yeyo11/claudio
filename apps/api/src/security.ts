@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { DESKTOP_ACTOR, MAX_AUDIT_PATH, TYPED_COMPACT, chatActor, isServerActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
-import type { HostRefusal } from '@claudio/shared';
+import type { ChatOrigin, HostRefusal } from '@claudio/shared';
 import { allowedOrigin } from './origins.ts';
 import { ROUTE_DOCS, accessOf } from './openapi/routes.ts';
 
@@ -287,6 +287,31 @@ const CHAT_FORBIDDEN_REVIEW_GATE = new Set([
   `POST ${API_PREFIX}/projects/:id/review-roles/:role`,
 ]);
 const CHAT_REVIEW_GATE_REFUSAL = "a chat's token cannot accept a review gate or write a reviewer's role: that is the person's";
+
+/**
+ * D12 of docs/plans/claudio-servers.md (owner, 2026-11-08): a chat the person switched Claudio's own
+ * MCP server on for drives orchestrations as the person does. On every `/orchestrations*` route its
+ * token counts as the owner's, with no exception: no access class, no `workFields`, no review-gate
+ * exception and no handler's own check of a chat (`fromChat`, which reads `actsAsOwner`) refuses it,
+ * and a schedule's `target.spec` takes whatever `POST /orchestrations` then takes. The flag is read
+ * from the chat at every request and never kept with the token, so switching the server off takes
+ * the access away at the next request. Only a person's own chats qualify: an orchestration's workers
+ * and Claudio's internal chats keep the classes whatever their tool record says, so a graph can
+ * never widen what it runs. The audit still names the chat (`chat:<id>`).
+ */
+const ORCHESTRATION_ROUTE = /^[A-Z]+ \/orchestrations(?:\/|$)/;
+const PERSON_CHAT_ORIGINS: ReadonlySet<ChatOrigin> = new Set<ChatOrigin>(['claudio', 'external']);
+const orchestrationOwners = new WeakSet<FastifyRequest>();
+
+/** Whether the chat `actor` names has Claudio's MCP server on right now, and is a person's chat */
+export function claudioMcpChat(core: Core, actor: string | null): boolean {
+  if (!actor?.startsWith('chat:')) return false;
+  const chat = core.runtime.get(actor.slice('chat:'.length));
+  return chat !== null && chat.tools?.claudioMcp === true && PERSON_CHAT_ORIGINS.has(chat.origin) && chat.orchestrationId === null && !chat.claudioAssistant;
+}
+
+/** Whether a chat's own request acts as the owner on this orchestration route (D12) */
+export const actsAsOwner = (req: FastifyRequest): boolean => orchestrationOwners.has(req);
 
 /**
  * The terminal is the person's own shell: a chat's token cannot open, read or type into one, and
@@ -873,10 +898,12 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       if (chatId !== null) req.actor = chatActor(chatId);
     }
     req.actor ??= 'local';
+    // Read now, from the chat: a server switched off a moment ago no longer counts (D12)
+    if (route !== null && ORCHESTRATION_ROUTE.test(route) && claudioMcpChat(core, req.actor)) orchestrationOwners.add(req);
 
     // The three exceptions, which hold in every mode (see the note above the review gate's set)
     const key = `${req.method} ${req.routeOptions.url ?? path}`;
-    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(key)) {
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(key) && !orchestrationOwners.has(req)) {
       void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL, code: 'chat-forbidden' });
       return reply;
     }
@@ -910,7 +937,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     }
 
     // The class of the matched route, for a chat's token a guarded mode authenticated
-    if (chatCredentials.has(req) && access === 'person') {
+    if (chatCredentials.has(req) && access === 'person' && !orchestrationOwners.has(req)) {
       void reply.status(403).send(personRefusal(route));
       return reply;
     }
@@ -930,7 +957,8 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   // (`workFields`): a sibling started with `bypassPermissions` or a wider tool list would undo the
   // rules the class enforces (report §8.3). Read once the body is parsed, so in `preHandler`
   app.addHook('preHandler', async (req, reply) => {
-    if (!chatCredentials.has(req)) return;
+    // A chat that acts as the owner here (D12) may send every field the person may
+    if (!chatCredentials.has(req) || orchestrationOwners.has(req)) return;
     const route = apiRoute(req);
     const body: unknown = req.body;
     // Compacting is the person's (`POST /chats/:id/compact` is `person`). The text of a turn that
@@ -968,7 +996,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       ];
       const stray = Object.keys(target).find((name) => !['kind', 'chat', 'spec'].includes(name));
       if (stray !== undefined) return refuse(stray, ['kind', 'chat', 'spec'], 'target.');
+      // The spec is what `POST /orchestrations` takes, so a chat that acts as the owner there sends it whole (D12)
+      const ownsSpec = claudioMcpChat(core, req.actor);
       for (const [part, source, where] of checks) {
+        if (ownsSpec && source === 'POST /orchestrations') continue;
         const allowed = ROUTE_DOCS[source]?.workFields;
         if (!allowed || part === null || typeof part !== 'object' || Array.isArray(part)) continue;
         const bad = Object.keys(part).find((name) => !allowed.includes(name));

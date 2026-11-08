@@ -14,6 +14,7 @@ import {
   type EvalVariant,
 } from '@claudio/shared';
 import { formatPercent } from '@claudio/ui/lib/format';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /** The pure parts of the start dialog, the run view, the sample and the history. */
 
@@ -24,7 +25,8 @@ export const PROPOSED_MAX_BYTES = 256 * 1024;
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
-export const proposedKey = (projectId: string, agent: string): string => `claudio.evals.proposed.${projectId}.${agent}`;
+// Per server: project ids are paths, which repeat across machines, and the stash outlives a switch of server
+export const proposedKey = (projectId: string, agent: string): string => scopedKey(`claudio.evals.proposed.${projectId}.${agent}`);
 
 /** Keeps the unsaved text of an agent file for the start dialog; false when it is too large or storage refuses. */
 export function stashProposed(store: Store, projectId: string, agent: string, text: string): boolean {
@@ -60,7 +62,7 @@ export function evalsForAgent(files: readonly EvalFileListItem[], agent: string)
 }
 
 /** The proposed text a gate hands to the member's editor, whose Save the person still presses. */
-export const saveKey = (projectId: string, agent: string): string => `claudio.evals.save.${projectId}.${agent}`;
+export const saveKey = (projectId: string, agent: string): string => scopedKey(`claudio.evals.save.${projectId}.${agent}`);
 
 export function stashSave(store: Store, projectId: string, agent: string, text: string): boolean {
   try {

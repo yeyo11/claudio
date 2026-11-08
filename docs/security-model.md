@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-07T12:00:00Z
+updated_at: 2026-11-08T16:00:00Z
 tags:
     - security
     - secrets
@@ -292,6 +292,27 @@ may do is decided by construction, per route (decision D1 of
   mode. A schedule's body is held the same way one level down (`workTarget`): `target.chat` to the
   fields of `POST /chats` and `target.spec` to those of `POST /orchestrations`, so a timetable never
   starts what the agent could not start itself.
+- **A chat with Claudio's MCP server on drives orchestrations as the person does** (D12 of
+  [plans/claudio-servers.md](plans/claudio-servers.md), owner's decision of 2026-11-08, no
+  exceptions). When the chat behind the token has `tools.claudioMcp === true` (switched on from its
+  "+", `PUT /chats/:id/claudio-mcp`), its token counts as the owner's on every `/orchestrations*`
+  route and every field of their bodies: deleting a graph, integrating it, its pull request, accepting
+  its review gate (under `mode: none` too), the spend pass, the Supervisor's send and dismiss, saving
+  its workflow, pruning its worktrees, the templates' writes, and `permissionMode`,
+  `permissionPrompts`, `allowedTools`, `verification` and `guards` on a launch, a relaunch's `spec`
+  and a verification. The handlers' own checks of a chat (a guard weaker than the default, the spend
+  pass, the spend override header) let it through there too, and a schedule's `target.spec` takes
+  what `POST /orchestrations` then takes (its `target.chat` does not move). The flag is read from the
+  chat at every request (`claudioMcpChat` in `apps/api/src/security.ts`, beside the class check) and
+  never kept with the token, so switching the server off takes the access away at the next request.
+  Only a person's own chats qualify (origin `claudio` or `external`, not the assistant): an
+  orchestration's workers and Claudio's internal chats keep the classes whatever their tool record
+  says, so a graph never widens what it runs. Everything outside `/orchestrations*` keeps its class.
+  The audit still names the chat. Every call of Claudio's server asks the person in the chat
+  ([claudio-mcp-server.md](claudio-mcp-server.md#write-tools)), but the widening is the token's, not
+  the server's: a chat that runs commands without asking (`bypassPermissions`, a pre-allowed `curl`)
+  reaches these routes with its own token directly. Switching the server on in such a chat hands it
+  the person's control of orchestrations, and of what a prompt injection in what it reads asks for.
 - **Sign-in codes stay off its event stream.** `login.updated` carries the device code and the URL a
   person opens (for Tailscale the URL is the sign-in), so `GET /events` sends them only on a stream
   opened with an owner credential (or on an open install, where every caller is the person's); any
@@ -299,7 +320,7 @@ may do is decided by construction, per route (decision D1 of
 - **Under `mode: none`** the token only labels the request (`chat:<id>` in the audit), and nothing
   refuses it by class: an open install grants everything to everyone. Three exceptions hold there
   too, because the label is enough to refuse what must stay the person's whatever the mode: accepting
-  a review gate and writing a reviewer's role ([The review gate](#the-review-gate)), every
+  a review gate (but for a chat with Claudio's server on, above) and writing a reviewer's role ([The review gate](#the-review-gate)), every
   Collaborators route but the copy reads in scope ([Collaborators](#collaborators)) and every terminal
   route ([The terminal](#the-terminal)). Some routes also check the label themselves under `none`:
   the daily spend cap in `PUT /settings/app`, a project's tracker, lessons and providers in its
