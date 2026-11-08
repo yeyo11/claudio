@@ -432,6 +432,20 @@ test('link-local, metadata and loopback by a name are never dialled', async (t) 
   assert.equal((await attempt(`https://localhost:${String(f.port)}`)).statusCode, 201);
 });
 
+test('a name that resolves to an IP nobody listens on first is dialled at its next IP', async (t) => {
+  const h = await hub(t);
+  const f = await fake(t);
+  // As on CI runners and with tailnet names: an IPv6 address first, while the remote listens on IPv4 only
+  h.core.servers.network.lookup = (name) =>
+    name === 'localhost' ? Promise.resolve([{ address: '::1', family: 6 }, { address: '127.0.0.1', family: 4 }]) : dns.lookup(name, { all: true });
+  const added = await h.app.inject({
+    method: 'POST',
+    url: '/api/servers',
+    ...authed(h.token, { name: 'Dual', addresses: [{ url: `https://localhost:${String(f.port)}`, kind: 'lan' }], pairing: { kind: 'token', token: 'owner', expectedFingerprint: f.fingerprint } }),
+  });
+  assert.equal(added.statusCode, 201, added.body);
+});
+
 test("the hub's credentials never reach the remote, and what the remote answers cannot act on the hub's origin", async (t) => {
   const h = await hub(t);
   const f = await fake(t);

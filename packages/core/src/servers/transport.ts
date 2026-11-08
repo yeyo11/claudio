@@ -119,12 +119,17 @@ function judge(socket: TLSSocket, trust: Trust, host: string): ServersError | nu
   return accepts(trust, seen, host);
 }
 
-/** The first IP of a name the hub may dial, which is then the one it connects to: no second lookup a rebinding could answer */
-async function resolveAllowed(host: string, loopbackAllowed: boolean, lookup: Lookup): Promise<string> {
+/**
+ * Every IP of a name the hub may dial, in the resolver's order, which are then the only ones it
+ * connects to: no second lookup a rebinding could answer. All of them, not the first: a name often
+ * resolves to an IPv6 and an IPv4 address (a tailnet name, `localhost` on many systems) while
+ * Claudio's LAN listener answers on IPv4 only, so the first may simply not be listening.
+ */
+async function resolveAllowed(host: string, loopbackAllowed: boolean, lookup: Lookup): Promise<string[]> {
   if (isIP(host)) {
     const refused = refusedIp(host, loopbackAllowed);
     if (refused) throw new ServersError(400, 'servers.address-refused', refused);
-    return host;
+    return [host];
   }
   let found: Array<{ address: string }>;
   try {
@@ -133,30 +138,30 @@ async function resolveAllowed(host: string, loopbackAllowed: boolean, lookup: Lo
     throw new ServersError(502, 'servers.unreachable', `${host} does not resolve`);
   }
   if (found.length === 0) throw new ServersError(502, 'servers.unreachable', `${host} does not resolve`);
+  const allowed: string[] = [];
   let reason: string | null = null;
   for (const each of found) {
     const refused = refusedIp(each.address, loopbackAllowed);
-    if (refused === null) return each.address;
-    reason ??= refused;
+    if (refused === null) {
+      if (!allowed.includes(each.address)) allowed.push(each.address);
+    } else reason ??= refused;
   }
-  throw new ServersError(400, 'servers.address-refused', `${host} resolves to what the hub never dials: ${reason ?? ''}`);
+  if (allowed.length === 0) throw new ServersError(400, 'servers.address-refused', `${host} resolves to what the hub never dials: ${reason ?? ''}`);
+  return allowed;
 }
 
-/**
- * One connection to a remote: the name resolved and its IP checked (R2), plain TCP only to an address
- * recorded as loopback, and over TLS the certificate judged by `trust` before a byte is written.
- */
-export async function dial(target: DialTarget, trust: Trust, options: DialOptions): Promise<Socket> {
-  const host = bareHost(target.hostname);
-  const loopback = isLoopbackName(host);
-  const tls = target.protocol === 'https:';
-  if (!tls && (target.protocol !== 'http:' || !loopback)) throw new ServersError(400, 'servers.address-insecure', `${target.protocol}//${target.hostname} is not dialled: only https://, or http:// on loopback`);
-  const ip = await resolveAllowed(host, loopback, options.lookup);
+/** Whether a failed attempt at one IP says nothing about the next one (nothing listened, no route), so the next is worth trying */
+function worthNextIp(error: unknown): boolean {
+  return !(error instanceof ServersError && error.reason !== 'servers.unreachable');
+}
+
+/** One TCP or TLS connection to one already-checked IP, its certificate judged before it is handed over */
+function connectOnce(ip: string, host: string, target: DialTarget, trust: Trust, tls: boolean, timeoutMs: number): Promise<Socket> {
   return new Promise<Socket>((resolve, reject) => {
     const socket: Socket = tls
       ? tlsConnect({ host: ip, port: target.port, ...(isIP(host) ? {} : { servername: host }), rejectUnauthorized: false, ALPNProtocols: ['http/1.1'] })
       : netConnect({ host: ip, port: target.port });
-    const timer = setTimeout(() => socket.destroy(new ServersError(504, 'servers.unreachable', `${target.hostname}:${String(target.port)} did not answer in time`)), options.timeoutMs);
+    const timer = setTimeout(() => socket.destroy(new ServersError(504, 'servers.unreachable', `${target.hostname}:${String(target.port)} did not answer in time`)), timeoutMs);
     const failed = (error: Error): void => {
       clearTimeout(timer);
       reject(error);
@@ -174,6 +179,34 @@ export async function dial(target: DialTarget, trust: Trust, options: DialOption
       resolve(socket);
     });
   });
+}
+
+/**
+ * One connection to a remote: the name resolved and its IPs checked (R2), plain TCP only to an address
+ * recorded as loopback, and over TLS the certificate judged by `trust` before a byte is written. The
+ * IPs are tried in order within one time budget; an identity refusal ends it at once, since another
+ * IP of the same name showing another certificate is no reason to keep looking.
+ */
+export async function dial(target: DialTarget, trust: Trust, options: DialOptions): Promise<Socket> {
+  const host = bareHost(target.hostname);
+  const loopback = isLoopbackName(host);
+  const tls = target.protocol === 'https:';
+  if (!tls && (target.protocol !== 'http:' || !loopback)) throw new ServersError(400, 'servers.address-insecure', `${target.protocol}//${target.hostname} is not dialled: only https://, or http:// on loopback`);
+  const ips = await resolveAllowed(host, loopback, options.lookup);
+  const deadline = Date.now() + options.timeoutMs;
+  let last: unknown = null;
+  for (const ip of ips) {
+    const left = deadline - Date.now();
+    if (left <= 0) break;
+    try {
+      return await connectOnce(ip, host, target, trust, tls, left);
+    } catch (error) {
+      if (!worthNextIp(error)) throw error;
+      last = error;
+    }
+  }
+  if (last instanceof Error) throw last;
+  throw new ServersError(504, 'servers.unreachable', `${target.hostname}:${String(target.port)} did not answer in time`);
 }
 
 /**
