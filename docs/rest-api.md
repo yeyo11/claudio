@@ -133,7 +133,8 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 Every Claudio can be driven by another one, its hub ([plans/claudio-servers.md](plans/claudio-servers.md)).
 These are the remote side: who the server is, and how a hub pairs with it. A hub's token acts as the
 owner (`server:<tokenId>` in the audit), is never "this machine" for the terminal, and is accepted on
-any host the server answers on. Pairing needs a guarded auth mode.
+any host the server answers on. Pairing needs a guarded auth mode. The headless profile serves
+`/meta`, `POST /server-links` and `DELETE /server-links/self`: it has no page to show a code on.
 
 | Method | Route | Description |
 | --- | --- | --- |

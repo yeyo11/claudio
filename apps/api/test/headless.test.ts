@@ -128,6 +128,26 @@ test('the D1 routes are served in headless, and the system says which profile it
   assert.equal((await app.inject('/api/chats')).statusCode, 401);
 });
 
+test('a headless Claudio can be a remote: meta is open, and a hub pairs with the owner token and gives its own back', async (t) => {
+  const { app, core } = await wrapper();
+  t.after(async () => {
+    await app.close();
+    await core.shutdown();
+  });
+  const meta = await app.inject('/api/meta');
+  assert.equal(meta.statusCode, 200);
+  assert.equal(meta.json<{ instanceId: string }>().instanceId, core.identity.instanceId);
+  // No page shows a code here, so the code routes stay hidden
+  assert.equal((await app.inject({ method: 'POST', url: '/api/server-links/code', headers: auth })).statusCode, 404);
+
+  const minted = await app.inject({ method: 'POST', url: '/api/server-links', headers: { ...auth, 'content-type': 'application/json' }, payload: JSON.stringify({ hubInstanceId: 'hub-1', hubName: 'Desk' }) });
+  assert.equal(minted.statusCode, 200, minted.body);
+  const { token } = minted.json<{ token: string }>();
+  assert.equal((await app.inject({ url: '/api/chats', headers: { authorization: `Bearer ${token}` } })).statusCode, 200);
+  assert.equal((await app.inject({ method: 'DELETE', url: '/api/server-links/self', headers: { authorization: `Bearer ${token}` } })).statusCode, 204);
+  assert.equal((await app.inject({ url: '/api/chats', headers: { authorization: `Bearer ${token}` } })).statusCode, 401);
+});
+
 test('the OpenAPI document of a headless Claudio describes only what it serves', async (t) => {
   const { app, core } = await wrapper();
   t.after(async () => {
