@@ -13,23 +13,48 @@ const KINDS: ReadonlySet<string> = new Set<ServerAddressKind>(['lan', 'tailscale
  * plumbing. The private ranges stay open on purpose: the LAN is where remotes live.
  */
 const REFUSED = new BlockList();
-// "This network" and the unspecified address, which some stacks read as this machine
-REFUSED.addSubnet('0.0.0.0', 8, 'ipv4');
+/**
+ * The IPv4 ranges, each also refused in its IPv4-mapped form (`::ffff:a.b.c.d`), which a dual-stack
+ * socket dials as the IPv4 address. `BlockList` happens to match mapped addresses against IPv4 rules
+ * today; the explicit entries keep the refusal from resting on that.
+ */
+const REFUSED_V4: ReadonlyArray<readonly [string, number]> = [
+  // "This network", which some stacks read as this machine
+  ['0.0.0.0', 8],
+  // Link-local, where every cloud keeps its instance metadata (169.254.169.254)
+  ['169.254.0.0', 16],
+  // Multicast, the reserved block and broadcast
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+  // The metadata services that do not live in link-local: Alibaba, Azure's host agent
+  ['100.100.100.200', 32],
+  ['168.63.129.16', 32],
+];
+for (const [net, prefix] of REFUSED_V4) {
+  REFUSED.addSubnet(net, prefix, 'ipv4');
+  REFUSED.addSubnet(`::ffff:${net}`, 96 + prefix, 'ipv6');
+}
+// The unspecified address, which some stacks read as this machine
 REFUSED.addAddress('::', 'ipv6');
-// Link-local, where every cloud keeps its instance metadata (169.254.169.254)
-REFUSED.addSubnet('169.254.0.0', 16, 'ipv4');
 REFUSED.addSubnet('fe80::', 10, 'ipv6');
-// Multicast, the reserved block and broadcast
-REFUSED.addSubnet('224.0.0.0', 4, 'ipv4');
-REFUSED.addSubnet('240.0.0.0', 4, 'ipv4');
 REFUSED.addSubnet('ff00::', 8, 'ipv6');
-// The metadata services that do not live in link-local: AWS over IPv6, Alibaba, Azure's host agent
+// AWS's metadata service over IPv6
 REFUSED.addAddress('fd00:ec2::254', 'ipv6');
-REFUSED.addAddress('100.100.100.200', 'ipv4');
-REFUSED.addAddress('168.63.129.16', 'ipv4');
 // The same ranges reached through NAT64's well-known prefix
 REFUSED.addSubnet('64:ff9b::a9fe:0', 112, 'ipv6');
 REFUSED.addSubnet('64:ff9b::7f00:0', 104, 'ipv6');
+// Addresses that carry an IPv4 one to reach it through a relay or a tunnel, whose far end is
+// whatever IPv4 address is written inside: 6to4 and Teredo. No Claudio a person pairs lives there
+REFUSED.addSubnet('2002::', 16, 'ipv6');
+REFUSED.addSubnet('2001::', 32, 'ipv6');
+
+/**
+ * IPv4-compatible addresses (`::a.b.c.d`), deprecated since 2006 and dialled by some stacks as the
+ * IPv4 address inside, so every range above could be reached through them. `::1` is in the block
+ * too, and stays under the loopback rule.
+ */
+const COMPATIBLE = new BlockList();
+COMPATIBLE.addSubnet('::', 96, 'ipv6');
 
 const LOOPBACK = new BlockList();
 LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
@@ -59,7 +84,8 @@ export function isLoopbackName(hostname: string): boolean {
 export function refusedIp(ip: string, loopbackAllowed: boolean): string | null {
   const family = familyOf(ip);
   if (family === null) return `${ip} is not an IP address`;
-  if (REFUSED.check(ip, family)) return `${ip} is link-local, multicast, reserved or a cloud metadata address, which the hub never dials`;
+  if (REFUSED.check(ip, family)) return `${ip} is link-local, multicast, reserved, a tunnel to an IPv4 address or a cloud metadata address, which the hub never dials`;
+  if (family === 'ipv6' && COMPATIBLE.check(ip, family) && !LOOPBACK.check(ip, family)) return `${ip} is an IPv4-compatible address, which the hub never dials`;
   if (!loopbackAllowed && LOOPBACK.check(ip, family)) return `${ip} is this machine, and the address was not recorded as loopback`;
   return null;
 }
