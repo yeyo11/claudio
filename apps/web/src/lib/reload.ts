@@ -4,6 +4,7 @@
 // being current, so all this module does is raise an offer the shell shows as a banner, and carry
 // out the reload once the person presses it.
 import { useSyncExternalStore } from 'react';
+import { reachability, useUnreachable, type Reachability } from './reachability';
 
 // Replaced by Vite's `define` with the root package.json's version (vite.config.ts). Under the unit
 // tests nothing replaces it, and `typeof` is the one way to read an undeclared name without throwing.
@@ -123,12 +124,24 @@ export class ReloadOffers {
 const offers = new ReloadOffers(BUILD_VERSION);
 
 export const noticeServerVersion = (server: unknown): void => offers.serverVersion(server);
-export const noticeStaleChunk = (): void => offers.staleChunk();
+/**
+ * A chunk would not load. With the network down it fails exactly as a deployed-away one does, so
+ * before taking it for a new version the server is asked whether it answers: if it does not, the
+ * unreachable screen is the explanation and no reload is offered. Exported for the tests, which
+ * hand in their own store and offers.
+ */
+export async function noticeChunkFailure(reach: Pick<Reachability, 'suspect'> = reachability, target: ReloadOffers = offers): Promise<void> {
+  if (await reach.suspect(true)) target.staleChunk();
+}
+export const noticeStaleChunk = (): void => void noticeChunkFailure();
 export const dismissReloadOffer = (): void => offers.dismiss();
 export const holdReloadBanner = (): (() => void) => offers.holdBanner();
 
 export function useReloadOffer(): ReloadOffer | null {
-  return useSyncExternalStore(offers.subscribe, offers.current, offers.current);
+  const offer = useSyncExternalStore(offers.subscribe, offers.current, offers.current);
+  // A server that cannot be reached has its own screen, and a reload would only fail the same way:
+  // the offer is kept, and comes back if the server answers with another version
+  return useUnreachable() ? null : offer;
 }
 
 // ---------- the reload ----------
