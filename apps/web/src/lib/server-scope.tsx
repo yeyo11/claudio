@@ -91,10 +91,11 @@ function ScopeState({ title, children, illustration, actions }: { title: string;
  * understands gets a plain "needs an update" instead of screens that half work (plan D3), and one
  * that cannot be reached says so. The local scope renders its children at once, without a read.
  *
- * It sits above everything that reads from the server (the chat package's provider labels, the
- * spend-cap dialog), so nothing is asked of a remote before its version is known to fit. The
- * hub's own sign-in and host screens come first, as they do everywhere: a refused hub could not
- * answer for the remote anyway.
+ * It sits above the chat package's provider, which reads the provider labels, so once the hub
+ * has accepted this browser nothing is asked of a remote before its version is known to fit. The
+ * hub's own sign-in and host screens come first, as they do everywhere (a refused hub could not
+ * answer for the remote anyway), and while one of them or the first auth probe is pending the
+ * children render, so that single labels read can reach the remote early.
  */
 export function ServerScopeGate({ children }: { children: ReactNode }) {
   const { remote } = useServerScope();
