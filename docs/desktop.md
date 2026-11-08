@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-09T00:45:00Z
 tags:
     - desktop
     - electron
@@ -310,6 +310,14 @@ nobody. The postrm leaves everything alone on an upgrade, removes the rule and t
 `sudo`. What the unit runs, what its status file says, the routes, the restart and the states are in
 [updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart); what the rule allows
 and what it does not, in [security-model.md](security-model.md#the-desktop-update-unit).
+
+**The apt pin.** The `.deb` also ships `/etc/apt/preferences.d/claudio.pref`, a conffile (an
+admin's edit survives upgrades; kept on `remove`, deleted on `purge`). It gives `claudio` from
+Claudio's repository (`release o=Claudio`) priority 990 and `claudio` from any other repository -1,
+so neither the update unit nor the system's updater ever installs a package named `claudio` from
+another source. 990 is below 1000, so apt never downgrades to it; a version installed by hand from a
+`.deb` file is left alone and still upgrades from Claudio's repository
+([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart)).
 
 **`needs-login`.** When polkit refuses the start the card says the group is not in effect for this
 session yet and asks for one log-out and log-in. The plan assumed membership only counts after a new
