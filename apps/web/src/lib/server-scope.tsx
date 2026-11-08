@@ -94,8 +94,7 @@ function ScopeState({ title, children, illustration, actions }: { title: string;
  * It sits above the chat package's provider, which reads the provider labels, so once the hub
  * has accepted this browser nothing is asked of a remote before its version is known to fit. The
  * hub's own sign-in and host screens come first, as they do everywhere (a refused hub could not
- * answer for the remote anyway), and while one of them or the first auth probe is pending the
- * children render, so that single labels read can reach the remote early.
+ * answer for the remote anyway), and while one of them shows the children render.
  */
 export function ServerScopeGate({ children }: { children: ReactNode }) {
   const { remote } = useServerScope();
@@ -105,7 +104,11 @@ export function ServerScopeGate({ children }: { children: ReactNode }) {
   const settled = useAuthSettled();
   const hubFirst = challenge !== null || refusal !== null || !settled;
   const meta = useQuery({ queryKey: ['server-meta'], queryFn: ({ signal }) => readMeta(signal), enabled: remote && !hubFirst, retry: 1, staleTime: 30_000 });
-  if (!remote || hubFirst) return <>{children}</>;
+  if (!remote) return <>{children}</>;
+  // The app draws nothing until the first probe has answered, so there is nothing to mount yet: and
+  // mounting the chat provider now would read the provider labels from a remote ahead of its version
+  if (!settled) return null;
+  if (hubFirst) return <>{children}</>;
   const back = (
     <a href="/" className="btn">
       {t('serverScope.backToThis')}
