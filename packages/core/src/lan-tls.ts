@@ -17,7 +17,11 @@ import { dataDirFrom } from './paths.ts';
  * is a new fingerprint, which every hub that paired with this server takes for a changed identity.
  */
 
-/** What `GET /meta` lists while this server's LAN listener speaks TLS (plan §9.1) */
+/**
+ * What `GET /meta` lists while this server's LAN listener speaks TLS (plan §9.1). The list lives in
+ * remote-side's `ServerIdentity` (`meta.ts`), built in parallel with this module: once both are in one
+ * tree, `Core` declares it with `this.identity.declare(LAN_TLS_CAPABILITY)` right after the identity is made
+ */
 export const LAN_TLS_CAPABILITY = 'lan-tls';
 
 const DIR = 'lan-tls';
