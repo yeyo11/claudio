@@ -304,7 +304,7 @@ const PERSON_CHAT_ORIGINS: ReadonlySet<ChatOrigin> = new Set<ChatOrigin>(['claud
 const orchestrationOwners = new WeakSet<FastifyRequest>();
 
 /** Whether the chat `actor` names has Claudio's MCP server on right now, and is a person's chat */
-function claudioMcpChat(core: Core, actor: string | null): boolean {
+export function claudioMcpChat(core: Core, actor: string | null): boolean {
   if (!actor?.startsWith('chat:')) return false;
   const chat = core.runtime.get(actor.slice('chat:'.length));
   return chat !== null && chat.tools?.claudioMcp === true && PERSON_CHAT_ORIGINS.has(chat.origin) && chat.orchestrationId === null && !chat.claudioAssistant;

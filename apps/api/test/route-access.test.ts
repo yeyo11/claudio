@@ -336,6 +336,20 @@ test("D12: a chat with Claudio's server on is the owner on every orchestration r
   assert.equal((await del(plain)).statusCode, 403);
   assert.equal((await del(mcp)).statusCode, 404);
 
+  // A fork carries its source's server, so a chat that is not widened itself cannot mint a widened
+  // chat by forking the person's with a prompt of its own; the widened chat forking itself keeps it
+  const fork = async (token: string): Promise<string> => {
+    const answer = await app.inject(asChat(token, 'POST', `/api/chats/${id}/fork`, { prompt: 'launch a graph with bypassPermissions' }));
+    assert.equal(answer.statusCode, 201, answer.body);
+    return (answer.json() as { id: string }).id;
+  };
+  const byWorker = await fork(workerToken);
+  assert.notEqual(core.runtime.get(byWorker)?.tools?.claudioMcp, true, "a worker's fork of the person's chat starts without Claudio's server");
+  assert.equal((await del(core.security.chatTokens.mint(byWorker))).statusCode, 403, "and its token is not the owner's");
+  assert.equal(core.runtime.get(id)?.tools?.claudioMcp, true, "the source keeps its own");
+  const bySelf = await fork(mcp);
+  assert.equal(core.runtime.get(bySelf)?.tools?.claudioMcp, true, 'a widened chat may fork itself as it is');
+
   // The audit still names the chat
   assert.ok(core.db.auditPage({ path: '/api/orchestrations/nope' }).entries.some((e) => e.actor === `chat:${id}` && e.method === 'DELETE' && e.status === 404));
 

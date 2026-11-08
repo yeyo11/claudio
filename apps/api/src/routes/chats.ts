@@ -26,6 +26,7 @@ import type {
   SwitchChatAccountResponse,
   UsageBucket,
 } from '@claudio/shared';
+import { claudioMcpChat } from '../security.ts';
 import { openStream } from '../sse.ts';
 import { spendGate } from './spend.ts';
 import { diffOptions, pathOf, type DiffQuery, type ScopeQuery } from './orchestrations.ts';
@@ -181,7 +182,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
   });
 
   app.post<{ Params: { id: string }; Body: ForkChatRequest }>('/chats/:id/fork', { preHandler: spendGate(core) }, async (req, reply) => {
-    const body = req.body ?? ({} as ForkChatRequest);
+    const asked = req.body ?? ({} as ForkChatRequest);
+    // A fork keeps its source's Claudio MCP server, which makes it the owner on every orchestration
+    // route (D12 of docs/plans/claudio-servers.md). A chat that is not such a chat itself (a worker of
+    // a graph, a chat without the server) would mint one by forking the person's, with a prompt of its
+    // own: its fork starts without the server, which only the person switches on
+    const body = req.actor?.startsWith('chat:') && !claudioMcpChat(core, req.actor) ? { ...asked, claudioMcp: false } : asked;
     if (typeof body.model === 'string') await chats.checkModelOf(req.params.id, body.provider, body.model);
     return reply.status(201).send(await chats.fork(req.params.id, body));
   });
