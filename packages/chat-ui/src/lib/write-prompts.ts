@@ -27,7 +27,7 @@ const str = (input: Record<string, unknown>, key: string): string => {
 const t = (key: string, options: TOptions = {}): string => i18n.t(`chat:permissions.writes.${key}` as 'chat:permissions.writes.anItem', options);
 
 /** A word from one of the lists in the locale; a value it does not know is left out rather than shown as the code it is */
-function word(list: 'types' | 'statuses' | 'priorities', value: string): string {
+function word(list: 'types' | 'statuses' | 'priorities' | 'guardRules', value: string): string {
   return i18n.exists(`chat:permissions.writes.${list}.${value}`) ? t(`${list}.${value}`) : '';
 }
 
@@ -80,7 +80,8 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         const guards = value as { enabled?: unknown; rules?: unknown };
         if (guards.enabled === false) lines.push(t('fields.guardsOff'));
-        const rules = guards.rules && typeof guards.rules === 'object' ? Object.entries(guards.rules as Record<string, unknown>).filter(([, on]) => on === false).map(([rule]) => rule) : [];
+        // A rule by its name in the person's language, never its id; an id the locale does not know is left out
+        const rules = guards.rules && typeof guards.rules === 'object' ? Object.entries(guards.rules as Record<string, unknown>).filter(([, on]) => on === false).map(([rule]) => word('guardRules', rule)).filter(Boolean) : [];
         if (rules.length) lines.push(t('fields.guardsRulesOff', { value: rules.join(', ') }));
       }
     } else if (name === 'verification') {

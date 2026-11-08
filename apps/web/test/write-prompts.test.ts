@@ -63,14 +63,19 @@ test("what decides what a graph's workers may do is always said, in the person's
   const wide = { name: 'Split', tasks: [{ name: 'A' }], permissionMode: 'bypassPermissions', permissionPrompts: 'none', allowedTools: ['Bash'], guards: { enabled: false, rules: { push: false, secrets: true } }, verification: { commands: ['pnpm test', 'pnpm lint'] } };
   assert.equal(
     describeWrite(`${P}launch_orchestration`, wide)?.detail,
-    ['Tasks: A', 'Permission mode: bypassPermissions', 'Permission prompts: nobody answers them', 'Allowed without asking: Bash', 'Guards: off', 'Guard rules switched off: push', 'Checks: pnpm test · pnpm lint'].join('\n'),
+    ['Tasks: A', 'Permission mode: bypassPermissions', 'Permission prompts: denied', 'Allowed without asking: Bash', 'Guards: off', 'Guard rules switched off: No pushing', 'Checks: pnpm test · pnpm lint'].join('\n'),
   );
+  // A rule id the locale does not know never reaches the screen
+  assert.equal(describeWrite(`${P}launch_orchestration`, { name: 'x', guards: { rules: { 'made-up': false } } })?.detail, '');
   assert.match(describeWrite(`${P}create_orchestration_template`, { ...wide, name: 'Nightly' })?.detail ?? '', /Permission mode: bypassPermissions/);
   assert.match(describeWrite(`${P}relaunch_orchestration`, { orchestrationId: 'o1', permissionMode: 'plan' })?.detail ?? '', /Permission mode: plan/);
   assert.equal(describeWrite(`${P}prune_orchestration_worktrees`, { orchestrationId: 'o1', force: true })?.title, "Remove an orchestration's worktrees, uncommitted changes included");
   assert.equal(describeWrite(`${P}accept_orchestration_review`, { orchestrationId: 'o1', reason: 'Read every finding' })?.detail, 'Read every finding');
   await i18n.changeLanguage('es');
-  assert.match(describeWrite(`${P}launch_orchestration`, wide)?.detail ?? '', /Guardas: desactivadas/);
+  const es = describeWrite(`${P}launch_orchestration`, wide)?.detail ?? '';
+  assert.match(es, /Guardas: desactivadas/);
+  assert.match(es, /Reglas de las guardas desactivadas: Sin push/);
+  assert.match(es, /Peticiones de permiso: se deniegan/);
   await i18n.changeLanguage('en');
 });
 
