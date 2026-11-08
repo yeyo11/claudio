@@ -30,6 +30,16 @@ after(async () => {
 
 const covered = new Set<string>();
 
+/** Stops a graph and waits, bounded, until it is no longer running: a retry or a rerun may have started it again */
+async function stopAndSettle(id: string): Promise<void> {
+  await write('stop_orchestration', { orchestrationId: id }, false);
+  const deadline = Date.now() + 30_000;
+  while (['running', 'waiting'].includes(s.core.orchestrator.get(id)?.status ?? '')) {
+    assert.ok(Date.now() < deadline, `the graph is still ${String(s.core.orchestrator.get(id)?.status)}`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 /** Calls a tool and holds every request it made to the route table; `ok` says whether the call must succeed */
 async function write(name: string, args: Record<string, unknown>, ok = true): Promise<{ isError: boolean; text: string; json: unknown }> {
   const from = s.seen.length;
@@ -159,7 +169,9 @@ test("the person's fields of a launch, and every other orchestration and templat
   const pass = await write('grant_orchestration_spend_pass', { orchestrationId: id });
   assert.equal(idOf(pass.json), id);
 
-  // A relaunch with a new task list and a setting is a new graph that records the original
+  // A relaunch with a new task list and a setting is a new graph that records the original; it is
+  // refused while the original runs, which the retry, the clean retry or the rerun above may have restarted
+  await stopAndSettle(id);
   const relaunched = await write('relaunch_orchestration', { orchestrationId: id, name: 'Guarded run, again', tasks: [{ id: 'z', name: 'Only this', prompt: 'hello' }] });
   const again = s.core.orchestrator.get(idOf(relaunched.json));
   assert.deepEqual([again?.name, again?.tasks.map((t) => t.id), again?.relaunchedFrom], ['Guarded run, again', ['z'], id]);
@@ -182,13 +194,8 @@ test("the person's fields of a launch, and every other orchestration and templat
   await write('delete_orchestration_template', { templateId: idOf(fromGraph.json) });
   assert.match((await write('delete_orchestration_template', { templateId }, false)).text, /failed: 404/);
 
-  // Deleting a graph that does not run removes it; the rerun above may have started it again
-  await write('stop_orchestration', { orchestrationId: id }, false);
-  const deadline = Date.now() + 30_000;
-  while (['running', 'waiting'].includes(s.core.orchestrator.get(id)?.status ?? '')) {
-    assert.ok(Date.now() < deadline, `the graph is still ${String(s.core.orchestrator.get(id)?.status)}`);
-    await new Promise((r) => setTimeout(r, 100));
-  }
+  // Deleting a graph that does not run removes it
+  await stopAndSettle(id);
   assert.deepEqual((await write('delete_orchestration', { orchestrationId: id })).json, { deleted: true, orchestrationId: id });
   assert.equal(s.core.orchestrator.get(id), null);
 });
