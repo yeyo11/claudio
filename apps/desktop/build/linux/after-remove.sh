@@ -5,7 +5,8 @@
 #
 # The first part is electron-builder's own after-remove.tpl (app-builder-lib 26.15.3), unchanged. The
 # second removes what after-install.sh registered for Claudio's apt repository
-# (docs/plans/unified-updates.md, D4).
+# (docs/plans/unified-updates.md, D4), the third what it set up for the update unit
+# (docs/plans/remote-updates.md, D1-D2).
 
 # Delete the link to the binary
 # update-alternatives --remove <name> <path>: 'path' must be the registered alternative binary,
@@ -47,6 +48,28 @@ case "$1" in
 esac
 if [ "$1" = "purge" ]; then
   rm -f /etc/default/claudio
+fi
+
+# --- Claudio's update unit ---------------------------------------------------------------------
+#
+# Again only on remove and purge: an upgrade keeps the group and its members, or the person would
+# lose passwordless updates at every update. The rule and the unit are files of the package, which
+# dpkg has already deleted; the rule goes here too so that it never outlives the group it trusts,
+# whatever left a copy behind.
+case "$1" in
+  remove|purge)
+    rm -f /usr/share/polkit-1/rules.d/50-claudio-update.rules
+    if getent group claudio-update >/dev/null 2>&1; then
+      groupdel claudio-update || true
+    fi
+    if [ -d /run/systemd/system ]; then
+      systemctl --system daemon-reload >/dev/null 2>&1 || true
+    fi
+    ;;
+esac
+# The last run's outcome, which only the app reads
+if [ "$1" = "purge" ]; then
+  rm -rf /var/lib/claudio-update
 fi
 
 exit 0

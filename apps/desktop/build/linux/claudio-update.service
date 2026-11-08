@@ -1,0 +1,27 @@
+# Installed as /usr/lib/systemd/system/claudio-update.service by the claudio package
+# (docs/plans/remote-updates.md, D1). A root oneshot that upgrades the claudio package from Claudio's
+# signed apt repository and writes the outcome to /var/lib/claudio-update/status.json.
+#
+# Started on demand only, never enabled: no [Install] section. The polkit rule
+# 50-claudio-update.rules lets the claudio-update group start this unit, and only start it. It is not
+# a template (no @), and ExecStart takes no argument, so a caller chooses nothing but "now".
+[Unit]
+Description=Upgrade the Claudio desktop app from its signed apt repository
+Documentation=https://github.com/yeyo11/claudio/blob/main/docs/plans/remote-updates.md
+After=network-online.target
+Wants=network-online.target
+# A caller in a loop must not hammer apt and the repository: a fifth start within ten minutes fails
+# with start-limit-hit instead of running. Starting the unit while it runs joins that run and does
+# not count.
+StartLimitIntervalSec=600
+StartLimitBurst=4
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/claudio/claudio-update
+# /var/lib/claudio-update, root-owned and world-readable: the app reads status.json as the person
+StateDirectory=claudio-update
+StateDirectoryMode=0755
+# The helper's own lock wait is five minutes; this bounds a download or a dpkg run that never ends.
+# Killing dpkg leaves the package half-configured, which the next run's apt repairs or reports.
+TimeoutStartSec=30min

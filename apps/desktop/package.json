@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "splash:preview": "tsx scripts/splash-preview.ts",
     "test": "node ../../scripts/test-tmp.mjs tsx --test --test-timeout=240000 --test-force-exit test/*.test.ts",
-    "package:stage": "mkdir -p dist/package && node ../api/scripts/server-bundle.mjs --shell-json dist/package/shell.json && install -m 0644 ../../packaging/apt/claudio-archive-keyring.gpg dist/package/claudio-archive-keyring.gpg",
+    "package:stage": "mkdir -p dist/package && node ../api/scripts/server-bundle.mjs --shell-json dist/package/shell.json && install -m 0644 ../../packaging/apt/claudio-archive-keyring.gpg dist/package/claudio-archive-keyring.gpg && install -m 0644 build/linux/claudio-update.service build/linux/50-claudio-update.rules dist/package/ && install -m 0755 build/linux/claudio-update dist/package/claudio-update",
     "dist:linux": "pnpm --filter @claudio/web build && pnpm --filter @claudio/api bundle && pnpm run build && pnpm run package:stage && electron-builder --linux --config electron-builder.yml --publish never"
   },
   "devDependencies": {

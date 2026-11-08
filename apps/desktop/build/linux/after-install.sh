@@ -8,7 +8,9 @@
 # The first part is electron-builder's own after-install.tpl (app-builder-lib 26.15.3), unchanged: the
 # /usr/bin alternative, chrome-sandbox's mode and the AppArmor profile that lets Chromium's sandbox
 # start on hosts that restrict unprivileged user namespaces (docs/plans/unified-updates.md, D5).
-# The second part registers Claudio's signed apt repository (D4, docs/decisions/apt-repository.md).
+# The second part registers Claudio's signed apt repository (D4, docs/decisions/apt-repository.md),
+# the third lets the person who installed the package start its update unit without a password
+# (docs/plans/remote-updates.md, D1-D2).
 
 if type update-alternatives >/dev/null 2>&1; then
     # Remove previous link if it doesn't use update-alternatives
@@ -137,9 +139,63 @@ SOURCE
   return 0
 }
 
+# --- Claudio's update unit ---------------------------------------------------------------------
+#
+# claudio-update.service upgrades this package as root, and the polkit rule
+# /usr/share/polkit-1/rules.d/50-claudio-update.rules lets the claudio-update group start it, and
+# only start it. The group is created here, and the person who installed the package joins it: the
+# one behind sudo (SUDO_USER) or behind pkexec (PKEXEC_UID). An upgrade the unit itself runs has
+# neither, so it adds nobody. Every step is idempotent, because every upgrade runs it again.
+
+CLAUDIO_UPDATE_GROUP=claudio-update
+
+# The login name of the person who ran the install, empty when it was root or nobody can tell
+claudio_installing_user() {
+  local name
+  if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    name="$SUDO_USER"
+  elif [ -n "$PKEXEC_UID" ] && [ "$PKEXEC_UID" != "0" ]; then
+    name="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
+  fi
+  [ -n "$name" ] || return 0
+  # An account that exists, never a name the environment made up
+  getent passwd "$name" >/dev/null 2>&1 || return 0
+  printf '%s' "$name"
+}
+
+claudio_update_access() {
+  local user members
+  if ! getent group "$CLAUDIO_UPDATE_GROUP" >/dev/null 2>&1; then
+    if ! groupadd --system "$CLAUDIO_UPDATE_GROUP"; then
+      echo "claudio: could not create the $CLAUDIO_UPDATE_GROUP group, so updates from the app will ask an admin" >&2
+    fi
+  fi
+
+  user="$(claudio_installing_user)"
+  if [ -n "$user" ] && getent group "$CLAUDIO_UPDATE_GROUP" >/dev/null 2>&1; then
+    members="$(getent group "$CLAUDIO_UPDATE_GROUP" | cut -d: -f4)"
+    case ",$members," in
+      *",$user,"*) ;;
+      *)
+        if usermod -a -G "$CLAUDIO_UPDATE_GROUP" "$user"; then
+          echo "claudio: $user may now update Claudio from the app, from their next login on"
+        fi
+        ;;
+    esac
+  fi
+
+  # The unit file is new or changed: systemd reads it on a reload. Skipped in a chroot or a
+  # container without systemd, where there is nothing to reload.
+  if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
 # dpkg calls postinst with `configure` on install and upgrade, and with abort-* when it rolls back
 if [ "$1" = "configure" ]; then
   claudio_register_apt_source
+  claudio_update_access
 fi
 
 exit 0
