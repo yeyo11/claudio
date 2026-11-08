@@ -1,4 +1,4 @@
-import type { ClaudioDistribution, ServerUpdateApplyRequest, ServerUpdateStatus } from '@claudio/shared';
+import type { ClaudioDistribution, LiveWork, ServerUpdateApplyRequest, ServerUpdateStatus } from '@claudio/shared';
 import { isRecord } from '@claudio/shared';
 
 /**
@@ -23,14 +23,6 @@ export type DesktopUpdateState =
 
 /** `ShellUpdateError` of the shell: `other` is whatever it could not name */
 export type ShellUpdateError = 'bad-signature' | 'fetch-failed' | 'other';
-
-/** What a restart would stop: shared's `LiveWork`, copied because the shell's answers are parsed here */
-export interface LiveWork {
-  working: number;
-  waiting: number;
-  running: number;
-  terminals: number;
-}
 
 /** `SwitchState` of the shell: whether the `.deb` can become the AppImage here, and what stays behind */
 export interface SwitchState {
@@ -240,47 +232,6 @@ export function serverUpdateRefetchMs(status: Pick<ServerUpdateStatus, 'state'> 
 }
 
 // ---------- The desktop app's update unit, from any device (docs/plans/remote-updates.md, §4) ----------
-
-/**
- * `DesktopUpdateState` of the plan's contract. Declared here until `update-trigger` lands the types in
- * `@claudio/shared`; the shapes are the contract's, so the swap is an import. (The shell's own
- * updater state above already holds the name `DesktopUpdateState` in this file.)
- */
-export type DesktopUnitState = 'unavailable' | 'needs-login' | 'idle' | 'installing' | 'installed' | 'up-to-date' | 'failed';
-
-/** `DesktopUpdateStatus` of the plan's contract: `GET /system/desktop-update` */
-export interface DesktopUnitStatus {
-  state: DesktopUnitState;
-  /** The desktop app's version on disk now */
-  installed: string;
-  /** The shell version this process started with */
-  running: string;
-  from: string | null;
-  to: string | null;
-  startedAt: string | null;
-  endedAt: string | null;
-  /** installed !== running: the package was upgraded and the process still runs the old one */
-  restartNeeded: boolean;
-  reason?: { code: string };
-}
-
-/** `RestartRequest` and `RestartResult` of the plan's contract: `POST /system/restart` */
-export interface DesktopRestartRequest {
-  whenIdle?: boolean;
-}
-export interface DesktopRestartResult {
-  scheduled: 'now' | 'when-idle';
-}
-
-/**
- * How soon the card asks again. Until the `desktop-update.changed` event is wired into the feed, an
- * update that runs and a restart that was asked for are read by polling; nothing else moves on its own.
- */
-export function desktopUnitRefetchMs(status: Pick<DesktopUnitStatus, 'state' | 'restartNeeded'> | undefined, restart: DesktopRestartResult['scheduled'] | null): number | false {
-  if (status?.state === 'installing') return 2000;
-  if (restart === 'now') return 2000;
-  return restart === 'when-idle' && status?.restartNeeded ? 5000 : false;
-}
 
 const UNIT_ERROR_CODES = ['needs-login', 'unit-missing', 'busy', 'apt-locked', 'apt-failed'] as const;
 export type DesktopUnitErrorCode = (typeof UNIT_ERROR_CODES)[number];

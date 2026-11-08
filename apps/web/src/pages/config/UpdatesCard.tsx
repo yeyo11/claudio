@@ -1,9 +1,10 @@
-import type { ClaudioReleaseInfo, ServerUpdateApplyRequest, ServerUpdateStatus, StorageKind, StorageLocation } from '@claudio/shared';
+import type { ClaudioReleaseInfo, DesktopUpdateStatus, LiveWork, RestartRequest, RestartResult, ServerUpdateApplyRequest, ServerUpdateStatus, StorageKind, StorageLocation } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Download, ExternalLink, Info, RotateCw } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { api, keys } from '../../api';
+import { reachability } from '../../lib/reachability';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
@@ -16,7 +17,6 @@ import {
   DOCKER_RUN_COMMAND,
   DOCKER_UPDATE_WAYS,
   desktopUnitErrorCode,
-  desktopUnitRefetchMs,
   dismissedRollback,
   dismissRollback,
   liveWorkOf,
@@ -31,11 +31,7 @@ import {
   SOURCE_UPDATE_COMMAND,
   updateErrorCode,
   updateRoute,
-  type DesktopRestartRequest,
-  type DesktopRestartResult,
-  type DesktopUnitStatus,
   type DesktopUpdateState,
-  type LiveWork,
   type PayloadActions,
   type SwitchState,
   type UpdateHow,
@@ -82,13 +78,13 @@ export function UpdatesCard() {
   // The desktop app's own update unit (a `.deb`), reachable from any device that reaches the server. The
   // AppImage in its own window updates through the shell, so only a page elsewhere asks about it
   const asksUnit = info?.distribution === 'deb' || (!bridge && info?.distribution === 'appimage');
-  // A restart asked for from this card: read the status faster until the new process answers
-  const [restartAsked, setRestartAsked] = useState<DesktopRestartResult['scheduled'] | null>(null);
+  // A restart asked for from this card, kept to say it is scheduled until the new process reports itself
+  const [restartAsked, setRestartAsked] = useState<RestartResult['scheduled'] | null>(null);
   const unit = useQuery({
     queryKey: keys.desktopUpdate,
     queryFn: ({ signal }) => api.desktopUpdate({ signal }),
     enabled: asksUnit,
-    refetchInterval: (query) => desktopUnitRefetchMs(query.state.data, restartAsked),
+    // One read on mount: `desktop-update.changed` (events.ts) refetches it when the unit or a restart moves it
     // Mid-restart the API is down for a moment: keep what was shown instead of an error
     retry: false,
   });
@@ -571,13 +567,13 @@ function DesktopUnitUpdate({
   restartAsked,
   onRestartAsked,
 }: {
-  status: DesktopUnitStatus;
+  status: DesktopUpdateStatus;
   info: ClaudioReleaseInfo;
   /** The browser and the phone have no other heading for the zone; the desktop window has the shell's */
   titled: boolean;
   primary: boolean;
-  restartAsked: DesktopRestartResult['scheduled'] | null;
-  onRestartAsked: (asked: DesktopRestartResult['scheduled'] | null) => void;
+  restartAsked: RestartResult['scheduled'] | null;
+  onRestartAsked: (asked: RestartResult['scheduled'] | null) => void;
 }) {
   const queryClient = useQueryClient();
   const liveSentence = useLiveSentence();
@@ -594,11 +590,14 @@ function DesktopUnitUpdate({
     onSettled: () => queryClient.invalidateQueries({ queryKey: keys.desktopUpdate }),
   });
   const restart = useMutation({
-    mutationFn: (body: DesktopRestartRequest) => api.restartDesktop(body),
+    mutationFn: (body: RestartRequest) => api.restartDesktop(body),
     onMutate: () => setRestartFailure(null),
     onSuccess: (result, body) => {
       setDialog(null);
-      onRestartAsked(result?.scheduled ?? (body.whenIdle ? 'when-idle' : 'now'));
+      const scheduled = result?.scheduled ?? (body.whenIdle ? 'when-idle' : 'now');
+      onRestartAsked(scheduled);
+      // Only a restart that starts now takes the server down while the person is looking; a scheduled one waits for idleness
+      if (scheduled === 'now') reachability.expectRestart();
     },
     onError: (error) => {
       const live = liveWorkOf(error);
@@ -640,7 +639,7 @@ function DesktopUnitUpdate({
 }
 
 export interface DesktopUnitViewProps {
-  status: DesktopUnitStatus;
+  status: DesktopUpdateStatus;
   titled: boolean;
   /** Whether this zone may carry the card's one primary action; the Claudio zone above takes it when it has an action of its own */
   primary: boolean;
@@ -652,12 +651,12 @@ export interface DesktopUnitViewProps {
   failure: unknown;
   /** What the refused restart threw (a 409 for live work opens the dialog instead) */
   restartFailure: unknown;
-  restartAsked: DesktopRestartResult['scheduled'] | null;
+  restartAsked: RestartResult['scheduled'] | null;
   dialog: { live: LiveWork | null } | null;
   liveSentence: (live: LiveWork) => string;
   onUpdate: () => void;
   onAskRestart: () => void;
-  onRestart: (options: DesktopRestartRequest) => void;
+  onRestart: (options: RestartRequest) => void;
   onCloseDialog: () => void;
 }
 
@@ -694,7 +693,7 @@ export function DesktopUnitView(props: DesktopUnitViewProps) {
     <Tag tone="bad">{t('updates.unit.failedTag')}</Tag>
   ) : state === 'needs-login' ? (
     <Tag tone="warn">{t('updates.unit.needsLoginTag')}</Tag>
-  ) : state === 'up-to-date' ? (
+  ) : state === 'up-to-date' && !props.updateAvailable ? (
     <Tag tone="ok">{t('updates.upToDateTag')}</Tag>
   ) : null;
 
@@ -711,7 +710,7 @@ export function DesktopUnitView(props: DesktopUnitViewProps) {
       </div>
 
       {state === 'unavailable' && (
-        <p className="alert alert-warn small" role="status" data-testid="update-desktop-unavailable">
+        <p className="alert alert-info small" role="status" data-testid="update-desktop-unavailable">
           <Info className="alert-icon" {...ICON_SM} />
           <span className="alert-body">
             {t('updates.unit.unavailable')}{' '}
@@ -806,7 +805,7 @@ export function UnitDialogBody({ live, installed, liveSentence }: { live: LiveWo
 }
 
 /** Confirming restarts at once; with live work it can only wait for idleness (the request has no way to force) */
-export function UnitDialogFooter({ live, pending, onCancel, onRestart }: { live: LiveWork | null; pending: boolean; onCancel: () => void; onRestart: (options: DesktopRestartRequest) => void }) {
+export function UnitDialogFooter({ live, pending, onCancel, onRestart }: { live: LiveWork | null; pending: boolean; onCancel: () => void; onRestart: (options: RestartRequest) => void }) {
   const { t } = useTranslation('config');
   return (
     <>

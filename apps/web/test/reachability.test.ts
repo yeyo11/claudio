@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { ApiRequestError } from '../src/api.ts';
-import { BACKOFF_FIRST_MS, BACKOFF_MAX_MS, HEALTH_PATH, isNetworkFailure, Reachability, REACHABLE_TTL_MS, type ReachabilityTarget } from '../src/lib/reachability.ts';
+import { BACKOFF_FIRST_MS, BACKOFF_MAX_MS, HEALTH_PATH, isNetworkFailure, Reachability, REACHABLE_TTL_MS, RESTART_GRACE_MS, RESTART_POLL_MS, type ReachabilityTarget } from '../src/lib/reachability.ts';
 
 /** A store on a clock and a network the test moves by hand; timers are the runner's mock. */
 function harness(t: TestContext, { online = true }: { online?: boolean } = {}) {
@@ -269,4 +269,58 @@ test('a retry asked for while one is out does not start a second', async (t) => 
   store.retryNow();
   await settle();
   assert.equal(state.probes, 2);
+});
+
+// A restart the person asked for (owner decision after the remote-updates review)
+
+test('a restart asked for turns the screen into "restarting" while the server is down, and the app returns when it answers', async (t) => {
+  const { state, store, advance } = harness(t);
+  state.up = true;
+  store.expectRestart();
+  assert.equal(store.snapshot().restarting, false, 'the server still answers: no screen yet');
+  // The server goes away; the store looks by itself, the page need not make a call that fails
+  state.up = false;
+  await advance(RESTART_POLL_MS);
+  let view = store.snapshot();
+  assert.equal(view.unreachable, true);
+  assert.equal(view.restarting, true);
+  assert.equal((view.nextAttemptAt ?? 0) - state.clock, RESTART_POLL_MS, 'it tries every couple of seconds, not on a back-off made for a lost server');
+  await advance(RESTART_POLL_MS);
+  await advance(RESTART_POLL_MS);
+  assert.equal(store.snapshot().restarting, true);
+  state.up = true;
+  await advance(RESTART_POLL_MS);
+  view = store.snapshot();
+  assert.equal(view.unreachable, false);
+  assert.equal(view.restarting, false);
+});
+
+test('an answer from the old process just after the 202 does not end the restart', async (t) => {
+  const { state, store, advance } = harness(t);
+  state.up = true;
+  store.expectRestart();
+  store.answered();
+  await advance(RESTART_POLL_MS);
+  state.up = false;
+  await advance(RESTART_POLL_MS);
+  assert.equal(store.snapshot().restarting, true);
+});
+
+test('a server that has not come back within the grace falls back to the ordinary unreachable screen', async (t) => {
+  const { store, advance } = harness(t);
+  await store.suspect();
+  store.expectRestart();
+  assert.equal(store.snapshot().restarting, true);
+  await advance(RESTART_GRACE_MS);
+  const view = store.snapshot();
+  assert.equal(view.unreachable, true);
+  assert.equal(view.restarting, false);
+});
+
+test('a restart asked for while the server was already lost shows restarting at once', async (t) => {
+  const { store } = harness(t);
+  await store.suspect();
+  assert.equal(store.snapshot().restarting, false);
+  store.expectRestart();
+  assert.equal(store.snapshot().restarting, true);
 });
