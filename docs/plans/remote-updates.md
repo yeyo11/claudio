@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T15:16:33.108454577Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - plan
     - updates
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: remote, passwordless updates, stale assets and an unreachable server
 
-Status: **built on 2026-11-08, awaiting the `review` task and the integrator**; orchestration `c1c8c025` on
+Status: **built on 2026-11-08, reviewed, follow-up of 2026-11-09 in §6**; orchestration `c1c8c025` on
 branch `fix/remote-updates` from `main` (0.14.2), in parallel with the servers engine
 (`docs/plans/claudio-servers.md` on branch `feat/servers`). Outcome per task in §6; the features are
 documented in [updates.md](../updates.md), [desktop.md](../desktop.md),
@@ -214,11 +214,45 @@ was run on a real machine: no `.deb` was built, no unit started, no browser suit
   `api.ts`, the reload banner suppressed while unreachable, the boot guard's words, and
   `e2e/specs/unreachable.spec.mjs` (written, not run). Its worker's report was empty, so this entry
   comes from the code.
-- **`minshell-guard` (D7).** Not part of this branch when `docs` ran; see its own branch and the
-  `review` task.
+- **`minshell-guard` (D7).** On the branch (merged as `62ba371b5`): `.github/dependabot.yml` groups
+  Electron and `node-pty` apart and ignores Electron majors in the automatic groups, and the release
+  workflow prints the `minShell` notice. (The first Outcome said it was not on the branch.)
 - **`docs`.** This section and the five documents above. Merge conflicts resolved: `strings.json`
   keeps both the route-audit sentence and the card's button (both strings exist); `module-graph.json`
   regenerated with `tsx scripts/module-graph.ts --write`. Beyond the plan: nothing.
+
+### Follow-up after the owner's review (2026-11-09)
+
+Orchestration of three tasks on top of the branch above; written by its `docs` task from the code.
+Nothing was run on a real machine: no `.deb` built, no `roundtrip.sh`, no browser suite.
+
+- **`updater-hardening`.** The package ships `/etc/apt/preferences.d/claudio.pref` (conffile): `claudio`
+  from `release o=Claudio` at 990 and from `origin *` at -1 (`release *` and `version *` were tried and
+  left a hand-installed version with no candidate). The helper installs with `--no-remove`. The server
+  reads systemd's `Result`: `start-limit-hit` is `failed` / `update.start-limited`, any other failure
+  the status file does not describe is `update.unit-failed`, and a code the file carries is respected.
+  `update.source-missing`, `update.start-limited` and `update.unit-failed` are declared in the contract
+  and OpenAPI, with en/es words on the card (a web test fails to compile without them). Open: a refused
+  start shows as `installing` for the existing 15 s grace before `start-limited`; apt cannot tie a pin
+  to a signing key (a second source declaring `Origin: Claudio` would match); apt 3.x on Ubuntu 26.04
+  untested (only Debian bookworm's apt 2.6). Closes the plan's open item on `source-missing` being
+  outside the contract.
+- **`card-and-restart`.** A **Restarting Claudio…** state in `reachability.ts` (`expectRestart()`,
+  `restarting` on the view), shown by `Unreachable.tsx` with the spinner and no Retry; 2 s polls, 2 min
+  fallback to the plain screen. The card's contract types now come from `@claudio/shared` and its
+  polling is gone (`desktop-update.changed` refetches it); the "Up to date" tag is hidden while a newer
+  Claudio exists and `unavailable` uses the information alert. Closes `update-ui`'s two open items above.
+  Open: a restart scheduled for when idle shows the plain unreachable screen when it happens; no e2e
+  spec covers the restarting state (none written or run).
+- **Review fixes already on the branch** (before this follow-up, from the code): the unreachable screen
+  is a modal `<dialog>` in the top layer standing in for the whole shell, which stays mounted
+  (`.shell-held`) so drafts survive; and a payload trial that exits 76 before it proved itself spends an
+  attempt (`failTrial` in `machine.ts`), so it is rolled back after `TRIAL_ATTEMPTS` instead of
+  relaunching forever. Both are in [pwa.md](../pwa.md) and [updates.md](../updates.md).
+- **`docs`.** `pwa.md`, `updates.md`, `desktop.md`, `security-model.md` and this Outcome. Merge of
+  `card-and-restart` conflicted in `lib/updates.ts` and `desktop-unit-view.test.tsx`: kept the shared
+  types without the local copies, the extended `UNIT_ERROR_CODES` and the reason-code test, and dropped
+  the polling test with the polling.
 
 ## Related
 

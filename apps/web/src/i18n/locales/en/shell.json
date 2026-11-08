@@ -149,7 +149,10 @@
     "body": "<mono>{{address}}</mono> isn't answering. If you're away from home, turn on Tailscale or join your local network.",
     "retryIn": "Retrying in {{seconds}} s",
     "retrying": "Retrying…",
-    "retryNow": "Retry now"
+    "retryNow": "Retry now",
+    "restartingTitle": "Restarting Claudio…",
+    "restartingBody": "The server is starting again. This page comes back by itself when it answers.",
+    "restartingWait": "Waiting for the server"
   },
   "phoneHeader": {
     "back": "Back",

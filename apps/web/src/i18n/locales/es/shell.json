@@ -149,7 +149,10 @@
     "body": "No llega a <mono>{{address}}</mono>. Si estás fuera de casa, activa Tailscale o conéctate a tu red local.",
     "retryIn": "Reintentando en {{seconds}} s",
     "retrying": "Reintentando…",
-    "retryNow": "Reintentar ahora"
+    "retryNow": "Reintentar ahora",
+    "restartingTitle": "Reiniciando Claudio…",
+    "restartingBody": "El servidor está arrancando de nuevo. Esta página vuelve sola cuando responda.",
+    "restartingWait": "Esperando al servidor"
   },
   "phoneHeader": {
     "back": "Volver",

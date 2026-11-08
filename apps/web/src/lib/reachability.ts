@@ -20,6 +20,10 @@ export const BACKOFF_FIRST_MS = 2_000;
 export const BACKOFF_MAX_MS = 30_000;
 /** A server that answered this recently is not asked again for every chunk or stream hiccup. */
 export const REACHABLE_TTL_MS = 5_000;
+/** A restart the person asked for gets this long to come back before the screen says the server is lost (a package upgrade restarts slowly) */
+export const RESTART_GRACE_MS = 120_000;
+/** While a restart is expected the server is asked often: it is about to be there, and the person is watching */
+export const RESTART_POLL_MS = 2_000;
 
 /**
  * Whether an error is the network failing, as opposed to the server answering badly. `fetch` rejects
@@ -42,6 +46,8 @@ export interface ReachabilityView {
   /** When the next automatic attempt runs (epoch ms), or null while one is running or the server is reachable */
   readonly nextAttemptAt: number | null;
   readonly probing: boolean;
+  /** The person asked for a restart and the server has not answered since: the screen says "restarting", not "lost" */
+  readonly restarting: boolean;
 }
 
 export interface ReachabilityDeps {
@@ -51,7 +57,7 @@ export interface ReachabilityDeps {
   now?: () => number;
 }
 
-const REACHABLE: ReachabilityView = { unreachable: false, offline: false, nextAttemptAt: null, probing: false };
+const REACHABLE: ReachabilityView = { unreachable: false, offline: false, nextAttemptAt: null, probing: false, restarting: false };
 
 /** What of `window` the store listens to, so the tests can hand in a fake. */
 export interface ReachabilityTarget {
@@ -66,6 +72,9 @@ export class Reachability {
   private readonly recovered = new Set<() => void>();
   private waiters: Array<() => void> = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private restartTimer: ReturnType<typeof setTimeout> | undefined;
+  private restartWatch: ReturnType<typeof setTimeout> | undefined;
+  private restartExpected = false;
   private attempts = 0;
   private lastAnswerAt = Number.NEGATIVE_INFINITY;
   private confirming: Promise<boolean> | null = null;
@@ -131,6 +140,50 @@ export class Reachability {
   }
 
   /**
+   * The server answered a restart (`POST /system/restart` said 202): it is going down on purpose, so
+   * while it is gone the screen says it is restarting and tries every couple of seconds, and the
+   * app returns when it answers. If it has not come back within `RESTART_GRACE_MS` the ordinary
+   * unreachable screen takes over. The server may still answer for a moment after the 202, so the
+   * flag outlives an answer and only a recovery from being down ends it.
+   */
+  expectRestart(): void {
+    clearTimeout(this.restartTimer);
+    clearTimeout(this.restartWatch);
+    this.restartTimer = setTimeout(() => this.giveUpRestart(), RESTART_GRACE_MS);
+    this.restartExpected = true;
+    if (this.view.unreachable) {
+      // Already down: try again soon instead of waiting out a back-off that grew for a lost server
+      this.attempts = 0;
+      this.schedule();
+    } else {
+      this.watchForDown();
+    }
+  }
+
+  /** Looks for the server going away, so the screen does not wait for a call of the page to fail */
+  private watchForDown(): void {
+    this.restartWatch = setTimeout(() => {
+      if (!this.restartExpected || this.view.unreachable) return;
+      void this.suspect(true).then(() => this.watchForDown());
+    }, RESTART_POLL_MS);
+  }
+
+  private giveUpRestart(): void {
+    clearTimeout(this.restartWatch);
+    this.restartTimer = undefined;
+    if (!this.restartExpected) return;
+    this.restartExpected = false;
+    this.set(this.view);
+  }
+
+  private endRestart(): void {
+    clearTimeout(this.restartTimer);
+    clearTimeout(this.restartWatch);
+    this.restartTimer = undefined;
+    this.restartExpected = false;
+  }
+
+  /**
    * Tries now, without waiting for the back-off (the button, `online`, focus, a tab shown again). A
    * try asked for this way that finds nothing keeps the wait where it was: pressing Retry must not
    * push the next automatic one further away. Only the timer's own tries back off.
@@ -182,6 +235,7 @@ export class Reachability {
     clearTimeout(this.timer);
     this.timer = undefined;
     this.attempts = 0;
+    this.endRestart();
     this.lastAnswerAt = Number.NEGATIVE_INFINITY;
     this.confirming = null;
     this.view = REACHABLE;
@@ -202,14 +256,14 @@ export class Reachability {
     if (this.view.unreachable) return;
     this.attempts = 0;
     this.lastAnswerAt = Number.NEGATIVE_INFINITY;
-    this.set({ unreachable: true, offline: false, nextAttemptAt: null, probing: false });
+    this.set({ unreachable: true, offline: false, nextAttemptAt: null, probing: false, restarting: false });
     this.schedule();
   }
 
   private schedule(): void {
     clearTimeout(this.timer);
-    const wait = Math.min(BACKOFF_FIRST_MS * 2 ** this.attempts, BACKOFF_MAX_MS);
-    this.set({ unreachable: true, offline: false, nextAttemptAt: this.now() + wait, probing: false });
+    const wait = this.restartExpected ? RESTART_POLL_MS : Math.min(BACKOFF_FIRST_MS * 2 ** this.attempts, BACKOFF_MAX_MS);
+    this.set({ unreachable: true, offline: false, nextAttemptAt: this.now() + wait, probing: false, restarting: false });
     this.timer = setTimeout(() => this.retryNow(true), wait);
   }
 
@@ -217,6 +271,7 @@ export class Reachability {
     clearTimeout(this.timer);
     this.timer = undefined;
     this.attempts = 0;
+    this.endRestart();
     this.lastAnswerAt = this.now();
     this.set(REACHABLE);
     const waiting = this.waiters;
@@ -233,7 +288,8 @@ export class Reachability {
 
   private set(next: ReachabilityView): void {
     // The wording follows the browser's own word on the network, read whenever the view is rebuilt
-    this.view = next.unreachable ? { ...next, offline: !this.online() } : next;
+    // `restarting` is derived here so every path that rebuilds the view keeps it in step with the flag
+    this.view = next.unreachable ? { ...next, offline: !this.online(), restarting: this.restartExpected } : next;
     this.emit();
   }
 

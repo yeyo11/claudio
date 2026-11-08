@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - security
     - secrets
@@ -614,7 +614,7 @@ when the unit is `claudio-update.service`, the verb is `start` and the subject i
 Stop, restart, any other unit, any other polkit action, or anyone outside the group fall through to
 polkit's other rules (an admin password, as before). What starting it does is fixed:
 `/usr/lib/claudio/claudio-update` runs `apt-get update` against the single `claudio.sources` file and
-`apt-get install --only-upgrade -y claudio`. The worst case is that the newest `claudio` Claudio's
+`apt-get install -y --no-remove --only-upgrade claudio`. The worst case is that the newest `claudio` Claudio's
 GPG-signed repository offers gets installed now instead of later; `--only-upgrade` and apt's own
 resolution never pick an older version, so it is no downgrade (the PackageKit CVE-2018-1106 class).
 
@@ -624,9 +624,15 @@ resolution never pick an older version, so it is no downgrade (the PackageKit CV
   reads no argument, no environment variable and no user-writable file, sets its own `PATH`, `LC_ALL`
   and `umask`, and the unit has no `Environment=`. The rule names a unit, never a program, so no
   interpreter path or script a user controls is involved.
-- *Install another package or source.* Only `claudio`, and only from the signed source. Dependencies a
-  new version needs come from the system's lists as apt resolves them; that is the one place the
-  system's other repositories matter.
+- *Install another package or source.* Only `claudio`, and only from the signed source: the package
+  ships `/etc/apt/preferences.d/claudio.pref`, which gives `claudio` from `release o=Claudio` priority
+  990 and `claudio` from any other origin -1, so a repository added later cannot supply a package of that name. 990 is below 1000, so the pin
+  never downgrades. Dependencies a new version needs come from the system's lists as apt resolves
+  them; that is the one place the system's other repositories matter, and `--no-remove` means the
+  run never takes another package off the machine to make room.
+- *Pin to a key (a limit).* Apt cannot tie a pin to a signing key, only to the
+  `Origin` field, so another source that also declares `Origin: Claudio` would match it. The
+  repository's signature check is what stays the trust anchor.
 - *Loop apt.* `StartLimitBurst=4` per 600 s refuses a fifth start, a run is cut at 30 minutes, and the
   lock wait is bounded (60 × 5 s). Starting while it runs joins that run.
 - *Write a result the app trusts blindly.* `status.json` is root-owned and only describes the last run;

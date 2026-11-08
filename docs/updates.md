@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-11-09T00:30:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - updates
     - docker
@@ -151,8 +151,10 @@ Its `ExecStart` is `/usr/lib/claudio/claudio-update` with no argument, and the s
 argument, no environment variable and no file a user can write. It runs
 `apt-get update` limited to `/etc/apt/sources.list.d/claudio.sources` (the same options as
 `scripts/install.sh`, so no other list is touched or cleaned), then
-`apt-get install --only-upgrade -y claudio` with `DEBIAN_FRONTEND=noninteractive` and the admin's
-existing config files kept. When another apt holds the lock it retries every 5 s up to 60 times,
+`apt-get install -y --no-remove --only-upgrade claudio` with `DEBIAN_FRONTEND=noninteractive` and the
+admin's existing config files kept. `--no-remove` means a run started from a phone may upgrade
+`claudio` and install what it needs, but never takes another package off the machine to make room;
+such an upgrade fails with apt's reason and is left to an admin. When another apt holds the lock it retries every 5 s up to 60 times,
 then fails with `update.apt-locked`. `StartLimitBurst=4` per 600 s makes a fifth start fail with
 `start-limit-hit` instead of hammering apt, and a run is cut at 30 minutes. It writes
 `/var/lib/claudio-update/status.json` (root-owned, 0644, atomically):
@@ -162,7 +164,9 @@ then fails with `update.apt-locked`. `StartLimitBurst=4` per 600 s makes a fifth
 ```
 
 `code` is `update.apt-locked`, `update.apt-failed` or `update.source-missing` (the source file was
-removed, so apt would otherwise "succeed" against stale lists). While it works `result` is
+removed, so apt would otherwise "succeed" against stale lists). The contract declares every reason
+code, `update.source-missing`, `update.start-limited` and `update.unit-failed` included, and a web
+test fails to compile when a code has no words on the card. While it works `result` is
 `installing`, with `to` and `endedAt` `null`.
 
 The server also reads systemd's `Result` for the unit. `start-limit-hit` is `failed` with
@@ -186,13 +190,14 @@ through `pkexec` or `sudo`; polkit allows it for the members of the group `claud
 ([security-model.md](security-model.md#the-desktop-update-unit)). It reads the state with
 `systemctl show` and the status file, and sends `desktop-update.changed` on `/events` at every
 change (module `packages/core/src/updates/desktop-update.ts`, whose `systemctl` is injected, so no
-test touches the system). The states:
+test touches the system). The card reads the status once when it opens and `desktop-update.changed` refetches it (`events.ts`);
+it does not poll. The states:
 
 | `state` | Meaning | Card |
 | --- | --- | --- |
-| `unavailable` | No unit: not a `.deb`, or a package older than the unit (`412 update.unit-missing`) | says how to get the update service, links the release page |
+| `unavailable` | No unit: not a `.deb`, or a package older than the unit (`412 update.unit-missing`) | says how to get the update service, links the release page (an information alert, not a warning) |
 | `needs-login` | The unit is there but polkit refused the start (`403 update.needs-login`) | explains the one log-out and log-in |
-| `idle`, `installing`, `up-to-date`, `failed` | the unit's last run | **Update the desktop app**, "Updating…", the reason from its code, **Try again** |
+| `idle`, `installing`, `up-to-date`, `failed` | the unit's last run | **Update the desktop app**, "Updating…", the reason from its code, **Try again** (the green "Up to date" tag is hidden while a newer Claudio exists) |
 | `installed` | the package is newer than the running shell (`restartNeeded`) | **Restart** |
 
 A start while one runs is `409 update.busy`; any other refusal from systemd is
@@ -212,7 +217,16 @@ the installed version and **Restart** in a dialog; `POST /system/restart` takes
   turns it into `app.relaunch()`, so the whole app starts from the binary now on disk. A shell that
   predates 76 gets 75, which relaunches once it saw apt replace the package. With no desktop shell at
   all (`CLAUDIO_LAUNCHER` is not `desktop`) the answer is `412 update.no-shell`.
-- A payload trial cut short by a 76 is not counted as a failed boot.
+- A payload trial that exits with 76 **after** it proved itself (answered its health check) is not a
+  failed boot. One that exits with 76 **before** it proved itself spends an attempt like any other
+  boot that never answered (`TRIAL_ATTEMPTS` = 2, then the version goes into `bad` and the rollback is
+  recorded), because a bundle that asked for a relaunch before it was healthy would otherwise relaunch
+  the app forever and never be rolled back.
+- While the server is gone the web shows **Restarting Claudio…** instead of the unreachable screen's
+  failure words (see [pwa.md](pwa.md#when-the-server-cannot-be-reached)). The card calls
+  `expectRestart()` once `POST /system/restart` answers `scheduled: 'now'`; a restart scheduled for
+  when nothing is running does not, because the server goes down long after the click, so that one
+  shows the plain unreachable screen when it happens.
 
 **No false rollback.** When apt installs the version the overlay already was, or a later one, the
 launcher's `pick()` drops the overlay quietly: no rollback row, no entry in `bad`
@@ -222,8 +236,9 @@ rollbacks left (finding 3 of the plan) are cleared the first time a boot reads t
 
 **Fewer package upgrades to begin with.** A release raises `minShell` when Electron, a native module
 or the launcher changes, which forces this path. D7 of the plan groups those dependency bumps apart
-in Dependabot and prints a notice in the release PR; that row (`minshell-guard`) was a separate
-branch.
+in Dependabot (Electron and `node-pty` apart, Electron majors left out of the automatic groups) and
+prints a notice in the release PR when a release raises it (`.github/dependabot.yml` and the release
+workflow).
 
 ## After an update: stale chunks
 

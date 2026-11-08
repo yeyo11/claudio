@@ -2,22 +2,20 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DesktopUpdateReasonCode } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
 import {
   desktopUnitErrorCode,
-  desktopUnitRefetchMs,
   refusalStatus,
   type DesktopUnitErrorCode,
-  type DesktopUnitStatus,
 } from '../src/lib/updates';
+import type { DesktopUpdateReasonCode, DesktopUpdateStatus } from '@claudio/shared';
 import { DesktopUnitView, UnitDialogBody, UnitDialogFooter, type DesktopUnitViewProps } from '../src/pages/config/UpdatesCard';
 
 // The desktop app's update from any device (docs/plans/remote-updates.md, §4, D4): one state per
 // `DesktopUpdateStatus`, a restart that is asked first, and every refusal in words from its code.
 
-const status = (over: Partial<DesktopUnitStatus> = {}): DesktopUnitStatus => ({
+const status = (over: Partial<DesktopUpdateStatus> = {}): DesktopUpdateStatus => ({
   state: 'idle',
   installed: '0.14.2',
   running: '0.14.2',
@@ -100,7 +98,7 @@ test('failed says why from the reason code and offers to try again', async () =>
     'update.unit-failed': /update service stopped before it could finish/,
   } as const;
   for (const [code, pattern] of Object.entries(expected)) {
-    const html = await render({ status: status({ state: 'failed', reason: { code } }) });
+    const html = await render({ status: status({ state: 'failed', reason: { code: code as DesktopUpdateReasonCode } }) });
     assert.match(words(html), pattern, code);
     assert.match(html, /alert-bad/);
     assert.match(html, /badge-bad/);
@@ -108,7 +106,7 @@ test('failed says why from the reason code and offers to try again', async () =>
     assert.doesNotMatch(words(html), /Update the desktop app/);
   }
   // A code this build does not know gets the generic sentence, never the server's text
-  assert.match(words(await render({ status: status({ state: 'failed', reason: { code: 'update.something-new' } }) })), /could not be updated/);
+  assert.match(words(await render({ status: status({ state: 'failed', reason: { code: 'update.something-new' as DesktopUpdateReasonCode } }) })), /could not be updated/);
 });
 
 test('needs-login explains the one log out and in, and offers no button that would be refused', async () => {
@@ -123,9 +121,20 @@ test('unavailable says how to get the unit and links the release', async () => {
   assert.match(words(html), /no update service/);
   assert.match(words(html), /Install the newest desktop app package once/);
   assert.match(html, /href="https:\/\/example\.test\/release"/);
+  // Information, not a warning: nothing is wrong, this install just has no unit
+  assert.match(html, /alert-info/);
+  assert.doesNotMatch(html, /alert-warn/);
   assert.equal(buttons(html), 0);
   // Without a release page, the sentence stands alone
   assert.doesNotMatch(await render({ status: status({ state: 'unavailable' }), releaseUrl: null }), /<a /);
+});
+
+test('"Up to date" is shown only while no newer Claudio exists', async () => {
+  const upToDate = status({ state: 'up-to-date' });
+  assert.match(words(await render({ status: upToDate, updateAvailable: false })), /Up to date/);
+  const newer = await render({ status: upToDate, updateAvailable: true });
+  assert.doesNotMatch(words(newer), /Up to date/);
+  assert.match(words(newer), /Update the desktop app/);
 });
 
 test('installed with a restart needed names both versions and offers Restart as the primary action', async () => {
@@ -215,17 +224,6 @@ test('the Spanish card says the same things', async () => {
   assert.match(words(failed), /Reintentar/);
   const limited = await render({ status: status({ state: 'failed', reason: { code: 'update.start-limited' } }) }, 'es');
   assert.match(words(limited), /demasiadas actualizaciones/);
-});
-
-test('the card reads the status again soon only while something is under way', () => {
-  const idle = { state: 'idle' as const, restartNeeded: false };
-  assert.equal(desktopUnitRefetchMs(undefined, null), false);
-  assert.equal(desktopUnitRefetchMs(idle, null), false);
-  assert.equal(desktopUnitRefetchMs({ state: 'installing', restartNeeded: false }, null), 2000);
-  assert.equal(desktopUnitRefetchMs({ state: 'installed', restartNeeded: true }, 'now'), 2000);
-  assert.equal(desktopUnitRefetchMs({ state: 'installed', restartNeeded: true }, 'when-idle'), 5000);
-  // Once the new process answers, a scheduled restart needs no more polling
-  assert.equal(desktopUnitRefetchMs(idle, 'when-idle'), false);
 });
 
 test('every reason code the contract declares has its own words, except start-failed, which is the generic one', () => {

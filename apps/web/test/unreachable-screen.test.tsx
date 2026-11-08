@@ -112,6 +112,20 @@ test('with no connection at all the screen says so and does not blame the addres
   }
 });
 
+test('a restart asked for says "restarting" with the spinner beside the verb, in both languages, and offers no retry', async () => {
+  network(down);
+  await reachability.suspect();
+  reachability.expectRestart();
+  let html = renderToStaticMarkup(<Unreachable address="claudio.local" />);
+  assert.match(html, /<h1[^>]*>Reiniciando Claudio…<\/h1>/);
+  assert.match(html, /data-testid="unreachable-restarting"/);
+  assert.match(html, /spinner-glyph/, 'the braille spinner');
+  assert.doesNotMatch(html, /Reintentar ahora|No se puede contactar/);
+  await i18n.changeLanguage('en');
+  html = renderToStaticMarkup(<Unreachable address="claudio.local" />);
+  assert.match(html, /<h1[^>]*>Restarting Claudio…<\/h1>/);
+});
+
 test('the countdown never reads zero while a wait is on', () => {
   assert.equal(secondsUntil(10_000, 0), 10);
   assert.equal(secondsUntil(10_000, 9_001), 1);
