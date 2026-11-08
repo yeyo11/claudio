@@ -327,7 +327,12 @@ function Shell() {
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''}`} data-phone-header={phoneHeader}>
+    <>
+    {/* While the server cannot be reached the screen stands in for the whole shell (D9): its
+        controls would act on nothing, and its live rows and counts are what the server said last.
+        The shell stays mounted, out of sight, so a half-written message survives the outage */}
+    {unreachable && <Unreachable standalone />}
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''} ${unreachable ? 'shell-held' : ''}`} data-phone-header={phoneHeader}>
       <a
         href="#main"
         className="skip-link"
@@ -418,11 +423,8 @@ function Shell() {
         <ReloadBanner />
 
         <main id="main" ref={mainRef} tabIndex={-1} className="main">
-          {unreachable && <Unreachable />}
-          {/* Kept mounted but out of sight while the server cannot be reached: a half-written message
-              survives the outage, and no widget or route shows a network error of its own */}
           {/* Keyed by pathname only (Settings by its root): tab and scope switches must not replay the transition */}
-          <PageTransition key={transitionKey(pathname)} className={unreachable ? 'page page-held' : 'page'}>
+          <PageTransition key={transitionKey(pathname)} className="page">
             <Suspense fallback={<Skeleton rows={5} height={18} />}>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -505,5 +507,6 @@ function Shell() {
       <NotificationHost />
       <DetailHost />
     </div>
+    </>
   );
 }

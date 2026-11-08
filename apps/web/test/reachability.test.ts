@@ -246,6 +246,22 @@ test('the browser going offline looks at once, puts the screen up in the offline
   assert.equal(store.snapshot().unreachable, false);
 });
 
+test('a Retry pressed in vain keeps the wait where it was: only the automatic tries back off', async (t) => {
+  const { state, store, advance, settle } = harness(t);
+  await store.suspect();
+  await advance(2000);
+  await advance(4000);
+  let view = store.snapshot();
+  assert.equal((view.nextAttemptAt ?? 0) - state.clock, 8000, 'two automatic tries: the wait is 8 s');
+  store.retryNow();
+  await settle();
+  view = store.snapshot();
+  assert.equal((view.nextAttemptAt ?? 0) - state.clock, 8000, 'the press did not push it to 16 s');
+  store.retryNow();
+  await settle();
+  assert.equal((store.snapshot().nextAttemptAt ?? 0) - state.clock, 8000, 'nor a second press');
+});
+
 test('a retry asked for while one is out does not start a second', async (t) => {
   const { state, store, settle } = harness(t);
   await store.suspect();

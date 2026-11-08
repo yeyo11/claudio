@@ -46,11 +46,13 @@ export default async ({ page, check }) => {
         mono: screen.querySelector('.mono')?.innerText,
         host: location.host,
         text: screen.innerText,
-        button: screen.querySelector('.btn-primary')?.innerText,
+        button: screen.querySelector('button')?.innerText,
         illustration: !!screen.querySelector('svg'),
-        inMain: !!screen.closest('main'),
-        sidebar: !!document.querySelector('.sidebar'),
-        pageHidden: getComputedStyle(document.querySelector('main .page')).display === 'none',
+        shellHeld: getComputedStyle(document.querySelector('.shell')).display === 'none',
+        pageMounted: !!document.querySelector('.shell main .page'),
+        focused: document.activeElement === screen,
+        label: screen.getAttribute('aria-label'),
+        moving: document.getAnimations().filter((a) => a instanceof CSSAnimation && a.playState === 'running' && !screen.contains(a.effect?.target ?? null)).length,
         banner: !!document.querySelector(${JSON.stringify(BANNER)}),
         reloadButtons: [...document.querySelectorAll('button')].filter((b) => b.innerText.trim() === 'Reload').length,
       };`);
@@ -60,8 +62,10 @@ export default async ({ page, check }) => {
     check(/Retrying in \d+ s|Retrying…/.test(shown.text), `it counts down to the next try: ${shown.text}`);
     check(shown.button === 'Retry now', `and offers a retry: ${shown.button}`);
     check(shown.illustration, 'with the offline illustration');
-    check(shown.inMain && shown.sidebar, 'it takes the page area and leaves the shell around it');
-    check(shown.pageHidden, 'the page stays mounted but out of sight, so no widget shows an error of its own');
+    check(shown.shellHeld, 'it stands in for the whole shell: no control acts on nothing, no live row tells of work the server cannot confirm');
+    check(shown.pageMounted, 'the page stays mounted but out of sight, so a draft survives and no widget shows an error of its own');
+    check(shown.moving === 0, `nothing behind the screen keeps moving: ${shown.moving} animation(s)`);
+    check(shown.focused && shown.label === shown.title, `the screen takes focus and is labelled with its title: ${shown.focused} ${shown.label}`);
     check(!shown.banner && shown.reloadButtons === 0, 'no reload is offered: a reload cannot help');
     const mono = await page.eval(`return getComputedStyle(document.querySelector(${JSON.stringify(`${SCREEN} .mono`)})).fontFamily`);
     check(/mono/i.test(mono), `the address is set in Geist Mono: ${mono}`);
@@ -70,7 +74,9 @@ export default async ({ page, check }) => {
 
     // The tab says what the screen says, also when the person goes to another page meanwhile
     check((await page.eval(`return document.title`)).startsWith("Can't reach Claudio"), `the tab title follows the screen: ${await page.eval('return document.title')}`);
-    await page.click('.sidebar a[href="/usage"]', undefined, 1500);
+    // The shell is out of sight, so the route changes the way a link or the back button would
+    await page.eval(`history.pushState(null, '', '/usage'); dispatchEvent(new PopStateEvent('popstate')); return true`);
+    await page.sleep(1500);
     const during = await page.eval(`return { title: document.title, screen: !!document.querySelector(${JSON.stringify(SCREEN)}) }`);
     check(during.screen && during.title.startsWith("Can't reach Claudio"), `a page opened during the outage does not take the tab title: ${during.title}`);
 
@@ -100,7 +106,7 @@ export default async ({ page, check }) => {
   } finally {
     await liftAgain();
   }
-  await page.click(`${SCREEN} .btn-primary`);
+  await page.click(`${SCREEN} button`);
   await screenGone('Retry now to bring the app back');
   page.takeErrors();
 

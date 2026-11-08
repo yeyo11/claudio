@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { Empty } from '@claudio/ui/components/ui';
@@ -11,13 +11,21 @@ export const secondsUntil = (at: number, now: number): number => Math.max(1, Mat
  * What a server that cannot be reached looks like (docs/plans/remote-updates.md, D9): not a reload
  * offer, because reloading cannot help, but a screen that says what is wrong in the words of the
  * cause (no connection at all, or this address not answering), retries by itself and goes on
- * without a reload when the server answers. It takes the page's place and leaves the shell around
- * it. `address` is what the person typed to get here; the servers feature will pass a remote's.
+ * without a reload when the server answers. `standalone` stands in for the whole app (this
+ * server's own outage: the shell is held out of sight); without it, it fills the area it is given
+ * (the servers feature, for a remote while the hub answers). `address` is what the person typed to
+ * get here; the servers feature will pass a remote's.
  */
 export function Unreachable({ address = window.location.host, standalone = false }: { address?: string; standalone?: boolean }) {
   const { t } = useTranslation('shell');
   const { offline, nextAttemptAt, probing } = useReachability();
   const [now, setNow] = useState(() => Date.now());
+  const ref = useRef<HTMLElement & HTMLDivElement>(null);
+  // Whatever had focus went out of sight with the page: the screen takes it, so a keyboard is one
+  // Tab from Retry and a screen reader hears the title (the label) once, not the countdown
+  useEffect(() => {
+    ref.current?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     if (nextAttemptAt === null) return;
     setNow(Date.now());
@@ -54,7 +62,8 @@ export function Unreachable({ address = window.location.host, standalone = false
       heading
       title={title}
       action={
-        <button type="button" className="btn btn-primary" onClick={() => reachability.retryNow()}>
+        // Neutral, as in the reference's error state: trying again fixes nothing by itself
+        <button type="button" className="btn" onClick={() => reachability.retryNow()}>
           {t('unreachable.retryNow')}
         </button>
       }
@@ -66,5 +75,14 @@ export function Unreachable({ address = window.location.host, standalone = false
       <p className="unreachable-wait tnum">{wait}</p>
     </Empty>
   );
-  return standalone ? <main className="unreachable-standalone" data-testid="unreachable">{screen}</main> : <div className="unreachable" data-testid="unreachable">{screen}</div>;
+  const own = { ref, tabIndex: -1, 'aria-label': title, 'data-testid': 'unreachable' };
+  return standalone ? (
+    <main className="unreachable-standalone" {...own}>
+      {screen}
+    </main>
+  ) : (
+    <div className="unreachable" role="region" {...own}>
+      {screen}
+    </div>
+  );
 }

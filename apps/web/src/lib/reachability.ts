@@ -130,8 +130,12 @@ export class Reachability {
     if (this.view.unreachable) this.recover();
   }
 
-  /** Tries now, without waiting for the back-off (the button, `online`, focus, a tab shown again). */
-  retryNow(): void {
+  /**
+   * Tries now, without waiting for the back-off (the button, `online`, focus, a tab shown again). A
+   * try asked for this way that finds nothing keeps the wait where it was: pressing Retry must not
+   * push the next automatic one further away. Only the timer's own tries back off.
+   */
+  retryNow(backOff = false): void {
     if (!this.view.unreachable || this.view.probing) return;
     clearTimeout(this.timer);
     this.timer = undefined;
@@ -140,7 +144,7 @@ export class Reachability {
       // An answer to a call of the page's own may have ended it while the probe was out
       if (!this.view.unreachable) return;
       if (answered) return this.recover();
-      this.attempts += 1;
+      if (backOff) this.attempts += 1;
       this.schedule();
     });
   }
@@ -206,7 +210,7 @@ export class Reachability {
     clearTimeout(this.timer);
     const wait = Math.min(BACKOFF_FIRST_MS * 2 ** this.attempts, BACKOFF_MAX_MS);
     this.set({ unreachable: true, offline: false, nextAttemptAt: this.now() + wait, probing: false });
-    this.timer = setTimeout(() => this.retryNow(), wait);
+    this.timer = setTimeout(() => this.retryNow(true), wait);
   }
 
   private recover(): void {
