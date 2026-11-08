@@ -477,6 +477,29 @@ pushed; the branches merge into one. The engine as it exists is [servers.md](../
 - A server whose identity changed can only be removed (`?force=true`) and added again, which gives it
   a new id (R8 and D5 hold; re-pairing in place is not built).
 
+## 11. Follow-ups after the engine review (owner, 2026-11-08)
+
+The security review left five decisions to the owner; he took them the same day.
+
+- **D13. The fingerprint is checked before a pasted token leaves the hub.** Pairing with an owner
+  token first opens TLS to the address without sending anything, reads the certificate's
+  fingerprint and compares it with the one the person typed (the remote's LAN card shows it); with
+  none typed, the API answers the seen fingerprint for the person to confirm and only a second call
+  carrying it sends the token. The code path needs no change: the code is single-use and short-lived.
+- **D14. A remote's owner can revoke a hub.** `GET /server-links` (person) lists the server tokens
+  (id, hub name, hub instance id, created, last used; never the secret) and
+  `DELETE /server-links/:tokenId` (person) revokes one. No UI in this branch.
+- **D15. A certificate signed by a public authority is accepted only for names off the LAN.** A
+  Tailscale (`*.ts.net`) or tunnel host name may use a CA-signed certificate; an address that is an
+  IP or a `.local` name must match the pinned fingerprint, always.
+- **D16. Low risks closed.** The gateway caps forwarded request bodies (the same limit as the API's
+  own uploads, streamed, `413` above it); `refusedIp` also refuses IPv4-compatible (`::a.b.c.d`),
+  IPv4-mapped forms of refused ranges, 6to4 (`2002::/16`) and Teredo (`2001::/32`); the gateway stops
+  reading a private field of `@fastify/websocket` and uses a public way to reach the upgrade.
+- **D17. Accepted risk:** any chat can message or resume the owner's chat that has Claudio's MCP on,
+  and that chat acts as the owner on orchestrations. In `bypassPermissions` it already has a shell;
+  in other modes the person sees a permission prompt.
+
 ## Related
 
 [[lan-access.md]] · [[plans/lan-access.md]] · [[security-model.md]] · [[securing.md]] ·
