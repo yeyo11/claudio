@@ -68,6 +68,12 @@ export default async ({ page, check }) => {
     const violations = await page.axe({ include: SCREEN });
     check(violations.length === 0, `the screen has accessibility violations: ${JSON.stringify(violations)}`);
 
+    // The tab says what the screen says, also when the person goes to another page meanwhile
+    check((await page.eval(`return document.title`)).startsWith("Can't reach Claudio"), `the tab title follows the screen: ${await page.eval('return document.title')}`);
+    await page.click('.sidebar a[href="/usage"]', undefined, 1500);
+    const during = await page.eval(`return { title: document.title, screen: !!document.querySelector(${JSON.stringify(SCREEN)}) }`);
+    check(during.screen && during.title.startsWith("Can't reach Claudio"), `a page opened during the outage does not take the tab title: ${during.title}`);
+
     // Left alone it keeps trying, and the page is still the same document
     await page.sleep(2500);
     check(await page.eval(`return window.__claudioStay === true`), 'the page never reloads on its own');
@@ -79,8 +85,10 @@ export default async ({ page, check }) => {
   // ---- The server comes back: the app goes on, with no reload ----
   await screenGone('the app to resume once the server answers');
   check(await page.eval(`return window.__claudioStay === true`), 'the app resumed without a reload');
-  const resumed = await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10 && location.pathname === '/chats'`, { label: 'the Chats page' });
-  check(resumed, 'the page the person was going to is there');
+  const resumed = await page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10 && location.pathname === '/usage'`, { label: 'the Usage page' });
+  check(resumed, 'the page the person went to is there');
+  const title = await page.eval(`return document.title`);
+  check(title.startsWith('Usage'), `and the tab is titled for it again, not for the screen or the page before: ${title}`);
   check(await page.eval(`return !document.querySelector(${JSON.stringify(BANNER)})`), 'a server of the same version offers no reload');
   page.takeErrors();
 

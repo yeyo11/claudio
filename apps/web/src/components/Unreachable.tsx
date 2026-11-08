@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatNumber } from '@claudio/ui/lib/format';
-import { Empty, usePageTitle } from '@claudio/ui/components/ui';
+import { Empty } from '@claudio/ui/components/ui';
 import { reachability, useReachability } from '../lib/reachability';
 
 /** Seconds until `at`, rounded up so the line never reads "0 s" while a wait is still on. */
@@ -26,15 +26,25 @@ export function Unreachable({ address = window.location.host, standalone = false
   }, [nextAttemptAt]);
 
   const title = offline ? t('unreachable.offlineTitle') : t('unreachable.title');
-  // The page that was hidden behind this screen sets its own title only when it mounts, so the
-  // title it had is put back when the screen goes
+  // The tab says what the screen says while it shows. The page behind it (one opened during the
+  // outage mounts after this screen) still writes its own title, so each write is remembered and
+  // answered with the screen's, and the last one written is what comes back when the screen goes.
   useEffect(() => {
-    const before = document.title;
-    return () => {
-      document.title = before;
+    const own = `${title} · Claudio`;
+    let theirs = document.title;
+    const claim = () => {
+      if (document.title === own) return;
+      theirs = document.title;
+      document.title = own;
     };
-  }, []);
-  usePageTitle(title);
+    claim();
+    const watch = new MutationObserver(claim);
+    watch.observe(document.head, { subtree: true, childList: true, characterData: true });
+    return () => {
+      watch.disconnect();
+      document.title = theirs;
+    };
+  }, [title]);
 
   const wait = probing || nextAttemptAt === null ? t('unreachable.retrying') : t('unreachable.retryIn', { seconds: formatNumber(secondsUntil(nextAttemptAt, now)) });
   const screen = (
