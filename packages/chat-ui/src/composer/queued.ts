@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { Chat, ChatMessageReceipt, ChatMessageSource, ChatPendingAttachment, ChatPendingBlocker, ChatPendingMessage, MessageDelivery, TranscriptEntry } from '@claudio/shared';
 import { isStreamed, type ChatStreamStore } from '../lib/chat-stream';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 export interface QueuedMessage {
   /** The message's own id: the one the server, the agent and its transcript know it by */
@@ -122,7 +123,7 @@ export function reconcileCards(held: readonly QueuedCard[], facts: DeliveryFacts
 }
 
 /** Where a chat's dismissed cards are kept for the tab's life: a reload must not bring back a card the person put away */
-const dismissedKey = (chatId: string): string => `claudio.queued.dismissed.${chatId}`;
+const dismissedKey = (chatId: string): string => scopedKey(`claudio.queued.dismissed.${chatId}`);
 
 /** The cards a person dealt with in this chat, as the tab kept them; none where the storage cannot be read. */
 export function readDismissed(chatId: string, storage: Pick<Storage, 'getItem'> | null = sessionStore()): Set<string> {

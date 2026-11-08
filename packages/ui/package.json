@@ -83,6 +83,7 @@
     "./lib/page-cache": "./src/lib/page-cache.ts",
     "./lib/progress": "./src/lib/progress.ts",
     "./lib/qr": "./src/lib/qr.ts",
+    "./lib/server-scope": "./src/lib/server-scope.ts",
     "./styles/feedback.css": "./src/styles/feedback.css",
     "./styles/illustrations.css": "./src/styles/illustrations.css",
     "./styles/motion.css": "./src/styles/motion.css",

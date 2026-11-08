@@ -10,6 +10,7 @@ import { AccessCard, ReadOnlyCard, TokenCard } from '../security/AccessCards';
 import { AgentReadsCard, AgentReadsLatest } from '../security/AgentReadsCard';
 import { AuditCard, AuditLatest } from '../security/AuditCard';
 import { TerminalCard } from '../security/TerminalCard';
+import { useHubOnlyHidden } from '../../../lib/server-scope';
 import { sectionLabel } from '../settingsGroups';
 import { SettingsSection, type GroupScreenProps } from './Section';
 
@@ -22,6 +23,9 @@ import { SettingsSection, type GroupScreenProps } from './Section';
 export function Access({ detail }: GroupScreenProps<'access'>) {
   const { t } = useTranslation(['config']);
   const auth = useQuery({ queryKey: keys.securityAuth, queryFn: api.securityAuth });
+  // The sign-in cards and the LAN and tunnel cards describe the hub's own door: not drawn in a remote's Settings (plan D7)
+  const hideAccess = useHubOnlyHidden('/settings/access#access');
+  const hideRemote = useHubOnlyHidden('/settings/access#remote');
 
   if (detail === 'audit') {
     return (
@@ -40,6 +44,7 @@ export function Access({ detail }: GroupScreenProps<'access'>) {
 
   return (
     <div className="settings-group settings-cards">
+      {!hideAccess && (
       <SettingsSection id="access" title={t(sectionLabel('access'))}>
         <ErrorBox error={auth.error} />
         {auth.isLoading && <Skeleton rows={6} />}
@@ -53,13 +58,16 @@ export function Access({ detail }: GroupScreenProps<'access'>) {
         )}
         <p className="small muted">{t('security.footnote')}</p>
       </SettingsSection>
+      )}
       <SettingsSection id="hosts" title={t(sectionLabel('hosts'))}>
         <HostsSettings />
       </SettingsSection>
+      {!hideRemote && (
       <SettingsSection id="remote" title={t(sectionLabel('remote'))}>
         {/* The tab marks its own blocks: `lan.*` on the local network card's rows, `remote.tunnel` on the tunnel's */}
         <RemoteAccessTab />
       </SettingsSection>
+      )}
       <SettingsSection id="secrets" title={t(sectionLabel('secrets'))}>
         <div className="settings-block" data-setting="secrets.storage">
           <SecretsCard />

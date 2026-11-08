@@ -1,5 +1,6 @@
 import { lazy, useMemo, type ReactNode } from 'react';
-import { api, BASE, enc } from '../api';
+import { activeBase } from '@claudio/ui/lib/server-scope';
+import { api, enc } from '../api';
 import { withToken } from './auth';
 import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
 import { TeammateName } from '../components/TeammateName';
@@ -40,8 +41,8 @@ export const chatClient: ChatClient = {
   accounts: () => api.accounts(),
   accountModels: (id) => api.accountModels(id),
   switchChatAccount: api.switchChatAccount,
-  streamUrl: (chatId, since) => withToken(`${BASE}/chats/${enc(chatId)}/stream?since=${since}`),
-  contentUrl: (uploadId) => withToken(`${BASE}/uploads/${enc(uploadId)}/content`),
+  streamUrl: (chatId, since) => withToken(`${activeBase()}/chats/${enc(chatId)}/stream?since=${since}`),
+  contentUrl: (uploadId) => withToken(`${activeBase()}/uploads/${enc(uploadId)}/content`),
 };
 
 // Lazy here, so `Controls` stays its own chunk

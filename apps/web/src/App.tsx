@@ -46,6 +46,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
+import { ServerScopeGate, useServerScope } from './lib/server-scope';
 import { terminalWindowId } from './components/terminal/terminal-window';
 import { TerminalBarProvider, useTerminalBar } from './components/terminal/terminal-bar';
 import { useTerminalAccess, useTerminalList } from './components/terminal/use-terminals';
@@ -115,18 +116,31 @@ export function App() {
   if (!settled) return null;
   // A terminal in a window of its own is the terminal and nothing else: no shell, no first-run gate
   const detached = terminalWindowId(pathname);
+  // In a remote scope nothing is read from the server before its version is known to fit (plan D3)
   if (detached) {
     return (
-      <Suspense fallback={null}>
-        <TerminalWindow id={detached} />
-      </Suspense>
+      <ServerScopeGate>
+        <Suspense fallback={null}>
+          <TerminalWindow id={detached} />
+        </Suspense>
+      </ServerScopeGate>
     );
   }
-  return <FirstRunGate />;
+  return (
+    <ServerScopeGate>
+      <FirstRunGate />
+    </ServerScopeGate>
+  );
 }
 
 /** The setup assistant in place of the app, until it is finished or skipped */
 function FirstRunGate() {
+  // Setting up this machine is the hub's business; a remote has its own first run, on its own screen
+  const { remote } = useServerScope();
+  return remote ? <ScopedShell /> : <LocalFirstRunGate />;
+}
+
+function LocalFirstRunGate() {
   const gate = useSetupGate();
   // Held back for the read, as the sign-in is, so the shell does not flash and then vanish
   if (gate.state === 'pending') return null;
@@ -137,6 +151,10 @@ function FirstRunGate() {
       </Suspense>
     );
   }
+  return <ScopedShell />;
+}
+
+function ScopedShell() {
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>

@@ -1,5 +1,6 @@
 import type { Orchestration, SpendState } from '@claudio/shared';
 import { intlLocale } from '@claudio/ui/i18n/language';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /** The header that lets a person's request through the daily spend cap; a chat's token cannot send it. */
 export const SPEND_OVERRIDE_HEADER = 'X-Claudio-Spend-Override';
@@ -33,7 +34,8 @@ export function localDay(now: Date = new Date()): string {
   return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
 }
 
-const ackKey = (scope: string, now: Date): string => `claudio.spendCap.ack.${localDay(now)}.${scope}`;
+// The cap is the spending server's: going on past it on one server says nothing about another
+const ackKey = (scope: string, now: Date): string => scopedKey(`claudio.spendCap.ack.${localDay(now)}.${scope}`);
 
 function store(): Storage | null {
   try {

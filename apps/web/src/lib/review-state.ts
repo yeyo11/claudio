@@ -2,6 +2,7 @@
 // the comparator's mode, and which files a person has seen. Neither ever reaches the server, and a
 // storage that throws (private mode, a full quota) only means nothing is remembered.
 import type { ChangedFile } from '@claudio/shared';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 export type ReviewMode = 'reading' | 'unified' | 'split';
 
@@ -80,7 +81,7 @@ export type SeenMap = Record<string, SeenMark>;
 export const signatureOf = (file: Pick<ChangedFile, 'status' | 'additions' | 'deletions'>): string => `${file.status}:${file.additions}:${file.deletions}`;
 
 export function readSeen(source: string, s: KeyValueStore | null = store()): SeenMap {
-  const raw = read(s, SEEN_PREFIX + source);
+  const raw = read(s, scopedKey(SEEN_PREFIX + source));
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -99,11 +100,11 @@ export function readSeen(source: string, s: KeyValueStore | null = store()): See
 
 export function writeSeen(source: string, seen: SeenMap, s: KeyValueStore | null = store()): void {
   const empty = Object.keys(seen).length === 0;
-  write(s, SEEN_PREFIX + source, empty ? null : JSON.stringify(seen));
+  write(s, scopedKey(SEEN_PREFIX + source), empty ? null : JSON.stringify(seen));
   // A list of the sources, newest last, so a browser that reviews for months does not keep them all
   let index: string[] = [];
   try {
-    const parsed: unknown = JSON.parse(read(s, SEEN_INDEX) ?? '[]');
+    const parsed: unknown = JSON.parse(read(s, scopedKey(SEEN_INDEX)) ?? '[]');
     if (Array.isArray(parsed)) index = parsed.filter((x): x is string => typeof x === 'string');
   } catch {
     index = [];
@@ -112,9 +113,9 @@ export function writeSeen(source: string, seen: SeenMap, s: KeyValueStore | null
   if (!empty) index.push(source);
   while (index.length > SEEN_SOURCES) {
     const old = index.shift();
-    if (old) write(s, SEEN_PREFIX + old, null);
+    if (old) write(s, scopedKey(SEEN_PREFIX + old), null);
   }
-  write(s, SEEN_INDEX, JSON.stringify(index));
+  write(s, scopedKey(SEEN_INDEX), JSON.stringify(index));
 }
 
 /** Whether a file still reads as seen: same counts, and the same diff when its hash is known on both sides */

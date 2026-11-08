@@ -1,8 +1,14 @@
 import { useSyncExternalStore } from 'react';
 import type { AuthMode, ClaimHostResult, HostRefusal } from '@claudio/shared';
+import { HUB_API } from '@claudio/ui/lib/server-scope';
 
 /*
  * The credential this browser sends, and what happens when the API refuses it.
+ *
+ * Everything here is about the hub, the server this page was opened from, even while a remote
+ * server is selected: its sign-in, its host allowlist and its token. A remote's own credential
+ * never reaches the browser; the hub's gateway holds it. So these checks call `HUB_API` and not
+ * the scope's base (docs/plans/claudio-servers.md §4.3).
  *
  * Claudio is unguarded by default, so nothing here runs for a local install: the token is only
  * read from storage, and the challenge state only appears once a route has answered 401. The
@@ -115,7 +121,7 @@ export function useHostRefusal(): HostRefusal | null {
 // ---------- the first answer ----------
 
 /** Guarded, and the cheapest read the API has: a small settings document, no CLI involved. */
-const PROBE_PATH = '/api/security/auth';
+const PROBE_PATH = `${HUB_API}/security/auth`;
 /** A wrapper this slow to answer gets its shell anyway, and the first 401 still brings the sign-in. */
 const PROBE_WAIT_MS = 1500;
 
@@ -152,6 +158,31 @@ export async function probeAuth(fetcher: typeof fetch = fetch, waitMs = PROBE_WA
   }
 }
 
+let confirming = false;
+
+/**
+ * A call through the gateway came back 401, which is the remote's answer as much as the hub's.
+ * Asks the hub itself whether this browser is still signed in, and only a 401 from the hub brings
+ * the sign-in screen. Unlike `probeAuth` it never holds the shell back: the page is already up.
+ */
+export async function confirmHubSession(fetcher: typeof fetch = fetch): Promise<void> {
+  if (confirming) return;
+  confirming = true;
+  try {
+    const res = await fetcher(PROBE_PATH, { headers: authHeaders(), signal: AbortSignal.timeout(PROBE_WAIT_MS * 4) });
+    if (res.status === 401) {
+      const { mode, firstRunToken: first } = challengeOf(await res.json().catch(() => null));
+      setChallenge(mode, first);
+    } else if (res.status === 421) {
+      setHostRefusal(hostRefusalOf(await res.json().catch(() => null)));
+    }
+  } catch {
+    // The hub being unreachable is not the hub refusing
+  } finally {
+    confirming = false;
+  }
+}
+
 /** False while the first probe is out: the app draws nothing rather than a shell it may take back. */
 export function useAuthSettled(): boolean {
   const read = () => settled;
@@ -166,7 +197,7 @@ export async function signIn(credential: string): Promise<boolean> {
   const previous = token;
   setToken(credential);
   try {
-    const res = await fetch('/api/overview', { headers: authHeaders(), signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(`${HUB_API}/overview`, { headers: authHeaders(), signal: AbortSignal.timeout(15_000) });
     if (res.status === 401) {
       setToken(previous);
       return false;
@@ -187,7 +218,7 @@ export type ClaimOutcome = { status: 'claimed'; result: ClaimHostResult } | { st
  * it was.
  */
 export async function claimHost(credential: string): Promise<ClaimOutcome> {
-  const res = await fetch('/api/security/allowed-hosts/claim', {
+  const res = await fetch(`${HUB_API}/security/allowed-hosts/claim`, {
     method: 'POST',
     headers: { authorization: `Bearer ${credential.trim()}` },
     signal: AbortSignal.timeout(15_000),

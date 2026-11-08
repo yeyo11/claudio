@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /*
  * A list's filters, search, sort and state tab, kept until the person resets them. The address stays
@@ -18,7 +19,7 @@ export const GLOBAL_SCOPE = 'global';
 export type ListValues = Readonly<Record<string, string>>;
 
 export function storageKey(page: string, scope: string): string {
-  return `${PREFIX}${page}:${scope}`;
+  return scopedKey(`${PREFIX}${page}:${scope}`);
 }
 
 export function pickValues(params: URLSearchParams, owned: readonly string[]): ListValues {

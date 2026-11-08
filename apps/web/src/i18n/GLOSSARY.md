@@ -168,6 +168,7 @@ imperative forms wholesale (see "Terms that changed" for the full old → new li
 | Accounts / Account | Cuentas / Cuenta |
 | Memory | Memoria |
 | Machine (the server's resources) | Máquina |
+| Server (another Claudio driven through this one) / This server | Servidor / Este servidor (docs/plans/claudio-servers.md D1; MCP servers stay "servidores MCP") |
 | Memory pressure (PSI) | Presión de memoria; Baja / Subiendo / Alta |
 | Admits chats / No new chats | Admite chats / No admite chats |
 | Resident (memory) | Residente: "1.240 MB residentes" |

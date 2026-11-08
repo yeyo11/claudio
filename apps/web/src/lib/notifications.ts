@@ -14,6 +14,7 @@ import {
   type NotificationPrefs,
   type StoredNotifications,
 } from './notifications-model';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /*
  * The notification list and its preferences, kept per browser in localStorage. It is a plain
@@ -29,7 +30,7 @@ const listeners = new Set<() => void>();
 function load(): StoredNotifications {
   if (state) return state;
   try {
-    state = parseStored(localStorage.getItem(STORAGE_KEY));
+    state = parseStored(localStorage.getItem(scopedKey(STORAGE_KEY)));
   } catch {
     // storage blocked: notifications still work for this page's lifetime
     state = parseStored(null);
@@ -40,7 +41,7 @@ function load(): StoredNotifications {
 function commit(next: StoredNotifications): void {
   state = next;
   try {
-    localStorage.setItem(STORAGE_KEY, serializeStored(next));
+    localStorage.setItem(scopedKey(STORAGE_KEY), serializeStored(next));
   } catch {
     // private mode or a full quota: the list just does not survive a reload
   }
@@ -50,7 +51,7 @@ function commit(next: StoredNotifications): void {
 // Another tab wrote: adopt it, so read state and preferences agree across tabs
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (event.key !== STORAGE_KEY && event.key !== null) return;
+    if (event.key !== scopedKey(STORAGE_KEY) && event.key !== null) return;
     state = null;
     for (const listener of [...listeners]) listener();
   });

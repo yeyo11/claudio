@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { activeServerId, scopedHref, scopedKey } from '@claudio/ui/lib/server-scope';
 
 /*
  * A terminal can be taken out of the panel into a window of its own: a route that draws that one
@@ -12,7 +13,8 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 export const terminalWindowPath = (id: string): string => `/terminal-window/${encodeURIComponent(id)}`;
 
 /** The window's name, so a second click on the same terminal focuses the window instead of opening another */
-export const terminalWindowName = (id: string): string => `claudio-terminal-${id}`;
+// Terminal ids are one server's: a window of another server's terminal 1 is not this one's
+export const terminalWindowName = (id: string): string => scopedKey(`claudio-terminal-${id}`);
 
 /** The terminal's id when the path is a detached window's route, otherwise null */
 export function terminalWindowId(pathname: string): string | null {
@@ -25,7 +27,8 @@ export function terminalWindowId(pathname: string): string | null {
   }
 }
 
-const CHANNEL = 'claudio-terminal-windows';
+// Per scope, for the same reason: another server's windows must not mark this one's terminals as detached
+const CHANNEL = scopedKey('claudio-terminal-windows');
 
 /**
  * What the windows say to each other. `here`: this terminal is open in a window (said on opening and
@@ -57,7 +60,8 @@ const hasChannel = typeof BroadcastChannel === 'function';
 
 /** The URL, name and features `window.open` takes for a terminal's window */
 export function openTerminalWindow(id: string): Window | null {
-  return window.open(terminalWindowPath(id), terminalWindowName(id), 'popup=yes,width=1000,height=640');
+  // The window is a new page load, so its address carries the scope the router's basename adds inside the app
+  return window.open(scopedHref(activeServerId(), terminalWindowPath(id)), terminalWindowName(id), 'popup=yes,width=1000,height=640');
 }
 
 /**
