@@ -768,9 +768,31 @@ a.statusbar-item:focus-visible {
   background: var(--glow-top) no-repeat, var(--bg);
 }
 
+/* The standalone screen sits in the top layer (a modal <dialog>, Unreachable.tsx), above any menu,
+   sheet or dialog left open: the whole window, none of the user agent's dialog frame */
+.unreachable-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  overflow: auto;
+  /* A menu open when the server went leaves `pointer-events: none` on <body>, which this would inherit */
+  pointer-events: auto;
+}
+
+.unreachable-layer::backdrop {
+  background: none;
+}
+
 /* Focused on arrival so a screen reader hears its title; the Retry button carries the visible ring */
-.unreachable:focus,
-.unreachable-standalone:focus {
+.unreachable-layer:focus {
   outline: none;
 }
 

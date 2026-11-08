@@ -123,6 +123,38 @@ export default async ({ page, check }) => {
   await homeReady();
   page.takeErrors();
 
+  // ---- A menu open when the server goes: the screen is above it, and it acts on nothing ----
+  await page.focus('.topbar-new .split-btn-more');
+  await page.press('Enter');
+  await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the New chat menu opens' });
+  const liftMenu = await page.blockUrls(API);
+  try {
+    // The browser saying it went offline makes the page look at once (the probe gets no answer)
+    await page.eval(`dispatchEvent(new Event('offline')); return true`);
+    await page.waitFor(`return !!document.querySelector(${JSON.stringify(SCREEN)})`, { label: 'the unreachable screen over an open menu' });
+    const layered = await page.eval(`
+      const screen = document.querySelector(${JSON.stringify(SCREEN)});
+      const retry = screen.querySelector('button').getBoundingClientRect();
+      const item = document.querySelector('[role=menu] [role=menuitem]');
+      const box = item?.getBoundingClientRect();
+      return {
+        retryHit: screen.contains(document.elementFromPoint(retry.x + retry.width / 2, retry.y + retry.height / 2)),
+        menuHit: box ? item.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) : false,
+        menuKept: !!item,
+        focusInScreen: screen.contains(document.activeElement),
+      };`);
+    check(layered.retryHit, 'Retry takes the first click, not the menu left open');
+    check(!layered.menuHit, 'the menu behind the screen cannot be reached');
+    check(layered.focusInScreen, 'the screen holds the focus, not the menu');
+    check(layered.menuKept, 'the menu is not torn down: what was open is still there when the server is');
+  } finally {
+    await liftMenu();
+  }
+  await page.click(`${SCREEN} button`);
+  await screenGone('the app to resume after an outage over a menu');
+  await page.key('Escape');
+  page.takeErrors();
+
   // ---- A server that changed version while it was away ----
   // The update banner is the answer to a new version, and only that: it stays out of the way of the
   // unreachable screen and appears once the server answers

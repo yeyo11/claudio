@@ -50,6 +50,7 @@ import { CLAUDIO_ASSISTANT_PATH } from '../pages/claudio-assistant/model';
 import { assistantPath } from '../pages/assistant/model';
 import { setMotionPreference } from '@claudio/ui/lib/motion';
 import { useProjectScope } from '../lib/project-scope';
+import { reachability } from '../lib/reachability';
 import { liveSummary } from '../lib/shell-live';
 import { setThemePreference } from '../lib/theme';
 import { NEW_PROJECT_PATH, NEW_TASK_PATH, TASKS_PATH } from '../lib/work-items';
@@ -142,6 +143,8 @@ export function CommandPalette() {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
         event.preventDefault();
+        // Not behind the unreachable screen, where it would open out of sight and come up by itself later
+        if (reachability.snapshot().unreachable) return;
         setOpen((current) => {
           if (current) return false;
           show();

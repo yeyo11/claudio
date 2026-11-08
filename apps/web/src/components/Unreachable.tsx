@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { Empty } from '@claudio/ui/components/ui';
@@ -8,24 +9,53 @@ import { reachability, useReachability } from '../lib/reachability';
 export const secondsUntil = (at: number, now: number): number => Math.max(1, Math.ceil((at - now) / 1000));
 
 /**
+ * The screen in the browser's top layer, as a modal `<dialog>` on `<body>`: above every menu, sheet
+ * or dialog the page had open when the server went (they portal to `<body>` too, so hiding the shell
+ * does not hide them), and with the whole rest of the document inert, so none of them acts or keeps
+ * the focus. They are not closed: whatever was half done in them is still there when the server is.
+ * Focus goes back to what had it once the screen goes.
+ */
+function TopLayer({ label, describedBy, children }: { label: string; describedBy: string; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  // Read while rendering, before the commit hides the shell and the browser lets go of its focus
+  const [previous] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (!dialog.open && typeof dialog.showModal === 'function') dialog.showModal();
+    // The dialog itself, not Retry: a screen reader hears the title and the text once, not the countdown
+    dialog.focus({ preventScroll: true });
+    // Escape closes a modal dialog by default; this one goes only when the server answers
+    const keep = (event: Event) => event.preventDefault();
+    dialog.addEventListener('cancel', keep);
+    return () => {
+      dialog.removeEventListener('cancel', keep);
+      if (dialog.open) dialog.close();
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [previous]);
+  return createPortal(
+    <dialog ref={ref} className="unreachable-layer" aria-label={label} aria-describedby={describedBy} tabIndex={-1} data-testid="unreachable">
+      {children}
+    </dialog>,
+    document.body,
+  );
+}
+
+/**
  * What a server that cannot be reached looks like (docs/plans/remote-updates.md, D9): not a reload
  * offer, because reloading cannot help, but a screen that says what is wrong in the words of the
  * cause (no connection at all, or this address not answering), retries by itself and goes on
  * without a reload when the server answers. `standalone` stands in for the whole app (this
- * server's own outage: the shell is held out of sight); without it, it fills the area it is given
- * (the servers feature, for a remote while the hub answers). `address` is what the person typed to
- * get here; the servers feature will pass a remote's.
+ * server's own outage: the shell is held out of sight, and the screen is in the top layer); without
+ * it, it fills the area it is given (the servers feature, for a remote while the hub answers).
+ * `address` is what the person typed to get here; the servers feature will pass a remote's.
  */
 export function Unreachable({ address = window.location.host, standalone = false }: { address?: string; standalone?: boolean }) {
   const { t } = useTranslation('shell');
   const { offline, nextAttemptAt, probing } = useReachability();
   const [now, setNow] = useState(() => Date.now());
-  const ref = useRef<HTMLElement & HTMLDivElement>(null);
-  // Whatever had focus went out of sight with the page: the screen takes it, so a keyboard is one
-  // Tab from Retry and a screen reader hears the title (the label) once, not the countdown
-  useEffect(() => {
-    ref.current?.focus({ preventScroll: true });
-  }, []);
+  const textId = useId();
   useEffect(() => {
     if (nextAttemptAt === null) return;
     setNow(Date.now());
@@ -68,20 +98,19 @@ export function Unreachable({ address = window.location.host, standalone = false
         </button>
       }
     >
-      <p className="unreachable-text" data-testid="unreachable-text">
+      <p className="unreachable-text" id={textId} data-testid="unreachable-text">
         {offline ? t('unreachable.offlineBody') : <Trans t={t} i18nKey="unreachable.body" values={{ address }} components={{ mono: <span className="mono" /> }} />}
       </p>
       {/* Not a live region: a count that changes every second would be read out every second */}
       <p className="unreachable-wait tnum">{wait}</p>
     </Empty>
   );
-  const own = { ref, tabIndex: -1, 'aria-label': title, 'data-testid': 'unreachable' };
   return standalone ? (
-    <main className="unreachable-standalone" {...own}>
-      {screen}
-    </main>
+    <TopLayer label={title} describedBy={textId}>
+      <main className="unreachable-standalone">{screen}</main>
+    </TopLayer>
   ) : (
-    <div className="unreachable" role="region" {...own}>
+    <div className="unreachable" role="region" aria-label={title} aria-describedby={textId} data-testid="unreachable">
       {screen}
     </div>
   );
