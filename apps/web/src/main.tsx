@@ -17,7 +17,7 @@ import './i18n'; // picks the language and sets <html lang> before the first ren
 import { probeAuth } from './lib/auth';
 import { AppChatUi } from './lib/chat-ui';
 import { serverKeyHash } from './lib/server-keys';
-import { ServerScopeProvider } from './lib/server-scope';
+import { ServerScopeGate, ServerScopeProvider } from './lib/server-scope';
 import { activeServerId, routerBasename } from '@claudio/ui/lib/server-scope';
 import { registerServiceWorker } from './lib/pwa';
 import { SplashHandOff } from './lib/splash';
@@ -66,9 +66,11 @@ const router = createBrowserRouter(
             <ConfirmProvider>
               <SpendCapProvider>
                 <ServerScopeProvider>
-                  <AppChatUi>
-                    <App />
-                  </AppChatUi>
+                  <ServerScopeGate>
+                    <AppChatUi>
+                      <App />
+                    </AppChatUi>
+                  </ServerScopeGate>
                 </ServerScopeProvider>
               </SpendCapProvider>
             </ConfirmProvider>

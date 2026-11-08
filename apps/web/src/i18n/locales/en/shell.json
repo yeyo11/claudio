@@ -92,7 +92,6 @@
     "signInAgain": "Sign in again"
   },
   "serverScope": {
-    "loading": "Connecting to the server…",
     "unreachable": {
       "title": "This server could not be reached",
       "body": "Claudio could not read its version through this one. Check that it is running and reachable, then try again."

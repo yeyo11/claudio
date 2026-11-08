@@ -92,7 +92,6 @@
     "signInAgain": "Volver a iniciar sesión"
   },
   "serverScope": {
-    "loading": "Conectando con el servidor…",
     "unreachable": {
       "title": "No se ha podido conectar con este servidor",
       "body": "Claudio no ha podido leer su versión a través de este. Comprueba que está en marcha y que se puede alcanzar, y vuelve a intentarlo."
