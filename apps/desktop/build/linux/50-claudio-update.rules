@@ -1,0 +1,20 @@
+// Installed as /usr/share/polkit-1/rules.d/50-claudio-update.rules by the claudio package
+// (docs/plans/remote-updates.md, D2).
+//
+// Members of the claudio-update group may start claudio-update.service without a password, so the
+// app can upgrade itself when the person asks from any device. Only that: the one action
+// manage-units, the one unit, the one verb start. Stop, restart, any other unit, any other action
+// or anyone outside the group fall through to the rest of polkit's rules, which ask for the admin's
+// password as before. The rule names the unit and never a program: the unit's ExecStart is the one
+// root-owned helper, and no argument reaches it.
+//
+// The postinst adds the person who installed the package to the group; membership takes effect at
+// their next login.
+polkit.addRule(function (action, subject) {
+  if (action.id === "org.freedesktop.systemd1.manage-units" &&
+      action.lookup("unit") === "claudio-update.service" &&
+      action.lookup("verb") === "start" &&
+      subject.isInGroup("claudio-update")) {
+    return polkit.Result.YES;
+  }
+});
