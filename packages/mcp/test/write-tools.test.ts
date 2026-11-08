@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES, isClaudioMcpWriteTool } from '../src/names.ts';
+import { CLAUDIO_MCP_OWNER_TOOL_NAMES, CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_WRITE_TOOLS, CLAUDIO_MCP_WRITE_TOOL_NAMES, isClaudioMcpWriteTool } from '../src/names.ts';
+import { CAPABILITIES } from '../src/catalogue.ts';
 import { createClient, type FetchLike } from '../src/client.ts';
 import { createServer } from '../src/server.ts';
 import { COLLAB_TOOLS } from '../src/collab-tools.ts';
 import { TOOLS } from '../src/tools.ts';
-import { WRITE_TOOLS } from '../src/write-tools.ts';
+import { OWNER_TOOLS, WRITE_TOOLS } from '../src/write-tools.ts';
 import { ROUTE_DOCS } from '../../../apps/api/src/openapi/routes.ts';
 
 interface Seen {
@@ -37,11 +38,22 @@ function stub(routes: Record<string, { status?: number; body: unknown }>, chatId
 const item = { id: 'item_one', key: 'AGN-7', title: 'Cart', status: 'todo', description: 'long text that is not echoed', history: [1, 2, 3] };
 
 test('the write tools are named and never pre-allowed', () => {
-  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 24);
+  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 32);
+  assert.equal(CLAUDIO_MCP_OWNER_TOOL_NAMES.length, 12);
+  assert.equal(CLAUDIO_MCP_WRITE_TOOLS.length, 44);
   for (const tool of CLAUDIO_MCP_WRITE_TOOLS) {
     assert.ok(isClaudioMcpWriteTool(tool));
     assert.ok(!CLAUDIO_MCP_READ_TOOLS.includes(tool));
   }
+  // The owner's writes are writes too: the core keeps "always allow" off every one of them
+  for (const name of CLAUDIO_MCP_OWNER_TOOL_NAMES) assert.ok(isClaudioMcpWriteTool(`mcp__claudio__${name}`), name);
+  assert.deepEqual(OWNER_TOOLS.map((t) => t.name), [...CLAUDIO_MCP_OWNER_TOOL_NAMES]);
+});
+
+test("the owner's writes stay out of the assistant's guide, which the assistant's token could never honour", () => {
+  const promised = new Set<string>(CAPABILITIES.map((c) => c.tool));
+  for (const name of CLAUDIO_MCP_OWNER_TOOL_NAMES) assert.ok(!promised.has(name), name);
+  for (const name of CLAUDIO_MCP_WRITE_TOOL_NAMES) assert.ok(promised.has(name), name);
 });
 
 const draft = {
@@ -70,6 +82,14 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     'POST /orchestrations/o1/stop': { body: { id: 'o1', status: 'stopped' } },
     'POST /orchestrations/o1/resume': { body: { id: 'o1', status: 'running' } },
     'POST /orchestrations/o1/tasks/t1/retry': { body: { id: 'o1', state: 'running', tasks: [1, 2, 3] } },
+    'POST /orchestrations/o1/tasks/t1/retry-clean': { body: { id: 'o1', status: 'running' } },
+    'POST /orchestrations/o1/tasks/t1/rerun': { body: { id: 'o1', status: 'running' } },
+    'POST /orchestrations/o1/tasks/t1/skip': { body: { id: 'o1', status: 'completed' } },
+    'POST /orchestrations/o1/tasks/t1/hint': { body: { id: 'o1', status: 'running' } },
+    'POST /orchestrations/o1/verify': { body: { id: 'o1', status: 'completed' } },
+    'POST /orchestrations/o1/review/retry': { body: { id: 'o1', status: 'completed' } },
+    'POST /orchestrations/o1/relaunch': { status: 201, body: { id: 'o3', status: 'running' } },
+    'POST /orchestrations/templates/tp1/launch': { status: 201, body: { id: 'o4', status: 'running' } },
     'POST /chats': { status: 201, body: { id: 'chat-9', state: 'working' } },
     'POST /chats/chat-9/messages': { body: { id: 'chat-9', state: 'working', message: { id: 'm1', state: 'written' } } },
     'POST /chats/chat-9/hint': { body: { id: 'chat-9', state: 'working' } },
@@ -103,6 +123,14 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     ['stop_orchestration', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/stop', {}],
     ['resume_orchestration', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/resume', {}],
     ['retry_orchestration_task', { orchestrationId: 'o1', taskId: 't1' }, 'POST', '/orchestrations/o1/tasks/t1/retry', {}],
+    ['retry_orchestration_task_clean', { orchestrationId: 'o1', taskId: 't1' }, 'POST', '/orchestrations/o1/tasks/t1/retry-clean', {}],
+    ['rerun_orchestration_task', { orchestrationId: 'o1', taskId: 't1' }, 'POST', '/orchestrations/o1/tasks/t1/rerun', {}],
+    ['skip_orchestration_task', { orchestrationId: 'o1', taskId: 't1' }, 'POST', '/orchestrations/o1/tasks/t1/skip', {}],
+    ['message_orchestration_task', { orchestrationId: 'o1', taskId: 't1', text: 'the totals first' }, 'POST', '/orchestrations/o1/tasks/t1/hint', { text: 'the totals first' }],
+    ['verify_orchestration', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/verify', {}],
+    ['retry_orchestration_review', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/review/retry', {}],
+    ['relaunch_orchestration', { orchestrationId: 'o1', tasks: [{ id: 'a', name: 'A', prompt: 'do a' }] }, 'POST', '/orchestrations/o1/relaunch', { tasks: [{ id: 'a', name: 'A', prompt: 'do a' }] }],
+    ['launch_orchestration_template', { templateId: 'tp1', projectId: 'p1', objective: 'tonight' }, 'POST', '/orchestrations/templates/tp1/launch', { objective: 'tonight', cwd: '/work/shop' }],
     ['start_chat', { prompt: 'go', projectId: 'p1', model: 'sonnet', name: 'Go' }, 'POST', '/chats', { prompt: 'go', cwd: '/work/shop', model: 'sonnet', name: 'Go' }],
     ['send_chat_message', { chatId: 'chat-9', text: 'and then?' }, 'POST', '/chats/chat-9/messages', { text: 'and then?' }],
     ['hint_chat', { chatId: 'chat-9', text: 'look at the logs' }, 'POST', '/chats/chat-9/hint', { text: 'look at the logs' }],
@@ -157,6 +185,116 @@ test('every route a tool declares is a route of the API, and a chat token may ca
       assert.equal(docs[route]?.access ?? 'work', 'work', `${tool.name} calls ${route}, which only a person may call`);
     }
   }
+});
+
+test("the owner's writes call a person's route under /orchestrations, where the widening for a chat with the server on ends (D12), and nothing else of the person's", () => {
+  const docs = ROUTE_DOCS as Record<string, { access?: string }>;
+  for (const tool of OWNER_TOOLS) {
+    let person = 0;
+    for (const route of tool.routes) {
+      assert.ok(route in docs, `${tool.name} calls ${route}, which the API does not have`);
+      if ((docs[route]?.access ?? 'work') === 'work') continue;
+      const path = route.split(' ')[1] ?? '';
+      assert.ok(path === '/orchestrations' || path.startsWith('/orchestrations/'), `${tool.name} calls ${route}, which no chat's token reaches`);
+      person += 1;
+    }
+    assert.ok(person > 0, `${tool.name} calls no person route: it belongs with WRITE_TOOLS`);
+  }
+});
+
+test("launch_orchestration sends the person's fields given by name, and never a draft's", async () => {
+  const s = stub({
+    'GET /projects': { body: [{ id: 'p1', path: '/work/shop' }] },
+    'GET /orchestrations/plans/planner-1': { body: draft },
+    'POST /orchestrations': { status: 201, body: { id: 'o2', status: 'running' } },
+  });
+  const person = {
+    permissionMode: 'acceptEdits',
+    permissionPrompts: 'host',
+    allowedTools: ['Bash(pnpm test:*)'],
+    verification: { commands: ['pnpm test'], fixer: true, maxAttempts: 2 },
+    guards: { enabled: true, rules: { push: true } },
+  };
+  assert.equal((await s.call('launch_orchestration', { fromPlan: 'planner-1', ...person })).isError, false);
+  const sent = s.seen.at(-1)?.body as Record<string, unknown>;
+  assert.deepEqual(
+    Object.fromEntries(Object.keys(person).map((key) => [key, sent[key]])),
+    person,
+  );
+  // Without them, the draft's own (bypassPermissions, Bash, guards off) never reach the route
+  await s.call('launch_orchestration', { fromPlan: 'planner-1' });
+  const plain = s.seen.at(-1)?.body as Record<string, unknown>;
+  for (const key of ['permissionMode', 'permissionPrompts', 'allowedTools', 'verification', 'guards']) assert.equal(plain[key], undefined, key);
+  // The schema holds them to what the API takes
+  assert.match((await s.call('launch_orchestration', { fromPlan: 'planner-1', permissionMode: 'yolo' })).text, /permissionMode must be one of/);
+  assert.match((await s.call('launch_orchestration', { fromPlan: 'planner-1', guards: { rules: { nope: true } } })).text, /unknown argument: guards\.rules\.nope/);
+});
+
+test("each owner's write sends its route and its body, and answers what identifies the result", async () => {
+  const graph = { id: 'o1', name: 'Split', status: 'completed', tasks: [1, 2], finalResult: 'long report' };
+  const s = stub({
+    'GET /projects': { body: [{ id: 'p1', path: '/work/shop' }] },
+    'DELETE /orchestrations/o1': { body: { ok: true } },
+    'POST /orchestrations/o1/integrate': { body: graph },
+    'POST /orchestrations/o1/pull-request': { body: { orchestration: graph, pullRequest: { id: 'cr1', phase: 'open', host: 'github', ref: '#12', number: 12, url: 'https://x/pr/12', body: 'long description' } } },
+    'POST /orchestrations/o1/review/accept': { body: graph },
+    'POST /orchestrations/o1/spend-pass': { body: graph },
+    'POST /orchestrations/o1/tasks/t1/supervisor/sp1/send': { body: { id: 'sp1', status: 'sent', hint: 'the hint' } },
+    'POST /orchestrations/o1/tasks/t1/supervisor/sp1/dismiss': { body: { id: 'sp1', status: 'dismissed' } },
+    'POST /orchestrations/o1/worktrees/prune': { body: { results: [{ taskId: 't1', removed: true }] } },
+    'POST /orchestrations/o1/workflow/save': { status: 201, body: { name: 'split', path: '/work/shop/.claude/workflows/split.js', scope: 'project', script: 'long' } },
+    'POST /orchestrations/templates': { status: 201, body: { id: 'tp1', name: 'Nightly', spec: { tasks: [] } } },
+    'GET /orchestrations/templates/tp1': { body: { id: 'tp1', name: 'Nightly', spec: { name: 'Nightly', cwd: '/work/shop', concurrency: 1, permissionMode: 'plan', tasks: [{ id: 'a', name: 'a', prompt: 'p' }] } } },
+    'PATCH /orchestrations/templates/tp1': { body: { id: 'tp1', name: 'Nightly' } },
+    'DELETE /orchestrations/templates/tp1': { body: { ok: true } },
+  });
+  const task = { orchestrationId: 'o1', taskId: 't1' };
+  const calls: Array<[string, Record<string, unknown>, string, string, unknown, unknown]> = [
+    ['delete_orchestration', { orchestrationId: 'o1' }, 'DELETE', '/orchestrations/o1', undefined, { deleted: true, orchestrationId: 'o1' }],
+    ['integrate_orchestration', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/integrate', {}, { id: 'o1', name: 'Split', status: 'completed' }],
+    ['open_orchestration_pull_request', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/pull-request', {}, { id: 'cr1', phase: 'open', host: 'github', ref: '#12', number: 12, url: 'https://x/pr/12' }],
+    ['accept_orchestration_review', { orchestrationId: 'o1', reason: 'read them all' }, 'POST', '/orchestrations/o1/review/accept', { reason: 'read them all' }, { id: 'o1', name: 'Split', status: 'completed' }],
+    ['grant_orchestration_spend_pass', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/spend-pass', {}, { id: 'o1', name: 'Split', status: 'completed' }],
+    ['send_supervisor_proposal', { ...task, proposalId: 'sp1' }, 'POST', '/orchestrations/o1/tasks/t1/supervisor/sp1/send', {}, { id: 'sp1', status: 'sent' }],
+    ['dismiss_supervisor_proposal', { ...task, proposalId: 'sp1' }, 'POST', '/orchestrations/o1/tasks/t1/supervisor/sp1/dismiss', {}, { id: 'sp1', status: 'dismissed' }],
+    ['prune_orchestration_worktrees', { orchestrationId: 'o1', force: true }, 'POST', '/orchestrations/o1/worktrees/prune', { force: true }, { results: [{ taskId: 't1', removed: true }] }],
+    ['save_orchestration_workflow', { orchestrationId: 'o1', name: 'split' }, 'POST', '/orchestrations/o1/workflow/save', { name: 'split' }, { name: 'split', path: '/work/shop/.claude/workflows/split.js', scope: 'project' }],
+    [
+      'create_orchestration_template',
+      { name: 'Nightly', projectId: 'p1', permissionMode: 'plan', tasks: [{ id: 'a', name: 'a', prompt: 'p' }] },
+      'POST',
+      '/orchestrations/templates',
+      { name: 'Nightly', spec: { name: 'Nightly', permissionMode: 'plan', tasks: [{ id: 'a', name: 'a', prompt: 'p' }], cwd: '/work/shop' } },
+      { id: 'tp1', name: 'Nightly' },
+    ],
+    [
+      'update_orchestration_template',
+      { templateId: 'tp1', concurrency: 3 },
+      'PATCH',
+      '/orchestrations/templates/tp1',
+      { spec: { name: 'Nightly', cwd: '/work/shop', concurrency: 3, permissionMode: 'plan', tasks: [{ id: 'a', name: 'a', prompt: 'p' }] } },
+      { id: 'tp1', name: 'Nightly' },
+    ],
+    ['delete_orchestration_template', { templateId: 'tp1' }, 'DELETE', '/orchestrations/templates/tp1', undefined, { deleted: true, templateId: 'tp1' }],
+  ];
+  const covered: string[] = [];
+  for (const [name, args, method, path, body, answer] of calls) {
+    s.seen.length = 0;
+    const out = await s.call(name, args);
+    assert.equal(out.isError, false, `${name}: ${out.text}`);
+    const sent = s.seen.at(-1);
+    assert.deepEqual([sent?.method, sent?.url, sent?.body], [method, path, body], name);
+    assert.deepEqual(JSON.parse(out.text), answer, name);
+    const tool = OWNER_TOOLS.find((t) => t.name === name);
+    for (const r of s.seen) assert.ok(tool?.routes.some((route) => matches(route, r.method, r.url)), `${name} called ${r.method} ${r.url}, which it does not declare`);
+    covered.push(name);
+  }
+  assert.deepEqual(covered, [...CLAUDIO_MCP_OWNER_TOOL_NAMES]);
+  // A template from a graph takes nothing else, and one with nothing to change sends nothing
+  assert.match((await s.call('create_orchestration_template', { name: 'x', fromOrchestration: 'o1', tasks: [{ id: 'a', name: 'a', prompt: 'p' }] })).text, /not both/);
+  s.seen.length = 0;
+  assert.match((await s.call('update_orchestration_template', { templateId: 'tp1' })).text, /nothing to change/);
+  assert.equal(s.seen.length, 0);
 });
 
 test('the chat lifecycle tools refuse to act on the chat they run in, before any request', async () => {
@@ -222,12 +360,18 @@ test('move_work_item refuses done without calling the API', async () => {
 test('no tool that starts work has a field that widens it, and none is sent', async () => {
   const s = stub({ 'POST /chats': { status: 201, body: { id: 'c' } } });
   const widening = ['permissionMode', 'allowedTools', 'disallowedTools', 'toolPreset', 'mcp', 'account', 'confine', 'permissionPrompts', 'guards', 'verification'];
-  for (const name of ['start_chat', 'resume_chat', 'fork_chat', 'launch_orchestration', 'resume_orchestration', 'plan_orchestration', 'send_chat_message']) {
+  for (const name of ['start_chat', 'resume_chat', 'fork_chat', 'resume_orchestration', 'plan_orchestration', 'send_chat_message']) {
     for (const field of widening) {
       const out = await s.call(name, { prompt: 'go', [field]: field === 'mcp' ? null : 'bypassPermissions' });
       assert.equal(out.isError, true, `${name} ${field}`);
       assert.match(out.text, /unknown argument/);
     }
+  }
+  // launch_orchestration takes the person's own fields by name, which the API refuses to any chat without
+  // Claudio's server switched on (D12); nothing else that widens a run
+  for (const field of ['disallowedTools', 'toolPreset', 'mcp', 'account', 'confine']) {
+    const out = await s.call('launch_orchestration', { projectId: 'p1', name: 'x', tasks: [{ id: 'a', name: 'a', prompt: 'p' }], [field]: field === 'mcp' ? null : 'x' });
+    assert.match(out.text, new RegExp(`unknown argument: ${field}`), field);
   }
   const task = await s.call('launch_orchestration', { projectId: 'p1', name: 'x', tasks: [{ id: 'a', name: 'a', prompt: 'p', cwd: '/' }] });
   assert.match(task.text, /unknown argument: tasks\[0\]\.cwd/);

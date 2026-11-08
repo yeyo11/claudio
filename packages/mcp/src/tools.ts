@@ -64,6 +64,18 @@ export const projectId = str('The project id, as list_projects gives it', { minL
 
 const BOARD_FILTERS = ['status', 'type', 'priority', 'labels', 'assignee'] as const;
 
+/** A template as a list row: what names it, never its prompts, which get_orchestration_template reads */
+function templateRows(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return objs(value).map((t) => ({
+    id: t.id,
+    name: t.name,
+    ...(typeof t.description === 'string' ? { description: t.description } : {}),
+    tasks: isRecord(t.spec) && Array.isArray(t.spec.tasks) ? t.spec.tasks.length : 0,
+    updatedAt: t.updatedAt,
+  }));
+}
+
 export function pick(args: Record<string, unknown>, keys: readonly string[]): Query {
   const query: Query = {};
   for (const key of keys) {
@@ -190,6 +202,20 @@ export const TOOLS: readonly Tool[] = [
     inputSchema: schema({ runId: str('The planner chat id plan_orchestration answered with', { minLength: 1, maxLength: 200 }) }, ['runId']),
     routes: ['GET /orchestrations/plans/:runId'],
     run: (args, api) => api.get(`/orchestrations/plans/${seg(need(args, 'runId'))}`),
+  },
+  {
+    name: 'list_orchestration_templates',
+    description: 'Lists the saved orchestration templates by name, with how many tasks each graph has and when it last changed. Use it to find the templateId get_orchestration_template and launch_orchestration_template take.',
+    inputSchema: schema({}),
+    routes: ['GET /orchestrations/templates'],
+    run: async (_args, api) => templateRows(await api.get('/orchestrations/templates')),
+  },
+  {
+    name: 'get_orchestration_template',
+    description: "Reads one orchestration template: its name, description and the whole graph it launches, every task's prompt included.",
+    inputSchema: schema({ templateId: str('The template id, as list_orchestration_templates gives it', { minLength: 1, maxLength: 200 }) }, ['templateId']),
+    routes: ['GET /orchestrations/templates/:templateId'],
+    run: (args, api) => api.get(`/orchestrations/templates/${seg(need(args, 'templateId'))}`),
   },
   {
     name: 'list_assistant_proposals',

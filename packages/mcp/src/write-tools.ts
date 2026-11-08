@@ -2,14 +2,17 @@ import type { ApiClient } from './client.ts';
 import { objs, type Obj } from './fields.ts';
 import type { Property } from './schema.ts';
 import { KEY, PAGE_MAX, bool, int, need, num, projectOf, schema, seg, str, text, type Tool } from './tools.ts';
-import { isRecord } from '@claudio/shared';
+import { DEFAULT_GUARD_SETTINGS, PERMISSION_MODES, isRecord } from '@claudio/shared';
 
 /**
- * The tools that change something. Each calls routes that already exist and that a chat's own token
- * may call (`work`, docs/plans/regression-fixes-2026-10-29.md, C1), with that token. None is allowed
- * ahead of time: the CLI asks the person before it runs any of them, so a call that is denied never
- * gets here. None deletes, touches a setting, an account or security, or widens what a chat may do:
- * a body carries only the fields named here, never a permission mode, a tool list or a server.
+ * The tools that change something. Each calls routes that already exist, with the chat's own token.
+ * None is allowed ahead of time: the CLI asks the person before it runs any of them, so a call that
+ * is denied never gets here. `WRITE_TOOLS` call routes a chat's token may call (`work`,
+ * docs/plans/regression-fixes-2026-10-29.md, C1); `OWNER_TOOLS` call the person's own orchestration
+ * routes, which the API opens only to a chat the person switched Claudio's server on for (D12 of
+ * docs/plans/claudio-servers.md). A body carries only the fields named here. The fields that decide
+ * what a worker may do (its permission mode, prompts, tools, guards and checks) are sent only when
+ * given by name, never taken from a planner's draft, and the API refuses them to every other chat.
  */
 
 const STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done'];
@@ -109,6 +112,59 @@ function notSelf(api: ApiClient, id: string, what: string): void {
 
 const TASK_FIELDS = ['id', 'name', 'prompt', 'dependsOn', 'model', 'effort'] as const;
 const GRAPH_FIELDS = ['name', 'objective', 'engine', 'model', 'effort', 'concurrency', 'synthesize', 'worktree', 'maxAttempts', 'limits'] as const;
+/** What decides what the workers may do: the person's fields, which only a chat with Claudio's server on may send (D12) */
+const PERSON_FIELDS = ['permissionMode', 'permissionPrompts', 'allowedTools', 'verification', 'guards'] as const;
+
+const ONLY_SWITCHED_ON = "a chat's token sends it only while the person has Claudio's server switched on for the chat";
+const verification: Property = {
+  type: 'object',
+  description: `The checks run on the integration branch once the graph is merged; ${ONLY_SWITCHED_ON}`,
+  properties: {
+    commands: { type: 'array', description: 'Shell commands, run in order', items: str('One command', { minLength: 1, maxLength: 2000 }), maxItems: 50 },
+    fixer: bool('Whether an agent fixes what fails; the default is false'),
+    maxAttempts: int('Fixer attempts per failing command', 1, 10),
+    model,
+    effort: str('How hard the fixer thinks', { enum: EFFORTS }),
+    timeoutMinutes: int('Minutes each command may run; the default is 20', 1, 24 * 60),
+    maxCostUsd: { type: 'number', description: 'Dollars the fixer may spend over its attempts', minimum: 0.01, maximum: 1000 },
+    install: str('The install command run first; detected from the lockfile when left out', { minLength: 1, maxLength: 2000 }),
+    failGraph: bool('Whether failed checks leave the orchestration failed'),
+    e2eSpecs: bool('Whether the browser specs the changes touch run before the merge; the default is true'),
+  },
+  required: ['commands'],
+  additionalProperties: false,
+};
+const PERSON_PROPERTIES: Record<(typeof PERSON_FIELDS)[number], Property> = {
+  permissionMode: str(`How the workers' permissions run; the app's default when left out. ${ONLY_SWITCHED_ON}`, { enum: [...PERMISSION_MODES] }),
+  permissionPrompts: str(`host sends each worker's permission prompts to the person; none leaves them unanswered. ${ONLY_SWITCHED_ON}`, { enum: ['host', 'none'] }),
+  allowedTools: { type: 'array', description: `Tools every worker may use without asking, such as Bash(pnpm test:*); ${ONLY_SWITCHED_ON}`, items: str('One tool rule', { minLength: 1, maxLength: 500 }), maxItems: 100 },
+  verification,
+  guards: {
+    type: 'object',
+    description: `The guards of this graph's runs over the app's settings; ${ONLY_SWITCHED_ON}`,
+    properties: {
+      enabled: bool('false switches the guards off for this graph'),
+      rules: {
+        type: 'object',
+        description: 'Rules switched on or off for this graph, by id',
+        properties: Object.fromEntries(Object.keys(DEFAULT_GUARD_SETTINGS.rules).map((rule) => [rule, bool(`The ${rule} rule`)])),
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: false,
+  },
+};
+
+const taskId = str('The task id, as get_orchestration gives it', { minLength: 1, maxLength: 200 });
+const templateId = str('The template id, as list_orchestration_templates gives it', { minLength: 1, maxLength: 200 });
+const proposalId = str("The Supervisor's proposal id, as get_orchestration gives it on the task", { minLength: 1, maxLength: 200 });
+const orchestrationPath = (args: Record<string, unknown>): string => `/orchestrations/${seg(need(args, 'orchestrationId'))}`;
+const taskPath = (args: Record<string, unknown>): string => `${orchestrationPath(args)}/tasks/${seg(need(args, 'taskId'))}`;
+
+/** A graph's fields for a template or a relaunch: its own settings, the person's fields and its tasks, as given */
+function graphFields(args: Record<string, unknown>): Obj {
+  return { ...only(args, GRAPH_FIELDS), ...only(args, PERSON_FIELDS), ...(args.tasks === undefined ? {} : { tasks: objs(args.tasks).map((task) => only(task, TASK_FIELDS)) }) };
+}
 
 /**
  * The spec `launch_orchestration` sends: the graph's own fields and its tasks, from the arguments or
@@ -290,7 +346,7 @@ export const WRITE_TOOLS: readonly Tool[] = [
   {
     name: 'launch_orchestration',
     description:
-      "Launches an orchestration in a project: a graph of tasks that agents run in parallel, from the tasks given or from a planner's draft (fromPlan). The workers run with the app's defaults for permissions and tools.",
+      "Launches an orchestration in a project: a graph of tasks that agents run in parallel, from the tasks given or from a planner's draft (fromPlan). The workers run with the app's defaults for permissions, tools, guards and checks unless permissionMode, permissionPrompts, allowedTools, guards or verification are given, which a chat may send only while the person has Claudio's server switched on for it.",
     inputSchema: schema({
       projectId: str('The project id the work happens in; with fromPlan it may be left out to keep the draft folder', { minLength: 1, maxLength: 200 }),
       fromPlan: str('The planner chat id plan_orchestration answered with: its draft is launched, with the fields given here over it', { minLength: 1, maxLength: 200 }),
@@ -305,9 +361,11 @@ export const WRITE_TOOLS: readonly Tool[] = [
       worktree: bool('Whether each worker works in its own git worktree'),
       maxAttempts: int('Attempts a failed task gets, the first included', 1, 5),
       limits,
+      ...PERSON_PROPERTIES,
     }),
     routes: ['GET /projects', 'GET /orchestrations/plans/:runId', 'POST /orchestrations'],
-    run: async (args, api) => identify(await api.send('POST', '/orchestrations', await launchSpec(args, api))),
+    // The person's fields only as given by name: a planner's draft is an agent's output, and never widens the run
+    run: async (args, api) => identify(await api.send('POST', '/orchestrations', { ...(await launchSpec(args, api)), ...only(args, PERSON_FIELDS) })),
   },
   {
     name: 'stop_orchestration',
@@ -326,9 +384,102 @@ export const WRITE_TOOLS: readonly Tool[] = [
   {
     name: 'retry_orchestration_task',
     description: 'Runs a failed task of an orchestration again.',
-    inputSchema: schema({ orchestrationId, taskId: str('The task id, as get_orchestration gives it', { minLength: 1, maxLength: 200 }) }, ['orchestrationId', 'taskId']),
+    inputSchema: schema({ orchestrationId, taskId }, ['orchestrationId', 'taskId']),
     routes: ['POST /orchestrations/:id/tasks/:taskId/retry'],
-    run: async (args, api) => identify(await api.send('POST', `/orchestrations/${seg(need(args, 'orchestrationId'))}/tasks/${seg(need(args, 'taskId'))}/retry`)),
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/retry`)),
+  },
+  {
+    name: 'retry_orchestration_task_clean',
+    description: 'Starts a failed task of an orchestration over, in a new chat and a worktree rebuilt from the commit it started from; the failed chat stays listed as what was tried.',
+    inputSchema: schema({ orchestrationId, taskId }, ['orchestrationId', 'taskId']),
+    routes: ['POST /orchestrations/:id/tasks/:taskId/retry-clean'],
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/retry-clean`)),
+  },
+  {
+    name: 'rerun_orchestration_task',
+    description: 'Runs a task of a finished orchestration (completed, failed or stopped) again, with every task that depends on it, each in a new chat.',
+    inputSchema: schema({ orchestrationId, taskId }, ['orchestrationId', 'taskId']),
+    routes: ['POST /orchestrations/:id/tasks/:taskId/rerun'],
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/rerun`)),
+  },
+  {
+    name: 'skip_orchestration_task',
+    description: 'Gives up a failed or blocked task of an orchestration and every task that depends on it, so the graph can finish without them. Nothing is deleted.',
+    inputSchema: schema({ orchestrationId, taskId }, ['orchestrationId', 'taskId']),
+    routes: ['POST /orchestrations/:id/tasks/:taskId/skip'],
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/skip`)),
+  },
+  {
+    name: 'message_orchestration_task',
+    description:
+      "Sends a message to the worker of an orchestration task that is still running: it reaches the worker's chat mid-run, as its next message. A task that finished refuses it; fork its chat instead.",
+    inputSchema: schema({ orchestrationId, taskId, text: str('The message', { minLength: 1, maxLength: 10_000 }) }, ['orchestrationId', 'taskId', 'text']),
+    // The task's hint route, not the chat's message route: it is the one the board uses, it checks the task still runs, and it frames the text for the worker
+    routes: ['POST /orchestrations/:id/tasks/:taskId/hint'],
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/hint`, { text: need(args, 'text') })),
+  },
+  {
+    name: 'verify_orchestration',
+    description:
+      "Runs an orchestration's checks on its integration branch again, or with the verification given, which a chat may send only while the person has Claudio's server switched on for it. It answers at once; get_orchestration follows the verification's status.",
+    inputSchema: schema({ orchestrationId, verification }, ['orchestrationId']),
+    routes: ['POST /orchestrations/:id/verify'],
+    run: async (args, api) => identify(await api.send('POST', `${orchestrationPath(args)}/verify`, only(args, ['verification']))),
+  },
+  {
+    name: 'retry_orchestration_review',
+    description: "Runs the review gate of an orchestration again on its integration branch, without running its checks again. It answers at once; get_orchestration follows the review's state.",
+    inputSchema: schema({ orchestrationId }, ['orchestrationId']),
+    routes: ['POST /orchestrations/:id/review/retry'],
+    run: async (args, api) => identify(await api.send('POST', `${orchestrationPath(args)}/review/retry`)),
+  },
+  {
+    name: 'relaunch_orchestration',
+    description:
+      "Relaunches an orchestration that is not running as a new one, with corrections: tasks, when given, replace its whole task list, and the settings given replace its own. The original is left as it was. A chat may change the settings only while the person has Claudio's server switched on for it.",
+    inputSchema: schema(
+      {
+        orchestrationId,
+        tasks: { type: 'array', description: 'The whole new task list; the old one when left out', items: taskSpec, maxItems: PAGE_MAX },
+        name: str('What the new orchestration is called', { minLength: 1, maxLength: 200 }),
+        objective: str('What it should achieve', { maxLength: 100_000 }),
+        model,
+        effort: str('How hard the workers think', { enum: EFFORTS }),
+        concurrency: int('How many workers run at once', 1, 16),
+        synthesize: bool('Whether a final agent writes a report from the results'),
+        worktree: bool('Whether each worker works in its own git worktree'),
+        maxAttempts: int('Attempts a failed task gets, the first included', 1, 5),
+        limits,
+        ...PERSON_PROPERTIES,
+      },
+      ['orchestrationId'],
+    ),
+    routes: ['POST /orchestrations/:id/relaunch'],
+    run: async (args, api) => {
+      const { tasks, ...spec } = graphFields(args);
+      return identify(await api.send('POST', `${orchestrationPath(args)}/relaunch`, { ...(Object.keys(spec).length ? { spec } : {}), ...(tasks === undefined ? {} : { tasks }) }));
+    },
+  },
+  {
+    name: 'launch_orchestration_template',
+    description: "Launches a saved orchestration template, with a new objective, project, name, model or effort for this run only; the template is not changed.",
+    inputSchema: schema(
+      {
+        templateId,
+        projectId: str("The project id the work happens in, as list_projects gives it; the template's folder when left out", { minLength: 1, maxLength: 200 }),
+        objective: str('What this run should achieve', { maxLength: 100_000 }),
+        name: str("What the orchestration is called; the template's name when left out", { minLength: 1, maxLength: 200 }),
+        model,
+        effort: str('How hard the workers think', { enum: EFFORTS }),
+      },
+      ['templateId'],
+    ),
+    routes: ['GET /projects', 'POST /orchestrations/templates/:templateId/launch'],
+    run: async (args, api) => {
+      const project = text(args, 'projectId');
+      const body = { ...only(args, ['objective', 'name', 'model', 'effort']), ...(project ? { cwd: await projectPath(api, project) } : {}) };
+      return identify(await api.send('POST', `/orchestrations/templates/${seg(need(args, 'templateId'))}/launch`, body));
+    },
   },
   {
     name: 'start_chat',
@@ -457,6 +608,180 @@ export const WRITE_TOOLS: readonly Tool[] = [
       const id = need(args, 'scheduleId');
       await api.send('DELETE', `/schedules/${seg(id)}`);
       return { deleted: true, scheduleId: id };
+    },
+  },
+];
+
+/** The spec a template is saved with: the graph's own fields, the person's and its tasks, in the project given */
+async function templateSpec(args: Record<string, unknown>, api: ApiClient, base: Obj = {}): Promise<Obj> {
+  const project = text(args, 'projectId');
+  const given = graphFields(args);
+  return { ...base, ...given, ...(project ? { cwd: await projectPath(api, project) } : {}) };
+}
+
+/** The fields of a template a tool may set, besides those that name it */
+const TEMPLATE_GRAPH_PROPERTIES: Record<string, Property> = {
+  projectId: str('The project id the graph runs in, as list_projects gives it; a launch may give another', { minLength: 1, maxLength: 200 }),
+  tasks: { type: 'array', description: 'The tasks of the graph', items: taskSpec, maxItems: PAGE_MAX },
+  objective: str('What the graph should achieve', { maxLength: 100_000 }),
+  engine: str('graph (the default) or workflow', { enum: ['graph', 'workflow'] }),
+  model,
+  effort: str('How hard the workers think', { enum: EFFORTS }),
+  concurrency: int('How many workers run at once; the default is 3', 1, 16),
+  synthesize: bool('Whether a final agent writes a report from the results'),
+  worktree: bool('Whether each worker works in its own git worktree'),
+  maxAttempts: int('Attempts a failed task gets, the first included', 1, 5),
+  limits,
+  ...PERSON_PROPERTIES,
+};
+const TEMPLATE_GRAPH_KEYS = Object.keys(TEMPLATE_GRAPH_PROPERTIES);
+
+/** What names a pull request, and where it stands: never the description it was opened with */
+function pullRequestResult(value: unknown): unknown {
+  const pr = isRecord(value) && isRecord(value.pullRequest) ? value.pullRequest : value;
+  return isRecord(pr) ? only(pr, ['id', 'phase', 'host', 'ref', 'number', 'url', 'error']) : pr;
+}
+
+/**
+ * The writes on the person's own orchestration routes (`person`, `CLAUDIO_MCP_OWNER_TOOL_NAMES`). The
+ * API answers them for a chat only while the person has Claudio's server switched on for it (D12 of
+ * docs/plans/claudio-servers.md), and refuses every other chat with 403; each still asks the person
+ * first. Every route they call is under `/orchestrations`, which a test holds them to: that prefix is
+ * where the widening ends.
+ */
+export const OWNER_TOOLS: readonly Tool[] = [
+  {
+    name: 'delete_orchestration',
+    description:
+      'Deletes an orchestration that is not running, with its worktrees; their branches are kept, and a worktree with uncommitted work refuses the deletion. It cannot be undone.',
+    inputSchema: schema({ orchestrationId }, ['orchestrationId']),
+    routes: ['DELETE /orchestrations/:id'],
+    run: async (args, api) => {
+      const id = need(args, 'orchestrationId');
+      await api.send('DELETE', `/orchestrations/${seg(id)}`);
+      return { deleted: true, orchestrationId: id };
+    },
+  },
+  {
+    name: 'integrate_orchestration',
+    description: "Merges every completed task's branch into an orchestration's integration branch again, handing conflicts to an integrator agent: after a conflict was resolved by hand, or for a graph that never integrated.",
+    inputSchema: schema({ orchestrationId }, ['orchestrationId']),
+    routes: ['POST /orchestrations/:id/integrate'],
+    run: async (args, api) => identify(await api.send('POST', `${orchestrationPath(args)}/integrate`)),
+  },
+  {
+    name: 'open_orchestration_pull_request',
+    description:
+      "Pushes an orchestration's integration branch to origin and opens a pull request (GitHub) or merge request (GitLab) for it. It leaves the machine; a review gate that has not passed or been accepted holds it.",
+    inputSchema: schema({ orchestrationId }, ['orchestrationId']),
+    routes: ['POST /orchestrations/:id/pull-request'],
+    run: async (args, api) => pullRequestResult(await api.send('POST', `${orchestrationPath(args)}/pull-request`)),
+  },
+  {
+    name: 'accept_orchestration_review',
+    description:
+      "Accepts an orchestration's blocked or incomplete review gate with a written reason, bound to the commit the gate stopped on: any new commit voids it.",
+    inputSchema: schema({ orchestrationId, reason: str("Why the findings are accepted, in the person's words", { minLength: 1, maxLength: 5000 }) }, ['orchestrationId', 'reason']),
+    routes: ['POST /orchestrations/:id/review/accept'],
+    run: async (args, api) => identify(await api.send('POST', `${orchestrationPath(args)}/review/accept`, { reason: need(args, 'reason') })),
+  },
+  {
+    name: 'grant_orchestration_spend_pass',
+    description: "Lets an orchestration run past today's daily spend cap: its tasks start although the cap was reached, until the server's day ends. It spends.",
+    inputSchema: schema({ orchestrationId }, ['orchestrationId']),
+    routes: ['POST /orchestrations/:id/spend-pass'],
+    run: async (args, api) => identify(await api.send('POST', `${orchestrationPath(args)}/spend-pass`)),
+  },
+  {
+    name: 'send_supervisor_proposal',
+    description: "Sends the hint the Supervisor proposed for a running worker of an orchestration to that worker; a task that is no longer running refuses it.",
+    inputSchema: schema({ orchestrationId, taskId, proposalId }, ['orchestrationId', 'taskId', 'proposalId']),
+    routes: ['POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send'],
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/supervisor/${seg(need(args, 'proposalId'))}/send`)),
+  },
+  {
+    name: 'dismiss_supervisor_proposal',
+    description: "Dismisses the hint the Supervisor proposed for a worker of an orchestration; nothing reaches the worker.",
+    inputSchema: schema({ orchestrationId, taskId, proposalId }, ['orchestrationId', 'taskId', 'proposalId']),
+    routes: ['POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/dismiss'],
+    run: async (args, api) => identify(await api.send('POST', `${taskPath(args)}/supervisor/${seg(need(args, 'proposalId'))}/dismiss`)),
+  },
+  {
+    name: 'prune_orchestration_worktrees',
+    description:
+      "Removes an orchestration's worktrees; branches are kept, so committed work survives. A worktree with uncommitted changes is left alone and reported unless force is true, which throws those changes away.",
+    inputSchema: schema({ orchestrationId, force: bool('true also removes worktrees with uncommitted changes, losing them') }, ['orchestrationId']),
+    routes: ['POST /orchestrations/:id/worktrees/prune'],
+    run: async (args, api) => api.send('POST', `${orchestrationPath(args)}/worktrees/prune`, args.force === true ? { force: true } : {}),
+  },
+  {
+    name: 'save_orchestration_workflow',
+    description: "Saves an orchestration's graph as a workflow script in its project's .claude/workflows/, where the Workflow tool runs it by name.",
+    inputSchema: schema(
+      { orchestrationId, name: str("The workflow's file and name; one derived from the graph's when left out", { minLength: 1, maxLength: 100 }), overwrite: bool('true replaces a saved workflow of the same name') },
+      ['orchestrationId'],
+    ),
+    routes: ['POST /orchestrations/:id/workflow/save'],
+    run: async (args, api) => {
+      const saved = await api.send('POST', `${orchestrationPath(args)}/workflow/save`, only(args, ['name', 'overwrite']));
+      return isRecord(saved) ? only(saved, ['name', 'path', 'scope']) : saved;
+    },
+  },
+  {
+    name: 'create_orchestration_template',
+    description:
+      'Saves a graph as an orchestration template, by name: the graph of an orchestration (fromOrchestration), or the tasks and settings given. A template is launched again with launch_orchestration_template.',
+    inputSchema: schema(
+      {
+        name: str('What the template is called', { minLength: 1, maxLength: 200 }),
+        description: str('What it is for', { maxLength: 2000 }),
+        fromOrchestration: str('The id of an orchestration whose graph is saved, as it was launched', { minLength: 1, maxLength: 200 }),
+        ...TEMPLATE_GRAPH_PROPERTIES,
+      },
+      ['name'],
+    ),
+    routes: ['GET /projects', 'POST /orchestrations/templates'],
+    run: async (args, api) => {
+      const named = only(args, ['name', 'description']);
+      const from = text(args, 'fromOrchestration');
+      if (from) {
+        if (TEMPLATE_GRAPH_KEYS.some((key) => args[key] !== undefined)) throw new Error('give fromOrchestration or the graph, not both');
+        return identify(await api.send('POST', '/orchestrations/templates', { ...named, fromOrchestration: from }));
+      }
+      if (!Array.isArray(args.tasks) || !args.tasks.length) throw new Error('a template needs a graph: pass tasks, or fromOrchestration');
+      return identify(await api.send('POST', '/orchestrations/templates', { ...named, spec: { name: need(args, 'name'), ...(await templateSpec(args, api)) } }));
+    },
+  },
+  {
+    name: 'update_orchestration_template',
+    description: 'Changes the fields given of an orchestration template: its name, its description, and its graph, whose settings and tasks given replace the stored ones. Orchestrations already launched from it are not affected.',
+    inputSchema: schema(
+      { templateId, name: str('The new name', { minLength: 1, maxLength: 200 }), description: str('The new description', { maxLength: 2000 }), ...TEMPLATE_GRAPH_PROPERTIES },
+      ['templateId'],
+    ),
+    routes: ['GET /projects', 'GET /orchestrations/templates/:templateId', 'PATCH /orchestrations/templates/:templateId'],
+    run: async (args, api) => {
+      const path = `/orchestrations/templates/${seg(need(args, 'templateId'))}`;
+      const body: Obj = only(args, ['name', 'description']);
+      // The route replaces the spec whole, so what is not given is kept from the stored one
+      if (TEMPLATE_GRAPH_KEYS.some((key) => args[key] !== undefined)) {
+        const stored = await api.get(path);
+        const base = isRecord(stored) && isRecord(stored.spec) ? stored.spec : {};
+        body.spec = await templateSpec(args, api, base);
+      }
+      if (Object.keys(body).length === 0) throw new Error('nothing to change: pass at least one field besides templateId');
+      return identify(await api.send('PATCH', path, body));
+    },
+  },
+  {
+    name: 'delete_orchestration_template',
+    description: 'Deletes an orchestration template; orchestrations launched from it are not affected. It cannot be undone.',
+    inputSchema: schema({ templateId }, ['templateId']),
+    routes: ['DELETE /orchestrations/templates/:templateId'],
+    run: async (args, api) => {
+      const id = need(args, 'templateId');
+      await api.send('DELETE', `/orchestrations/templates/${seg(id)}`);
+      return { deleted: true, templateId: id };
     },
   },
 ];
