@@ -1,22 +1,10 @@
 import type { Project } from '@claudio/shared';
-import { Component, Suspense, type ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
+import { Skeleton } from '@claudio/ui/components/ui';
 import type { DashboardLayout, LayoutWidget } from './layout';
 import { WIDGET_AREAS, widgetDefinition, type WidgetArea } from './registry';
-
-/** One widget failing to render (or to load its chunk) takes its own cell down, not the dashboard. */
-class WidgetBoundary extends Component<{ fallback: (error: unknown) => ReactNode; children: ReactNode }, { error: unknown }> {
-  state = { error: null as unknown };
-
-  static getDerivedStateFromError(error: unknown) {
-    return { error };
-  }
-
-  render() {
-    return this.state.error ? this.props.fallback(this.state.error) : this.props.children;
-  }
-}
+import { WidgetBoundary } from './WidgetBoundary';
 
 /** How edit mode dresses a widget: its frame around the content, which stays drawn but inert. */
 export type WidgetFrame = (widget: LayoutWidget, content: ReactNode) => ReactNode;
@@ -30,7 +18,7 @@ function Slot({ widget, project, frame }: { widget: LayoutWidget; project: Proje
   const title = t(definition.titleKey);
   const content = (
     <>
-      <WidgetBoundary fallback={(error) => <ErrorBox error={error} title={t('dashboard.widgetFailed', { title })} />}>
+      <WidgetBoundary title={title}>
         <Suspense
           fallback={
             // A widget still loading already names itself, so the page's outline doesn't change under a reader

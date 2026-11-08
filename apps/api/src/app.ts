@@ -14,6 +14,7 @@ import { enforceHeadless, headlessNotFound } from './headless.ts';
 import { allowedOrigin } from './origins.ts';
 import { registerOpenApi } from './openapi/plugin.ts';
 import { registerSecurity } from './security.ts';
+import { assetName, findPreviousAsset, namesFile, previousAssetDirs, requestPath } from './web-assets.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { openAiRoutes } from './routes/openai.ts';
 import { ClientToolRegistry, openAiStubRoutes } from './routes/openai-tools.ts';
@@ -288,8 +289,18 @@ export async function buildApp(core: Core, options: AppOptions = {}): Promise<Fa
         for (const [name, value] of headers) void reply.header(name, value);
       },
     });
-    app.setNotFoundHandler((req, reply) => {
+    app.setNotFoundHandler(async (req, reply) => {
       if (req.url.startsWith('/api')) return reply.status(404).send({ error: 'route not found' });
+      const path = requestPath(req.url);
+      if (path !== null && namesFile(path)) {
+        // A page from before an update asks for its own hashed files: the builds kept next to this
+        // one still have them. Any other missing file is a 404, never the shell: a script answered
+        // with index.html is what Safari reports as "'text/html' is not a valid JavaScript MIME type"
+        const name = assetName(path);
+        const dir = name === null ? null : await findPreviousAsset(await previousAssetDirs(core.config.dataDir, webDist), name);
+        if (name !== null && dir !== null) return reply.sendFile(name, dir, { maxAge: '1y', immutable: true });
+        return reply.status(404).type('text/plain; charset=utf-8').send('Not found');
+      }
       return reply.sendFile('index.html');
     });
   }

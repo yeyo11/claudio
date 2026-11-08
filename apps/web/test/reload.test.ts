@@ -45,6 +45,21 @@ test('a missing lazy chunk is recognised in the words of every engine', () => {
   assert.ok(isChunkLoadError('Failed to fetch dynamically imported module'));
 });
 
+test('the wordings WebKit uses for a script the server answered with the shell are recognised', () => {
+  // A /assets URL that came back as index.html with a 200 (what the server did before D6)
+  assert.ok(isChunkLoadError(new TypeError("'text/html' is not a valid JavaScript MIME type.")));
+  assert.ok(isChunkLoadError("'text/html' is not a valid JavaScript MIME type."));
+  // The same engine, when the import itself cannot be fetched
+  assert.ok(isChunkLoadError(new TypeError('Importing a module script failed.')));
+  assert.ok(isChunkLoadError(new TypeError('Load failed: https://a.test/assets/Chats-Aa11.js (import)')));
+  assert.ok(isChunkLoadError(new TypeError('Error loading import: Load failed')));
+});
+
+test('a bare "Load failed" is any failed fetch, so it is not taken for a deploy', () => {
+  assert.equal(isChunkLoadError(new TypeError('Load failed')), false);
+  assert.equal(isChunkLoadError(new TypeError('Load failed: https://a.test/api/chats')), false);
+});
+
 test('any other failure is not taken for a deploy', () => {
   assert.equal(isChunkLoadError(new TypeError("Cannot read properties of undefined (reading 'id')")), false);
   assert.equal(isChunkLoadError(new Error('Failed to fetch')), false);
