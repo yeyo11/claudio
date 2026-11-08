@@ -21403,6 +21403,30 @@
     ],
     "description": "What is live on this server, counted as the overview counts it: what a restart would stop"
   },
+  "RestartRequest": {
+    "type": "object",
+    "properties": {
+      "whenIdle": {
+        "type": "boolean"
+      }
+    },
+    "description": "`whenIdle` waits until no chat, orchestration or terminal is live, instead of refusing over them"
+  },
+  "RestartResult": {
+    "type": "object",
+    "properties": {
+      "scheduled": {
+        "type": "string",
+        "enum": [
+          "now",
+          "when-idle"
+        ]
+      }
+    },
+    "required": [
+      "scheduled"
+    ]
+  },
   "ProjectSettings": {
     "type": "object",
     "properties": {
