@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import type { Socket } from 'node:net';
+import { Transform, type Duplex, type Readable } from 'node:stream';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { isServerActor, serversErrorOf, upgradeServerSocket, type Core, type GatewayTarget, type ServerUpgradeOutcome } from '@claudio/core';
 import { isOwnerActor, type Guard } from '../security.ts';
 import { TICKET_TTL_MS, originAllowed } from '../terminal-socket.ts';
+import { UPLOAD_BODY_LIMIT } from './uploads.ts';
 
 /**
  * The gateway (docs/plans/claudio-servers.md, D2 and §4.2): `/api/servers/:id/api/*` is the selected
@@ -238,15 +240,42 @@ class RelayedTickets {
 
 const hash = (ticket: string): string => createHash('sha256').update(ticket).digest('hex');
 
-/** What the upgrade carried past its head, read where `@fastify/websocket` keeps it; a client waits for the 101 before it sends, so this is nearly always empty */
-function upgradeHead(raw: IncomingMessage): Buffer {
-  for (const symbol of Object.getOwnPropertySymbols(raw)) {
-    if (symbol.description !== 'ws-head') continue;
-    const value: unknown = (raw as unknown as Record<symbol, unknown>)[symbol];
-    if (Buffer.isBuffer(value)) return value;
-  }
-  return Buffer.alloc(0);
+/**
+ * The largest request body relayed (D16): the largest the API takes as an upload of its own, a file
+ * (`POST /uploads`) or a workspace archive. The gateway hands the body on without parsing it, so this
+ * is the only bound on what one request makes the hub stream into a remote.
+ */
+export const gatewayBodyLimit = (core: Core): number => Math.max(UPLOAD_BODY_LIMIT, core.workspaces.settings.maxCompressedBytes);
+
+/**
+ * The body as it arrives, counted and never held: past `limit` the copy fails, which fails the
+ * remote's request with it, so the remote never gets more than the limit. The browser's request is
+ * not destroyed, so the `413` still reaches it.
+ */
+function counted(source: Readable, limit: number, over: () => void): Transform {
+  let size = 0;
+  const copy = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      size += chunk.length;
+      if (size > limit) {
+        over();
+        callback(new Error('the body is larger than the gateway relays'));
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+  source.once('error', (error) => copy.destroy(error));
+  source.pipe(copy);
+  return copy;
 }
+
+const tooLarge = (reply: FastifyReply, limit: number): FastifyReply =>
+  // The rest of the body is never read: the connection closes once the answer is out
+  reply
+    .status(413)
+    .header('connection', 'close')
+    .send({ error: `the body is larger than the ${String(Math.floor(limit / (1024 * 1024)))} MB the gateway relays`, code: 'servers.body-too-large' });
 
 function failure(reply: FastifyReply, error: unknown): FastifyReply {
   const refusal = serversErrorOf(error);
@@ -269,9 +298,25 @@ function refusalOf(body: Buffer): { error: string; code?: string } {
 }
 
 export const gatewayRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = async (app, { core, guard }) => {
-  // The body goes to the remote as it arrived: no parser here reads it, and no limit but the remote's applies
+  // The body goes to the remote as it arrived: no parser here reads it; `relay` counts it against the cap
   app.removeAllContentTypeParsers();
   app.addContentTypeParser('*', (_req, _payload, done) => done(null));
+
+  // What an upgrade carried past its head. Node hands it to the server's `upgrade` listeners only,
+  // and this one runs before `@fastify/websocket`'s, which routes the request on to `relaySocket`.
+  // A client waits for the 101 before it sends, so this is nearly always empty. Without that plugin
+  // (headless) nothing listens for upgrades, and adding a listener would leave them unanswered
+  const heads = new WeakMap<IncomingMessage, Buffer>();
+  if (app.hasDecorator('websocketServer')) {
+    const keepHead = (raw: IncomingMessage, _socket: Duplex, head: Buffer): void => {
+      if (head.length) heads.set(raw, head);
+    };
+    app.server.prependListener('upgrade', keepHead);
+    app.addHook('onClose', (_instance, done) => {
+      app.server.off('upgrade', keepHead);
+      done();
+    });
+  }
 
   const tickets = new RelayedTickets();
   const relays = new Set<() => void>();
@@ -295,6 +340,11 @@ export const gatewayRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = a
     if ('status' in located) return reply.status(located.status).send({ error: located.error, code: located.code });
     const refused = callerRefusal(req);
     if (refused) return reply.status(refused.status).send({ error: refused.error, code: refused.code });
+    const limit = gatewayBodyLimit(core);
+    // A declared length over the cap is refused before anything is dialled; one that lies, or a
+    // chunked body, is cut where it passes the cap
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > limit) return tooLarge(reply, limit);
     let target: GatewayTarget;
     try {
       target = await core.servers.target(req.params.id, located.path);
@@ -315,6 +365,7 @@ export const gatewayRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = a
       release();
     });
     const started = Date.now();
+    let over = false;
     let res: Awaited<ReturnType<GatewayTarget['agent']['request']>>;
     try {
       res = await target.agent.request({
@@ -322,11 +373,17 @@ export const gatewayRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = a
         path: `${located.path}${withoutToken(located.query)}`,
         method: req.method as (typeof METHODS)[number] | 'HEAD',
         headers: upstreamHeaders(req, target, { identity: stream || ticket !== null, body }),
-        body: body ? req.raw : null,
+        body: body
+          ? counted(req.raw, limit, () => {
+              over = true;
+            })
+          : null,
         signal: abort.signal,
       });
     } catch (error) {
       release();
+      // The browser's fault, not the remote's: its health is not touched
+      if (over && !reply.raw.destroyed) return tooLarge(reply, limit);
       if (reply.raw.destroyed) return reply.hijack();
       const reason = serversErrorOf(error)?.reason ?? (abort.signal.aborted ? 'servers.disconnected' : 'servers.unreachable');
       core.servers.report(id, origin, { kind: 'failed', reason });
@@ -431,8 +488,9 @@ export const gatewayRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = a
     client.write(`${lines.join('\r\n')}\r\n\r\n`);
     // The remote greets at once (`hello`): those frames may have come with its 101
     if (outcome.head.length) client.write(outcome.head);
-    const pending = upgradeHead(req.raw);
-    if (pending.length) upstream.write(pending);
+    const pending = heads.get(req.raw);
+    heads.delete(req.raw);
+    if (pending) upstream.write(pending);
     let ended = false;
     const end = (): void => {
       if (ended) return;

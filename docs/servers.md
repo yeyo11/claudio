@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T18:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-08T20:00:00Z
 tags:
     - servers
     - remote-access
@@ -124,8 +124,10 @@ attachment`, and every answer carries `nosniff`.
 
 **Streams.** Event streams are piped as written: no compression on the hop, no body timeout, the
 remote's request is aborted when the browser leaves (or the server is removed or the switch turned
-off), and `Last-Event-ID` and `?since=` pass through. Request bodies stream through unbuffered; only
-the remote's own size limit applies, and the hub sets none (a 2 MiB upload goes through whole).
+off), and `Last-Event-ID` and `?since=` pass through. Request bodies stream through unbuffered and
+counted, up to the largest upload the API takes of its own (51 MiB for a file, the workspace archive
+cap when that is larger): a declared `Content-Length` over it is `413 servers.body-too-large` before
+anything is dialled, and a streamed body is cut where it passes it, with the same `413` (D16).
 
 **The terminal WebSocket.** Only `/api/terminals/:id/socket` is relayed as a WebSocket. A browser's
 socket carries no token, so the hub opens it only for a ticket it saw the remote mint through the
@@ -139,7 +141,8 @@ Other upgrades answer `404 servers.not-a-socket`.
 
 **What the hub dials.** It resolves each name itself and connects to the IP it checked, so a second
 lookup cannot be answered differently (a rebinding). It never dials link-local, multicast, reserved
-or cloud-metadata addresses (including the IPv6 and NAT64 spellings), whoever recorded them.
+or cloud-metadata addresses (including the IPv6, IPv4-mapped and NAT64 spellings), IPv4-compatible
+addresses (`::a.b.c.d`), 6to4 (`2002::/16`) or Teredo (`2001::/32`), whoever recorded them.
 Private ranges stay open: the LAN is where servers live. Plain `http://` and loopback are allowed
 only for an address entered as loopback (`localhost` or a loopback literal); anything else on plain
 HTTP is `400 servers.address-insecure`. An address is a bare origin: no path, query, credentials or
@@ -246,9 +249,7 @@ security rules are in [security-model.md](security-model.md#servers).
 - An e2e spec for the visible flow with two isolated wrappers, which comes with the UI.
 - Notifications and views across servers, the MCP server or the assistant acting on another server,
   chaining, a list of incoming connections on the remote, and a remote that dials out to the hub.
-- Known limits: the relay of a terminal socket reads the bytes sent before the `101` from a private
-  field of `@fastify/websocket` (nearly always empty); the hub sets no size limit on request bodies it
-  relays; a server whose identity changed can only be removed (`?force=true`) and added again.
+- Known limits: a server whose identity changed can only be removed (`?force=true`) and added again.
 
 ## Related
 
