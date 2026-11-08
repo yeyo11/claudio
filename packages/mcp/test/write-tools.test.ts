@@ -131,7 +131,7 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     ['retry_orchestration_review', { orchestrationId: 'o1' }, 'POST', '/orchestrations/o1/review/retry', {}],
     ['relaunch_orchestration', { orchestrationId: 'o1', tasks: [{ id: 'a', name: 'A', prompt: 'do a' }] }, 'POST', '/orchestrations/o1/relaunch', { tasks: [{ id: 'a', name: 'A', prompt: 'do a' }] }],
     ['launch_orchestration_template', { templateId: 'tp1', projectId: 'p1', objective: 'tonight' }, 'POST', '/orchestrations/templates/tp1/launch', { objective: 'tonight', cwd: '/work/shop' }],
-    ['start_chat', { prompt: 'go', projectId: 'p1', model: 'sonnet', name: 'Go' }, 'POST', '/chats', { prompt: 'go', cwd: '/work/shop', model: 'sonnet', name: 'Go' }],
+    ['start_chat', { prompt: 'go', projectId: 'p1', model: 'sonnet', name: 'Go', agent: 'brand:lead' }, 'POST', '/chats', { prompt: 'go', cwd: '/work/shop', model: 'sonnet', name: 'Go', agent: 'brand:lead' }],
     ['send_chat_message', { chatId: 'chat-9', text: 'and then?' }, 'POST', '/chats/chat-9/messages', { text: 'and then?' }],
     ['hint_chat', { chatId: 'chat-9', text: 'look at the logs' }, 'POST', '/chats/chat-9/hint', { text: 'look at the logs' }],
     ['interrupt_chat', { chatId: 'chat-9' }, 'POST', '/chats/chat-9/interrupt', {}],
@@ -376,6 +376,18 @@ test('no tool that starts work has a field that widens it, and none is sent', as
   const task = await s.call('launch_orchestration', { projectId: 'p1', name: 'x', tasks: [{ id: 'a', name: 'a', prompt: 'p', cwd: '/' }] });
   assert.match(task.text, /unknown argument: tasks\[0\]\.cwd/);
   assert.equal(s.seen.length, 0);
+});
+
+test('start_chat sends the agent as a name only and shows the route\'s refusal with the valid names', async () => {
+  const s = stub({ 'POST /chats': { status: 400, body: { error: "no agent named 'x' is available in this folder (available: infra, shipcast)", code: 'agent-unknown' } } });
+  const out = await s.call('start_chat', { prompt: 'go', agent: 'x' });
+  assert.equal(out.isError, true);
+  assert.match(out.text, /available: infra, shipcast/);
+  assert.deepEqual(s.seen.map((r) => r.body), [{ prompt: 'go', agent: 'x' }]);
+  // The agent is a name, not a definition: an object carrying its own permissions is refused before any request
+  const inline = await s.call('start_chat', { prompt: 'go', agent: { name: 'x', permissionMode: 'bypassPermissions' } });
+  assert.equal(inline.isError, true);
+  assert.equal(s.seen.length, 1);
 });
 
 test('an input the schema rejects makes no request', async () => {

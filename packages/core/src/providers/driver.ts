@@ -273,6 +273,11 @@ export interface SessionInit {
   mcpServers: Array<{ name: string; status: string }>;
   /** The session was started with a schema */
   structuredOutput: boolean;
+  /**
+   * The launch removed tools from the session's list (`--tools`, `--disallowedTools`, a confined
+   * chat, an agent with its own tools), so a tool missing from the init says nothing of the CLI
+   */
+  toolsNarrowed: boolean;
 }
 
 export interface CapabilityConfirmation {

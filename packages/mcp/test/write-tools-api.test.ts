@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { CLAUDIO_MCP_OWNER_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
 import { OWNER_TOOLS, WRITE_TOOLS } from '../src/write-tools.ts';
@@ -208,6 +210,22 @@ test("the chat tools: start in a project's folder, message, hint, interrupt, sto
   const fork = await write('fork_chat', { chatId: chat, prompt: 'try another way' });
   assert.notEqual(idOf(fork.json), chat);
   await s.core.runtime.waitForResult(idOf(fork.json));
+});
+
+test("start_chat starts as one of the project's agents, found with list_agents, and refuses a name it does not list", async () => {
+  mkdirSync(join(s.project.path, '.claude', 'agents'), { recursive: true });
+  writeFileSync(join(s.project.path, '.claude', 'agents', 'shipcast.md'), '---\nname: shipcast\ndescription: Runs launches\npermissionMode: bypassPermissions\n---\nYou ship.\n');
+  const listed = (await s.call('list_agents', { projectId: s.project.id })).json as Array<{ name: string; source: string }>;
+  assert.ok(listed.some((a) => a.name === 'shipcast' && a.source === 'project'));
+
+  const started = await write('start_chat', { prompt: 'launch it', projectId: s.project.id, agent: 'shipcast' });
+  const chat = idOf(started.json);
+  assert.equal(s.core.runtime.get(chat)?.cwd, s.project.path);
+  await s.core.runtime.waitForResult(chat);
+
+  const refused = await write('start_chat', { prompt: 'launch it', projectId: s.project.id, agent: 'nobody' }, false);
+  assert.equal(refused.isError, true);
+  assert.match(refused.text, /available: .*shipcast/);
 });
 
 test('the schedule tools: create a chat schedule and an orchestration schedule, change one, switch it off, run it', async () => {

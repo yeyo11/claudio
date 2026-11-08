@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-19T14:00:00Z
-updated_at: 2026-10-19T18:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - transcript
@@ -13,7 +13,7 @@ tags:
 ---
 # Plan: five fixes and Claudio's MCP on demand, from the owner's report of 2026-10-19
 
-Status: **settled, ready to build** (2026-10-19). The owner's decisions are taken. One orchestration
+Status: **built**, landed in #49 on 2026-10-19 (released in 0.8.0); see [Outcome](#outcome). Was: **settled, ready to build** (2026-10-19). The owner's decisions are taken. One orchestration
 on `fix/owner-report-fixes` builds six independent tasks: the five fixes, and Claudio's MCP server
 switched on from the "+" of any chat (asked by the owner the same day). Tasks run on
 `claude-sonnet-5-5`, with `models`, `claudio-mcp` and `review` on `claude-opus-5-5`; never fable. The tasks share no files, so each one ships

@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import { AccountSwitchRefusal, chatToMarkdown, DEFAULT_ORIGINS, exportFilename, parseChangeScope } from '@claudio/core';
@@ -81,7 +82,7 @@ function newChatBody(body: unknown): NewChatRequest {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('the body must be a JSON object with a prompt');
   const fields = body as Record<string, unknown>;
   // Core says when neither a prompt nor an attachment was sent: a chat may open with a file alone
-  for (const key of ['prompt', 'cwd', 'worktree', 'name', 'provider', 'workspaceId'] as const) {
+  for (const key of ['prompt', 'cwd', 'worktree', 'name', 'provider', 'workspaceId', 'agent'] as const) {
     if (fields[key] !== undefined && fields[key] !== null && typeof fields[key] !== 'string') throw new Error(`${key} must be text`);
   }
   const { attachments } = fields;
@@ -145,6 +146,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     const body = newChatBody(req.body);
     // A model the provider does not list is refused before anything starts (`400 model-unknown`)
     if (typeof body.model === 'string') await chats.checkModel(body.provider, body.model);
+    // An agent is a name checked against the folder's own: the file `--agents` reads is one Claudio writes, never a path of the body's
+    if (typeof body.agent === 'string' && body.agent) {
+      const { agentsFile: _path, ...rest } = body as NewChatRequest & { agentsFile?: unknown };
+      const launch = await core.agents.launch(resolve(body.cwd ?? core.config.workspaceDir), body.agent);
+      return reply.status(201).send(await chats.create({ ...rest, ...launch }));
+    }
     return reply.status(201).send(await chats.create(body));
   });
 

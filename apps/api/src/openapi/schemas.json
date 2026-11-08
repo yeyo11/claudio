@@ -10266,6 +10266,13 @@
                 "items": {
                   "$ref": "#/components/schemas/ProviderCapability"
                 }
+              },
+              "missing": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProviderCapability"
+                },
+                "description": "Declared capabilities the session contradicted, which make a ready provider `degraded` (`capability-missing`); absent on an old server"
               }
             },
             "required": [
@@ -16151,6 +16158,10 @@
       },
       "jsonSchema": {
         "description": "JSON Schema for structured output"
+      },
+      "agent": {
+        "type": "string",
+        "description": "The Claude Code agent the chat starts as (`claude --agent <name>`), by the name `GET /projects/:id/agents` gives: a user, project or plugin agent (`brand:lead`). Checked against the agents of the chat's folder (`400 agent-unknown` lists them). It never widens the chat: see  {@link  AvailableAgent } ."
       }
     },
     "required": [
@@ -19342,6 +19353,62 @@
       "problem"
     ],
     "description": "GET /projects/:id/review-roles"
+  },
+  "AvailableAgent": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "What `agent` takes: the file's `name:`, or its file name; `plugin:name` for a plugin's"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "source": {
+        "$ref": "#/components/schemas/AgentSource"
+      },
+      "plugin": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The plugin's name for a plugin agent, else null"
+      },
+      "tools": {
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "The agent's own `tools` list (what it narrows the chat to), null when it names none"
+      }
+    },
+    "required": [
+      "name",
+      "description",
+      "source",
+      "plugin",
+      "tools"
+    ],
+    "description": "An agent a chat can start as (`GET /projects/:id/agents`), as `claude --agent <name>` takes it. A chat started as one keeps the app's permission mode, tool approvals and MCP servers: the agent brings its system prompt, its model and a `tools` list that can only narrow the chat's tools. Its `permissionMode`, `mcpServers` and `hooks` frontmatter are not applied (docs/plans/start-chat-agent.md)."
+  },
+  "AgentSource": {
+    "type": "string",
+    "enum": [
+      "project",
+      "user",
+      "plugin"
+    ],
+    "description": "Where an agent a chat can start as comes from"
   },
   "VerifyOrchestrationRequest": {
     "type": "object",

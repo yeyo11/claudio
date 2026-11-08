@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-11-07T00:00:00Z
+updated_at: 2026-11-08T16:00:00Z
 tags:
     - providers
     - detection
@@ -75,6 +75,14 @@ One module in `packages/core/src/providers/<id>/`, made of:
 Capabilities are declared, then confirmed for the installed version, and never inferred from which
 methods a driver happens to implement. Every fact in the manifest cites, in a comment, where it comes
 from: the vendor's docs or `claude --help`.
+
+The confirmation is the first event (`system/init`) of a session Claudio was starting anyway. A tool
+in its list confirms a capability; a tool missing from it contradicts one only when that session got
+every tool the CLI has. A launch that narrows the list (a confined chat, a `/v1` chat with
+`--tools`, `--disallowedTools`, an agent with its own tools) lists what Claudio gave it, so it never
+contradicts anything: before 2026-11-08 it did, and Claude Code flipped to `degraded`
+(`capability-missing`) and back with every such chat. A contradicted capability is served in
+`confirmed.missing`, and the reason names it ("This version lacks subagents (the Agent tool)").
 
 ## Readiness
 

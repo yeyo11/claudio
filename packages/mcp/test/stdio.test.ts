@@ -50,7 +50,7 @@ test('over stdio: initialize, tools/list and a call, a bad line, and an exit whe
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'get_work_item', arguments: { item: s.item.key } } })}\n`);
   const [init, list, bad, call] = (await got).map((l) => JSON.parse(l) as Record<string, any>);
   assert.equal(init?.result.serverInfo.name, 'claudio');
-  assert.equal(list?.result.tools.length, 68, 'twenty-four read tools, thirty-two write tools and twelve owner writes');
+  assert.equal(list?.result.tools.length, 69, 'twenty-five read tools, thirty-two write tools and twelve owner writes');
   assert.equal(bad?.error.code, -32700);
   assert.equal(call?.result.isError, false, JSON.stringify(call));
   assert.match(call?.result.content[0].text, /Cart loses items/);

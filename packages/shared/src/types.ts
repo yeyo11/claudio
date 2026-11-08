@@ -552,7 +552,7 @@ export interface ApiChatPolicy {
  * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
  * a confined chat with another policy than its own.
  */
-export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown';
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown' | 'agent-unknown';
 
 export interface TranscriptEntry {
   uuid: string;
@@ -1796,6 +1796,33 @@ export interface NewChatRequest extends ChatStartOptions {
   worktree?: string;
   /** JSON Schema for structured output */
   jsonSchema?: unknown;
+  /**
+   * The Claude Code agent the chat starts as (`claude --agent <name>`), by the name `GET
+   * /projects/:id/agents` gives: a user, project or plugin agent (`brand:lead`). Checked against the
+   * agents of the chat's folder (`400 agent-unknown` lists them). It never widens the chat: see
+   * {@link AvailableAgent}.
+   */
+  agent?: string;
+}
+
+/** Where an agent a chat can start as comes from */
+export type AgentSource = 'project' | 'user' | 'plugin';
+
+/**
+ * An agent a chat can start as (`GET /projects/:id/agents`), as `claude --agent <name>` takes it.
+ * A chat started as one keeps the app's permission mode, tool approvals and MCP servers: the agent
+ * brings its system prompt, its model and a `tools` list that can only narrow the chat's tools. Its
+ * `permissionMode`, `mcpServers` and `hooks` frontmatter are not applied (docs/plans/start-chat-agent.md).
+ */
+export interface AvailableAgent {
+  /** What `agent` takes: the file's `name:`, or its file name; `plugin:name` for a plugin's */
+  name: string;
+  description: string | null;
+  source: AgentSource;
+  /** The plugin's name for a plugin agent, else null */
+  plugin: string | null;
+  /** The agent's own `tools` list (what it narrows the chat to), null when it names none */
+  tools: string[] | null;
 }
 
 /** Continues a chat nobody holds, in place: it keeps its id. */
@@ -8404,7 +8431,13 @@ export interface ProviderStatus {
   /** The permission modes the provider offers, in the order to list them; absent on a provider that has none */
   permissionModes?: PermissionMode[];
   /** What the first event of a real session confirmed for the installed version; null until one has */
-  confirmed?: { at: string; version: string; capabilities: ProviderCapability[] } | null;
+  confirmed?: {
+    at: string;
+    version: string;
+    capabilities: ProviderCapability[];
+    /** Declared capabilities the session contradicted, which make a ready provider `degraded` (`capability-missing`); absent on an old server */
+    missing?: ProviderCapability[];
+  } | null;
   /** The provider's usage limit as last read; null when nothing was read yet, absent on an old server */
   limit?: ProviderLimit | null;
   /** ISO timestamp of the detection this status came from */

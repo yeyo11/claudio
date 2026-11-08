@@ -483,13 +483,14 @@ export const WRITE_TOOLS: readonly Tool[] = [
   },
   {
     name: 'start_chat',
-    description: "Starts a new chat with a first prompt, in a project's folder when one is given. The chat gets the app's defaults, never more.",
+    description: "Starts a new chat with a first prompt, in a project's folder when one is given, optionally as one of that folder's agents (list_agents gives the names). The chat gets the app's defaults, never more: the agent brings its prompt and can only narrow the tools.",
     inputSchema: schema(
       {
         prompt: prompt('The first message'),
         projectId: str('The project id the chat works in, as list_projects gives it', { minLength: 1, maxLength: 200 }),
         model,
         name: str('A name for the chat; the first prompt is its title otherwise', { minLength: 1, maxLength: 200 }),
+        agent: str('The agent the chat starts as, as list_agents gives it for the project: a user agent such as shipcast, a plugin agent such as brand:lead, or one of the project', { minLength: 1, maxLength: 256 }),
       },
       ['prompt'],
     ),
@@ -498,7 +499,7 @@ export const WRITE_TOOLS: readonly Tool[] = [
       const project = text(args, 'projectId');
       const cwd = project ? await projectPath(api, project) : undefined;
       // Only these reach the route: no permission mode, tool list, preset, MCP, account or prompts, so one confirmed call cannot start a chat that is more than the defaults
-      const body = { prompt: need(args, 'prompt'), ...(cwd ? { cwd } : {}), ...(text(args, 'model') ? { model: text(args, 'model') } : {}), ...(text(args, 'name') ? { name: text(args, 'name') } : {}) };
+      const body = { prompt: need(args, 'prompt'), ...(cwd ? { cwd } : {}), ...(text(args, 'model') ? { model: text(args, 'model') } : {}), ...(text(args, 'name') ? { name: text(args, 'name') } : {}), ...(text(args, 'agent') ? { agent: text(args, 'agent') } : {}) };
       return identify(await api.send('POST', '/chats', body));
     },
   },

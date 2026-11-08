@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T20:30:00Z
-updated_at: 2026-10-07T16:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - assistant
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: the Claudio assistant, a chat that knows Claudio
 
-Status: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; not yet merged to `main`). Decided with the owner on 2026-09-28, open questions answered on 2026-10-02. Built: the MCP server with its read tools (CW-6, #171), the per-chat API token (CW-10), the global entry and confined chat (CW-18) and the confirmed write tools (CW-17). Feature doc: [claudio-assistant.md](../claudio-assistant.md). See [Delivery](#delivery-the-umbrella-cw-30).
+Status: **landed** in #216 (2026-10-07, before the Claudio fork). Was: **built** on `feat/assistant-entry` (umbrella CW-30, GitHub issue #189; not yet merged to `main`). Decided with the owner on 2026-09-28, open questions answered on 2026-10-02. Built: the MCP server with its read tools (CW-6, #171), the per-chat API token (CW-10), the global entry and confined chat (CW-18) and the confirmed write tools (CW-17). Feature doc: [claudio-assistant.md](../claudio-assistant.md). See [Delivery](#delivery-the-umbrella-cw-30).
 
 ## What the owner asked for
 

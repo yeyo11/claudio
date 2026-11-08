@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T17:30:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-11-08T12:00:00Z
 tags:
     - plan
     - terminal
@@ -10,7 +10,7 @@ tags:
 ---
 # Plan: the person's own terminal in Claudio
 
-Status: **planned** (2026-10-15). Nothing is built. The owner reviews this plan, answers the open
+Status: **built and verified** (2026-10-16); the feature is [terminal.md](../terminal.md), and the menu and paste sheet came later in #84. Was: **planned** (2026-10-15). Nothing is built. The owner reviews this plan, answers the open
 questions at the end, and then the orchestration in [§7](#7-orchestration) is launched. Its
 facts spike (t0) is done: [Facts from t0](#facts-from-t0-2026-10-15).
 
