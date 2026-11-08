@@ -328,6 +328,7 @@ import i18n from './i18n';
 import { authHeaders, challengeOf, hostRefusalOf, setChallenge, setHostRefusal, withToken } from './lib/auth';
 import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
+import type { DesktopRestartRequest, DesktopRestartResult, DesktopUnitStatus } from './lib/updates';
 import { mergeRefetchMs } from './lib/merge';
 import { askSpendCap, acknowledgeSpend, SPEND_OVERRIDE_HEADER, spendAcknowledged, spendScope } from './lib/spend-cap';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
@@ -604,6 +605,9 @@ export const api = {
   applyServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/apply', { method: 'POST', body }),
   cancelServerUpdate: () => request<ServerUpdateStatus>('/system/server-update/scheduled', { method: 'DELETE' }),
   revertServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/revert', { method: 'POST', body }),
+  desktopUpdate: (o: ReadOptions = {}) => request<DesktopUnitStatus>('/system/desktop-update', o),
+  startDesktopUpdate: () => request<DesktopUnitStatus>('/system/desktop-update', { method: 'POST' }),
+  restartDesktop: (body: DesktopRestartRequest = {}) => request<DesktopRestartResult>('/system/restart', { method: 'POST', body }),
   installCli: (body: { version?: string } = {}) => request<CliVersionInfo>('/system/cli-version/install', { method: 'POST', body }),
   useImageCli: () => request<CliVersionInfo>('/system/cli-version/install', { method: 'DELETE' }),
   storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
@@ -1360,6 +1364,7 @@ export const keys = {
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
   serverUpdate: ['server-update'] as const,
+  desktopUpdate: ['desktop-update'] as const,
   release: ['release'] as const,
   storage: ['storage'] as const,
   systemLoad: ['system', 'load'] as const,

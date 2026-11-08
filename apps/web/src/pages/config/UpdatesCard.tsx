@@ -15,6 +15,8 @@ import {
   DOCKER_REPLACE_COMMAND,
   DOCKER_RUN_COMMAND,
   DOCKER_UPDATE_WAYS,
+  desktopUnitErrorCode,
+  desktopUnitRefetchMs,
   dismissedRollback,
   dismissRollback,
   liveWorkOf,
@@ -23,11 +25,15 @@ import {
   parseUpdateState,
   payloadActionsVia,
   payloadHasPrimary,
+  refusalStatus,
   REMOVE_DEB_COMMAND,
   serverUpdateRefetchMs,
   SOURCE_UPDATE_COMMAND,
   updateErrorCode,
   updateRoute,
+  type DesktopRestartRequest,
+  type DesktopRestartResult,
+  type DesktopUnitStatus,
   type DesktopUpdateState,
   type LiveWork,
   type PayloadActions,
@@ -73,6 +79,24 @@ export function UpdatesCard() {
     retry: false,
   });
   const status = asksServer ? server.data : undefined;
+  // The desktop app's own update unit (a `.deb`), reachable from any device that reaches the server. The
+  // AppImage in its own window updates through the shell, so only a page elsewhere asks about it
+  const asksUnit = info?.distribution === 'deb' || (!bridge && info?.distribution === 'appimage');
+  // A restart asked for from this card: read the status faster until the new process answers
+  const [restartAsked, setRestartAsked] = useState<DesktopRestartResult['scheduled'] | null>(null);
+  const unit = useQuery({
+    queryKey: keys.desktopUpdate,
+    queryFn: ({ signal }) => api.desktopUpdate({ signal }),
+    enabled: asksUnit,
+    refetchInterval: (query) => desktopUnitRefetchMs(query.state.data, restartAsked),
+    // Mid-restart the API is down for a moment: keep what was shown instead of an error
+    retry: false,
+  });
+  const unitStatus = asksUnit ? unit.data : undefined;
+  // An AppImage has no unit and is told nothing about it; a `.deb` without one is told how to get it
+  const showUnit = unitStatus !== undefined && !(unitStatus.state === 'unavailable' && info?.distribution === 'appimage');
+  // Where the unit works, the shell's apt-managed and shell-replaced notes would say the same twice, with a second Restart
+  const unitActive = unitStatus !== undefined && unitStatus.state !== 'unavailable';
 
   const facts = info && (
     <span className="update-facts">
@@ -121,7 +145,10 @@ export function UpdatesCard() {
       {info && route?.kind === 'desktop' && bridge && (
         <>
           {shellStatus && desktopActions && <ServerUpdate status={shellStatus} info={info} actions={desktopActions} steps={null} />}
-          <DesktopUpdate bridge={bridge} info={info} primary={!payloadHasPrimary(desktopActions ? shellStatus : undefined, info.updateAvailable)} />
+          <DesktopUpdate bridge={bridge} info={info} primary={!payloadHasPrimary(desktopActions ? shellStatus : undefined, info.updateAvailable)} unitActive={unitActive} />
+          {showUnit && unitStatus && (
+            <DesktopUnitUpdate status={unitStatus} info={info} titled={false} primary={false} restartAsked={restartAsked} onRestartAsked={setRestartAsked} />
+          )}
         </>
       )}
       {info && route?.kind === 'steps' && status && (
@@ -132,10 +159,15 @@ export function UpdatesCard() {
             actions={apiActions}
             steps={desktopServer ? null : info.updateAvailable || status.needsImage ? <UpdateSteps how={route.how} remote={route.remote} /> : null}
           />
-          {desktopServer && (
-            <p className="small muted" data-testid="update-desktop-remote">
-              {t('updates.desktopRemote')}
-            </p>
+          {desktopServer && showUnit && unitStatus && (
+            <DesktopUnitUpdate
+              status={unitStatus}
+              info={info}
+              titled
+              primary={!payloadHasPrimary(status, info.updateAvailable)}
+              restartAsked={restartAsked}
+              onRestartAsked={setRestartAsked}
+            />
           )}
         </>
       )}
@@ -285,7 +317,7 @@ function useLiveSentence(): (live: LiveWork) => string {
  * command to copy (a `.deb` without it); the restart that finishes what apt installed. It never
  * installs anything that needs a password.
  */
-function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge; info: ClaudioReleaseInfo; primary: boolean }) {
+function DesktopUpdate({ bridge, info, primary, unitActive }: { bridge: DesktopUpdatesBridge; info: ClaudioReleaseInfo; primary: boolean; unitActive: boolean }) {
   const { t } = useTranslation('config');
   const state = useDesktopUpdateState(bridge);
   const switchState = useSwitchState(bridge);
@@ -339,7 +371,7 @@ function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge
       <Tag tone="ok">{t('updates.upToDateTag')}</Tag>
     ) : state.status === 'available' || state.status === 'downloading' || state.status === 'verifying' || state.status === 'ready' ? (
       <Tag tone="warn">{t('updates.availableTag')}</Tag>
-    ) : state.status === 'shell-replaced' ? (
+    ) : state.status === 'shell-replaced' && !unitActive ? (
       <Tag tone="idle">{t('updates.installedTag')}</Tag>
     ) : null;
 
@@ -433,7 +465,7 @@ function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge
           action(t('updates.restart', { version: state.version }), <RotateCw {...ICON} />, () => install.mutate({}), install.isPending)
         ))}
 
-      {state.status === 'apt-managed' && (
+      {state.status === 'apt-managed' && !unitActive && (
         <div className="stack">
           <p className="small">{t('updates.aptManaged')}</p>
           {state.latest && <p className="small muted">{t('updates.aptLatest', { version: state.latest })}</p>}
@@ -448,7 +480,7 @@ function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge
         </div>
       )}
 
-      {state.status === 'shell-replaced' && (
+      {state.status === 'shell-replaced' && !unitActive && (
         <div className="stack">
           <p className="small" role="status">
             {t('updates.shellReplaced', { version: state.version })}
@@ -523,6 +555,274 @@ function DesktopUpdate({ bridge, info, primary }: { bridge: DesktopUpdatesBridge
         </Dialog>
       )}
     </div>
+  );
+}
+
+/**
+ * The desktop app's update from any device (docs/plans/remote-updates.md): the server starts its root
+ * update unit and reports `DesktopUpdateStatus`, and the restart it asks for finishes the upgrade. The
+ * card holds no password and no credential of its own, so a phone does exactly what the desktop window does.
+ */
+function DesktopUnitUpdate({
+  status,
+  info,
+  titled,
+  primary,
+  restartAsked,
+  onRestartAsked,
+}: {
+  status: DesktopUnitStatus;
+  info: ClaudioReleaseInfo;
+  /** The browser and the phone have no other heading for the zone; the desktop window has the shell's */
+  titled: boolean;
+  primary: boolean;
+  restartAsked: DesktopRestartResult['scheduled'] | null;
+  onRestartAsked: (asked: DesktopRestartResult['scheduled'] | null) => void;
+}) {
+  const queryClient = useQueryClient();
+  const liveSentence = useLiveSentence();
+  // Open with `live: null` it is the confirmation; with the counts of a 409 it asks to wait for idleness instead
+  const [dialog, setDialog] = useState<{ live: LiveWork | null } | null>(null);
+  const [failure, setFailure] = useState<unknown>(null);
+  const [restartFailure, setRestartFailure] = useState<unknown>(null);
+
+  const start = useMutation({
+    mutationFn: () => api.startDesktopUpdate(),
+    onMutate: () => setFailure(null),
+    onError: setFailure,
+    // A refusal because one already runs is answered by reading the status again, as is a start
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.desktopUpdate }),
+  });
+  const restart = useMutation({
+    mutationFn: (body: DesktopRestartRequest) => api.restartDesktop(body),
+    onMutate: () => setRestartFailure(null),
+    onSuccess: (result, body) => {
+      setDialog(null);
+      onRestartAsked(result?.scheduled ?? (body.whenIdle ? 'when-idle' : 'now'));
+    },
+    onError: (error) => {
+      const live = liveWorkOf(error);
+      if (live) setDialog({ live });
+      else {
+        setDialog(null);
+        setRestartFailure(error);
+      }
+    },
+  });
+
+  // The new process answers with `installed === running`: what was asked is done
+  useEffect(() => {
+    if (!status.restartNeeded && restartAsked) onRestartAsked(null);
+  }, [status.restartNeeded, restartAsked, onRestartAsked]);
+
+  return (
+    <DesktopUnitView
+      status={status}
+      titled={titled}
+      primary={primary}
+      releaseUrl={info.url ?? null}
+      pending={start.isPending || restart.isPending}
+      failure={failure}
+      restartFailure={restartFailure}
+      restartAsked={restartAsked}
+      dialog={dialog}
+      liveSentence={liveSentence}
+      onUpdate={() => start.mutate()}
+      onAskRestart={() => {
+        setRestartFailure(null);
+        setDialog({ live: null });
+      }}
+      onRestart={(options) => restart.mutate(options)}
+      onCloseDialog={() => setDialog(null)}
+    />
+  );
+}
+
+export interface DesktopUnitViewProps {
+  status: DesktopUnitStatus;
+  titled: boolean;
+  /** Whether the update button is the card's one primary action; the Restart that finishes an update always is */
+  primary: boolean;
+  releaseUrl: string | null;
+  pending: boolean;
+  /** What the refused start threw */
+  failure: unknown;
+  /** What the refused restart threw (a 409 for live work opens the dialog instead) */
+  restartFailure: unknown;
+  restartAsked: DesktopRestartResult['scheduled'] | null;
+  dialog: { live: LiveWork | null } | null;
+  liveSentence: (live: LiveWork) => string;
+  onUpdate: () => void;
+  onAskRestart: () => void;
+  onRestart: (options: DesktopRestartRequest) => void;
+  onCloseDialog: () => void;
+}
+
+/** A refusal or a failure of the unit in words from its code, never from the server's text */
+function UnitNotice({ code, tone, testId }: { code: string | null; tone: 'bad' | 'warn'; testId: string }) {
+  const { t } = useTranslation('config');
+  const known = desktopUnitErrorCode(code);
+  return (
+    <div className={tone === 'bad' ? 'alert alert-bad' : 'alert alert-warn'} role={tone === 'bad' ? 'alert' : 'status'} data-testid={testId}>
+      {tone === 'bad' ? <AlertTriangle className="alert-icon" {...ICON_SM} /> : <Info className="alert-icon" {...ICON_SM} />}
+      <span className="alert-body">{t(`updates.unit.errors.${known ?? 'other'}`)}</span>
+    </div>
+  );
+}
+
+/** The desktop app zone for a server that runs it, state by state; the unit's own words, so the same on every device */
+export function DesktopUnitView(props: DesktopUnitViewProps) {
+  const { t } = useTranslation('config');
+  const { status, titled, pending, restartAsked, dialog } = props;
+  const { state } = status;
+  const installing = state === 'installing';
+  const restartPending = status.restartNeeded && !installing;
+  const reason = status.reason?.code ?? null;
+  const canUpdate = !restartPending && (state === 'idle' || state === 'up-to-date');
+  // A refused start says why under the button; a status that failed says it in the card's own alert
+  const refused = props.failure !== null && props.failure !== undefined;
+  const startRefusal = refused ? desktopUnitErrorCode(props.failure) : null;
+
+  const tag = restartPending ? (
+    <Tag tone="idle">{t('updates.unit.restartTag')}</Tag>
+  ) : state === 'failed' ? (
+    <Tag tone="bad">{t('updates.unit.failedTag')}</Tag>
+  ) : state === 'needs-login' ? (
+    <Tag tone="warn">{t('updates.unit.needsLoginTag')}</Tag>
+  ) : state === 'up-to-date' ? (
+    <Tag tone="ok">{t('updates.upToDateTag')}</Tag>
+  ) : null;
+
+  return (
+    <div className="stack" data-testid="update-desktop-unit" data-state={state} data-restart-needed={status.restartNeeded}>
+      <div className="update-facts">
+        {titled && <span className="pref-row-title">{t('updates.desktopTitle')}</span>}
+        {state !== 'unavailable' && (
+          <span>
+            {t('updates.unit.installed')} <span className="tnum">{status.installed}</span>
+          </span>
+        )}
+        {restartPending && (
+          <span>
+            {t('updates.version')} <span className="tnum">{status.running}</span>
+          </span>
+        )}
+        {tag}
+      </div>
+
+      {state === 'unavailable' && (
+        <p className="alert alert-warn small" role="status" data-testid="update-desktop-unavailable">
+          <Info className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">
+            {t('updates.unit.unavailable')}{' '}
+            {props.releaseUrl && (
+              <a href={props.releaseUrl} target="_blank" rel="noopener noreferrer">
+                {t('updates.desktopManual')}
+              </a>
+            )}
+          </span>
+        </p>
+      )}
+
+      {state === 'needs-login' && <UnitNotice code="needs-login" tone="warn" testId="update-desktop-needs-login" />}
+
+      {installing && (
+        <p className="small" role="status" data-testid="update-desktop-installing">
+          <Spinner /> {t('updates.unit.updating')}
+        </p>
+      )}
+
+      {state === 'failed' && (
+        <div className="stack">
+          <UnitNotice code={reason} tone="bad" testId="update-desktop-unit-failed" />
+          <div>
+            <button type="button" className="btn btn-small" disabled={pending} onClick={props.onUpdate}>
+              {t('updates.tryAgain')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {canUpdate && (
+        <div>
+          <button type="button" className={props.primary ? 'btn btn-primary' : 'btn'} disabled={pending} onClick={props.onUpdate}>
+            <Download {...ICON} /> {t('updates.unit.update')}
+          </button>
+        </div>
+      )}
+
+      {refused && !(state === 'needs-login' && startRefusal === 'needs-login') && (
+        <UnitNotice code={startRefusal} tone={startRefusal === 'needs-login' || startRefusal === 'busy' ? 'warn' : 'bad'} testId="update-desktop-unit-refused" />
+      )}
+
+      {restartPending && (
+        <div className="stack" data-testid="update-desktop-restart">
+          <p className="small" role="status">
+            {restartAsked === 'now' ? (
+              <>
+                <Spinner /> {t('updates.unit.restarting')}
+              </>
+            ) : restartAsked === 'when-idle' ? (
+              t('updates.unit.restartScheduled')
+            ) : (
+              t('updates.unit.restartNeeded', { installed: status.installed, running: status.running })
+            )}
+          </p>
+          {restartAsked === null && (
+            <div>
+              <button type="button" className="btn btn-primary" disabled={pending} onClick={props.onAskRestart}>
+                <RotateCw {...ICON} /> {t('updates.unit.restart')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {props.restartFailure !== null && props.restartFailure !== undefined && (
+        <div className="alert alert-bad" role="alert" data-testid="update-desktop-restart-failed">
+          <AlertTriangle className="alert-icon" {...ICON_SM} />
+          <span className="alert-body">{refusalStatus(props.restartFailure) === 412 ? t('updates.unit.restartUnavailable') : t('updates.unit.restartFailed')}</span>
+        </div>
+      )}
+
+      {dialog && (
+        <Dialog
+          title={dialog.live ? t('updates.unit.busyTitle') : t('updates.unit.confirmTitle')}
+          onClose={props.onCloseDialog}
+          width={460}
+          footer={<UnitDialogFooter live={dialog.live} pending={pending} onCancel={props.onCloseDialog} onRestart={props.onRestart} />}
+        >
+          <UnitDialogBody live={dialog.live} installed={status.installed} liveSentence={props.liveSentence} />
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+/** Exported apart from the dialog because a portal cannot be rendered to markup in a test */
+export function UnitDialogBody({ live, installed, liveSentence }: { live: LiveWork | null; installed: string; liveSentence: (live: LiveWork) => string }) {
+  const { t } = useTranslation('config');
+  return <p>{live ? t('updates.unit.busyBody', { live: liveSentence(live) }) : t('updates.unit.confirmBody', { version: installed })}</p>;
+}
+
+/** Confirming restarts at once; with live work it can only wait for idleness (the request has no way to force) */
+export function UnitDialogFooter({ live, pending, onCancel, onRestart }: { live: LiveWork | null; pending: boolean; onCancel: () => void; onRestart: (options: DesktopRestartRequest) => void }) {
+  const { t } = useTranslation('config');
+  return (
+    <>
+      <button type="button" className="btn" onClick={onCancel}>
+        {t('updates.cancel')}
+      </button>
+      {live ? (
+        <button type="button" className="btn btn-primary" data-autofocus disabled={pending} onClick={() => onRestart({ whenIdle: true })}>
+          {t('updates.whenIdle')}
+        </button>
+      ) : (
+        <button type="button" className="btn btn-primary" data-autofocus disabled={pending} onClick={() => onRestart({})}>
+          {t('updates.unit.restart')}
+        </button>
+      )}
+    </>
   );
 }
 

@@ -239,6 +239,65 @@ export function serverUpdateRefetchMs(status: Pick<ServerUpdateStatus, 'state'> 
   return status && (status.state === 'downloading' || status.state === 'verifying' || status.state === 'restarting') ? 2000 : false;
 }
 
+// ---------- The desktop app's update unit, from any device (docs/plans/remote-updates.md, §4) ----------
+
+/**
+ * `DesktopUpdateState` of the plan's contract. Declared here until `update-trigger` lands the types in
+ * `@claudio/shared`; the shapes are the contract's, so the swap is an import. (The shell's own
+ * updater state above already holds the name `DesktopUpdateState` in this file.)
+ */
+export type DesktopUnitState = 'unavailable' | 'needs-login' | 'idle' | 'installing' | 'installed' | 'up-to-date' | 'failed';
+
+/** `DesktopUpdateStatus` of the plan's contract: `GET /system/desktop-update` */
+export interface DesktopUnitStatus {
+  state: DesktopUnitState;
+  /** The desktop app's version on disk now */
+  installed: string;
+  /** The shell version this process started with */
+  running: string;
+  from: string | null;
+  to: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  /** installed !== running: the package was upgraded and the process still runs the old one */
+  restartNeeded: boolean;
+  reason?: { code: string };
+}
+
+/** `RestartRequest` and `RestartResult` of the plan's contract: `POST /system/restart` */
+export interface DesktopRestartRequest {
+  whenIdle?: boolean;
+}
+export interface DesktopRestartResult {
+  scheduled: 'now' | 'when-idle';
+}
+
+/**
+ * How soon the card asks again. Until the `desktop-update.changed` event is wired into the feed, an
+ * update that runs and a restart that was asked for are read by polling; nothing else moves on its own.
+ */
+export function desktopUnitRefetchMs(status: Pick<DesktopUnitStatus, 'state' | 'restartNeeded'> | undefined, restart: DesktopRestartResult['scheduled'] | null): number | false {
+  if (status?.state === 'installing') return 2000;
+  if (restart === 'now') return 2000;
+  return restart === 'when-idle' && status?.restartNeeded ? 5000 : false;
+}
+
+const UNIT_ERROR_CODES = ['needs-login', 'unit-missing', 'busy', 'apt-locked', 'apt-failed'] as const;
+export type DesktopUnitErrorCode = (typeof UNIT_ERROR_CODES)[number];
+
+/** A refusal of the desktop-update routes or a `reason.code` of the status, with or without its `update.` prefix; null when this build does not know it */
+export function desktopUnitErrorCode(error: unknown): DesktopUnitErrorCode | null {
+  const raw = typeof error === 'string' ? error : isRecord(error) && typeof error.code === 'string' ? error.code : null;
+  if (!raw) return null;
+  const bare = raw.startsWith('update.') ? raw.slice('update.'.length) : raw;
+  return UNIT_ERROR_CODES.find((known) => known === bare) ?? null;
+}
+
+/** The HTTP status of a refusal, when the error carries one (`ApiRequestError`) */
+export function refusalStatus(error: unknown): number | null {
+  return isRecord(error) && typeof error.status === 'number' ? error.status : null;
+}
+
 /** The counts a `409 update.live-work` carries, or null for any other failure */
 export function liveWorkOf(error: unknown): LiveWork | null {
   if (!isRecord(error) || error.code !== 'update.live-work' || !isRecord(error.live)) return null;
