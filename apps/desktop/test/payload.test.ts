@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
-import { keyId } from '@claudio/core/launcher/protocol';
+import { RELAUNCH_EXIT_CODE, keyId } from '@claudio/core/launcher/protocol';
 import {
   PayloadHost,
   forgetOverlays,
@@ -350,6 +350,17 @@ test('once the shell was replaced underneath, a restart becomes a relaunch of th
   started[0]?.exit(75);
   const end = await run;
   assert.equal(end.why, 'relaunch');
+  assert.equal(started.length, 1, 'this Electron did not start another server');
+});
+
+test('exit 76 is the person asking for the whole app to start again: the run ends in a relaunch, no server restart', async () => {
+  const w = world();
+  const { h, started } = host(w, [{}]);
+  const run = h.run();
+  await until('a boot', () => started.length === 1);
+  started[0]?.exit(RELAUNCH_EXIT_CODE);
+  const end = await run;
+  assert.deepEqual(end, { why: 'relaunch', code: RELAUNCH_EXIT_CODE });
   assert.equal(started.length, 1, 'this Electron did not start another server');
 });
 

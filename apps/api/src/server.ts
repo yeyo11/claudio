@@ -186,5 +186,10 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     await close();
     process.exit(RESTART_EXIT_CODE);
   };
+  // A restart of the desktop app (docs/plans/remote-updates.md, D4): the same close, then the code the shell relaunches on
+  core.desktopUpdates.onRelaunch = async (code) => {
+    await close();
+    process.exit(code);
+  };
   return { url, port, close };
 }
