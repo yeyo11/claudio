@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-07T12:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - security
     - secrets
@@ -600,6 +600,57 @@ ticket are readable on the wire, and whoever answers for the name serves a page 
 so the card says so and Tailscale is the recommendation for a phone; `all` includes public, Docker
 and tailnet interfaces; and `lan.changed` reaches a chat's token as `tunnel.changed` does.
 
+## The desktop update unit
+
+The desktop `.deb` ships a **root** unit that upgrades the app, and a polkit rule that lets a group
+start it without a password, so the update can be launched from a phone
+([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart),
+[plans/remote-updates.md](plans/remote-updates.md)). It adds a way for a user-level process to cause
+root to run something, so its boundary is written down.
+
+**What a member of `claudio-update` can do.** Start `claudio-update.service`, and only that: the rule
+(`50-claudio-update.rules`) answers `YES` for the action `org.freedesktop.systemd1.manage-units` only
+when the unit is `claudio-update.service`, the verb is `start` and the subject is in the group.
+Stop, restart, any other unit, any other polkit action, or anyone outside the group fall through to
+polkit's other rules (an admin password, as before). What starting it does is fixed:
+`/usr/lib/claudio/claudio-update` runs `apt-get update` against the single `claudio.sources` file and
+`apt-get install --only-upgrade -y claudio`. The worst case is that the newest `claudio` Claudio's
+GPG-signed repository offers gets installed now instead of later; `--only-upgrade` and apt's own
+resolution never pick an older version, so it is no downgrade (the PackageKit CVE-2018-1106 class).
+
+**What it cannot do, and why.**
+
+- *Choose anything.* The unit is not a template (no `@`), `ExecStart` takes no argument, the helper
+  reads no argument, no environment variable and no user-writable file, sets its own `PATH`, `LC_ALL`
+  and `umask`, and the unit has no `Environment=`. The rule names a unit, never a program, so no
+  interpreter path or script a user controls is involved.
+- *Install another package or source.* Only `claudio`, and only from the signed source. Dependencies a
+  new version needs come from the system's lists as apt resolves them; that is the one place the
+  system's other repositories matter.
+- *Loop apt.* `StartLimitBurst=4` per 600 s refuses a fifth start, a run is cut at 30 minutes, and the
+  lock wait is bounded (60 × 5 s). Starting while it runs joins that run.
+- *Write a result the app trusts blindly.* `status.json` is root-owned and only describes the last run;
+  the app also reads systemd's state, and what it shows is a version string and a reason code.
+- *Be started through the API by a chat.* Both routes are owner-only: a chat's token is refused, and
+  so is the desktop credential (D8).
+
+**What the owner accepted.** Any process of the owner's user can start the update (a chat's tool, a
+repository's script, anything running as him): the rule cannot tell the app from them, since they are
+one user. He accepted that on 2026-11-08 because all it does is install the newest signed `claudio`.
+Over the HTTP API the gate is stricter than the rule: an agent's `curl` with a chat token or without
+a credential is refused. The restart is separate and keeps its confirmation, with `409
+update.live-work` over live work.
+
+**Group membership.** The postinst adds the installing user (`SUDO_USER`, else `PKEXEC_UID`'s user;
+never root or a missing account) and the postrm removes the group; nobody else joins unless an admin
+runs `usermod -aG claudio-update`. Membership is a standing grant of the start, so it follows the
+account, not the session. Whether polkit applies a new membership before the next login is
+unverified; the card treats a refusal as `needs-login` either way.
+
+**Not covered.** Ubuntu 22.04's polkit 0.105 ignores `.rules`, so the start is refused there (no
+privilege is gained or lost). Root-owned files in the package keep fixed modes (the helper 0755, the
+rule and unit 0644, the state folder 0755) set at staging, not by the build machine's umask.
+
 ## Known limits
 
 - A key beside the data does not protect the volume; only a key passed in the environment does.
@@ -612,5 +663,5 @@ and tailnet interfaces; and `lan.changed` reaches a chat's token as `tunnel.chan
 
 ## Related
 
-[[plans/regression-fixes-2026-10-29.md]] · [[reports/regression-audit-2026-10-29.md]] · [[rest-api.md]] · [[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[plans/regression-fixes-2026-10-29.md]] · [[reports/regression-audit-2026-10-29.md]] · [[rest-api.md]] · [[guards.md]] · [[updates.md]] · [[plans/remote-updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
 [[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]] · [[lan-access.md]] · [[plans/lan-access.md]] · [[reports/lan-access-security.md]]
