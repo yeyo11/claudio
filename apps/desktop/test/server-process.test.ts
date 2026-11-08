@@ -7,7 +7,7 @@ import { monitorHeaders } from '../src/live-monitor.ts';
 import { LogFile } from '../src/log.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from '../src/server-process.ts';
 
-const SHELL = { appDir: '/res/server', guardEntry: '/res/server/guard.mjs', keysDir: '/res/keys', shell: { inputs: 'abc', aptManaged: true } };
+const SHELL = { appDir: '/res/server', guardEntry: '/res/server/guard.mjs', keysDir: '/res/keys', shellJson: '/res/shell.json', shell: { inputs: 'abc', aptManaged: true } };
 const envFor = (desktopSecret: string, base: NodeJS.ProcessEnv = {}) =>
   serverEnv({ base, PATH: '/usr/bin', rememberedPort: 43123, webDist: '/web', dataDir: '/data', workspaceDir: '/ws', version: '1.2.3', distribution: 'deb', desktopSecret, ...SHELL });
 
@@ -83,6 +83,9 @@ test("the server is told the shell supervises it, which payload it runs, and tha
   assert.equal(env.CLAUDIO_SHELL_INPUTS, 'abc');
   assert.equal(env.CLAUDIO_SHELL_PACKAGE, 'appimage');
   assert.equal(env.CLAUDIO_SHELL_APT, '0');
+  // The server reads the version apt put on disk from the shell's own file, and relaunches the app with 76
+  assert.equal(env.CLAUDIO_SHELL_JSON, '/res/shell.json');
+  assert.equal(env.CLAUDIO_SHELL_RELAUNCH, '1');
   assert.equal(envFor('s').CLAUDIO_SHELL_APT, '1');
   // A dev build names no package; the server then says updates are off there
   const dev = serverEnv({ ...SHELL, base: {}, PATH: '/usr/bin', rememberedPort: null, webDist: '/w', dataDir: '/d', workspaceDir: '/s', version: '1.0.0', distribution: undefined, desktopSecret: 's' });

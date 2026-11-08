@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
-import { loadKeys } from '@claudio/core/launcher/protocol';
+import { RELAUNCH_EXIT_CODE, loadKeys } from '@claudio/core/launcher/protocol';
 import { RELEASE_DOWNLOADS, packageFileName, verifyDownload } from './desktop-manifest.ts';
 import { IPC, isAppPath } from './ipc.ts';
 import { EMPTY_SNAPSHOT, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction, type TrayRestart } from './live.ts';
@@ -207,6 +207,9 @@ async function runServer(): Promise<void> {
   if (payload === host) payload = undefined;
   setMenu();
   if (end.why === 'relaunch') {
+    // 76 is a restart the person asked for from the Updates card, on this device or another (D4 of
+    // docs/plans/remote-updates.md); the other relaunch is a server restart after apt replaced the app
+    if (end.code === RELAUNCH_EXIT_CODE) desktopLog.line('the server asked for the app to start again (exit 76)');
     relaunchShell();
   } else if (end.why === 'exited') {
     showError(end.ready ? 'The Claudio server stopped unexpectedly' : 'Claudio could not start its server', end.detail);
@@ -241,6 +244,7 @@ function spawnServer(boot: PayloadBoot, res: Resources, PATH: string): ServerHan
         appDir: boot.dir,
         guardEntry: res.guardEntry,
         keysDir: res.keysDir,
+        shellJson: res.shellJson,
         shell: { inputs: shellAtStart?.shellInputs ?? '', aptManaged: updater.aptManaged },
       }),
     },
@@ -404,6 +408,8 @@ function createUpdater(): DesktopUpdater {
     // only checks and downloads: its install() asks for a password, and the app never escalates
     engine: () => (distribution === 'deb' ? new DebUpdater() : new AppImageUpdater()) satisfies UpdaterEngine,
     aptManaged: () => aptManaged(),
+    running: app.getVersion(),
+    installed: () => readShellJson(resolveResources().shellJson)?.version,
     verify: (version, file, kind) => verifyDownload({ version, kind, file, keys: loadKeys(resolveResources().keysDir), running: app.getVersion() }),
     log: (line) => desktopLog.line(line),
   });

@@ -11,6 +11,14 @@ import { errorMessage } from '@claudio/shared';
 export const RESTART_EXIT_CODE = 75;
 
 /**
+ * The server exits with it to have the desktop shell relaunch the whole app, so the shell apt put on
+ * disk starts (docs/plans/remote-updates.md, D4). Not a restart of the server: Electron and its
+ * `<resources>` are the old package's until the app itself starts again. Like 73 it says nothing
+ * about the payload, so a trial that ends with it is not a failed one.
+ */
+export const RELAUNCH_EXIT_CODE = 76;
+
+/**
  * The server exits with it when another server holds its data directory (EX_CANTCREAT). It says
  * nothing about the payload: a trial that ends with it is not a failed one, and it is not restarted.
  */

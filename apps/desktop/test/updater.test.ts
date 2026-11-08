@@ -91,9 +91,11 @@ function setup(support: Support = APPIMAGE, { apt = false }: { apt?: boolean } =
   let made = 0;
   const checks: Array<[string, string, Distribution]> = [];
   let answer: Verified = { ok: true, sha256: SHA };
-  const flags = { apt };
+  const flags: { apt: boolean; installed: string | undefined } = { apt, installed: undefined };
   const updater = new DesktopUpdater({
     support,
+    running: '0.17.1',
+    installed: () => flags.installed,
     engine: () => {
       made++;
       return engine;
@@ -262,15 +264,25 @@ test('a renamed AppImage is remembered for the relaunch', async () => {
 
 test('.deb under apt: the state says apt updates it, a check only learns the version, and nothing downloads', async () => {
   const { engine, updater, seen } = setup(DEB, { apt: true });
-  assert.deepEqual(updater.state, { status: 'apt-managed', latest: null });
-  assert.deepEqual(await updater.check(), { status: 'apt-managed', latest: '0.18.0' });
+  assert.deepEqual(updater.state, { status: 'apt-managed', latest: null, installed: '0.17.1', restartNeeded: false });
+  assert.deepEqual(await updater.check(), { status: 'apt-managed', latest: '0.18.0', installed: '0.17.1', restartNeeded: false });
   assert.ok(!seen.some((s) => s.status === 'checking'), 'no flicker through checking');
-  assert.deepEqual(await updater.download(), { status: 'apt-managed', latest: '0.18.0' });
+  assert.deepEqual(await updater.download(), { status: 'apt-managed', latest: '0.18.0', installed: '0.17.1', restartNeeded: false });
   assert.equal(engine.downloads, 0);
   assert.equal(await updater.install(), false);
   // A check that fails changes nothing the person can act on
   engine.failCheck = new Error('offline');
-  assert.deepEqual(await updater.check(), { status: 'apt-managed', latest: null });
+  assert.deepEqual(await updater.check(), { status: 'apt-managed', latest: null, installed: '0.17.1', restartNeeded: false });
+});
+
+test('.deb under apt: the state carries the version on disk and whether a restart would start it', async () => {
+  const { engine, updater, flags } = setup(DEB, { apt: true });
+  engine.latest = null;
+  // The update unit installed 0.18.0 under the running 0.17.1, read from shell.json at the next look
+  flags.installed = '0.18.0';
+  assert.deepEqual(await updater.check(), { status: 'apt-managed', latest: null, installed: '0.18.0', restartNeeded: true });
+  updater.markReplaced('0.18.0');
+  assert.deepEqual(updater.state, { status: 'shell-replaced', version: '0.18.0', installed: '0.18.0', restartNeeded: true });
 });
 
 test('.deb without apt: downloads, verifies, and offers the command, never installs', async () => {
@@ -297,10 +309,10 @@ test('a .deb that does not verify shows no command', async () => {
 test('once apt replaced the app underneath, a restart is all that is left', async () => {
   const { updater, engine } = setup(DEB, { apt: true });
   updater.markReplaced('0.18.0');
-  assert.deepEqual(updater.state, { status: 'shell-replaced', version: '0.18.0' });
+  assert.deepEqual(updater.state, { status: 'shell-replaced', version: '0.18.0', installed: '0.18.0', restartNeeded: true });
   assert.equal(updater.readyVersion, '0.18.0');
   // A later check does not take it back
-  assert.deepEqual(await updater.check(), { status: 'shell-replaced', version: '0.18.0' });
+  assert.deepEqual(await updater.check(), { status: 'shell-replaced', version: '0.18.0', installed: '0.18.0', restartNeeded: true });
   engine.emit('update-available', { version: '0.19.0' });
   assert.equal(updater.state.status, 'shell-replaced');
   assert.equal(await updater.install(), false);
@@ -334,7 +346,7 @@ test('once asked, the person can restart anyway or leave it for the next quit; a
   assert.deepEqual(installDecision(ready, busy, { whenIdle: true }), { status: 'scheduled', version: '0.18.0' });
   assert.equal(installDecision({ status: 'idle' }, idle, {}).status, 'not-ready');
   assert.equal(installDecision({ status: 'copy-command', version: '0.18.0', command: 'x' }, idle, {}).status, 'not-ready');
-  const replaced: UpdateState = { status: 'shell-replaced', version: '0.18.0' };
+  const replaced: UpdateState = { status: 'shell-replaced', version: '0.18.0', installed: '0.18.0', restartNeeded: true };
   assert.deepEqual(installDecision(replaced, idle, {}), { status: 'restarting', version: '0.18.0' });
   assert.equal(installDecision(replaced, busy, {}).status, 'busy');
 });
