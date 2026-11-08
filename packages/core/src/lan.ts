@@ -294,6 +294,15 @@ export class LanListener {
     };
   }
 
+  /**
+   * The SHA-256 of the kept certificate, what a pairing grant hands the hub to pin (plan §9.1); null
+   * until one was made. Kept while the listener is off: it is this server's identity, and the
+   * certificate served when it listens again
+   */
+  tlsFingerprint(): string | null {
+    return this.certificate?.fingerprint ?? null;
+  }
+
   /** `GET /lan`: the interfaces and the `.local` name read again, so a new address shows without a restart */
   refresh(): Promise<LanStatus> {
     return this.serial(async () => {

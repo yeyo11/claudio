@@ -304,12 +304,14 @@ test('the listener speaks HTTPS with the certificate it keeps, naming its addres
   const token = await withToken(w.app);
   // No certificate before it ever listened
   assert.equal(lan(w).fingerprint, null);
+  assert.equal(w.core.lan.tlsFingerprint(), null);
   assert.equal(lanCertificateFingerprint(w.dataDir), null);
   w.attach();
   const port = await listening(w);
   const fingerprint = lan(w).fingerprint;
   assert.match(fingerprint ?? '', /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/);
-  // The one the grant reads is the one the status shows and the one the handshake presents
+  // The one the grant reads (the listener's own, or the files') is the one the status shows and the one the handshake presents
+  assert.equal(w.core.lan.tlsFingerprint(), fingerprint);
   assert.equal(lanCertificateFingerprint(w.dataDir), fingerprint);
   const res = await onLan(port, '/api/lan', { host: `${LAN_IP}:${String(port)}`, authorization: `Bearer ${token}` });
   assert.equal(res.status, 200, res.body);
@@ -343,6 +345,9 @@ test('the certificate outlives restarts and is made again only when an address i
   await first.core.lan.stop();
   await first.core.lan.start();
   assert.equal(lan(first).fingerprint, made);
+  // Stopped, it is still this server's identity: a grant made while it is off hands the same one
+  await first.core.lan.stop();
+  assert.equal(first.core.lan.tlsFingerprint(), made);
   // The history lives in the data dir too, so the second process sees the first one's rows
   const certificateRows = (w: Wrapper) => w.core.db.auditPage({ path: '/api/lan' }).entries.filter((entry) => /new LAN certificate/.test(entry.summary ?? '')).length;
   const madeBefore = certificateRows(first);
