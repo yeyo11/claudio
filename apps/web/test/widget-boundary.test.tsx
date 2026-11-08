@@ -5,6 +5,7 @@ import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
 import { en, es } from '../src/i18n/resources';
+import { reachability } from '../src/lib/reachability';
 import { useReloadOffer } from '../src/lib/reload';
 import { WidgetBoundary, WidgetFailure } from '../src/pages/dashboard/WidgetBoundary';
 
@@ -45,14 +46,20 @@ test('any other error keeps its own message', async () => {
   assert.ok(!html.includes(en.shell.reload.stalePageHint));
 });
 
-test('the boundary raises the reload offer for a chunk error and for nothing else', () => {
+test('the boundary raises the reload offer for a chunk error and for nothing else', async (t) => {
   // The offer is one per page; its hook reads the same snapshot on the server, so it can be probed
   const offer = () => renderToStaticMarkup(<Probe />);
+  // A chunk error is taken for a new version only once the server answers (D9): the probe gets an answer
+  reachability.reset();
+  t.mock.method(globalThis, 'fetch', async () => new Response('{}', { status: 200 }));
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
   const boundary = new WidgetBoundary({ title: 'Usage', children: null });
   assert.equal(offer(), '<i>none</i>');
   boundary.componentDidCatch(new Error('boom'));
+  await settle();
   assert.equal(offer(), '<i>none</i>', 'a widget bug is not a deploy');
   boundary.componentDidCatch(SAFARI);
+  await settle();
   assert.equal(offer(), '<i>stale</i>');
 });
 
