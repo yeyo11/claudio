@@ -16,7 +16,7 @@ export const serverRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = as
   // the app's to answer, so it is thrown on to it
   app.setErrorHandler((error, _req, reply) => {
     if (!(error instanceof ServersError)) throw error;
-    return reply.status(error.statusCode).send({ error: error.message, code: error.reason });
+    return reply.status(error.statusCode).send({ ...error.details, error: error.message, code: error.reason });
   });
 
   app.get('/servers/settings', (): ServersSettings => core.servers.settings());

@@ -40,6 +40,7 @@
   "DELETE /push/subscriptions": "Dar de baja una suscripción",
   "DELETE /schedules/:id": "Eliminar una programación y su historial",
   "DELETE /security/token": "Quitar el token Bearer",
+  "DELETE /server-links/:tokenId": "Retirar el acceso a un hub",
   "DELETE /server-links/self": "Devolver el token de servidor que hace la llamada",
   "DELETE /servers/:id": "Quitar un servidor y devolverle su token",
   "DELETE /servers/:id/api/*": "Eliminar en un servidor a través de la pasarela",

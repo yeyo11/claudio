@@ -10,7 +10,20 @@ import { test, type TestContext } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { WebSocket } from 'ws';
 import { Core, SERVERS_FILE, SERVERS_VAULT_TOOL, ensureLanCertificate, loadConfig, type ServersLookup } from '@claudio/core';
-import type { AuditPage, ClaudioServer, Project, RemoveServerResult, ServerLinkCode, ServerMeta, ServerTestResult, Terminal, TerminalServerFrame, TerminalTicket } from '@claudio/shared';
+import type {
+  AuditPage,
+  ClaudioServer,
+  Project,
+  RemoveServerResult,
+  ServerFingerprintConfirmation,
+  ServerLink,
+  ServerLinkCode,
+  ServerMeta,
+  ServerTestResult,
+  Terminal,
+  TerminalServerFrame,
+  TerminalTicket,
+} from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { gatewayPath, withoutToken } from '../src/routes/servers-gateway.ts';
 import { lanForwarders } from '../src/server.ts';
@@ -151,6 +164,8 @@ interface Seen {
 interface Fake {
   base: string;
   port: number;
+  /** Where its certificate is kept: a fake on the same `dir` shows the same one */
+  dir: string;
   fingerprint: string;
   seen: Seen[];
   state: { instanceId: string; grantFingerprint: string | null; route: ((req: IncomingMessage, res: ServerResponse) => boolean) | null };
@@ -195,14 +210,25 @@ async function fake(t: TestContext, options: { dir?: string; port?: number; ips?
     await new Promise<void>((resolve) => server.close(() => resolve()));
   };
   t.after(close);
-  return { base: `https://127.0.0.1:${String(port)}`, port, fingerprint: certificate.fingerprint, seen, state, close };
+  return { base: `https://127.0.0.1:${String(port)}`, port, dir, fingerprint: certificate.fingerprint, seen, state, close };
 }
 
-async function pairWithFake(h: Hub, addresses: Array<{ url: string; kind: string }>, name = 'Fake'): Promise<ClaudioServer> {
-  const added = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name, addresses, pairing: { kind: 'token', token: 'the-remote-owner-token' } }) });
+/**
+ * The pasted-token way as a person goes through it (D13): the first call only reads the certificate
+ * and asks for it to be confirmed, the second carries the fingerprint and pairs.
+ */
+async function pairByToken(h: Hub, addresses: Array<{ url: string; kind: string }>, token: string, extra: Record<string, unknown> = {}): Promise<ClaudioServer> {
+  const body = { name: 'Fake', addresses, ...extra };
+  const asked = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { ...body, pairing: { kind: 'token', token } }) });
+  assert.equal(asked.statusCode, 409, asked.body);
+  const { code, fingerprint } = asked.json<ServerFingerprintConfirmation>();
+  assert.equal(code, 'servers.confirm-fingerprint');
+  const added = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { ...body, pairing: { kind: 'token', token, expectedFingerprint: fingerprint } }) });
   assert.equal(added.statusCode, 201, added.body);
   return added.json<ClaudioServer>();
 }
+
+const pairWithFake = (h: Hub, addresses: Array<{ url: string; kind: string }>, name = 'Fake'): Promise<ClaudioServer> => pairByToken(h, addresses, 'the-remote-owner-token', { name });
 
 /** An event stream opened on the hub as a browser's `EventSource` opens it: the hub's token in `?token=` */
 function openStream(url: string, headers: Record<string, string> = {}): Promise<{ req: ClientRequest; res: IncomingMessage; text: () => string }> {
@@ -296,23 +322,87 @@ test('pairing by code pins the identity seen in the TLS handshake, and keeps the
 test('pairing by the owner token keeps the minted token, never the owner token', async (t) => {
   const r = await remote(t);
   const h = await hub(t);
-  const wrongToken = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'Bad', addresses: [{ url: r.base, kind: 'lan' }], pairing: { kind: 'token', token: 'not-the-owner-token' } }) });
+  const fingerprint = r.core.lan.tlsFingerprint();
+  assert.ok(fingerprint);
+  const wrongToken = await h.app.inject({
+    method: 'POST',
+    url: '/api/servers',
+    ...authed(h.token, { name: 'Bad', addresses: [{ url: r.base, kind: 'lan' }], pairing: { kind: 'token', token: 'not-the-owner-token', expectedFingerprint: fingerprint } }),
+  });
   assert.equal(wrongToken.statusCode, 400, wrongToken.body);
   assert.equal(codeOf(wrongToken), 'servers.token-invalid');
-  const added = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'Headless', color: 'violet', monogram: 'HL', addresses: [{ url: r.base, kind: 'lan' }], pairing: { kind: 'token', token: r.token } }) });
-  assert.equal(added.statusCode, 201, added.body);
-  const server = added.json<ClaudioServer>();
+  const server = await pairByToken(h, [{ url: r.base, kind: 'lan' }], r.token, { name: 'Headless', color: 'violet', monogram: 'HL' });
+  assert.equal(server.identity.tlsFingerprint, fingerprint, 'the fingerprint confirmed is the one the LAN card shows');
   assert.equal(server.color, 'violet');
   assert.equal(server.monogram, 'HL');
   assert.equal(dataText(h.dataDir).includes(r.token), false, "the remote owner's token is nowhere in the hub's data");
   assert.notEqual(serverToken(h, server.id), r.token);
 });
 
+test('a pasted owner token leaves the hub only for the certificate the person confirmed (D13)', async (t) => {
+  const h = await hub(t);
+  const f = await fake(t);
+  const add = (pairing: Record<string, unknown>, addresses = [{ url: f.base, kind: 'lan' }]) =>
+    h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'Studio', addresses, pairing: { kind: 'token', token: 'the-owner-token', ...pairing } }) });
+
+  // No fingerprint: the hub only shook hands, and answers what it saw for the person to compare
+  const asked = await add({});
+  assert.equal(asked.statusCode, 409, asked.body);
+  const confirmation = asked.json<ServerFingerprintConfirmation>();
+  assert.equal(confirmation.code, 'servers.confirm-fingerprint');
+  assert.equal(confirmation.fingerprint, f.fingerprint);
+  assert.equal(confirmation.address, f.base);
+  assert.deepEqual(f.seen, [], 'not a single request, so neither the token nor even a probe reached it');
+
+  // Another certificate than the one typed: refused before anything is sent
+  const other = await add({ expectedFingerprint: Array.from({ length: 32 }, () => 'AB').join(':') });
+  assert.equal(other.statusCode, 409, other.body);
+  assert.equal(codeOf(other), 'servers.fingerprint-unexpected');
+  assert.equal(other.json<ServerFingerprintConfirmation>().fingerprint, f.fingerprint);
+  assert.deepEqual(f.seen, []);
+  const malformed = await add({ expectedFingerprint: 'not-a-fingerprint' });
+  assert.equal(malformed.statusCode, 400);
+  assert.equal(codeOf(malformed), 'servers.pairing-invalid');
+
+  // An impostor on the address between the confirmation and the call that carries it gets nothing
+  const port = f.port;
+  await f.close();
+  const impostor = await fake(t, { port });
+  const swapped = await add({ expectedFingerprint: confirmation.fingerprint });
+  assert.equal(codeOf(swapped), 'servers.fingerprint-unexpected', swapped.body);
+  assert.deepEqual(impostor.seen, []);
+  await impostor.close();
+
+  // The fingerprint as a person copies it (lower case, no colons) pairs, and only then is the token sent
+  const real = await fake(t, { dir: f.dir, port });
+  const added = await add({ expectedFingerprint: confirmation.fingerprint.replace(/:/g, '').toLowerCase() });
+  assert.equal(added.statusCode, 201, added.body);
+  assert.equal(added.json<ClaudioServer>().identity.tlsFingerprint, f.fingerprint);
+  const minted = real.seen.findIndex((each) => each.method === 'POST' && each.url === '/api/server-links');
+  assert.ok(minted >= 0);
+  assert.equal(real.seen[minted]?.headers.authorization, 'Bearer the-owner-token');
+  assert.ok(real.seen.slice(0, minted).every((each) => each.headers.authorization === undefined), 'nothing before the pairing carried a credential');
+});
+
+test('over plain HTTP on loopback there is no certificate to confirm, and the token pairs at once', async (t) => {
+  const r = await claudio(t);
+  await r.app.listen({ host: '127.0.0.1', port: 0 });
+  const port = (r.app.server.address() as AddressInfo).port;
+  const h = await hub(t);
+  const added = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'Here', addresses: [{ url: `http://127.0.0.1:${String(port)}`, kind: 'other' }], pairing: { kind: 'token', token: r.token } }) });
+  assert.equal(added.statusCode, 201, added.body);
+  assert.equal(added.json<ClaudioServer>().identity.tlsFingerprint, null);
+});
+
 test('a certificate that is not the one the grant names is refused, and the token is given back', async (t) => {
   const h = await hub(t);
   const f = await fake(t);
   f.state.grantFingerprint = 'AB:CD:EF:01';
-  const added = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'Impostor', addresses: [{ url: f.base, kind: 'lan' }], pairing: { kind: 'token', token: 'owner' } }) });
+  const added = await h.app.inject({
+    method: 'POST',
+    url: '/api/servers',
+    ...authed(h.token, { name: 'Impostor', addresses: [{ url: f.base, kind: 'lan' }], pairing: { kind: 'token', token: 'owner', expectedFingerprint: f.fingerprint } }),
+  });
   assert.equal(added.statusCode, 502);
   assert.equal(codeOf(added), 'servers.fingerprint-mismatch');
   assert.ok(f.seen.some((each) => each.method === 'DELETE' && each.url === '/api/server-links/self' && each.headers.authorization === 'Bearer fake-server-token'));
@@ -325,7 +415,8 @@ test('link-local, metadata and loopback by a name are never dialled', async (t) 
   const table: Record<string, string> = { 'metadata.test': '169.254.169.254', 'sneaky.test': '127.0.0.1' };
   const lookup: ServersLookup = (name) => (table[name] ? Promise.resolve([{ address: table[name] ?? '', family: 4 }]) : dns.lookup(name, { all: true }));
   h.core.servers.network.lookup = lookup;
-  const attempt = async (url: string) => h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'X', addresses: [{ url, kind: 'other' }], pairing: { kind: 'token', token: 'owner' } }) });
+  const attempt = async (url: string) =>
+    h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'X', addresses: [{ url, kind: 'other' }], pairing: { kind: 'token', token: 'owner', expectedFingerprint: f.fingerprint } }) });
   for (const url of ['https://169.254.169.254', 'https://[fe80::1]:8791', `https://metadata.test:${String(f.port)}`, `https://sneaky.test:${String(f.port)}`]) {
     const answer = await attempt(url);
     assert.equal(answer.statusCode, 400, `${url}: ${answer.body}`);
@@ -485,6 +576,28 @@ test('a token the remote revoked shows as needs-pairing, never as the hub’s ow
   assert.equal(tested.meta.ok, true);
   assert.equal(tested.rest.code, 'servers.needs-pairing');
   assert.equal((await h.app.inject({ method: 'POST', url: `/api/servers/${server.id}/use`, ...bearer(h.token) })).json<ClaudioServer>().health?.status, 'needs-pairing');
+});
+
+test("the remote's owner cuts a hub off: its token is 401 there, and the hub shows the server as needing pairing (D14)", async (t) => {
+  const r = await remote(t);
+  const h = await hub(t);
+  const server = await pairByCode(h, r);
+  const token = serverToken(h, server.id);
+  assert.ok(token);
+  assert.equal((await through(h, server.id, 'GET', '/api/projects')).statusCode, 200);
+
+  const links = await r.app.inject({ url: '/api/server-links', ...bearer(r.token) });
+  assert.equal(links.statusCode, 200, links.body);
+  const link = links.json<ServerLink[]>().find((each) => each.hubInstanceId === h.core.identity.instanceId);
+  assert.ok(link);
+  assert.equal(links.body.includes(token), false);
+  assert.equal((await r.app.inject({ method: 'DELETE', url: `/api/server-links/${link.tokenId}`, ...bearer(r.token) })).statusCode, 204);
+
+  assert.equal((await r.app.inject({ url: '/api/security/auth', ...bearer(token) })).statusCode, 401, 'the remote no longer takes the token');
+  const answer = await through(h, server.id, 'GET', '/api/projects');
+  assert.equal(answer.statusCode, 409);
+  assert.equal(codeOf(answer), 'servers.needs-pairing');
+  assert.equal((await h.app.inject({ url: '/api/servers', ...bearer(h.token) })).json<ClaudioServer[]>()[0]?.health?.status, 'needs-pairing');
 });
 
 test('a server whose identity changed is not reached, a renewed certificate on the same key is', async (t) => {

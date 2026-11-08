@@ -100,7 +100,8 @@ export interface HubName {
 
 /**
  * Pairs by the code a person read off the remote, or by the owner's token they pasted, which is sent
- * this once and never kept. A refusal keeps the remote's own code (`server-links.code-invalid`,
+ * this once and never kept: over TLS only on an agent that takes the one certificate the person
+ * confirmed (`Servers.pairOn`, D13). A refusal keeps the remote's own code (`server-links.code-invalid`,
  * `server-links.too-many`…) so the person is told what the remote said.
  */
 export async function pair(agent: Agent, origin: string, pairing: ServerPairing, hub: HubName, timeoutMs: number): Promise<ServerLinkGrant> {

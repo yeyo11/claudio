@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { isServerActor, parseServerLinkHub, serverActor, serverLinksNeedAuth, type Core, type ServerLinkHub } from '@claudio/core';
-import type { ServerLinkCode, ServerLinkGrant, ServerMeta } from '@claudio/shared';
+import type { ServerLink, ServerLinkCode, ServerLinkGrant, ServerMeta } from '@claudio/shared';
 import { isOwnerActor, type Guard } from '../security.ts';
 import { revokeTerminalAccess } from '../terminal-socket.ts';
 
@@ -78,6 +78,25 @@ export const serverLinkRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> 
     const refused = ownerRefusal(req, reply);
     if (refused) return refused;
     return grantFor(hubOf(req.body));
+  });
+
+  // The hubs this server lets in, for its owner to see and cut (D14); never a secret, only what each hub said it is
+  app.get('/server-links', async (req, reply): Promise<ServerLink[] | FastifyReply> => {
+    const refused = ownerRefusal(req, reply);
+    if (refused) return refused;
+    return core.security.serverTokens.map((each) => ({ tokenId: each.id, hubName: each.name, hubInstanceId: each.hubInstanceId, createdAt: each.createdAt, lastUsedAt: each.lastUsedAt }));
+  });
+
+  /**
+   * The owner revokes a hub without that hub's help (D14): a hub that was lost, or that its owner
+   * never removed. Not another hub's to call, as with minting: one hub must not cut another out.
+   */
+  app.delete<{ Params: { tokenId: string } }>('/server-links/:tokenId', async (req, reply) => {
+    const refused = ownerRefusal(req, reply);
+    if (refused) return refused;
+    if (!(await core.security.revokeServerToken(req.params.tokenId))) return refuse(reply, 404, 'server-links.not-found', 'no paired server holds a token with that id');
+    revokeTerminalAccess(core);
+    return reply.status(204).send();
   });
 
   // A hub whose owner removed this server gives its token back (R8)

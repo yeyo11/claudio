@@ -7,6 +7,8 @@ export class ServersError extends Error {
     readonly statusCode: number,
     readonly reason: string,
     message: string,
+    /** Fields the answer carries beside `error` and `code`, for a refusal the person acts on (the fingerprint to confirm) */
+    readonly details: Readonly<Record<string, string>> = {},
   ) {
     super(message);
   }

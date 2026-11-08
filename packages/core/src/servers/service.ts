@@ -21,7 +21,7 @@ import { parseAddresses } from './addresses.ts';
 import { ServersError, disabled, notFound, serversErrorOf } from './errors.ts';
 import { ServerRegistry, type StoredServer } from './registry.ts';
 import { checkEvents, checkRest, checkSocket, pair, readMeta, revokeSelf, type HubName } from './remote.ts';
-import { agentFor, dial, sameFingerprint, systemLookup, type DialOptions, type Lookup, type PeerPins, type PeerSeen, type Trust } from './transport.ts';
+import { agentFor, dial, peek, sameFingerprint, systemLookup, type DialOptions, type Lookup, type PeerPins, type PeerSeen, type Trust } from './transport.ts';
 
 /**
  * The hub (docs/plans/claudio-servers.md, §4.2): the servers this Claudio drives, how it pairs with
@@ -135,10 +135,44 @@ function parseMonogram(value: unknown): string | null {
   return monogram;
 }
 
+/**
+ * A SHA-256 fingerprint as a person copies it: hex, with or without colons or spaces, in either
+ * case. Kept as Node spells `fingerprint256`, upper case with colons, so the 409 and the pin read
+ * the same.
+ */
+function parseFingerprint(value: unknown): string {
+  const hex = typeof value === 'string' ? value.replace(/[\s:]/g, '') : '';
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) throw badRequest('servers.pairing-invalid', 'expectedFingerprint is the SHA-256 the server shows: 64 hex digits, with or without colons');
+  return (hex.toUpperCase().match(/../g) ?? []).join(':');
+}
+
 function parsePairing(value: unknown): ServerPairing {
   if (isRecord(value) && value.kind === 'code' && typeof value.code === 'string' && value.code.trim() && value.code.length <= 64) return { kind: 'code', code: value.code.trim() };
-  if (isRecord(value) && value.kind === 'token' && typeof value.token === 'string' && value.token.trim() && value.token.length <= 4096) return { kind: 'token', token: value.token.trim() };
-  throw badRequest('servers.pairing-invalid', "pairing is { kind: 'code', code } with the code the server shows, or { kind: 'token', token } with its owner token");
+  if (isRecord(value) && value.kind === 'token' && typeof value.token === 'string' && value.token.trim() && value.token.length <= 4096) {
+    const token = value.token.trim();
+    return value.expectedFingerprint === undefined ? { kind: 'token', token } : { kind: 'token', token, expectedFingerprint: parseFingerprint(value.expectedFingerprint) };
+  }
+  throw badRequest('servers.pairing-invalid', "pairing is { kind: 'code', code } with the code the server shows, or { kind: 'token', token, expectedFingerprint? } with its owner token");
+}
+
+/**
+ * Whether a pasted owner token may go to an address that showed `seen` (D13). The person confirms the
+ * certificate before the token leaves the hub: the one they typed must be it, and with none typed
+ * the answer is the seen one for them to confirm. Nothing has been sent to the address either way.
+ */
+function confirmFingerprint(expected: string | undefined, seen: PeerSeen, address: string): void {
+  const details = { fingerprint: seen.fingerprint, address };
+  if (expected === undefined) {
+    throw new ServersError(
+      409,
+      'servers.confirm-fingerprint',
+      `${address} shows the certificate ${seen.fingerprint}: check it against that server's LAN card, then send the pairing again with it as expectedFingerprint; nothing was sent to it yet`,
+      details,
+    );
+  }
+  if (!sameFingerprint(expected, seen.fingerprint)) {
+    throw new ServersError(409, 'servers.fingerprint-unexpected', `${address} shows the certificate ${seen.fingerprint}, not ${expected}: the owner token was not sent to it`, details);
+  }
 }
 
 function onlyKeys(body: Record<string, unknown>, known: readonly string[]): void {
@@ -593,6 +627,11 @@ export class Servers {
    * Pairs on the first address that answers as a Claudio, over an agent that trusts the first
    * certificate it sees and then only that one. An address that answers is where the pairing
    * happens or fails: the code is never tried on a second machine.
+   *
+   * An owner token is worth more than a code (it is not single-use, and it mints any number of
+   * links), so over TLS the address is first only shaken hands with, and its certificate must be the
+   * one the person confirmed before any request goes there (D13); the agent then takes that one
+   * certificate only, so the token cannot land on another that answered in between.
    */
   private async pairOn(
     addresses: ServerAddress[],
@@ -602,6 +641,20 @@ export class Servers {
     let unreachable: ServersError | null = null;
     for (const address of addresses) {
       const trust: Extract<Trust, { kind: 'first-use' }> = { kind: 'first-use', seen: null };
+      const url = new URL(address.url);
+      if (pairing.kind === 'token' && url.protocol === 'https:') {
+        let seen: PeerSeen | null;
+        try {
+          seen = await peek({ protocol: url.protocol, hostname: url.hostname, port: Number(url.port) || 443 }, this.network);
+        } catch (error) {
+          unreachable ??= serversErrorOf(error) ?? new ServersError(502, 'servers.unreachable', `${address.url} did not answer`);
+          continue;
+        }
+        if (seen) {
+          confirmFingerprint(pairing.expectedFingerprint, seen, address.url);
+          trust.seen = seen;
+        }
+      }
       const agent = agentFor(trust, this.network);
       const started = Date.now();
       let meta: ServerMeta;
