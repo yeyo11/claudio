@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-07T12:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - rest-api
     - api
@@ -131,7 +131,8 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 ## Servers
 
 Every Claudio can be driven by another one, its hub ([plans/claudio-servers.md](plans/claudio-servers.md)).
-These are the remote side: who the server is, and how a hub pairs with it. A hub's token acts as the
+The remote side says who the server is and lets a hub pair with it; the hub side keeps the servers
+this Claudio drives and relays the web to the selected one (`/servers/:id/api/*`). A hub's token acts as the
 owner (`server:<tokenId>` in the audit), is never "this machine" for the terminal, and is accepted on
 any host the server answers on. Pairing needs a guarded auth mode. The headless profile serves
 `/meta`, `POST /server-links` and `DELETE /server-links/self`: it has no page to show a code on.
@@ -143,6 +144,14 @@ any host the server answers on. Pairing needs a guarded auth mode. The headless 
 | POST | `/server-links/redeem` | Open: `{ code, hubInstanceId, hubName }` → `{ token, tokenId, instanceId, tlsFingerprint }`, the token shown once. A hub that pairs again replaces its earlier token. `403 server-links.code-invalid` (wrong, expired or used) counts in the peer's sign-in back-off (`429 server-links.too-many` with `Retry-After`); 20 wrong guesses void the live code. `400` for a bad body or `server-links.self`, `405` in read-only mode, `409 server-links.auth-required` under `none` |
 | POST | `/server-links` | `{ hubInstanceId, hubName }` with the owner's token → the same grant, for a server paired by pasting its URL and a token. `403 server-links.not-owner` for a paired server's token, `409 server-links.auth-required` under `none` |
 | DELETE | `/server-links/self` | Revokes the calling server token: `204`, then `401` for it. `403 server-links.not-server` for any other credential; allowed in read-only mode |
+| GET / PUT | `/servers/settings` | `{ enabled }`, off by default and kept in `servers-settings.json`. Off keeps the list and the tokens and ends every connection to a remote at once |
+| GET | `/servers` | The servers this hub drives (`ClaudioServer[]`): name, colour token, monogram, addresses in the order they are tried, the identity pinned at pairing, `lastUsedAt` and the last health reading. Empty while Servers are off; nothing is probed, no token is in it |
+| POST | `/servers` | `{ name, addresses, pairing, color?, monogram? }` → `201` with the server. Pairs on the first address that answers as a Claudio, by `{ kind: 'code', code }` or `{ kind: 'token', token }`; the certificate seen must be the grant's (`502 servers.fingerprint-mismatch`) unless a CA vouches for it. The token goes to the secret vault. Addresses are `https://` origins (`http://` on loopback only), never link-local or cloud metadata. The remote's refusal keeps its code (`server-links.code-invalid`…); `409 servers.already-paired`, `servers.disabled` while off, `502 servers.unreachable` |
+| PATCH | `/servers/:id` | Name, colour, monogram, addresses; a new address must answer as the server paired (`400 servers.address-unverified`, `servers.address-identity`) |
+| DELETE | `/servers/:id?force=true` | Revokes the token on the remote, then forgets the server: `{ revoked, reason? }`. `502 servers.revoke-failed` keeps it unless `force` |
+| POST | `/servers/:id/test` | `{ address, meta, rest, events, socket }`, each `{ ok, latencyMs?, code? }`, on an address picked afresh |
+| POST | `/servers/:id/use` | Sets `lastUsedAt` and reads the health again (an authenticated read included); answered with the server even when it is down |
+| GET / POST / PUT / PATCH / DELETE | `/servers/:id/api/*` | The gateway: the remote's `/api/*` on the hub's token for it. `404` while off. The hub's `Authorization`, `?token=`, cookies and `X-Forwarded-*` stay here. Paths stay under `/api/` once decoded (`400 servers.path-refused`), never the remote's `/servers` or `/server-links` (`403 servers.one-hop`). Streams are relayed as written; a remote `401` is `409 servers.needs-pairing`, a redirect `502 servers.redirect-refused`, an HTML or SVG answer a download. A WebSocket only to `/api/terminals/:id/socket`, with a ticket minted through the gateway |
 
 ## Usage limits and waiting
 
