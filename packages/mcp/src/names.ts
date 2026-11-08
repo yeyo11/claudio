@@ -16,6 +16,7 @@ export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'get_orchestration_plan',
   'list_assistant_proposals',
   'get_team',
+  'list_agents',
   'list_flow_runs',
   'get_journal',
   'list_documents',

@@ -18,6 +18,7 @@ test('no read tool indents its answer: compact JSON is one line', async () => {
     get_work_item: { item: s.item.key },
     get_orchestration: { orchestrationId: s.orchestration.id },
     get_team: { projectId: s.project.id },
+    list_agents: { projectId: s.project.id },
     list_flow_runs: { projectId: s.project.id },
     get_journal: { projectId: s.project.id },
     list_documents: { projectId: s.project.id },

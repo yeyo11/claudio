@@ -49,6 +49,7 @@ test('every tool is called once and answers with the seeded data', async () => {
     ['list_orchestrations', { limit: 5 }, s.orchestration.id],
     ['get_orchestration', { orchestrationId: s.orchestration.id }, s.orchestration.id],
     ['get_team', { projectId: s.project.id }, '{'],
+    ['list_agents', { projectId: s.project.id }, '['],
     ['list_flow_runs', { projectId: s.project.id }, 'run-1'],
     ['get_journal', { projectId: s.project.id }, '{'],
     ['list_documents', { projectId: s.project.id }, 'plan.md'],
