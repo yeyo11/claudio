@@ -128,6 +128,21 @@ next start, audited with actor `env` (see [Securing it](securing.md)).
 | POST | `/lan/start` | Listens now; `409 lan.authRequired` under auth mode `none`, `409 lan.disabled` with `CLAUDIO_LAN=off`, `port-in-use` or `failed` as states. Its addresses join the allowlist while it listens, and each device waits out its own wrong tokens |
 | POST | `/lan/stop` | Takes its addresses off the allowlist and ends every connection on it, terminal sockets included; turning the auth mode to `none` does it first |
 
+## Servers
+
+Every Claudio can be driven by another one, its hub ([plans/claudio-servers.md](plans/claudio-servers.md)).
+These are the remote side: who the server is, and how a hub pairs with it. A hub's token acts as the
+owner (`server:<tokenId>` in the audit), is never "this machine" for the terminal, and is accepted on
+any host the server answers on. Pairing needs a guarded auth mode.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/meta` | Open, on any host: `{ instanceId, version, apiVersion: { current, min }, capabilities }`. `instanceId` is made once and kept in `instance.json` in the data directory. Nothing about accounts, paths or hosts |
+| POST | `/server-links/code` | `{ code, expiresAt }`: a one-time code of 8 characters (no 0, O, 1, I or L), 5 minutes, single use, replacing any unused one. `409 server-links.auth-required` under auth mode `none`, `403 server-links.not-owner` for a paired server's or a chat's token |
+| POST | `/server-links/redeem` | Open: `{ code, hubInstanceId, hubName }` → `{ token, tokenId, instanceId, tlsFingerprint }`, the token shown once. A hub that pairs again replaces its earlier token. `403 server-links.code-invalid` (wrong, expired or used) counts in the peer's sign-in back-off (`429 server-links.too-many` with `Retry-After`); 20 wrong guesses void the live code. `400` for a bad body or `server-links.self`, `405` in read-only mode, `409 server-links.auth-required` under `none` |
+| POST | `/server-links` | `{ hubInstanceId, hubName }` with the owner's token → the same grant, for a server paired by pasting its URL and a token. `403 server-links.not-owner` for a paired server's token, `409 server-links.auth-required` under `none` |
+| DELETE | `/server-links/self` | Revokes the calling server token: `204`, then `401` for it. `403 server-links.not-server` for any other credential; allowed in read-only mode |
+
 ## Usage limits and waiting
 
 At a usage limit Claudio first moves the work to another Claude account with quota left (see

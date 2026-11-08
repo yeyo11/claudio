@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, MAX_AUDIT_PATH, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
+import { DESKTOP_ACTOR, MAX_AUDIT_PATH, TYPED_COMPACT, chatActor, isServerActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
 import type { HostRefusal } from '@claudio/shared';
 import { allowedOrigin } from './origins.ts';
 import { ROUTE_DOCS, accessOf } from './openapi/routes.ts';
@@ -182,6 +182,8 @@ function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
  * reached on. `req.ip` is the socket's address, since the app does not trust proxy headers.
  */
 function fromLocalMachine(req: FastifyRequest): boolean {
+  // A hub's gateway may well dial loopback, and is still another machine's (R9)
+  if (isServerActor(req.actor)) return false;
   const host = req.headers.host;
   return LOOPBACK.test(req.ip) && host !== undefined && LOOPBACK.test(hostNameOf(host));
 }
@@ -230,6 +232,8 @@ export function forwardingOf(req: FastifyRequest): Forwarding {
  * proxy one day cannot widen this.
  */
 export function fromLocalMachineStrict(req: FastifyRequest, runtime: RuntimeHosts): boolean {
+  // A paired hub is never this machine, even from a hub on the same one through loopback (R9, D10)
+  if (isServerActor(req.actor)) return false;
   const peer = req.socket.remoteAddress;
   const host = req.headers.host;
   if (peer === undefined || !LOOPBACK.test(peer) || host === undefined) return false;
@@ -511,7 +515,12 @@ export class FailureBackoff {
  * chat has to be able to unblock it. The guard's own switch stays reachable because a switch that
  * cannot be turned back is a trap, and it is administration of the wrapper, not of its work.
  */
-const READ_ONLY_ALLOWED = new Set(['POST /chats/:id/permissions/:requestId', 'PUT /security/auth']);
+const READ_ONLY_ALLOWED = new Set([
+  'POST /chats/:id/permissions/:requestId',
+  'PUT /security/auth',
+  // A hub giving up its own token only takes access away, like turning the terminal off
+  'DELETE /server-links/self',
+]);
 
 /** The OpenAI-compatible surface, which needs a credential in every mode */
 const OPENAI_SURFACE = new RegExp(`^${API_PREFIX}/v1(?:/|$)`);
@@ -612,7 +621,8 @@ export function auditRoute(method: string, routeUrl: string | undefined): string
 }
 
 /**
- * Whether an actor is the owner: the holder of the owner token or an OIDC identity. Not the open
+ * Whether an actor is the owner: the holder of the owner token, an OIDC identity or a paired hub
+ * (`server:<tokenId>`, full control by design: docs/plans/claudio-servers.md, §9.2). Not the open
  * install's `local`, the desktop app's own credential, a chat, a webhook or nobody.
  */
 export function isOwnerActor(actor: string | null): actor is string {
@@ -746,7 +756,16 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
     // or not the caller holds one: under `mode: 'none'` there is no credential to refuse it by
-    if (guarded && !probe && route !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless')) {
+    // A paired hub's token is accepted on any name the listener serves (R10): a hub reaches it by a
+    // LAN address, a Tailscale name or a proxy, and the token, which a rebinding page cannot hold, is
+    // the proof. Only the hash is compared here; the request is authenticated below like any other
+    if (
+      guarded &&
+      !probe &&
+      route !== HOST_CLAIM &&
+      !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless') &&
+      !core.security.isServerCredential(credentialOf(req, route))
+    ) {
       req.actor = 'anonymous';
       const host = hostNameOf(req.headers.host ?? '');
       if (req.method === 'GET' && prefersHtml(req.headers.accept)) {
@@ -989,7 +1008,7 @@ function crossSite(req: FastifyRequest): boolean {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, `webhook`, `anonymous` for a refused host, or `local` when nothing guards the API */
+    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, `server:<tokenId>` for a paired hub, `webhook`, `anonymous` for a refused host, or `local` when nothing guards the API */
     actor: string | null;
   }
 }
