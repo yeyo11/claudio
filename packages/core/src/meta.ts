@@ -48,9 +48,8 @@ export function readInstanceId(dataDir: string): string {
 }
 
 /**
- * The SHA-256 of the LAN listener's certificate, which a grant hands the hub to pin (§9.1). The
- * listener gains its certificate in the `lan-tls` stage; until it offers `tlsFingerprint()` this is
- * null, so the pairing code needs no change when it does.
+ * The SHA-256 of the LAN listener's certificate, which a grant hands the hub to pin (§9.1); null while
+ * the listener has never made one (it was never turned on).
  */
 export function lanTlsFingerprint(lan: object): string | null {
   const read = (lan as { tlsFingerprint?: unknown }).tlsFingerprint;

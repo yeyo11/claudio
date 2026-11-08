@@ -114,6 +114,7 @@ import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine
 import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { LanListener } from './lan.ts';
+import { LAN_TLS_CAPABILITY } from './lan-tls.ts';
 import { ContextControl } from './context-control.ts';
 import { ChatNotes } from './context-notes.ts';
 import { ChatService, ChatStartError, type Placement, type RunningCounts } from './chat-service.ts';
@@ -262,6 +263,7 @@ export { parseVariant } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE } from './data-dir-lock.ts';
 export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart, type LanSwitch } from './paths.ts';
 export { DEFAULT_LAN_PORT, LanListener, LanRefusedError, type LanNetwork, type LanRequestHandler, type LanUpgradeHandler } from './lan.ts';
+export { LAN_TLS_CAPABILITY, lanCertificateFingerprint } from './lan-tls.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
 export { installProcessGuards } from './launcher/process-guards.ts';
 export { ChatRetention, type RetainedChat } from './chat-retention.ts';
@@ -725,6 +727,7 @@ export class Core {
     // The listener was refused for the lack of a credential; it opens once there is one
     this.security.afterGuarded.push(() => this.lan.guarded());
     this.identity = new ServerIdentity({ dataDir: config.dataDir, version: CLAUDIO_VERSION, tlsFingerprint: () => lanTlsFingerprint(this.lan) });
+    this.identity.declare(LAN_TLS_CAPABILITY);
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
