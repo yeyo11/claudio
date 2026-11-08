@@ -79,6 +79,34 @@ test('loopback is dialled only for an address recorded as loopback', () => {
   assert.equal(refusedIp('fd12:3456::1', false), null, 'a unique-local address is a LAN');
 });
 
+test('an IPv4 address written as IPv6 is refused like the IPv4 one, and tunnels to IPv4 are refused outright', () => {
+  // IPv4-mapped forms of every refused IPv4 range, in both spellings
+  for (const ip of ['::ffff:0.0.0.1', '::ffff:169.254.169.254', '::ffff:a9fe:a9fe', '::ffff:224.0.0.1', '::ffff:240.0.0.1', '::ffff:255.255.255.255', '::ffff:100.100.100.200', '::ffff:168.63.129.16', '0:0:0:0:0:ffff:a9fe:a9fe']) {
+    assert.notEqual(refusedIp(ip, true), null, ip);
+  }
+  // IPv4-compatible, whatever is inside, the loopback and a LAN address included
+  for (const ip of ['::169.254.169.254', '::a9fe:a9fe', '::127.0.0.1', '::10.1.2.3', '::0.0.0.2']) {
+    assert.notEqual(refusedIp(ip, true), null, ip);
+  }
+  // 6to4 and Teredo
+  for (const ip of ['2002:a9fe:a9fe::1', '2002::', '2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '2001:0:4136:e378:8000:63bf:3fff:fdd2', '2001::1']) {
+    assert.notEqual(refusedIp(ip, true), null, ip);
+  }
+  // The loopback rule is unchanged: ::1 and its mapped IPv4 form need an address recorded as loopback
+  assert.equal(refusedIp('::1', true), null);
+  assert.notEqual(refusedIp('::1', false), null);
+  assert.equal(refusedIp('::ffff:127.0.0.1', true), null);
+  assert.notEqual(refusedIp('::ffff:127.0.0.1', false), null);
+  // What stays open: a mapped LAN address, the global unicast next to the refused blocks
+  assert.equal(refusedIp('::ffff:192.168.0.29', false), null);
+  assert.equal(refusedIp('2001:db8::1', false), null, 'outside Teredo’s /32');
+  assert.equal(refusedIp('2003::1', false), null, 'outside 6to4’s /16');
+  assert.equal(refusedIp('2a01:4f8::1', false), null);
+  // A refused literal is refused when the address is entered, too
+  assert.equal(reason(() => parseAddress({ url: 'https://[::a9fe:a9fe]', kind: 'lan' })), 'servers.address-refused');
+  assert.equal(reason(() => parseAddress({ url: 'https://[2002:a9fe:a9fe::1]', kind: 'lan' })), 'servers.address-refused');
+});
+
 test('a name is dialled on an IP it resolved to only after that IP is checked: no rebinding to metadata or loopback', async (t) => {
   // A real port on loopback, so a refusal cannot be the connection failing
   const server = createServer((socket) => socket.end());

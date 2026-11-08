@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-08T20:00:00Z
 tags:
     - security
     - secrets
@@ -674,7 +674,8 @@ nothing a remote sends can act in the hub's origin. What holds:
   SVG, script) is sent as a download with `nosniff`. Writes are refused in the hub's read-only mode.
 - **What the hub dials (SSRF).** Only addresses recorded on the server. It resolves the name itself
   and connects to the IP it checked, never link-local, multicast, reserved or cloud-metadata
-  addresses (the IPv6 and NAT64 spellings included), loopback only for an address entered as
+  addresses (the IPv6, IPv4-mapped and NAT64 spellings included, and IPv4-compatible, 6to4 and
+  Teredo addresses, which carry an IPv4 one), loopback only for an address entered as
   loopback, plain `http://` only there. One connection is judged before a byte is written.
 - **The terminal through a hub.** A WebSocket is relayed only to a remote's terminal socket and only
   for a ticket the hub saw the remote mint through the gateway (bound to server, terminal, actor and
@@ -688,8 +689,7 @@ nothing a remote sends can act in the hub's origin. What holds:
 
 What does not: the sign-in screens and the LAN, tunnel and desktop surfaces are hub-only in the web,
 which is a convenience and not a boundary (the boundary is the gateway and the token); a hub's token
-has the owner's full power on the remote, so removing a server matters; the hub sets no size limit on
-request bodies it relays; and the CA-valid fallback means a name dialled through a tunnel is trusted
+has the owner's full power on the remote, so removing a server matters; and the CA-valid fallback means a name dialled through a tunnel is trusted
 as far as that tunnel's certificate and the `instanceId` check go.
 
 ## Known limits
