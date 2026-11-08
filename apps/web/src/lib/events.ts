@@ -37,6 +37,7 @@ import type {
   WorkItemChange,
   WorkItemDetail,
 } from '@claudio/shared';
+import { activeBase } from '@claudio/ui/lib/server-scope';
 import { keys } from '../api';
 import { withToken } from './auth';
 import { dispatchEvent, dispatchResync, setFeedState, useFeedState, type FeedState } from './feed';
@@ -800,7 +801,13 @@ export function applyEvent(client: QueryClient, schedule: (targets: readonly Tar
 
 // ---------- the connection ----------
 
-/** Opens the connection and wires it to the caches; returns what closes it. */
+/**
+ * Opens the connection and wires it to the caches; returns what closes it.
+ *
+ * It is the feed of the server this page is scoped to, and only that one (plan D11): the page of a
+ * remote opens the remote's `/events` through the gateway and never the hub's, and the hub's page
+ * never the remote's, so no tab holds two feeds.
+ */
 function startEventFeed(client: QueryClient): () => void {
   const invalidations = new Invalidations(client);
   let source: EventSource | null = null;
@@ -832,7 +839,7 @@ function startEventFeed(client: QueryClient): () => void {
 
   const connect = () => {
     setFeedState('connecting');
-    const es = new EventSource(withToken(`/api/events${lastId ? `?since=${lastId}` : ''}`));
+    const es = new EventSource(withToken(`${activeBase()}/events${lastId ? `?since=${lastId}` : ''}`));
     source = es;
     es.onopen = () => {
       attempts = 0;

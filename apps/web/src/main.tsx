@@ -16,6 +16,9 @@ import '@fontsource-variable/geist-mono';
 import './i18n'; // picks the language and sets <html lang> before the first render
 import { probeAuth } from './lib/auth';
 import { AppChatUi } from './lib/chat-ui';
+import { serverKeyHash } from './lib/server-keys';
+import { ServerScopeGate, ServerScopeProvider } from './lib/server-scope';
+import { activeServerId, routerBasename } from '@claudio/ui/lib/server-scope';
 import { registerServiceWorker } from './lib/pwa';
 import { SplashHandOff } from './lib/splash';
 import { watchChunkErrors } from './lib/reload';
@@ -42,32 +45,42 @@ const queryClient: QueryClient = new QueryClient({
     },
   }),
   defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 1000 },
+    // The page is scoped to one server: its reads are cached under that server's id
+    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 1000, queryKeyHashFn: serverKeyHash(activeServerId()) },
   },
 });
 
 // A data router (rather than <BrowserRouter>) is what makes useBlocker available, which the
 // unsaved-changes guard needs to intercept sidebar navigation. App keeps its own <Routes>.
-const router = createBrowserRouter([
-  {
-    path: '*',
-    // A render that throws anywhere in the app lands here, in the person's language, not on the router's developer page
-    errorElement: <RouteError />,
-    element: (
-      <TooltipProvider>
-        <ToastProvider>
-          <ConfirmProvider>
-            <SpendCapProvider>
-              <AppChatUi>
-                <App />
-              </AppChatUi>
-            </SpendCapProvider>
-          </ConfirmProvider>
-        </ToastProvider>
-      </TooltipProvider>
-    ),
-  },
-]);
+// A remote server's pages live under `/s/<id>`: the basename keeps every route, Link and NavLink of the
+// app as it is written and puts the prefix on the address (plan §4.3); the local scope has none.
+const router = createBrowserRouter(
+  [
+    {
+      path: '*',
+      // A render that throws anywhere in the app lands here, in the person's language, not on the router's developer page
+      errorElement: <RouteError />,
+      element: (
+        <TooltipProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <SpendCapProvider>
+                <ServerScopeProvider>
+                  <ServerScopeGate>
+                    <AppChatUi>
+                      <App />
+                    </AppChatUi>
+                  </ServerScopeGate>
+                </ServerScopeProvider>
+              </SpendCapProvider>
+            </ConfirmProvider>
+          </ToastProvider>
+        </TooltipProvider>
+      ),
+    },
+  ],
+  { basename: routerBasename(activeServerId()) },
+);
 
 /** After the first commit has painted: a payload's trial in the desktop shell counts the page as rendered */
 function PageReady(): null {

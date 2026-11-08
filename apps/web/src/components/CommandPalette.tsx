@@ -61,6 +61,7 @@ import { SETTINGS_INDEX } from '../pages/config/settingsIndex';
 import { entryHref, revealState } from '../pages/config/search/reveal';
 import { translator } from '../pages/config/search/match';
 import { createPaletteReporter, MAX_RECENT, MAX_RESULTS, MOTION_LEVELS, readRecent, RECENT_KEY, score, type Command, type Group } from './palette-model';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /** Each settings group's mark in the palette, so a result says where it lives before its hint does. */
 const SETTINGS_ICONS: Record<SettingsGroupId, LucideIcon> = {
@@ -307,7 +308,7 @@ export function CommandPalette() {
     const next = [base, ...recent.filter((id) => id !== base)].slice(0, MAX_RECENT);
     setRecent(next);
     try {
-      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      localStorage.setItem(scopedKey(RECENT_KEY), JSON.stringify(next));
     } catch {
       // recents are a convenience only
     }

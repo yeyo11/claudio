@@ -14,6 +14,7 @@ import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useClockTick, useMotionLevel } from '@claudio/ui/lib/motion';
 import type { ProgressStatus } from '@claudio/ui/lib/progress';
 import { branchCounts, branchElapsed, liveBranches, newestBranch, nextExpiry, type Branch, type BranchChat, type BranchCounts } from '../lib/chat-branches';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /** Where the strip's fold is remembered: `'open' | 'closed'`, closed when nothing is stored. */
 export const BRANCHES_STORAGE_KEY = 'claudio-chat-branches';
@@ -23,7 +24,7 @@ const ANNOUNCE_EVERY_MS = 5000;
 
 function readFold(): boolean {
   try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem(BRANCHES_STORAGE_KEY) === 'open';
+    return typeof localStorage !== 'undefined' && localStorage.getItem(scopedKey(BRANCHES_STORAGE_KEY)) === 'open';
   } catch {
     // Storage blocked: the strip starts folded, as it does for anyone the first time
     return false;
@@ -32,7 +33,7 @@ function readFold(): boolean {
 
 function writeFold(open: boolean): void {
   try {
-    localStorage.setItem(BRANCHES_STORAGE_KEY, open ? 'open' : 'closed');
+    localStorage.setItem(scopedKey(BRANCHES_STORAGE_KEY), open ? 'open' : 'closed');
   } catch {
     // Storage blocked: the fold holds for this page only
   }
