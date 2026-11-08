@@ -365,9 +365,10 @@ the work links take no such choice; it can be switched on from the chat once it 
 
 Deletes outside orchestrations and schedules, settings, accounts and security, moving a card to Done, and listing
 `claudio` in the person's MCP settings: it is internal, given to the chats Claudio confines and to the
-chats a person switches it on for. The chat-ui words the prompt of the write tools in the person's
-language (`packages/chat-ui/src/lib/write-prompts.ts`); the orchestration and template writes added
-for D12 have no wording there yet, so their prompt is the generic one (the tool's name and its input),
-still without "always allow", which the core keeps off every name in `CLAUDIO_MCP_WRITE_TOOLS`.
+chats a person switches it on for. The chat-ui words the prompt of every write tool, the owner's
+included, in the person's language (`packages/chat-ui/src/lib/write-prompts.ts`), and always says the
+person's fields a graph is launched, relaunched or saved with (permission mode, prompts, tools allowed
+without asking, guards or rules switched off, checks), so a wider run is never confirmed unseen. None
+offers "always allow": the core keeps it off every name in `CLAUDIO_MCP_WRITE_TOOLS`.
 
 Related: [[plans/regression-fixes-2026-10-29.md]], [[reports/regression-audit-2026-10-29.md]], [[plans/claudio-mcp-server.md]], [[plans/claudio-assistant.md]], [[claudio-assistant.md]], [[chat-environment.md]], [[assistant.md]], [[desktop.md]], [[collaborators.md]], [[plans/collaborators-agent-access.md]]

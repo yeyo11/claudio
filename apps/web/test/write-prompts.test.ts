@@ -35,7 +35,44 @@ const WRITE_TOOLS = [
   'update_schedule',
   'run_schedule',
   'delete_schedule',
+  'retry_orchestration_task_clean',
+  'rerun_orchestration_task',
+  'skip_orchestration_task',
+  'message_orchestration_task',
+  'verify_orchestration',
+  'retry_orchestration_review',
+  'relaunch_orchestration',
+  'launch_orchestration_template',
+  // The owner's orchestration writes (packages/mcp/src/names.ts, CLAUDIO_MCP_OWNER_TOOL_NAMES)
+  'delete_orchestration',
+  'integrate_orchestration',
+  'open_orchestration_pull_request',
+  'accept_orchestration_review',
+  'grant_orchestration_spend_pass',
+  'send_supervisor_proposal',
+  'dismiss_supervisor_proposal',
+  'prune_orchestration_worktrees',
+  'save_orchestration_workflow',
+  'create_orchestration_template',
+  'update_orchestration_template',
+  'delete_orchestration_template',
 ];
+
+test("what decides what a graph's workers may do is always said, in the person's language", async () => {
+  await i18n.changeLanguage('en');
+  const wide = { name: 'Split', tasks: [{ name: 'A' }], permissionMode: 'bypassPermissions', permissionPrompts: 'none', allowedTools: ['Bash'], guards: { enabled: false, rules: { push: false, secrets: true } }, verification: { commands: ['pnpm test', 'pnpm lint'] } };
+  assert.equal(
+    describeWrite(`${P}launch_orchestration`, wide)?.detail,
+    ['Tasks: A', 'Permission mode: bypassPermissions', 'Permission prompts: nobody answers them', 'Allowed without asking: Bash', 'Guards: off', 'Guard rules switched off: push', 'Checks: pnpm test · pnpm lint'].join('\n'),
+  );
+  assert.match(describeWrite(`${P}create_orchestration_template`, { ...wide, name: 'Nightly' })?.detail ?? '', /Permission mode: bypassPermissions/);
+  assert.match(describeWrite(`${P}relaunch_orchestration`, { orchestrationId: 'o1', permissionMode: 'plan' })?.detail ?? '', /Permission mode: plan/);
+  assert.equal(describeWrite(`${P}prune_orchestration_worktrees`, { orchestrationId: 'o1', force: true })?.title, "Remove an orchestration's worktrees, uncommitted changes included");
+  assert.equal(describeWrite(`${P}accept_orchestration_review`, { orchestrationId: 'o1', reason: 'Read every finding' })?.detail, 'Read every finding');
+  await i18n.changeLanguage('es');
+  assert.match(describeWrite(`${P}launch_orchestration`, wide)?.detail ?? '', /Guardas: desactivadas/);
+  await i18n.changeLanguage('en');
+});
 
 test('every write tool has a title in the person’s words', async () => {
   for (const language of ['en', 'es']) {
