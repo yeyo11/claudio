@@ -9,6 +9,7 @@ import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   DATA_DIR_LOCKED_EXIT_CODE,
+  RELAUNCH_EXIT_CODE,
   RESTART_EXIT_CODE,
   VERSION,
   checkOverlay,
@@ -80,6 +81,22 @@ export function collectOverlays(m: Machine, state: LauncherState): void {
 }
 
 /**
+ * What the base has caught up with is no longer news: a `bad` version not newer than the base can
+ * never boot or be offered anyway, and a rollback away from one tells of a version that no longer
+ * matters. Clears what the false rollbacks of finding 3 left (`bad: ["0.13.0", "0.14.0"]`,
+ * `lastRollback: { from: "0.14.0", to: "0.14.0" }`) on the first boot that reads them, and then
+ * finds nothing to clear. True when it changed `state`.
+ */
+function forgetOutrun(state: LauncherState, baseVersion: string): boolean {
+  const bad = state.bad.filter((v) => compareVersions(v, baseVersion) > 0);
+  const rollback = state.lastRollback && compareVersions(state.lastRollback.from, baseVersion) <= 0 ? null : state.lastRollback;
+  if (bad.length === state.bad.length && rollback === state.lastRollback) return false;
+  state.bad = bad;
+  state.lastRollback = rollback;
+  return true;
+}
+
+/**
  * What to boot: the trial, else the active overlay, else the previous one, else the base payload. A
  * candidate that fails its checks is marked bad and never booted again. `ignoreOverlays` is the
  * person's recovery (`CLAUDIO_PAYLOAD=bundled`): the base boots and nothing on disk changes.
@@ -94,10 +111,22 @@ export function pick(m: Machine, base: PayloadBase, keys: readonly KeyObject[], 
   }
   if (!m.files.exists(file)) return fallback;
   const state = m.files.readState(file);
-  let changed = false;
+  let changed = forgetOutrun(state, base.version);
   for (const role of ['trial', 'active', 'previous'] as const) {
     const v = state[role];
     if (v === null) continue;
+    // A package upgrade brought the base to the overlay's own version or past it (apt installed the
+    // release the overlay was): the overlay is outrun, not broken. Refusing it as "not newer" and
+    // marking it bad is what made the owner's card say "0.14.0 did not start, so the app went back
+    // to 0.14.0" (docs/plans/remote-updates.md, finding 3, D5). It still never boots, which keeps
+    // the downgrade rule; it just goes quietly, with no rollback and no `bad` entry.
+    if (compareVersions(v, base.version) <= 0) {
+      m.log(`overlay ${v} dropped: the base is ${base.version} now`);
+      state[role] = null;
+      if (role === 'trial') state.attempts = 0;
+      changed = true;
+      continue;
+    }
     // A trial must be newer than what runs now as well as the base: the agents' user can write
     // state.json, and pointing the trial at an older signed bundle would be a downgrade
     const failed = state.bad.includes(v)
@@ -211,6 +240,9 @@ export async function run(o: RunOptions): Promise<number> {
     if (o.stopping()) return exit.code;
     // Another server holds the data directory: the payload is not at fault, and starting it again changes nothing
     if (exit.code === DATA_DIR_LOCKED_EXIT_CODE) return exit.code;
+    // The person asked for the whole app to start again (D4): the host relaunches, and a trial cut
+    // short by it is tried again by the relaunched app rather than counted as a failed boot
+    if (exit.code === RELAUNCH_EXIT_CODE) return exit.code;
     if (boot.trial && !exit.healthy) {
       failTrial(o, boot.version, facts?.base.version ?? 'unknown');
       continue;
