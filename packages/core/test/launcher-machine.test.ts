@@ -204,7 +204,7 @@ test('a real failure newer than the base keeps its bad entry and its rollback no
   assert.deepEqual(after.lastRollback, rollback);
 });
 
-test('a trial cut short by exit 76 (relaunch the app) is not failed, and the launcher hands 76 to the host', async () => {
+test('a trial cut short by exit 76 (relaunch the app) is tried again by the relaunched app, and the launcher hands 76 to the host', async () => {
   const d = desk();
   overlay(d, '0.7.0');
   setState(d, { trial: '0.7.0' });
@@ -212,7 +212,33 @@ test('a trial cut short by exit 76 (relaunch the app) is not failed, and the lau
   assert.equal(result.code, RELAUNCH_EXIT_CODE);
   assert.equal(result.booted.length, 1, 'not started again here: the relaunched app boots it');
   const after = stateOf(d);
-  assert.deepEqual([after.trial, after.attempts, after.bad], ['0.7.0', 0, []]);
+  assert.deepEqual([after.trial, after.bad, after.lastRollback], ['0.7.0', [], null]);
+});
+
+test('a trial that keeps exiting 76 before it proves itself is rolled back, not relaunched forever', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  // Each launch of the app is one drive: the host relaunches on 76 and the next launch boots the trial again
+  const first = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(first.code, RELAUNCH_EXIT_CODE);
+  const second = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(second.code, RELAUNCH_EXIT_CODE);
+  const after = stateOf(d);
+  assert.equal(after.trial, null);
+  assert.deepEqual(after.bad, ['0.7.0']);
+  const third = await drive(d, { boots: [{ code: 0 }] });
+  assert.equal(third.booted[0]?.dir, d.baseDir, 'the next launch boots the shell, not the trial');
+});
+
+test('a trial that proved itself and then exits 76 is kept: the restart was asked of a healthy server', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  const result = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, proves: true }] });
+  assert.equal(result.code, RELAUNCH_EXIT_CODE);
+  const after = stateOf(d);
+  assert.deepEqual([after.active, after.trial, after.attempts, after.bad], ['0.7.0', null, 0, []]);
 });
 
 test('exit 75 boots again onto what state.json says now', async () => {

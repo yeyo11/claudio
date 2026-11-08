@@ -167,8 +167,10 @@ export class PayloadHost {
     if (this.relaunch) return { why: 'relaunch', code };
     if (this.stopRequested) return { why: 'stopped', code };
     // The person asked for a restart, from any device (docs/plans/remote-updates.md, D4): the whole
-    // app starts again, so a shell apt put on disk is what runs next
-    if (code === RELAUNCH_EXIT_CODE) return { why: 'relaunch', code };
+    // app starts again, so a shell apt put on disk is what runs next. Only a server that listened can
+    // have been asked: one that exits 76 before it ever did is broken, and relaunching on it would
+    // start the whole app again and again
+    if (code === RELAUNCH_EXIT_CODE && this.everReady) return { why: 'relaunch', code };
     return { why: 'exited', code, ready: this.everReady, detail: this.handle?.detail() ?? this.lastDetail };
   }
 

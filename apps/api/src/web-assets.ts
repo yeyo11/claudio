@@ -3,7 +3,7 @@
 // builds the launcher still keeps next to the running one (`<dataDir>/app/<version>/web`) can
 // answer for them, and everything else that names a file is a plain 404 instead of the shell.
 import { lstat, readdir, realpath } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { join, resolve } from 'node:path';
 
 /** A kept payload version's directory name (the launcher's `VERSION`, packages/core/src/launcher/protocol.ts) */
 const VERSION_DIR = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -40,14 +40,16 @@ export function assetName(pathname: string): string | null {
  * the one being served right now. A missing folder is not an error: most installs have no overlay.
  */
 export async function previousAssetDirs(dataDir: string, webDist: string): Promise<string[]> {
-  const root = join(dataDir, 'app');
+  let root: string;
   let names: string[];
   try {
+    // Its real path, so that `findPreviousAsset` can ask every folder below it to be a real one too
+    root = await realpath(join(dataDir, 'app'));
     names = await readdir(root);
   } catch {
     return [];
   }
-  const current = join(resolve(webDist), 'assets');
+  const current = join(await realpath(webDist).catch(() => resolve(webDist)), 'assets');
   return names
     .filter((name) => VERSION_DIR.test(name))
     .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }))
@@ -57,15 +59,17 @@ export async function previousAssetDirs(dataDir: string, webDist: string): Promi
 
 /**
  * The folder holding `name` among the kept builds, or null. Only a regular file whose real path is
- * inside that folder counts: the data directory is writable by the person's other processes, so a
- * link planted there must not turn this into a way to read anything else.
+ * the very path asked for counts: the data directory is writable by the person's other processes and
+ * these files are served before any sign-in, so a link planted there, on the file or on any folder
+ * between `app` and it (`<version>`, `web`, `assets`), must not turn this into a way to read anything
+ * else. `dirs` come from `previousAssetDirs`, under the real path of `app`.
  */
 export async function findPreviousAsset(dirs: readonly string[], name: string): Promise<string | null> {
   for (const dir of dirs) {
     const file = join(dir, name);
     try {
       if (!(await lstat(file)).isFile()) continue;
-      if ((await realpath(file)).startsWith((await realpath(dir)) + sep)) return dir;
+      if ((await realpath(file)) === file) return dir;
     } catch {
       // Not in this build
     }

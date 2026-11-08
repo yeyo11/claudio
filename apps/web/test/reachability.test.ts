@@ -150,13 +150,29 @@ test('any answer to the page\'s own calls ends the screen too, with no probe', a
   assert.equal(state.probes, 1);
 });
 
-test('a browser that says it has no network is told apart, and a stray answer does not contradict it', async (t) => {
+test('a browser that says it has no network is told apart in the words, and the probe still decides', async (t) => {
   const { state, store } = harness(t, { online: false });
   assert.equal(await store.suspect(), false);
-  assert.equal(state.probes, 0, 'no probe is needed to know there is no connection');
-  assert.equal(store.snapshot().offline, true);
-  store.answered();
+  assert.equal(state.probes, 1, 'offline is the wording, the probe is the verdict');
   assert.equal(store.snapshot().unreachable, true);
+  assert.equal(store.snapshot().offline, true);
+  // An answer to one of the page's own calls is the server there, whatever the browser says
+  store.answered();
+  assert.equal(store.snapshot().unreachable, false);
+});
+
+test("with no network at all the desktop app's own server still answers: no screen over a working app", async (t) => {
+  // The desktop window talks to 127.0.0.1, which needs no network; Chromium reports offline when
+  // only the loopback interface is up (a laptop in flight mode)
+  const { state, store } = harness(t, { online: false });
+  state.up = true;
+  assert.equal(await store.suspect(), true);
+  assert.equal(store.snapshot().unreachable, false);
+  const win = fakeWindow();
+  store.watch(win.target);
+  win.fire('offline');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(store.snapshot().unreachable, false, 'going offline is a reason to look, and the server is there');
 });
 
 function fakeWindow() {
@@ -213,12 +229,14 @@ test('those events ask nothing while the server is reachable', async (t) => {
   assert.equal(state.probes, 0);
 });
 
-test('the browser going offline puts the screen up at once, in the offline words, and coming back retries', async (t) => {
+test('the browser going offline looks at once, puts the screen up in the offline words, and coming back retries', async (t) => {
   const { state, store, settle } = harness(t);
   const win = fakeWindow();
   store.watch(win.target);
   state.online = false;
   win.fire('offline');
+  await settle();
+  assert.equal(state.probes, 1);
   assert.equal(store.snapshot().unreachable, true);
   assert.equal(store.snapshot().offline, true);
   state.online = true;

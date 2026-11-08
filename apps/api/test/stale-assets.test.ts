@@ -35,6 +35,16 @@ async function wrapper(withOverlay = true) {
     // Only a regular file inside the folder may be served
     writeFileSync(join(root, 'secret.txt'), 'outside');
     symlinkSync(join(root, 'secret.txt'), join(kept, 'link-Old444.js'));
+    // Nor through a folder planted as a link: a "kept build" whose version folder, `web` or
+    // `assets` points at some other folder of the person's, where a file is named like an asset
+    const elsewhere = join(root, 'elsewhere');
+    mkdirSync(join(elsewhere, 'web', 'assets'), { recursive: true });
+    writeFileSync(join(elsewhere, 'web', 'assets', 'private-Old666.js'), 'outside');
+    symlinkSync(elsewhere, join(root, 'data', 'app', '0.13.9'));
+    mkdirSync(join(root, 'data', 'app', '0.13.8'), { recursive: true });
+    symlinkSync(join(elsewhere, 'web'), join(root, 'data', 'app', '0.13.8', 'web'));
+    mkdirSync(join(root, 'data', 'app', '0.13.7', 'web'), { recursive: true });
+    symlinkSync(join(elsewhere, 'web', 'assets'), join(root, 'data', 'app', '0.13.7', 'web', 'assets'));
   }
   mkdirSync(join(root, 'data', 'app', '.staging-0.15.0', 'web', 'assets'), { recursive: true });
   writeFileSync(join(root, 'data', 'app', '.staging-0.15.0', 'web', 'assets', 'half-Old555.js'), 'half-written');
@@ -101,6 +111,7 @@ test('nothing outside the kept assets folders is reachable through /assets', asy
   });
   for (const url of [
     '/assets/link-Old444.js', // a link planted in a kept build
+    '/assets/private-Old666.js', // behind a version, web or assets folder planted as a link
     '/assets/..%2Fsecret.txt',
     '/assets/%2e%2e/secret.txt',
     '/assets/../../secret.txt',

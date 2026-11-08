@@ -63,15 +63,19 @@
   }
 
   /**
-   * Whether the module graph failed because the network did, which no reload fixes. The browser's own
-   * word first (no connection at all), then the one open route the server has: a probe that gets no
-   * answer is a server out of reach, any answer at all means the files are what is broken.
+   * Whether the module graph failed because the network did, which no reload fixes. The one open
+   * route the server has decides: a probe that gets no answer is a server out of reach (in the
+   * offline words when the browser says it has no connection), any answer at all means the files are
+   * what is broken.
    * `done` gets 'offline', 'unreachable' or null (the bundle, as before).
    */
   function diagnose(done) {
     var nav = win.navigator;
-    if (nav && nav.onLine === false) return done('offline');
-    if (typeof win.fetch !== 'function') return done(null);
+    // The browser's word picks the wording, the probe the verdict: the desktop app's server is on
+    // 127.0.0.1 and answers with no network at all, and then the bundle is what is broken
+    var offline = !!(nav && nav.onLine === false);
+    var lost = offline ? 'offline' : 'unreachable';
+    if (typeof win.fetch !== 'function') return done(offline ? 'offline' : null);
     var answered = false;
     function finish(kind) {
       if (answered) return;
@@ -84,7 +88,7 @@
           finish(null);
         },
         function () {
-          finish('unreachable');
+          finish(lost);
         }
       );
     } catch (e) {
@@ -92,7 +96,7 @@
     }
     // A phone off its VPN hangs rather than fails; the page must not stay blank waiting for it
     win.setTimeout(function () {
-      finish('unreachable');
+      finish(lost);
     }, 5000);
   }
 

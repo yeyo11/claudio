@@ -109,11 +109,10 @@ export class Reachability {
    */
   suspect(fresh = false): Promise<boolean> {
     if (this.view.unreachable) return Promise.resolve(false);
-    if (!this.online()) {
-      this.markUnreachable();
-      return Promise.resolve(false);
-    }
-    if (!fresh && this.now() - this.lastAnswerAt < REACHABLE_TTL_MS) return Promise.resolve(true);
+    // The browser saying it has no network only changes the words, never the verdict: the desktop
+    // app's server is on this machine (127.0.0.1) and answers with no network at all, and a probe
+    // of one that is really out of reach fails at once when the browser is offline
+    if (!fresh && this.online() && this.now() - this.lastAnswerAt < REACHABLE_TTL_MS) return Promise.resolve(true);
     this.confirming ??= this.probe().then((answered) => {
       this.confirming = null;
       if (answered) this.lastAnswerAt = this.now();
@@ -125,8 +124,8 @@ export class Reachability {
 
   /** Any answer from the server, over any route: proof it is there, and the end of the screen if it was up. */
   answered(): void {
-    // A browser that says it has no network is not contradicted by a cached answer
-    if (!this.online()) return;
+    // Every caller is a request that went out to the server (the API, the events stream, the auth
+    // probe; the service worker answers none of them from its cache), so this holds offline too
     this.lastAnswerAt = this.now();
     if (this.view.unreachable) this.recover();
   }
@@ -148,23 +147,27 @@ export class Reachability {
 
   /** Listens for the events that say the network may be back; returns what stops listening. */
   watch(target: ReachabilityTarget): () => void {
-    const refresh = () => {
-      if (this.online()) this.retryNow();
-      else this.markUnreachable();
+    const refresh = (event: 'online' | 'offline') => {
+      // Going offline is a reason to look, not a verdict (see `suspect`); coming back, to look again
+      if (!this.view.unreachable) {
+        if (event === 'offline') void this.suspect(true);
+      } else if (this.online()) this.retryNow();
       // The wording depends on `navigator.onLine`, which this event just changed
       if (this.view.unreachable) this.set(this.view);
     };
+    const online = () => refresh('online');
+    const offline = () => refresh('offline');
     const visible = () => {
       if (target.document?.visibilityState === 'visible') this.retryNow();
     };
     const retry = () => this.retryNow();
-    target.addEventListener('online', refresh);
-    target.addEventListener('offline', refresh);
+    target.addEventListener('online', online);
+    target.addEventListener('offline', offline);
     target.addEventListener('focus', retry);
     target.document?.addEventListener('visibilitychange', visible);
     return () => {
-      target.removeEventListener('online', refresh);
-      target.removeEventListener('offline', refresh);
+      target.removeEventListener('online', online);
+      target.removeEventListener('offline', offline);
       target.removeEventListener('focus', retry);
       target.document?.removeEventListener('visibilitychange', visible);
     };
