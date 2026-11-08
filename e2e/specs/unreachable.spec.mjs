@@ -147,11 +147,24 @@ export default async ({ page, check }) => {
     check(!layered.menuHit, 'the menu behind the screen cannot be reached');
     check(layered.focusInScreen, 'the screen holds the focus, not the menu');
     check(layered.menuKept, 'the menu is not torn down: what was open is still there when the server is');
+
+    // A real Escape, before any other input (a browser lets a page refuse to close a dialog only
+    // after a user activation): neither the screen nor the menu behind it goes
+    await page.key('Escape');
+    const afterEscape = await page.eval(`
+      const screen = document.querySelector(${JSON.stringify(SCREEN)});
+      return { open: !!screen?.open, shown: !!screen && getComputedStyle(screen).display !== 'none', menu: !!document.querySelector('[role=menu]') };`);
+    check(afterEscape.open && afterEscape.shown, `Escape does not close the screen and leave a blank window: ${JSON.stringify(afterEscape)}`);
+    check(afterEscape.menu, 'nor does it reach the menu behind the screen');
+
+    // A real press on Retry (pointerdown and all) is not a press outside the menu
+    await page.realClick(`${SCREEN} button`);
+    check(await page.eval(`return !!document.querySelector('[role=menu]')`), 'pressing Retry does not dismiss the menu behind the screen');
   } finally {
     await liftMenu();
   }
-  await page.click(`${SCREEN} button`);
   await screenGone('the app to resume after an outage over a menu');
+  check(await page.eval(`return !!document.querySelector('[role=menu]')?.contains(document.activeElement)`), 'focus is back in the menu that had it');
   await page.key('Escape');
   page.takeErrors();
 

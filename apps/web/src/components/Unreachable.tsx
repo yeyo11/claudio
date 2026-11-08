@@ -12,8 +12,9 @@ export const secondsUntil = (at: number, now: number): number => Math.max(1, Mat
  * The screen in the browser's top layer, as a modal `<dialog>` on `<body>`: above every menu, sheet
  * or dialog the page had open when the server went (they portal to `<body>` too, so hiding the shell
  * does not hide them), and with the whole rest of the document inert, so none of them acts or keeps
- * the focus. They are not closed: whatever was half done in them is still there when the server is.
- * Focus goes back to what had it once the screen goes.
+ * the focus. They are not closed: whatever was half done in them is still there when the server is,
+ * so nothing that would dismiss them gets past the screen (Escape, a press outside them). Focus
+ * goes back to what had it once the screen goes.
  */
 function TopLayer({ label, describedBy, children }: { label: string; describedBy: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -21,17 +22,48 @@ function TopLayer({ label, describedBy, children }: { label: string; describedBy
   const [previous] = useState(() => (document.activeElement instanceof HTMLElement ? document.activeElement : null));
   useEffect(() => {
     const dialog = ref.current;
-    if (!dialog) return;
-    if (!dialog.open && typeof dialog.showModal === 'function') dialog.showModal();
-    // The dialog itself, not Retry: a screen reader hears the title and the text once, not the countdown
-    dialog.focus({ preventScroll: true });
-    // Escape closes a modal dialog by default; this one goes only when the server answers
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+    let leaving = false;
+    const show = () => {
+      if (!dialog.open) dialog.showModal();
+      // The dialog itself, not Retry: a screen reader hears the title and the text once, not the countdown
+      dialog.focus({ preventScroll: true });
+    };
+    // The screen goes only when the server answers. Browsers ignore a `cancel` that is prevented
+    // without a user activation since the last one, so Escape or a phone's back gesture can still
+    // close a modal dialog: it is opened again at once, or the window would be left blank
+    dialog.setAttribute('closedby', 'none');
     const keep = (event: Event) => event.preventDefault();
+    const reopen = () => {
+      if (!leaving) show();
+    };
+    // Escape would also reach the page's own dialogs and menus, which listen on the document in
+    // the capture phase, and close them behind the screen: the window's capture comes first
+    const swallowEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      event.preventDefault();
+    };
+    // A press on the screen is outside every menu and sheet behind it, which they take as "close"
+    const stayInside = (event: Event) => event.stopPropagation();
     dialog.addEventListener('cancel', keep);
+    dialog.addEventListener('close', reopen);
+    dialog.addEventListener('pointerdown', stayInside);
+    dialog.addEventListener('focusin', stayInside);
+    window.addEventListener('keydown', swallowEscape, true);
+    show();
     return () => {
+      leaving = true;
+      window.removeEventListener('keydown', swallowEscape, true);
       dialog.removeEventListener('cancel', keep);
+      dialog.removeEventListener('close', reopen);
+      dialog.removeEventListener('pointerdown', stayInside);
+      dialog.removeEventListener('focusin', stayInside);
       if (dialog.open) dialog.close();
-      if (previous?.isConnected) previous.focus({ preventScroll: true });
+      const back = previous?.isConnected ? previous : document.getElementById('main');
+      back?.focus({ preventScroll: true });
+      // A layer that took its focus element with it leaves focus on <body>: the page is the next best place
+      if (document.activeElement === document.body) document.getElementById('main')?.focus({ preventScroll: true });
     };
   }, [previous]);
   return createPortal(
