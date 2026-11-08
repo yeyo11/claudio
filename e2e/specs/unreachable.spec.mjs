@@ -8,6 +8,20 @@ const SCREEN = '[data-testid=unreachable]';
 const BANNER = '[data-testid=reload-banner]';
 const API = ['*/api/*'];
 
+// Blocking URLs fails new requests only: the events stream already open keeps answering, and each
+// answer is the server there, which would end the screen by itself. So the page's streams are kept
+// where the outage can cut them too
+const TRACK_STREAMS = `(() => {
+  const Native = window.EventSource;
+  window.__claudioStreams = [];
+  window.EventSource = class extends Native {
+    constructor(...args) {
+      super(...args);
+      window.__claudioStreams.push(this);
+    }
+  };
+})();`;
+
 // Same trick as reload.spec.mjs: the hello the page hears names another version
 const FAKE_DEPLOY = `(() => {
   const Native = window.EventSource;
@@ -27,13 +41,20 @@ export default async ({ page, check }) => {
   const homeReady = () => page.waitFor(`return document.querySelector('main')?.innerText.trim().length > 10`, { label: 'the app' });
   const screenGone = (label) => page.waitFor(`return !document.querySelector(${JSON.stringify(SCREEN)})`, { label, timeout: 30000 });
 
+  const untrack = await page.onNewDocument(TRACK_STREAMS);
+  /** The server going away: no new request gets an answer, and the open stream is cut */
+  const outage = async () => {
+    const lift = await page.blockUrls(API);
+    await page.eval(`for (const stream of window.__claudioStreams ?? []) stream.close(); return true`);
+    return lift;
+  };
   await page.goto('/', 1500);
   await homeReady();
   check(await page.eval(`return !document.querySelector(${JSON.stringify(SCREEN)})`), 'a reachable server shows no unreachable screen');
 
   // ---- The server stops answering while the app is open ----
   await page.eval(`window.__claudioStay = true; return true`);
-  const lift = await page.blockUrls(API);
+  const lift = await outage();
   try {
     // Any read the page makes now fails at the network; going to Chats makes one
     await page.click('.sidebar a[href="/chats"]');
@@ -72,6 +93,14 @@ export default async ({ page, check }) => {
     const violations = await page.axe({ include: SCREEN });
     check(violations.length === 0, `the screen has accessibility violations: ${JSON.stringify(violations)}`);
 
+    // The page's own keyboard shortcuts (a list's Enter and `x`, a dialog's Escape) live on the
+    // window and the document: none of them hears a key while the screen is up
+    await page.eval(`window.__keysBehind = 0; const count = () => void window.__keysBehind++; window.addEventListener('keydown', count); document.addEventListener('keydown', count, true); return true`);
+    await page.key('x');
+    await page.key('Enter');
+    check((await page.eval(`return window.__keysBehind`)) === 0, `no key reaches the page behind the screen: ${await page.eval('return window.__keysBehind')}`);
+    check(await page.eval(`return location.pathname === '/chats'`), 'and nothing behind it moved');
+
     // The tab says what the screen says, also when the person goes to another page meanwhile
     check((await page.eval(`return document.title`)).startsWith("Can't reach Claudio"), `the tab title follows the screen: ${await page.eval('return document.title')}`);
     // The shell is out of sight, so the route changes the way a link or the back button would
@@ -99,7 +128,7 @@ export default async ({ page, check }) => {
   page.takeErrors();
 
   // ---- "Retry now" does not wait for the back-off ----
-  const liftAgain = await page.blockUrls(API);
+  const liftAgain = await outage();
   try {
     await page.click('.sidebar a[href="/"]');
     await page.waitFor(`return !!document.querySelector(${JSON.stringify(SCREEN)})`, { label: 'the unreachable screen, again' });
@@ -111,7 +140,7 @@ export default async ({ page, check }) => {
   page.takeErrors();
 
   // ---- A page opened while the server is away ----
-  const liftCold = await page.blockUrls(API);
+  const liftCold = await outage();
   try {
     await page.goto('/', 0);
     await page.waitFor(`return !!document.querySelector(${JSON.stringify(SCREEN)})`, { label: 'the unreachable screen on a cold start' });
@@ -127,7 +156,7 @@ export default async ({ page, check }) => {
   await page.focus('.topbar-new .split-btn-more');
   await page.press('Enter');
   await page.waitFor(`return !!document.querySelector('[role=menu]')`, { label: 'the New chat menu opens' });
-  const liftMenu = await page.blockUrls(API);
+  const liftMenu = await outage();
   try {
     // The browser saying it went offline makes the page look at once (the probe gets no answer)
     await page.eval(`dispatchEvent(new Event('offline')); return true`);
@@ -175,7 +204,7 @@ export default async ({ page, check }) => {
   try {
     await page.goto('/', 1500);
     await page.waitFor(`return !!document.querySelector(${JSON.stringify(BANNER)})`, { label: 'the banner for the other version' });
-    const liftDeploy = await page.blockUrls(API);
+    const liftDeploy = await outage();
     try {
       await page.click('.sidebar a[href="/chats"]');
       await page.waitFor(`return !!document.querySelector(${JSON.stringify(SCREEN)})`, { label: 'the unreachable screen with an update pending' });
@@ -188,6 +217,7 @@ export default async ({ page, check }) => {
     check(banner.includes('99.0.0'), `the update banner is back once the server answers: ${banner}`);
   } finally {
     await removeDeploy();
+    await untrack();
   }
   page.takeErrors();
 };

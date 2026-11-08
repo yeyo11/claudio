@@ -8,13 +8,16 @@ import { reachability, useReachability } from '../lib/reachability';
 /** Seconds until `at`, rounded up so the line never reads "0 s" while a wait is still on. */
 export const secondsUntil = (at: number, now: number): number => Math.max(1, Math.ceil((at - now) / 1000));
 
+const KEY_EVENTS = ['keydown', 'keypress', 'keyup'] as const;
+
 /**
  * The screen in the browser's top layer, as a modal `<dialog>` on `<body>`: above every menu, sheet
  * or dialog the page had open when the server went (they portal to `<body>` too, so hiding the shell
  * does not hide them), and with the whole rest of the document inert, so none of them acts or keeps
  * the focus. They are not closed: whatever was half done in them is still there when the server is,
- * so nothing that would dismiss them gets past the screen (Escape, a press outside them). Focus
- * goes back to what had it once the screen goes.
+ * so nothing that would dismiss them gets past the screen (a key, a press outside them; leaving the
+ * window still closes a menu, as it does with no screen). Focus goes back to what had it once the
+ * screen goes, or to the page.
  */
 function TopLayer({ label, describedBy, children }: { label: string; describedBy: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -37,12 +40,13 @@ function TopLayer({ label, describedBy, children }: { label: string; describedBy
     const reopen = () => {
       if (!leaving) show();
     };
-    // Escape would also reach the page's own dialogs and menus, which listen on the document in
-    // the capture phase, and close them behind the screen: the window's capture comes first
-    const swallowEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+    // The page behind keeps its keyboard shortcuts on the window and the document (a list's Enter
+    // and `x`, a dialog's Escape in the capture phase): no key gets to them, since the window's
+    // capture comes first. Only the propagation stops, so Tab and Enter or Space on Retry still do
+    // what they do; Escape's default is stopped too, as it would close this dialog
+    const swallowKeys = (event: KeyboardEvent) => {
       event.stopPropagation();
-      event.preventDefault();
+      if (event.key === 'Escape') event.preventDefault();
     };
     // A press on the screen is outside every menu and sheet behind it, which they take as "close"
     const stayInside = (event: Event) => event.stopPropagation();
@@ -50,11 +54,11 @@ function TopLayer({ label, describedBy, children }: { label: string; describedBy
     dialog.addEventListener('close', reopen);
     dialog.addEventListener('pointerdown', stayInside);
     dialog.addEventListener('focusin', stayInside);
-    window.addEventListener('keydown', swallowEscape, true);
+    for (const type of KEY_EVENTS) window.addEventListener(type, swallowKeys, true);
     show();
     return () => {
       leaving = true;
-      window.removeEventListener('keydown', swallowEscape, true);
+      for (const type of KEY_EVENTS) window.removeEventListener(type, swallowKeys, true);
       dialog.removeEventListener('cancel', keep);
       dialog.removeEventListener('close', reopen);
       dialog.removeEventListener('pointerdown', stayInside);
