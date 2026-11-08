@@ -1,6 +1,7 @@
 import { RefreshCw, X } from 'lucide-react';
 import { lazy, useEffect, useState, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
+import { reachability, type Reachability } from '../lib/reachability';
 import { dismissReloadOffer, holdReloadBanner, isChunkLoadError, noticeStaleChunk, reloadApp, useReloadOffer } from '../lib/reload';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Empty } from '@claudio/ui/components/ui';
@@ -88,6 +89,23 @@ export async function loadChunk<T>(load: () => Promise<T>, wait: (ms: number) =>
 }
 
 /**
+ * `loadChunk`, except that a chunk which fails while the server cannot be reached is not gone, it is
+ * out of reach: the unreachable screen is up, and the load is asked for again once the server
+ * answers, so a route opened offline does not end up stuck on the stale page for good.
+ */
+export async function loadChunkOnline<T>(
+  load: () => Promise<T>,
+  reach: Pick<Reachability, 'suspect' | 'untilReachable'> = reachability,
+  wait?: (ms: number) => Promise<void>,
+): Promise<T | null> {
+  for (;;) {
+    const page = await loadChunk(load, wait);
+    if (page !== null || (await reach.suspect(true))) return page;
+    await reach.untilReachable();
+  }
+}
+
+/**
  * `React.lazy`, for code that may have been deployed away. A chunk that fails to load is asked for
  * once more; when it is gone, the reload offer is raised and `fallback` (a page that says so) is
  * rendered instead of taking the app down with it. `React.lazy` keeps whatever it resolved for good,
@@ -98,7 +116,7 @@ export function lazyPage<P extends object>(load: () => Promise<ComponentType<P>>
   const Fallback = fallback;
   const attempt = (): ComponentType<P> => {
     const Page: ComponentType<P> = lazy(async () => {
-      const page = await loadChunk(load);
+      const page = await loadChunkOnline(load);
       if (page) return { default: page };
       noticeStaleChunk();
       // This visit shows the stale page, and leaving it readies a load of its own for the next
