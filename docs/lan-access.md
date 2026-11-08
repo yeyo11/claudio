@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-30T20:00:00Z
-updated_at: 2026-10-30T20:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - lan
     - remote-access
@@ -10,9 +10,10 @@ tags:
 # Claudio on the local network
 
 Claudio listens on the local network **itself**, on a fixed port (8791 by default), so a phone or a
-laptop on the same Wi-Fi opens `http://<the machine's address>:8791`. It is a second listener inside
+laptop on the same Wi-Fi opens `https://<the machine's address>:8791`. It is a second listener inside
 the server, with the same sign-in as everything else, a host allowlist that knows its addresses, and
-a sign-in back-off bucket for each device. The design was settled on 2026-10-30 in
+a sign-in back-off bucket for each device. Since 2026-11-08 it speaks **HTTPS** with a certificate of
+its own ([below](#https-the-certificate-and-the-redirect)). The design was settled on 2026-10-30 in
 [the plan](plans/lan-access.md); this page is how it works as built.
 
 ## Why it exists
@@ -26,15 +27,48 @@ random port with no allowlist of its own.
 
 ## What it is
 
-- **A second `http.Server`** (`packages/core/src/lan.ts`, `LanListener`, started by the server in
+- **A second listener** (`packages/core/src/lan.ts`, `LanListener`, started by the server in
   `apps/api/src/server.ts`). The main listener stays on loopback exactly as it was: the desktop
   window, chats, the MCP server and the shell's own credential all use it. The LAN listener hands
   `request` to the same Fastify routing and `upgrade` to the server's own `upgrade` event, because
   `@fastify/websocket` listens for upgrades on the main server only; the terminal needs it.
 - **Guarded like everything else.** The bearer token or OIDC, the access classes and the `Host`
-  allowlist run on every request that arrives on it. It is plain HTTP.
+  allowlist run on every request that arrives on it. It speaks TLS.
 - **A subsystem of its own**, as the tunnel: a failure to open it (a held port, an address the
   machine no longer has) is the listener's state, never the server's.
+
+## HTTPS, the certificate and the redirect
+
+The LAN listener moved to HTTPS so that another Claudio can pin it ([servers.md](servers.md)) and a
+token never crosses the network in clear ([the plan's D6](plans/claudio-servers.md)). Plain HTTP stays
+only on the loopback listener.
+
+- **A kept, self-signed certificate** (`packages/core/src/lan-tls.ts`), ECDSA P-256 with SHA-256,
+  valid 3650 days (backdated a day for devices with a slow clock). The key (`key.pem`, mode 0600) and the
+  certificate (`cert.pem`) live in `<data dir>/lan-tls/`, a directory of mode 0700. It names the
+  addresses the listener serves, `<hostname>.local` and the name mDNS answered for.
+- **It is made again only when it must be**: when the listener serves an address the certificate does
+  not name (a new DHCP lease, a `.local` name that starts to answer), or it is within 30 days of its
+  end. Never on a plain restart. A renewal keeps the **key**, so the public key outlives an address
+  change; but the fingerprint changes, and each renewal is audited as `Made a new LAN certificate`
+  with its fingerprint. The listener serves TLS 1.2 or later.
+- **The fingerprint** is the SHA-256 of the certificate's DER, upper-case hex pairs joined by colons.
+  `GET /lan` carries it as `fingerprint` (`null` until the listener has ever made a certificate), and
+  it is what a pairing grant hands a hub to pin. It survives the listener being turned off. Showing
+  it on the LAN card, so a person can compare it with a browser's warning, comes with the Servers UI;
+  until then read it from `GET /lan`.
+- **The browser warns.** No CA vouches for the certificate, so a browser shows its warning on the
+  first visit to `https://<address>:8791`; compare the fingerprint it shows with the one above before
+  accepting. A service worker does not register on an origin with a certificate error, so the PWA is
+  no worse than it was on plain HTTP; for an installable app and push on a phone, use a trusted
+  certificate: Tailscale's `*.ts.net` ([tunnel.md](tunnel.md#a-phone-and-the-local-network)).
+- **Plain HTTP is redirected** (D9), so old `http://` bookmarks keep working. One TCP listener per
+  address reads the first byte of each connection: a TLS handshake (`0x16`) goes to the app; anything
+  else is answered `301` with `Location: https://<the Host the client wrote><path>` and
+  `Cache-Control: no-store`. A `Host` that is not a bare name or address with a port, or a target that
+  is not a path, gets `400`, so `Location` never carries anything else. A `ws://` upgrade over plain
+  HTTP is closed, and a connection that says nothing for 10 s is dropped. The redirect serves nothing
+  of the app.
 
 ## When it listens
 
@@ -80,12 +114,12 @@ Settings → Access & safety → Remote access has the card **On the local netwo
 Tailscale card. It shows a switch and one of five states: **Listening** (ok), **Off**, **Needs a
 sign-in method** (the switch is disabled and links to Security), **Port in use** (bad, with **Use the
 next free port**), and **Failed** (the error in mono). While it listens it lists the URLs with
-**Copy** and a QR, one QR at a time, and a notice that the connection is unencrypted that stays
-visible while the card is on. The port and the interfaces have the usual **Changed · Reset** slot.
+**Copy** and a QR, one QR at a time, and a notice about the connection that stays visible while the card is on (its copy still describes the
+plain-HTTP listener and changes with the Servers UI). The port and the interfaces have the usual **Changed · Reset** slot.
 The design is in [design-system.md](design-system.md).
 
-**For a phone, use Tailscale.** On plain HTTP the phone gets no installable app and no push
-notifications (both need a secure origin), and its token travels in clear. See
+**For a phone, use Tailscale.** The LAN certificate is self-signed, so the phone warns about it and gets no installable app and no
+push notifications (both need a trusted origin). See
 [tunnel.md](tunnel.md#a-phone-and-the-local-network).
 
 ## The API
@@ -97,9 +131,12 @@ under `none` are audit rows. The rows are in the [Remote access](rest-api.md#rem
 
 ## What it does not do
 
-- **No TLS.** The bearer token, the `?token=` of the event streams and downloads, and the terminal's
-  ticket travel in clear, and whoever can answer for the name (mDNS, ARP) can serve a page on the
-  same origin. Tailscale is the encrypted way ([the review's F6](reports/lan-access-security.md)).
+- **No trusted certificate.** The traffic is encrypted since 2026-11-08, but the certificate is
+  self-signed: until a device accepts it, whoever can answer for the name (mDNS, ARP) can present
+  another certificate, and only comparing the fingerprint tells them apart. A hub that paired with
+  the server pins the fingerprint, so it is not exposed to this. Tailscale gives a certificate
+  browsers trust ([the review's F6](reports/lan-access-security.md), written when the listener was
+  plain HTTP).
 - No mDNS advertising, firewall helper or router change, and no change to the loopback listener or
   to how the desktop window reaches the server.
 
@@ -120,6 +157,7 @@ From [the security review](reports/lan-access-security.md), left open on purpose
 | | |
 | --- | --- |
 | The listener | `packages/core/src/lan.ts` |
+| The certificate | `packages/core/src/lan-tls.ts` |
 | The forwarders and the second server | `apps/api/src/server.ts` |
 | The back-off key and the local-machine checks | `apps/api/src/security.ts` |
 | The routes | `apps/api/src/routes/lan.ts` |
@@ -129,4 +167,4 @@ From [the security review](reports/lan-access-security.md), left open on purpose
 
 ## Related
 
-[[plans/lan-access.md]] · [[reports/lan-access-security.md]] · [[tunnel.md]] · [[securing.md]] · [[security-model.md]] · [[configuration.md]] · [[rest-api.md]] · [[desktop.md]] · [[terminal.md]] · [[deploy.md]] · [[design-system.md]]
+[[plans/lan-access.md]] · [[plans/claudio-servers.md]] · [[servers.md]] · [[reports/lan-access-security.md]] · [[tunnel.md]] · [[securing.md]] · [[security-model.md]] · [[configuration.md]] · [[rest-api.md]] · [[desktop.md]] · [[terminal.md]] · [[deploy.md]] · [[design-system.md]]

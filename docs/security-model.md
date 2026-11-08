@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-08T16:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - security
     - secrets
@@ -76,8 +76,9 @@ setup are kept ([the plan](plans/in-app-setup.md), [setup.md](setup.md)), as bui
 
 `packages/core/src/secret-vault.ts`, one document: `<dataDir>/secrets.json`, mode 0600, written
 through a temp file created at 0600. It holds only what a CLI reads from its **environment**: Claude
-Code's OAuth token or API key, YouTrack's address and token, and one secret no CLI reads at all: the
-iroh secret key of an install that turned Collaborators on (see [Collaborators](#collaborators)).
+Code's OAuth token or API key, YouTrack's address and token, and two kinds no CLI reads at all: the
+iroh secret key of an install that turned Collaborators on (see [Collaborators](#collaborators)), and
+the token for each server a hub drives (tool name `claudio-servers`, see [Servers](#servers)).
 Values are sealed with AES-256-GCM (`SecretBox`) when
 there is a key, as `enc:v1:…`.
 
@@ -616,10 +617,80 @@ What holds:
 - **A bind is a choice.** The list refuses `0.0.0.0` (that is `all`), loopback lends no host, and a
   held port is a state, never killed.
 
-What does not: it is plain HTTP (the token, the `?token=` of streams and downloads and the terminal's
-ticket are readable on the wire, and whoever answers for the name serves a page on the same origin),
-so the card says so and Tailscale is the recommendation for a phone; `all` includes public, Docker
-and tailnet interfaces; and `lan.changed` reaches a chat's token as `tunnel.changed` does.
+- **TLS since 2026-11-08.** The listener serves HTTPS with a self-signed certificate it keeps in
+  `<data dir>/lan-tls/` (key mode 0600), so the token, the `?token=` of streams and downloads and the
+  terminal's ticket are not readable on the wire. Plain HTTP on the port is a `301` to `https://` and
+  serves nothing of the app. The certificate's SHA-256 fingerprint is in `GET /lan`; a hub pins it at
+  pairing ([Servers](#servers)). Details in [lan-access.md](lan-access.md#https-the-certificate-and-the-redirect).
+
+What does not: the certificate is self-signed, so until a device has accepted it (or a hub pinned
+it), whoever answers for the name can present another one, and a person tells them apart only by
+comparing fingerprints; Tailscale is the recommendation for a phone, as it gives a certificate
+browsers trust. `all` includes public, Docker and tailnet interfaces, and `lan.changed` reaches a
+chat's token as `tunnel.changed` does.
+
+## Servers
+
+One Claudio (the hub) can drive others over their API ([servers.md](servers.md), [the plan](plans/claudio-servers.md)).
+The model is that a remote is trusted no further than a pinned identity and a token, and that
+nothing a remote sends can act in the hub's origin. What holds:
+
+- **The server actor.** A paired hub's request is `server:<tokenId>`. It is an owner for
+  authorisation (full control, by design) and is named in the audit. It is **never** this machine:
+  `fromLocalMachine` and the strict variant refuse it even on a loopback socket (a hub on the same
+  machine is still another server), it is a remote peer for the terminal gate (never local, never the
+  tunnel), and it is never a chat token. It is accepted on any `Host` the listener serves, because
+  the token, which a rebinding page cannot hold, is the proof; only its hash is compared before the
+  request is authenticated like any other.
+- **What the server actor cannot do.** It cannot mint pairing codes or tokens
+  (`403 server-links.not-owner`), so a hub never chains a third; and it cannot drive a gateway
+  (`403 servers.one-hop`). Its one extra power is to revoke its own token (`DELETE /server-links/self`,
+  allowed in read-only mode because it only removes access).
+- **Tokens on the remote.** 32 random bytes, shown once, stored as SHA-256 beside the owner's hash
+  in `auth.json` (mode 0600) with the hub's name and `instanceId`; compared in full against every
+  stored hash. One per hub: pairing again replaces the earlier token. Revoking takes the terminal
+  sockets that token opened with it. None can be minted under auth mode `none`
+  (`409 server-links.auth-required`): every request is `local` there, and a token would prove nothing.
+- **Pairing codes.** 8 characters from a 31-letter alphabet, 5 minutes, single use, held in memory as a
+  hash; a wrong code counts in the peer's sign-in back-off, and 20 wrong guesses from anyone void it.
+  `redeem` is open, but read-only mode refuses it like a write (`405`).
+- **The hub's secrets.** Each server's token is in the secret vault, sealed like every other secret,
+  and nowhere else: not in `servers.json`, a log, an audit row or an API answer. The pasted owner
+  token of the other pairing way is sent once and never kept. Removing a server revokes its token
+  on the remote; a failed revoke is reported, not hidden (`?force=true` says the token may still work).
+- **Identity.** A server is its `instanceId` and its pinned certificate (fingerprint and public
+  key). The hub judges a certificate by the pin, not a CA, with one exception: a CA-valid certificate
+  for the name dialled is accepted so that Tailscale names and tunnel proxies work (a CA never signs a
+  LAN address or a `.local` name). Either way `instanceId` must match, and a change is a hard block
+  until the server is removed and paired again.
+- **The gateway's rules** (`apps/api/src/routes/servers-gateway.ts`). Only the person calls it, and it
+  is `404` while the feature is off (`servers-settings.json`, off by default; turning it off closes
+  every relayed connection). Paths stay under `/api/` however often they are decoded, with no dot
+  segment, encoded slash or backslash, and never reach the remote's `/servers` or `/server-links` (one
+  hop). Headers pass through allowlists both ways, so the hub's `Authorization`, `?token=`, cookies
+  and `X-Forwarded-*` never reach the remote, and its `Set-Cookie`, redirects, CORS and HSTS never reach the
+  browser. A redirect is never followed or passed on. A `401` from the remote becomes
+  `409 servers.needs-pairing`, never the hub's own sign-in. A content type a browser would run (HTML,
+  SVG, script) is sent as a download with `nosniff`. Writes are refused in the hub's read-only mode.
+- **What the hub dials (SSRF).** Only addresses recorded on the server. It resolves the name itself
+  and connects to the IP it checked, never link-local, multicast, reserved or cloud-metadata
+  addresses (the IPv6 and NAT64 spellings included), loopback only for an address entered as
+  loopback, plain `http://` only there. One connection is judged before a byte is written.
+- **The terminal through a hub.** A WebSocket is relayed only to a remote's terminal socket and only
+  for a ticket the hub saw the remote mint through the gateway (bound to server, terminal, actor and
+  origin; 30 s; one use; back-off on wrong ones), so the hub cannot be used to try tickets on a
+  remote. The remote's own rule decides whether its terminal opens: the default `needs-tunnel`
+  keeps it closed to a hub.
+- **A headless Claudio can be a remote but never a hub.** It serves `GET /meta`,
+  `POST /server-links` (the pasted-token way; a code needs a page to show it on) and
+  `DELETE /server-links/self`, and no `/servers*` route. The hub's own `/servers*` routes are the
+  person's alone (a chat's token is refused).
+
+What does not: the sign-in screens and the LAN, tunnel and desktop surfaces are hub-only in the web,
+which is a convenience and not a boundary (the boundary is the gateway and the token); a hub's token
+has the owner's full power on the remote, so removing a server matters; the hub sets no size limit on
+request bodies it relays; and the CA-valid fallback means a name dialled through a tunnel is trusted
+as far as that tunnel's certificate and the `instanceId` check go.
 
 ## Known limits
 
@@ -633,5 +704,5 @@ and tailnet interfaces; and `lan.changed` reaches a chat's token as `tunnel.chan
 
 ## Related
 
-[[plans/regression-fixes-2026-10-29.md]] · [[reports/regression-audit-2026-10-29.md]] · [[rest-api.md]] · [[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
+[[servers.md]] · [[plans/claudio-servers.md]] · [[lan-access.md]] · [[plans/regression-fixes-2026-10-29.md]] · [[reports/regression-audit-2026-10-29.md]] · [[rest-api.md]] · [[guards.md]] · [[updates.md]] · [[setup.md]] · [[plans/in-app-setup.md]] · [[deploy.md]] · [[tunnel.md]] · [[code-hosts.md]] ·
 [[collaborators.md]] · [[plans/collaborators.md]] · [[plans/collaborators-agent-access.md]] · [[plans/review-gate.md]] · [[lessons.md]] · [[terminal.md]] · [[providers.md]] · [[trackers.md]] · [[chat-environment.md]] · [[desktop.md]] · [[layered-settings.md]] · [[evals.md]] · [[workspaces.md]] · [[decisions/confined-api-chat.md]] · [[plans/headless-image.md]] · [[lan-access.md]] · [[plans/lan-access.md]] · [[reports/lan-access-security.md]]

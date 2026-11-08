@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T14:36:12.21521472Z
-updated_at: 2026-11-08T14:36:12.21521472Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - plan
     - servers
@@ -11,7 +11,9 @@ tags:
 ---
 # Plan: Servers — one Claudio drives the others
 
-Status: **planned on 2026-11-08; orchestration A (engine, stages 1-3) launched the same day.**
+Status: **orchestration A (engine, stages 1-3, D12 and their docs) built on 2026-11-08, pending the
+security review and the merge; orchestration B (the UI, stage 4) waits for its design phase.** The
+engine as built is [servers.md](../servers.md); what each task delivered is in [Outcome](#10-outcome).
 Requirements gathered from the owner, prior art and pitfalls researched, design validated by the
 owner the same day. The UI (stage 4) waits for its own design phase (orchestration B).
 
@@ -422,6 +424,58 @@ why; English everywhere technical; Conventional Commits with a body saying why; 
 through Sluice's `verify` tool with your worktree as `working_directory` (gates `lint`,
 `typecheck`, `test`), never by running gates in the shell; no new dependency without saying why in
 the result (a certificate generator for `lan-tls` is expected: prefer a maintained pure-JS package).
+
+## 10. Outcome
+
+Orchestration A (graph `claudio-servers-engine`), as reported by each task on 2026-11-08. Nothing is
+pushed; the branches merge into one. The engine as it exists is [servers.md](../servers.md).
+
+| Task | Result |
+| --- | --- |
+| `remote-side` | `API_VERSION` / `API_VERSION_MIN` (both 1) and the §9.1 types in `packages/shared`; `GET /meta` and `instance.json` (`packages/core/src/meta.ts`); named server tokens in `auth.json` (hashed, one per hub, a pairing again replaces the earlier token) and the `server:<tokenId>` actor; one-time codes in memory (`security/server-links.ts`: 8 characters, 5 minutes, single use, 20 wrong guesses void it); `POST /server-links/code`, `/redeem`, `POST /server-links`, `DELETE /server-links/self`; the actor is never `fromLocalMachine`, is a remote peer for the terminal gate and is accepted on any `Host`. A headless Claudio serves `/meta`, `POST /server-links` and the self-revoke (commit `700a841ae`) |
+| `lan-tls` | The LAN listener on HTTPS (`packages/core/src/lan-tls.ts`, `lan.ts`): a kept self-signed ECDSA P-256 certificate in `<data dir>/lan-tls/`, made again only for an unnamed address or near its end, keeping the key; the first-byte split with a `301` for plain HTTP (D9); `https://` addresses; `LanStatus.fingerprint`; `LanListener.tlsFingerprint()`; the `lan-tls` capability. The LAN card does not show the fingerprint yet |
+| `web-scope` | Scope from the address (`/s/<id>/…`), `createApi(base)`, the event feed and storage keys per server (`:<serverId>` for remotes only), 401/421 handling through the gateway, the remote gate on `/meta`, `isHubOnly`, router basename and `sw.js`. No visible change; unit tests in `packages/ui`, `packages/chat-ui` and `apps/web`. The `ui-check` of Settings → Access ran on a remote scope in dark and light at four widths |
+| `orchestration-access` | D12: a chat with `tools.claudioMcp === true`, read on every request, acts as the owner on every `/orchestrations*` route and field (the audit still says `chat:<id>`); two template reads, eight writes on routes a chat could already call and twelve on the person's routes (`OWNER_TOOLS`) in the MCP server; permission prompts in `en`/`es` for the 20 new writes; `docs/security-model.md` § Chat tokens and `docs/claudio-mcp-server.md` |
+| `hub-gateway` | `packages/core/src/servers/`: registry (`servers.json`, the switch in `servers-settings.json`, tokens only in the vault), pairing client with the certificate checked against the grant, SSRF-safe transport (own resolution, pinned IP, TLS judged by the pin), address choice with two-failure hysteresis, health, test, use; the routes of §9.2 and the gateway for REST, SSE and the terminal WebSocket; 18 API tests and 14 core tests, including a 2 MiB upload through the gateway |
+| `docs` | `docs/servers.md`, and `lan-access.md`, `security-model.md` (§ Servers, the LAN section), `configuration.md` (the files Servers adds; no variable) and this plan. Also resolved the merge of `hub-gateway` in `apps/api/src/security.ts` (both import sets kept) |
+| `security-review` | Not reported when this section was written; its findings go here when it is. |
+
+### Decisions the tasks took where the plan was silent
+
+- **Tailscale and tunnel addresses** terminate TLS before the remote, so a pinned fingerprint cannot
+  match there. A connection is accepted if it shows the pinned fingerprint, the pinned public key or
+  a CA-valid certificate for the name dialled; the `instanceId` from `/meta` then binds it to the
+  server paired.
+- **Certificate renewal**: the public key is pinned too, so a remote that remakes its certificate on
+  the same key (as `lan-tls` does when it gains an address) is still recognised and the stored
+  fingerprint is updated.
+- **Addresses**: when adding, an extra address that does not answer yet is kept; when editing, a new
+  address must prove its identity now.
+- **Read-only**: a hub in read-only mode refuses writes through the gateway like any other write;
+  `DELETE /server-links/self` is allowed there.
+- **Health** is kept in memory only. **Headless** never acts as a hub.
+- **Errors**: the servers routes have their own handler so that `5xx` answers keep their `code`.
+- **Switching** servers in the web is a full page load, not a state change; query keys carry the
+  server in the cache hash rather than as a literal first element.
+- **Dependencies**: `undici` (already in the lockfile) is now a direct dependency of core; a pure-JS
+  certificate library (`@peculiar/x509`) makes the LAN certificate.
+
+### Left open
+
+- Stage 4, the UI (orchestration B): selector, status bar, Servers page, Settings switch, phone
+  layout, and the LAN card's fingerprint and its copy, which still says the connection is unencrypted.
+  The e2e for the visible flow comes with it; no e2e spec was written or run in orchestration A.
+- `apps/web/src/lib/server-meta.ts` mirrors `ServerMeta` and `WEB_API_VERSION`; swap them for the
+  shared `ServerMeta` and `API_VERSION`.
+- `mapRoute` sends any page that names a record to Home.
+- For the security review: the CA-valid fallback on pinned connections; the terminal relay reads the
+  bytes sent before the `101` from a private field of `@fastify/websocket`; the hub sets no size
+  limit on request bodies it relays.
+- The permission prompt of `launch_orchestration_template` does not show the template's stored
+  permissions and guards; the MCP `verification` schema takes commands in order only.
+- The full `ui-check` of `/chats` (two themes, four widths) was not measured under load.
+- A server whose identity changed can only be removed (`?force=true`) and added again, which gives it
+  a new id (R8 and D5 hold; re-pairing in place is not built).
 
 ## Related
 

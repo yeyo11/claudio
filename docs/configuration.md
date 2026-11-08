@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-30T20:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - configuration
     - environment
@@ -54,7 +54,7 @@ README's.
 | `CLAUDIO_TAILSCALE_MANAGED` | set by the image's entrypoint | `1` when the tailscaled behind the CLI is Claudio's own (the image's), which the app then signs in and out. Not for setting by hand |
 | `CLAUDIO_TAILSCALE_HOSTNAME` | `claudio` | The node's name when the image's Tailscale signs in (`tailscale up --hostname`); a DNS label, or the server stops at startup |
 | `CLAUDIO_TUNNEL_PORT` | unset | The HTTPS port of Claudio's Serve rule on the tailnet name. Unset, the port is the one chosen in Settings → Remote access (`tunnel-settings.json`, `8444` by default, kept off 443 so a Serve rule of your own is never touched); set, it fixes the port and the setting reads it, read-only. Not a port between 1 and 65535 stops the server at startup |
-| `CLAUDIO_LAN` | `auto` in the desktop app, `off` in the image and Helm, `off` from a checkout | Whether the server also listens on the local network, on a port of its own, in plain HTTP ([lan-access.md](lan-access.md)): `on`/`1`/`true`, `off`/`0`/`false` or `auto` (on while a token or OIDC is on, closed under auth mode `none`); empty or unset takes the launcher's default and the Settings switch; anything else stops the server at startup. `on` and `off` fix the switch and Settings shows it read-only; `auto` leaves it to the setting, whose default it sets |
+| `CLAUDIO_LAN` | `auto` in the desktop app, `off` in the image and Helm, `off` from a checkout | Whether the server also listens on the local network, on a port of its own, over HTTPS with a certificate it keeps (plain HTTP on that port is redirected; [lan-access.md](lan-access.md)): `on`/`1`/`true`, `off`/`0`/`false` or `auto` (on while a token or OIDC is on, closed under auth mode `none`); empty or unset takes the launcher's default and the Settings switch; anything else stops the server at startup. `on` and `off` fix the switch and Settings shows it read-only; `auto` leaves it to the setting, whose default it sets |
 | `CLAUDIO_LAN_PORT` | unset (the setting, `8791` by default) | The LAN listener's port. Set, it fixes the port and the setting reads it, read-only. Not a port from 0 to 65535 stops the server at startup (the setting takes 1024–65535; 0 is whatever is free, for tests) |
 | `CLAUDIO_LAN_BIND` | unset (the setting, every interface by default) | Comma-separated IPv4 addresses the LAN listener binds, instead of every interface. Set, it fixes the interfaces, read-only in Settings. Something that is not an IPv4 address, or `0.0.0.0` (leave the variable unset for every interface), stops the server at startup |
 | `TAILSCALE_BIN` | `tailscale` | The Tailscale CLI the tunnel runs |
@@ -124,6 +124,20 @@ Variables that belong to one feature, described where that feature is:
 | `CLAUDIO_SHELL_PATH_PROBE` | Not for setting: the desktop app sets it to `1` on the login shell it asks for `PATH`, so an rc file can skip prompts and plugins | [desktop.md](desktop.md), [providers.md](providers.md) |
 | `CLAUDIO_DOMAIN` | The public name the `tls` compose profile's Caddy serves | [deploy.md](deploy.md#docker-compose) |
 | `CLAUDIO_COLLAB_PRESET` / `CLAUDIO_COLLAB_BIND` | Collaborators' iroh endpoint: `minimal` (no relay, no discovery, peers reached by loopback tickets) and the address it binds; for tests on one machine | [collaborators.md](collaborators.md) |
+
+## Files Servers adds to the data directory
+
+[Servers](servers.md) adds no environment variable: its switch is a setting, off by default. It adds
+these files under `CLAUDIO_DATA_DIR`:
+
+| File | What it holds |
+| --- | --- |
+| `instance.json` | This server's `instanceId`, made once. Every Claudio has it, since each can be a remote. Deleting it gives the server a new identity, which every hub that paired with it takes for a changed one |
+| `lan-tls/key.pem`, `lan-tls/cert.pem` | The LAN listener's self-signed certificate and its key (directory 0700, key 0600), made the first time the listener starts and kept ([lan-access.md](lan-access.md#https-the-certificate-and-the-redirect)) |
+| `servers.json` | The servers this hub drives: names, addresses, pinned identities. No token |
+| `servers-settings.json` | `{ "enabled": false }`: the switch, apart from the list so turning it off leaves the list as it was |
+| `auth.json` (existing) | Gains `serverTokens`: the hashes of the tokens paired hubs hold, with the hub's name and id |
+| `secrets.json` (existing) | Gains one entry per server under the tool `claudio-servers`: the token the hub uses on it, sealed as every secret is ([security-model.md](security-model.md#the-secret-vault)) |
 
 ## Related
 
