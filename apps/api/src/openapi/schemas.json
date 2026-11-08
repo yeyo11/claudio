@@ -12911,6 +12911,13 @@
           }
         ],
         "description": "While `port-in-use`: what holds the port (the address it was taken on) and the next free one"
+      },
+      "fingerprint": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "SHA-256 of the listener's kept TLS certificate (its DER), upper-case hex pairs joined by colons: what a browser's certificate warning and a pairing hub are compared against. Null until the listener has made one"
       }
     },
     "required": [
@@ -12921,7 +12928,8 @@
       "interfaces",
       "settings",
       "available",
-      "portTaken"
+      "portTaken",
+      "fingerprint"
     ],
     "description": "`GET /lan`, and what `lan.changed` carries."
   },
@@ -12952,7 +12960,7 @@
       },
       "url": {
         "type": "string",
-        "description": "`http://<ip or host>:<port>`"
+        "description": "`https://<ip or host>:<port>`: the listener speaks TLS, and plain HTTP there is only a redirect"
       }
     },
     "required": [

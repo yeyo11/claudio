@@ -114,6 +114,7 @@ import { documentsLine, ItemDocumentsError, syncItemDocuments, withDocumentsLine
 import { canBranch, existingItemWorktree, itemWorktree, orchestrationDraft, startOptions, titleFromMessage, WORK_CAUSE, WorkItemAutomation, workItemPrompt } from './work-links.ts';
 import { TunnelManager } from './tunnel.ts';
 import { LanListener } from './lan.ts';
+import { LAN_TLS_CAPABILITY } from './lan-tls.ts';
 import { ContextControl } from './context-control.ts';
 import { ChatNotes } from './context-notes.ts';
 import { ChatService, ChatStartError, type Placement, type RunningCounts } from './chat-service.ts';
@@ -197,6 +198,7 @@ import { PROJECT_TEMPLATES } from './project-templates.ts';
 import { attachProject, ProjectStore, type ChatPlace, type ProjectRecord } from './projects.ts';
 import { AuthStore } from './security/auth.ts';
 import { ServerIdentity, lanTlsFingerprint } from './meta.ts';
+import { GATEWAY_CAPABILITY, Servers } from './servers/index.ts';
 import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
@@ -262,6 +264,7 @@ export { parseVariant } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE } from './data-dir-lock.ts';
 export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart, type LanSwitch } from './paths.ts';
 export { DEFAULT_LAN_PORT, LanListener, LanRefusedError, type LanNetwork, type LanRequestHandler, type LanUpgradeHandler } from './lan.ts';
+export { LAN_TLS_CAPABILITY, ensureLanCertificate, lanCertificateFingerprint } from './lan-tls.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
 export { installProcessGuards } from './launcher/process-guards.ts';
 export { ChatRetention, type RetainedChat } from './chat-retention.ts';
@@ -318,6 +321,7 @@ export { DOCUMENT_CONTENT_MAX } from './documents.ts';
 export { AuthStore, DESKTOP_ACTOR, SERVER_ACTOR_PREFIX, isServerActor, serverActor, parseServerLinkHub, serverLinksNeedAuth, type ServerLinkHub, type ServerTokenInfo } from './security/auth.ts';
 export { SERVER_LINK_CODE_ALPHABET, SERVER_LINK_CODE_LENGTH, SERVER_LINK_CODE_MAX_WRONG, SERVER_LINK_CODE_TTL_MS, ServerLinkCodes, ServerLinkError, normaliseServerLinkCode } from './security/server-links.ts';
 export { BASE_CAPABILITIES, INSTANCE_FILE, ServerIdentity, lanTlsFingerprint, readInstanceId } from './meta.ts';
+export { FAILURES_BEFORE_MOVE, GATEWAY_CAPABILITY, MAX_SERVERS, SERVERS_FILE, SERVERS_SETTINGS_FILE, SERVERS_VAULT_TOOL, Servers, ServersError, serversErrorOf, type GatewayOutcome, type GatewayTarget, type Lookup as ServersLookup, type ServersOptions, type UpgradeOutcome as ServerUpgradeOutcome, upgrade as upgradeServerSocket } from './servers/index.ts';
 export { CHAT_TOKEN_MAX_AGE_MS, CHAT_TOKEN_PREFIX, ChatTokenStore, chatActor } from './security/chat-tokens.ts';
 export { type FetchLike } from './security/oidc.ts';
 export { redactSecrets } from './security/redact.ts';
@@ -480,6 +484,8 @@ export class Core {
   readonly lan: LanListener;
   /** Who this server is to another Claudio: `instance.json`, the API range, the capabilities (docs/plans/claudio-servers.md) */
   readonly identity: ServerIdentity;
+  /** The servers this Claudio drives as a hub: `servers.json`, their tokens in the vault, the gateway's targets (docs/plans/claudio-servers.md, §4.2) */
+  readonly servers: Servers;
   readonly uploads: UploadStore;
   /** Which uploads belong to each chat, kept as rows so it holds for a chat not loaded since the start */
   readonly chatUploads: ChatUploads;
@@ -725,6 +731,9 @@ export class Core {
     // The listener was refused for the lack of a credential; it opens once there is one
     this.security.afterGuarded.push(() => this.lan.guarded());
     this.identity = new ServerIdentity({ dataDir: config.dataDir, version: CLAUDIO_VERSION, tlsFingerprint: () => lanTlsFingerprint(this.lan) });
+    this.identity.declare(LAN_TLS_CAPABILITY);
+    this.servers = new Servers({ dataDir: config.dataDir, vault: this.vault, instanceId: this.identity.instanceId });
+    this.identity.declare(GATEWAY_CAPABILITY);
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
@@ -3977,6 +3986,8 @@ export class Core {
     const tunnel = this.tunnel.shutdown();
     // Its names leave the allowlist and every connection on it ends before anything else closes
     const lan = this.lan.shutdown();
+    // Every pool to a remote, and what the gateway relays on them, ends with the hub
+    const servers = this.servers.close();
     this.logins.close();
     this.lessons.stop();
     this.cliVersion.stop();
@@ -4010,7 +4021,7 @@ export class Core {
     // final execution), so the database waits for them; one that hangs does not hold the exit for ever
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([
-      Promise.allSettled([evals, terminals, collaborators, chats, tunnel, lan]),
+      Promise.allSettled([evals, terminals, collaborators, chats, tunnel, lan, servers]),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
         timer.unref();

@@ -5687,7 +5687,7 @@ export interface LanAddress {
   ip: string;
   /** `<hostname>.local` when it resolves to one of the listening addresses; null for the bare address */
   host: string | null;
-  /** `http://<ip or host>:<port>` */
+  /** `https://<ip or host>:<port>`: the listener speaks TLS, and plain HTTP there is only a redirect */
   url: string;
 }
 
@@ -5714,6 +5714,12 @@ export interface LanStatus {
   available: boolean;
   /** While `port-in-use`: what holds the port (the address it was taken on) and the next free one */
   portTaken: TunnelPortTaken | null;
+  /**
+   * SHA-256 of the listener's kept TLS certificate (its DER), upper-case hex pairs joined by colons:
+   * what a browser's certificate warning and a pairing hub are compared against. Null until the
+   * listener has made one
+   */
+  fingerprint: string | null;
 }
 
 // ---------- Collaborators ----------

@@ -69,6 +69,25 @@ const QUERY_TOKEN = new Set([
 ]);
 
 /**
+ * The gateway (`routes/servers-gateway.ts`) relays a remote's own `QUERY_TOKEN` routes, which the
+ * browser opens through it the same way: the hub's token rides in `?token=` there too, on those paths
+ * only, and the gateway takes it off before the request leaves for the remote.
+ */
+const GATEWAY_GET = 'GET /servers/:id/api/*';
+const GATEWAY_QUERY_TOKEN = [...QUERY_TOKEN].map((route) => new RegExp(`^/api/servers/[^/]+/api${(route.split(' ')[1] ?? '').replace(/:[A-Za-z]+/g, '[^/]+')}$`));
+
+/**
+ * The gateway's relay of a remote's terminal socket: a browser's WebSocket carries no token, so it is
+ * opened by a ticket the gateway checks itself, as `TERMINAL_SOCKET` is by its route.
+ */
+const GATEWAY_SOCKET = /^\/api\/servers\/[^/]+\/api\/terminals\/[^/]+\/socket$/;
+
+function acceptsQueryToken(route: string | null, path: string): boolean {
+  if (route === null) return false;
+  return QUERY_TOKEN.has(route) || (route === GATEWAY_GET && GATEWAY_QUERY_TOKEN.some((pattern) => pattern.test(path)));
+}
+
+/**
  * Loopback is always ours: it is where a local install lives, and it is the address a rebinding
  * name resolves to on the second lookup. `::ffff:127.x.x.x` is the same address seen through a
  * dual-stack socket.
@@ -595,7 +614,7 @@ function credentialOf(req: FastifyRequest, route: string | null): string | undef
   // An empty bearer is no credential rather than a wrong one, so it is not counted as a guess
   if (scheme?.toLowerCase() === 'bearer' && rest.length) return rest.join(' ').trim() || undefined;
   // A header that is not a bearer token (a proxy's own `Basic`, say) is not ours: fall through
-  if (route === null || !QUERY_TOKEN.has(route)) return undefined;
+  if (!acceptsQueryToken(route, pathOf(req.url))) return undefined;
   const token = (req.query as { token?: unknown } | undefined)?.token;
   return typeof token === 'string' && token ? token : undefined;
 }
@@ -797,7 +816,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       return reply;
     }
     // A socket's ticket is its credential; the route checks it once the gate has had its say
-    const ticketed = route === TERMINAL_SOCKET;
+    const ticketed = route === TERMINAL_SOCKET || (route === GATEWAY_GET && req.headers.upgrade !== undefined && GATEWAY_SOCKET.test(path));
     if (ticketed && mode !== 'none') req.actor = 'anonymous';
     if (guarded && mode !== 'none' && !ticketed) {
       // Still audited when it is a write, and as what it was: nobody we could name
