@@ -41,6 +41,13 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
 
   app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>('/projects/:id', (req) => core.updateProject(req.params.id, req.body ?? {}));
 
+  // The names `POST /chats` takes as `agent`, read from the files the CLI reads
+  app.get<{ Params: { id: string } }>('/projects/:id/agents', async (req) => {
+    const agents = await core.projectAgents(req.params.id);
+    if (!agents) throw Object.assign(new NotFoundError(`project ${req.params.id} not found`), { statusCode: 404 });
+    return agents;
+  });
+
   // Which text each reviewer of the review gate runs with: the project's own file or Claudio's built-in
   app.get<{ Params: { id: string } }>('/projects/:id/review-roles', async (req) => {
     const roles = await core.reviewRoles(req.params.id);

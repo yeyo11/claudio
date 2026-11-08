@@ -9,7 +9,15 @@ import { loadConfig, type CoreConfig } from '../src/paths.ts';
 // core that was not awaited recreated in between
 const roots = new Set<string>();
 const removeRoots = (): void => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
+  for (const root of roots) {
+    try {
+      // A core whose shutdown was not awaited may still be writing under `data`: the retries ride
+      // out its last writes (ENOTEMPTY), as they did not on a loaded CI runner
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    } catch {
+      // Still being written to: the pass at exit removes it, and a leftover dir fails no test
+    }
+  }
 };
 after(removeRoots);
 process.once('exit', removeRoots);

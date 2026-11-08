@@ -215,6 +215,13 @@ export const TOOLS: readonly Tool[] = [
     run: async (args, api) => teamRows(await api.get(`/projects/${seg(need(args, 'projectId'))}/team`)),
   },
   {
+    name: 'list_agents',
+    description: "Lists the agents a new chat in a project can start as (user, project and plugin agents), with name, description and source: the `agent` that start_chat takes.",
+    inputSchema: schema({ projectId }, ['projectId']),
+    routes: ['GET /projects/:id/agents'],
+    run: (args, api) => api.get(`/projects/${seg(need(args, 'projectId'))}/agents`),
+  },
+  {
     name: 'list_flow_runs',
     description: "Lists a project's flow runs, newest first, filtered by agent, role, status or item. Use it for 'what did the team do' or 'what failed'.",
     inputSchema: schema(

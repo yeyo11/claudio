@@ -137,7 +137,7 @@ the cause `chat.api-write`, and a comment carries its source. See
 Move a card to Done (that is the person's click; the tool refuses before any request), delete, skip
 or restore anything, change settings, accounts, permissions or security, start a chat or an
 orchestration with more than the app's defaults (`start_chat` sends only `prompt`, `cwd` from the
-project's path in `GET /projects`, `model` and `name`; `launch_orchestration` no permission mode, tool
+project's path in `GET /projects`, `model`, `name` and the `agent` by name, which only narrows ([plans/start-chat-agent.md](plans/start-chat-agent.md)); `launch_orchestration` no permission mode, tool
 list, guards or verification), or stop, interrupt or message its own chat.
 
 ## How it is tested
@@ -160,7 +160,6 @@ fake CLI and the real MCP server, the guard and the audit) and
   still to do.
 - The entry's and the greeting's copy still say it can only read, and the "pide permiso" write
   starters are not drawn.
-- `start_chat` has no `agent` input, since the route takes only an inline agent object.
 - No test drives a confirmed or denied `create_work_item` through the real CLI, or accepts a
   work-item proposal with a chat token (the real-API test accepts an unknown one, which answers 404). The entry composer itself has no energy border: nothing
   works there, it navigates to the chat, whose composer carries it, as soon as the chat starts.

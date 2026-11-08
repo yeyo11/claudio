@@ -89,7 +89,9 @@ Rules for particular tools:
   `allowedTools`, `disallowedTools`, `toolPreset`, `mcp`, `account`, `confine` or
   `permissionPrompts`. The new chat starts with the app's defaults, including the default tool
   preset. Without this rule, one confirmed call could start an unconfined chat
-  (`bypassPermissions`) with a prompt the model wrote.
+  (`bypassPermissions`) with a prompt the model wrote. Its one later addition, `agent`, is a name
+  checked against the folder's agents, whose frontmatter cannot widen the chat
+  ([start-chat-agent.md](start-chat-agent.md)).
 - **`move_work_item` refuses `done`.** The tool answers with an error that tells the person to move
   the card to Done themselves. This follows the team rule "only a person moves an item to Done"
   ([team-and-flow.md](../team-and-flow.md)). If the owner wants otherwise, see the open questions.
@@ -240,7 +242,7 @@ tools: [claudio-mcp-server.md](../claudio-mcp-server.md#write-tools).
 - A chat token labels the actor `chat:<id>` under `mode: none`; the history records an agent of role
   `assistant` with the cause `chat.api-write`.
 - **Departures:** the permission branch is in `chat-fold.ts`, not `chats.ts`; `assistant.ts` and the
-  guide prompt changed too; `start_chat` has no `agent` input.
+  guide prompt changed too; `start_chat` had no `agent` input (added by [start-chat-agent.md](start-chat-agent.md)).
 - **Left open:** a title per tool in the permission prompt and the cause's copy in the history
   (web), an end-to-end confirmed and denied write through the real CLI, and the work-item proposal
   accept path with a real proposal.

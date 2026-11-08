@@ -57,6 +57,7 @@ import type {
   ServerProfile,
   SystemInfo,
   UpdateProjectRequest,
+  AvailableAgent,
   Board,
   CreateWorkItemFromMessageRequest,
   CreateWorkItemLinkRequest,
@@ -199,6 +200,7 @@ import { AuthStore } from './security/auth.ts';
 import { recognizeSecrets } from './decisions/redact.ts';
 import { Scheduler, spendHeldReason } from './schedules.ts';
 import { SessionStore } from './sessions.ts';
+import { AgentCatalog } from './agent-catalog.ts';
 import { agentsDefinitionFile } from './agents-file.ts';
 import { EvalConsents, EvalDefinitionStore, EvalFileError, evalTargetPath } from './evals/definition.ts';
 import { EvalJudge } from './evals/judge.ts';
@@ -444,6 +446,8 @@ export class Core {
   /** The Claude Docs each project knows, read and created through the Docs connector */
   readonly projectDocs: ProjectDocsService;
   readonly resources: ConfigResources;
+  /** The agents a chat started in a folder can run as (`POST /chats` with `agent`) */
+  readonly agents: AgentCatalog;
   readonly credentials: CredentialStore;
   /** The first setup's sign-ins: a key or a device code per tool, one live session per tool and host */
   readonly logins: LoginService;
@@ -1553,6 +1557,7 @@ export class Core {
       const path = change.scope.projectPath;
       for (const project of this.projectStore.list().filter((p) => p.path === path)) void this.team.agentFileChanged(project.id, change.name, change.action);
     });
+    this.agents = new AgentCatalog({ config, resources: () => this.resources, plugins: async () => (await this.plugins.overview()).installed });
     const evalStore = new EvalStore(this.db.connection);
     const evalDefinitions = new EvalDefinitionStore();
     const evalConsents = new EvalConsents(config);
@@ -3644,6 +3649,12 @@ export class Core {
 
   retryReview(id: string): Orchestration {
     return this.orchestrator.retryReview(id);
+  }
+
+  /** The agents a chat of the project can start as; null when the project does not exist */
+  async projectAgents(projectId: string): Promise<AvailableAgent[] | null> {
+    const project = this.projectStore.get(projectId);
+    return project ? this.agents.list(project.path) : null;
   }
 
   /** Which text each reviewer role runs with in a project: its own file or Claudio's built-in */

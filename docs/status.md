@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-11-08T12:00:00Z
+updated_at: 2026-11-08T15:00:00Z
 tags:
     - status
     - project-state
@@ -22,9 +22,9 @@ pull request is in [CHANGELOG.md](../CHANGELOG.md), so a release never leaves th
 | Version | The root `package.json`'s; release-please keeps it the same across all ten `package.json` files, and [CHANGELOG.md](../CHANGELOG.md) says what each release carried |
 | Released | On GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), from release-please's release pull requests. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 1,776 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,321 lines of `packages/shared/src/types.ts` |
+| Source | 1,779 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,348 lines of `packages/shared/src/types.ts` |
 | REST | 45 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 661 unit and integration test files, plus 99 browser specs under `e2e/specs/` |
+| Tests | 663 unit and integration test files, plus 99 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
@@ -150,7 +150,7 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
   the rest of that plan landed in #72 and #77. They wait for a design round of their own
   ([decisions/mcp-writes-under-bypass.md](decisions/mcp-writes-under-bypass.md)).
 - **Choosing the agent a chat starts as** (`start_chat` and `POST /chats` with an agent by name;
-  work item CLD-3) is being built on 2026-11-08.
+  work item CLD-3) landed in #96; see [plans/start-chat-agent.md](plans/start-chat-agent.md).
 - **Two proposals nobody has scheduled:** [plans/agent-test-guards.md](plans/agent-test-guards.md)
   (2026-10-16) and [plans/voice-actions.md](plans/voice-actions.md) (2026-09-28). Nothing of either is
   built; building or dropping them is the owner's call.
